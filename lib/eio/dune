@@ -1,0 +1,9 @@
+(library
+ (name console_eio)
+ (public_name console-eio)
+ (libraries console eio fmt logs cstruct optint unix)
+ (foreign_stubs
+  (language c)
+  (names winsize)
+  (flags
+   (:standard -std=gnu11 -Wall -Wextra -Werror))))

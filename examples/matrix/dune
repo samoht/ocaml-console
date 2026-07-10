@@ -1,0 +1,3 @@
+(executable
+ (name main)
+ (libraries console console-eio eio eio_main))

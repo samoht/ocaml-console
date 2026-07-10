@@ -1,0 +1,3 @@
+(executables
+ (names dump_progress frames)
+ (libraries console unix))

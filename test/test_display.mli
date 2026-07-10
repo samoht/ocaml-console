@@ -1,0 +1,5 @@
+(** Tests for the {!Console.Display} module, including fuzzer-found redraw
+    regressions replayed through a terminal emulator. *)
+
+val suite : string * unit Alcotest.test_case list
+(** [suite] is the Alcotest test suite for {!Test_display}. *)

@@ -1,0 +1,36 @@
+(library
+ (name fuzz_console)
+ (modules fuzz_console)
+ (libraries console matrix.vte fmt re uutf alcobar uucp))
+
+(executable
+ (name fuzz)
+ (modules fuzz)
+ (libraries fuzz_console alcobar))
+
+; The default per-test budget (2s) makes this VT-emulator-heavy suite a ~20s
+; inner-loop tax: ~9 properties render a Display, feed a real terminal emulator
+; and check invariants per iteration (~0.5-2ms each), so they never exhaust the
+; iteration cap and burn the whole budget. Keep the in-loop [runtest] a quick
+; smoke with a small budget; deep exploration is the [fuzz] alias below (AFL,
+; -V 60). The fast non-VT properties still run their full 5000 iterations.
+
+(rule
+ (alias runtest)
+ (package console)
+ (enabled_if
+  (<> %{profile} afl))
+ (deps fuzz.exe)
+ (action
+  (run %{exe:fuzz.exe} --budget 0.3)))
+
+(rule
+ (alias fuzz)
+ (package console)
+ (enabled_if
+  (= %{profile} afl))
+ (deps fuzz.exe)
+ (action
+  (progn
+   (run %{exe:fuzz.exe} --gen-corpus corpus)
+   (run afl-fuzz -V 60 -i corpus -o _fuzz -- %{exe:fuzz.exe} @@))))
