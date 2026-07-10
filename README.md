@@ -17,6 +17,14 @@ Terminal styling and layout widgets for OCaml CLI applications.
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
+console renders *inline* output: styled text, tables, trees, panels and
+live progress rows written into the normal scroll-back, degrading to
+plain append-only lines when stdout is not a terminal. It is not a TUI
+framework -- it never switches to the alternate screen, takes over the
+full window, or runs an event loop owning the terminal. For full-screen
+terminal applications, see [notty](https://github.com/pqwy/notty) or
+[lambda-term](https://github.com/ocaml-community/lambda-term).
+
 ## What it looks like
 
 ### Tables
@@ -25,9 +33,9 @@ Terminal styling and layout widgets for OCaml CLI applications.
 ╭──────────┬────────┬─────────┬──────────┬─────────┬───────────╮
 │ Target   │ Inst.  │ Execs   │ Paths    │ Crashes │ Exec/s    │
 ├──────────┼────────┼─────────┼──────────┼─────────┼───────────┤
-│ cbor    │      3 │    1.2M │      847 │       0 │     4,521 │
+│ cbor     │      3 │    1.2M │      847 │       0 │     4,521 │
 │ yamlrw   │      3 │    890K │    1,203 │       2 │     3,102 │
-│ jwt   │      2 │    2.1M │      412 │       0 │     6,847 │
+│ jwt      │      2 │    2.1M │      412 │       0 │     6,847 │
 ╰──────────┴────────┴─────────┴──────────┴─────────┴───────────╯
 ```
 
@@ -261,7 +269,7 @@ display for the duration of a function, animating it on a tick.
 
 ## Animation & the Matrix
 
-![Matrix ASCII rain demo](example/matrix/matrix.gif)
+![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
 An `Anim.t` is a value sampled at an elapsed time. `Spinner`, `Bar` and
 `Panel.rain` / `Table.rain` expose one; `Display.set_banner` and
@@ -283,7 +291,7 @@ head sweeps the border, trailing dimmer green, every cell flickering through an
 ASCII glyph. A panel or table built with `~theme:Theme.matrix` rains
 automatically from `Panel.anim` / `Table.anim` (the theme sets
 `animated_border`); `Panel.rain` applies the effect to any panel. A runnable
-demo lives in [`example/matrix`](example/matrix):
+demo lives in [`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->
 ```sh
@@ -365,4 +373,4 @@ let fancy = Style.(bold + italic + underline + fg Color.cyan + bg Color.black)
 
 ## Licence
 
-MIT License. See [LICENSE.md](LICENSE.md) for details.
+ISC licence. See [LICENSE.md](LICENSE.md) for details.
