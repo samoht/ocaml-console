@@ -1,11 +1,8 @@
-external winsize : Unix.file_descr -> int = "caml_console_winsize"
-external winsize_rows : Unix.file_descr -> int = "caml_console_winsize_rows"
-
 let usable_width w = if w > 10 then Some w else None
 
 let width_of_ioctl () =
-  try winsize Unix.stdout |> usable_width
-  with Unix.Unix_error _ | Failure _ -> None
+  try (Eio_unix.Pty.get_window_size Eio_unix.Fd.stdout).cols |> usable_width
+  with Unix.Unix_error _ -> None
 
 let width_of_env () =
   Option.bind (Sys.getenv_opt "COLUMNS") (fun cols ->
@@ -36,8 +33,8 @@ let width () =
 let usable_height h = if h > 2 then Some h else None
 
 let height_of_ioctl () =
-  try winsize_rows Unix.stdout |> usable_height
-  with Unix.Unix_error _ | Failure _ -> None
+  try (Eio_unix.Pty.get_window_size Eio_unix.Fd.stdout).rows |> usable_height
+  with Unix.Unix_error _ -> None
 
 let height_of_env () =
   Option.bind (Sys.getenv_opt "LINES") (fun rows ->
