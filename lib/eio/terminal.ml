@@ -1,4 +1,5 @@
 let usable_width w = if w > 10 then Some w else None
+let err_msg fmt = Fmt.kstr (fun msg -> Error (`Msg msg)) fmt
 
 let width_of_ioctl () =
   try (Eio_unix.Pty.get_window_size Eio_unix.Fd.stdout).cols |> usable_width
@@ -129,5 +130,5 @@ let read_secret ?(prompt = "") () =
               loop ()))
     with
     | Unix.Unix_error (e, fn, arg) ->
-        Error (`Msg (Fmt.str "%s(%s): %s" fn arg (Unix.error_message e)))
+        err_msg "%s(%s): %s" fn arg (Unix.error_message e)
     | End_of_file -> Error (`Msg "terminal output closed while prompting")
