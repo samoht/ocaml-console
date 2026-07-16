@@ -206,6 +206,51 @@ let test_plain_result_banner () =
     "fail banner after detail" true
     (contains "[FAIL] builder build failed\n" s)
 
+let test_plain_set_result () =
+  (* The verdict recorded on the display is rendered by a bare [finish_all]:
+     the detail paragraph, then the banner, exactly as if the caller had
+     passed [~result ?detail] itself. *)
+  let d, _, out = plain_display ~header:"Build" () in
+  let r = Display.row d "step" in
+  Display.finish r;
+  Display.set_result d ~detail:"3 files, 0 errors" (`Ok "build succeeded");
+  Display.finish_all d;
+  Alcotest.(check bool)
+    "stored detail then stored banner" true
+    (contains "3 files, 0 errors\n[OK] build succeeded\n" (out ()))
+
+let test_plain_set_result_last_wins () =
+  let d, _, out = plain_display () in
+  let r = Display.row d "step" in
+  Display.finish r;
+  Display.set_result d (`Ok "early verdict");
+  Display.set_result d (`Fail "late verdict");
+  Display.finish_all d;
+  let s = out () in
+  Alcotest.(check bool)
+    "last verdict rendered" true
+    (contains "[FAIL] late verdict\n" s);
+  Alcotest.(check bool)
+    "earlier verdict gone" false
+    (contains "early verdict" s)
+
+let test_plain_finish_all_result_overrides () =
+  (* An explicit [~result] passed to [finish_all] wins over the recorded
+     verdict, and the recorded detail does not leak under it. *)
+  let d, _, out = plain_display () in
+  let r = Display.row d "step" in
+  Display.finish r;
+  Display.set_result d ~detail:"stored detail" (`Ok "stored verdict");
+  Display.finish_all ~result:(`Fail "explicit verdict") d;
+  let s = out () in
+  Alcotest.(check bool)
+    "explicit verdict rendered" true
+    (contains "[FAIL] explicit verdict\n" s);
+  Alcotest.(check bool)
+    "stored verdict gone" false
+    (contains "stored verdict" s);
+  Alcotest.(check bool) "stored detail gone" false (contains "stored detail" s)
+
 let test_finish_all_finishes_rows () =
   let d, advance, out = plain_display ~header:"H" () in
   let _ = Display.row d "a" in
@@ -462,6 +507,35 @@ let test_tty_no_log_without_window () =
   Alcotest.(check bool)
     "no tail without a window" false
     (contains "should not show" (text ()));
+  Display.clear d
+
+let test_default_row_memoized () =
+  (* The untagged-logs row is created on first request and handed back on
+     every later one, so all destination-less log lines share one window. *)
+  let d, _, out = plain_display () in
+  let a = Display.default_row d in
+  let b = Display.default_row ~log_lines:5 d in
+  Alcotest.(check bool) "same row handed back" true (a == b);
+  Display.log a "untagged-line";
+  Display.finish_all d;
+  let s = out () in
+  Alcotest.(check bool)
+    "log lands in the shared window" true
+    (contains "# untagged-line" s);
+  Alcotest.(check int)
+    "exactly one logs row committed" 1
+    (List.length
+       (List.filter (contains "=> logs") (String.split_on_char '\n' s)))
+
+let test_tty_default_row_window () =
+  (* [log_lines] sizes the window when the call creates the row: the logged
+     line shows in the live tail under the [logs] label. *)
+  let d, _, _, text = tty_display () in
+  let r = Display.default_row ~log_lines:3 d in
+  Display.log r "untagged-line";
+  let t = text () in
+  Alcotest.(check bool) "logs row shown" true (contains "logs" t);
+  Alcotest.(check bool) "line in the window" true (contains "# untagged-line" t);
   Display.clear d
 
 let test_plain_log_appends () =
@@ -733,6 +807,19 @@ let test_tty_result_banner () =
   h.sync ();
   Alcotest.(check int)
     "ok banner shown once" 1
+    (Vt.count_rows h.vt "[OK] bootstrap complete")
+
+let test_tty_set_result_banner () =
+  (* The recorded verdict renders through a bare [finish_all] on a terminal
+     too, on exactly one row. *)
+  let h = vt_display ~header:"Build" () in
+  let r = Display.row h.d "step" in
+  Display.finish ~live:true r;
+  Display.set_result h.d (`Ok "bootstrap complete");
+  Display.finish_all h.d;
+  h.sync ();
+  Alcotest.(check int)
+    "recorded ok banner shown once" 1
     (Vt.count_rows h.vt "[OK] bootstrap complete")
 
 let test_tty_themed_banner () =
@@ -1286,6 +1373,11 @@ let suite =
       Alcotest.test_case "finish_all finishes rows" `Quick
         test_finish_all_finishes_rows;
       Alcotest.test_case "plain result banner" `Quick test_plain_result_banner;
+      Alcotest.test_case "plain set_result" `Quick test_plain_set_result;
+      Alcotest.test_case "plain set_result last wins" `Quick
+        test_plain_set_result_last_wins;
+      Alcotest.test_case "plain finish_all result overrides" `Quick
+        test_plain_finish_all_result_overrides;
       (* style *)
       Alcotest.test_case "style default segments" `Quick
         test_style_default_segments;
@@ -1306,11 +1398,16 @@ let suite =
       Alcotest.test_case "tty log window" `Quick test_tty_log_window;
       Alcotest.test_case "tty no log without window" `Quick
         test_tty_no_log_without_window;
+      Alcotest.test_case "default_row memoized" `Quick test_default_row_memoized;
+      Alcotest.test_case "tty default_row window" `Quick
+        test_tty_default_row_window;
       Alcotest.test_case "plain log appends" `Quick test_plain_log_appends;
       Alcotest.test_case "plain log gap" `Quick test_plain_log_gap;
       Alcotest.test_case "tty log gap" `Quick test_tty_log_gap;
       Alcotest.test_case "tty header marker" `Quick test_tty_header_marker;
       Alcotest.test_case "tty result banner" `Quick test_tty_result_banner;
+      Alcotest.test_case "tty set_result banner" `Quick
+        test_tty_set_result_banner;
       Alcotest.test_case "tty themed banner" `Quick test_tty_themed_banner;
       Alcotest.test_case "tty remove row" `Quick test_tty_remove_row;
       Alcotest.test_case "tty collapse no clobber" `Quick

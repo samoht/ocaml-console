@@ -227,6 +227,13 @@ val log : row -> string -> unit
     printed append-only (with the same gap suffix), so captured logs keep the
     output. No-op on a terminal when the row has no log window. *)
 
+val default_row : ?log_lines:int -> t -> row
+(** [default_row d] is [d]'s shared untagged-logs row, labelled ["logs"]:
+    created on first call and memoized, so every log line with no destination of
+    its own lands in one window. [log_lines] (default [0]) sizes the log window
+    when the call creates the row; later calls return the existing row and
+    ignore it. *)
+
 val set_label : row -> string -> unit
 (** [set_label r s] replaces [r]'s label. *)
 
@@ -284,10 +291,18 @@ val with_output : t -> (unit -> 'a) -> 'a
     around code that prints to the same terminal. In [`Plain] mode it just runs
     [f]. *)
 
+val set_result :
+  t -> ?detail:string -> [ `Ok of string | `Fail of string ] -> unit
+(** [set_result d result] records the verdict {!finish_all} renders on
+    completion -- the banner and the dimmed [detail] paragraph described there.
+    The last call wins. An explicit [result] passed to {!finish_all} overrides
+    the recorded verdict, its detail included. *)
+
 val finish_all :
   ?result:[ `Ok of string | `Fail of string ] -> ?detail:string -> t -> unit
 (** [finish_all d] finishes every still-running row, writes the header's final
-    summary and releases the terminal.
+    summary and releases the terminal. When [result] is omitted, the verdict
+    recorded by {!set_result} (if any) is rendered in its place.
 
     [result] adds a final verdict banner under the summary: a bold green
     [<ok_marker> <msg>] for [`Ok msg], or a bold red [<fail_marker> <msg>] for

@@ -231,6 +231,12 @@ type t = {
   auto_width : bool;
   auto_height : bool;
   mutable rows : row list; (* insertion order *)
+  mutable pending :
+    ([ `Ok of string | `Fail of string ] * string option) option;
+      (* the verdict recorded by {!set_result}; {!finish_all} renders it when
+         its caller passes no explicit result *)
+  mutable untagged : row option;
+      (* the memoized untagged-logs row handed out by {!default_row} *)
   mutable finished : int;
   mutable live_height : int;
   mutable last_lines : string list; (* the lines currently on screen *)
@@ -690,6 +696,8 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?(palette = [])
       auto_width = auto_width && not plain;
       auto_height = auto_height && not plain;
       rows = [];
+      pending = None;
+      untagged = None;
       finished = 0;
       live_height = 0;
       last_lines = [];
@@ -748,6 +756,19 @@ let row ?parent ?bar ?color ?(log_lines = 0) t label =
   t.rows <- t.rows @ [ r ];
   touch r;
   r
+
+(* The display's untagged-logs row: created on first request and memoized, so
+   every log line without a destination of its own lands in one shared
+   window. *)
+let default_row ?log_lines t =
+  match t.untagged with
+  | Some r -> r
+  | None ->
+      let r = row ?log_lines t "logs" in
+      t.untagged <- Some r;
+      r
+
+let set_result t ?detail result = t.pending <- Some (result, detail)
 
 let set_label r label =
   r.rlabel <- sanitize label;
@@ -895,6 +916,14 @@ let detail_lines t = function
 
 let finish_all ?result ?detail t =
   if not t.torn_down then begin
+    (* An explicit [result] wins over the recorded verdict, detail included;
+       otherwise the {!set_result} pair is the source of the banner. *)
+    let result, detail =
+      match (result, t.pending) with
+      | (Some _ as r), _ -> (r, detail)
+      | None, Some (r, d) -> (Some r, d)
+      | None, None -> (None, detail)
+    in
     List.iter (fun r -> if r.rfinish = None then finish r) t.rows;
     t.torn_down <- true;
     active_region := None;
