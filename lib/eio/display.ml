@@ -6,12 +6,7 @@ let animate ~sw ~clock d =
       done;
       `Stop_daemon)
 
-type t = {
-  display : Console.Display.t;
-  log_lines : int;
-  mutable fallback : Console.Display.row option;
-  mutable result : ([ `Ok of string | `Fail of string ] * string option) option;
-}
+type t = { display : Console.Display.t; log_lines : int }
 
 let pp ppf _ = Format.pp_print_string ppf "<tty-eio-display>"
 
@@ -35,17 +30,14 @@ let task ?parent ?log_lines t label =
 
 let finish = Console.Display.finish
 let log = Console.Display.log
-let set_result t ?detail result = t.result <- Some (result, detail)
 
-(* Untagged messages land in a lazily-created top-level task so a line is never
-   dropped for want of a tag. *)
+let set_result t ?detail result =
+  Console.Display.set_result t.display ?detail result
+
+(* Untagged messages land in the display's shared untagged-logs row so a line
+   is never dropped for want of a tag. *)
 let fallback_task t =
-  match t.fallback with
-  | Some row -> row
-  | None ->
-      let row = Console.Display.row ~log_lines:t.log_lines t.display "logs" in
-      t.fallback <- Some row;
-      row
+  Console.Display.default_row ~log_lines:t.log_lines t.display
 
 let reporter t =
   let report _src _level ~over k msgf =
@@ -126,13 +118,10 @@ let run ~sw ~clock ?(ppf = Fmt.stdout) ?mode ?(log_lines = 8) ?theme ?header f =
   in
   let display = Console.Display.v ~ctx ?mode ?theme ?header () in
   animate ~sw ~clock display;
-  let t = { display; log_lines; fallback = None; result = None } in
+  let t = { display; log_lines } in
   match f t with
   | v ->
-      (match t.result with
-      | Some (result, detail) ->
-          Console.Display.finish_all ~result ?detail display
-      | None -> Console.Display.finish_all display);
+      Console.Display.finish_all display;
       v
   | exception e ->
       (* An unhandled failure tears the live region down cleanly and re-raises;

@@ -16,8 +16,8 @@ val animate :
     torn-down display is a no-op. {!run} calls this for you. *)
 
 type t
-(** A running display: the underlying {!Console.Display.t}, the default
-    log-window size for its tasks, and the result set during the run. *)
+(** A running display: the underlying {!Console.Display.t} and the default
+    log-window size for its tasks. *)
 
 val pp : Format.formatter -> t -> unit
 (** [pp ppf t] writes a short representation of [t] to [ppf]. *)
@@ -39,11 +39,12 @@ val run :
     [header] to {!Console.Display.v}), forks {!animate} on [sw], and runs [f t].
     [log_lines] (default [8]) is the default log-window size handed to {!task}.
 
-    On normal return it finalises with {!Console.Display.finish_all}, adding the
-    verdict banner set through {!set_result} if any, and returns [f]'s value. If
-    [f] raises, it {!Console.Display.clear}s the live region and re-raises, so
-    the caller's handler reports the failure; a {e handled} failure should call
-    {!set_result} with [`Fail] and return so the banner shows it. *)
+    On normal return it finalises with {!Console.Display.finish_all}, which
+    renders the verdict banner set through {!set_result} if any, and returns
+    [f]'s value. If [f] raises, it {!Console.Display.clear}s the live region and
+    re-raises, so the caller's handler reports the failure; a {e handled}
+    failure should call {!set_result} with [`Fail] and return so the banner
+    shows it. *)
 
 (** {1 The task tree} *)
 
@@ -58,9 +59,9 @@ val finish : ?live:bool -> ?error:bool -> ?message:string -> task -> unit
 
 val set_result :
   t -> ?detail:string -> [ `Ok of string | `Fail of string ] -> unit
-(** [set_result t result] records the verdict {!run} shows on completion: a
-    green [`Ok msg] or red [`Fail msg] banner, with [detail] as a dimmed
-    paragraph above it. The last call wins. *)
+(** [set_result t result] is {!Console.Display.set_result}: record the verdict
+    {!run} shows on completion, a green [`Ok msg] or red [`Fail msg] banner,
+    with [detail] as a dimmed paragraph above it. The last call wins. *)
 
 (** {1 Feeding logs to a task} *)
 
