@@ -10,7 +10,11 @@ let glyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:.=*+-<>|/"
    frame) always picks the same glyph, so a given elapsed renders a stable frame
    (testable, and flicker-free under re-paint). *)
 let glyph i frame =
-  let h = ((i * 2654435761) + (frame * 40503)) land 0x3fffffff in
+  (* 507224497 is the golden-ratio hash constant 2654435761 (0x9e3779b1) reduced
+     mod 2^30: under the 30-bit mask the multiplier's high bits never affect the
+     result, so this is bit-identical to multiplying by 2654435761, and it stays
+     a small immediate that fits a 31-bit int (js_of_ocaml, wasm_of_ocaml). *)
+  let h = ((i * 507224497) + (frame * 40503)) land 0x3fffffff in
   String.make 1 glyphs.[h mod String.length glyphs]
 
 (* A border cell at perimeter index [pidx]: a green ASCII glyph whose brightness
