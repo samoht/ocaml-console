@@ -64,7 +64,11 @@ let test_on_interrupt_runs_cleanup_then_dies_from_sigint () =
       let _, status = waitpid_eintr pid in
       Alcotest.(check int) "cleanup ran" 1 n;
       Alcotest.(check char) "cleanup wrote its byte" 'C' (Bytes.get buf 0);
-      let died_from_sigint = status = Unix.WSIGNALED Sys.sigint in
+      let died_from_sigint =
+        match status with
+        | Unix.WSIGNALED signal -> Int.equal signal Sys.sigint
+        | WEXITED _ | WSTOPPED _ -> false
+      in
       Alcotest.(check bool)
         "child died from re-raised SIGINT" true died_from_sigint
 
