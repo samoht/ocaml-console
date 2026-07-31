@@ -13,9 +13,9 @@
     {!Theme} gives a whole set of widgets one consistent look. {!Display} is the
     live, in-place progress view for long-running work.
 
-    {1 Quick start}
+    {1:quickstart Quick start}
 
-    {2 Styled text}
+    {2:styled Styled text}
 
     {[
     open Console
@@ -25,7 +25,7 @@
       Fmt.pr "%a@." (Style.styled style Fmt.string) "Success!"
     ]}
 
-    {2 Tables}
+    {2:tables Tables}
 
     {[
     open Console
@@ -43,7 +43,7 @@
       Fmt.pr "%a@." (Table.pp ~ctx) table
     ]}
 
-    {2 Trees}
+    {2:trees Trees}
 
     {[
     open Console
@@ -62,7 +62,7 @@
       Fmt.pr "%a@." Tree.pp tree
     ]}
 
-    {2 Panels}
+    {2:panels Panels}
 
     {[
     open Console
@@ -75,7 +75,7 @@
       Fmt.pr "%a@." Panel.pp panel
     ]}
 
-    {2 Progress}
+    {2:progress Progress}
 
     A {!Display} owns a live region of rows that update in place; with no
     terminal it degrades to one tidy line per finished step. A {!Theme} fixes
@@ -97,7 +97,7 @@
       Display.finish_all d
     ]}
 
-    {2 Animation}
+    {2:animation Animation}
 
     An {!Anim.t} is a value sampled at an elapsed time. {!Spinner}, {!Bar} and
     {!Panel.rain} expose one; {!Display.set_banner} (or [Console_eio.Anim.run])
@@ -111,7 +111,7 @@
       Fmt.pr "%s@." (Anim.frame bar ~elapsed:0.5)
     ]} *)
 
-(** {1 Modules} *)
+(** {1:modules Modules} *)
 
 module Color = Color
 (** Named and 24-bit terminal colours. *)

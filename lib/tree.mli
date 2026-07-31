@@ -19,7 +19,8 @@ type guide = Theme.guide = {
     a {!Theme.t} styles a tree's branches and the live display's nesting
     identically. *)
 
-type 'a node = Node of 'a * 'a node list  (** A generic tree node. *)
+(** A generic tree node. *)
+type 'a node = Node of 'a * 'a node list
 
 type t
 (** A renderable tree of spans. *)
