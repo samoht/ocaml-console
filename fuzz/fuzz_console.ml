@@ -764,6 +764,37 @@ let test_differential_redraw label wbyte =
       invariant "cursor did not return to the final activity row"
         (Vte.cursor_pos vte = (2, 0)))
 
+(* Completion moves a task from the live projection into permanent history,
+   but must not change the layout contract: arbitrary labels and count widths
+   leave the timer on the exact right edge without an implicit VTE wrap. *)
+let test_committed_right_edge label wbyte =
+  let width = 16 + (wbyte land 0x7f mod 105) in
+  let buf = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer buf in
+  let now () = 0. in
+  let vte = Vte.create ~rows:4 ~cols:width () in
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
+    ~mode:`Activity ~width ~height:4 (fun display ->
+      let task = Display.task display label in
+      let cur = wbyte land 0xffff in
+      Display.set_count task ~cur ~total:(cur + 1);
+      Display.succeed task);
+  Format.pp_print_flush ppf ();
+  Vte.feed_string vte (Buffer.contents buf);
+  let rows =
+    vt_rows vte |> List.filter (fun row -> String.starts_with ~prefix:"=>" row)
+  in
+  invariant "completion did not produce exactly one history row"
+    (List.length rows = 1);
+  let row = List.hd rows in
+  invariant "committed timer is not at the right edge"
+    (String.ends_with ~suffix:"0.0s" row);
+  let grid = Vte.grid vte in
+  invariant "committed timer does not occupy the terminal's final cell"
+    (Grid.get_text grid (Grid.idx grid ~x:(width - 1) ~y:0) = "s");
+  invariant "committed row leaked into scrollback" (Vte.scrollback_size vte = 0);
+  invariant "committed row drifted the cursor" (Vte.cursor_pos vte = (1, 0))
+
 (* A keyed event stream needs no caller-owned task registry. Randomly duplicate,
    reorder and contradict starts, progress updates, logs and outcomes over eight
    stable IDs. Console must create one lifecycle per ID, keep progress
@@ -1039,6 +1070,7 @@ let suite =
         test_scrollback_collapse_commits;
       test_case "minimal redraw" [ bytes ] test_minimal_redraw;
       test_case "differential redraw" [ bytes; int ] test_differential_redraw;
+      test_case "committed right edge" [ bytes; int ] test_committed_right_edge;
       test_case "keyed event stream" [ bytes ] test_keyed_event_stream;
       test_case "dynamic geometry" [ bytes ] test_dynamic_geometry;
       test_case "result sanitization" [ bytes; bytes ] test_result_sanitization;

@@ -11,6 +11,10 @@ open Ansi
 
 type color = Color.t
 
+let src = Logs.Src.create "console.display" ~doc:"Console activity display"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
 let hide_cursor = "\027[?25l"
 let show_cursor = "\027[?25h"
 
@@ -162,7 +166,7 @@ let restore_terminal ppf =
   try
     Format.pp_print_string ppf show_cursor;
     Format.pp_print_flush ppf ()
-  with _ -> ()
+  with Sys_error _ | Unix.Unix_error _ -> ()
 
 (** {1 Row layout}
 
@@ -297,20 +301,20 @@ type view = {
   now : unit -> float;
   dimensions : unit -> int * int;
   is_tty : bool;
-  char_width : Uchar.t -> int;
+  char_width : (Uchar.t -> int) option;
 }
 
 type ctx = Fresh of view
 
-let make_view ~ppf ~now ~dimensions ~is_tty ~char_width =
+let view ~ppf ~now ~dimensions ~is_tty ~char_width =
   { ppf; now; dimensions; is_tty; char_width }
 
 let ctx ~ppf ~now ~dimensions ~is_tty () =
-  Fresh
-    (make_view ~ppf ~now ~dimensions ~is_tty
-       ~char_width:Width.default_char_width)
+  Fresh (view ~ppf ~now ~dimensions ~is_tty ~char_width:None)
 
-let with_char_width (Fresh c) char_width = Fresh { c with char_width }
+let with_char_width (Fresh c) char_width =
+  Fresh { c with char_width = Some char_width }
+
 let view_of_ctx (Fresh c) = c
 
 (* A non-interactive context -- standard output, a fixed 80x24 geometry, a zero
@@ -328,7 +332,7 @@ type t = {
   now : unit -> float;
   dimensions : unit -> int * int;
       (* terminal (width, height), re-read each paint so a resize is handled *)
-  char_width : Uchar.t -> int;
+  char_width : (Uchar.t -> int) option;
   header : string option;
   default_style : Line.t;
   theme : Theme.t;
@@ -404,8 +408,8 @@ let pp ppf t =
     (if t.torn_down then " torn-down" else "")
 
 let render_width t = t.width
-let string_width t = Width.string_width ~char_width:t.char_width
-let truncate t = Width.truncate ~char_width:t.char_width
+let string_width t = Width.string_width ?char_width:t.char_width
+let truncate t = Width.truncate ?char_width:t.char_width
 let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
 
 (* Plain (append-only) mode keeps a flat indent: a committed line is emitted
@@ -605,16 +609,26 @@ let styled_committed t row =
     | None -> dim
   in
   let indent, marker, label, metric, elapsed = committed_parts t row in
-  String.concat ""
-    [
-      indent;
-      Ansi.styled marker_style marker;
-      " ";
-      label;
-      dimmed metric;
-      "  ";
-      dimmed elapsed;
-    ]
+  let width = render_width t in
+  let marker = Ansi.styled marker_style marker in
+  let fixed_width = string_width t indent + string_width t marker + 1 in
+  let metric = String.trim metric in
+  let metadata = if metric = "" then elapsed else metric ^ "  " ^ elapsed in
+  (* Permanent TTY history keeps the same visual columns as the live row: the
+     elapsed time reaches the terminal's right edge and count/byte metadata is
+     right-aligned immediately before it. Labels absorb all width variation.
+     Plain redirected output remains compact. *)
+  let metadata =
+    if fixed_width + 2 + string_width t metadata <= width then metadata
+    else elapsed
+  in
+  let metadata_width = string_width t metadata in
+  let label_width = max 0 (width - fixed_width - metadata_width - 2) in
+  let label = truncate t label_width label in
+  let left = String.concat "" [ indent; marker; " "; label ] in
+  let gap = width - string_width t left - metadata_width in
+  if gap > 0 then left ^ String.make gap ' ' ^ dimmed metadata
+  else truncate t width (left ^ dimmed metadata)
 
 let complete t =
   let total = List.length t.rows in
@@ -723,10 +737,45 @@ let rec drop n = function _ :: tl when n > 0 -> drop (n - 1) tl | l -> l
    windows are shed, oldest first, until the region fits, with a marker counting
    what was hidden. If even the bare rows overflow, keep the most recent
    ones. *)
+let region_marker t hidden =
+  truncate t (render_width t) (Fmt.kstr dimmed "  ... (%d more lines)" hidden)
+
+let cap_rows t ~header ~budget ~total blocks =
+  (* Even the bare rows do not fit. Keep the phase/root and the active leaf,
+     collapsing the middle so both context and current work remain visible. *)
+  let rows = List.map fst blocks in
+  match rows with
+  | [] -> header
+  | first :: rest ->
+      if budget = 1 then header @ [ List.hd (List.rev rows) ]
+      else if budget = 2 then header @ [ first; List.hd (List.rev rest) ]
+      else
+        let shown = drop (List.length rest - (budget - 2)) rest in
+        let hidden = total - 1 - List.length shown in
+        header @ (first :: region_marker t hidden :: shown)
+
+let cap_logs t ~header ~budget ~total blocks =
+  (* Shed oldest logs while keeping every task row and one collapse marker. *)
+  if List.length blocks = budget then header @ List.map fst blocks
+  else
+    let to_drop = total - (budget - 1) in
+    let flat =
+      List.concat_map
+        (fun (line, logs) -> `Row line :: List.map (fun l -> `Log l) logs)
+        blocks
+    in
+    let rec shed dropped acc = function
+      | rest when dropped >= to_drop ->
+          List.rev_append acc (List.map (function `Row s | `Log s -> s) rest)
+      | `Log _ :: tl -> shed (dropped + 1) acc tl
+      | `Row s :: tl -> shed dropped (s :: acc) tl
+      | [] -> List.rev acc
+    in
+    header @ (region_marker t to_drop :: shed 0 [] flat)
+
 let cap_region t ~header ~blocks =
-  (* Reserve one row for the cursor / next commit. At very small geometries the
-     header wins; emitting even one line beyond [capacity] would scroll an old
-     frame out of reach of the cursor-relative clear. *)
+  (* Reserve one row for the cursor / next commit. Emitting beyond this capacity
+     would scroll an old frame out of reach of the relative clear. *)
   let capacity = max 0 (t.height - 1) in
   let header = if capacity = 0 then [] else header in
   let budget = max 0 (capacity - List.length header) in
@@ -736,51 +785,9 @@ let cap_region t ~header ~blocks =
   if budget = 0 then header
   else if total <= budget then
     header @ List.concat_map (fun (line, logs) -> line :: logs) blocks
-  else
-    let marker hidden =
-      truncate t (render_width t)
-        (Fmt.kstr dimmed "  ... (%d more lines)" hidden)
-    in
-    let nrows = List.length blocks in
-    if nrows > budget then begin
-      (* Even the bare rows do not fit. Keep the first row (the build phase /
-         root, the context for everything below) and the most recent rows (the
-         active leaf), collapsing the middle behind a marker -- so a deep tree
-         keeps both its phase and its active step on screen. *)
-      let rows = List.map fst blocks in
-      match rows with
-      | [] -> header
-      | first :: rest ->
-          if budget = 1 then header @ [ List.hd (List.rev rows) ]
-          else if budget = 2 then header @ [ first; List.hd (List.rev rest) ]
-          else
-            let tail_keep = budget - 2 in
-            let shown = drop (List.length rest - tail_keep) rest in
-            let hidden = total - 1 - List.length shown in
-            header @ (first :: marker hidden :: shown)
-    end
-    else
-      (* Spend the budget (less one row for the marker) on the most recent log
-         lines, shedding the oldest. Walk the flat row/log stream and drop the
-         first [to_drop] log lines, keeping every row line. *)
-      begin if nrows = budget then header @ List.map fst blocks
-      else
-        let to_drop = total - (budget - 1) in
-        let flat =
-          List.concat_map
-            (fun (line, logs) -> `Row line :: List.map (fun l -> `Log l) logs)
-            blocks
-        in
-        let rec shed dropped acc = function
-          | rest when dropped >= to_drop ->
-              List.rev_append acc
-                (List.map (function `Row s | `Log s -> s) rest)
-          | `Log _ :: tl -> shed (dropped + 1) acc tl
-          | `Row s :: tl -> shed dropped (s :: acc) tl
-          | [] -> List.rev acc
-        in
-        header @ (marker to_drop :: shed 0 [] flat)
-      end
+  else if List.length blocks > budget then
+    cap_rows t ~header ~budget ~total blocks
+  else cap_logs t ~header ~budget ~total blocks
 
 let rec row_live row =
   row.rfinish = None
@@ -871,17 +878,69 @@ let install_region t =
       };
   paint t
 
-let create ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
-    ?(bar = Line.default) ?width ?height ?header () =
-  let ctx = view_of_ctx ctx in
+let validate_geometry ~width ~height =
   (match width with
   | Some width when width <= 0 ->
       invalid_arg "Console.Display.run: width must be positive"
   | _ -> ());
-  (match height with
+  match height with
   | Some height when height <= 0 ->
       invalid_arg "Console.Display.run: height must be positive"
-  | _ -> ());
+  | _ -> ()
+
+let state ~(ctx : view) ~plain ~theme ~palette ~bar ~width ~height ~header =
+  let auto_width = width = None and auto_height = height = None in
+  let term_w, term_h = ctx.dimensions () in
+  let width = match width with Some w -> w | None -> max 1 term_w in
+  let height = match height with Some h -> h | None -> max 1 term_h in
+  {
+    dppf = ctx.ppf;
+    plain;
+    now = ctx.now;
+    dimensions = ctx.dimensions;
+    char_width = ctx.char_width;
+    header = Option.map sanitize header;
+    default_style = bar;
+    theme;
+    palette = Option.value palette ~default:(Theme.palette theme);
+    dstart = ctx.now ();
+    width;
+    height;
+    auto_width = auto_width && not plain;
+    auto_height = auto_height && not plain;
+    rows = [];
+    by_key = Hashtbl.create 16;
+    events_rev = [];
+    next_task_id = 0;
+    pending = None;
+    finished = 0;
+    live_height = 0;
+    last_lines = [];
+    torn_down = false;
+    owns_activity = false;
+    suspended = 0;
+  }
+
+let take_activity t ppf =
+  if not (Atomic.compare_and_set activity_claimed false true) then
+    invalid_arg "Console.Display.run: another activity display is active"
+  else begin
+    t.owns_activity <- true;
+    match install_region t with
+    | () -> t
+    | exception exn ->
+        t.owns_activity <- false;
+        active_region := None;
+        uninstall_reporter ();
+        Atomic.set activity_claimed false;
+        restore_terminal ppf;
+        raise exn
+  end
+
+let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
+    ?(bar = Line.default) ?width ?height ?header () =
+  let ctx = view_of_ctx ctx in
+  validate_geometry ~width ~height;
   let plain =
     match mode with
     | `History -> true
@@ -894,55 +953,8 @@ let create ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
   | Some _ | None -> ());
   (* A pinned [width]/[height] (tests) stays fixed; otherwise re-read the live
      terminal geometry on every paint so a resize is handled. *)
-  let auto_width = width = None and auto_height = height = None in
-  let term_w, term_h = ctx.dimensions () in
-  let width = match width with Some w -> w | None -> max 1 term_w in
-  let height = match height with Some h -> h | None -> max 1 term_h in
-  let make () =
-    {
-      dppf = ctx.ppf;
-      plain;
-      now = ctx.now;
-      dimensions = ctx.dimensions;
-      char_width = ctx.char_width;
-      header = Option.map sanitize header;
-      default_style = bar;
-      theme;
-      palette = Option.value palette ~default:(Theme.palette theme);
-      dstart = ctx.now ();
-      width;
-      height;
-      auto_width = auto_width && not plain;
-      auto_height = auto_height && not plain;
-      rows = [];
-      by_key = Hashtbl.create 16;
-      events_rev = [];
-      next_task_id = 0;
-      pending = None;
-      finished = 0;
-      live_height = 0;
-      last_lines = [];
-      torn_down = false;
-      owns_activity = false;
-      suspended = 0;
-    }
-  in
-  let t = make () in
-  if plain then t
-  else if not (Atomic.compare_and_set activity_claimed false true) then
-    invalid_arg "Console.Display.run: another activity display is active"
-  else begin
-    t.owns_activity <- true;
-    match install_region t with
-    | () -> t
-    | exception exn ->
-        restore_terminal ctx.ppf;
-        t.owns_activity <- false;
-        active_region := None;
-        uninstall_reporter ();
-        Atomic.set activity_claimed false;
-        raise exn
-  end
+  let t = state ~ctx ~plain ~theme ~palette ~bar ~width ~height ~header in
+  if plain then t else take_activity t ctx.ppf
 
 let touch r = if not r.disp.plain then paint r.disp
 
@@ -995,7 +1007,9 @@ let with_output t f =
         t.suspended <- t.suspended + 1;
         let resume ~preserve =
           t.suspended <- t.suspended - 1;
-          if preserve then try paint t with _ -> () else paint t
+          if preserve then
+            try paint t with Sys_error _ | Unix.Unix_error _ -> ()
+          else paint t
         in
         match call () with
         | value ->
@@ -1107,7 +1121,7 @@ let activity t =
 let emit_history_line t ~plain ~styled =
   if t.plain then Fmt.pf t.dppf "%s@." plain else commit t styled
 
-let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
+let validate_task ~id ~parent ~log_lines ~total t =
   check_open "task" t;
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
   (match total with
@@ -1117,10 +1131,12 @@ let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
   (match id with
   | Some "" -> invalid_arg "Console.Display.task: empty id"
   | Some _ | None -> ());
-  (match parent with
+  match parent with
   | Some parent when parent.disp != t ->
       invalid_arg "Console.Display.task: parent belongs to another display"
-  | Some _ | None -> ());
+  | Some _ | None -> ()
+
+let existing_task ~id ~parent t =
   match Option.bind id (Hashtbl.find_opt t.by_key) with
   | Some existing ->
       (match parent with
@@ -1130,49 +1146,57 @@ let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
           | Some _ | None ->
               invalid_arg "Console.Display.task: id already has another parent")
       | None -> ());
-      existing
-  | None ->
-      let now = t.now () in
-      let rid = t.next_task_id in
-      t.next_task_id <- rid + 1;
-      let inherited =
-        match Option.bind parent (fun parent -> parent.routcome) with
-        | Some `Succeeded -> Some `Succeeded
-        | Some (`Failed | `Cancelled) -> Some `Cancelled
-        | None -> None
-      in
-      let r =
-        {
-          rid;
-          rkey = id;
-          disp = t;
-          parent;
-          style = row_style t ~bar ~color;
-          log_lines;
-          logs = [];
-          log_prev_t = now;
-          rlabel = sanitize label;
-          metric =
-            (match total with Some total -> Count (0, total) | None -> Spin);
-          rstart = now;
-          rfinish = Option.map (Fun.const now) inherited;
-          rmessage = None;
-          routcome = inherited;
-          last_cur = 0L;
-          last_t = now;
-          rate = 0.;
-        }
-      in
-      t.rows <- t.rows @ [ r ];
-      Option.iter (fun id -> Hashtbl.add t.by_key id r) id;
-      record ~task:r t `Started r.rlabel;
-      Option.iter
-        (fun outcome ->
-          t.finished <- t.finished + 1;
-          record ~task:r t (`Finished outcome) r.rlabel)
-        inherited;
-      touch r;
-      r
+      Some existing
+  | None -> None
+
+let add_task ~id ~parent ~bar ~color ~log_lines ~total t label =
+  let now = t.now () in
+  let rid = t.next_task_id in
+  t.next_task_id <- rid + 1;
+  let inherited =
+    match Option.bind parent (fun parent -> parent.routcome) with
+    | Some `Succeeded -> Some `Succeeded
+    | Some (`Failed | `Cancelled) -> Some `Cancelled
+    | None -> None
+  in
+  let r =
+    {
+      rid;
+      rkey = id;
+      disp = t;
+      parent;
+      style = row_style t ~bar ~color;
+      log_lines;
+      logs = [];
+      log_prev_t = now;
+      rlabel = sanitize label;
+      metric =
+        (match total with Some total -> Count (0, total) | None -> Spin);
+      rstart = now;
+      rfinish = Option.map (Fun.const now) inherited;
+      rmessage = None;
+      routcome = inherited;
+      last_cur = 0L;
+      last_t = now;
+      rate = 0.;
+    }
+  in
+  t.rows <- t.rows @ [ r ];
+  Option.iter (fun id -> Hashtbl.add t.by_key id r) id;
+  record ~task:r t `Started r.rlabel;
+  Option.iter
+    (fun outcome ->
+      t.finished <- t.finished + 1;
+      record ~task:r t (`Finished outcome) r.rlabel)
+    inherited;
+  touch r;
+  r
+
+let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
+  validate_task ~id ~parent ~log_lines ~total t;
+  match existing_task ~id ~parent t with
+  | Some existing -> existing
+  | None -> add_task ~id ~parent ~bar ~color ~log_lines ~total t label
 
 let set_label r label =
   check_open "set_label" r.disp;
@@ -1452,20 +1476,19 @@ let cleanup_after_exception t =
   try
     cancel_running t "interrupted";
     close t
-  with _ ->
+  with exn ->
     t.torn_down <- true;
     if not t.plain then begin
       restore_terminal t.dppf;
       release_activity t
-    end
+    end;
+    Log.warn (fun m -> m "Console display cleanup failed: %a" Fmt.exn exn)
 
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Domain.DLS.get current with
   | Some t -> f t
   | None ->
-      let t =
-        create ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header ()
-      in
+      let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
       Domain.DLS.set current (Some t);
       Fun.protect
         ~finally:(fun () -> Domain.DLS.set current None)

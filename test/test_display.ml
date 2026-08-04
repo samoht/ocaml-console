@@ -615,6 +615,40 @@ let test_differential_redraw_and_right_edge () =
       Alcotest.(check (pair int int))
         "cursor rests on the final activity row" (2, 0) (Vte.cursor_pos vte))
 
+let test_committed_metadata_is_right_aligned () =
+  let width = 48 in
+  let vte =
+    terminal_run ~height:8 ~width (fun display advance _sync _vte ->
+        let finish ?count elapsed label =
+          let task = Display.task display label in
+          Option.iter
+            (fun (cur, total) -> Display.set_count task ~cur ~total)
+            count;
+          advance elapsed;
+          Display.succeed task
+        in
+        finish ~count:(1, 2) 0.3 "pins synced";
+        finish ~count:(459, 459) 1.1 "packages checked";
+        finish 0.1 "workspace prepared")
+  in
+  let rows =
+    terminal_rows vte
+    |> List.filter (fun row -> String.starts_with ~prefix:"=>" row)
+  in
+  Alcotest.(check int) "three permanent task rows" 3 (List.length rows);
+  List.iter
+    (fun row ->
+      Alcotest.(check int)
+        "committed row reaches the right edge" width (Width.string_width row);
+      Alcotest.(check bool)
+        "elapsed time is the rightmost field" true
+        (String.ends_with ~suffix:"s" row))
+    rows;
+  Alcotest.(check int)
+    "committed rows do not enter scrollback" 0 (Vte.scrollback_size vte);
+  Alcotest.(check (pair int int))
+    "cursor begins the row after history" (3, 0) (Vte.cursor_pos vte)
+
 let test_default_visual_hierarchy_and_color_scope () =
   let width = 60 in
   let buffer = Buffer.create 512 in
@@ -777,6 +811,8 @@ let suite =
         test_activity_does_not_leak_on_ticks;
       Alcotest.test_case "differential redraw and right edge" `Quick
         test_differential_redraw_and_right_edge;
+      Alcotest.test_case "committed metadata is right aligned" `Quick
+        test_committed_metadata_is_right_aligned;
       Alcotest.test_case "default visual hierarchy and color scope" `Quick
         test_default_visual_hierarchy_and_color_scope;
       Alcotest.test_case "activity collapse" `Quick test_activity_collapse;

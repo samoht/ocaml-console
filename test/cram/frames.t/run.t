@@ -30,7 +30,7 @@ exactly once:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
   [-] Build 0.0s (1/3)
   ⠋ app                                                             0.0s
     # planning
@@ -42,7 +42,7 @@ exactly once:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
         # cc c.o
         # link
     # still working
@@ -59,12 +59,12 @@ exactly once:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
         # cc c.o
         # link
     # still working
-    => compile  0.0s
-  => app  0.0s
+    => compile                                                      0.0s
+  => app                                                            0.0s
   [+] Build 0.0s (3/3)
 
 On a short terminal the live region would not fit. Rather than let a redraw
@@ -95,7 +95,7 @@ what was hidden:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
   [-] Build 0.0s (1/3)
   ⠋ app                                                             0.0s
     # planning
@@ -107,7 +107,7 @@ what was hidden:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
         # cc c.o
         # link
     # still working
@@ -123,10 +123,10 @@ what was hidden:
         # fetch index
         # cc a.o
         # cc b.o
-    => resolve  0.0s
+    => resolve                                                      0.0s
         # cc c.o
         # link
     # still working
-    => compile  0.0s
-  => app  0.0s
+    => compile                                                      0.0s
+  => app                                                            0.0s
   [+] Build 0.0s (3/3)

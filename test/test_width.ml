@@ -28,6 +28,13 @@ let test_ansi_ignored () =
   let width = Width.string_width styled in
   Alcotest.(check int) "ANSI codes ignored" 5 width
 
+let test_ansi_does_not_break_grapheme () =
+  let combining = "\xea\xa8\xb4" in
+  Alcotest.(check int)
+    "styled cluster has the same width"
+    (Width.string_width ("x" ^ combining))
+    (Width.string_width ("x\027[31m" ^ combining ^ "\027[0m"))
+
 let test_osc_ignored () =
   let link = "\027]8;;https://example.com\027\\docs\027]8;;\027\\" in
   Alcotest.(check int) "OSC ignored" 4 (Width.string_width link);
@@ -89,6 +96,8 @@ let suite =
       Alcotest.test_case "spacing combining mark" `Quick
         test_spacing_combining_mark;
       Alcotest.test_case "ANSI ignored" `Quick test_ansi_ignored;
+      Alcotest.test_case "ANSI preserves grapheme" `Quick
+        test_ansi_does_not_break_grapheme;
       Alcotest.test_case "OSC ignored" `Quick test_osc_ignored;
       Alcotest.test_case "wrap basic" `Quick test_wrap_basic;
       Alcotest.test_case "wrap with indent" `Quick test_wrap_with_indent;

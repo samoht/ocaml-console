@@ -1,7 +1,7 @@
 (library
  (name fuzz_console)
  (modules fuzz_console)
- (libraries console matrix.vte fmt re uutf alcobar))
+ (libraries console matrix.grid matrix.vte fmt re uutf alcobar))
 
 (executable
  (name fuzz)

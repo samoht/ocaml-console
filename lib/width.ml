@@ -91,25 +91,23 @@ let ansi_end str start =
         min len (start + 1 + Uchar.utf_decode_length decoded)
     | _ -> min len (start + 2)
 
-let visible_run_end str start =
-  let rec loop i =
-    if i >= String.length str || str.[i] = '\027' then i else loop (i + 1)
-  in
-  loop start
-
 let grapheme_string_width str =
-  let rec loop width i =
-    if i >= String.length str then width
-    else if str.[i] = '\027' then loop width (ansi_end str i)
-    else
-      let stop = visible_run_end str i in
-      let run_width =
-        Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:2 str ~pos:i
-          ~len:(stop - i)
-      in
-      loop (width + run_width) stop
+  (* Styling controls do not break a terminal grapheme. Strip them before
+     segmentation so a combining mark or ZWJ sequence spanning an ANSI reset
+     has exactly the same width here as it does in the terminal. Measuring each
+     visible run separately over-counts standalone combining marks. *)
+  let visible = Buffer.create (String.length str) in
+  let rec copy i =
+    if i >= String.length str then ()
+    else if str.[i] = '\027' then copy (ansi_end str i)
+    else begin
+      Buffer.add_char visible str.[i];
+      copy (i + 1)
+    end
   in
-  loop 0 0
+  copy 0;
+  Glyph.String.measure ~width_method:`Unicode ~tab_width:2
+    (Buffer.contents visible)
 
 let string_width ?(char_width = default_char_width) str =
   if char_width == default_char_width then grapheme_string_width str
@@ -225,6 +223,12 @@ let truncate_graphemes target_width str =
             width := !width + grapheme_width)
           else stopped := true)
       run
+  in
+  let visible_run_end str start =
+    let rec loop i =
+      if i >= String.length str || str.[i] = '\027' then i else loop (i + 1)
+    in
+    loop start
   in
   let rec loop i =
     if !stopped || i >= String.length str then ()
