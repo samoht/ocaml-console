@@ -9,29 +9,18 @@
    and the progress display consistently. It is pure data; the widgets render
    with it. *)
 
-type color = Ansi.color
-
 (* Amber-phosphor monochrome, like an old DOS satellite-workstation CRT. *)
-let amber : color = `Hex (0xff, 0xb0, 0x00)
-let matrix_green : color = `Hex (0x33, 0xff, 0x33)
-
-(* Tree-guide glyphs. *)
-type guide = { branch : string; last : string; pipe : string; space : string }
-
-let ascii_guide =
-  { branch = "+-- "; last = "+-- "; pipe = "|   "; space = "    " }
-
-let unicode_guide =
-  { branch = "├── "; last = "└── "; pipe = "│   "; space = "    " }
+let amber = Color.rgb 0xff 0xb0 0x00
+let matrix_green = Color.rgb 0x33 0xff 0x33
 
 type bar = [ `Blocky | `Smooth | `Rainbow ]
 
 type t = {
-  accent : color;
-  palette : color list;
+  accent : Color.t;
+  palette : Color.t list;
   border : Border.t;
   animated_border : bool;
-  guide : guide;
+  guide : Guide.t;
   spinner : Spinner.t;
   bar : bar;
   done_marker : string;
@@ -40,10 +29,11 @@ type t = {
 }
 
 let equal a b =
-  a.accent = b.accent && a.palette = b.palette
+  Color.equal a.accent b.accent
+  && List.equal Color.equal a.palette b.palette
   && Border.equal a.border b.border
   && Bool.equal a.animated_border b.animated_border
-  && a.guide = b.guide
+  && Guide.equal a.guide b.guide
   && Spinner.equal a.spinner b.spinner
   && a.bar = b.bar
   && String.equal a.done_marker b.done_marker
@@ -54,8 +44,19 @@ let pp ppf t =
   Fmt.pf ppf "{ done = %s; ok = %s; fail = %s }" t.done_marker t.ok_marker
     t.fail_marker
 
-let v ?(accent = `Cyan) ?(palette = []) ?(border = Border.rounded)
-    ?(animated_border = false) ?(guide = unicode_guide) ?(bar = `Smooth)
+let accent t = t.accent
+let palette t = t.palette
+let border t = t.border
+let animated_border t = t.animated_border
+let guide t = t.guide
+let spinner t = t.spinner
+let bar t = t.bar
+let done_marker t = t.done_marker
+let ok_marker t = t.ok_marker
+let fail_marker t = t.fail_marker
+
+let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
+    ?(animated_border = false) ?(guide = Guide.unicode) ?(bar = `Smooth)
     ~spinner ~done_marker () =
   {
     accent;
@@ -85,7 +86,7 @@ let dos =
     palette = [ amber ];
     border = Border.ascii;
     animated_border = false;
-    guide = ascii_guide;
+    guide = Guide.ascii;
     spinner = Spinner.ascii;
     bar = `Blocky;
     done_marker = "[+]";
@@ -93,20 +94,21 @@ let dos =
     fail_marker = "[FAIL]";
   }
 
-(* Modern unicode: rounded border, braille spinner, smooth bar, a check mark,
-   and a green tick / red cross result banner. *)
+(* Modern unicode: one restrained activity accent, rounded geometry, a braille
+   spinner and semantic success/failure markers.  Colour identifies state; it
+   does not decorate whole rows. *)
 let unicode =
   {
-    accent = `Cyan;
-    palette = [ `Cyan; `Magenta; `Green; `Yellow; `Blue ];
+    accent = Color.cyan;
+    palette = [ Color.cyan ];
     border = Border.rounded;
     animated_border = false;
-    guide = unicode_guide;
+    guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Smooth;
-    done_marker = "✔";
-    ok_marker = "✔";
-    fail_marker = "✘";
+    done_marker = "✓";
+    ok_marker = "✓";
+    fail_marker = "✗";
   }
 
 (* The Matrix: monochrome green on black, single-line border, braille
@@ -117,7 +119,7 @@ let matrix =
     palette = [ matrix_green ];
     border = Border.single;
     animated_border = true;
-    guide = unicode_guide;
+    guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Smooth;
     done_marker = "✓";
@@ -128,11 +130,19 @@ let matrix =
 (* Rainbow: rows and nodes cycle the spectrum, and the bar is a gradient. *)
 let rainbow =
   {
-    accent = `Magenta;
-    palette = [ `Red; `Yellow; `Green; `Cyan; `Blue; `Magenta ];
+    accent = Color.magenta;
+    palette =
+      [
+        Color.red;
+        Color.yellow;
+        Color.green;
+        Color.cyan;
+        Color.blue;
+        Color.magenta;
+      ];
     border = Border.rounded;
     animated_border = false;
-    guide = unicode_guide;
+    guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Rainbow;
     done_marker = "✔";
@@ -140,4 +150,4 @@ let rainbow =
     fail_marker = "✘";
   }
 
-let default = dos
+let default = unicode

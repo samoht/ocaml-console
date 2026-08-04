@@ -6,48 +6,12 @@
 open Alcobar
 open Console
 
-(* The library leaves wide-character widths to its caller; the fuzz properties
-   render CJK and emoji the way a terminal does, so they install the Uucp-backed
-   hint -- the provider a real application supplies through
-   [with_char_width]. *)
-let uucp_char_width u =
-  match Uucp.Break.tty_width_hint u with -1 -> 0 | n -> n
-
 (* Every property here checks the library against a real VT emulator, which
-   places combining marks at zero cells and wide glyphs at two; in this file
-   "width" therefore means terminal width, measured with the Uucp-backed hint.
-   The exception is the span-consistency property below, which checks the
-   library's own default width and so calls Console.Width directly. *)
-module Width = struct
-  include Console.Width
-
-  let string_width ?(char_width = uucp_char_width) s =
-    Console.Width.string_width ~char_width s
-
-  let truncate ?(char_width = uucp_char_width) w s =
-    Console.Width.truncate ~char_width w s
-
-  let pad_right ?(char_width = uucp_char_width) w s =
-    Console.Width.pad_right ~char_width w s
-
-  let pad_left ?(char_width = uucp_char_width) w s =
-    Console.Width.pad_left ~char_width w s
-end
+   places combining marks at zero cells and wide glyphs at two; Uucp-backed
+   [Width.default_char_width] follows that same policy. *)
 
 let display_ctx ~ppf ~now ~width ~height =
-  Display.with_char_width
-    (Display.ctx ~ppf ~now
-       ~dimensions:(fun () -> (width, height))
-       ~is_tty:true ())
-    uucp_char_width
-
-let table_ctx ?(width = 80) ?(height = 24) () =
-  Display.with_char_width
-    (Display.ctx ~ppf:Format.std_formatter
-       ~now:(fun () -> 0.)
-       ~dimensions:(fun () -> (width, height))
-       ~is_tty:false ())
-    uucp_char_width
+  Display.ctx ~ppf ~now ~dimensions:(fun () -> (width, height)) ~is_tty:true ()
 
 (* Width is always non-negative *)
 let test_width_non_negative s =
@@ -72,12 +36,20 @@ let test_span_concat_width s1 s2 =
   check (w_combined = w1 + w2)
 
 (* Table rendering doesn't crash *)
+let rec first n = function
+  | _ when n <= 0 -> []
+  | [] -> []
+  | x :: xs -> x :: first (n - 1) xs
+
 let test_table_render_no_crash headers row =
   if List.length headers > 0 && List.length row > 0 then
     let cols = List.map Table.column headers in
+    let n = List.length cols in
+    let row = first n row in
+    let row = row @ List.init (n - List.length row) (fun _ -> "") in
     let rows = [ List.map Span.text row ] in
     let table = Table.of_rows cols rows in
-    let _ = Table.to_string ~ctx:(table_ctx ()) table in
+    let _ = Table.to_string table in
     check true
   else check true
 
@@ -95,9 +67,17 @@ let test_panel_render_no_crash content =
 
 (* Color hex parsing and equality *)
 let test_color_rgb_roundtrip r g b =
-  let c = Color.rgb r g b in
-  let c2 = Color.rgb r g b in
-  check (Color.equal c c2)
+  let valid n = n >= 0 && n <= 255 in
+  if valid r && valid g && valid b then
+    let c = Color.rgb r g b in
+    let c2 = Color.rgb r g b in
+    check (Color.equal c c2)
+  else
+    check
+      (try
+         ignore (Color.rgb r g b);
+         false
+       with Invalid_argument _ -> true)
 
 (* Truncate never increases width *)
 let test_truncate_width s width =
@@ -150,13 +130,6 @@ let pick_weird c = weird.(Char.code c mod Array.length weird)
 (* A task marker [Rn] -- one per emitted row, so tasks never share a line. *)
 let task_re = Re.compile Re.(seq [ str "[R"; rep1 digit; char ']' ])
 
-let rstrip s =
-  let n = ref (String.length s) in
-  while !n > 0 && s.[!n - 1] = ' ' do
-    decr n
-  done;
-  String.sub s 0 !n
-
 (* Every line the terminal holds: scrollback (oldest first) then the screen. *)
 let vt_rows vte =
   Vte.scrollback_lines vte @ String.split_on_char '\n' (Vte.to_string vte)
@@ -168,7 +141,7 @@ let count_in rows needle = List.length (List.filter (contains needle) rows)
 let vte_count vte needle = count_in (vt_rows vte) needle
 
 (* Drive a random program of display operations -- with nasty content -- against
-   mosaic's Vte (a faithful terminal emulator) and assert the visual invariants
+   Matrix's Vte (a faithful terminal emulator) and assert the visual invariants
    after every step:
 
    - {b no duplicates}: a header and any kept-live row are redrawn in place, so
@@ -187,11 +160,11 @@ let vte_count vte needle = count_in (vt_rows vte) needle
    [fresh] mints a uniquely-marked label. *)
 let step_display_op d live fresh c =
   match Char.code c mod 8 with
-  | 0 -> live := Display.row ~log_lines:2 d (fresh c) :: !live
+  | 0 -> live := Display.task ~log_lines:2 d (fresh c) :: !live
   | 1 -> (
       match !live with
       | p :: _ ->
-          live := Display.row ~parent:p ~log_lines:2 d (fresh c) :: !live
+          live := Display.task ~parent:p ~log_lines:2 d (fresh c) :: !live
       | [] -> ())
   | 2 -> ( match !live with r :: _ -> Display.log r (pick_weird c) | [] -> ())
   | 3 -> (
@@ -201,14 +174,19 @@ let step_display_op d live fresh c =
   | 4 -> (
       match !live with
       | r :: tl ->
-          Display.finish r;
+          Display.succeed r;
           live := tl
       | [] -> ())
-  | 5 -> ( match !live with r :: _ -> Display.finish ~live:true r | [] -> ())
+  | 5 -> (
+      match !live with
+      | r :: tl ->
+          Display.fail r;
+          live := tl
+      | [] -> ())
   | 6 -> (
       match !live with
       | r :: tl ->
-          Display.remove r;
+          Display.cancel r;
           live := tl
       | [] -> ())
   | _ -> Display.tick d
@@ -228,11 +206,6 @@ let test_display_invariants s =
     !clock
   in
   let header = "[HEADER]" ^ pick_weird (Char.chr (byte 2)) in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ~header ()
-  in
   let sync () =
     Format.pp_print_flush ppf ();
     Vte.feed_string vte (Buffer.contents buf);
@@ -252,22 +225,23 @@ let test_display_invariants s =
     List.iter (fun k -> check (count_in rows k <= 1)) !all;
     List.iter (fun r -> check (List.length (Re.all task_re r) <= 1)) rows
   in
-  invariant ();
-  String.iter
-    (fun c ->
-      step_display_op d live fresh c;
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+    ~mode:`Activity ~width ~height ~header (fun d ->
+      invariant ();
+      String.iter
+        (fun c ->
+          step_display_op d live fresh c;
+          invariant ())
+        s;
+      List.iter Display.cancel !live;
       invariant ())
-    s;
-  Display.finish_all d;
-  invariant ()
 
 let rec take n = function x :: tl when n > 0 -> x :: take (n - 1) tl | _ -> []
 let rec drop n = function _ :: tl when n > 0 -> drop (n - 1) tl | l -> l
 
-(* Cell content of well-defined terminal width: ASCII, wide CJK, fullwidth and
-   box glyphs. Emoji, combining marks and invalid UTF-8 have no width every
-   terminal agrees on, so they are out of scope for an exact layout
-   invariant. *)
+(* Representative cell content for padding properties. The widget geometry
+   properties below use arbitrary bytes directly and check the rendered result
+   against the VT emulator. *)
 let table_pool =
   [|
     "";
@@ -280,46 +254,92 @@ let table_pool =
     "some/long/path/value";
   |]
 
-let table_cell s = table_pool.(String.length s mod Array.length table_pool)
+let render_ansi ~width pp value =
+  let buffer = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Format.pp_set_margin ppf width;
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  pp ppf value;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buffer
 
-(* A table is a rectangle: every rendered row has the same display width and no
-   cell overflows onto a second line. The fuzzer varies the shape (column count,
-   row count, content width) from the input; feeding the render to the emulator
-   at the table's own width, a cell whose width was mis-measured would wrap and
-   add rows. So [nonblank rows = lines] is the no-overflow invariant. *)
-let test_table_no_overflow headers cells =
-  match headers with
-  | [] -> check true
-  | _ ->
-      let columns =
-        List.map
-          (fun h ->
-            Table.column ~overflow:`Truncate ~max_width:14 (table_cell h))
-          headers
-      in
-      let ncol = List.length columns in
-      let rec rows = function
-        | [] -> []
-        | l ->
-            let r = take ncol l in
-            let r = r @ List.init (ncol - List.length r) (fun _ -> "") in
-            List.map (fun c -> Span.text (table_cell c)) r :: rows (drop ncol l)
-      in
-      let t = Table.of_rows columns (rows cells) in
-      let s = Table.to_string ~ctx:(table_ctx ()) t in
-      let lines = String.split_on_char '\n' s in
-      let w =
-        List.fold_left (fun m l -> max m (Width.string_width l)) 1 lines
-      in
-      let vte = Vte.create ~rows:(List.length lines + 4) ~cols:w () in
-      Vte.feed_string vte s;
-      let nonblank rows =
-        List.length (List.filter (fun r -> rstrip r <> "") rows)
-      in
-      (* Count only non-blank lines on both sides: [to_string] ends with a
-         trailing newline, so a raw line count is one too many. A wrapped cell
-         would add a non-blank emulator row beyond the rendered lines. *)
-      check (nonblank (vt_rows vte) = nonblank lines)
+let nonblank rows = List.filter (fun row -> String.trim row <> "") rows
+let invariant name condition = if not condition then failwith name
+
+let left_table_edge row =
+  List.exists
+    (fun edge -> String.starts_with ~prefix:edge row)
+    [ "╭"; "│"; "├"; "╰" ]
+
+let right_table_edge row =
+  List.exists
+    (fun edge -> String.ends_with ~suffix:edge row)
+    [ "╮"; "│"; "┤"; "╯" ]
+
+(* Formatter margin is a hard geometry contract. Vary width, shape and
+   arbitrary binary cell content; protect one column and force its natural
+   width beyond the terminal so the emergency fitting path always runs. Every
+   raw and emulated physical row must end at the right border, exactly at the
+   terminal edge, without an extra wrapped row, scrollback or cursor drift. *)
+let test_table_no_overflow headers cells wbyte =
+  let width = 8 + (wbyte land 0x7f mod 89) in
+  let max_columns = max 1 (min 6 ((width - 1) / 4)) in
+  let headers = take max_columns (if headers = [] then [ "" ] else headers) in
+  let ncol = List.length headers in
+  let columns =
+    List.mapi
+      (fun i header ->
+        Table.column ~shrinkable:(i <> 0)
+          ~overflow:(if i land 1 = 0 then `Wrap else `Truncate)
+          header)
+      headers
+  in
+  let rec make_rows remaining values =
+    if remaining = 0 || values = [] then []
+    else
+      let row = take ncol values in
+      let row = row @ List.init (ncol - List.length row) (fun _ -> "") in
+      row :: make_rows (remaining - 1) (drop ncol values)
+  in
+  let rows =
+    match make_rows 4 (if cells = [] then [ "" ] else cells) with
+    | [] -> assert false
+    | (first_cell :: row) :: rows ->
+        ((first_cell ^ String.make (width * 2) 'W') :: row) :: rows
+    | [] :: _ -> assert false
+  in
+  let table = Table.of_string_rows ~border:Border.rounded columns rows in
+  let raw = render_ansi ~width Table.pp table in
+  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+  invariant "table emitted no logical rows" (logical_rows <> []);
+  List.iter
+    (fun row ->
+      invariant
+        (Fmt.str "table raw row is %d cells at width %d"
+           (Width.string_width row) width)
+        (Width.string_width row = width))
+    logical_rows;
+  let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
+  Vte.feed_string vte raw;
+  let visual_rows = nonblank (vt_rows vte) in
+  invariant "table entered scrollback" (Vte.scrollback_size vte = 0);
+  invariant
+    (Fmt.str "table grew from %d logical to %d visual rows at width %d"
+       (List.length logical_rows) (List.length visual_rows) width)
+    (List.length visual_rows = List.length logical_rows);
+  List.iter
+    (fun row ->
+      invariant "table lost its left border" (left_table_edge row);
+      invariant
+        (Fmt.str "table lost its right border at width %d: %S" width row)
+        (right_table_edge row);
+      invariant
+        (Fmt.str "table visual row is %d cells at width %d: %S"
+           (Width.string_width row) width row)
+        (Width.string_width row = width))
+    visual_rows;
+  invariant "table cursor is not at the next row"
+    (Vte.cursor_pos vte = (List.length logical_rows, 0))
 
 (* The live region is bounded by the terminal height: when more rows are live
    than fit, the display keeps the header, the root row and the most recent
@@ -339,19 +359,22 @@ let test_collapse n =
     !clock
   in
   let vte = Vte.create ~rows:height ~cols:width () in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ~header:"[H]" ()
+  let screen =
+    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+      ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+        let tasks =
+          List.init n (fun i ->
+              let i = i + 1 in
+              let suffix = pick_weird (Char.chr (i land 0xff)) in
+              Fmt.kstr (Display.task d) "[R%d] %s" i suffix)
+        in
+        Display.tick d;
+        Format.pp_print_flush ppf ();
+        Vte.feed_string vte (Buffer.contents buf);
+        let screen = String.split_on_char '\n' (Vte.to_string vte) in
+        List.iter Display.cancel tasks;
+        screen)
   in
-  for i = 1 to n do
-    let suffix = pick_weird (Char.chr (i land 0xff)) in
-    Fmt.kstr (fun s -> ignore (Display.row d s)) "[R%d] %s" i suffix
-  done;
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  Vte.feed_string vte (Buffer.contents buf);
-  let screen = String.split_on_char '\n' (Vte.to_string vte) in
   let on_screen needle = List.exists (contains needle) screen in
   (* the live region never exceeds the terminal height *)
   check (List.length screen <= height);
@@ -374,23 +397,24 @@ let test_nesting depth =
     !clock
   in
   let vte = Vte.create ~rows:height ~cols:width () in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ()
+  let rows =
+    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+      ~mode:`Activity ~width ~height (fun d ->
+        let rec build parent tasks i =
+          if i > depth then tasks
+          else
+            let suffix = pick_weird (Char.chr (i land 0xff)) in
+            let task = Fmt.kstr (Display.task ?parent d) "[R%d] %s" i suffix in
+            build (Some task) (task :: tasks) (i + 1)
+        in
+        let tasks = build None [] 1 in
+        Display.tick d;
+        Format.pp_print_flush ppf ();
+        Vte.feed_string vte (Buffer.contents buf);
+        let rows = vt_rows vte in
+        List.iter Display.cancel tasks;
+        rows)
   in
-  let rec build parent i =
-    if i <= depth then begin
-      let suffix = pick_weird (Char.chr (i land 0xff)) in
-      let r = Fmt.kstr (Display.row ?parent d) "[R%d] %s" i suffix in
-      build (Some r) (i + 1)
-    end
-  in
-  build None 1;
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  Vte.feed_string vte (Buffer.contents buf);
-  let rows = vt_rows vte in
   let col i =
     let needle = Fmt.str "[R%d]" i in
     List.find_map (index_of needle) rows
@@ -420,22 +444,19 @@ let test_bar cur total wbyte =
   in
   let vte = Vte.create ~rows:4 ~cols:width () in
   let bar = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
-      ~mode:`Console ~width ~height:4 ()
-  in
-  let r = Display.row ~bar d "[B]" in
-  Display.set_count r ~cur ~total;
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  Vte.feed_string vte (Buffer.contents buf);
-  if width >= 28 then begin
-    (* the marker is on exactly one row -- the bar row never wrapped *)
-    check (vte_count vte "[B]" = 1);
-    check (Fmt.kstr (vte_count vte) "%d/%d" cur total >= 1);
-    check (Fmt.kstr (vte_count vte) "%d%%" (cur * 100 / total) >= 1)
-  end
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
+    ~mode:`Activity ~width ~height:4 (fun d ->
+      let task = Display.task ~bar d "[B]" in
+      Display.set_count task ~cur ~total;
+      Display.tick d;
+      Format.pp_print_flush ppf ();
+      Vte.feed_string vte (Buffer.contents buf);
+      if width >= 28 then begin
+        check (vte_count vte "[B]" = 1);
+        check (Fmt.kstr (vte_count vte) "%d/%d" cur total >= 1);
+        check (Fmt.kstr (vte_count vte) "%d%%" (cur * 100 / total) >= 1)
+      end;
+      Display.succeed task)
 
 (* The measured width must match what a terminal renders, or the display and
    tables reserve the wrong amount of space (a ZWJ emoji used to measure 6 yet
@@ -464,8 +485,14 @@ let test_width_matches_terminal s =
 let test_truncate_idempotent s width =
   let w = abs width mod 200 in
   let once = Width.truncate w s in
-  check (Width.string_width once <= w);
-  check (Width.truncate w once = once)
+  invariant
+    (Fmt.str "truncate produced %d cells for budget %d: %S"
+       (Width.string_width once) w once)
+    (Width.string_width once <= w);
+  let twice = Width.truncate w once in
+  invariant
+    (Fmt.str "truncate is not idempotent at %d: once=%S twice=%S" w once twice)
+    (twice = once)
 
 (* Padding reaches exactly the target width and never shrinks content: padding
    to [w] yields max(w, width(s)) cells, on either side. Content is drawn from
@@ -479,21 +506,63 @@ let test_pad_reaches_width idx width =
   check (Width.string_width (Width.pad_right w s) = target);
   check (Width.string_width (Width.pad_left w s) = target)
 
-(* A panel is a rectangle: rendered at its own width, every row fits on one
-   emulator line (no cell wraps), so the non-blank emulator rows match the
-   rendered lines. *)
-let test_panel_rectangular idx =
-  let cell = table_pool.(abs idx mod Array.length table_pool) in
-  let content = String.concat "\n" [ cell; "a second line"; cell ] in
-  let s = Panel.to_string (Panel.v (Span.text content)) in
-  let lines = String.split_on_char '\n' s in
-  let w = List.fold_left (fun m l -> max m (Width.string_width l)) 1 lines in
-  let vte = Vte.create ~rows:(List.length lines + 4) ~cols:w () in
-  Vte.feed_string vte s;
-  let nonblank rows =
-    List.length (List.filter (fun r -> rstrip r <> "") rows)
+(* A fixed-width panel has the same hard contract as a table. Arbitrary bytes
+   in both its edge label and body are sanitised; all three physical rows land
+   exactly on the declared right edge, with no wrap or scroll. *)
+let test_panel_rectangular content wbyte =
+  let width = 8 + (wbyte land 0x7f mod 89) in
+  let title = Span.text content in
+  let body =
+    Span.text (content ^ String.make (width * 2) 'W')
+    |> Span.sanitize ~keep_newlines:false
   in
-  check (nonblank (vt_rows vte) = nonblank lines)
+  let panel = Panel.v ~border:Border.rounded ~width ~title body in
+  (* [Panel.pp] is a value printer rather than a line printer; terminate the
+     bottom row explicitly just as a caller writing the next terminal row
+     would. *)
+  let raw = render_ansi ~width Panel.pp panel ^ "\r\n" in
+  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+  invariant "panel did not emit three logical rows"
+    (List.length logical_rows = 3);
+  List.iter
+    (fun row ->
+      invariant
+        (Fmt.str "panel raw row is %d cells at width %d"
+           (Width.string_width row) width)
+        (Width.string_width row = width))
+    logical_rows;
+  let vte = Vte.create ~rows:5 ~cols:width () in
+  Vte.feed_string vte raw;
+  let visual_rows = nonblank (vt_rows vte) in
+  invariant "panel entered scrollback" (Vte.scrollback_size vte = 0);
+  invariant "panel did not occupy three visual rows"
+    (List.length visual_rows = 3);
+  let top = List.nth visual_rows 0 in
+  let middle = List.nth visual_rows 1 in
+  let bottom = List.nth visual_rows 2 in
+  let raw_top = List.nth logical_rows 0 in
+  invariant "panel lost its top-left corner"
+    (String.starts_with ~prefix:"╭" top);
+  invariant
+    (Fmt.str "panel lost its top-right corner at width %d: raw=%S visual=%S"
+       width raw_top top)
+    (String.ends_with ~suffix:"╮" top);
+  invariant "panel lost its middle-left border"
+    (String.starts_with ~prefix:"│" middle);
+  invariant "panel lost its middle-right border"
+    (String.ends_with ~suffix:"│" middle);
+  invariant "panel lost its bottom-left corner"
+    (String.starts_with ~prefix:"╰" bottom);
+  invariant "panel lost its bottom-right corner"
+    (String.ends_with ~suffix:"╯" bottom);
+  List.iter
+    (fun row ->
+      invariant
+        (Fmt.str "panel visual row is %d cells at width %d: %S"
+           (Width.string_width row) width row)
+        (Width.string_width row = width))
+    visual_rows;
+  invariant "panel cursor is not at the next row" (Vte.cursor_pos vte = (3, 0))
 
 (* Composition: a table of progress-bar cells, wrapped in a panel, streamed into
    a display task's log window. However wide the widget block and however narrow
@@ -513,8 +582,7 @@ let test_composed wbyte =
       [ [ "build"; bar 30 ]; [ "test"; bar 70 ] ]
   in
   let block =
-    Panel.to_string
-      (Panel.v (Span.text (Table.to_string ~ctx:(table_ctx ~width ()) table)))
+    Panel.to_string (Panel.v (Span.text (Table.to_string ~width table)))
   in
   let buf = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buf in
@@ -524,18 +592,16 @@ let test_composed wbyte =
     !clock
   in
   let vte = Vte.create ~rows:12 ~cols:width () in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height:12)
-      ~mode:`Console ~width ~height:12 ~header:"[H]" ()
-  in
-  let r = Display.row ~log_lines:8 d "[T] task" in
-  List.iter (Display.log r) (String.split_on_char '\n' block);
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  Vte.feed_string vte (Buffer.contents buf);
-  check (vte_count vte "[T]" <= 1);
-  check (vte_count vte "[H]" <= 1)
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:12)
+    ~mode:`Activity ~width ~height:12 ~header:"[H]" (fun d ->
+      let task = Display.task ~log_lines:8 d "[T] task" in
+      List.iter (Display.log task) (String.split_on_char '\n' block);
+      Display.tick d;
+      Format.pp_print_flush ppf ();
+      Vte.feed_string vte (Buffer.contents buf);
+      check (vte_count vte "[T]" <= 1);
+      check (vte_count vte "[H]" <= 1);
+      Display.succeed task)
 
 (* A run that saturates the height, then the user scrolls back: the committed
    history stays consistent -- no finished row is ever duplicated in the
@@ -561,19 +627,15 @@ let test_scrollback_no_dup s =
     !clock
   in
   let vte = Vte.create ~rows:height ~cols:width () in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ~header:"[H]" ()
-  in
-  for i = 1 to n do
-    let suffix = pick_weird (Char.chr (byte (i + 2))) in
-    let r = Fmt.kstr (Display.row d) "[D%d] %s" i suffix in
-    Display.tick d;
-    Display.finish r;
-    Display.tick d
-  done;
-  Display.finish_all d;
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+      for i = 1 to n do
+        let suffix = pick_weird (Char.chr (byte (i + 2))) in
+        let task = Fmt.kstr (Display.task d) "[D%d] %s" i suffix in
+        Display.tick d;
+        Display.succeed task;
+        Display.tick d
+      done);
   Format.pp_print_flush ppf ();
   Vte.feed_string vte (Buffer.contents buf);
   (* no finished row is ever duplicated across the whole history *)
@@ -606,18 +668,14 @@ let test_scrollback_collapse_commits s =
     !clock
   in
   let vte = Vte.create ~rows:height ~cols:width () in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ~header:"[H]" ()
-  in
-  let rows =
-    Array.init n (fun i -> Fmt.kstr (Display.row d) "[D%d] ." (i + 1))
-  in
-  Display.tick d;
-  Display.tick d;
-  Array.iter (fun r -> Display.finish r) rows;
-  Display.finish_all d;
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+      let tasks =
+        Array.init n (fun i -> Fmt.kstr (Display.task d) "[D%d] ." (i + 1))
+      in
+      Display.tick d;
+      Display.tick d;
+      Array.iter Display.succeed tasks);
   Format.pp_print_flush ppf ();
   Vte.feed_string vte (Buffer.contents buf);
   let rows = vt_rows vte in
@@ -640,26 +698,281 @@ let test_minimal_redraw s =
   let buf = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0.0 in
-  let d =
-    Display.v
-      ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Console ~width ~height ~header:"[H]" ()
-  in
   let live = ref [] and counter = ref 0 in
   let fresh c =
     incr counter;
     Fmt.str "[R%d] %s" !counter (pick_weird c)
   in
-  String.iter (fun c -> step_display_op d live fresh c) s;
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  (* the display painted at least the header, so the silence below is real *)
-  check (String.length (Buffer.contents buf) > 0);
-  Buffer.clear buf;
-  Display.tick d;
-  Display.tick d;
-  Format.pp_print_flush ppf ();
-  check (String.length (Buffer.contents buf) = 0)
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+      String.iter (fun c -> step_display_op d live fresh c) s;
+      Display.tick d;
+      Format.pp_print_flush ppf ();
+      check (String.length (Buffer.contents buf) > 0);
+      Buffer.clear buf;
+      Display.tick d;
+      Display.tick d;
+      Format.pp_print_flush ppf ();
+      check (String.length (Buffer.contents buf) = 0);
+      List.iter Display.cancel !live)
+
+(* A changing task is repainted as one terminal row, without blanking the whole
+   activity region first. The default spacer also places elapsed metadata on
+   the terminal's actual right edge for every useful width and hostile label. *)
+let test_differential_redraw label wbyte =
+  let width = 32 + (wbyte land 0x7f mod 89) and height = 8 in
+  let buf = Buffer.create 1024 in
+  let ppf = Format.formatter_of_buffer buf in
+  let now () = 0. in
+  let vte = Vte.create ~rows:height ~cols:width () in
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
+    ~mode:`Activity ~width ~height (fun display ->
+      ignore (Display.task display "[R1] prepare");
+      let changed = Display.task display ("[R2] " ^ label) in
+      ignore (Display.task display "[R3] verify");
+      Format.pp_print_flush ppf ();
+      Vte.feed_string vte (Buffer.contents buf);
+      Buffer.clear buf;
+      let initial = Vte.to_string vte |> String.split_on_char '\n' in
+      let first = List.nth initial 0 and last = List.nth initial 2 in
+      for cur = 1 to 10 do
+        Vte.clear_dirty vte;
+        Display.set_count changed ~cur ~total:10;
+        Format.pp_print_flush ppf ();
+        let update = Buffer.contents buf in
+        Vte.feed_string vte update;
+        Buffer.clear buf;
+        let dirty = Vte.dirty_rows vte in
+        invariant
+          (Fmt.str
+             "only the middle row is dirty, got [%s] at width %d; update=%S; \
+              screen=%S"
+             (String.concat ";" (List.map string_of_int dirty))
+             width update (Vte.to_string vte))
+          (dirty = [ 1 ]);
+        let rows = Vte.to_string vte |> String.split_on_char '\n' in
+        invariant "preceding sibling changed" (List.nth rows 0 = first);
+        invariant "following sibling changed" (List.nth rows 2 = last);
+        let row = List.nth rows 1 in
+        invariant "middle row does not fill the terminal"
+          (Width.string_width row = width);
+        if not (String.ends_with ~suffix:"0.0s" row) then
+          failwith (Fmt.str "elapsed metadata is not at width %d: %S" width row)
+      done;
+      invariant "right-edge redraw leaked into scrollback"
+        (Vte.scrollback_size vte = 0);
+      invariant "cursor did not return to the final activity row"
+        (Vte.cursor_pos vte = (2, 0)))
+
+(* A keyed event stream needs no caller-owned task registry. Randomly duplicate,
+   reorder and contradict starts, progress updates, logs and outcomes over eight
+   stable IDs. Console must create one lifecycle per ID, keep progress
+   monotonic, retain every late log, and let the first outcome win. *)
+type modeled_task =
+  | Unseen
+  | Running of int * int
+  | Finished of Display.Event.outcome
+
+let test_keyed_event_stream program =
+  let states = Array.make 8 Unseen in
+  let handles = Array.make 8 None in
+  let saved = ref None in
+  let buf = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer buf in
+  let now () = 0. in
+  let key i = Fmt.str "task-%d" i in
+  let ensure display i =
+    let task = Display.task ~id:(key i) display (Fmt.str "task %d" i) in
+    (match handles.(i) with
+    | None ->
+        handles.(i) <- Some task;
+        states.(i) <- Running (0, 0)
+    | Some first -> check (first == task));
+    task
+  in
+  let check_progress display i expected =
+    let item =
+      Display.Activity.items (Display.activity display)
+      |> List.find (fun item -> Display.Activity.key item = Some (key i))
+    in
+    check (Display.Activity.progress item = expected)
+  in
+  Display.run
+    ~ctx:
+      (Display.ctx ~ppf ~now ~dimensions:(fun () -> (80, 24)) ~is_tty:false ())
+    ~mode:`History
+    (fun display ->
+      saved := Some display;
+      String.iter
+        (fun byte ->
+          let code = Char.code byte in
+          let i = code land 7 in
+          let task = ensure display i in
+          match (code lsr 3) mod 8 with
+          | 0 -> ignore (ensure display i : Display.task)
+          | 1 -> (
+              let cur = code land 63 in
+              let total = cur + ((code lsr 6) land 3) in
+              Display.set_count task ~cur ~total;
+              match states.(i) with
+              | Running (previous, previous_total) ->
+                  let cur = max previous cur in
+                  let total = max cur (max previous_total total) in
+                  states.(i) <- Running (cur, total);
+                  check_progress display i (`Count (cur, total))
+              | Unseen | Finished _ -> ())
+          | 2 -> Display.log task (pick_weird byte)
+          | 3 -> (
+              Display.succeed task;
+              match states.(i) with
+              | Running _ -> states.(i) <- Finished `Succeeded
+              | Unseen | Finished _ -> ())
+          | 4 -> (
+              Display.fail task;
+              match states.(i) with
+              | Running _ -> states.(i) <- Finished `Failed
+              | Unseen | Finished _ -> ())
+          | 5 -> (
+              Display.cancel task;
+              match states.(i) with
+              | Running _ -> states.(i) <- Finished `Cancelled
+              | Unseen | Finished _ -> ())
+          | 6 -> Display.set_label task (pick_weird byte)
+          | _ -> (
+              Display.succeed task;
+              Display.fail task;
+              Display.cancel task;
+              match states.(i) with
+              | Running _ -> states.(i) <- Finished `Succeeded
+              | Unseen | Finished _ -> ()))
+        program);
+  let display = Option.get !saved in
+  let events = Display.history display in
+  for i = 0 to 7 do
+    match states.(i) with
+    | Unseen -> ()
+    | (Running _ | Finished _) as state ->
+        let events =
+          List.filter
+            (fun event -> Display.Event.key event = Some (key i))
+            events
+        in
+        let starts =
+          List.filter (fun event -> Display.Event.kind event = `Started) events
+        in
+        let finishes =
+          List.filter_map
+            (fun event ->
+              match Display.Event.kind event with
+              | `Finished outcome -> Some outcome
+              | _ -> None)
+            events
+        in
+        check (List.length starts = 1);
+        check (List.length finishes = 1);
+        let expected =
+          match state with
+          | Running _ -> `Succeeded
+          | Finished outcome -> outcome
+          | Unseen -> assert false
+        in
+        check (finishes = [ expected ])
+  done
+
+(* Geometry providers are external and can transiently report nonsense during
+   resize. Zero and negative dimensions are clamped at the boundary; repainting
+   under a changing one-cell terminal must stay total and bounded. *)
+let test_dynamic_geometry program =
+  let width = ref 0 and height = ref 0 in
+  let buf = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer buf in
+  let now () = 0. in
+  let ctx =
+    Display.ctx ~ppf ~now
+      ~dimensions:(fun () -> (!width, !height))
+      ~is_tty:true ()
+  in
+  Display.run ~ctx ~mode:`Activity ~header:"resize" (fun display ->
+      String.iteri
+        (fun i byte ->
+          let code = Char.code byte in
+          width := (code land 15) - 7;
+          height := ((code lsr 4) land 15) - 7;
+          let task =
+            Display.task ~id:(Fmt.str "resize-%d" (i land 3)) display "x"
+          in
+          Display.set_count task ~cur:(code land 7) ~total:7;
+          Display.tick display)
+        program)
+
+(* Arbitrary result text and detail remain structured data, with terminal
+   controls neutralised and exactly one semantic verdict. *)
+let test_result_sanitization message detail =
+  let saved = ref None in
+  let ctx = Display.dumb () in
+  Display.run ~ctx ~mode:`History (fun display ->
+      saved := Some display;
+      Display.set_result display ~detail (`Ok message));
+  let result =
+    Display.history (Option.get !saved)
+    |> List.find (fun event ->
+        match Display.Event.kind event with `Result _ -> true | _ -> false)
+  in
+  let safe ~newline s =
+    String.for_all
+      (fun c ->
+        let n = Char.code c in
+        n >= 0x20 || (newline && c = '\n'))
+      s
+  in
+  check (safe ~newline:false (Display.Event.message result));
+  Option.iter
+    (fun s -> check (safe ~newline:true s))
+    (Display.Event.detail result)
+
+(* Provisional totals are estimates, not traps: count and byte progress expand
+   to contain every observed current value and never move backwards. *)
+let test_progress_estimates cur total next next_total =
+  let bound n = n land 0xffff in
+  let cur = bound cur and total = bound total in
+  let next = bound next and next_total = bound next_total in
+  Display.run ~ctx:(Display.dumb ()) ~mode:`History (fun display ->
+      let count = Display.task display "count" in
+      Display.set_count count ~cur ~total;
+      Display.set_count count ~cur:next ~total:next_total;
+      let bytes = Display.task display "bytes" in
+      Display.set_bytes bytes ~cur:(Int64.of_int cur)
+        ~total:(Int64.of_int total);
+      Display.set_bytes bytes ~cur:(Int64.of_int next)
+        ~total:(Int64.of_int next_total);
+      let items = Display.Activity.items (Display.activity display) in
+      let progress label =
+        items
+        |> List.find (fun item -> Display.Activity.label item = label)
+        |> Display.Activity.progress
+      in
+      let current = max cur next in
+      let known_total = max current (max total next_total) in
+      check (progress "count" = `Count (current, known_total));
+      check
+        (progress "bytes"
+        = `Bytes (Int64.of_int current, Int64.of_int known_total)))
+
+(* Competing cleanup paths may both settle a session. The first semantic result
+   wins and later attempts neither raise nor duplicate the verdict event. *)
+let test_duplicate_result first second =
+  let saved = ref None in
+  Display.run ~ctx:(Display.dumb ()) ~mode:`History (fun display ->
+      saved := Some display;
+      Display.set_result display (`Ok first);
+      Display.set_result display (`Fail second));
+  let results =
+    Display.history (Option.get !saved)
+    |> List.filter (fun event ->
+        match Display.Event.kind event with `Result _ -> true | _ -> false)
+  in
+  check (List.length results = 1);
+  check (Display.Event.kind (List.hd results) = `Result `Ok)
 
 (* A frame is one of the spinner's own glyphs. *)
 let is_frame t f = Array.exists (String.equal f) (Spinner.frames t)
@@ -696,11 +1009,17 @@ let test_spinner_frame frames i =
    [floor (elapsed * fps)], so the animation advances at [fps]. *)
 let test_spinner_at frames elapsed fps =
   let t = Spinner.v frames in
-  let f = Spinner.at ~fps t ~elapsed in
-  check (is_frame t f);
-  if elapsed <= 0. then check (f = (Spinner.frames t).(0));
-  if elapsed > 0. && Float.is_finite (elapsed *. fps) then
-    check (f = Spinner.frame t (int_of_float (elapsed *. fps)))
+  if Float.is_finite fps && fps > 0. then begin
+    let f = Spinner.at ~fps t ~elapsed in
+    check (is_frame t f);
+    if elapsed <= 0. then check (f = (Spinner.frames t).(0))
+  end
+  else
+    check
+      (try
+         ignore (Spinner.at ~fps t ~elapsed);
+         false
+       with Invalid_argument _ -> true)
 
 let suite =
   ( "console",
@@ -712,17 +1031,26 @@ let suite =
       test_case "progress bar" [ int; int; int ] test_bar;
       test_case "truncate idempotent" [ bytes; int ] test_truncate_idempotent;
       test_case "pad reaches width" [ int; int ] test_pad_reaches_width;
-      test_case "panel rectangular" [ int ] test_panel_rectangular;
+      test_case "panel exact-width geometry" [ bytes; int ]
+        test_panel_rectangular;
       test_case "composed widget in task" [ int ] test_composed;
       test_case "scrollback no dup" [ bytes ] test_scrollback_no_dup;
       test_case "scrollback collapse commits" [ bytes ]
         test_scrollback_collapse_commits;
       test_case "minimal redraw" [ bytes ] test_minimal_redraw;
+      test_case "differential redraw" [ bytes; int ] test_differential_redraw;
+      test_case "keyed event stream" [ bytes ] test_keyed_event_stream;
+      test_case "dynamic geometry" [ bytes ] test_dynamic_geometry;
+      test_case "result sanitization" [ bytes; bytes ] test_result_sanitization;
+      test_case "progress estimates expand" [ int; int; int; int ]
+        test_progress_estimates;
+      test_case "duplicate result is harmless" [ bytes; bytes ]
+        test_duplicate_result;
       test_case "spinner roundtrip" [ array1 bytes ] test_spinner_roundtrip;
       test_case "spinner frame total" [ array1 bytes; int ] test_spinner_frame;
       test_case "spinner at" [ array1 bytes; float; float ] test_spinner_at;
       test_case "table no overflow"
-        [ list bytes; list bytes ]
+        [ list bytes; list bytes; int ]
         test_table_no_overflow;
       test_case "width non-negative" [ bytes ] test_width_non_negative;
       test_case "span width consistency" [ bytes ] test_span_width_consistency;

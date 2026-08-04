@@ -9,40 +9,22 @@
 
 (** {1 Types} *)
 
-type guide = Theme.guide = {
-  branch : string;  (** Branch connector, e.g., ["├── "]. *)
-  last : string;  (** Last-child connector, e.g., ["└── "]. *)
-  pipe : string;  (** Vertical continuation, e.g., ["│   "]. *)
-  space : string;  (** Blank continuation, e.g., ["    "]. *)
-}
-(** The guide glyphs that draw a tree's branches. Shared with {!Theme.guide}, so
-    a {!Theme.t} styles a tree's branches and the live display's nesting
-    identically. *)
-
 (** A generic tree node. *)
 type 'a node = Node of 'a * 'a node list
 
 type t
 (** A renderable tree of spans. *)
 
-(** {1 Predefined Guides} *)
-
-val ascii_guide : guide
-(** [ascii_guide] is the ASCII guide: [+-- ], [+-- ], [|   ], [    ]. *)
-
-val unicode_guide : guide
-(** [unicode_guide] is the Unicode guide: [├── ], [└── ], [│   ], [    ]. *)
-
 (** {1 Construction} *)
 
-val of_tree : ?theme:Theme.t -> ?guide:guide -> Span.t node -> t
+val of_tree : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
 (** [of_tree tree] is a renderable tree from a tree of spans. The branch glyphs
-    come from the guide argument if given, else from [theme]'s {!type-guide},
-    else {!unicode_guide}. *)
+    come from the guide argument if given, else from {!Theme.guide}, else
+    {!Guide.unicode}. *)
 
 val v :
   ?theme:Theme.t ->
-  ?guide:guide ->
+  ?guide:Guide.t ->
   (('a -> Span.t node) -> 'a -> Span.t node) ->
   'a ->
   t
@@ -78,14 +60,14 @@ val v :
 
 (** {1 Guides} *)
 
-val prefix : ?guide:guide -> bool list -> string
+val prefix : ?guide:Guide.t -> bool list -> string
 (** [prefix ?guide lasts] is the guide prefix drawn before a node, where [lasts]
     is the is-last-among-siblings flag at each level from a top-level node down
     to and including this one. Each strict ancestor adds a vertical continuation
-    ({!field-pipe}) or blank ({!field-space}) depending on whether it was the
-    last of its siblings, then the node itself adds the {!field-branch} or
-    {!field-last} connector. The empty list is the root and has no prefix. So
-    under {!unicode_guide} the first child of a non-last parent gives
+    ({!Guide.pipe}) or blank ({!Guide.space}) depending on whether it was the
+    last of its siblings, then the node itself adds the {!Guide.branch} or
+    {!Guide.last} connector. The empty list is the root and has no prefix. So
+    under {!Guide.unicode} the first child of a non-last parent gives
     ["│   ├── "]. A live renderer that draws its own rows (a progress tree)
     shares the guide drawing through it. *)
 
@@ -95,10 +77,13 @@ val pp : t Fmt.t
 (** [pp] pretty-prints the tree, one node per line, with guide lines. *)
 
 val to_string : t -> string
-(** [to_string tree] renders to a string. *)
+(** [to_string tree] renders as plain text. *)
+
+val to_ansi_string : t -> string
+(** [to_ansi_string tree] renders with ANSI styling. *)
 
 (** {1 Animation} *)
 
 val anim : t -> string Anim.t
-(** [anim tree] is [tree] as a still {!Anim.t}: every frame is {!to_string}
+(** [anim tree] is [tree] as a still {!Anim.t}: every frame is {!to_ansi_string}
     [tree]. A tree has no border, so there is no rain variant. *)

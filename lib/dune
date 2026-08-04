@@ -1,13 +1,12 @@
 (library
  (name console)
  (public_name console)
- (libraries ascii fmt logs uutf)
- ; ansi is the low-level SGR leaf (the colour variant + escape sequences) that
- ; theme, bar and the display render with; rain is the shared Matrix-border
- ; renderer behind Panel.rain / Table.rain. Neither is part of the public API.
- (private_modules ansi rain))
+ (libraries ascii fmt logs matrix.glyph uucp uutf unix)
+ ; Low-level ANSI, Matrix rain, formatter conversion and widget resolution
+ ; helpers. None is part of the public API.
+ (private_modules ansi rain render widget))
 
 (mdx
  (package console)
  (files tree.mli display.mli console.mli)
- (libraries console fmt logs logs.fmt eio eio.core eio.unix))
+ (libraries console console-eio fmt logs logs.fmt eio eio.core eio.unix))

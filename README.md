@@ -27,15 +27,25 @@ terminal applications, see [notty](https://github.com/pqwy/notty) or
 
 - **Composable styles**: `Style.(bold + fg Color.red + underline)`, over ANSI
   16, the 256-colour palette and true colour (RGB/hex)
+- **Rich spans**: styled text, safe OSC-8 hyperlinks, style-preserving wrapping
+  and truncation, with clean plain-text fallbacks
 - **Widgets**: tables with headers and alignment, directory-style trees,
-  bordered panels, in five border styles
+  bordered panels, horizontal rules, and five border styles
 - **Themes**: one `Theme.t` styles every widget consistently (`dos`,
   `unicode`, `matrix`, `rainbow`)
 - **Live progress**: a `Display` of rows that update in place, degrading to
   one tidy line per step with no terminal
-- **Animation**: spinners, progress bars and a Matrix ASCII rain border, all
-  driven by a single `Anim.t` abstraction
+- **Animation and layout**: spinners, progress bars and Matrix rain driven by a
+  single `Anim.t`, composed horizontally or vertically with `Layout`
 - **Unicode-aware**: proper width calculation for CJK and emoji
+
+## Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [Progress](#progress)
+- [Animation and layout](#animation-and-layout)
+- [API](#api)
 
 ## Installation
 
@@ -71,14 +81,30 @@ let () =
   Fmt.pr "%a@." (Style.styled error Fmt.string) "✗ Tests failed"
 ```
 
-Widgets render through a `ctx`, which carries the terminal capabilities and the
-theme. A library takes one as an argument; the top-level binary builds one with
-`Console_eio.run` and threads it down:
+`Span` is the composable text value used by every widget. Styling and terminal
+hyperlinks follow the destination formatter: `Span.pp` emits them only when
+the formatter's `Fmt.style_renderer` allows ANSI, while `Span.to_string` is
+always plain text. This keeps redirected output and logs clean.
 
 ```ocaml
 open Console
 
-let print_files ~ctx =
+let docs =
+  Span.(
+    styled Style.bold "Read "
+    ++ link ~style:Style.underline ~uri:"https://ocaml.org/docs" "the manual")
+
+let () = Fmt.pr "%a@." Span.pp docs
+```
+
+Static widgets are ordinary formatter printers. They render at their natural
+width by default; pass `~width` only when a known boundary matters, such as a
+remote PTY:
+
+```ocaml
+open Console
+
+let print_files () =
   let table = Table.(
     of_rows ~border:Border.rounded
       [ column "Name"; column ~align:`Right "Size"; column "Modified" ]
@@ -88,10 +114,11 @@ let print_files ~ctx =
         [ Span.text "Makefile"; Span.text "892"; Span.text "3 days ago" ];
       ]
   ) in
-  Fmt.pr "%a@." (Table.pp ~ctx) table
+  Fmt.pr "%a@." Table.pp table
 
 let main env =
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) @@ fun ctx -> print_files ~ctx
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) @@ fun _display ->
+  print_files ()
 ```
 
 ```
@@ -112,36 +139,59 @@ still wins. The presets are `Theme.dos` (amber ASCII CRT, the default),
 `Theme.unicode`, `Theme.matrix` and `Theme.rainbow`, and `Theme.v` builds your
 own.
 
-### Progress
-
-A `Display` owns a live region of rows that update in place. On a terminal it
-redraws with the cursor; with none -- a pipe, a captured log, or `~mode:`Plain`
--- the very same calls emit one tidy append-only line per finished step, so
-logs stay clean.
+`Rule` and `Layout` fill the small composition gaps without introducing a
+second box model:
 
 ```ocaml
 open Console
 
-let build ~ctx =
-  let d = Display.v ~ctx ~mode:`Plain ~theme:Theme.unicode ~header:"Building" () in
-  let step = Display.row d "compile" in
-  Display.set_count step ~cur:2 ~total:2;
-  Display.finish step;
-  Display.finish_all d
+let section =
+  Rule.v ~theme:Theme.unicode ~label:(Span.text "Results") ~width:40 ()
+
+let report =
+  Layout.vcat ~gutter:1
+    [ Rule.to_string section; Panel.to_string (Panel.v (Span.text "All green")) ]
 ```
 
-Bars are composed from pieces (`Display.Line`): spinner, label, `bar n`,
-percent, count, rate, elapsed, spacer. Under Eio, `Console_eio.Display.run` owns
-a display for the duration of a function, animating it on a tick.
+### Progress
 
-### Animation
+A `Display` has two projections: append-only event history and an immutable
+snapshot of current activity. On a terminal, only the bounded activity snapshot
+is redrawn; logs and finished tasks stay in scrollback. A pipe or captured log
+gets the same permanent history without cursor movement.
+
+```ocaml
+open Console
+
+let build ~clock =
+  Console_eio.run ~clock ~theme:Theme.unicode ~header:"Building" @@ fun display ->
+  let step = Display.task display "compile" in
+  Display.set_count step ~cur:2 ~total:2;
+  Display.log step "compiled parser.ml";
+  Display.succeed step
+```
+
+That is the ordinary API: one `Console_eio.run`, `Display.task`, semantic
+updates and an outcome. The default line automatically chooses an indeterminate
+spinner or determinate progress, count, rate and elapsed time from the updates
+it receives. Returning normally completes forgotten tasks; raising cancels them;
+nested `Console_eio.run` calls join the existing display instead of claiming the
+terminal again. Stable `~id` values deduplicate repeated or out-of-order task
+events without a caller-side table.
+
+For applications with genuinely unusual information density, the advanced
+`Display.Line` API can compose spinner, label, bar, percent, count, rate,
+elapsed and spacer pieces. Most callers should never need it.
+
+### Animation and layout
 
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
 An `Anim.t` is a value sampled at an elapsed time. `Spinner`, `Bar` and
-`Panel.rain` / `Table.rain` expose one; `Display.set_banner` and
-`Console_eio.Anim.run` drive it live, redrawing each tick. A panel or table
-built with `~theme:Theme.matrix` rains automatically. A runnable demo lives in
+`Panel.rain` / `Table.rain` expose one. A panel or table
+made with `~theme:Theme.matrix` rains automatically. `Anim.map2`, `Anim.all`,
+`Layout.hcat_anim` and `Layout.vcat_anim` combine independently animated
+components while sampling them at the same elapsed time. A runnable demo lives in
 [`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->
@@ -151,22 +201,25 @@ $ dune exec ocaml-console/examples/matrix/main.exe
 
 ## API
 
-| Module       | Description                                    |
-|--------------|------------------------------------------------|
-| `Console.Color`  | ANSI, RGB, hex, and 256-palette colors         |
-| `Console.Style`  | Composable text styles                         |
-| `Console.Span`   | Styled text spans                              |
-| `Console.Border` | Border styles (ascii, single, double, rounded) |
-| `Console.Theme`  | Shared visual theme styling every widget       |
-| `Console.Table`  | Tables with headers and alignment              |
-| `Console.Tree`   | Tree rendering with guides                     |
-| `Console.Panel`  | Bordered panels with titles                    |
-| `Console.Width`  | Unicode-aware string width calculation         |
-| `Console.Spinner` | Animated spinners for indeterminate work      |
-| `Console.Bar`    | Horizontal progress bars, determinate or moving |
-| `Console.Anim`   | Time-varying values shared by animatable components |
-| `Console.Display` | Live progress display of rows that update in place |
-| `Console.Input`  | Cooked input: line editor with history and tab completion |
+| Module | Description |
+|---|---|
+| `Console.Color` | ANSI, RGB, hex, and 256-palette colours |
+| `Console.Style` | Composable text styles |
+| `Console.Span` | Styled text, hyperlinks, wrapping and truncation |
+| `Console.Width` | Unicode-, CSI-, and OSC-aware cell measurement |
+| `Console.Border` | Custom and predefined box-drawing borders |
+| `Console.Guide` | Shared guide glyphs for nested views |
+| `Console.Theme` | One visual theme for every widget |
+| `Console.Table` | Styled tables with alignment and overflow policies |
+| `Console.Tree` | Tree rendering with shared guides |
+| `Console.Panel` | Bordered panels with edge labels |
+| `Console.Rule` | Fixed-width horizontal rules with styled labels |
+| `Console.Layout` | Horizontal and vertical static/animated composition |
+| `Console.Spinner` | Animated spinners for indeterminate work |
+| `Console.Bar` | Determinate and moving horizontal progress bars |
+| `Console.Anim` | Composable time-varying values |
+| `Console.Display` | Live nested progress rows with plain fallback |
+| `Console.Input` | Line editing with history and completion |
 
 ## Related Work
 

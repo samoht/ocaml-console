@@ -79,6 +79,14 @@ let test_at_triangle () =
   Alcotest.(check int) "t=1.5 half, falling" 50 (pct 1.5);
   Alcotest.(check int) "t=2 back to empty" 0 (pct 2.0)
 
+let test_invalid_width () =
+  Alcotest.check_raises "render width"
+    (Invalid_argument "Console.Bar.render: negative width") (fun () ->
+      ignore (Bar.render ~width:(-1) ~pct:0 ()));
+  Alcotest.check_raises "animation width"
+    (Invalid_argument "Console.Bar.at: negative width") (fun () ->
+      ignore (Bar.at ~width:(-1) ~elapsed:0. ()))
+
 let suite =
   ( "bar",
     [
@@ -89,4 +97,5 @@ let suite =
       Alcotest.test_case "smooth partial" `Quick test_smooth_partial;
       Alcotest.test_case "style resolution" `Quick test_style_resolution;
       Alcotest.test_case "at triangle wave" `Quick test_at_triangle;
+      Alcotest.test_case "invalid width" `Quick test_invalid_width;
     ] )

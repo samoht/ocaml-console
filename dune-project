@@ -25,13 +25,13 @@
   (ocaml (>= 5.1))
   (fmt (>= 0.9))
   logs
+  matrix
+  uucp
   (uutf (>= 1.0))
   (alcotest :with-test)
   (mdx :with-test)
   (alcobar :with-test)
-  (matrix :with-test)
   (eio_main :with-test)
-  (uucp :with-test)
   (re :with-test)))
 
 (package

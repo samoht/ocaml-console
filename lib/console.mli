@@ -8,10 +8,25 @@
     A {!Span.t} is the unit of output: a run of text carrying a {!Style.t} -- a
     {!Color.t}, bold, italic, and so on. {!Width} measures spans the way a
     terminal does, counting wide CJK and emoji cells rather than bytes, so the
-    widgets align correctly. {!Panel}, {!Table} and {!Tree} compose spans into
-    bordered, columned and nested blocks; a {!Border} draws their frame and a
-    {!Theme} gives a whole set of widgets one consistent look. {!Display} is the
-    live, in-place progress view for long-running work.
+    widgets align correctly. {!Panel}, {!Table}, {!Tree} and {!Rule} compose
+    spans into bordered, columned, nested and divided blocks; {!Border} and
+    {!Guide} hold their drawing vocabulary, {!Layout} joins blocks, and a
+    {!Theme} gives the whole set one consistent look. {!Display} is the live,
+    in-place progress view for long-running work.
+
+    {1:geometry Terminal geometry contract}
+
+    Widths are terminal-cell widths, never byte or code-point counts. Whenever a
+    widget receives a width--directly, through a formatter margin, or from a
+    {!Display}--that width is a hard ceiling for every physical row. ANSI
+    escapes occupy no cells; wide and combining glyphs follow terminal width;
+    malformed UTF-8 is rendered as a replacement glyph; terminal controls in
+    content cannot move the cursor. Fitting preferences may change which content
+    is shortened, but may not push a border into the next row.
+
+    ANSI multi-line widgets use terminal-safe physical row boundaries, so a row
+    that ends exactly at the right edge cannot leave the next border or glyph
+    wrapped onto an extra line.
 
     {1:quickstart Quick start}
 
@@ -30,7 +45,7 @@
     {[
     open Console
 
-    let demo_table ~ctx =
+    let demo_table () =
       let table =
         Table.(
           of_rows ~border:Border.rounded
@@ -40,7 +55,7 @@
               [ Span.text "Bob"; Span.text "25" ];
             ])
       in
-      Fmt.pr "%a@." (Table.pp ~ctx) table
+      Fmt.pr "%a@." Table.pp table
     ]}
 
     {2:trees Trees}
@@ -77,31 +92,33 @@
 
     {2:progress Progress}
 
-    A {!Display} owns a live region of rows that update in place; with no
-    terminal it degrades to one tidy line per finished step. A {!Theme} fixes
-    the look -- spinner, bar style, markers -- across the whole display.
+    A {!Display} keeps permanent event history separate from an immutable view
+    of current activity. On a terminal the activity view is redrawn in one
+    bounded region; finished tasks and logs remain in scrollback. Without a
+    terminal, only the permanent history is emitted.
 
-    A display draws on a {!Display.ctx} (where to write, the clock, the terminal
-    geometry). The convention: a library takes the context as a [~ctx] argument
-    and threads it down; the top-level binary calls [Console_eio.run] once to
-    build one from the eio environment and passes it in.
+    A top-level binary calls [Console_eio.run] once and passes the resulting
+    display to its libraries. Ordinary widgets are regular pretty-printers; only
+    semantic task and event operations require the display. A nested
+    [Console_eio.run] joins the existing session, so independently composable
+    libraries cannot claim the terminal twice.
 
     {[
     open Console
 
-    let build_step ~ctx =
-      let d = Display.v ~ctx ~theme:Theme.unicode ~header:"Building" () in
-      let step = Display.row d "compile" in
+    let build_step ~clock =
+      Console_eio.run ~clock ~theme:Theme.unicode ~header:"Building"
+      @@ fun display ->
+      let step = Display.task display "compile" in
       Display.set_count step ~cur:1 ~total:2;
-      Display.finish step;
-      Display.finish_all d
+      Display.log step "compiled parser.ml";
+      Display.succeed step
     ]}
 
     {2:animation Animation}
 
     An {!Anim.t} is a value sampled at an elapsed time. {!Spinner}, {!Bar} and
-    {!Panel.rain} expose one; {!Display.set_banner} (or [Console_eio.Anim.run])
-    drives it on a tick.
+    {!Panel.rain} expose one.
 
     {[
     open Console
@@ -129,6 +146,9 @@ module Span = Span
 module Border = Border
 (** Box-drawing border presets -- ASCII, single, rounded, and friends. *)
 
+module Guide = Guide
+(** Shared guide glyphs for trees and nested progress rows. *)
+
 module Anim = Anim
 (** Time-varying values: the shape every animatable component shares. *)
 
@@ -150,6 +170,9 @@ module Table = Table
 
 module Tree = Tree
 (** Nested trees drawn with guide lines. *)
+
+module Rule = Rule
+(** Horizontal rules with optional styled labels. *)
 
 module Layout = Layout
 (** Joining rendered text blocks side by side into aligned columns. *)

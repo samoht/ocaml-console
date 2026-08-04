@@ -34,7 +34,16 @@ val hcat_anim :
     each block in [blocks] at the current elapsed time (see {!Anim.all}) and
     joins the results side by side. Build the blocks from {!Span.anim},
     {!Panel.anim}, {!Tree.anim}, {!Bar.anim} or any [string Anim.t], then drive
-    the joined row with the live {!Display} banner or [Console_eio.Anim.run].
-    The column widths are recomputed each frame, so a block that changes width
-    over time shifts its neighbours -- fix a block's width (e.g. {!Panel.v}'s
-    [?width]) to keep the columns steady. *)
+    the joined row in a live {!Display} view. The column widths are recomputed
+    each frame, so a block that changes width over time shifts its neighbours --
+    fix a block's width (e.g. {!Panel.v}'s [?width]) to keep the columns steady.
+*)
+
+val vcat : ?gutter:int -> string list -> string
+(** [vcat blocks] joins [blocks] from top to bottom. [gutter] is the number of
+    blank lines inserted between adjacent blocks (default [0]). [vcat []] is
+    [""]. {b Raises.} [Invalid_argument] if [gutter] is negative. *)
+
+val vcat_anim : ?gutter:int -> string Anim.t list -> string Anim.t
+(** [vcat_anim blocks] is {!vcat} lifted over animations, sampling every block
+    at the same elapsed time. *)

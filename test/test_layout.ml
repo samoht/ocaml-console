@@ -71,6 +71,19 @@ let test_hcat_anim () =
   check "frame before the change" "a Z" (Anim.frame a ~elapsed:0.5);
   check "frame after the change" "bb Z" (Anim.frame a ~elapsed:1.5)
 
+let test_vcat () =
+  check "adjacent blocks" "a\nb\nc" (Layout.vcat [ "a\nb"; "c" ]);
+  check "one blank gutter line" "a\n\nb" (Layout.vcat ~gutter:1 [ "a"; "b" ]);
+  Alcotest.check_raises "negative gutter"
+    (Invalid_argument "Console.Layout.vcat: negative gutter") (fun () ->
+      ignore (Layout.vcat ~gutter:(-1) [ "a" ]))
+
+let test_vcat_anim () =
+  let top = Anim.v (fun ~elapsed -> if elapsed < 1. then "a" else "A") in
+  let a = Layout.vcat_anim [ top; Anim.const "b" ] in
+  check "first frame" "a\nb" (Anim.frame a ~elapsed:0.);
+  check "later frame" "A\nb" (Anim.frame a ~elapsed:2.)
+
 let suite =
   ( "layout",
     [
@@ -85,4 +98,6 @@ let suite =
       Alcotest.test_case "single" `Quick test_single;
       Alcotest.test_case "ragged width" `Quick test_ragged_width;
       Alcotest.test_case "hcat_anim" `Quick test_hcat_anim;
+      Alcotest.test_case "vcat" `Quick test_vcat;
+      Alcotest.test_case "vcat_anim" `Quick test_vcat_anim;
     ] )

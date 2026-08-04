@@ -8,7 +8,7 @@
     An animation is a value sampled at an elapsed time: [frame a ~elapsed] is
     what [a] looks like [elapsed] seconds in. It is the common shape every
     animatable component shares -- {!Spinner.anim}, {!Bar.anim}, {!Panel.anim}
-    -- so a renderer (the live {!Display}, or {!Console_eio}) can drive any of
+    -- so a renderer (the live {!Display}, or [Console_eio]) can drive any of
     them by sampling at the current time each tick. A still value is {!const};
     {!all} samples several at once so a {!Layout} can join them into one frame.
 *)
@@ -28,6 +28,10 @@ val frame : 'a t -> elapsed:float -> 'a
 
 val map : ('a -> 'b) -> 'a t -> 'b t
 (** [map f a] applies [f] to every frame of [a]. *)
+
+val map2 : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+(** [map2 f a b] samples [a] and [b] at the same elapsed time and combines their
+    frames with [f]. *)
 
 val all : 'a t list -> 'a list t
 (** [all xs] samples every animation in [xs] at the same elapsed time:

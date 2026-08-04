@@ -21,6 +21,10 @@ type chars = {
 
 type t = { chars : chars; style : Style.t }
 
+let v ?(style = Style.none) chars = { chars; style }
+let chars t = t.chars
+let style t = t.style
+
 let none_chars =
   {
     top_left = "";
@@ -140,13 +144,13 @@ let hidden_chars =
     right_cross = " ";
   }
 
-let none = { chars = none_chars; style = Style.none }
-let ascii = { chars = ascii_chars; style = Style.none }
-let single = { chars = single_chars; style = Style.none }
-let double = { chars = double_chars; style = Style.none }
-let rounded = { chars = rounded_chars; style = Style.none }
-let heavy = { chars = heavy_chars; style = Style.none }
-let hidden = { chars = hidden_chars; style = Style.none }
+let none = v none_chars
+let ascii = v ascii_chars
+let single = v single_chars
+let double = v double_chars
+let rounded = v rounded_chars
+let heavy = v heavy_chars
+let hidden = v hidden_chars
 let with_style style border = { border with style }
 
 let equal_chars a b =
@@ -171,5 +175,3 @@ let pp ppf t =
   Fmt.pf ppf "%s%s%s@." chars.top_left chars.top chars.top_right;
   Fmt.pf ppf "%s %s@." chars.left chars.right;
   Fmt.pf ppf "%s%s%s" chars.bottom_left chars.bottom chars.bottom_right
-
-let render_char ppf style char = Style.styled style Fmt.string ppf char

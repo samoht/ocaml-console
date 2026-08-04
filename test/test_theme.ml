@@ -11,66 +11,81 @@ let contains sub s = Re.execp Re.(compile (str sub)) s
    and tree guide, a [+] done marker and an [OK]/[FAIL] result banner. *)
 let test_dos () =
   let t = Theme.dos in
-  Alcotest.(check bool) "blocky bar" true (t.bar = `Blocky);
-  Alcotest.(check string) "done marker" "[+]" t.done_marker;
-  Alcotest.(check string) "ok marker" "[OK]" t.ok_marker;
-  Alcotest.(check string) "fail marker" "[FAIL]" t.fail_marker;
+  Alcotest.(check bool) "blocky bar" true (Theme.bar t = `Blocky);
+  Alcotest.(check string) "done marker" "[+]" (Theme.done_marker t);
+  Alcotest.(check string) "ok marker" "[OK]" (Theme.ok_marker t);
+  Alcotest.(check string) "fail marker" "[FAIL]" (Theme.fail_marker t);
   Alcotest.(check int)
     "ascii spinner has four frames" 4
-    (Array.length (Spinner.frames t.spinner));
-  Alcotest.(check string) "ascii guide branch" "+-- " t.guide.branch
+    (Array.length (Spinner.frames (Theme.spinner t)));
+  Alcotest.(check string)
+    "ascii guide branch" "+-- "
+    (Guide.branch (Theme.guide t))
 
 (* The unicode preset uses a smooth bar, the braille spinner and check-mark
    verdict markers. *)
 let test_unicode () =
   let t = Theme.unicode in
-  Alcotest.(check bool) "smooth bar" true (t.bar = `Smooth);
-  Alcotest.(check string) "check-mark done" "✔" t.done_marker;
-  Alcotest.(check string) "tick ok" "✔" t.ok_marker;
-  Alcotest.(check string) "cross fail" "✘" t.fail_marker;
+  Alcotest.(check bool) "smooth bar" true (Theme.bar t = `Smooth);
+  Alcotest.(check string) "check-mark done" "✓" (Theme.done_marker t);
+  Alcotest.(check string) "tick ok" "✓" (Theme.ok_marker t);
+  Alcotest.(check string) "cross fail" "✗" (Theme.fail_marker t);
   Alcotest.(check int)
     "braille spinner has ten frames" 10
-    (Array.length (Spinner.frames t.spinner))
+    (Array.length (Spinner.frames (Theme.spinner t)))
 
 (* The rainbow preset uses the gradient bar and cycles the spectrum. *)
 let test_rainbow () =
   let t = Theme.rainbow in
-  Alcotest.(check bool) "rainbow bar" true (t.bar = `Rainbow);
-  Alcotest.(check int) "palette of six colours" 6 (List.length t.palette)
+  Alcotest.(check bool) "rainbow bar" true (Theme.bar t = `Rainbow);
+  Alcotest.(check int)
+    "palette of six colours" 6
+    (List.length (Theme.palette t))
 
 (* Only the matrix preset asks for an animated (rain) border. *)
 let test_animated_border () =
-  Alcotest.(check bool) "matrix animates" true Theme.matrix.animated_border;
-  Alcotest.(check bool) "dos still" false Theme.dos.animated_border;
-  Alcotest.(check bool) "unicode still" false Theme.unicode.animated_border;
-  Alcotest.(check bool) "rainbow still" false Theme.rainbow.animated_border
+  Alcotest.(check bool)
+    "matrix animates" true
+    (Theme.animated_border Theme.matrix);
+  Alcotest.(check bool) "dos still" false (Theme.animated_border Theme.dos);
+  Alcotest.(check bool)
+    "unicode still" false
+    (Theme.animated_border Theme.unicode);
+  Alcotest.(check bool)
+    "rainbow still" false
+    (Theme.animated_border Theme.rainbow)
 
-(* [default] is the DOS preset. *)
+(* [default] is the restrained Unicode preset. *)
 let test_default () =
   Alcotest.(check bool)
-    "default is dos" true
-    (Theme.equal Theme.default Theme.dos)
+    "default is unicode" true
+    (Theme.equal Theme.default Theme.unicode)
 
 (* [v] keeps the given fields and fills the rest with modern defaults: a cyan
    accent, a smooth bar, the unicode guide and [OK]/[FAIL] markers. *)
 let test_v_defaults () =
   let t = Theme.v ~spinner:Spinner.ascii ~done_marker:"x" () in
-  Alcotest.(check string) "given done marker" "x" t.done_marker;
-  Alcotest.(check bool) "default cyan accent" true (t.accent = `Cyan);
-  Alcotest.(check bool) "default smooth bar" true (t.bar = `Smooth);
-  Alcotest.(check string) "default unicode guide" "├── " t.guide.branch;
-  Alcotest.(check string) "default ok marker" "[OK]" t.ok_marker;
-  Alcotest.(check string) "default fail marker" "[FAIL]" t.fail_marker
+  Alcotest.(check string) "given done marker" "x" (Theme.done_marker t);
+  Alcotest.(check bool)
+    "default cyan accent" true
+    (Color.equal (Theme.accent t) Color.cyan);
+  Alcotest.(check bool) "default smooth bar" true (Theme.bar t = `Smooth);
+  Alcotest.(check string)
+    "default unicode guide" "├── "
+    (Guide.branch (Theme.guide t));
+  Alcotest.(check string) "default ok marker" "[OK]" (Theme.ok_marker t);
+  Alcotest.(check string) "default fail marker" "[FAIL]" (Theme.fail_marker t)
 
 (* [with_verdict] replaces only the verdict markers, leaving the rest intact. *)
 let test_with_verdict () =
   let t = Theme.with_verdict ~ok:"PASS" ~fail:"NOPE" Theme.dos in
-  Alcotest.(check string) "ok replaced" "PASS" t.ok_marker;
-  Alcotest.(check string) "fail replaced" "NOPE" t.fail_marker;
-  Alcotest.(check string) "done marker untouched" "[+]" t.done_marker;
+  Alcotest.(check string) "ok replaced" "PASS" (Theme.ok_marker t);
+  Alcotest.(check string) "fail replaced" "NOPE" (Theme.fail_marker t);
+  Alcotest.(check string) "done marker untouched" "[+]" (Theme.done_marker t);
   (* an omitted field keeps the original marker *)
   let t2 = Theme.with_verdict ~ok:"Y" Theme.dos in
-  Alcotest.(check string) "fail kept when omitted" "[FAIL]" t2.fail_marker
+  Alcotest.(check string)
+    "fail kept when omitted" "[FAIL]" (Theme.fail_marker t2)
 
 (* [pp] summarises the markers; the rendered text mentions each. *)
 let test_pp () =

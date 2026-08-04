@@ -7,11 +7,11 @@ open Console
 
 let test_ascii () =
   let border = Border.ascii in
-  Alcotest.(check string) "ascii top_left" "+" border.chars.top_left
+  Alcotest.(check string) "ascii top_left" "+" (Border.chars border).top_left
 
 let test_unicode () =
   let border = Border.rounded in
-  Alcotest.(check string) "rounded top_left" "╭" border.chars.top_left
+  Alcotest.(check string) "rounded top_left" "╭" (Border.chars border).top_left
 
 let suite =
   ( "border",

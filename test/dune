@@ -16,19 +16,15 @@
   test_table
   test_console
   test_tree
+  test_rule
   test_layout
   test_width
   test_input)
- (libraries console matrix.vte alcotest re fmt logs uucp))
+ (libraries console matrix.grid matrix.vte alcotest re fmt logs))
 
 (executable
  (name debug_progress)
  (modules debug_progress)
- (libraries console unix fmt))
-
-(executable
- (name check_width)
- (modules check_width)
  (libraries console unix fmt))
 
 (executable

@@ -24,6 +24,7 @@ let last_filled cells =
   !last
 
 let hcat ?(gutter = 1) ?(align = `Top) blocks =
+  if gutter < 0 then invalid_arg "Console.Layout.hcat: negative gutter";
   match blocks with
   | [] -> ""
   | _ ->
@@ -52,3 +53,9 @@ let hcat ?(gutter = 1) ?(align = `Top) blocks =
 
 let hcat_anim ?gutter ?align blocks =
   Anim.map (hcat ?gutter ?align) (Anim.all blocks)
+
+let vcat ?(gutter = 0) blocks =
+  if gutter < 0 then invalid_arg "Console.Layout.vcat: negative gutter";
+  String.concat (String.make (gutter + 1) '\n') blocks
+
+let vcat_anim ?gutter blocks = Anim.map (vcat ?gutter) (Anim.all blocks)

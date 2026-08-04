@@ -8,8 +8,8 @@
     A spinner is a short cyclic sequence of frames -- braille dots, a spinning
     ASCII bar -- shown beside an indeterminate task. The core is pure: {!frame}
     and {!at} pick the glyph to show and the caller draws it. {!Console.Display}
-    animates one per running row, a {!Theme.t} carries the one a display uses,
-    and {!Console_eio.Spinner.run} animates one on its own line. *)
+    animates one per running row, and a {!Theme.t} carries the one a display
+    uses. *)
 
 type t
 (** A spinner: a non-empty, cyclic sequence of frames. *)
@@ -25,7 +25,7 @@ val equal : t -> t -> bool
 val v : string array -> t
 (** [v frames] is a spinner cycling [frames] left to right.
 
-    @raise Invalid_argument if [frames] is empty. *)
+    {b Raises.} [Invalid_argument] if [frames] is empty. *)
 
 val frames : t -> string array
 (** [frames t] are [t]'s frames, in order. *)

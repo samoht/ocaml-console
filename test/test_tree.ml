@@ -21,7 +21,7 @@ let test_prefix_unicode () =
   str "three levels, mixed" "│       ├── " (Tree.prefix [ false; true; false ])
 
 let test_prefix_ascii () =
-  let guide = Tree.ascii_guide in
+  let guide = Guide.ascii in
   str "ascii last top-level" "+-- " (Tree.prefix ~guide [ true ]);
   str "ascii child of non-last" "|   +-- " (Tree.prefix ~guide [ false; false ]);
   str "ascii child of last" "    +-- " (Tree.prefix ~guide [ true; false ])
@@ -54,7 +54,7 @@ let test_anim_const () =
     Tree.of_tree
       (Tree.Node (Span.text "root", [ Tree.Node (Span.text "leaf", []) ]))
   in
-  str "frame is to_string" (Tree.to_string t)
+  str "frame is terminal-ready" (Tree.to_ansi_string t)
     (Anim.frame (Tree.anim t) ~elapsed:3.0)
 
 let suite =

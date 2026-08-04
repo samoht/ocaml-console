@@ -26,8 +26,17 @@ type chars = {
 }
 (** Box-drawing characters. *)
 
-type t = { chars : chars; style : Style.t }
+type t
 (** A border specification with characters and styling. *)
+
+val v : ?style:Style.t -> chars -> t
+(** [v ?style chars] is a border with the given character set. *)
+
+val chars : t -> chars
+(** [chars t] is [t]'s box-drawing character set. *)
+
+val style : t -> Style.t
+(** [style t] is the style applied to [t]'s characters. *)
 
 (** {1 Predefined borders} *)
 
@@ -65,8 +74,3 @@ val equal : t -> t -> bool
 
 val pp : t Fmt.t
 (** [pp ppf border] renders the border character set for diagnostics. *)
-
-val render_char : Format.formatter -> Style.t -> string -> unit
-(** [render_char ppf style char] writes [char] surrounded by [style]'s ANSI
-    escape codes (or plain when [style] is {!Style.none}). Used by table and
-    panel renderers to draw box-drawing characters with the border's style. *)

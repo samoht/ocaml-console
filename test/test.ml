@@ -11,6 +11,7 @@ let () =
       Test_span.suite;
       Test_table.suite;
       Test_tree.suite;
+      Test_rule.suite;
       Test_panel.suite;
       Test_border.suite;
       Test_bar.suite;

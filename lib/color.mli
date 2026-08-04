@@ -39,16 +39,15 @@ val ansi : ansi -> t
 
 val rgb : int -> int -> int -> t
 (** [rgb r g b] is the 24-bit colour with the given components (each 0 to 255).
-    @raise Invalid_argument if a component is out of range. *)
+    {b Raises.} [Invalid_argument] if a component is out of range. *)
 
 val hex : string -> t
 (** [hex s] is the colour parsed from a hex string like ["#RRGGBB"] or
-    ["RRGGBB"].
-    @raise Invalid_argument if the string is malformed. *)
+    ["RRGGBB"]. {b Raises.} [Invalid_argument] if the string is malformed. *)
 
 val palette : int -> t
-(** [palette n] is the 256-colour palette entry [n].
-    @raise Invalid_argument if [n] is not 0 to 255. *)
+(** [palette n] is the 256-colour palette entry [n]. {b Raises.}
+    [Invalid_argument] if [n] is not 0 to 255. *)
 
 (** {1 Predefined colors} *)
 

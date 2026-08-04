@@ -11,13 +11,12 @@ let () =
       ~dimensions:(fun () -> (80, 24))
       ~is_tty:false ()
   in
-  let d = Console.Display.v ~ctx ~mode:`Plain ~header:"Processing" () in
-  let step name =
-    let r = Console.Display.row d name in
-    now := !now +. 0.1;
-    Console.Display.finish r
-  in
-  step "foo.ml";
-  step "bar.ml";
-  step "baz.ml";
-  Console.Display.finish_all d
+  Console.Display.run ~ctx ~mode:`History ~header:"Processing" (fun display ->
+      let step name =
+        let task = Console.Display.task display name in
+        now := !now +. 0.1;
+        Console.Display.succeed task
+      in
+      step "foo.ml";
+      step "bar.ml";
+      step "baz.ml")

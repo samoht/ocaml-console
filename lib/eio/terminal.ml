@@ -1,27 +1,26 @@
 let usable_width w = if w > 10 then Some w else None
-let err_msg fmt = Fmt.kstr (fun msg -> Error (`Msg msg)) fmt
 
 let width_of_ioctl () =
   try (Eio_unix.Pty.get_window_size Eio_unix.Fd.stdout).cols |> usable_width
   with Unix.Unix_error _ -> None
 
-let width_of_env () =
-  Option.bind (Sys.getenv_opt "COLUMNS") (fun cols ->
-      Option.bind (int_of_string_opt cols) usable_width)
+let dimension_of_env name usable =
+  Option.bind (Sys.getenv_opt name) (fun value ->
+      Option.bind (int_of_string_opt value) usable)
 
-let width_of_tput () =
+let dimension_of_tput property usable =
   try
-    let ic = Unix.open_process_in "tput cols 2>/dev/null" in
+    let ic = Unix.open_process_in ("tput " ^ property ^ " 2>/dev/null") in
     let result =
       try input_line ic |> int_of_string_opt with End_of_file -> None
     in
     ignore (Unix.close_process_in ic);
-    Option.bind result usable_width
+    Option.bind result usable
   with Unix.Unix_error _ -> None
 
-let first_width sources =
+let first ~default sources =
   let rec loop = function
-    | [] -> 80
+    | [] -> default
     | source :: rest -> (
         match source () with Some w -> w | None -> loop rest)
   in
@@ -29,7 +28,12 @@ let first_width sources =
 
 let width () =
   (* Try ioctl TIOCGWINSZ first (most reliable), then $COLUMNS, then tput. *)
-  first_width [ width_of_ioctl; width_of_env; width_of_tput ]
+  first ~default:80
+    [
+      width_of_ioctl;
+      (fun () -> dimension_of_env "COLUMNS" usable_width);
+      (fun () -> dimension_of_tput "cols" usable_width);
+    ]
 
 let usable_height h = if h > 2 then Some h else None
 
@@ -37,27 +41,13 @@ let height_of_ioctl () =
   try (Eio_unix.Pty.get_window_size Eio_unix.Fd.stdout).rows |> usable_height
   with Unix.Unix_error _ -> None
 
-let height_of_env () =
-  Option.bind (Sys.getenv_opt "LINES") (fun rows ->
-      Option.bind (int_of_string_opt rows) usable_height)
-
-let height_of_tput () =
-  try
-    let ic = Unix.open_process_in "tput lines 2>/dev/null" in
-    let result =
-      try input_line ic |> int_of_string_opt with End_of_file -> None
-    in
-    ignore (Unix.close_process_in ic);
-    Option.bind result usable_height
-  with Unix.Unix_error _ -> None
-
 let height () =
-  let rec loop = function
-    | [] -> 24
-    | source :: rest -> (
-        match source () with Some h -> h | None -> loop rest)
-  in
-  loop [ height_of_ioctl; height_of_env; height_of_tput ]
+  first ~default:24
+    [
+      height_of_ioctl;
+      (fun () -> dimension_of_env "LINES" usable_height);
+      (fun () -> dimension_of_tput "lines" usable_height);
+    ]
 
 let is_tty () = Unix.isatty Unix.stdout
 let dimensions () = (width (), height ())
@@ -80,55 +70,3 @@ let on_interrupt cleanup f =
            Unix.kill (Unix.getpid ()) signum))
   in
   Fun.protect ~finally:(fun () -> Sys.set_signal Sys.sigint previous) f
-
-let rec write_all fd s off =
-  if off < String.length s then
-    match Unix.write_substring fd s off (String.length s - off) with
-    | 0 -> raise End_of_file
-    | n -> write_all fd s (off + n)
-    | exception Unix.Unix_error (Unix.EINTR, _, _) -> write_all fd s off
-
-let write fd s = write_all fd s 0
-
-let masked_attributes attr =
-  {
-    attr with
-    Unix.c_icanon = false;
-    c_echo = false;
-    c_echoe = false;
-    c_echok = false;
-    c_echonl = false;
-    c_vmin = 1;
-    c_vtime = 0;
-  }
-
-let read_secret ?(prompt = "") () =
-  if not (Unix.isatty Unix.stdin) then
-    Error (`Msg "cannot prompt for a secret because stdin is not a terminal")
-  else
-    try
-      let original = Unix.tcgetattr Unix.stdin in
-      let restore () = Unix.tcsetattr Unix.stdin Unix.TCSANOW original in
-      write Unix.stderr prompt;
-      on_interrupt restore (fun () ->
-          Fun.protect ~finally:restore (fun () ->
-              Unix.tcsetattr Unix.stdin Unix.TCSANOW
-                (masked_attributes original);
-              let input = Console.Input.v ~mask:"*" () in
-              let buf = Bytes.create 64 in
-              let rec loop () =
-                match Unix.read Unix.stdin buf 0 (Bytes.length buf) with
-                | 0 -> Error (`Msg "terminal reached end of input")
-                | n -> (
-                    let echo, lines =
-                      Console.Input.feed input (Bytes.sub_string buf 0 n)
-                    in
-                    write Unix.stderr echo;
-                    match lines with line :: _ -> Ok line | [] -> loop ())
-                | exception Unix.Unix_error (Unix.EINTR, _, _) -> loop ()
-              in
-              loop ()))
-    with
-    | Unix.Unix_error (e, fn, arg) ->
-        err_msg "%s(%s): %s" fn arg (Unix.error_message e)
-    | End_of_file -> Error (`Msg "terminal output closed while prompting")

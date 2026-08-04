@@ -24,8 +24,11 @@ type ansi =
 type t = Ansi of ansi | Rgb of int * int * int | Palette of int
 
 let ansi color = Ansi color
-let clamp v = max 0 (min 255 v)
-let rgb r g b = Rgb (clamp r, clamp g, clamp b)
+
+let rgb r g b =
+  if r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 then
+    invalid_arg "Console.Color.rgb: component outside 0..255";
+  Rgb (r, g, b)
 
 let hex str =
   let str =
@@ -36,7 +39,7 @@ let hex str =
   let len = String.length str in
   let hex_digit ch =
     match Ascii.hex_value_int ch with
-    | -1 -> invalid_arg "Color.hex: invalid hex character"
+    | -1 -> invalid_arg "Console.Color.hex: invalid hex character"
     | v -> v
   in
   let parse_hex2 i =
@@ -50,11 +53,11 @@ let hex str =
   match len with
   | 6 -> Rgb (parse_hex2 0, parse_hex2 2, parse_hex2 4)
   | 3 -> Rgb (parse_hex1 0, parse_hex1 1, parse_hex1 2)
-  | _ -> invalid_arg "Color.hex: expected 3 or 6 hex digits"
+  | _ -> invalid_arg "Console.Color.hex: expected 3 or 6 hex digits"
 
 let palette index =
   if index < 0 || index > 255 then
-    invalid_arg "Color.palette: index out of range";
+    invalid_arg "Console.Color.palette: index outside 0..255";
   Palette index
 
 (* Predefined colors *)
@@ -75,51 +78,31 @@ let bright_magenta = Ansi `Bright_magenta
 let bright_cyan = Ansi `Bright_cyan
 let bright_white = Ansi `Bright_white
 
-let ansi_fg_code = function
-  | `Black -> "30"
-  | `Red -> "31"
-  | `Green -> "32"
-  | `Yellow -> "33"
-  | `Blue -> "34"
-  | `Magenta -> "35"
-  | `Cyan -> "36"
-  | `White -> "37"
-  | `Bright_black -> "90"
-  | `Bright_red -> "91"
-  | `Bright_green -> "92"
-  | `Bright_yellow -> "93"
-  | `Bright_blue -> "94"
-  | `Bright_magenta -> "95"
-  | `Bright_cyan -> "96"
-  | `Bright_white -> "97"
+let ansi_position = function
+  | `Black | `Bright_black -> 0
+  | `Red | `Bright_red -> 1
+  | `Green | `Bright_green -> 2
+  | `Yellow | `Bright_yellow -> 3
+  | `Blue | `Bright_blue -> 4
+  | `Magenta | `Bright_magenta -> 5
+  | `Cyan | `Bright_cyan -> 6
+  | `White | `Bright_white -> 7
 
-let ansi_bg_code = function
-  | `Black -> "40"
-  | `Red -> "41"
-  | `Green -> "42"
-  | `Yellow -> "43"
-  | `Blue -> "44"
-  | `Magenta -> "45"
-  | `Cyan -> "46"
-  | `White -> "47"
-  | `Bright_black -> "100"
-  | `Bright_red -> "101"
-  | `Bright_green -> "102"
-  | `Bright_yellow -> "103"
-  | `Bright_blue -> "104"
-  | `Bright_magenta -> "105"
-  | `Bright_cyan -> "106"
-  | `Bright_white -> "107"
+let is_bright = function
+  | `Bright_black | `Bright_red | `Bright_green | `Bright_yellow | `Bright_blue
+  | `Bright_magenta | `Bright_cyan | `Bright_white ->
+      true
+  | _ -> false
 
-let to_fg_code = function
-  | Ansi color -> ansi_fg_code color
-  | Rgb (r, g, b) -> Fmt.str "38;2;%d;%d;%d" r g b
-  | Palette index -> Fmt.str "38;5;%d" index
+let to_code ~normal ~bright ~extended = function
+  | Ansi color ->
+      string_of_int
+        ((if is_bright color then bright else normal) + ansi_position color)
+  | Rgb (r, g, b) -> Fmt.str "%d;2;%d;%d;%d" extended r g b
+  | Palette index -> Fmt.str "%d;5;%d" extended index
 
-let to_bg_code = function
-  | Ansi color -> ansi_bg_code color
-  | Rgb (r, g, b) -> Fmt.str "48;2;%d;%d;%d" r g b
-  | Palette index -> Fmt.str "48;5;%d" index
+let to_fg_code = to_code ~normal:30 ~bright:90 ~extended:38
+let to_bg_code = to_code ~normal:40 ~bright:100 ~extended:48
 
 let equal left right =
   match (left, right) with

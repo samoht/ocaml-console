@@ -15,7 +15,7 @@ type style = Theme.bar
 (** A bar's look: [`Blocky] (full blocks on a shaded track), [`Smooth]
     (fractional eighth-cell fills) or [`Rainbow] (a spectrum gradient). *)
 
-type color = Theme.color
+type color = Color.t
 (** The fill colour. *)
 
 val render :
@@ -29,7 +29,8 @@ val render :
 (** [render ~width ~pct ()] is a [width]-cell bar filled to [pct] (clamped to
     the range 0 to 100). The look comes from the style argument if given, else
     [theme]'s, else [`Smooth]; the fill from the color argument if given, else
-    [theme]'s accent, else [`Cyan]. *)
+    [theme]'s accent, else {!Color.cyan}. {b Raises.} [Invalid_argument] if
+    [width] is negative. *)
 
 val at :
   ?theme:Theme.t ->
@@ -42,7 +43,8 @@ val at :
 (** [at ~width ~elapsed ()] is a moving, indeterminate bar [elapsed] seconds
     into the animation: the fill sweeps up and back over a two-second period,
     for work whose progress is unknown. Style and colour resolve as in
-    {!render}. *)
+    {!render}. Non-finite or negative elapsed time renders the initial frame.
+    {b Raises.} [Invalid_argument] if [width] is negative. *)
 
 val anim :
   ?theme:Theme.t ->

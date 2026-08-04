@@ -65,12 +65,10 @@ val reset : string
 (** {1 Fmt integration} *)
 
 val styled : t -> 'a Fmt.t -> 'a Fmt.t
-(** [styled style pp] wraps a formatter with ANSI styling.
+(** [styled style pp] applies [style] when the target formatter's style renderer
+    permits ANSI, and otherwise renders with [pp] unchanged.
 
     Example: [Fmt.pr "%a" (Style.styled Style.bold Fmt.string) "hello"]. *)
-
-val pp_styled : t -> ('a, Format.formatter, unit) format -> 'a
-(** [pp_styled style fmt] prints with styling to [Format.std_formatter]. *)
 
 (** {1 Operations} *)
 

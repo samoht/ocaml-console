@@ -12,53 +12,44 @@
     {e with} it ({!Bar.render}, {!Tree}, {!Table}, {!Panel}, {!Display}); it
     renders nothing itself. *)
 
-type color =
-  [ `Cyan
-  | `Green
-  | `Blue
-  | `Magenta
-  | `Yellow
-  | `Red
-  | `White
-  | `Hex of int * int * int ]
-(** A foreground colour, named or 24-bit [`Hex (r, g, b)]. *)
-
-(** {1 Tree guides} *)
-
-type guide = { branch : string; last : string; pipe : string; space : string }
-(** The four glyphs that draw a tree's nesting: a branch before a non-final
-    child, a final-child marker, a vertical pipe for an ancestor with more
-    siblings below, and blank space for an ancestor with none. *)
-
-val ascii_guide : guide
-(** [ascii_guide] is the ASCII tree guide. *)
-
-val unicode_guide : guide
-(** [unicode_guide] is the Unicode tree guide. *)
-
 (** {1 Themes} *)
 
 type bar = [ `Blocky | `Smooth | `Rainbow ]
 (** A bar's look: full blocks on a shaded track, fractional eighth-cell fills,
     or a spectrum gradient. {!Bar} renders it. *)
 
-type t = {
-  accent : color;  (** The default row/spinner/bar accent. *)
-  palette : color list;
-      (** Cycled to give successive rows/nodes distinct accents; [[]] means
-          none. *)
-  border : Border.t;  (** Border for tables and panels. *)
-  animated_border : bool;
-      (** When [true], {!Panel.anim} and {!Table.anim} render the border as
-          Matrix-style digital rain instead of a still frame. *)
-  guide : guide;  (** Guide for trees and the live display's nesting. *)
-  spinner : Spinner.t;  (** The spinner animated beside a running row. *)
-  bar : bar;  (** The bar style rows fill with. *)
-  done_marker : string;  (** Replaces the spinner on a finished row. *)
-  ok_marker : string;  (** Result-banner success verdict, e.g. ["[OK]"]. *)
-  fail_marker : string;  (** Result-banner failure verdict, e.g. ["[FAIL]"]. *)
-}
-(** A theme: every visual choice the widgets share, as data. *)
+type t
+(** A theme: every visual choice the widgets share. *)
+
+val accent : t -> Color.t
+(** [accent t] is the default row, spinner, and bar colour. *)
+
+val palette : t -> Color.t list
+(** [palette t] is the colour cycle for successive rows and nodes. *)
+
+val border : t -> Border.t
+(** [border t] is the border for tables and panels. *)
+
+val animated_border : t -> bool
+(** [animated_border t] is [true] when panels and tables use rain animation. *)
+
+val guide : t -> Guide.t
+(** [guide t] is the guide for trees and nested display rows. *)
+
+val spinner : t -> Spinner.t
+(** [spinner t] is the running-row spinner. *)
+
+val bar : t -> bar
+(** [bar t] is the progress-bar style. *)
+
+val done_marker : t -> string
+(** [done_marker t] replaces the spinner on a completed row. *)
+
+val ok_marker : t -> string
+(** [ok_marker t] is the success verdict marker. *)
+
+val fail_marker : t -> string
+(** [fail_marker t] is the failure verdict marker. *)
 
 val equal : t -> t -> bool
 (** [equal a b] is [true] when [a] and [b] make the same visual choices in every
@@ -68,11 +59,11 @@ val pp : t Fmt.t
 (** [pp] prints a short summary of a theme's markers, for diagnostics. *)
 
 val v :
-  ?accent:color ->
-  ?palette:color list ->
+  ?accent:Color.t ->
+  ?palette:Color.t list ->
   ?border:Border.t ->
   ?animated_border:bool ->
-  ?guide:guide ->
+  ?guide:Guide.t ->
   ?bar:bar ->
   spinner:Spinner.t ->
   done_marker:string ->
@@ -92,7 +83,7 @@ val dos : t
 
 val unicode : t
 (** Modern unicode: a rounded border, a braille spinner, a smooth fractional
-    bar, a check-mark done marker, and a green tick / red cross result banner.
+    bar, one restrained activity accent, and semantic success/failure markers.
 *)
 
 val matrix : t
@@ -102,4 +93,4 @@ val rainbow : t
 (** Rows and nodes cycle the spectrum, and the bar is a colour gradient. *)
 
 val default : t
-(** [default] is {!dos}. *)
+(** [default] is {!unicode}. *)

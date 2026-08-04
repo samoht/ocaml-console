@@ -9,11 +9,8 @@
    renders with them. *)
 open Ansi
 
-type color = Theme.color
+type color = Color.t
 
-(* The bar accent a display falls back to when its theme has no palette: amber,
-   the DOS satellite-workstation CRT phosphor. *)
-let amber : color = `Hex (0xff, 0xb0, 0x00)
 let hide_cursor = "\027[?25l"
 let show_cursor = "\027[?25h"
 
@@ -36,23 +33,40 @@ let span secs =
     if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
     else Fmt.str "%dh%02dm" (s / 3600) (s / 60 mod 60)
 
-(* Replace control bytes -- tabs, carriage returns, escapes, BEL, NUL -- in
-   caller-supplied text (labels, log lines, headers, messages) with a space.
-   They would otherwise reach the terminal raw: a tab expands to a tab stop and
-   makes the line wider than its measured width, wrapping it onto a second row
-   and desyncing the redraw; an escape would inject control sequences. UTF-8
-   continuation bytes are >= 0x80, so this never splits a multibyte glyph. *)
-let sanitize s =
-  String.map
-    (fun c -> if Char.code c < 0x20 || Char.code c = 0x7f then ' ' else c)
-    s
+(* Caller text is validated before it participates in width budgeting: a
+   malformed sequence occupies a replacement-glyph cell in real terminals and
+   controls could otherwise inject escapes or desynchronise redraw geometry. *)
+let sanitize = Render.sanitize ~keep_newlines:false
+
+(* Split on newlines, dropping only the final empty field introduced by one
+   trailing newline. Internal blank lines are semantic too. *)
+let lines_of_string s =
+  if s = "" then []
+  else
+    let lines = String.split_on_char '\n' s in
+    let lines =
+      match List.rev lines with "" :: rest -> List.rev rest | _ -> lines
+    in
+    List.map
+      (fun line ->
+        let n = String.length line in
+        if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1) else line)
+      lines
+
+let sanitize_multiline s =
+  String.concat "\n" (List.map sanitize (lines_of_string s))
 
 (* The live region currently painted on the terminal. [suspend] (and hence the
    Logs reporter) clears it before foreign stdout writes and redraws it
    after. *)
-type region = { clear : unit -> unit; redraw : unit -> unit }
+type region = {
+  ppf : Format.formatter;
+  clear : unit -> unit;
+  redraw : unit -> unit;
+}
 
 let active_region : region option ref = ref None
+let activity_claimed = Atomic.make false
 
 (* Run [f] with [ppf]'s margin set to [max_int] so ANSI escapes and raw control
    characters pass through without wrapping. *)
@@ -77,10 +91,35 @@ let pp_block ppf lines =
     | [ last ] -> Format.pp_print_string ppf last
     | line :: rest ->
         Format.pp_print_string ppf line;
-        Format.pp_print_string ppf "\n";
+        (* A row may occupy the terminal's final column.  An explicit carriage
+           return cancels VT pending-wrap before the line feed, independently
+           of whether the host tty has ONLCR enabled. *)
+        Format.pp_print_string ppf "\r\n";
         write rest
   in
   write lines
+
+(* Rewrite only rows whose rendered bytes changed. The cursor starts somewhere
+   on the last row of the old region and finishes on the last row again. A row
+   is erased {e after} its replacement is written, so there is no blank flash;
+   the erase only removes a stale suffix when the new row is shorter. *)
+let pp_update ppf ~old_lines ~new_lines =
+  let old_lines = Array.of_list old_lines in
+  let new_lines = Array.of_list new_lines in
+  let n = Array.length new_lines in
+  if n > 0 then begin
+    Format.pp_print_string ppf "\r";
+    for _ = 1 to n - 1 do
+      Format.pp_print_string ppf "\027[1A"
+    done;
+    for i = 0 to n - 1 do
+      if not (String.equal old_lines.(i) new_lines.(i)) then begin
+        Format.pp_print_string ppf new_lines.(i);
+        Format.pp_print_string ppf "\027[K"
+      end;
+      if i < n - 1 then Format.pp_print_string ppf "\r\n"
+    done
+  end
 
 (** {1 Interleaving foreign output} *)
 
@@ -119,6 +158,12 @@ let uninstall_reporter () =
       saved_reporter := None;
       Logs.set_reporter r
 
+let restore_terminal ppf =
+  try
+    Format.pp_print_string ppf show_cursor;
+    Format.pp_print_flush ppf ()
+  with _ -> ()
+
 (** {1 Row layout}
 
     A small composable DSL for the look of a row, in the spirit of
@@ -143,15 +188,31 @@ module Line = struct
 
   let spinner = Spinner
   let label = Label
-  let bar n = Bar n
+
+  let bar n =
+    if n < 0 then invalid_arg "Console.Display.Line.bar: negative width";
+    Bar n
+
   let percent = Percent
   let count = Count
   let rate = Rate
   let elapsed = Elapsed
-  let text s = Text s
-  let accent s = Accent s
+  let text s = Text (sanitize s)
+  let accent s = Accent (sanitize s)
   let spacer = Spacer
-  let v ?(color = amber) pieces = { pieces; color }
+
+  let v ?(color = Color.cyan) pieces =
+    let count piece =
+      List.fold_left
+        (fun n candidate -> if candidate = piece then n + 1 else n)
+        0 pieces
+    in
+    if count Label > 1 then
+      invalid_arg "Console.Display.Line.v: more than one label";
+    if count Spacer > 1 then
+      invalid_arg "Console.Display.Line.v: more than one spacer";
+    { pieces; color }
+
   let with_color color t = { t with color }
 
   let default =
@@ -160,28 +221,78 @@ module Line = struct
         spinner;
         text " ";
         label;
-        text "  ";
-        bar 20;
-        text " ";
-        percent;
+        spacer;
+        bar 10;
         text " ";
         count;
         text " ";
         rate;
-        spacer;
+        text " ";
         elapsed;
       ]
 end
 
 (** {1 Display} *)
 
-type mode = [ `Auto | `Console | `Plain ]
+type mode = [ `Auto | `Activity | `History ]
 type metric = Spin | Count of int * int | Bytes of int64 * int64
+
+module Event = struct
+  type level = [ `Info | `Warning | `Error ]
+  type outcome = [ `Succeeded | `Failed | `Cancelled ]
+  type result = [ `Ok | `Fail ]
+
+  type kind =
+    [ `Message of level
+    | `Started
+    | `Log of level
+    | `Finished of outcome
+    | `Result of result ]
+
+  type t = {
+    elapsed : float;
+    task : int option;
+    key : string option;
+    path : string list;
+    kind : kind;
+    message : string;
+    detail : string option;
+  }
+
+  let elapsed t = t.elapsed
+  let task t = t.task
+  let key t = t.key
+  let path t = t.path
+  let kind t = t.kind
+  let message t = t.message
+  let detail t = t.detail
+
+  let pp_kind ppf = function
+    | `Message `Info -> Fmt.string ppf "info"
+    | `Message `Warning -> Fmt.string ppf "warning"
+    | `Message `Error -> Fmt.string ppf "error"
+    | `Started -> Fmt.string ppf "started"
+    | `Log `Info -> Fmt.string ppf "log"
+    | `Log `Warning -> Fmt.string ppf "warning-log"
+    | `Log `Error -> Fmt.string ppf "error-log"
+    | `Finished `Succeeded -> Fmt.string ppf "succeeded"
+    | `Finished `Failed -> Fmt.string ppf "failed"
+    | `Finished `Cancelled -> Fmt.string ppf "cancelled"
+    | `Result `Ok -> Fmt.string ppf "ok"
+    | `Result `Fail -> Fmt.string ppf "fail"
+
+  let pp ppf t =
+    Fmt.pf ppf "@[%a%s%s: %s%a@]" pp_kind t.kind
+      (if t.path = [] then "" else " ")
+      (String.concat "/" t.path) t.message
+      Fmt.(option (any " -- " ++ string))
+      t.detail
+end
 
 (* The effects a live display needs from its environment: where to write, the
    clock that drives the animation, the terminal geometry to fit, and whether
    the output is a terminal. The eio driver supplies these. *)
-type ctx = {
+type view = {
   ppf : Format.formatter;
   now : unit -> float;
   dimensions : unit -> int * int;
@@ -189,13 +300,18 @@ type ctx = {
   char_width : Uchar.t -> int;
 }
 
-let ctx ~ppf ~now ~dimensions ~is_tty () =
-  { ppf; now; dimensions; is_tty; char_width = Width.default_char_width }
+type ctx = Fresh of view
 
-let with_char_width c char_width = { c with char_width }
-let is_tty c = c.is_tty
-let dimensions c = c.dimensions ()
-let char_width c = c.char_width
+let make_view ~ppf ~now ~dimensions ~is_tty ~char_width =
+  { ppf; now; dimensions; is_tty; char_width }
+
+let ctx ~ppf ~now ~dimensions ~is_tty () =
+  Fresh
+    (make_view ~ppf ~now ~dimensions ~is_tty
+       ~char_width:Width.default_char_width)
+
+let with_char_width (Fresh c) char_width = Fresh { c with char_width }
+let view_of_ctx (Fresh c) = c
 
 (* A non-interactive context -- standard output, a fixed 80x24 geometry, a zero
    clock, not a tty -- for rendering to a string or a test, where no real
@@ -214,9 +330,6 @@ type t = {
       (* terminal (width, height), re-read each paint so a resize is handled *)
   char_width : Uchar.t -> int;
   header : string option;
-  mutable banner : string Anim.t option;
-      (* an optional animation painted above the header; sampled at the
-         display's elapsed time each paint, so the tick loop animates it *)
   default_style : Line.t;
   theme : Theme.t;
   palette : color list;
@@ -231,24 +344,36 @@ type t = {
   auto_width : bool;
   auto_height : bool;
   mutable rows : row list; (* insertion order *)
+  by_key : (string, row) Hashtbl.t;
+  mutable events_rev : Event.t list;
+      (* permanent semantic events, newest first *)
+  mutable next_task_id : int;
   mutable pending :
     ([ `Ok of string | `Fail of string ] * string option) option;
-      (* the verdict recorded by {!set_result}; {!finish_all} renders it when
-         its caller passes no explicit result *)
-  mutable untagged : row option;
-      (* the memoized untagged-logs row handed out by {!default_row} *)
+      (* the verdict recorded by {!set_result}; rendered when the scope closes *)
   mutable finished : int;
   mutable live_height : int;
   mutable last_lines : string list; (* the lines currently on screen *)
   mutable torn_down : bool;
+  mutable owns_activity : bool;
+  mutable suspended : int;
+}
+
+and row_log = {
+  ltime : float;
+  lgap : float;
+  llevel : Event.level;
+  lmessage : string;
 }
 
 and row = {
+  rid : int;
+  rkey : string option;
   disp : t;
   parent : row option;
-  mutable style : Line.t;
+  style : Line.t;
   log_lines : int; (* size of the live log tail shown under the row; 0 = none *)
-  mutable logs : (float * string) list;
+  mutable logs : row_log list;
       (* the last [log_lines] lines, oldest first; each paired with the gap (in
          seconds) since the previous log line, so a stall between two lines is
          visible rather than silent *)
@@ -258,21 +383,27 @@ and row = {
   rstart : float;
   mutable rfinish : float option;
   mutable rmessage : string option;
-  mutable rkeep_live : bool;
-  mutable rerror : bool;
-  (* finished in error; flips the summary marker to [x] *)
+  mutable routcome : Event.outcome option;
   (* EWMA byte-rate sampling *)
   mutable last_cur : int64;
   mutable last_t : float;
   mutable rate : float;
 }
 
+type task = row
+
+(* Nested library calls compose into the domain's current display.  The outer
+   scope alone owns configuration, completion and terminal teardown.  A DLS
+   binding keeps independent domains separate; the activity claim below still
+   prevents two domains from repainting the same terminal concurrently. *)
+let current = Domain.DLS.new_key (fun () -> None)
+
 let pp ppf t =
   Fmt.pf ppf "<tty-display %dx%d %d/%d rows%s>" t.width t.height t.finished
     (List.length t.rows)
     (if t.torn_down then " torn-down" else "")
 
-let render_width t = if t.plain then t.width else max 0 (t.width - 1)
+let render_width t = t.width
 let string_width t = Width.string_width ~char_width:t.char_width
 let truncate t = Width.truncate ~char_width:t.char_width
 let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
@@ -300,30 +431,42 @@ let rec lasts_path t row =
   match row.parent with None -> [ own ] | Some p -> lasts_path t p @ [ own ]
 
 let guide_prefix t row =
-  Tree.prefix ~guide:t.theme.Theme.guide (lasts_path t row)
+  match row.parent with
+  | None -> ""
+  | Some _ ->
+      let nested = match lasts_path t row with _ :: rest -> rest | [] -> [] in
+      "  " ^ Tree.prefix ~guide:(Theme.guide t.theme) nested
 
 (* The vertical-bar column beneath a row, under which its log tail sits: each
    level is a pipe when more siblings follow, or blank when it was the last. *)
 let continuation t row =
-  let g = t.theme.Theme.guide in
-  String.concat ""
-    (List.map
-       (fun is_last -> if is_last then g.Tree.space else g.Tree.pipe)
-       (lasts_path t row))
+  let g = Theme.guide t.theme in
+  let nested = match lasts_path t row with _ :: rest -> rest | [] -> [] in
+  "  "
+  ^ String.concat ""
+      (List.map
+         (fun is_last -> if is_last then Guide.space g else Guide.pipe g)
+         nested)
 
 let elapsed t row =
   match row.rfinish with
   | Some f -> f -. row.rstart
   | None -> t.now () -. row.rstart
 
+let percent cur total =
+  if total <= 0 then 0
+  else if cur >= total then 100
+  else int_of_float (100. *. (float cur /. float total))
+
+let percent64 cur total =
+  if total <= 0L then 0
+  else if cur >= total then 100
+  else int_of_float (100. *. (Int64.to_float cur /. Int64.to_float total))
+
 let pct_of = function
   | Spin -> None
-  | Count (c, tot) -> Some (if tot > 0 then min 100 (c * 100 / tot) else 0)
-  | Bytes (c, tot) ->
-      Some
-        (if tot > 0L then
-           min 100 (Int64.to_int (Int64.div (Int64.mul c 100L) tot))
-         else 0)
+  | Count (cur, total) -> Some (percent cur total)
+  | Bytes (cur, total) -> Some (percent64 cur total)
 
 (* Render one style piece against a row's current data; [""] when the piece does
    not apply. [Label] and [Spacer] render empty here -- they are substituted
@@ -333,9 +476,13 @@ let render_spinner theme ~finished ~color ~frame row =
      different glyphs for the same state: green [+] done, red [x] on error, the
      animated spinner while running. *)
   if not finished then
-    styled (color_code color) (Spinner.frame theme.Theme.spinner frame)
-  else if row.rerror then styled (bold ^ color_code `Red) "[x]"
-  else styled (bold ^ color_code `Green) theme.Theme.done_marker
+    styled (color_code color) (Spinner.frame (Theme.spinner theme) frame)
+  else
+    match row.routcome with
+    | Some `Failed -> styled (bold ^ color_code Color.red) "[x]"
+    | Some `Cancelled -> styled (bold ^ color_code Color.yellow) "[~]"
+    | Some `Succeeded | None ->
+        styled (bold ^ color_code Color.green) (Theme.done_marker theme)
 
 let render_bar theme row ~finished ~color ~width =
   if finished then ""
@@ -434,24 +581,62 @@ let final_metric row =
   | Count (c, tot) -> Fmt.str "  %d/%d" c tot
   | Bytes (c, tot) -> Fmt.str "  %s / %s" (bytes c) (bytes tot)
 
-let plain_committed t row =
+let committed_parts t row =
   let label = Option.value row.rmessage ~default:row.rlabel in
-  Fmt.str "%s=> %s%s  %s" (indent row) label (final_metric row)
-    (span (elapsed t row))
+  let marker =
+    match row.routcome with
+    | Some `Succeeded -> "=>"
+    | Some `Failed -> "!!"
+    | Some `Cancelled -> "--"
+    | None -> ".."
+  in
+  (indent row, marker, label, final_metric row, span (elapsed t row))
+
+let plain_committed t row =
+  let indent, marker, label, metric, elapsed = committed_parts t row in
+  Fmt.str "%s%s %s%s  %s" indent marker label metric elapsed
+
+let styled_committed t row =
+  let marker_style =
+    match row.routcome with
+    | Some `Succeeded -> bold ^ color_code Color.green
+    | Some `Failed -> bold ^ color_code Color.red
+    | Some `Cancelled -> bold ^ color_code Color.yellow
+    | None -> dim
+  in
+  let indent, marker, label, metric, elapsed = committed_parts t row in
+  String.concat ""
+    [
+      indent;
+      Ansi.styled marker_style marker;
+      " ";
+      label;
+      dimmed metric;
+      "  ";
+      dimmed elapsed;
+    ]
 
 let complete t =
   let total = List.length t.rows in
-  total > 0 && t.finished >= total
+  t.finished >= total
 
-let any_error t = List.exists (fun r -> r.rerror) t.rows
+let any_error t = List.exists (fun r -> r.routcome = Some `Failed) t.rows
+let any_cancelled t = List.exists (fun r -> r.routcome = Some `Cancelled) t.rows
 
 (* The summary marker and its colour: [-] (accent) while work is in progress,
    then [+] (green) once every row is done, or [x] (red) if any finished in
    error. *)
 let header_marker t =
   if not (complete t) then ("[-]", t.default_style.Line.color)
-  else if any_error t then ("[x]", `Red)
-  else ("[+]", `Green)
+  else if
+    any_error t
+    ||
+    match t.pending with
+    | Some (`Fail _, _) -> true
+    | Some (`Ok _, _) | None -> false
+  then ("[x]", Color.red)
+  else if any_cancelled t then ("[~]", Color.yellow)
+  else ("[+]", Color.green)
 
 let summary t =
   match t.header with
@@ -501,14 +686,28 @@ let header_styled t =
    (e.g. ["# linking  +18.0s"]). *)
 let log_gap_threshold = 1.0
 let gap_suffix gap = if gap >= log_gap_threshold then "  +" ^ span gap else ""
+let level_marker = function `Info -> "#" | `Warning -> "!" | `Error -> "x"
+
+let level_style = function
+  | `Info -> dim
+  | `Warning -> bold ^ color_code Color.yellow
+  | `Error -> bold ^ color_code Color.red
+
+let styled_log level marker message suffix =
+  String.concat ""
+    [ Ansi.styled (level_style level) marker; " "; message; dimmed suffix ]
 
 let row_block_parts t row =
   let tail =
     List.map
-      (fun (gap, l) ->
+      (fun log ->
         truncate t (render_width t)
           (String.concat ""
-             [ continuation t row; dimmed ("# " ^ l ^ gap_suffix gap) ]))
+             [
+               continuation t row;
+               styled_log log.llevel (level_marker log.llevel) log.lmessage
+                 (gap_suffix log.lgap);
+             ]))
       row.logs
   in
   (render_row t row, tail)
@@ -525,13 +724,17 @@ let rec drop n = function _ :: tl when n > 0 -> drop (n - 1) tl | l -> l
    what was hidden. If even the bare rows overflow, keep the most recent
    ones. *)
 let cap_region t ~header ~blocks =
-  let hn = List.length header in
-  let budget = t.height - 1 - hn in
-  (* reserve one row for the cursor / next commit *)
+  (* Reserve one row for the cursor / next commit. At very small geometries the
+     header wins; emitting even one line beyond [capacity] would scroll an old
+     frame out of reach of the cursor-relative clear. *)
+  let capacity = max 0 (t.height - 1) in
+  let header = if capacity = 0 then [] else header in
+  let budget = max 0 (capacity - List.length header) in
   let total =
     List.fold_left (fun n (_, logs) -> n + 1 + List.length logs) 0 blocks
   in
-  if t.height <= 0 || total <= budget then
+  if budget = 0 then header
+  else if total <= budget then
     header @ List.concat_map (fun (line, logs) -> line :: logs) blocks
   else
     let marker hidden =
@@ -539,7 +742,7 @@ let cap_region t ~header ~blocks =
         (Fmt.kstr dimmed "  ... (%d more lines)" hidden)
     in
     let nrows = List.length blocks in
-    if nrows + 1 > budget then begin
+    if nrows > budget then begin
       (* Even the bare rows do not fit. Keep the first row (the build phase /
          root, the context for everything below) and the most recent rows (the
          active leaf), collapsing the middle behind a marker -- so a deep tree
@@ -548,51 +751,43 @@ let cap_region t ~header ~blocks =
       match rows with
       | [] -> header
       | first :: rest ->
-          let tail_keep = max 0 (budget - 2) in
-          let shown = drop (List.length rest - tail_keep) rest in
-          let hidden = total - 1 - List.length shown in
-          header @ (first :: marker hidden :: shown)
+          if budget = 1 then header @ [ List.hd (List.rev rows) ]
+          else if budget = 2 then header @ [ first; List.hd (List.rev rest) ]
+          else
+            let tail_keep = budget - 2 in
+            let shown = drop (List.length rest - tail_keep) rest in
+            let hidden = total - 1 - List.length shown in
+            header @ (first :: marker hidden :: shown)
     end
-    else begin
+    else
       (* Spend the budget (less one row for the marker) on the most recent log
          lines, shedding the oldest. Walk the flat row/log stream and drop the
          first [to_drop] log lines, keeping every row line. *)
-      let to_drop = total - (budget - 1) in
-      let flat =
-        List.concat_map
-          (fun (line, logs) -> `Row line :: List.map (fun l -> `Log l) logs)
-          blocks
-      in
-      let rec shed dropped acc = function
-        | rest when dropped >= to_drop ->
-            List.rev_append acc
-              (List.map (function `Row s | `Log s -> s) rest)
-        | `Log _ :: tl -> shed (dropped + 1) acc tl
-        | `Row s :: tl -> shed dropped (s :: acc) tl
-        | [] -> List.rev acc
-      in
-      header @ (marker to_drop :: shed 0 [] flat)
-    end
+      begin if nrows = budget then header @ List.map fst blocks
+      else
+        let to_drop = total - (budget - 1) in
+        let flat =
+          List.concat_map
+            (fun (line, logs) -> `Row line :: List.map (fun l -> `Log l) logs)
+            blocks
+        in
+        let rec shed dropped acc = function
+          | rest when dropped >= to_drop ->
+              List.rev_append acc
+                (List.map (function `Row s | `Log s -> s) rest)
+          | `Log _ :: tl -> shed (dropped + 1) acc tl
+          | `Row s :: tl -> shed dropped (s :: acc) tl
+          | [] -> List.rev acc
+        in
+        header @ (marker to_drop :: shed 0 [] flat)
+      end
 
 let rec row_live row =
-  (row.rfinish = None || row.rkeep_live)
+  row.rfinish = None
   && match row.parent with None -> true | Some parent -> row_live parent
 
-(* The current banner frame, each line truncated to the terminal width so it
-   never wraps. Empty when no banner is set. *)
-let banner_lines t =
-  match t.banner with
-  | None -> []
-  | Some a ->
-      let frame = Anim.frame a ~elapsed:(t.now () -. t.dstart) in
-      List.map
-        (fun l -> truncate t (render_width t) l)
-        (String.split_on_char '\n' frame)
-
 let live_lines t =
-  let header =
-    banner_lines t @ match header_styled t with Some s -> [ s ] | None -> []
-  in
+  let header = match header_styled t with Some s -> [ s ] | None -> [] in
   let active = List.filter row_live t.rows in
   let blocks = List.map (row_block_parts t) active in
   cap_region t ~header ~blocks
@@ -602,12 +797,17 @@ let live_lines t =
    frame. A stale, too-large width would let a line wrap; a stale height would
    mis-size the cap -- either desyncs the redraw. *)
 let refresh_size t =
-  if t.auto_width then t.width <- fst (t.dimensions ());
-  if t.auto_height then t.height <- snd (t.dimensions ())
+  let old_width = t.width and old_height = t.height in
+  if t.auto_width || t.auto_height then begin
+    let width, height = t.dimensions () in
+    if t.auto_width then t.width <- max 1 width;
+    if t.auto_height then t.height <- max 1 height
+  end;
+  t.width <> old_width || t.height <> old_height
 
 let paint t =
-  if (not t.plain) && not t.torn_down then begin
-    refresh_size t;
+  if (not t.plain) && (not t.torn_down) && t.suspended = 0 then begin
+    let resized = refresh_size t in
     let lines = live_lines t in
     (* Skip the repaint when the frame is byte-identical to what is already on
        screen: clearing and rewriting the same glyphs on every animation tick is
@@ -616,8 +816,14 @@ let paint t =
        always repainted. *)
     if lines <> t.last_lines || List.length lines <> t.live_height then begin
       with_unlimited_margin t.dppf (fun () ->
-          pp_clear t.dppf t.live_height;
-          pp_block t.dppf lines;
+          if
+            (not resized) && t.live_height > 0
+            && List.length lines = t.live_height
+          then pp_update t.dppf ~old_lines:t.last_lines ~new_lines:lines
+          else begin
+            pp_clear t.dppf t.live_height;
+            pp_block t.dppf lines
+          end;
           Format.pp_print_flush t.dppf ());
       (* No trailing newline: it would land on the bottom screen row and scroll
          the region up every paint, stranding the top line (the header) in
@@ -629,15 +835,17 @@ let paint t =
     end
   end
 
-(* Clear the live region, append [s] as a permanent scrollback line, then
-   repaint the (now smaller) region beneath it. [s] is bounded to the current
-   width so a committed line never wraps in the scrollback. *)
+(* Clear the activity projection, append [s] permanently, then repaint current
+   activity beneath it. Permanent history is deliberately not truncated: it may
+   wrap in the terminal, but it must never lose information. Since the old live
+   region was cleared first and [live_height] is reset, wrapped history cannot
+   corrupt the next projection. *)
 let commit t s =
-  refresh_size t;
+  ignore (refresh_size t);
   with_unlimited_margin t.dppf (fun () ->
       pp_clear t.dppf t.live_height;
-      Format.pp_print_string t.dppf (truncate t (render_width t) s);
-      Format.pp_print_string t.dppf "\n";
+      Format.pp_print_string t.dppf s;
+      Format.pp_print_string t.dppf "\r\n";
       Format.pp_print_flush t.dppf ());
   t.live_height <- 0;
   paint t
@@ -652,6 +860,7 @@ let install_region t =
   active_region :=
     Some
       {
+        ppf = t.dppf;
         clear =
           (fun () ->
             with_unlimited_margin t.dppf (fun () ->
@@ -662,23 +871,34 @@ let install_region t =
       };
   paint t
 
-let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?(palette = [])
+let create ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
     ?(bar = Line.default) ?width ?height ?header () =
+  let ctx = view_of_ctx ctx in
+  (match width with
+  | Some width when width <= 0 ->
+      invalid_arg "Console.Display.run: width must be positive"
+  | _ -> ());
+  (match height with
+  | Some height when height <= 0 ->
+      invalid_arg "Console.Display.run: height must be positive"
+  | _ -> ());
   let plain =
     match mode with
-    | `Plain -> true
-    | `Console -> false
+    | `History -> true
+    | `Activity -> false
     | `Auto -> not ctx.is_tty
   in
+  (match !active_region with
+  | Some region when plain && region.ppf == ctx.ppf ->
+      invalid_arg "Console.Display.run: output formatter is already active"
+  | Some _ | None -> ());
   (* A pinned [width]/[height] (tests) stays fixed; otherwise re-read the live
      terminal geometry on every paint so a resize is handled. *)
   let auto_width = width = None and auto_height = height = None in
   let term_w, term_h = ctx.dimensions () in
-  let width =
-    match width with Some w -> w | None -> if plain then 0 else term_w
-  in
-  let height = match height with Some h -> h | None -> term_h in
-  let t =
+  let width = match width with Some w -> w | None -> max 1 term_w in
+  let height = match height with Some h -> h | None -> max 1 term_h in
+  let make () =
     {
       dppf = ctx.ppf;
       plain;
@@ -686,34 +906,43 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?(palette = [])
       dimensions = ctx.dimensions;
       char_width = ctx.char_width;
       header = Option.map sanitize header;
-      banner = None;
       default_style = bar;
       theme;
-      palette;
+      palette = Option.value palette ~default:(Theme.palette theme);
       dstart = ctx.now ();
       width;
       height;
       auto_width = auto_width && not plain;
       auto_height = auto_height && not plain;
       rows = [];
+      by_key = Hashtbl.create 16;
+      events_rev = [];
+      next_task_id = 0;
       pending = None;
-      untagged = None;
       finished = 0;
       live_height = 0;
       last_lines = [];
       torn_down = false;
+      owns_activity = false;
+      suspended = 0;
     }
   in
-  if not plain then install_region t;
-  t
-
-let set_banner t a =
-  t.banner <- Some a;
-  if not t.plain then paint t
-
-let clear_banner t =
-  t.banner <- None;
-  if not t.plain then paint t
+  let t = make () in
+  if plain then t
+  else if not (Atomic.compare_and_set activity_claimed false true) then
+    invalid_arg "Console.Display.run: another activity display is active"
+  else begin
+    t.owns_activity <- true;
+    match install_region t with
+    | () -> t
+    | exception exn ->
+        restore_terminal ctx.ppf;
+        t.owns_activity <- false;
+        active_region := None;
+        uninstall_reporter ();
+        Atomic.set activity_claimed false;
+        raise exn
+  end
 
 let touch r = if not r.disp.plain then paint r.disp
 
@@ -731,62 +960,229 @@ let row_style t ~bar ~color =
             base
       | _ -> base)
 
-let row ?parent ?bar ?color ?(log_lines = 0) t label =
-  let now = t.now () in
-  let r =
+let check_open fn t =
+  if t.torn_down then invalid_arg ("Console.Display." ^ fn ^ ": closed display")
+
+let release_activity t =
+  if t.owns_activity then begin
+    t.owns_activity <- false;
+    active_region := None;
+    uninstall_reporter ();
+    Atomic.set activity_claimed false
+  end
+
+let with_output t f =
+  check_open "with_output" t;
+  let call () =
+    let margin = Format.pp_get_margin t.dppf () in
+    Format.pp_set_margin t.dppf (render_width t);
+    Fun.protect
+      (fun () ->
+        match f t.dppf with
+        | value ->
+            Format.pp_print_flush t.dppf ();
+            value
+        | exception exn ->
+            Format.pp_print_flush t.dppf ();
+            raise exn)
+      ~finally:(fun () -> Format.pp_set_margin t.dppf margin)
+  in
+  if t.plain || t.suspended > 0 then call ()
+  else
+    match !active_region with
+    | Some region when region.ppf == t.dppf -> (
+        region.clear ();
+        t.suspended <- t.suspended + 1;
+        let resume ~preserve =
+          t.suspended <- t.suspended - 1;
+          if preserve then try paint t with _ -> () else paint t
+        in
+        match call () with
+        | value ->
+            resume ~preserve:false;
+            value
+        | exception exn ->
+            resume ~preserve:true;
+            raise exn)
+    | Some _ | None ->
+        invalid_arg "Console.Display.with_output: display does not own output"
+
+let rec task_path r =
+  match r.parent with
+  | None -> [ r.rlabel ]
+  | Some parent -> task_path parent @ [ r.rlabel ]
+
+let record ?task ?detail t kind message =
+  let event : Event.t =
     {
-      disp = t;
-      parent;
-      style = row_style t ~bar ~color;
-      log_lines = max 0 log_lines;
-      logs = [];
-      log_prev_t = now;
-      rlabel = sanitize label;
-      metric = Spin;
-      rstart = now;
-      rfinish = None;
-      rmessage = None;
-      rkeep_live = false;
-      rerror = false;
-      last_cur = 0L;
-      last_t = now;
-      rate = 0.;
+      elapsed = t.now () -. t.dstart;
+      task = Option.map (fun r -> r.rid) task;
+      key = Option.bind task (fun r -> r.rkey);
+      path = Option.fold ~none:[] ~some:task_path task;
+      kind;
+      message;
+      detail;
     }
   in
-  t.rows <- t.rows @ [ r ];
-  touch r;
-  r
+  t.events_rev <- event :: t.events_rev
 
-(* The display's untagged-logs row: created on first request and memoized, so
-   every log line without a destination of its own lands in one shared
-   window. *)
-let default_row ?log_lines t =
-  match t.untagged with
-  | Some r -> r
+let history t = List.rev t.events_rev
+
+module Activity = struct
+  type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
+  type log = { elapsed : float; level : Event.level; message : string }
+
+  let log_elapsed t = t.elapsed
+  let log_level t = t.level
+  let log_message t = t.message
+
+  type item = {
+    id : int;
+    key : string option;
+    parent : int option;
+    label : string;
+    progress : progress;
+    elapsed : float;
+    logs : log list;
+  }
+
+  let id t = t.id
+  let key t = t.key
+  let parent t = t.parent
+  let label t = t.label
+  let progress t = t.progress
+  let elapsed t = t.elapsed
+  let logs t = t.logs
+
+  type t = item list
+
+  let items t = t
+
+  let pp_item ppf item =
+    let pp_progress ppf = function
+      | `Spin -> Fmt.string ppf "running"
+      | `Count (cur, total) -> Fmt.pf ppf "%d/%d" cur total
+      | `Bytes (cur, total) -> Fmt.pf ppf "%s/%s" (bytes cur) (bytes total)
+    in
+    Fmt.pf ppf "@[%d%s %s (%a, %s)@]" item.id
+      (match item.parent with
+      | None -> ""
+      | Some parent -> Fmt.str "<-%d" parent)
+      item.label pp_progress item.progress (span item.elapsed)
+
+  let pp = Fmt.Dump.list pp_item
+end
+
+let activity t =
+  List.filter_map
+    (fun r ->
+      if r.rfinish <> None then None
+      else
+        let progress : Activity.progress =
+          match r.metric with
+          | Spin -> `Spin
+          | Count (cur, total) -> `Count (cur, total)
+          | Bytes (cur, total) -> `Bytes (cur, total)
+        in
+        Some
+          {
+            Activity.id = r.rid;
+            key = r.rkey;
+            parent = Option.map (fun parent -> parent.rid) r.parent;
+            label = r.rlabel;
+            progress;
+            elapsed = elapsed t r;
+            logs =
+              List.map
+                (fun log ->
+                  {
+                    Activity.elapsed = log.ltime;
+                    level = log.llevel;
+                    message = log.lmessage;
+                  })
+                r.logs;
+          })
+    t.rows
+
+let emit_history_line t ~plain ~styled =
+  if t.plain then Fmt.pf t.dppf "%s@." plain else commit t styled
+
+let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
+  check_open "task" t;
+  if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
+  (match total with
+  | Some total when total < 0 ->
+      invalid_arg "Console.Display.task: negative total"
+  | Some _ | None -> ());
+  (match id with
+  | Some "" -> invalid_arg "Console.Display.task: empty id"
+  | Some _ | None -> ());
+  (match parent with
+  | Some parent when parent.disp != t ->
+      invalid_arg "Console.Display.task: parent belongs to another display"
+  | Some _ | None -> ());
+  match Option.bind id (Hashtbl.find_opt t.by_key) with
+  | Some existing ->
+      (match parent with
+      | Some parent -> (
+          match existing.parent with
+          | Some existing_parent when existing_parent == parent -> ()
+          | Some _ | None ->
+              invalid_arg "Console.Display.task: id already has another parent")
+      | None -> ());
+      existing
   | None ->
-      let r = row ?log_lines t "logs" in
-      t.untagged <- Some r;
+      let now = t.now () in
+      let rid = t.next_task_id in
+      t.next_task_id <- rid + 1;
+      let inherited =
+        match Option.bind parent (fun parent -> parent.routcome) with
+        | Some `Succeeded -> Some `Succeeded
+        | Some (`Failed | `Cancelled) -> Some `Cancelled
+        | None -> None
+      in
+      let r =
+        {
+          rid;
+          rkey = id;
+          disp = t;
+          parent;
+          style = row_style t ~bar ~color;
+          log_lines;
+          logs = [];
+          log_prev_t = now;
+          rlabel = sanitize label;
+          metric =
+            (match total with Some total -> Count (0, total) | None -> Spin);
+          rstart = now;
+          rfinish = Option.map (Fun.const now) inherited;
+          rmessage = None;
+          routcome = inherited;
+          last_cur = 0L;
+          last_t = now;
+          rate = 0.;
+        }
+      in
+      t.rows <- t.rows @ [ r ];
+      Option.iter (fun id -> Hashtbl.add t.by_key id r) id;
+      record ~task:r t `Started r.rlabel;
+      Option.iter
+        (fun outcome ->
+          t.finished <- t.finished + 1;
+          record ~task:r t (`Finished outcome) r.rlabel)
+        inherited;
+      touch r;
       r
 
-let set_result t ?detail result = t.pending <- Some (result, detail)
-
 let set_label r label =
-  r.rlabel <- sanitize label;
-  touch r
+  check_open "set_label" r.disp;
+  if r.rfinish = None then begin
+    r.rlabel <- sanitize label;
+    touch r
+  end
 
-let set_bar r bar =
-  r.style <- bar;
-  touch r
-
-(* Split on newlines, dropping a trailing CR and empty lines. *)
-let lines_of_string s =
-  String.split_on_char '\n' s
-  |> List.map (fun l ->
-      let n = String.length l in
-      if n > 0 && l.[n - 1] = '\r' then String.sub l 0 (n - 1) else l)
-  |> List.filter (fun l -> l <> "")
-
-let log r line =
+let log ?(level = `Info) r line =
+  check_open "log" r.disp;
   let t = r.disp in
   let lines = List.map sanitize (lines_of_string line) in
   (* Gap since the previous log line, surfacing time spent with no output. *)
@@ -794,96 +1190,195 @@ let log r line =
     let now = t.now () in
     let gap = now -. r.log_prev_t in
     r.log_prev_t <- now;
-    (gap, l)
+    (now -. t.dstart, gap, l)
   in
-  if t.plain then
-    List.iter
-      (fun l ->
-        let gap, l = gap_of l in
-        Fmt.pf t.dppf "%s  # %s%s@." (indent r) l (gap_suffix gap))
-      lines
-  else if r.log_lines > 0 then begin
-    List.iter
-      (fun l ->
-        r.logs <- r.logs @ [ gap_of l ];
-        if List.length r.logs > r.log_lines then r.logs <- List.tl r.logs)
-      lines;
+  List.iter
+    (fun line ->
+      let time, gap, line = gap_of line in
+      record ~task:r t (`Log level) line;
+      let marker = level_marker level in
+      let suffix = gap_suffix gap in
+      let plain = Fmt.str "%s  %s %s%s" (indent r) marker line suffix in
+      let styled = continuation t r ^ styled_log level marker line suffix in
+      emit_history_line t ~plain ~styled;
+      if r.rfinish = None && r.log_lines > 0 then begin
+        r.logs <-
+          r.logs
+          @ [ { ltime = time; lgap = gap; llevel = level; lmessage = line } ];
+        if List.length r.logs > r.log_lines then r.logs <- List.tl r.logs
+      end)
+    lines;
+  touch r
+
+let event ?(level = `Info) t message =
+  check_open "event" t;
+  let lines =
+    match lines_of_string message with [] -> [ "" ] | lines -> lines
+  in
+  List.iter
+    (fun line ->
+      let message = sanitize line in
+      record t (`Message level) message;
+      match level with
+      | `Info -> emit_history_line t ~plain:message ~styled:message
+      | (`Warning | `Error) as level ->
+          let marker = level_marker level in
+          emit_history_line t
+            ~plain:(marker ^ " " ^ message)
+            ~styled:(Ansi.styled (level_style level) marker ^ " " ^ message))
+    lines
+
+let set_count r ~cur ~total =
+  check_open "set_count" r.disp;
+  if cur < 0 || total < 0 then
+    invalid_arg "Console.Display.set_count: expected non-negative progress";
+  if r.rfinish = None then begin
+    let total = max cur total in
+    let cur, total =
+      match r.metric with
+      | Spin -> (cur, total)
+      | Count (previous, previous_total) ->
+          let cur = max previous cur in
+          (cur, max cur (max previous_total total))
+      | Bytes _ ->
+          invalid_arg "Console.Display.set_count: task already tracks bytes"
+    in
+    r.metric <- Count (cur, total);
     touch r
   end
 
-let set_count r ~cur ~total =
-  r.metric <- Count (cur, total);
-  touch r
-
-let set_bytes r ~cur ~total =
-  let now = r.disp.now () in
-  let dt = now -. r.last_t in
-  if dt > 0. then begin
-    let inst = Float.max 0. (Int64.to_float (Int64.sub cur r.last_cur) /. dt) in
-    r.rate <- (if r.rate <= 0. then inst else (0.3 *. inst) +. (0.7 *. r.rate));
-    r.last_cur <- cur;
-    r.last_t <- now
-  end;
-  r.metric <- Bytes (cur, total);
-  touch r
-
-let finish ?(live = false) ?(error = false) ?message r =
-  let t = r.disp in
+let advance ?(by = 1) ?total ?label r =
+  check_open "advance" r.disp;
+  if by < 0 then invalid_arg "Console.Display.advance: negative increment";
+  (match total with
+  | Some total when total < 0 ->
+      invalid_arg "Console.Display.advance: negative total"
+  | Some _ | None -> ());
   if r.rfinish = None then begin
-    r.rfinish <- Some (t.now ());
-    r.rmessage <- Option.map sanitize message;
-    r.rkeep_live <- live;
-    r.rerror <- error;
-    t.finished <- t.finished + 1;
-    if live then touch r
-    else if t.plain then Fmt.pf t.dppf "%s@." (plain_committed t r)
-    else commit t (render_row t r)
+    Option.iter (fun label -> r.rlabel <- sanitize label) label;
+    match r.metric with
+    | Spin ->
+        let total = max by (Option.value total ~default:by) in
+        set_count r ~cur:by ~total
+    | Count (cur, known_total) ->
+        let cur = if by > max_int - cur then max_int else cur + by in
+        let total = max cur (max known_total (Option.value total ~default:0)) in
+        set_count r ~cur ~total
+    | Bytes _ ->
+        invalid_arg "Console.Display.advance: task already tracks bytes"
   end
 
-let remove r =
-  let t = r.disp in
-  if List.memq r t.rows then begin
-    t.rows <- List.filter (fun x -> x != r) t.rows;
-    if r.rfinish <> None then t.finished <- t.finished - 1;
-    if not t.plain then paint t
+let set_bytes r ~cur ~total =
+  check_open "set_bytes" r.disp;
+  if cur < 0L || total < 0L then
+    invalid_arg "Console.Display.set_bytes: expected non-negative progress";
+  if r.rfinish = None then begin
+    let total = Int64.max cur total in
+    let cur, total =
+      match r.metric with
+      | Spin -> (cur, total)
+      | Bytes (previous, previous_total) ->
+          let cur = Int64.max previous cur in
+          (cur, Int64.max cur (Int64.max previous_total total))
+      | Count _ ->
+          invalid_arg "Console.Display.set_bytes: task already tracks count"
+    in
+    let now = r.disp.now () in
+    let dt = now -. r.last_t in
+    if dt > 0. then begin
+      let inst =
+        Float.max 0. (Int64.to_float (Int64.sub cur r.last_cur) /. dt)
+      in
+      r.rate <-
+        (if r.rate <= 0. then inst else (0.3 *. inst) +. (0.7 *. r.rate));
+      r.last_cur <- cur;
+      r.last_t <- now
+    end;
+    r.metric <- Bytes (cur, total);
+    touch r
+  end
+
+let running_children r =
+  List.filter
+    (fun child ->
+      child.rfinish = None
+      && match child.parent with Some parent -> parent == r | None -> false)
+    r.disp.rows
+
+let rec finish outcome ?message r =
+  check_open "finish" r.disp;
+  if r.rfinish = None then begin
+    let child_outcome =
+      match outcome with
+      | `Succeeded -> `Succeeded
+      | `Failed | `Cancelled -> `Cancelled
+    in
+    List.iter
+      (finish child_outcome ~message:"parent finished")
+      (running_children r);
+    let t = r.disp in
+    r.rfinish <- Some (t.now ());
+    r.rmessage <- Option.map sanitize message;
+    r.routcome <- Some outcome;
+    t.finished <- t.finished + 1;
+    let message = Option.value r.rmessage ~default:r.rlabel in
+    record ~task:r t (`Finished outcome) message;
+    emit_history_line t ~plain:(plain_committed t r)
+      ~styled:(styled_committed t r)
+  end
+
+let succeed ?message r = finish `Succeeded ?message r
+let fail ?message r = finish `Failed ?message r
+let cancel ?message r = finish `Cancelled ?message r
+
+let with_task ?id ?parent ?bar ?color ?log_lines ?total t label f =
+  let task = task ?id ?parent ?bar ?color ?log_lines ?total t label in
+  match f task with
+  | value ->
+      succeed task;
+      value
+  | exception exn ->
+      fail task;
+      raise exn
+
+let finish_running outcome ?message t =
+  List.iter
+    (fun task -> if task.rfinish = None then finish outcome ?message task)
+    (List.rev t.rows)
+
+let set_result t ?detail result =
+  check_open "set_result" t;
+  if Option.is_none t.pending then begin
+    (match result with
+    | `Ok _ -> finish_running `Succeeded t
+    | `Fail _ -> finish_running `Cancelled ~message:"session failed" t);
+    let result =
+      match result with
+      | `Ok message -> `Ok (sanitize message)
+      | `Fail message -> `Fail (sanitize message)
+    in
+    let detail = Option.map sanitize_multiline detail in
+    t.pending <- Some (result, detail);
+    let kind, message =
+      match result with
+      | `Ok message -> (`Result `Ok, message)
+      | `Fail message -> (`Result `Fail, message)
+    in
+    record ?detail t kind message
   end
 
 let tick t = if not t.plain then paint t
 
-let with_output t f =
-  if t.plain then f ()
-  else begin
-    with_unlimited_margin t.dppf (fun () ->
-        pp_clear t.dppf t.live_height;
-        Format.pp_print_flush t.dppf ());
-    t.live_height <- 0;
-    Fun.protect f ~finally:(fun () -> paint t)
-  end
-
-let clear t =
-  if not t.torn_down then begin
-    t.torn_down <- true;
-    active_region := None;
-    uninstall_reporter ();
-    if not t.plain then begin
-      with_unlimited_margin t.dppf (fun () ->
-          pp_clear t.dppf t.live_height;
-          Format.pp_print_string t.dppf show_cursor;
-          Format.pp_print_flush t.dppf ());
-      t.live_height <- 0
-    end
-  end
-
 (* The final result banner: a faint coloured [OK]/[FAIL] marker (green or red)
-   followed by the message in bold, plain text under [`Plain]. A long message
+   followed by the message in bold, unstyled text in history-only output. A long message
    word-wraps under a hanging indent aligned past the marker, rather than being
    cut at the width -- this is printed after the live region is released, so a
    second physical line is safe. *)
 let result_line t result =
   let marker, code, msg =
     match result with
-    | `Ok msg -> (t.theme.Theme.ok_marker, color_code `Green, msg)
-    | `Fail msg -> (t.theme.Theme.fail_marker, color_code `Red, msg)
+    | `Ok msg -> (Theme.ok_marker t.theme, color_code Color.green, msg)
+    | `Fail msg -> (Theme.fail_marker t.theme, color_code Color.red, msg)
   in
   if t.plain then marker ^ " " ^ msg
   else begin
@@ -903,7 +1398,7 @@ let result_line t result =
    reason, a log-path pointer, whatever context the result needs. Split on
    newlines; a line wider than the terminal word-wraps (it is printed after the
    live region is released, so extra physical lines are safe), each resulting
-   line dimmed (plain text under [`Plain]). *)
+   line dimmed (unstyled in history-only output). *)
 let detail_lines t = function
   | None -> []
   | Some d ->
@@ -914,20 +1409,14 @@ let detail_lines t = function
             String.split_on_char '\n' (Width.wrap t.width l) |> List.map dimmed)
         (String.split_on_char '\n' d)
 
-let finish_all ?result ?detail t =
+let close t =
   if not t.torn_down then begin
-    (* An explicit [result] wins over the recorded verdict, detail included;
-       otherwise the {!set_result} pair is the source of the banner. *)
     let result, detail =
-      match (result, t.pending) with
-      | (Some _ as r), _ -> (r, detail)
-      | None, Some (r, d) -> (Some r, d)
-      | None, None -> (None, detail)
+      match t.pending with
+      | Some (result, detail) -> (Some result, detail)
+      | None -> (None, None)
     in
-    List.iter (fun r -> if r.rfinish = None then finish r) t.rows;
     t.torn_down <- true;
-    active_region := None;
-    uninstall_reporter ();
     let detail = detail_lines t detail in
     let banner = Option.map (result_line t) result in
     if t.plain then begin
@@ -936,18 +1425,56 @@ let finish_all ?result ?detail t =
       (match banner with Some s -> Fmt.pf t.dppf "%s@." s | None -> ());
       Format.pp_print_flush t.dppf ()
     end
-    else begin
+    else
       let line s =
         Format.pp_print_string t.dppf s;
-        Format.pp_print_string t.dppf "\n"
+        Format.pp_print_string t.dppf "\r\n"
       in
-      with_unlimited_margin t.dppf (fun () ->
-          pp_clear t.dppf t.live_height;
-          (match header_styled t with Some s -> line s | None -> ());
-          List.iter line detail;
-          (match banner with Some s -> line s | None -> ());
-          Format.pp_print_string t.dppf show_cursor;
-          Format.pp_print_flush t.dppf ());
-      t.live_height <- 0
-    end
+      Fun.protect
+        (fun () ->
+          with_unlimited_margin t.dppf (fun () ->
+              pp_clear t.dppf t.live_height;
+              (match header_styled t with Some s -> line s | None -> ());
+              List.iter line detail;
+              match banner with Some s -> line s | None -> ()))
+        ~finally:(fun () ->
+          t.live_height <- 0;
+          restore_terminal t.dppf;
+          release_activity t)
   end
+
+let cancel_running t message =
+  List.iter
+    (fun task -> if task.rfinish = None then cancel ~message task)
+    (List.rev t.rows)
+
+let cleanup_after_exception t =
+  try
+    cancel_running t "interrupted";
+    close t
+  with _ ->
+    t.torn_down <- true;
+    if not t.plain then begin
+      restore_terminal t.dppf;
+      release_activity t
+    end
+
+let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
+  match Domain.DLS.get current with
+  | Some t -> f t
+  | None ->
+      let t =
+        create ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header ()
+      in
+      Domain.DLS.set current (Some t);
+      Fun.protect
+        ~finally:(fun () -> Domain.DLS.set current None)
+        (fun () ->
+          match f t with
+          | value ->
+              finish_running `Succeeded t;
+              close t;
+              value
+          | exception exn ->
+              cleanup_after_exception t;
+              raise exn)

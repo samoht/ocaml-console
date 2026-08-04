@@ -24,9 +24,9 @@ let cell ~head ~perim ~frame pidx =
   let d0 = abs (pidx - head) in
   let d = min d0 (perim - d0) in
   let code =
-    if d = 0 then Ansi.bold ^ Ansi.color_code `Green
-    else if d <= 3 then Ansi.color_code `Green
-    else Ansi.dim ^ Ansi.color_code `Green
+    if d = 0 then Ansi.bold ^ Ansi.color_code Color.green
+    else if d <= 3 then Ansi.color_code Color.green
+    else Ansi.dim ^ Ansi.color_code Color.green
   in
   code ^ glyph pidx frame ^ Ansi.reset_code
 

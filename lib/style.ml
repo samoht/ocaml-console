@@ -4,50 +4,50 @@
   ---------------------------------------------------------------------------*)
 
 type t = {
-  bold : bool option;
-  faint : bool option;
-  italic : bool option;
-  underline : bool option;
-  blink : bool option;
-  reverse : bool option;
-  strikethrough : bool option;
+  bold : bool;
+  faint : bool;
+  italic : bool;
+  underline : bool;
+  blink : bool;
+  reverse : bool;
+  strikethrough : bool;
   fg : Color.t option;
   bg : Color.t option;
 }
 
 let none =
   {
-    bold = None;
-    faint = None;
-    italic = None;
-    underline = None;
-    blink = None;
-    reverse = None;
-    strikethrough = None;
+    bold = false;
+    faint = false;
+    italic = false;
+    underline = false;
+    blink = false;
+    reverse = false;
+    strikethrough = false;
     fg = None;
     bg = None;
   }
 
-let bold = { none with bold = Some true }
-let faint = { none with faint = Some true }
-let italic = { none with italic = Some true }
-let underline = { none with underline = Some true }
-let blink = { none with blink = Some true }
-let reverse = { none with reverse = Some true }
-let strikethrough = { none with strikethrough = Some true }
+let bold = { none with bold = true }
+let faint = { none with faint = true }
+let italic = { none with italic = true }
+let underline = { none with underline = true }
+let blink = { none with blink = true }
+let reverse = { none with reverse = true }
+let strikethrough = { none with strikethrough = true }
 let fg color = { none with fg = Some color }
 let bg color = { none with bg = Some color }
 let merge_opt left right = match right with Some _ -> right | None -> left
 
 let ( + ) left right =
   {
-    bold = merge_opt left.bold right.bold;
-    faint = merge_opt left.faint right.faint;
-    italic = merge_opt left.italic right.italic;
-    underline = merge_opt left.underline right.underline;
-    blink = merge_opt left.blink right.blink;
-    reverse = merge_opt left.reverse right.reverse;
-    strikethrough = merge_opt left.strikethrough right.strikethrough;
+    bold = left.bold || right.bold;
+    faint = left.faint || right.faint;
+    italic = left.italic || right.italic;
+    underline = left.underline || right.underline;
+    blink = left.blink || right.blink;
+    reverse = left.reverse || right.reverse;
+    strikethrough = left.strikethrough || right.strikethrough;
     fg = merge_opt left.fg right.fg;
     bg = merge_opt left.bg right.bg;
   }
@@ -57,9 +57,7 @@ let merge = List.fold_left ( + ) none
 (* Active boolean attributes paired with their ANSI code and human name.
    [bool_attrs] and [bool_attr_names] are filters over this list. *)
 let active_bool_attrs style =
-  let pick flag code name =
-    match flag with Some true -> Some (code, name) | _ -> None
-  in
+  let pick flag code name = if flag then Some (code, name) else None in
   List.filter_map
     (fun x -> x)
     [
@@ -94,23 +92,16 @@ let reset = "\027[0m"
 
 let styled style pp ppf value =
   let ansi = to_ansi style in
-  if ansi = "" then pp ppf value
+  if ansi = "" || Fmt.style_renderer ppf = `None then pp ppf value
   else (
     Fmt.pf ppf "%s" ansi;
     pp ppf value;
     Fmt.pf ppf "%s" reset)
 
-let pp_styled style fmt =
-  let ansi = to_ansi style in
-  if ansi = "" then Fmt.pr fmt
-  else (
-    Fmt.pf Fmt.stdout "%s" ansi;
-    Fmt.kpf (fun ppf -> Fmt.pf ppf "%s" reset) Fmt.stdout fmt)
-
 let is_none style =
-  style.bold = None && style.faint = None && style.italic = None
-  && style.underline = None && style.blink = None && style.reverse = None
-  && style.strikethrough = None && style.fg = None && style.bg = None
+  (not style.bold) && (not style.faint) && (not style.italic)
+  && (not style.underline) && (not style.blink) && (not style.reverse)
+  && (not style.strikethrough) && style.fg = None && style.bg = None
 
 let opt_equal eq left right =
   match (left, right) with
@@ -119,13 +110,13 @@ let opt_equal eq left right =
   | _ -> false
 
 let equal left right =
-  opt_equal ( = ) left.bold right.bold
-  && opt_equal ( = ) left.faint right.faint
-  && opt_equal ( = ) left.italic right.italic
-  && opt_equal ( = ) left.underline right.underline
-  && opt_equal ( = ) left.blink right.blink
-  && opt_equal ( = ) left.reverse right.reverse
-  && opt_equal ( = ) left.strikethrough right.strikethrough
+  Bool.equal left.bold right.bold
+  && Bool.equal left.faint right.faint
+  && Bool.equal left.italic right.italic
+  && Bool.equal left.underline right.underline
+  && Bool.equal left.blink right.blink
+  && Bool.equal left.reverse right.reverse
+  && Bool.equal left.strikethrough right.strikethrough
   && opt_equal Color.equal left.fg right.fg
   && opt_equal Color.equal left.bg right.bg
 

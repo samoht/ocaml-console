@@ -4,11 +4,15 @@
   ---------------------------------------------------------------------------*)
 
 type style = Theme.bar
-type color = Theme.color
+type color = Color.t
 
 (* Eighth-of-a-cell glyphs for the smooth bar. *)
 let eighths = [| " "; "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
-let rainbow_palette = [| `Red; `Yellow; `Green; `Cyan; `Blue; `Magenta |]
+
+let rainbow_palette =
+  [|
+    Color.red; Color.yellow; Color.green; Color.cyan; Color.blue; Color.magenta;
+  |]
 
 (* A blocky DOS-style bar: dim [ ] brackets, full-block fill, dim shade
    track. *)
@@ -84,26 +88,32 @@ let resolve ?theme ?style ?color () =
   let style =
     match style with
     | Some s -> s
-    | None -> ( match theme with Some t -> t.Theme.bar | None -> `Smooth)
+    | None -> ( match theme with Some t -> Theme.bar t | None -> `Smooth)
   in
   let color =
     match color with
     | Some c -> c
-    | None -> ( match theme with Some t -> t.Theme.accent | None -> `Cyan)
+    | None -> (
+        match theme with Some t -> Theme.accent t | None -> Color.cyan)
   in
   (style, color)
 
 let render ?theme ?style ?color ~width ~pct () =
+  if width < 0 then invalid_arg "Console.Bar.render: negative width";
   let style, color = resolve ?theme ?style ?color () in
   let pct = max 0 (min 100 pct) in
   draw_style style ~color ~width ~pct
 
 let at ?theme ?style ?color ~width ~elapsed () =
+  if width < 0 then invalid_arg "Console.Bar.at: negative width";
   let style, color = resolve ?theme ?style ?color () in
   (* Sweep the fill up and back over a two-second period: a triangle wave on
      [elapsed] mapped to a percentage. *)
   let period = 2.0 in
-  let phase = if elapsed <= 0. then 0. else Float.rem (elapsed /. period) 1.0 in
+  let phase =
+    if (not (Float.is_finite elapsed)) || elapsed <= 0. then 0.
+    else Float.rem (elapsed /. period) 1.0
+  in
   let tri = if phase < 0.5 then phase *. 2. else (1. -. phase) *. 2. in
   draw_style style ~color ~width ~pct:(int_of_float (tri *. 100.))
 
