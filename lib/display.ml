@@ -491,9 +491,21 @@ let render_spinner theme ~finished ~color ~frame row =
 let render_bar theme row ~finished ~color ~width =
   if finished then ""
   else
-    match pct_of row.metric with
-    | Some p -> Bar.render ~theme ~color ~width ~pct:p ()
-    | None -> ""
+    match (row.metric, pct_of row.metric) with
+    | (Count (0, _) | Bytes (0L, _)), Some _ -> ""
+    | (Count _ | Bytes _), Some p ->
+        (* Bare delimiters look like an empty input field, not progress. Once
+           work has advanced, guarantee at least the theme's smallest visible
+           fill unit. *)
+        let units =
+          match Theme.bar theme with
+          | `Smooth -> width * 8
+          | `Blocky | `Rainbow -> width
+        in
+        let minimum = if units = 0 then 0 else (100 + units - 1) / units in
+        Bar.render ~theme ~color ~width ~pct:(max minimum p) ()
+    | _, None -> ""
+    | Spin, Some _ -> assert false
 
 let render_percent row ~finished =
   if finished then ""

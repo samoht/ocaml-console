@@ -615,6 +615,24 @@ let test_differential_redraw_and_right_edge () =
       Alcotest.(check (pair int int))
         "cursor rests on the final activity row" (2, 0) (Vte.cursor_pos vte))
 
+let test_zero_progress_has_no_empty_bar () =
+  ignore
+    (terminal_run ~height:4 ~width:56 (fun display _advance sync vte ->
+         let task = Display.task display "checking packages" in
+         Display.set_count task ~cur:0 ~total:459;
+         sync ();
+         let row = List.hd (String.split_on_char '\n' (Vte.to_string vte)) in
+         Alcotest.(check bool)
+           "zero progress has no orphaned delimiters" false
+           (contains "▕" row || contains "▏" row);
+         Alcotest.(check bool)
+           "count remains informative" true (contains "0/459" row);
+         Display.set_count task ~cur:1 ~total:459;
+         sync ();
+         let row = List.hd (String.split_on_char '\n' (Vte.to_string vte)) in
+         Alcotest.(check bool)
+           "first completed item has visible fill" true (contains "▕▏" row)))
+
 let test_committed_metadata_is_right_aligned () =
   let width = 48 in
   let vte =
@@ -811,6 +829,8 @@ let suite =
         test_activity_does_not_leak_on_ticks;
       Alcotest.test_case "differential redraw and right edge" `Quick
         test_differential_redraw_and_right_edge;
+      Alcotest.test_case "zero progress has no empty bar" `Quick
+        test_zero_progress_has_no_empty_bar;
       Alcotest.test_case "committed metadata is right aligned" `Quick
         test_committed_metadata_is_right_aligned;
       Alcotest.test_case "default visual hierarchy and color scope" `Quick
