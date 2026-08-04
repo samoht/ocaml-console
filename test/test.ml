@@ -14,6 +14,7 @@ let () =
       Test_rule.suite;
       Test_panel.suite;
       Test_border.suite;
+      Test_guide.suite;
       Test_bar.suite;
       Test_theme.suite;
       Test_spinner.suite;

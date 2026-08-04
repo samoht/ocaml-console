@@ -39,15 +39,34 @@ module Line : sig
   (** One piece of a task's activity rendering. *)
 
   val spinner : piece
+  (** Animated activity marker, replaced by the outcome marker on completion. *)
+
   val label : piece
+  (** Flexible task label or completion message. *)
+
   val bar : int -> piece
+  (** [bar width] is a progress bar occupying [width] terminal cells. *)
+
   val percent : piece
+  (** Completion percentage for determinate progress. *)
+
   val count : piece
+  (** Item count or byte-count pair, according to the task metric. *)
+
   val rate : piece
+  (** Transfer rate for byte-count tasks. *)
+
   val elapsed : piece
+  (** Time elapsed since the task started. *)
+
   val text : string -> piece
+  (** [text s] is a sanitized literal separator. *)
+
   val accent : string -> piece
+  (** [accent s] is sanitized literal text in the task accent colour. *)
+
   val spacer : piece
+  (** Flexible space that pushes all following pieces to the right edge. *)
 
   type t
   (** A task-line layout and accent colour. *)
@@ -59,7 +78,10 @@ module Line : sig
       spacer. *)
 
   val with_color : color -> t -> t
+  (** [with_color color line] changes [line]'s accent colour. *)
+
   val default : t
+  (** The default label, bar, count, rate and right-aligned elapsed layout. *)
 end
 
 (** {1 Rendering context} *)
@@ -80,8 +102,11 @@ val ctx :
   is_tty:bool ->
   unit ->
   ctx
+(** [ctx] constructs a display context from explicit output, clock, geometry and
+    terminal detection functions. Driver libraries normally do this. *)
 
 val with_char_width : ctx -> (Uchar.t -> int) -> ctx
+(** [with_char_width ctx width] overrides Unicode terminal-cell measurement. *)
 
 val dumb : unit -> ctx
 (** [dumb ()] is an append-only 80 by 24 context with a zero clock. *)
@@ -106,18 +131,25 @@ module Event : sig
   (** Seconds since the display session started. *)
 
   val task : t -> int option
+  (** The numeric task identity, or [None] for a session-level event. *)
 
   val key : t -> string option
   (** The caller-supplied stable task ID, when there is one. *)
 
   val path : t -> string list
+  (** Task labels from the root task through the event's owning task. *)
+
   val kind : t -> kind
+  (** The typed event kind. *)
+
   val message : t -> string
+  (** The sanitized event message. *)
 
   val detail : t -> string option
   (** Additional result detail, present only when supplied to {!set_result}. *)
 
   val pp : t Fmt.t
+  (** Pretty-printer for diagnostics. *)
 end
 
 (** {1 Immutable activity projection} *)
@@ -127,23 +159,44 @@ module Activity : sig
   type log
 
   val log_elapsed : log -> float
+  (** Seconds from display start to this log entry. *)
+
   val log_level : log -> Event.level
+  (** The log severity. *)
+
   val log_message : log -> string
+  (** The sanitized log message. *)
 
   type item
 
   val id : item -> int
+  (** Stable numeric task identity. *)
+
   val key : item -> string option
+  (** Caller-provided stable identity, when present. *)
+
   val parent : item -> int option
+  (** Numeric identity of the parent task, when present. *)
+
   val label : item -> string
+  (** Current task label. *)
+
   val progress : item -> progress
+  (** Current progress metric. *)
+
   val elapsed : item -> float
+  (** Seconds elapsed since this task started. *)
+
   val logs : item -> log list
+  (** Bounded live log tail, oldest first. *)
 
   type t
 
   val items : t -> item list
+  (** Running task items in display order. *)
+
   val pp : t Fmt.t
+  (** Pretty-printer for diagnostics. *)
 end
 
 (** {1 Scoped sessions} *)
@@ -152,6 +205,7 @@ type t
 (** A display session. Values are created only by {!run}. *)
 
 val pp : t Fmt.t
+(** Pretty-printer for display diagnostics. *)
 
 val run :
   ctx:ctx ->
@@ -219,7 +273,11 @@ val task :
     an existing [id] is later given a different parent. *)
 
 val set_label : task -> string -> unit
+(** [set_label task label] atomically changes the live task label. *)
+
 val set_count : task -> cur:int -> total:int -> unit
+(** [set_count task ~cur ~total] records monotonic count progress. Estimates
+    expand automatically when [cur] exceeds [total]. *)
 
 val advance : ?by:int -> ?total:int -> ?label:string -> task -> unit
 (** [advance task] increments count progress by one. [by] selects another
@@ -246,7 +304,10 @@ val event : ?level:Event.level -> t -> string -> unit
     directly while an activity projection owns the output. *)
 
 val succeed : ?message:string -> task -> unit
+(** Finish a task successfully, optionally replacing its committed label. *)
+
 val fail : ?message:string -> task -> unit
+(** Finish a task as failed, optionally replacing its committed label. *)
 
 val cancel : ?message:string -> task -> unit
 (** Outcomes are idempotent: the first outcome wins and duplicates are no-ops.

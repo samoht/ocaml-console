@@ -1,5 +1,4 @@
 (test
  (name test)
  (package console-eio)
- (modules test test_display test_console_eio)
  (libraries console console-eio eio eio_main alcotest logs unix))

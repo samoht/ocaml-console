@@ -21,7 +21,7 @@ let check_geometry fn padding width =
       invalid_arg (fn ^ ": width too small for padding")
   | _ -> ()
 
-let create ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width
+let build ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width
     ?(char_width = Width.default_char_width) lines =
   check_geometry fn padding width;
   let border = Widget.border ?theme ?border ~default:Border.rounded () in
@@ -37,12 +37,12 @@ let create ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width
   }
 
 let v ?theme ?border ?title ?subtitle ?padding ?width ?char_width content =
-  create ~fn:"Console.Panel.v" ?theme ?border ?title ?subtitle ?padding ?width
+  build ~fn:"Console.Panel.v" ?theme ?border ?title ?subtitle ?padding ?width
     ?char_width (Span.split_lines content)
 
 let lines ?theme ?border ?title ?subtitle ?(padding = 1) ?width
     ?(char_width = Width.default_char_width) lines =
-  create ~fn:"Console.Panel.lines" ?theme ?border ?title ?subtitle ~padding
+  build ~fn:"Console.Panel.lines" ?theme ?border ?title ?subtitle ~padding
     ?width ~char_width lines
 
 let render_horizontal ppf border_style count char =

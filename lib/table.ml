@@ -59,8 +59,8 @@ let v ?theme ?border ?(header_style = Style.bold) columns =
 let add_row cells t =
   let expected = List.length t.columns and got = List.length cells in
   if got <> expected then
-    invalid_arg
-      (Fmt.str "Console.Table.add_row: expected %d cells, got %d" expected got);
+    Fmt.invalid_arg "Console.Table.add_row: expected %d cells, got %d" expected
+      got;
   { t with rows = cells :: t.rows }
 
 let add_row_strings strings t = add_row (List.map Span.text strings) t

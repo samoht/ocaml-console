@@ -6,6 +6,7 @@
   test_anim
   test_bar
   test_border
+  test_guide
   test_color
   test_panel
   test_display
