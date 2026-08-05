@@ -156,6 +156,10 @@ end
 
 module Activity : sig
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
+
+  val equal_progress : progress -> progress -> bool
+  (** [equal_progress a b] is structural equality over progress snapshots. *)
+
   type log
 
   val log_elapsed : log -> float

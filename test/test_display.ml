@@ -135,7 +135,9 @@ let test_activity_snapshot () =
     (List.map Display.Activity.log_level logs = [ `Warning; `Info ]);
   Alcotest.(check bool)
     "bytes" true
-    (Display.Activity.progress child = `Bytes (4L, 10L));
+    (Display.Activity.equal_progress
+       (Display.Activity.progress child)
+       (`Bytes (4L, 10L)));
   Alcotest.(check int) "finished child absent" 1 (List.length after);
   Alcotest.(check int)
     "nothing active after completion" 0
@@ -216,7 +218,9 @@ let test_keyed_task () =
         in
         Alcotest.(check bool)
           "monotonic progress" true
-          (Display.Activity.progress item = `Count (8, 10));
+          (Display.Activity.equal_progress
+             (Display.Activity.progress item)
+             (`Count (8, 10)));
         Alcotest.(check (option string))
           "semantic key" (Some "compile:foo")
           (Display.Activity.key item);
@@ -245,7 +249,9 @@ let test_progress_estimates_expand () =
     (Display.Activity.label item);
   Alcotest.(check bool)
     "estimate grew and incremented" true
-    (Display.Activity.progress item = `Count (24, 874));
+    (Display.Activity.equal_progress
+       (Display.Activity.progress item)
+       (`Count (24, 874)));
   let bytes_item, _ =
     capture (fun display _ ->
         Display.with_task display "download" (fun task ->
@@ -254,7 +260,9 @@ let test_progress_estimates_expand () =
   in
   Alcotest.(check bool)
     "byte estimate grew" true
-    (Display.Activity.progress bytes_item = `Bytes (22L, 22L))
+    (Display.Activity.equal_progress
+       (Display.Activity.progress bytes_item)
+       (`Bytes (22L, 22L)))
 
 let test_with_task_owns_outcome () =
   let events, _ =
@@ -313,8 +321,10 @@ let test_parent_settles_children () =
   in
   Alcotest.(check bool)
     "children first" true
-    (finished
-    = [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ])
+    (match finished with
+    | [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ] ->
+        true
+    | _ -> false)
 
 let test_failed_parent_cancels_children () =
   let events, _ =

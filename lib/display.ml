@@ -1056,6 +1056,9 @@ let history t = List.rev t.events_rev
 
 module Activity = struct
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
+
+  let equal_progress a b = a = b
+
   type log = { elapsed : float; level : Event.level; message : string }
 
   let log_elapsed t = t.elapsed
