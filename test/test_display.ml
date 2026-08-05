@@ -321,10 +321,12 @@ let test_parent_settles_children () =
   in
   Alcotest.(check bool)
     "children first" true
-    (match finished with
-    | [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ] ->
-        true
-    | _ -> false)
+    (List.equal
+       (fun (path_a, outcome_a) (path_b, outcome_b) ->
+         List.equal String.equal path_a path_b
+         && Display.Event.equal_outcome outcome_a outcome_b)
+       finished
+       [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ])
 
 let test_failed_parent_cancels_children () =
   let events, _ =

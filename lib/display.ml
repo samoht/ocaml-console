@@ -253,6 +253,11 @@ module Event = struct
     | `Finished of outcome
     | `Result of result ]
 
+  let equal_outcome a b =
+    match (a, b) with
+    | `Succeeded, `Succeeded | `Failed, `Failed | `Cancelled, `Cancelled -> true
+    | _ -> false
+
   type t = {
     elapsed : float;
     task : int option;
@@ -1057,7 +1062,12 @@ let history t = List.rev t.events_rev
 module Activity = struct
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
 
-  let equal_progress a b = a = b
+  let equal_progress a b =
+    match (a, b) with
+    | `Spin, `Spin -> true
+    | `Count (ac, at), `Count (bc, bt) -> Int.equal ac bc && Int.equal at bt
+    | `Bytes (ac, at), `Bytes (bc, bt) -> Int64.equal ac bc && Int64.equal at bt
+    | _ -> false
 
   type log = { elapsed : float; level : Event.level; message : string }
 

@@ -125,6 +125,9 @@ module Event : sig
     | `Finished of outcome
     | `Result of result ]
 
+  val equal_outcome : outcome -> outcome -> bool
+  (** [equal_outcome a b] is [true] when [a] and [b] are the same outcome. *)
+
   type t
 
   val elapsed : t -> float
@@ -158,7 +161,8 @@ module Activity : sig
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
 
   val equal_progress : progress -> progress -> bool
-  (** [equal_progress a b] is structural equality over progress snapshots. *)
+  (** [equal_progress a b] is [true] when [a] and [b] describe the same metric.
+  *)
 
   type log
 
