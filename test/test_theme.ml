@@ -73,6 +73,16 @@ let test_v_defaults () =
   Alcotest.(check string)
     "default unicode guide" "├── "
     (Guide.branch (Theme.guide t));
+  Alcotest.(check bool)
+    "row separators are opt-in" false
+    (Theme.table_row_separators t);
+  let separated =
+    Theme.v ~table_row_separators:true ~spinner:Spinner.ascii ~done_marker:"x"
+      ()
+  in
+  Alcotest.(check bool)
+    "row separators participate in theme identity" false
+    (Theme.equal t separated);
   Alcotest.(check string) "default ok marker" "[OK]" (Theme.ok_marker t);
   Alcotest.(check string) "default fail marker" "[FAIL]" (Theme.fail_marker t)
 

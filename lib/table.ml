@@ -18,6 +18,7 @@ type column = {
 
 type t = {
   border : Border.t;
+  row_separators : bool;
   animated : bool;
   header_style : Style.t;
   columns : column list;
@@ -50,6 +51,8 @@ let column ?align ?min_width ?max_width ?overflow ?shrinkable ?style header =
 let v ?theme ?border ?(header_style = Style.bold) columns =
   {
     border = Widget.border ?theme ?border ~default:Border.single ();
+    row_separators =
+      Option.fold ~none:false ~some:Theme.table_row_separators theme;
     animated = Widget.animated theme;
     header_style;
     columns;
@@ -73,11 +76,21 @@ let of_string_rows ?theme ?border ?header_style columns rows =
   of_rows ?theme ?border ?header_style columns
     (List.map (List.map Span.text) rows)
 
-(* Calculate column widths *)
+(* Calculate column widths. A logical cell may contain explicit line feeds;
+   its natural width is its widest physical line, not the sum of all lines. *)
+let span_lines span =
+  span |> Span.sanitize ~keep_newlines:true |> Span.split_lines
+
+let span_width ~char_width span =
+  span_lines span
+  |> List.fold_left
+       (fun width line -> max width (Span.width ~char_width line))
+       0
+
 let apply_header_widths ~char_width t widths =
   List.iteri
     (fun i col ->
-      widths.(i) <- max widths.(i) (Span.width ~char_width col.header))
+      widths.(i) <- max widths.(i) (span_width ~char_width col.header))
     t.columns
 
 let apply_row_widths ~char_width t widths =
@@ -87,7 +100,37 @@ let apply_row_widths ~char_width t widths =
       List.iteri
         (fun i cell ->
           if i < num_cols then
-            widths.(i) <- max widths.(i) (Span.width ~char_width cell))
+            widths.(i) <- max widths.(i) (span_width ~char_width cell))
+        row)
+    t.rows
+
+(* A whitespace-delimited token is kept intact while any column still has a
+   cheaper whitespace break available. This makes a URL or identifier remain
+   selectable without making it an absolute geometry escape hatch: the hard
+   terminal width still wins when every such break has been exhausted. Slashes
+   are intentionally part of the token here even though [Span.wrap] may use
+   them as the final fallback. *)
+let span_unbroken_width ~char_width span =
+  let word_widths line =
+    Span.to_string line |> String.split_on_char ' '
+    |> List.map (Width.string_width ~char_width)
+  in
+  span_lines span |> List.concat_map word_widths |> List.fold_left max 0
+
+let apply_header_unbroken_widths ~char_width t widths =
+  List.iteri
+    (fun i col ->
+      widths.(i) <- max widths.(i) (span_unbroken_width ~char_width col.header))
+    t.columns
+
+let apply_row_unbroken_widths ~char_width t widths =
+  let num_cols = Array.length widths in
+  List.iter
+    (fun row ->
+      List.iteri
+        (fun i cell ->
+          if i < num_cols then
+            widths.(i) <- max widths.(i) (span_unbroken_width ~char_width cell))
         row)
     t.rows
 
@@ -121,12 +164,20 @@ let rendered_width t widths =
    a pipe or file -- squeezing would wrap or clip cell text (e.g. a long event
    name to "sp…"), corrupting output meant to be read or machine-ingested, so
    the natural widths are kept. *)
-let shrink_widths_to_terminal ?max_width t widths =
+let shrink_widths_to_terminal ?max_width t unbroken_widths widths =
   match max_width with
   | None -> widths
   | Some term_w ->
       let cols = Array.of_list t.columns in
       let min_of i = match cols.(i).min_width with Some m -> m | None -> 1 in
+      let semantic_min i =
+        let token =
+          match cols.(i).overflow with
+          | `Truncate -> 0
+          | `Wrap -> unbroken_widths.(i)
+        in
+        min widths.(i) (max (min_of i) token)
+      in
       let shrink_while can_shrink floor =
         let done_ = ref false in
         while rendered_width t widths > term_w && not !done_ do
@@ -151,8 +202,13 @@ let shrink_widths_to_terminal ?max_width t widths =
          pass is exhausted, every column may shrink to zero before a terminal
          row is allowed to exceed [term_w]. *)
       shrink_while
+        (fun i -> cols.(i).shrinkable && widths.(i) > semantic_min i)
+        semantic_min;
+      shrink_while (fun i -> widths.(i) > semantic_min i) semantic_min;
+      shrink_while
         (fun i -> cols.(i).shrinkable && widths.(i) > min_of i)
         min_of;
+      shrink_while (fun i -> widths.(i) > min_of i) min_of;
       shrink_while (fun i -> widths.(i) > 0) (fun _ -> 0);
       widths
 
@@ -183,10 +239,13 @@ let fit_columns max_width t =
 
 let calc_col_widths ~char_width ?max_width t =
   let widths = Array.make (List.length t.columns) 0 in
+  let unbroken_widths = Array.make (List.length t.columns) 0 in
   apply_header_widths ~char_width t widths;
   apply_row_widths ~char_width t widths;
+  apply_header_unbroken_widths ~char_width t unbroken_widths;
+  apply_row_unbroken_widths ~char_width t unbroken_widths;
   apply_width_constraints t widths;
-  shrink_widths_to_terminal ?max_width t widths |> Array.to_list
+  shrink_widths_to_terminal ?max_width t unbroken_widths widths |> Array.to_list
 
 (* Emit a border glyph according to the target formatter's style renderer. *)
 let put_border ppf style ch = Style.styled style Fmt.string ppf ch
@@ -223,8 +282,7 @@ let align_span ~char_width align target span =
     Span.(text (String.make left ' ') ++ span ++ text (String.make right ' '))
 
 let process_cell ~char_width ~styled ~style overflow align width span =
-  let span = Span.sanitize ~keep_newlines:false span in
-  let lines =
+  let process_line span =
     if width <= 0 then [ Span.empty ]
     else
       match overflow with
@@ -237,6 +295,7 @@ let process_cell ~char_width ~styled ~style overflow align width span =
             [ Span.(truncated ++ text "…") ]
       | `Wrap -> Span.wrap ~char_width width span
   in
+  let lines = span_lines span |> List.concat_map process_line in
   List.map
     (fun line ->
       let line = align_span ~char_width align width line in
@@ -318,9 +377,17 @@ let pp_with ~char_width ?max_width ppf t =
           chars.right_cross chars.top);
 
     (* Data rows *)
-    List.iter
-      (fun row -> render_row ~char_width ~styled ppf t widths Style.none row)
-      (List.rev t.rows);
+    let rec render_rows = function
+      | [] -> ()
+      | [ row ] -> render_row ~char_width ~styled ppf t widths Style.none row
+      | row :: rows ->
+          render_row ~char_width ~styled ppf t widths Style.none row;
+          if t.row_separators then
+            render_horizontal ppf t widths chars.left_cross chars.cross
+              chars.right_cross chars.top;
+          render_rows rows
+    in
+    render_rows (List.rev t.rows);
 
     (* Bottom border *)
     render_horizontal ppf t widths chars.bottom_left chars.bottom_cross

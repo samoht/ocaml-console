@@ -71,7 +71,9 @@ val v :
   column list ->
   t
 (** [v columns] is an empty table. The border is [border] if given, else
-    [theme]'s border, else {!Border.single}; the header row defaults to bold. *)
+    [theme]'s border, else {!Border.single}; the header row defaults to bold. A
+    theme with {!Theme.table_row_separators} enabled draws rules between logical
+    data rows. *)
 
 val add_row : Span.t list -> t -> t
 (** [add_row cells table] adds a row of styled cells. {b Raises.}
@@ -89,7 +91,8 @@ val of_rows :
   Span.t list list ->
   t
 (** [of_rows columns rows] is a table with all its data at once; styling is as
-    in {!v}. *)
+    in {!v}. A cell may contain line feeds; they produce physical lines inside
+    that logical row. *)
 
 val of_string_rows :
   ?theme:Theme.t ->

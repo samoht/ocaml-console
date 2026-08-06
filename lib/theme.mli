@@ -30,6 +30,11 @@ val palette : t -> Color.t list
 val border : t -> Border.t
 (** [border t] is the border for tables and panels. *)
 
+val table_row_separators : t -> bool
+(** [table_row_separators t] is [true] when a table draws a horizontal rule
+    between logical data rows. A cell may itself span several physical lines;
+    those lines remain inside one row. *)
+
 val animated_border : t -> bool
 (** [animated_border t] is [true] when panels and tables use rain animation. *)
 
@@ -62,6 +67,7 @@ val v :
   ?accent:Color.t ->
   ?palette:Color.t list ->
   ?border:Border.t ->
+  ?table_row_separators:bool ->
   ?animated_border:bool ->
   ?guide:Guide.t ->
   ?bar:bar ->
@@ -70,7 +76,7 @@ val v :
   unit ->
   t
 (** [v ~spinner ~done_marker ()] is a custom theme; the other fields take modern
-    defaults. *)
+    defaults. [table_row_separators] defaults to [false]. *)
 
 val with_verdict : ?ok:string -> ?fail:string -> t -> t
 (** [with_verdict ?ok ?fail t] is [t] with the result-banner verdict markers

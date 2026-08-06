@@ -19,6 +19,7 @@ type t = {
   accent : Color.t;
   palette : Color.t list;
   border : Border.t;
+  table_row_separators : bool;
   animated_border : bool;
   guide : Guide.t;
   spinner : Spinner.t;
@@ -32,6 +33,7 @@ let equal a b =
   Color.equal a.accent b.accent
   && List.equal Color.equal a.palette b.palette
   && Border.equal a.border b.border
+  && Bool.equal a.table_row_separators b.table_row_separators
   && Bool.equal a.animated_border b.animated_border
   && Guide.equal a.guide b.guide
   && Spinner.equal a.spinner b.spinner
@@ -47,6 +49,7 @@ let pp ppf t =
 let accent t = t.accent
 let palette t = t.palette
 let border t = t.border
+let table_row_separators t = t.table_row_separators
 let animated_border t = t.animated_border
 let guide t = t.guide
 let spinner t = t.spinner
@@ -56,12 +59,13 @@ let ok_marker t = t.ok_marker
 let fail_marker t = t.fail_marker
 
 let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
-    ?(animated_border = false) ?(guide = Guide.unicode) ?(bar = `Smooth)
-    ~spinner ~done_marker () =
+    ?(table_row_separators = false) ?(animated_border = false)
+    ?(guide = Guide.unicode) ?(bar = `Smooth) ~spinner ~done_marker () =
   {
     accent;
     palette;
     border;
+    table_row_separators;
     animated_border;
     guide;
     spinner;
@@ -85,6 +89,7 @@ let dos =
     accent = amber;
     palette = [ amber ];
     border = Border.ascii;
+    table_row_separators = false;
     animated_border = false;
     guide = Guide.ascii;
     spinner = Spinner.ascii;
@@ -102,6 +107,7 @@ let unicode =
     accent = Color.cyan;
     palette = [ Color.cyan ];
     border = Border.rounded;
+    table_row_separators = false;
     animated_border = false;
     guide = Guide.unicode;
     spinner = Spinner.braille;
@@ -118,6 +124,7 @@ let matrix =
     accent = matrix_green;
     palette = [ matrix_green ];
     border = Border.single;
+    table_row_separators = false;
     animated_border = true;
     guide = Guide.unicode;
     spinner = Spinner.braille;
@@ -141,6 +148,7 @@ let rainbow =
         Color.magenta;
       ];
     border = Border.rounded;
+    table_row_separators = false;
     animated_border = false;
     guide = Guide.unicode;
     spinner = Spinner.braille;
