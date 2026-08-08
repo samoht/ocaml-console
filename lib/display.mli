@@ -269,6 +269,13 @@ val task :
     a registry. The first call fixes its parent and rendering options; use
     {!set_label} when a later start event supplies a better label.
 
+    {b The first parent wins.} A later call offering a different [parent] for a
+    known [id] returns the existing task where it already sits, and does not
+    move it: an event stream carries one id across whatever scopes its emitter
+    passes through, and the scope the work began in is the truthful answer.
+    Offering a parent is therefore always safe, on every event, so a caller
+    never has to track which of them is allowed to name one.
+
     [total] starts determinate count progress at zero; without it, the task
     starts with an indeterminate spinner. [parent] must belong to [display]. A
     task first observed after its parent finished inherits success, or
@@ -277,8 +284,8 @@ val task :
     permanent.
 
     {b Raises.} [Invalid_argument] if the display is closed, [id] is empty,
-    [log_lines] or [total] is negative, [parent] belongs to another display, or
-    an existing [id] is later given a different parent. *)
+    [log_lines] or [total] is negative, or [parent] belongs to another display.
+*)
 
 val set_label : task -> string -> unit
 (** [set_label task label] atomically changes the live task label. *)

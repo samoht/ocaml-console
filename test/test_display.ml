@@ -348,15 +348,35 @@ let test_failed_parent_cancels_children () =
     "child cancelled, parent failed" true
     (outcomes = [ `Cancelled; `Failed ])
 
-let test_key_parent_is_stable () =
-  capture (fun display _ ->
-      let first = Display.task display "first" in
-      let second = Display.task display "second" in
-      ignore (Display.task ~id:"child" ~parent:first display "child");
-      check_invalid "Console.Display.task: id already has another parent"
-        (fun () ->
-          ignore (Display.task ~id:"child" ~parent:second display "child")))
-  |> ignore
+(* An event stream carries one id across every scope its emitter passes
+   through, so the same id arrives under a second parent as a matter of course.
+   Offering one is a statement about where the work is, never a request to move
+   a row that already exists: the first parent wins and nothing raises, because
+   a display that can raise here can abort the operation it is drawing. *)
+let test_key_keeps_its_first_parent () =
+  let items =
+    fst
+    @@ capture (fun display _ ->
+        let first = Display.task display "first" in
+        let second = Display.task display "second" in
+        let child = Display.task ~id:"child" ~parent:first display "child" in
+        let again = Display.task ~id:"child" ~parent:second display "child" in
+        Alcotest.(check bool)
+          "the second offer returns the same task" true (again == child);
+        List.map
+          (fun item -> (Display.Activity.label item, item))
+          (Display.Activity.items (Display.activity display)))
+  in
+  let item label =
+    match List.assoc_opt label items with
+    | Some item -> item
+    | None -> Alcotest.failf "no %s row" label
+  in
+  Alcotest.(check (option int))
+    "the child stays under the parent it started in"
+    (Some (Display.Activity.id (item "first")))
+    (Display.Activity.parent (item "child"));
+  Alcotest.(check int) "no second row was created" 3 (List.length items)
 
 let test_task_ownership () =
   let foreign = ref None in
@@ -822,7 +842,8 @@ let suite =
         test_parent_settles_children;
       Alcotest.test_case "failed parent cancels children" `Quick
         test_failed_parent_cancels_children;
-      Alcotest.test_case "key parent is stable" `Quick test_key_parent_is_stable;
+      Alcotest.test_case "key keeps its first parent" `Quick
+        test_key_keeps_its_first_parent;
       Alcotest.test_case "task ownership" `Quick test_task_ownership;
       Alcotest.test_case "closed handles" `Quick test_closed_handles;
       Alcotest.test_case "unfinished auto-succeeded" `Quick
