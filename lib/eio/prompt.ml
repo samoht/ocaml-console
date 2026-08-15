@@ -1,13 +1,65 @@
-(* The API is declared and specified by the tests in test/eio/test_prompt.ml;
-   the implementation lands in the TDD session that follows. Every entry point
-   raises so that no caller can be built on a silent placeholder. *)
+(* A prompt is the pair of flows the program was handed, plus the buffer that
+   remembers where reading got to. Both halves are Eio capabilities: asking
+   suspends the fiber instead of parking the domain, and a test drives the same
+   code from a string source. *)
 
-type t = unit
+type t = {
+  interactive : bool;
+  input : Eio.Buf_read.t;
+  output : Eio.Flow.sink_ty Eio.Resource.t;
+}
 
-let v ?interactive:_ ~stdin:_ ~stdout:_ () =
-  failwith "TODO: implement Console_eio.Prompt.v"
+(* A typed answer is one line from a human. The cap keeps a source that never
+   sends a terminator from growing the buffer without bound; crossing it is an
+   [Error] like any other unanswerable question. *)
+let max_answer = 4096
 
-let interactive _ = failwith "TODO: implement Console_eio.Prompt.interactive"
-let line _ _ = failwith "TODO: implement Console_eio.Prompt.line"
-let confirm _ _ = failwith "TODO: implement Console_eio.Prompt.confirm"
-let expect _ _ _ = failwith "TODO: implement Console_eio.Prompt.expect"
+(* The one genuine Unix boundary: whether there is a terminal on the other end
+   of the input is a property of its descriptor, and a flow with no descriptor
+   -- a string source, a pipe from a mock -- has nobody to ask. *)
+let is_a_terminal stdin =
+  match Eio_unix.Resource.fd_opt stdin with
+  | None -> false
+  | Some fd -> Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
+
+let v ?interactive ~stdin ~stdout () =
+  let interactive =
+    match interactive with Some i -> i | None -> is_a_terminal stdin
+  in
+  {
+    interactive;
+    input = Eio.Buf_read.of_flow ~max_size:max_answer stdin;
+    output = (stdout :> Eio.Flow.sink_ty Eio.Resource.t);
+  }
+
+let interactive t = t.interactive
+
+let line t question =
+  if not t.interactive then Error (`Msg "no terminal to ask on")
+  else begin
+    (* The question goes out first, so it is on the terminal even when the
+       answer never comes. *)
+    Eio.Flow.copy_string question t.output;
+    match Eio.Buf_read.line t.input with
+    | answer -> Ok answer
+    | exception End_of_file -> Error (`Msg "no answer: the input ended")
+    | exception Eio.Buf_read.Buffer_limit_exceeded ->
+        Error (`Msg "no answer: the line is too long")
+  end
+
+let confirm t label =
+  match line t (label ^ " [y/N] ") with
+  | Error (`Msg _ as e) -> Error e
+  | Ok answer -> (
+      match String.lowercase_ascii (String.trim answer) with
+      | "y" | "yes" -> Ok true
+      | _ -> Ok false)
+
+let expect t question word =
+  match line t question with
+  | Error (`Msg _ as e) -> Error e
+  | Ok answer ->
+      (* The refusal says that the answer was wrong and stops there: spelling
+         the word out would hand over the answer the gate exists to ask for. *)
+      if String.equal answer word then Ok ()
+      else Error (`Msg "the answer does not match what was asked for")
