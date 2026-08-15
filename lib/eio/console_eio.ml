@@ -1,3 +1,5 @@
+module Prompt = Prompt
+
 (* A library may itself be written as a complete Console application and then
    be called by another Console application.  Re-entering [run] in that case
    must not try to claim the terminal a second time: the current display is a

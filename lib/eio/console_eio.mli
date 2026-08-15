@@ -1,5 +1,8 @@
 (** Eio integration for terminal-aware Console rendering. *)
 
+module Prompt = Prompt
+(** Interactive prompts over Eio flows: a yes/no, a line, or a typed word. *)
+
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
