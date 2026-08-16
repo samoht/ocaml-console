@@ -8,16 +8,6 @@ let dimension_of_env name usable =
   Option.bind (Sys.getenv_opt name) (fun value ->
       Option.bind (int_of_string_opt value) usable)
 
-let dimension_of_tput property usable =
-  try
-    let ic = Unix.open_process_in ("tput " ^ property ^ " 2>/dev/null") in
-    let result =
-      try input_line ic |> int_of_string_opt with End_of_file -> None
-    in
-    ignore (Unix.close_process_in ic);
-    Option.bind result usable
-  with Unix.Unix_error _ -> None
-
 let first ~default sources =
   let rec loop = function
     | [] -> default
@@ -26,14 +16,14 @@ let first ~default sources =
   in
   loop sources
 
+(* The ioctl answers whenever stdout has a terminal behind it, $COLUMNS and
+   $LINES answer when the shell exported them, and 80 by 24 is what everyone
+   else falls back to. A [tput] probe used to sit last, but it reads the same
+   termcap entry the shell already consulted and costs a shell, a fork and two
+   blocking waits inside this Eio driver to say so. *)
 let width () =
-  (* Try ioctl TIOCGWINSZ first (most reliable), then $COLUMNS, then tput. *)
   first ~default:80
-    [
-      width_of_ioctl;
-      (fun () -> dimension_of_env "COLUMNS" usable_width);
-      (fun () -> dimension_of_tput "cols" usable_width);
-    ]
+    [ width_of_ioctl; (fun () -> dimension_of_env "COLUMNS" usable_width) ]
 
 let usable_height h = if h > 2 then Some h else None
 
@@ -43,11 +33,7 @@ let height_of_ioctl () =
 
 let height () =
   first ~default:24
-    [
-      height_of_ioctl;
-      (fun () -> dimension_of_env "LINES" usable_height);
-      (fun () -> dimension_of_tput "lines" usable_height);
-    ]
+    [ height_of_ioctl; (fun () -> dimension_of_env "LINES" usable_height) ]
 
 let is_tty () = Unix.isatty Unix.stdout
 let dimensions () = (width (), height ())

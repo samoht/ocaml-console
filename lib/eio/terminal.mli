@@ -2,11 +2,11 @@
 
 val width : unit -> int
 (** [width ()] returns the terminal width in columns: the [TIOCGWINSZ] ioctl,
-    else [$COLUMNS], else [tput cols], else [80]. *)
+    else [$COLUMNS], else [80]. *)
 
 val height : unit -> int
 (** [height ()] returns the terminal height in rows: the [TIOCGWINSZ] ioctl,
-    else [$LINES], else [tput lines], else [24]. *)
+    else [$LINES], else [24]. *)
 
 val is_tty : unit -> bool
 (** [is_tty ()] is [true] iff stdout is connected to a terminal. *)
