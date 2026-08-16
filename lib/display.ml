@@ -166,7 +166,7 @@ let restore_terminal ppf =
   try
     Format.pp_print_string ppf show_cursor;
     Format.pp_print_flush ppf ()
-  with Sys_error _ | Unix.Unix_error _ -> ()
+  with Sys_error _ -> ()
 
 (** {1 Row layout}
 
@@ -1024,9 +1024,7 @@ let with_output t f =
         t.suspended <- t.suspended + 1;
         let resume ~preserve =
           t.suspended <- t.suspended - 1;
-          if preserve then
-            try paint t with Sys_error _ | Unix.Unix_error _ -> ()
-          else paint t
+          if preserve then try paint t with Sys_error _ -> () else paint t
         in
         match call () with
         | value ->

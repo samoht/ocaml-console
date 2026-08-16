@@ -63,3 +63,63 @@ let expect t question word =
          the word out would hand over the answer the gate exists to ask for. *)
       if String.equal answer word then Ok ()
       else Error (`Msg "the answer does not match what was asked for")
+
+(* Reading a secret is the one question that does not go through the flows a
+   [t] was handed. Echo is the terminal's own line discipline, so masking what
+   is typed means taking that terminal over with termios; that is a local
+   terminal and a Unix descriptor, which is why it lives here in the driver
+   rather than in the freestanding half of the library. *)
+
+let err_msg fmt = Fmt.kstr (fun msg -> Error (`Msg msg)) fmt
+
+let rec write_all fd s off =
+  if off < String.length s then
+    match Unix.write_substring fd s off (String.length s - off) with
+    | 0 -> raise End_of_file
+    | n -> write_all fd s (off + n)
+    | exception Unix.Unix_error (Unix.EINTR, _, _) -> write_all fd s off
+
+let write fd s = write_all fd s 0
+
+let masked_attributes attr =
+  {
+    attr with
+    Unix.c_icanon = false;
+    c_echo = false;
+    c_echoe = false;
+    c_echok = false;
+    c_echonl = false;
+    c_vmin = 1;
+    c_vtime = 0;
+  }
+
+let secret ?(prompt = "") () =
+  if not (Unix.isatty Unix.stdin) then
+    Error (`Msg "cannot prompt for a secret because stdin is not a terminal")
+  else
+    try
+      let original = Unix.tcgetattr Unix.stdin in
+      let restore () = Unix.tcsetattr Unix.stdin Unix.TCSANOW original in
+      write Unix.stderr prompt;
+      Terminal.on_interrupt restore (fun () ->
+          Fun.protect ~finally:restore (fun () ->
+              Unix.tcsetattr Unix.stdin Unix.TCSANOW
+                (masked_attributes original);
+              let input = Console.Input.v ~mask:"*" () in
+              let buf = Bytes.create 64 in
+              let rec loop () =
+                match Unix.read Unix.stdin buf 0 (Bytes.length buf) with
+                | 0 -> Error (`Msg "terminal reached end of input")
+                | n -> (
+                    let echo, lines =
+                      Console.Input.feed input (Bytes.sub_string buf 0 n)
+                    in
+                    write Unix.stderr echo;
+                    match lines with line :: _ -> Ok line | [] -> loop ())
+                | exception Unix.Unix_error (Unix.EINTR, _, _) -> loop ()
+              in
+              loop ()))
+    with
+    | Unix.Unix_error (e, fn, arg) ->
+        err_msg "%s(%s): %s" fn arg (Unix.error_message e)
+    | End_of_file -> Error (`Msg "terminal output closed while prompting")

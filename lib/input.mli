@@ -87,12 +87,3 @@ val pending : t -> string
 val history : t -> string list
 (** [history t] is the submitted lines, oldest first, after the [history] seed
     and with consecutive duplicates dropped. *)
-
-val read_secret : ?prompt:string -> unit -> (string, [ `Msg of string ]) result
-(** [read_secret ?prompt ()] reads one line from the Unix terminal with echo
-    disabled and writes one [*] for every entered character. The returned secret
-    is never written or retained in input history. Terminal attributes are
-    restored on success, error, exception, and SIGINT.
-
-    The prompt and masks use stderr so stdout remains available for command
-    output. Returns [Error] when stdin is not a terminal or reaches EOF. *)

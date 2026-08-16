@@ -5,7 +5,12 @@
     an answer suspends instead of parking the whole domain in a blocking read,
     and a test drives the very same code from a string source. Every question is
     result-typed: a prompt with nobody at the other end refuses rather than
-    waiting for input that will never be typed. *)
+    waiting for input that will never be typed.
+
+    One question does not fit that shape. {!secret} reads the local terminal
+    through Unix termios, because echo is that terminal's own line discipline
+    and masking what is typed means taking it over. It is host-only, and takes
+    no {!type-t}. *)
 
 type t
 (** A prompt: where questions go, and the buffered input answers come from. *)
@@ -51,3 +56,15 @@ val expect : t -> string -> string -> (unit, [ `Msg of string ]) result
     message that repeats the word hands over the very answer the gate exists to
     ask for. This is [Error] too when [t] is not interactive or the input ends.
 *)
+
+val secret : ?prompt:string -> unit -> (string, [ `Msg of string ]) result
+(** [secret ?prompt ()] reads one line from the local terminal with echo
+    disabled and writes one [*] for every entered character. It reads that
+    terminal through Unix termios rather than through the flows a {!type-t} was
+    given: echo is the terminal's own line discipline, so masking what is typed
+    means taking the terminal over. The returned secret is never written or
+    retained in input history. Terminal attributes are restored on success,
+    error, exception, and SIGINT.
+
+    The prompt and masks use stderr so stdout remains available for command
+    output. Returns [Error] when stdin is not a terminal or reaches EOF. *)
