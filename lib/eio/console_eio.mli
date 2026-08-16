@@ -29,3 +29,15 @@ val run :
     [ppf] selects the output formatter and defaults to stdout. Unix terminal
     dimensions and tty detection are automatic. Cursor visibility is restored on
     return, exception and SIGINT. *)
+
+val is_tty : unit -> bool
+(** [is_tty ()] is [true] iff stdout is connected to a terminal. It is the
+    terminal question answered once for every CLI that renders through this
+    library: a command choosing a table over a stream of plain records asks the
+    console it already draws on, rather than asking Unix itself. *)
+
+val dimensions : unit -> int * int
+(** [dimensions ()] is the terminal size as [(columns, rows)]: the [TIOCGWINSZ]
+    ioctl, else [$COLUMNS] and [$LINES], else 80 by 24. It always answers, and
+    no source of an answer reports less than a single cell in either direction.
+*)

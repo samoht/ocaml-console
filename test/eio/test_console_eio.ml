@@ -32,6 +32,21 @@ let test_nested_run_reuses_the_existing_display () =
         "nested task uses outer output" true
         (String.starts_with ~prefix:"=> nested work" (Buffer.contents buf)))
 
+(* The terminal question, asked of the library rather than of Unix. Under
+   [dune test] stdout is a pipe or a file, so the answer is [false]; a runner
+   that attached a terminal leaves the case nothing to pin. *)
+let test_is_tty_is_false_without_a_terminal () =
+  if Unix.isatty Unix.stdout then Alcotest.skip ();
+  Alcotest.(check bool) "stdout is not a terminal" false (Console_eio.is_tty ())
+
+(* Dimensions always answer, whatever the environment: the ioctl, else
+   $COLUMNS/$LINES, else the 80x24 default. No source of an answer can make
+   either component smaller than a single cell. *)
+let test_dimensions_are_at_least_one_cell () =
+  let width, height = Console_eio.dimensions () in
+  Alcotest.(check bool) "width is at least one cell" true (width >= 1);
+  Alcotest.(check bool) "height is at least one cell" true (height >= 1)
+
 let suite =
   ( "console_eio",
     [
@@ -41,4 +56,8 @@ let suite =
         `Quick test_run_exception_without_cursor_restore_on_non_tty;
       Alcotest.test_case "nested run reuses the existing display" `Quick
         test_nested_run_reuses_the_existing_display;
+      Alcotest.test_case "is_tty is false without a terminal" `Quick
+        test_is_tty_is_false_without_a_terminal;
+      Alcotest.test_case "dimensions are at least one cell" `Quick
+        test_dimensions_are_at_least_one_cell;
     ] )

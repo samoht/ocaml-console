@@ -32,3 +32,7 @@ let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
       | Some restore ->
           Terminal.on_interrupt restore (fun () ->
               Fun.protect ~finally:restore run))
+
+(* TODO: implement -- the spec half of this commit only names the questions. *)
+let is_tty () = failwith "TODO: implement Console_eio.is_tty"
+let dimensions () = failwith "TODO: implement Console_eio.dimensions"
