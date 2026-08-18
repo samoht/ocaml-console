@@ -26,6 +26,18 @@ val truncate : ?char_width:(Uchar.t -> int) -> int -> string -> string
     preserving ANSI escape sequences, closing an active SGR style or OSC 8
     hyperlink when cut, and adding no ellipsis. *)
 
+val ellipsize : ?char_width:(Uchar.t -> int) -> int -> string -> string
+(** [ellipsize width s] is [s] fitted into [width] terminal columns by replacing
+    its middle with a single ellipsis, so both of its ends survive the cut: the
+    leading characters that identify a hash, and the trailing ones that name a
+    file. [s] already within [width] is returned unchanged, and a [width] of one
+    is the ellipsis alone.
+
+    Unlike {!truncate}, which ends a value wherever the room does and leaves it
+    reading as a line that wraps, this marks the cut. Escape sequences count as
+    zero columns and are never cut; a style or hyperlink left open at either end
+    is closed. *)
+
 val pad_right : ?char_width:(Uchar.t -> int) -> int -> string -> string
 (** [pad_right width s] is [s] padded with spaces on the right to reach [width]
     columns, or [s] unchanged if it is already wider. *)

@@ -415,6 +415,7 @@ let pp ppf t =
 let render_width t = t.width
 let string_width t = Width.string_width ?char_width:t.char_width
 let truncate t = Width.truncate ?char_width:t.char_width
+let ellipsize t = Width.ellipsize ?char_width:t.char_width
 let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
 
 (* Plain (append-only) mode keeps a flat indent: a committed line is emitted
@@ -578,7 +579,7 @@ let render_row t row =
   let avail = max 0 (width - fixed_w - reserve) in
   let label_shown =
     if not has_label then ""
-    else if string_width t label_text > avail then truncate t avail label_text
+    else if string_width t label_text > avail then ellipsize t avail label_text
     else label_text
   in
   let slack = max reserve (width - fixed_w - string_width t label_shown) in
@@ -641,7 +642,7 @@ let styled_committed t row =
   in
   let metadata_width = string_width t metadata in
   let label_width = max 0 (width - fixed_width - metadata_width - 2) in
-  let label = truncate t label_width label in
+  let label = ellipsize t label_width label in
   let left = String.concat "" [ indent; marker; " "; label ] in
   let gap = width - string_width t left - metadata_width in
   if gap > 0 then left ^ String.make gap ' ' ^ dimmed metadata
@@ -732,12 +733,23 @@ let row_block_parts t row =
   let tail =
     List.map
       (fun log ->
+        let marker = level_marker log.llevel in
+        let suffix = gap_suffix log.lgap in
+        let prefix = continuation t row in
+        (* The message is what has to give when the room runs out, and it gives
+           in the middle: the marker says how loud the line is and the suffix
+           how long the gap before it was, and neither survives being cut. *)
+        let room =
+          render_width t - string_width t prefix - string_width t marker - 1
+          - string_width t suffix
+        in
         truncate t (render_width t)
           (String.concat ""
              [
-               continuation t row;
-               styled_log log.llevel (level_marker log.llevel) log.lmessage
-                 (gap_suffix log.lgap);
+               prefix;
+               styled_log log.llevel marker
+                 (ellipsize t room log.lmessage)
+                 suffix;
              ]))
       row.logs
   in
@@ -1226,6 +1238,24 @@ let set_label r label =
     touch r
   end
 
+(* One log line, written where history goes: above the activity region on a
+   terminal, straight to the output without one. *)
+let commit_log t r entry =
+  let marker = level_marker entry.llevel in
+  let suffix = gap_suffix entry.lgap in
+  let plain = Fmt.str "%s  %s %s%s" (indent r) marker entry.lmessage suffix in
+  let styled =
+    continuation t r ^ styled_log entry.llevel marker entry.lmessage suffix
+  in
+  emit_history_line t ~plain ~styled
+
+(* A line is on screen once. The bounded tail beneath a running row already
+   draws it, so committing it at the same time puts the same line in two places
+   at once -- the span block an apply prints under its phase, and again below
+   the spinner on every repaint. The tail holds it instead, and history takes
+   it when it ages out of the tail or the row finishes: still permanent, still
+   in order, drawn once. A line with no tail to hold it -- plain output, a row
+   that keeps none, a row already finished -- is committed where it is made. *)
 let log ?(level = `Info) r line =
   check_open "log" r.disp;
   let t = r.disp in
@@ -1241,16 +1271,20 @@ let log ?(level = `Info) r line =
     (fun line ->
       let time, gap, line = gap_of line in
       record ~task:r t (`Log level) line;
-      let marker = level_marker level in
-      let suffix = gap_suffix gap in
-      let plain = Fmt.str "%s  %s %s%s" (indent r) marker line suffix in
-      let styled = continuation t r ^ styled_log level marker line suffix in
-      emit_history_line t ~plain ~styled;
-      if r.rfinish = None && r.log_lines > 0 then begin
-        r.logs <-
-          r.logs
-          @ [ { ltime = time; lgap = gap; llevel = level; lmessage = line } ];
-        if List.length r.logs > r.log_lines then r.logs <- List.tl r.logs
+      let entry =
+        { ltime = time; lgap = gap; llevel = level; lmessage = line }
+      in
+      let tailed = r.rfinish = None && r.log_lines > 0 in
+      let held = tailed && not t.plain in
+      if not held then commit_log t r entry;
+      if tailed then begin
+        r.logs <- r.logs @ [ entry ];
+        if List.length r.logs > r.log_lines then
+          match r.logs with
+          | oldest :: rest ->
+              if held then commit_log t r oldest;
+              r.logs <- rest
+          | [] -> ()
       end)
     lines;
   touch r
@@ -1362,6 +1396,12 @@ let rec finish outcome ?message r =
       (finish child_outcome ~message:"parent finished")
       (running_children r);
     let t = r.disp in
+    (* The tail was holding these; the row is about to leave the live region,
+       so history takes them, before the line that closes the row. *)
+    if not t.plain then begin
+      List.iter (commit_log t r) r.logs;
+      r.logs <- []
+    end;
     r.rfinish <- Some (t.now ());
     r.rmessage <- Option.map sanitize message;
     r.routcome <- Some outcome;
