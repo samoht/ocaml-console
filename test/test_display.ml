@@ -764,6 +764,67 @@ let test_history_survives_activity () =
       (count_rows vte (Fmt.str "[D%d]" i))
   done
 
+(* A row is drawn once and so is its output. [log] commits a line permanently
+   above the activity region and also keeps it in the row's bounded live tail,
+   which the next paint draws under the spinner, so every log line an apply
+   emits is on screen twice at once -- the span block of 2026-08-18, printed
+   once in history and again below the row it belongs to. The live tail is
+   where a line lives while its row runs; permanent history is where it goes
+   when it ages out of that tail or the row finishes. *)
+let test_log_reaches_the_terminal_once () =
+  ignore
+    (terminal_run ~height:8 ~width:60 ~header:"[H]"
+       (fun display _advance sync vte ->
+         let task = Display.task ~log_lines:4 display "source" in
+         Display.log task "checkout cache hit";
+         sync ();
+         Alcotest.(check int)
+           "one copy while the row runs" 1
+           (count_rows vte "checkout cache hit");
+         Display.succeed task;
+         sync ();
+         Alcotest.(check int)
+           "one copy once the row is done" 1
+           (count_rows vte "checkout cache hit")))
+
+(* A cut reads as a wrap. Truncation adds no marker, so a row whose label does
+   not fit simply ends at the column the terminal ends at -- in the middle of a
+   hex digest, indistinguishable from a value continuing on the next line, and
+   the apply of 2026-08-18 showed both spellings of one digest side by side
+   because of it. The cut is marked, and marked in the middle: the leading
+   characters identify a digest and the trailing ones name a file, so a cut
+   that keeps only one end throws away the half the reader needed. *)
+let digest_label =
+  "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
+
+let check_marked_cut what row ~width =
+  Alcotest.(check bool)
+    (what ^ " fits the terminal")
+    true
+    (Width.string_width row <= width);
+  Alcotest.(check bool)
+    (what ^ " marks the cut") true
+    (contains "\xe2\x80\xa6" row);
+  Alcotest.(check bool)
+    (what ^ " keeps the leading characters")
+    true
+    (contains "sha256:a376" row);
+  Alcotest.(check bool)
+    (what ^ " keeps the trailing characters")
+    true (contains "e1d2c3" row)
+
+let test_row_marks_its_cut () =
+  let width = 60 in
+  ignore
+    (terminal_run ~height:4 ~width (fun display _advance sync vte ->
+         let task = Display.task display digest_label in
+         sync ();
+         let line rows = List.hd (String.split_on_char '\n' rows) in
+         check_marked_cut "the live row" ~width (line (Vte.to_string vte));
+         Display.succeed task;
+         sync ();
+         check_marked_cut "the committed row" ~width (line (Vte.to_string vte))))
+
 let test_activity_lines_are_bounded () =
   let vte =
     terminal_run ~height:5 ~width:18 ~header:"HEADER-UNIQUE-LONG"
@@ -871,6 +932,9 @@ let suite =
       Alcotest.test_case "activity collapse" `Quick test_activity_collapse;
       Alcotest.test_case "history survives activity" `Quick
         test_history_survives_activity;
+      Alcotest.test_case "a log line is drawn once" `Quick
+        test_log_reaches_the_terminal_once;
+      Alcotest.test_case "a cut row is marked" `Quick test_row_marks_its_cut;
       Alcotest.test_case "activity lines bounded" `Quick
         test_activity_lines_are_bounded;
       Alcotest.test_case "tiny activity bounded" `Quick
