@@ -128,6 +128,21 @@
       Fmt.pr "%s@." (Anim.frame bar ~elapsed:0.5)
     ]} *)
 
+(** {1:text Untrusted text} *)
+
+val sanitize : ?keep_newlines:bool -> string -> string
+(** [sanitize s] is [s] made safe to write to a terminal, under the geometry
+    contract above: a malformed UTF-8 sequence becomes the replacement
+    character, and a C0 control, DEL or a C1 control becomes a space, so nothing
+    in [s] can move the cursor, repaint the screen or change the styling of what
+    follows. Newlines survive unless [keep_newlines] is [false], in which case
+    they become spaces too and the result is one physical row.
+
+    Every widget applies this to the text it lays out, and {!Span.sanitize} is
+    it over a styled run. This is the same rule over a plain string, for a
+    caller printing one of its own -- a subprocess's stderr, a peer's name off
+    the network, a filename -- outside any widget. *)
+
 (** {1:modules Modules} *)
 
 module Color = Color

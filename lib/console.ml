@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+let sanitize ?keep_newlines:_ _ = failwith "TODO: implement sanitize"
+
 module Color = Color
 module Style = Style
 module Width = Width
