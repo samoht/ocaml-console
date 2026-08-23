@@ -281,8 +281,10 @@ let right_table_edge row =
    width beyond the terminal so the emergency fitting path always runs. Every
    raw and emulated physical row must end at the right border, exactly at the
    terminal edge, without an extra wrapped row, scrollback or cursor drift. *)
-let test_table_no_overflow headers cells wbyte =
-  let width = 8 + (wbyte land 0x7f mod 89) in
+(* Up to six columns that fit at [width], four rows, one protected column, and a
+   first cell forced far past the terminal so the emergency fitting path always
+   runs. *)
+let overflow_table ~width headers cells =
   let max_columns = max 1 (min 6 ((width - 1) / 4)) in
   let headers = take max_columns (if headers = [] then [ "" ] else headers) in
   let ncol = List.length headers in
@@ -308,9 +310,10 @@ let test_table_no_overflow headers cells wbyte =
         ((first_cell ^ String.make (width * 2) 'W') :: row) :: rows
     | [] :: _ -> assert false
   in
-  let table = Table.of_string_rows ~border:Border.rounded columns rows in
-  let raw = render_ansi ~width Table.pp table in
-  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+  Table.of_string_rows ~border:Border.rounded columns rows
+
+(* The formatter emitted rows, and every one of them is exactly [width] cells. *)
+let check_table_raw_rows ~width logical_rows =
   invariant "table emitted no logical rows" (logical_rows <> []);
   List.iter
     (fun row ->
@@ -318,9 +321,12 @@ let test_table_no_overflow headers cells wbyte =
         (Fmt.str "table raw row is %d cells at width %d"
            (Width.string_width row) width)
         (Width.string_width row = width))
-    logical_rows;
-  let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
-  Vte.feed_string vte raw;
+    logical_rows
+
+(* A real terminal shows the same geometry: nothing scrolled away, no row wrapped
+   into an extra one, both borders on every row, every row exactly [width] cells,
+   and the cursor left just past the last row. *)
+let check_table_visual_rows ~width ~logical_rows vte =
   let visual_rows = nonblank (vt_rows vte) in
   invariant "table entered scrollback" (Vte.scrollback_size vte = 0);
   invariant
@@ -340,6 +346,16 @@ let test_table_no_overflow headers cells wbyte =
     visual_rows;
   invariant "table cursor is not at the next row"
     (Vte.cursor_pos vte = (List.length logical_rows, 0))
+
+let test_table_no_overflow headers cells wbyte =
+  let width = 8 + (wbyte land 0x7f mod 89) in
+  let table = overflow_table ~width headers cells in
+  let raw = render_ansi ~width Table.pp table in
+  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+  check_table_raw_rows ~width logical_rows;
+  let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
+  Vte.feed_string vte raw;
+  check_table_visual_rows ~width ~logical_rows vte
 
 (* The live region is bounded by the terminal height: when more rows are live
    than fit, the display keeps the header, the root row and the most recent
@@ -509,19 +525,8 @@ let test_pad_reaches_width idx width =
 (* A fixed-width panel has the same hard contract as a table. Arbitrary bytes
    in both its edge label and body are sanitised; all three physical rows land
    exactly on the declared right edge, with no wrap or scroll. *)
-let test_panel_rectangular content wbyte =
-  let width = 8 + (wbyte land 0x7f mod 89) in
-  let title = Span.text content in
-  let body =
-    Span.text (content ^ String.make (width * 2) 'W')
-    |> Span.sanitize ~keep_newlines:false
-  in
-  let panel = Panel.v ~border:Border.rounded ~width ~title body in
-  (* [Panel.pp] is a value printer rather than a line printer; terminate the
-     bottom row explicitly just as a caller writing the next terminal row
-     would. *)
-  let raw = render_ansi ~width Panel.pp panel ^ "\r\n" in
-  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+(* The formatter emits exactly three rows and each is exactly [width] cells. *)
+let check_panel_raw_rows ~width logical_rows =
   invariant "panel did not emit three logical rows"
     (List.length logical_rows = 3);
   List.iter
@@ -530,9 +535,13 @@ let test_panel_rectangular content wbyte =
         (Fmt.str "panel raw row is %d cells at width %d"
            (Width.string_width row) width)
         (Width.string_width row = width))
-    logical_rows;
-  let vte = Vte.create ~rows:5 ~cols:width () in
-  Vte.feed_string vte raw;
+    logical_rows
+
+(* A real terminal shows the same three rows: nothing scrolled away, every corner
+   and side border in place, every row exactly [width] cells, and no cursor
+   drift. [raw_top] is quoted beside the emulated top row so a right-corner
+   mismatch names both. *)
+let check_panel_visual_rows ~width ~raw_top vte =
   let visual_rows = nonblank (vt_rows vte) in
   invariant "panel entered scrollback" (Vte.scrollback_size vte = 0);
   invariant "panel did not occupy three visual rows"
@@ -540,7 +549,6 @@ let test_panel_rectangular content wbyte =
   let top = List.nth visual_rows 0 in
   let middle = List.nth visual_rows 1 in
   let bottom = List.nth visual_rows 2 in
-  let raw_top = List.nth logical_rows 0 in
   invariant "panel lost its top-left corner"
     (String.starts_with ~prefix:"╭" top);
   invariant
@@ -563,6 +571,24 @@ let test_panel_rectangular content wbyte =
         (Width.string_width row = width))
     visual_rows;
   invariant "panel cursor is not at the next row" (Vte.cursor_pos vte = (3, 0))
+
+let test_panel_rectangular content wbyte =
+  let width = 8 + (wbyte land 0x7f mod 89) in
+  let title = Span.text content in
+  let body =
+    Span.text (content ^ String.make (width * 2) 'W')
+    |> Span.sanitize ~keep_newlines:false
+  in
+  let panel = Panel.v ~border:Border.rounded ~width ~title body in
+  (* [Panel.pp] is a value printer rather than a line printer; terminate the
+     bottom row explicitly just as a caller writing the next terminal row
+     would. *)
+  let raw = render_ansi ~width Panel.pp panel ^ "\r\n" in
+  let logical_rows = nonblank (String.split_on_char '\n' raw) in
+  check_panel_raw_rows ~width logical_rows;
+  let vte = Vte.create ~rows:5 ~cols:width () in
+  Vte.feed_string vte raw;
+  check_panel_visual_rows ~width ~raw_top:(List.nth logical_rows 0) vte
 
 (* Composition: a table of progress-bar cells, wrapped in a panel, streamed into
    a display task's log window. However wide the widget block and however narrow
@@ -757,7 +783,7 @@ let test_differential_redraw label wbyte =
         invariant "middle row does not fill the terminal"
           (Width.string_width row = width);
         if not (String.ends_with ~suffix:"0.0s" row) then
-          failwith (Fmt.str "elapsed metadata is not at width %d: %S" width row)
+          Fmt.failwith "elapsed metadata is not at width %d: %S" width row
       done;
       invariant "right-edge redraw leaked into scrollback"
         (Vte.scrollback_size vte = 0);
@@ -804,110 +830,129 @@ type modeled_task =
   | Running of int * int
   | Finished of Display.Event.outcome
 
+(* The reference model of the eight keyed tasks, advanced alongside the display:
+   what state each ID is in, and the handle Console first gave it. *)
+type model = {
+  states : modeled_task array;
+  handles : Display.task option array;
+}
+
+let key i = Fmt.str "task-%d" i
+
+(* Console owns the registry: asking for an ID again must hand back the very same
+   task, never open a second lifecycle. *)
+let ensure model display i =
+  let task = Display.task ~id:(key i) display (Fmt.str "task %d" i) in
+  (match model.handles.(i) with
+  | None ->
+      model.handles.(i) <- Some task;
+      model.states.(i) <- Running (0, 0)
+  | Some first -> check (first == task));
+  task
+
+(* Progress is monotonic: a count lower than one already reported never moves the
+   item backwards. *)
+let check_progress display i expected =
+  let item =
+    Display.Activity.items (Display.activity display)
+    |> List.find (fun item -> Display.Activity.key item = Some (key i))
+  in
+  check (Display.Activity.progress item = expected)
+
+(* Interpret one program byte: its low three bits pick the ID, the next three the
+   operation. Duplicate starts, contradictory outcomes, late logs and relabels
+   are all reachable, and every one advances the model too. *)
+let apply_op model display byte =
+  let code = Char.code byte in
+  let i = code land 7 in
+  let task = ensure model display i in
+  match (code lsr 3) mod 8 with
+  | 0 -> ignore (ensure model display i : Display.task)
+  | 1 -> (
+      let cur = code land 63 in
+      let total = cur + ((code lsr 6) land 3) in
+      Display.set_count task ~cur ~total;
+      match model.states.(i) with
+      | Running (previous, previous_total) ->
+          let cur = max previous cur in
+          let total = max cur (max previous_total total) in
+          model.states.(i) <- Running (cur, total);
+          check_progress display i (`Count (cur, total))
+      | Unseen | Finished _ -> ())
+  | 2 -> Display.log task (pick_weird byte)
+  | 3 -> (
+      Display.succeed task;
+      match model.states.(i) with
+      | Running _ -> model.states.(i) <- Finished `Succeeded
+      | Unseen | Finished _ -> ())
+  | 4 -> (
+      Display.fail task;
+      match model.states.(i) with
+      | Running _ -> model.states.(i) <- Finished `Failed
+      | Unseen | Finished _ -> ())
+  | 5 -> (
+      Display.cancel task;
+      match model.states.(i) with
+      | Running _ -> model.states.(i) <- Finished `Cancelled
+      | Unseen | Finished _ -> ())
+  | 6 -> Display.set_label task (pick_weird byte)
+  | _ -> (
+      Display.succeed task;
+      Display.fail task;
+      Display.cancel task;
+      match model.states.(i) with
+      | Running _ -> model.states.(i) <- Finished `Succeeded
+      | Unseen | Finished _ -> ())
+
+(* Whatever the stream did to an ID, its history holds exactly one lifecycle: one
+   [`Started] and one [`Finished], and the outcome is the FIRST one the stream
+   asked for -- a later contradicting outcome never wins. A task the stream left
+   running is succeeded when the display closes. *)
+let check_one_lifecycle_per_key model events i =
+  match model.states.(i) with
+  | Unseen -> ()
+  | (Running _ | Finished _) as state ->
+      let events =
+        List.filter (fun event -> Display.Event.key event = Some (key i)) events
+      in
+      let starts =
+        List.filter (fun event -> Display.Event.kind event = `Started) events
+      in
+      let finishes =
+        List.filter_map
+          (fun event ->
+            match Display.Event.kind event with
+            | `Finished outcome -> Some outcome
+            | _ -> None)
+          events
+      in
+      check (List.length starts = 1);
+      check (List.length finishes = 1);
+      let expected =
+        match state with
+        | Running _ -> `Succeeded
+        | Finished outcome -> outcome
+        | Unseen -> assert false
+      in
+      check (finishes = [ expected ])
+
 let test_keyed_event_stream program =
-  let states = Array.make 8 Unseen in
-  let handles = Array.make 8 None in
+  let model = { states = Array.make 8 Unseen; handles = Array.make 8 None } in
   let saved = ref None in
   let buf = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0. in
-  let key i = Fmt.str "task-%d" i in
-  let ensure display i =
-    let task = Display.task ~id:(key i) display (Fmt.str "task %d" i) in
-    (match handles.(i) with
-    | None ->
-        handles.(i) <- Some task;
-        states.(i) <- Running (0, 0)
-    | Some first -> check (first == task));
-    task
-  in
-  let check_progress display i expected =
-    let item =
-      Display.Activity.items (Display.activity display)
-      |> List.find (fun item -> Display.Activity.key item = Some (key i))
-    in
-    check (Display.Activity.progress item = expected)
-  in
   Display.run
     ~ctx:
       (Display.ctx ~ppf ~now ~dimensions:(fun () -> (80, 24)) ~is_tty:false ())
     ~mode:`History
     (fun display ->
       saved := Some display;
-      String.iter
-        (fun byte ->
-          let code = Char.code byte in
-          let i = code land 7 in
-          let task = ensure display i in
-          match (code lsr 3) mod 8 with
-          | 0 -> ignore (ensure display i : Display.task)
-          | 1 -> (
-              let cur = code land 63 in
-              let total = cur + ((code lsr 6) land 3) in
-              Display.set_count task ~cur ~total;
-              match states.(i) with
-              | Running (previous, previous_total) ->
-                  let cur = max previous cur in
-                  let total = max cur (max previous_total total) in
-                  states.(i) <- Running (cur, total);
-                  check_progress display i (`Count (cur, total))
-              | Unseen | Finished _ -> ())
-          | 2 -> Display.log task (pick_weird byte)
-          | 3 -> (
-              Display.succeed task;
-              match states.(i) with
-              | Running _ -> states.(i) <- Finished `Succeeded
-              | Unseen | Finished _ -> ())
-          | 4 -> (
-              Display.fail task;
-              match states.(i) with
-              | Running _ -> states.(i) <- Finished `Failed
-              | Unseen | Finished _ -> ())
-          | 5 -> (
-              Display.cancel task;
-              match states.(i) with
-              | Running _ -> states.(i) <- Finished `Cancelled
-              | Unseen | Finished _ -> ())
-          | 6 -> Display.set_label task (pick_weird byte)
-          | _ -> (
-              Display.succeed task;
-              Display.fail task;
-              Display.cancel task;
-              match states.(i) with
-              | Running _ -> states.(i) <- Finished `Succeeded
-              | Unseen | Finished _ -> ()))
-        program);
+      String.iter (apply_op model display) program);
   let display = Option.get !saved in
   let events = Display.history display in
   for i = 0 to 7 do
-    match states.(i) with
-    | Unseen -> ()
-    | (Running _ | Finished _) as state ->
-        let events =
-          List.filter
-            (fun event -> Display.Event.key event = Some (key i))
-            events
-        in
-        let starts =
-          List.filter (fun event -> Display.Event.kind event = `Started) events
-        in
-        let finishes =
-          List.filter_map
-            (fun event ->
-              match Display.Event.kind event with
-              | `Finished outcome -> Some outcome
-              | _ -> None)
-            events
-        in
-        check (List.length starts = 1);
-        check (List.length finishes = 1);
-        let expected =
-          match state with
-          | Running _ -> `Succeeded
-          | Finished outcome -> outcome
-          | Unseen -> assert false
-        in
-        check (finishes = [ expected ])
+    check_one_lifecycle_per_key model events i
   done
 
 (* Geometry providers are external and can transiently report nonsense during

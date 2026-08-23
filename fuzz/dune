@@ -1,12 +1,6 @@
-(library
- (name fuzz_console)
- (modules fuzz_console)
- (libraries console matrix.grid matrix.vte fmt re uutf alcobar))
-
 (executable
  (name fuzz)
- (modules fuzz)
- (libraries fuzz_console alcobar))
+ (libraries console matrix.grid matrix.vte fmt re uutf alcobar))
 
 ; The default per-test budget (2s) makes this VT-emulator-heavy suite a ~20s
 ; inner-loop tax: ~9 properties render a Display, feed a real terminal emulator

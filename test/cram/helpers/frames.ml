@@ -51,12 +51,8 @@ let () =
   in
   let frame title =
     sync ();
-    Printf.printf "--- %s ---\n" title;
-    List.iter
-      (fun l ->
-        print_string l;
-        print_newline ())
-      (dump vte)
+    Fmt.pr "--- %s ---@." title;
+    List.iter (fun l -> Fmt.pr "%s@." l) (dump vte)
   in
   let module P = Console.Display in
   P.run ~ctx ~mode:`Activity ~height ~header:"Build" (fun display ->
