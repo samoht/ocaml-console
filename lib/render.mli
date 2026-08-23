@@ -13,6 +13,11 @@ val sanitize : ?keep_newlines:bool -> string -> string
     replacement character, and replaces terminal control characters with a
     space. Newlines are retained unless [keep_newlines] is [false]. *)
 
+val sanitize_styles : ?keep_newlines:bool -> string -> string
+(** [sanitize_styles s] is {!sanitize} over [s] except that a strictly-parsed
+    SGR sequence survives, and the result is closed with an SGR reset when the
+    last one left a style open. *)
+
 val newline : Format.formatter -> unit
 (** End one physical output row. ANSI formatters use CRLF so a row that exactly
     fills the terminal cannot leave the terminal in pending-wrap state. *)

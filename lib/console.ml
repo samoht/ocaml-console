@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 let sanitize = Render.sanitize
+let sanitize_styles = Render.sanitize_styles
 
 module Color = Color
 module Style = Style

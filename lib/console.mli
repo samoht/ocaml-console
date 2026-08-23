@@ -143,6 +143,37 @@ val sanitize : ?keep_newlines:bool -> string -> string
     caller printing one of its own -- a subprocess's stderr, a peer's name off
     the network, a filename -- outside any widget. *)
 
+val sanitize_styles : ?keep_newlines:bool -> string -> string
+(** [sanitize_styles s] is {!sanitize} over [s] except that the styling [s]
+    already carries survives, for a caller relaying the output of a tool that
+    coloured it.
+
+    What survives is a strictly-parsed SGR sequence (ECMA-48 8.3.117): CSI, then
+    parameter bytes, then the final byte ['m']. The accepted parameter bytes are
+    the digits and [';'] and nothing else, a strict subset of the parameter
+    bytes ECMA-48 5.4 allows, so a private parameter byte and the [':']
+    sub-parameter of ITU-T T.416 are refused rather than forwarded on a guess;
+    the run is at most 64 bytes long, which no real SGR reaches and an
+    adversary's would; and a sequence the string ends in the middle of is
+    refused as well.
+
+    Everything else is exactly what {!sanitize} makes of it -- cursor movement
+    and erase, which share the grammar under a different final byte, OSC
+    including the OSC 8 hyperlink, DCS, and the C1 controls, the C1 introducer
+    among them, which open none of this. SGR cannot move the cursor, erase a
+    region or name a resource, which is what makes it the one sequence that can
+    travel and leave the geometry contract above intact.
+
+    The result cannot change the styling of what the caller prints next: the
+    last surviving sequence is followed by an SGR reset unless it is one
+    already, which SGR makes a question about its last parameter, 0 (or empty,
+    which reads as 0) leaving no attribute set. So text that closes its own
+    styling comes back byte for byte, and a second pass changes nothing the
+    first did not.
+
+    An SGR sequence is zero columns wide ({!Width.string_width}), so what this
+    returns measures and lays out as the visible text alone. *)
+
 (** {1:modules Modules} *)
 
 module Color = Color
