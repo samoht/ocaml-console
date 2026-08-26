@@ -14,6 +14,19 @@ let dimensions = Terminal.dimensions
    contribute tasks and events to the outer session. *)
 let current : Console.Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
 
+(* An elapsed time is the one part of a rendered display the machine writes
+   rather than the program, so a captured transcript that shows one pins the
+   speed of the host that recorded it and goes red on a slower host.
+   CONSOLE_FROZEN_CLOCK, set to any non-empty value, stops the display clock at
+   zero: every elapsed then renders as 0.0s and the transcript asserts the
+   program's own output and nothing about the machine. It replaces the real
+   clock read here and only that one, since a caller that builds a context with
+   a clock of its own has already said what time the display reads. *)
+let display_clock clock =
+  match Sys.getenv_opt "CONSOLE_FROZEN_CLOCK" with
+  | None | Some "" -> fun () -> Eio.Time.now clock
+  | Some _ -> fun () -> 0.
+
 let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Eio.Fiber.get current with
   | Some display -> f display
@@ -21,9 +34,8 @@ let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
       let ppf = Option.value ppf ~default:Fmt.stdout in
       let is_tty = is_tty () in
       let ctx =
-        Console.Display.ctx ~ppf
-          ~now:(fun () -> Eio.Time.now clock)
-          ~dimensions ~is_tty ()
+        Console.Display.ctx ~ppf ~now:(display_clock clock) ~dimensions ~is_tty
+          ()
       in
       let restore =
         if is_tty then Some (fun () -> Terminal.show_cursor ppf) else None

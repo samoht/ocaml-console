@@ -28,7 +28,12 @@ val run :
 
     [ppf] selects the output formatter and defaults to stdout. Unix terminal
     dimensions and tty detection are automatic. Cursor visibility is restored on
-    return, exception and SIGINT. *)
+    return, exception and SIGINT.
+
+    [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
+    the display clock at zero, so every elapsed time renders as [0.0s]. A test
+    that captures this output would otherwise record how fast the machine that
+    ran it was, and fail on a slower one. *)
 
 val is_tty : unit -> bool
 (** [is_tty ()] is [true] iff stdout is connected to a terminal. It is the
