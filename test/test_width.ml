@@ -42,40 +42,6 @@ let test_osc_ignored () =
     "OSC preserved by truncation"
     "\027]8;;https://example.com\027\\do\027]8;;\027\\" (Width.truncate 2 link)
 
-(* A value cut to fit reads as a value that wraps unless the cut is marked, and
-   a mark at one end throws away the other: a hash is identified by its leading
-   characters and a path named by its trailing ones. The mark goes in the
-   middle, and the result still fits. *)
-let digest =
-  "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
-
-let test_ellipsize_keeps_both_ends () =
-  let cut = Width.ellipsize 21 digest in
-  Alcotest.(check string)
-    "the middle is what goes" "sha256:a37\xe2\x80\xa615f0e1d2c3" cut;
-  Alcotest.(check int) "and the result fits" 21 (Width.string_width cut)
-
-let test_ellipsize_short_enough () =
-  Alcotest.(check string)
-    "a value that fits is untouched" "abc" (Width.ellipsize 3 "abc");
-  Alcotest.(check string)
-    "and so is a shorter one" "abc" (Width.ellipsize 8 "abc")
-
-let test_ellipsize_no_room () =
-  Alcotest.(check string)
-    "nothing fits in nothing" "" (Width.ellipsize 0 digest);
-  Alcotest.(check string)
-    "one column says only that it was cut" "\xe2\x80\xa6"
-    (Width.ellipsize 1 digest)
-
-let test_ellipsize_ansi_costs_nothing () =
-  let styled = "\027[1mabcdefghij\027[0m" in
-  let cut = Width.ellipsize 5 styled in
-  Alcotest.(check int) "styling occupies no column" 5 (Width.string_width cut);
-  Alcotest.(check bool)
-    "the style is closed at the cut" true
-    (Width.string_width cut = 5 && String.length cut > 5)
-
 let test_wrap_basic () =
   let result = Width.wrap 20 "hello world foo bar baz" in
   Alcotest.(check string) "wraps at width" "hello world foo bar\nbaz" result
@@ -133,13 +99,6 @@ let suite =
       Alcotest.test_case "ANSI preserves grapheme" `Quick
         test_ansi_does_not_break_grapheme;
       Alcotest.test_case "OSC ignored" `Quick test_osc_ignored;
-      Alcotest.test_case "ellipsize keeps both ends" `Quick
-        test_ellipsize_keeps_both_ends;
-      Alcotest.test_case "ellipsize leaves a short value" `Quick
-        test_ellipsize_short_enough;
-      Alcotest.test_case "ellipsize with no room" `Quick test_ellipsize_no_room;
-      Alcotest.test_case "ellipsize counts no escape" `Quick
-        test_ellipsize_ansi_costs_nothing;
       Alcotest.test_case "wrap basic" `Quick test_wrap_basic;
       Alcotest.test_case "wrap with indent" `Quick test_wrap_with_indent;
       Alcotest.test_case "wrap short" `Quick test_wrap_short;

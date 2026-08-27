@@ -206,14 +206,6 @@ let normalize_utf8 str =
   in
   loop ()
 
-(* Where the next escape sequence begins, so a run of drawable text can be
-   segmented on its own. *)
-let visible_run_end str start =
-  let rec loop i =
-    if i >= String.length str || str.[i] = '\027' then i else loop (i + 1)
-  in
-  loop start
-
 let truncate_graphemes target_width str =
   let str = normalize_utf8 str in
   let buffer = Buffer.create (String.length str) in
@@ -231,6 +223,12 @@ let truncate_graphemes target_width str =
             width := !width + grapheme_width)
           else stopped := true)
       run
+  in
+  let visible_run_end str start =
+    let rec loop i =
+      if i >= String.length str || str.[i] = '\027' then i else loop (i + 1)
+    in
+    loop start
   in
   let rec loop i =
     if !stopped || i >= String.length str then ()
@@ -273,99 +271,6 @@ let truncate ?(char_width = default_char_width) target_width str =
   else if char_width == default_char_width then
     truncate_graphemes target_width str
   else truncate_codepoints ~char_width target_width str
-
-let ellipsis = "\xe2\x80\xa6"
-
-(* [str] as the pieces a terminal draws it in: an escape sequence, which takes
-   no column and is never cut, or one grapheme cluster with the width it
-   occupies. Fitting a value by its middle has to take from both of its ends,
-   which neither direction of truncation on its own can do. *)
-let atoms ~char_width str =
-  let str = normalize_utf8 str in
-  let pieces = ref [] in
-  let push piece width = pieces := (piece, width) :: !pieces in
-  let codepoints run =
-    let decoder = Uutf.decoder ~encoding:`UTF_8 (`String run) in
-    let rec loop () =
-      match Uutf.decode decoder with
-      | `End -> ()
-      | `Await -> assert false
-      | (`Uchar _ | `Malformed _) as decoded ->
-          let u =
-            match decoded with `Uchar u -> u | `Malformed _ -> Uutf.u_rep
-          in
-          let buffer = Buffer.create 4 in
-          Uutf.Buffer.add_utf_8 buffer u;
-          push (Buffer.contents buffer) (char_width u);
-          loop ()
-    in
-    loop ()
-  in
-  let graphemes run =
-    Glyph.String.iter_graphemes
-      (fun ~offset ~len ->
-        push
-          (String.sub run offset len)
-          (Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:2 run
-             ~pos:offset ~len))
-      run
-  in
-  let rec loop i =
-    if i >= String.length str then ()
-    else if str.[i] = '\027' then begin
-      let stop = ansi_end str i in
-      push (String.sub str i (stop - i)) 0;
-      loop stop
-    end
-    else
-      let stop = visible_run_end str i in
-      let run = String.sub str i (stop - i) in
-      if char_width == default_char_width then graphemes run else codepoints run;
-      loop stop
-  in
-  loop 0;
-  List.rev !pieces
-
-(* The pieces of [atoms], in the order they are given, that fit in [target]
-   columns. Reversed atoms therefore yield the value's last [target] columns. *)
-let take target atoms =
-  let width = ref 0 and stopped = ref false in
-  let kept =
-    List.filter_map
-      (fun (piece, piece_width) ->
-        if !stopped then None
-        else if !width + piece_width <= target then begin
-          width := !width + piece_width;
-          Some piece
-        end
-        else begin
-          stopped := true;
-          None
-        end)
-      atoms
-  in
-  kept
-
-(* Whatever the cut left open, closed. *)
-let closing rendered =
-  let buffer = Buffer.create 8 in
-  if contains rendered "\027[" then Buffer.add_string buffer "\027[0m";
-  if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\";
-  Buffer.contents buffer
-
-let ellipsize ?(char_width = default_char_width) target_width str =
-  if target_width <= 0 then ""
-  else if string_width ~char_width str <= target_width then str
-  else if target_width = 1 then ellipsis
-  else
-    let atoms = atoms ~char_width str in
-    let keep = target_width - 1 in
-    let head_width = (keep + 1) / 2 in
-    let head = String.concat "" (take head_width atoms) in
-    let tail =
-      String.concat "" (List.rev (take (keep - head_width) (List.rev atoms)))
-    in
-    String.concat "" [ head; closing head; ellipsis; tail; closing tail ]
 
 let pad_right ?(char_width = default_char_width) target_width str =
   let str_width = string_width ~char_width str in
