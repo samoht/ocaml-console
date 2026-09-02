@@ -24,4 +24,5 @@ let () =
       Test_width.suite;
       Test_input.suite;
       Test_console.suite;
+      Test_console_vte.suite;
     ]

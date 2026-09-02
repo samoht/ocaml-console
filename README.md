@@ -220,6 +220,8 @@ $ dune exec ocaml-console/examples/matrix/main.exe
 | `Console.Anim` | Composable time-varying values |
 | `Console.Display` | Live nested progress rows with plain fallback |
 | `Console.Input` | Line editing with history and completion |
+| `Console_eio` | Eio driver: terminal detection, geometry, the refresh fiber |
+| `Console_vte` | The screen a terminal recording put up, frame by frame |
 
 ## Related Work
 

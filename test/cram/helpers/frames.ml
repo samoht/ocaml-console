@@ -8,24 +8,6 @@
     taken from [$COLUMNS]/[$LINES] (set by the cram test) so the geometry -- and
     therefore the wrapping and the height cap -- is stable. *)
 
-let rstrip s =
-  let n = ref (String.length s) in
-  while !n > 0 && (s.[!n - 1] = ' ' || s.[!n - 1] = '\t') do
-    decr n
-  done;
-  String.sub s 0 !n
-
-let dump vte =
-  let rows =
-    Vte.scrollback_lines vte @ (Vte.to_string vte |> String.split_on_char '\n')
-    |> List.map rstrip
-  in
-  let rec drop_trailing = function
-    | "" :: tl -> drop_trailing tl
-    | rows -> rows
-  in
-  List.rev (drop_trailing (List.rev rows))
-
 let geom name default =
   match Option.bind (Sys.getenv_opt name) int_of_string_opt with
   | Some v -> v
@@ -52,7 +34,9 @@ let () =
   let frame title =
     sync ();
     Fmt.pr "--- %s ---@." title;
-    List.iter (fun l -> Fmt.pr "%s@." l) (dump vte)
+    List.iter
+      (fun l -> Fmt.pr "%s@." l)
+      (Console_vte.screen ~scrollback:true vte)
   in
   let module P = Console.Display in
   P.run ~ctx ~mode:`Activity ~height ~header:"Build" (fun display ->
