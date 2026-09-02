@@ -442,6 +442,37 @@ let test_failed_parent_cancels_children () =
     "child cancelled, parent failed" true
     (outcomes = [ `Cancelled; `Failed ])
 
+(* What a terminal holds once a row ends while the row under it is still
+   running, read off the emulator rather than off the byte stream: a live region
+   rewrites itself, so counting the writes counts redraws and only the screen
+   says what a reader was left with.
+
+   The screen keeps one line, the one naming the work that ended. The row under
+   it leaves with it and commits nothing, because it never reported an ending of
+   its own and the only sentence the display could write for it would be about
+   its own shape -- which row hung under which. A reader watching a command has
+   no rows and no children in front of them, only work. *)
+let test_a_swept_row_reaches_no_screen () =
+  let (), output =
+    capture_live (fun display _ ->
+        let parent = Display.task display "building partition disk images" in
+        ignore (Display.task ~parent display "no output yet");
+        Display.succeed parent)
+  in
+  let vte = Vte.create ~rows:24 ~cols:80 () in
+  Vte.feed_string vte output;
+  let screen = Console_vte.screen ~scrollback:true vte in
+  let line = String.concat "\n" screen in
+  Alcotest.(check bool)
+    "it names the work that ended" true
+    (contains "building partition disk images" line);
+  Alcotest.(check bool)
+    "nothing about the display's own shape" false (contains "parent" line);
+  Alcotest.(check bool)
+    "the swept row wrote nothing" false
+    (contains "no output yet" line);
+  Alcotest.(check int) "one line on the screen" 1 (List.length screen)
+
 (* An event stream carries one id across every scope its emitter passes
    through, so the same id arrives under a second parent as a matter of course.
    Offering one is a statement about where the work is, never a request to move
@@ -1000,6 +1031,8 @@ let suite =
         test_parent_settles_children;
       Alcotest.test_case "failed parent cancels children" `Quick
         test_failed_parent_cancels_children;
+      Alcotest.test_case "a swept row reaches no screen" `Quick
+        test_a_swept_row_reaches_no_screen;
       Alcotest.test_case "key keeps its first parent" `Quick
         test_key_keeps_its_first_parent;
       Alcotest.test_case "task ownership" `Quick test_task_ownership;

@@ -1403,7 +1403,17 @@ let running_children r =
       && match child.parent with Some parent -> parent == r | None -> false)
     r.disp.rows
 
-let rec finish outcome ?message r =
+(* [swept] is a row that never reported an ending of its own: the row it hung
+   under ended while it was still running, so the display takes it out of the
+   live region on that row's behalf. Such a row commits no permanent line and
+   carries no message. Permanent history is what the run did, and a row that
+   said nothing has nothing to say there; the only sentence the display could
+   write for it would be about its own shape -- which row hung under which --
+   and a reader watching a command has no rows and no children on their screen,
+   only work. The event stream still carries the ending, under the row's own
+   label, so a consumer that reads the run rather than the screen loses
+   nothing. *)
+let rec finish ?(swept = false) outcome ?message r =
   check_open "finish" r.disp;
   if r.rfinish = None then begin
     let child_outcome =
@@ -1412,7 +1422,7 @@ let rec finish outcome ?message r =
       | `Failed | `Cancelled -> `Cancelled
     in
     List.iter
-      (finish child_outcome ~message:"parent finished")
+      (fun child -> finish ~swept:true child_outcome child)
       (running_children r);
     let t = r.disp in
     (* The tail was holding these; the row is about to leave the live region,
@@ -1427,8 +1437,9 @@ let rec finish outcome ?message r =
     t.finished <- t.finished + 1;
     let message = Option.value r.rmessage ~default:r.rlabel in
     record ~task:r t (`Finished outcome) message;
-    emit_history_line t ~plain:(plain_committed t r)
-      ~styled:(styled_committed t r)
+    if not swept then
+      emit_history_line t ~plain:(plain_committed t r)
+        ~styled:(styled_committed t r)
   end
 
 let succeed ?message r = finish `Succeeded ?message r
