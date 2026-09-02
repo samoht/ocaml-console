@@ -17,9 +17,10 @@ val run :
   (Console.Display.t -> 'a) ->
   'a
 (** [run ~clock f] is the Eio driver for {!Console.Display.run}. It constructs
-    the terminal context, scopes the refresh fiber and Logs reporter, and passes
-    the ordinary {!Console.Display.t} to [f]. All task operations are in
-    {!Console.Display}; this module adds no parallel display API.
+    the terminal context, or takes the one [ctx] hands it, scopes the refresh
+    fiber and Logs reporter, and passes the ordinary {!Console.Display.t} to
+    [f]. All task operations are in {!Console.Display}; this module adds no
+    parallel display API.
 
     Calls compose: when [run] is called from inside an existing [run] scope in
     the same fiber tree, [f] receives the existing display. Only the outermost
