@@ -6,6 +6,7 @@ module Prompt = Prompt
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
+  ?ctx:Console.Display.ctx ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?palette:Console.Color.t list ->
@@ -30,10 +31,22 @@ val run :
     dimensions and tty detection are automatic. Cursor visibility is restored on
     return, exception and SIGINT.
 
+    [ctx] replaces the context [run] builds, so the formatter, the display
+    clock, the geometry and the terminal answer are all the caller's. [run] then
+    configures and restores no terminal, because a caller that says which
+    surface it draws on has taken that ownership, and the surface it named need
+    not be a terminal at all. It is how a command grades its own live region --
+    a pinned geometry and a clock that does not move make the frames something a
+    diff can hold -- without going around the entry point it ships. Passing
+    [ppf] as well raises [Invalid_argument]: a context already carries one.
+    [clock] is still required, and still paces the refresh.
+
     [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
     the display clock at zero, so every elapsed time renders as [0.0s]. A test
     that captures this output would otherwise record how fast the machine that
-    ran it was, and fail on a slower one. *)
+    ran it was, and fail on a slower one. It replaces the clock [run] reads for
+    itself and only that one: a [ctx] has already said what time the display
+    reads. *)
 
 val is_tty : unit -> bool
 (** [is_tty ()] is [true] iff stdout is connected to a terminal. It is the

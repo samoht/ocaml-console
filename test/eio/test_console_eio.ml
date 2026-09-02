@@ -32,6 +32,46 @@ let test_nested_run_reuses_the_existing_display () =
         "nested task uses outer output" true
         (String.starts_with ~prefix:"=> nested work" (Buffer.contents buf)))
 
+(* A caller that grades its own live region hands [run] the context instead of
+   letting it build one. What proves the handed context was used, rather than
+   rebuilt from stdout and the machine clock, is the elapsed time: no real clock
+   reads 1.3s over work that takes none, and no default formatter puts the line
+   in this buffer. *)
+let test_run_takes_the_callers_context () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 128 in
+      let ppf = Format.formatter_of_buffer buf in
+      let now = ref 0. in
+      let ctx =
+        Console.Display.ctx ~ppf
+          ~now:(fun () -> !now)
+          ~dimensions:(fun () -> (24, 10))
+          ~is_tty:false ()
+      in
+      Console_eio.run ~clock ~ctx ~mode:`History (fun display ->
+          let task = Console.Display.task display "step" in
+          now := 1.3;
+          Console.Display.succeed task);
+      Format.pp_print_flush ppf ();
+      Alcotest.(check string)
+        "the caller's formatter and the caller's clock" "=> step  1.3s\n"
+        (Buffer.contents buf))
+
+(* A context already carries a formatter, so a second one beside it is a
+   contradiction rather than a preference to resolve quietly. *)
+let test_run_refuses_a_formatter_beside_a_context () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 16 in
+      let ppf = Format.formatter_of_buffer buf in
+      let ctx = Console.Display.dumb () in
+      Alcotest.check_raises "refused"
+        (Invalid_argument
+           "Console_eio.run: ppf and ctx are both given; a context already \
+            carries its formatter") (fun () ->
+          Console_eio.run ~clock ~ppf ~ctx (fun _display -> ()));
+      Format.pp_print_flush ppf ();
+      Alcotest.(check string) "and nothing was drawn" "" (Buffer.contents buf))
+
 (* The terminal question, asked of the library rather than of Unix. Under
    [dune test] stdout is a pipe or a file, so the answer is [false]; a runner
    that attached a terminal leaves the case nothing to pin. *)
@@ -92,6 +132,10 @@ let suite =
         `Quick test_run_exception_without_cursor_restore_on_non_tty;
       Alcotest.test_case "nested run reuses the existing display" `Quick
         test_nested_run_reuses_the_existing_display;
+      Alcotest.test_case "run takes the caller's context" `Quick
+        test_run_takes_the_callers_context;
+      Alcotest.test_case "run refuses a formatter beside a context" `Quick
+        test_run_refuses_a_formatter_beside_a_context;
       Alcotest.test_case "is_tty is false without a terminal" `Quick
         test_is_tty_is_false_without_a_terminal;
       Alcotest.test_case "dimensions are at least one cell" `Quick
