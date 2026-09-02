@@ -55,6 +55,32 @@ let test_ellipsize_keeps_both_ends () =
     "the middle is what goes" "sha256:a37\xe2\x80\xa615f0e1d2c3" cut;
   Alcotest.(check int) "and the result fits" 21 (Width.string_width cut)
 
+(* Where the cut falls is the caller's, because which end carries the identity
+   is: a hash is read from its head, so [`End] keeps the head alone and says at
+   the right-hand edge that there was more. The two forms of the same value
+   agree on nothing past the head. *)
+let test_ellipsize_at_end () =
+  let cut = Width.ellipsize ~at:`End 21 digest in
+  Alcotest.(check string)
+    "the tail is what goes" "sha256:a376ef543f48c\xe2\x80\xa6" cut;
+  Alcotest.(check int) "and the result fits" 21 (Width.string_width cut);
+  Alcotest.(check bool)
+    "the middle form of the same value differs" false
+    (String.equal cut (Width.ellipsize 21 digest));
+  Alcotest.(check string)
+    "the default is still the middle"
+    (Width.ellipsize 21 digest)
+    (Width.ellipsize ~at:`Middle 21 digest)
+
+(* An end cut closes what it left open, exactly as a middle cut does: the reset
+   stands between the kept head and the ellipsis, so the mark is not drawn in
+   the value's style and nothing after the cut inherits it. *)
+let test_ellipsize_at_end_closes_style () =
+  let cut = Width.ellipsize ~at:`End 5 "\027[1mabcdefghij\027[0m" in
+  Alcotest.(check int) "styling occupies no column" 5 (Width.string_width cut);
+  Alcotest.(check string)
+    "the style is closed before the mark" "\027[1mabcd\027[0m\xe2\x80\xa6" cut
+
 let test_ellipsize_short_enough () =
   Alcotest.(check string)
     "a value that fits is untouched" "abc" (Width.ellipsize 3 "abc");
@@ -73,8 +99,8 @@ let test_ellipsize_ansi_costs_nothing () =
   let cut = Width.ellipsize 5 styled in
   Alcotest.(check int) "styling occupies no column" 5 (Width.string_width cut);
   Alcotest.(check bool)
-    "the style is closed at the cut" true
-    (Width.string_width cut = 5 && String.length cut > 5)
+    "the head's style is closed before the mark" true
+    (String.starts_with ~prefix:"\027[1mab\027[0m\xe2\x80\xa6" cut)
 
 let test_wrap_basic () =
   let result = Width.wrap 20 "hello world foo bar baz" in
@@ -135,6 +161,9 @@ let suite =
       Alcotest.test_case "OSC ignored" `Quick test_osc_ignored;
       Alcotest.test_case "ellipsize keeps both ends" `Quick
         test_ellipsize_keeps_both_ends;
+      Alcotest.test_case "ellipsize at the end" `Quick test_ellipsize_at_end;
+      Alcotest.test_case "ellipsize at the end closes a style" `Quick
+        test_ellipsize_at_end_closes_style;
       Alcotest.test_case "ellipsize leaves a short value" `Quick
         test_ellipsize_short_enough;
       Alcotest.test_case "ellipsize with no room" `Quick test_ellipsize_no_room;

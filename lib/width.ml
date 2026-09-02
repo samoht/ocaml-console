@@ -353,19 +353,26 @@ let closing rendered =
   if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\";
   Buffer.contents buffer
 
-let ellipsize ?(char_width = default_char_width) target_width str =
+let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
+    str =
   if target_width <= 0 then ""
   else if string_width ~char_width str <= target_width then str
   else if target_width = 1 then ellipsis
   else
     let atoms = atoms ~char_width str in
     let keep = target_width - 1 in
-    let head_width = (keep + 1) / 2 in
-    let head = String.concat "" (take head_width atoms) in
-    let tail =
-      String.concat "" (List.rev (take (keep - head_width) (List.rev atoms)))
-    in
-    String.concat "" [ head; closing head; ellipsis; tail; closing tail ]
+    match at with
+    | `End ->
+        let head = String.concat "" (take keep atoms) in
+        String.concat "" [ head; closing head; ellipsis ]
+    | `Middle ->
+        let head_width = (keep + 1) / 2 in
+        let head = String.concat "" (take head_width atoms) in
+        let tail =
+          String.concat ""
+            (List.rev (take (keep - head_width) (List.rev atoms)))
+        in
+        String.concat "" [ head; closing head; ellipsis; tail; closing tail ]
 
 let pad_right ?(char_width = default_char_width) target_width str =
   let str_width = string_width ~char_width str in
