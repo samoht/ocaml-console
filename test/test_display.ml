@@ -32,6 +32,21 @@ let capture ?header ?bar ?theme f =
   Format.pp_print_flush ppf ();
   (value, Buffer.contents buffer)
 
+(* The same session on a live display. [capture] pins [`History], which is the
+   appending writer; a terminal gets [`Activity], which paints a region and
+   writes what is permanent around it. A result that reaches one and not the
+   other is a result a developer does not get. *)
+let capture_live ?header ?bar ?theme f =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let now, advance = fake_clock () in
+  let value =
+    Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ())
+      ~mode:`Activity ?header ?bar ?theme (fun display -> f display advance)
+  in
+  Format.pp_print_flush ppf ();
+  (value, Buffer.contents buffer)
+
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
 
@@ -264,6 +279,24 @@ let test_result () =
   Alcotest.(check (option string))
     "semantic detail" (Some "see build.log\nline two")
     (Display.Event.detail result)
+
+(* The verdict and its detail on a live display. They are held until the
+   session closes and written under the region it releases, which is the only
+   place they are written at all: nothing paints them while the region is up.
+
+   The [`History] twin above is [test_result]. *)
+let test_result_live () =
+  let _events, output =
+    capture_live (fun display _ ->
+        let task = Display.task display "link" in
+        Display.fail task;
+        Display.set_result display ~detail:"see build.log\nline two"
+          (`Fail "build failed");
+        Display.history display)
+  in
+  Alcotest.(check bool) "detail" true (contains "see build.log" output);
+  Alcotest.(check bool) "second detail line" true (contains "line two" output);
+  Alcotest.(check bool) "verdict" true (contains "build failed" output)
 
 let test_keyed_task () =
   let events, _ =
@@ -955,6 +988,7 @@ let suite =
       Alcotest.test_case "late logs remain history" `Quick
         test_late_log_is_history;
       Alcotest.test_case "result" `Quick test_result;
+      Alcotest.test_case "result on a live display" `Quick test_result_live;
       Alcotest.test_case "keyed task" `Quick test_keyed_task;
       Alcotest.test_case "progress estimates expand" `Quick
         test_progress_estimates_expand;

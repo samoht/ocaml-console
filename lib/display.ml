@@ -73,11 +73,25 @@ let active_region : region option ref = ref None
 let activity_claimed = Atomic.make false
 
 (* Run [f] with [ppf]'s margin set to [max_int] so ANSI escapes and raw control
-   characters pass through without wrapping. *)
+   characters pass through without wrapping.
+
+   The flush belongs to the restore rather than to [f]. [Format.pp_set_margin]
+   reinitialises the formatter, which throws away whatever is queued and not
+   yet written, and a margin of [max_int] means nothing is written until a
+   flush: the box a formatter opens has no known size until then, so every
+   token behind it waits. A body that wrote and did not flush therefore had its
+   whole output discarded by the restore -- which is what dropped a build's
+   result block, its digest, its output directory and its mark, on a terminal,
+   while the same session in an appending log kept all of it. Flushing here
+   makes the loss unrepresentable rather than something each caller has to
+   remember; the callers that already flush are unaffected, because a flush
+   with nothing queued writes nothing. *)
 let with_unlimited_margin ppf f =
   let old_margin = Format.pp_get_margin ppf () in
   Format.pp_set_margin ppf max_int;
-  Fun.protect f ~finally:(fun () -> Format.pp_set_margin ppf old_margin)
+  Fun.protect f ~finally:(fun () ->
+      Format.pp_print_flush ppf ();
+      Format.pp_set_margin ppf old_margin)
 
 (* Clear [n] lines: the current one + (n-1) above; cursor ends at column 0 of
    the topmost cleared line. *)
