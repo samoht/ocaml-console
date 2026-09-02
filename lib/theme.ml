@@ -27,6 +27,12 @@ type t = {
   done_marker : string;
   ok_marker : string;
   fail_marker : string;
+  note_marker : string;
+  warn_marker : string;
+  error_marker : string;
+  committed_succeeded : string;
+  committed_failed : string;
+  committed_cancelled : string;
 }
 
 let equal a b =
@@ -41,10 +47,20 @@ let equal a b =
   && String.equal a.done_marker b.done_marker
   && String.equal a.ok_marker b.ok_marker
   && String.equal a.fail_marker b.fail_marker
+  && String.equal a.note_marker b.note_marker
+  && String.equal a.warn_marker b.warn_marker
+  && String.equal a.error_marker b.error_marker
+  && String.equal a.committed_succeeded b.committed_succeeded
+  && String.equal a.committed_failed b.committed_failed
+  && String.equal a.committed_cancelled b.committed_cancelled
 
 let pp ppf t =
-  Fmt.pf ppf "{ done = %s; ok = %s; fail = %s }" t.done_marker t.ok_marker
-    t.fail_marker
+  Fmt.pf ppf
+    "{ done = %s; ok = %s; fail = %s; note = %s; warn = %s; error = %s; \
+     succeeded = %s; failed = %s; cancelled = %s }"
+    t.done_marker t.ok_marker t.fail_marker t.note_marker t.warn_marker
+    t.error_marker t.committed_succeeded t.committed_failed
+    t.committed_cancelled
 
 let accent t = t.accent
 let palette t = t.palette
@@ -57,10 +73,21 @@ let bar t = t.bar
 let done_marker t = t.done_marker
 let ok_marker t = t.ok_marker
 let fail_marker t = t.fail_marker
+let note_marker t = t.note_marker
+let warn_marker t = t.warn_marker
+let error_marker t = t.error_marker
+
+let committed_marker t = function
+  | `Succeeded -> t.committed_succeeded
+  | `Failed -> t.committed_failed
+  | `Cancelled -> t.committed_cancelled
 
 let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
     ?(table_row_separators = false) ?(animated_border = false)
-    ?(guide = Guide.unicode) ?(bar = `Smooth) ~spinner ~done_marker () =
+    ?(guide = Guide.unicode) ?(bar = `Smooth) ?(note_marker = "#")
+    ?(warn_marker = "!") ?(error_marker = "x") ?(committed_succeeded = "=>")
+    ?(committed_failed = "!!") ?(committed_cancelled = "--") ~spinner
+    ~done_marker () =
   {
     accent;
     palette;
@@ -73,13 +100,25 @@ let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
     done_marker;
     ok_marker = "[OK]";
     fail_marker = "[FAIL]";
+    note_marker;
+    warn_marker;
+    error_marker;
+    committed_succeeded;
+    committed_failed;
+    committed_cancelled;
   }
 
-let with_verdict ?ok ?fail t =
+let with_verdict ?ok ?fail ?committed_succeeded ?committed_failed
+    ?committed_cancelled t =
   {
     t with
     ok_marker = Option.value ok ~default:t.ok_marker;
     fail_marker = Option.value fail ~default:t.fail_marker;
+    committed_succeeded =
+      Option.value committed_succeeded ~default:t.committed_succeeded;
+    committed_failed = Option.value committed_failed ~default:t.committed_failed;
+    committed_cancelled =
+      Option.value committed_cancelled ~default:t.committed_cancelled;
   }
 
 (* Amber DOS satellite-workstation CRT: ASCII everything, blocky bar, [+] done
@@ -97,6 +136,12 @@ let dos =
     done_marker = "[+]";
     ok_marker = "[OK]";
     fail_marker = "[FAIL]";
+    note_marker = "#";
+    warn_marker = "!";
+    error_marker = "x";
+    committed_succeeded = "=>";
+    committed_failed = "!!";
+    committed_cancelled = "--";
   }
 
 (* Modern unicode: one restrained activity accent, rounded geometry, a braille
@@ -115,6 +160,12 @@ let unicode =
     done_marker = "✓";
     ok_marker = "✓";
     fail_marker = "✗";
+    note_marker = "#";
+    warn_marker = "!";
+    error_marker = "x";
+    committed_succeeded = "=>";
+    committed_failed = "!!";
+    committed_cancelled = "--";
   }
 
 (* The Matrix: monochrome green on black, single-line border, braille
@@ -132,6 +183,12 @@ let matrix =
     done_marker = "✓";
     ok_marker = "✓";
     fail_marker = "✗";
+    note_marker = "#";
+    warn_marker = "!";
+    error_marker = "x";
+    committed_succeeded = "=>";
+    committed_failed = "!!";
+    committed_cancelled = "--";
   }
 
 (* Rainbow: rows and nodes cycle the spectrum, and the bar is a gradient. *)
@@ -156,6 +213,12 @@ let rainbow =
     done_marker = "✔";
     ok_marker = "✔";
     fail_marker = "✘";
+    note_marker = "#";
+    warn_marker = "!";
+    error_marker = "x";
+    committed_succeeded = "=>";
+    committed_failed = "!!";
+    committed_cancelled = "--";
   }
 
 let default = unicode

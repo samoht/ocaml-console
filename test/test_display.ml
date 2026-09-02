@@ -21,12 +21,12 @@ let fake_clock () =
 let ctx ?(is_tty = false) ?(width = 80) ?(height = 24) ~ppf ~now () =
   Display.ctx ~ppf ~now ~dimensions:(fun () -> (width, height)) ~is_tty ()
 
-let capture ?header ?bar f =
+let capture ?header ?bar ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let now, advance = fake_clock () in
   let value =
-    Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History ?header ?bar
+    Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History ?header ?bar ?theme
       (fun display -> f display advance)
   in
   Format.pp_print_flush ppf ();
@@ -63,6 +63,67 @@ let test_history_output () =
     ("=> resolve  1.3s\n" ^ "  # downloaded manifest\n"
    ^ "=> fetch  30.00 MiB / 2.00 GiB  2.0s\n" ^ "[+] Building 3.3s (2/2)\n")
     output
+
+(* Every log line and every finished row the display draws carries a marker,
+   and the marker is the theme's. The default half pins the six glyphs the
+   display used to hold itself; the custom half is what proves they are read
+   from the theme rather than recited beside it. *)
+let markers_drawn ?theme () =
+  let (), output =
+    capture ?theme (fun display _ ->
+        let row = Display.task display "note" in
+        Display.log ~level:`Info row "an info line";
+        Display.log ~level:`Warning row "a warning line";
+        Display.log ~level:`Error row "an error line";
+        Display.succeed row;
+        Display.fail (Display.task display "broken");
+        Display.cancel (Display.task display "abandoned"))
+  in
+  output
+
+let test_markers_come_from_the_theme () =
+  let defaults =
+    [
+      ("an info line", "# an info line");
+      ("a warning line", "! a warning line");
+      ("an error line", "x an error line");
+      ("a succeeded row", "=> note");
+      ("a failed row", "!! broken");
+      ("a cancelled row", "-- abandoned");
+    ]
+  in
+  let drawn = markers_drawn () in
+  List.iter
+    (fun (what, line) ->
+      Alcotest.(check bool)
+        (what ^ " keeps its glyph")
+        true (contains line drawn))
+    defaults;
+  let theme =
+    Theme.v ~note_marker:"(i)" ~warn_marker:"(w)" ~error_marker:"(e)"
+      ~committed_succeeded:"(+)" ~committed_failed:"(-)"
+      ~committed_cancelled:"(~)" ~spinner:Spinner.ascii ~done_marker:"[+]" ()
+  in
+  let drawn = markers_drawn ~theme () in
+  List.iter
+    (fun (what, line) ->
+      Alcotest.(check bool)
+        (what ^ " no longer draws the default")
+        false (contains line drawn))
+    defaults;
+  List.iter
+    (fun (what, line) ->
+      Alcotest.(check bool)
+        (what ^ " draws the theme's")
+        true (contains line drawn))
+    [
+      ("an info line", "(i) an info line");
+      ("a warning line", "(w) a warning line");
+      ("an error line", "(e) an error line");
+      ("a succeeded row", "(+) note");
+      ("a failed row", "(-) broken");
+      ("a cancelled row", "(~) abandoned");
+    ]
 
 let test_event_history () =
   let events, _ =
@@ -884,6 +945,8 @@ let suite =
     [
       Alcotest.test_case "bytes" `Quick test_bytes;
       Alcotest.test_case "history output" `Quick test_history_output;
+      Alcotest.test_case "markers come from the theme" `Quick
+        test_markers_come_from_the_theme;
       Alcotest.test_case "event history" `Quick test_event_history;
       Alcotest.test_case "info event preserves text" `Quick
         test_info_event_preserves_text;

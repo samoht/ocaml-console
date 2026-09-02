@@ -606,10 +606,11 @@ let final_metric row =
 let committed_parts t row =
   let label = Option.value row.rmessage ~default:row.rlabel in
   let marker =
+    (* A row that reaches history with no outcome is one the scrollback
+       collapsed while it was still running, which is not an outcome a theme
+       can name. Every outcome that exists is the theme's. *)
     match row.routcome with
-    | Some `Succeeded -> "=>"
-    | Some `Failed -> "!!"
-    | Some `Cancelled -> "--"
+    | Some outcome -> Theme.committed_marker t.theme outcome
     | None -> ".."
   in
   (indent row, marker, label, final_metric row, span (elapsed t row))
@@ -718,7 +719,11 @@ let header_styled t =
    (e.g. ["# linking  +18.0s"]). *)
 let log_gap_threshold = 1.0
 let gap_suffix gap = if gap >= log_gap_threshold then "  +" ^ span gap else ""
-let level_marker = function `Info -> "#" | `Warning -> "!" | `Error -> "x"
+
+let level_marker theme = function
+  | `Info -> Theme.note_marker theme
+  | `Warning -> Theme.warn_marker theme
+  | `Error -> Theme.error_marker theme
 
 let level_style = function
   | `Info -> dim
@@ -733,7 +738,7 @@ let row_block_parts t row =
   let tail =
     List.map
       (fun log ->
-        let marker = level_marker log.llevel in
+        let marker = level_marker t.theme log.llevel in
         let suffix = gap_suffix log.lgap in
         let prefix = continuation t row in
         (* The message is what has to give when the room runs out, and it gives
@@ -1241,7 +1246,7 @@ let set_label r label =
 (* One log line, written where history goes: above the activity region on a
    terminal, straight to the output without one. *)
 let commit_log t r entry =
-  let marker = level_marker entry.llevel in
+  let marker = level_marker t.theme entry.llevel in
   let suffix = gap_suffix entry.lgap in
   let plain = Fmt.str "%s  %s %s%s" (indent r) marker entry.lmessage suffix in
   let styled =
@@ -1301,7 +1306,7 @@ let event ?(level = `Info) t message =
       match level with
       | `Info -> emit_history_line t ~plain:message ~styled:message
       | (`Warning | `Error) as level ->
-          let marker = level_marker level in
+          let marker = level_marker t.theme level in
           emit_history_line t
             ~plain:(marker ^ " " ^ message)
             ~styled:(Ansi.styled (level_style level) marker ^ " " ^ message))
