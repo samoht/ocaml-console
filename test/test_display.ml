@@ -950,6 +950,93 @@ let test_row_marks_its_cut () =
          sync ();
          check_marked_cut "the committed row" ~width (line (Vte.to_string vte))))
 
+(* A row's label is the display's own naming of a value, and the cut above is
+   right for it. A log line is not: it is the caller's own text, printed by the
+   program the developer wrote, and a cut through its middle joins two ends that
+   were never next to each other. What comes out reads as a shorter sentence
+   rather than as a line that was shortened, which is what stops a reader
+   noticing that anything is gone.
+
+   The line below is a payload service's own output, taken from a run of the
+   three-service exemplar on a 100-column terminal. Its own docstring sends the
+   developer to watch the frames it drops and the cloud threshold it drops them
+   over, and a middle cut removes exactly that clause and leaves a sentence
+   behind. So a log line is cut at its END, where the marker sits at the right
+   edge and says the line goes on. *)
+let service_line =
+  "[filter] kept 76 of 96 frames, 466944 bytes, dropped 20 over 0.35 cloud \
+   (from the recorded pass in scene/, not from camera: services cannot send \
+   frames to each other yet)"
+
+let ellipsis = "\xe2\x80\xa6"
+
+let rstrip row =
+  let n = ref (String.length row) in
+  while !n > 0 && row.[!n - 1] = ' ' do
+    decr n
+  done;
+  String.sub row 0 !n
+
+let index_of needle haystack =
+  let n = String.length needle and m = String.length haystack in
+  let rec loop i =
+    if i + n > m then None
+    else if String.sub haystack i n = needle then Some i
+    else loop (i + 1)
+  in
+  loop 0
+
+(* The live row, read while the task still runs: history commits a log line
+   whole, so a screen read after the row settles would answer about the
+   permanent copy and not about the one being fitted. *)
+let logged_line ~width =
+  let drawn = ref None in
+  ignore
+    (terminal_run ~height:8 ~width (fun display _advance sync vte ->
+         let task = Display.task ~log_lines:2 display "payload/filter" in
+         Display.log task service_line;
+         sync ();
+         drawn :=
+           List.find_opt (contains "kept 76")
+             (String.split_on_char '\n' (Vte.to_string vte));
+         Display.succeed task));
+  match !drawn with
+  | None -> Alcotest.fail "the service's own line never reached the screen"
+  | Some row -> rstrip row
+
+let check_end_cut what ~width row =
+  Alcotest.(check bool)
+    (what ^ " fits the terminal")
+    true
+    (Width.string_width row <= width);
+  Alcotest.(check bool)
+    (what ^ " marks the cut at the right edge")
+    true
+    (String.ends_with ~suffix:ellipsis row);
+  let shown = String.sub row 0 (String.length row - String.length ellipsis) in
+  match index_of "[filter]" shown with
+  | None -> Alcotest.fail (what ^ " lost the start of the service's line")
+  | Some start ->
+      let message = String.sub shown start (String.length shown - start) in
+      let expected =
+        String.sub service_line 0
+          (min (String.length message) (String.length service_line))
+      in
+      Alcotest.(check string)
+        (what ^ " is the service's own line, from its start")
+        expected message
+
+let test_a_log_line_is_cut_at_its_end () =
+  let row = logged_line ~width:100 in
+  check_end_cut "a service's line on a 100-column terminal" ~width:100 row;
+  Alcotest.(check bool)
+    "the number the developer is told to watch survives the cut" true
+    (contains "dropped 20 over 0.35 cloud" row)
+
+let test_a_narrow_log_line_is_cut_at_its_end () =
+  check_end_cut "a service's line on a 60-column terminal" ~width:60
+    (logged_line ~width:60)
+
 let test_activity_lines_are_bounded () =
   let vte =
     terminal_run ~height:5 ~width:18 ~header:"HEADER-UNIQUE-LONG"
@@ -1065,6 +1152,10 @@ let suite =
       Alcotest.test_case "a log line is drawn once" `Quick
         test_log_reaches_the_terminal_once;
       Alcotest.test_case "a cut row is marked" `Quick test_row_marks_its_cut;
+      Alcotest.test_case "a log line is cut at its end" `Quick
+        test_a_log_line_is_cut_at_its_end;
+      Alcotest.test_case "a narrow log line is cut at its end" `Quick
+        test_a_narrow_log_line_is_cut_at_its_end;
       Alcotest.test_case "activity lines bounded" `Quick
         test_activity_lines_are_bounded;
       Alcotest.test_case "tiny activity bounded" `Quick
