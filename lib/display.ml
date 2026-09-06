@@ -755,9 +755,14 @@ let row_block_parts t row =
         let marker = level_marker t.theme log.llevel in
         let suffix = gap_suffix log.lgap in
         let prefix = continuation t row in
-        (* The message is what has to give when the room runs out, and it gives
-           in the middle: the marker says how loud the line is and the suffix
-           how long the gap before it was, and neither survives being cut. *)
+        (* The message is what has to give when the room runs out: the marker
+           says how loud the line is and the suffix how long the gap before it
+           was, and neither survives being cut. It gives at its END, unlike a
+           row label. A label is this display's own naming of a value, where a
+           middle cut keeps the head that identifies a digest and the tail that
+           names a file; a message is the caller's own text, where the same cut
+           joins two ends that were never next to each other and leaves a
+           shorter sentence rather than a line that says it was shortened. *)
         let room =
           render_width t - string_width t prefix - string_width t marker - 1
           - string_width t suffix
@@ -767,7 +772,7 @@ let row_block_parts t row =
              [
                prefix;
                styled_log log.llevel marker
-                 (ellipsize t room log.lmessage)
+                 (ellipsize t ~at:`End room log.lmessage)
                  suffix;
              ]))
       row.logs
