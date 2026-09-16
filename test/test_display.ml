@@ -61,6 +61,15 @@ let test_bytes () =
   check "mib" "30.00 MiB" (Display.bytes (mib 30));
   check "gib" "2.00 GiB" (Display.bytes (gib 2))
 
+let test_span () =
+  let check = Alcotest.(check string) in
+  check "zero" "0.0s" (Display.span 0.);
+  check "negative" "0.0s" (Display.span (-1.));
+  check "tenths" "6.4s" (Display.span 6.44);
+  check "under a minute" "59.9s" (Display.span 59.94);
+  check "minutes" "1m05s" (Display.span 65.);
+  check "hours" "1h02m" (Display.span 3725.)
+
 let test_history_output () =
   let (), output =
     capture ~header:"Building" (fun display advance ->
@@ -1094,6 +1103,7 @@ let suite =
   ( "display",
     [
       Alcotest.test_case "bytes" `Quick test_bytes;
+      Alcotest.test_case "span" `Quick test_span;
       Alcotest.test_case "history output" `Quick test_history_output;
       Alcotest.test_case "markers come from the theme" `Quick
         test_markers_come_from_the_theme;
