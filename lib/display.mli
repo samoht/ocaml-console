@@ -32,6 +32,11 @@ type color = Color.t
 val bytes : int64 -> string
 (** [bytes n] is [n] bytes formatted in the largest suitable binary unit. *)
 
+val span : float -> string
+(** [span seconds] is [seconds] as a row draws its elapsed time: tenths of a
+    second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
+    hours and minutes (["1h02m"]). A negative [seconds] is ["0.0s"]. *)
+
 (** {1 Task layout} *)
 
 module Line : sig
