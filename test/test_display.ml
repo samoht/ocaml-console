@@ -70,6 +70,38 @@ let test_span () =
   check "minutes" "1m05s" (Display.span 65.);
   check "hours" "1h02m" (Display.span 3725.)
 
+(* A transient row is drawn while it runs and leaves no line when it ends;
+   the history keeps its start and its ending like any row's. *)
+let test_transient_row_leaves_no_line () =
+  let events, output =
+    capture ~header:"Building" (fun display advance ->
+        let live = Display.task ~transient:true display "image assembling" in
+        advance 1.3;
+        Display.set_label live "image assembling: 12 of 31 MB";
+        advance 1.;
+        Display.succeed live;
+        let kept = Display.task display "built" in
+        Display.succeed kept;
+        Display.history display)
+  in
+  Alcotest.(check string)
+    "the kept row alone reaches the output"
+    ("=> built  0.0s\n" ^ "[+] Building 2.3s (2/2)\n")
+    output;
+  Alcotest.(check bool)
+    "the history holds both rows' start and ending" true
+    (List.map Display.Event.kind events
+    = [ `Started; `Finished `Succeeded; `Started; `Finished `Succeeded ]);
+  let (), live_output =
+    capture_live ~header:"Building" (fun display advance ->
+        let live = Display.task ~transient:true display "image assembling" in
+        advance 1.3;
+        Display.succeed live)
+  in
+  Alcotest.(check bool)
+    "a terminal commits no line for it either" false
+    (contains "=> image assembling" live_output)
+
 let test_history_output () =
   let (), output =
     capture ~header:"Building" (fun display advance ->
@@ -1105,6 +1137,8 @@ let suite =
       Alcotest.test_case "bytes" `Quick test_bytes;
       Alcotest.test_case "span" `Quick test_span;
       Alcotest.test_case "history output" `Quick test_history_output;
+      Alcotest.test_case "a transient row leaves no line" `Quick
+        test_transient_row_leaves_no_line;
       Alcotest.test_case "markers come from the theme" `Quick
         test_markers_come_from_the_theme;
       Alcotest.test_case "event history" `Quick test_event_history;
