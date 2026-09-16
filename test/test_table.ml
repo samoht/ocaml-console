@@ -346,9 +346,41 @@ let test_shrinkable_protects_column () =
     "a shrinkable package name is cut at the same width" false
     (contains long_name (Table.to_string ~width:35 shrinkable))
 
+(* A border with no glyphs draws no edge either: a row starts at its first
+   cell and ends at its last cell's text, so a listing pipes as it prints. A
+   right-aligned last column keeps its padding, which is on its left. *)
+let test_no_border_draws_no_edge () =
+  let lines table =
+    Table.to_string table |> String.split_on_char '\n'
+    |> List.filter (fun line -> line <> "")
+  in
+  Alcotest.(check (list string))
+    "each row starts at its first cell and ends at its last"
+    [ "NAME         SIZE"; "alpha        1"; "beta-longer  22" ]
+    (lines
+       (Table.of_string_rows ~border:Border.none
+          [ Table.column "NAME"; Table.column "SIZE" ]
+          [ [ "alpha"; "1" ]; [ "beta-longer"; "22" ] ]));
+  Alcotest.(check (list string))
+    "a right-aligned last column is padded on its left"
+    [ "NAME  SIZE"; "a        1"; "b       22" ]
+    (lines
+       (Table.of_string_rows ~border:Border.none
+          [ Table.column "NAME"; Table.column ~align:`Right "SIZE" ]
+          [ [ "a"; "1" ]; [ "b"; "22" ] ]));
+  Alcotest.(check (list string))
+    "a cell of fewer lines than its row ends where its text ends"
+    [ "NAME  NOTE"; "a     one"; "      two" ]
+    (lines
+       (Table.of_string_rows ~border:Border.none
+          [ Table.column "NAME"; Table.column "NOTE" ]
+          [ [ "a"; "one\ntwo" ] ]))
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "no border draws no edge" `Quick
+        test_no_border_draws_no_edge;
       Alcotest.test_case "basic" `Quick test_basic;
       Alcotest.test_case "shrinkable protects column" `Quick
         test_shrinkable_protects_column;
