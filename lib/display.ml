@@ -1199,11 +1199,9 @@ let validate_task ~id ~parent ~log_lines ~total t =
    the way the first outcome of a task keeps it. A caller offering a different
    parent later is describing where the work is now, not asking for the row to
    move: an event stream carries stable ids across whatever scopes the emitter
-   happens to be in, so the same id genuinely arrives under a second scope. This
-   used to raise, which let a progress renderer abort the operation it was
-   drawing -- the caller then has to remember, at every construction site, which
-   event is allowed to name a parent, and the one it forgets is a lost build. A
-   drawing surface does not get to decide whether its host survives. *)
+   happens to be in, so the same id genuinely arrives under a second scope. A
+   drawing surface does not get to decide whether its host survives, so a later
+   parent is ignored rather than fatal. *)
 let existing_task ~id t = Option.bind id (Hashtbl.find_opt t.by_key)
 
 let add_task ~id ~parent ~bar ~color ~log_lines ~total t label =

@@ -47,8 +47,8 @@ let prefix ?(guide = Guide.unicode) lasts =
 let pp ppf t =
   (* [lasts] is the is-last flag at each level from the top down to this node;
      the root carries the empty list and prints with no prefix. A literal
-     newline separates nodes -- a [Fmt.cut] break hint collapses with no
-     enclosing box, which is why the tree used to print on one line. *)
+     newline separates nodes: a [Fmt.cut] break hint collapses with no
+     enclosing box. *)
   let rec go lasts (Node (label, children)) =
     (match lasts with
     | [] -> ()

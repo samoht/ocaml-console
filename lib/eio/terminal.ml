@@ -18,9 +18,9 @@ let first ~default sources =
 
 (* The ioctl answers whenever stdout has a terminal behind it, $COLUMNS and
    $LINES answer when the shell exported them, and 80 by 24 is what everyone
-   else falls back to. A [tput] probe used to sit last, but it reads the same
-   termcap entry the shell already consulted and costs a shell, a fork and two
-   blocking waits inside this Eio driver to say so. *)
+   else falls back to. No [tput] probe: it reads the same termcap entry the
+   shell already consulted and costs a shell, a fork and two blocking waits
+   inside this Eio driver to say so. *)
 let width () =
   first ~default:80
     [ width_of_ioctl; (fun () -> dimension_of_env "COLUMNS" usable_width) ]

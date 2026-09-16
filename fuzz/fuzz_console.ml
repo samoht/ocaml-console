@@ -475,9 +475,9 @@ let test_bar cur total wbyte =
       Display.succeed task)
 
 (* The measured width must match what a terminal renders, or the display and
-   tables reserve the wrong amount of space (a ZWJ emoji used to measure 6 yet
-   render 2). For printable, well-formed UTF-8, Width.string_width equals the
-   column the emulator's cursor reaches after the same bytes. *)
+   tables reserve the wrong amount of space. For printable, well-formed UTF-8,
+   Width.string_width equals the column the emulator's cursor reaches after the
+   same bytes. *)
 let printable_utf8 s =
   String.for_all (fun c -> Char.code c >= 0x20 && Char.code c <> 0x7f) s
   &&

@@ -80,9 +80,9 @@ let test_history_output () =
     output
 
 (* Every log line and every finished row the display draws carries a marker,
-   and the marker is the theme's. The default half pins the six glyphs the
-   display used to hold itself; the custom half is what proves they are read
-   from the theme rather than recited beside it. *)
+   and the marker is the theme's. The default half pins the six default
+   glyphs; the custom half is what proves they are read from the theme rather
+   than recited beside it. *)
 let markers_drawn ?theme () =
   let (), output =
     capture ?theme (fun display _ ->
@@ -892,10 +892,10 @@ let test_history_survives_activity () =
 (* A row is drawn once and so is its output. [log] commits a line permanently
    above the activity region and also keeps it in the row's bounded live tail,
    which the next paint draws under the spinner, so every log line an apply
-   emits is on screen twice at once -- the span block of 2026-08-18, printed
-   once in history and again below the row it belongs to. The live tail is
-   where a line lives while its row runs; permanent history is where it goes
-   when it ages out of that tail or the row finishes. *)
+   emits is on screen twice at once, printed once in history and again below
+   the row it belongs to. The live tail is where a line lives while its row
+   runs; permanent history is where it goes when it ages out of that tail or
+   the row finishes. *)
 let test_log_reaches_the_terminal_once () =
   ignore
     (terminal_run ~height:8 ~width:60 ~header:"[H]"
@@ -914,11 +914,10 @@ let test_log_reaches_the_terminal_once () =
 
 (* A cut reads as a wrap. Truncation adds no marker, so a row whose label does
    not fit simply ends at the column the terminal ends at -- in the middle of a
-   hex digest, indistinguishable from a value continuing on the next line, and
-   the apply of 2026-08-18 showed both spellings of one digest side by side
-   because of it. The cut is marked, and marked in the middle: the leading
-   characters identify a digest and the trailing ones name a file, so a cut
-   that keeps only one end throws away the half the reader needed. *)
+   hex digest, indistinguishable from a value continuing on the next line. The
+   cut is marked, and marked in the middle: the leading characters identify a
+   digest and the trailing ones name a file, so a cut that keeps only one end
+   throws away the half the reader needed. *)
 let digest_label =
   "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
 
