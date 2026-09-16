@@ -145,14 +145,17 @@ let apply_width_constraints t widths =
       | None -> ())
     t.columns
 
+(* A border with no glyphs has no edge: no padding outside the first and the
+   last cell, and the last cell not padded out to its column. *)
+let edged t = (Border.chars t.border).left <> ""
+
 let structural_overhead t count =
   if count = 0 then 0
   else
     let chars = Border.chars t.border in
-    let padding = count * 2 in
-    if chars.left = "" then padding
+    if not (edged t) then (count - 1) * 2
     else
-      padding
+      (count * 2)
       + Width.string_width chars.left
       + Width.string_width chars.right
       + ((count - 1) * Width.string_width chars.right)
@@ -268,7 +271,7 @@ let render_horizontal ppf t widths left_char mid_char right_char horiz_char =
     put right_char;
     Render.newline ppf)
 
-let align_span ~char_width align target span =
+let align_span ~char_width ~pad_right align target span =
   let width = Span.width ~char_width span in
   if width >= target then span
   else
@@ -279,9 +282,11 @@ let align_span ~char_width align target span =
       | `Right -> (padding, 0)
       | `Center -> (padding / 2, padding - (padding / 2))
     in
+    let right = if pad_right then right else 0 in
     Span.(text (String.make left ' ') ++ span ++ text (String.make right ' '))
 
-let process_cell ~char_width ~styled ~style overflow align width span =
+let process_cell ~char_width ~styled ~style ~pad_right overflow align width span
+    =
   let process_line span =
     if width <= 0 then [ Span.empty ]
     else
@@ -298,7 +303,7 @@ let process_cell ~char_width ~styled ~style overflow align width span =
   let lines = span_lines span |> List.concat_map process_line in
   List.map
     (fun line ->
-      let line = align_span ~char_width align width line in
+      let line = align_span ~char_width ~pad_right align width line in
       if styled then Span.to_ansi_string ~style line else Span.to_string line)
     lines
 
@@ -307,14 +312,14 @@ let render_physical_row ppf t widths line_cells =
   let border_style = Border.style t.border in
   let num_cols = List.length widths in
   let put = put_border ppf border_style in
-
-  if chars.left <> "" then put chars.left;
+  let edged = edged t in
+  if edged then put chars.left;
   List.iteri
     (fun i ((_col, _col_width), line) ->
-      Fmt.char ppf ' ';
+      if edged || i > 0 then Fmt.char ppf ' ';
       Fmt.string ppf line;
-      Fmt.char ppf ' ';
-      if i < num_cols - 1 && chars.left <> "" then put chars.right)
+      if edged || i < num_cols - 1 then Fmt.char ppf ' ';
+      if i < num_cols - 1 && edged then put chars.right)
     (List.combine (List.combine t.columns widths) line_cells);
   if chars.right <> "" then put chars.right;
   Render.newline ppf
@@ -326,14 +331,16 @@ let render_row ~char_width ~styled ppf t widths style cells =
   let cells_arr = Array.of_list cells in
   let ncells = Array.length cells_arr in
   let widths_arr = Array.of_list widths in
+  let last = List.length widths - 1 in
+  let pad_right i = edged t || i < last in
   (* Process each cell to get list of lines *)
   let cell_lines =
     List.mapi
       (fun i (col, col_width) ->
         let cell = if i < ncells then cells_arr.(i) else Span.empty in
         let style = Style.(style + col.style) in
-        process_cell ~char_width ~styled ~style col.overflow col.align col_width
-          cell)
+        process_cell ~char_width ~styled ~style ~pad_right:(pad_right i)
+          col.overflow col.align col_width cell)
       (List.combine t.columns widths)
   in
   (* Find max number of lines *)
@@ -345,9 +352,9 @@ let render_row ~char_width ~styled ppf t widths style cells =
     let line_cells =
       List.mapi
         (fun i lines ->
-          let col_width = widths_arr.(i) in
           if line_idx < List.length lines then List.nth lines line_idx
-          else String.make col_width ' ')
+          else if pad_right i then String.make widths_arr.(i) ' '
+          else "")
         cell_lines
     in
     render_physical_row ppf t widths line_cells
