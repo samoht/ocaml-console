@@ -775,7 +775,7 @@ let test_differential_redraw label wbyte =
               screen=%S"
              (String.concat ";" (List.map string_of_int dirty))
              width update (Vte.to_string vte))
-          (dirty = [ 1 ]);
+          (List.equal Int.equal dirty [ 1 ]);
         let rows = Vte.to_string vte |> String.split_on_char '\n' in
         invariant "preceding sibling changed" (List.nth rows 0 = first);
         invariant "following sibling changed" (List.nth rows 2 = last);
