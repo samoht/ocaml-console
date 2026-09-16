@@ -403,6 +403,7 @@ and row = {
   mutable log_prev_t : float; (* time of the previous log line *)
   mutable rlabel : string;
   mutable metric : metric;
+  transient : bool; (* drawn while it runs; its ending commits no line *)
   rstart : float;
   mutable rfinish : float option;
   mutable rmessage : string option;
@@ -1204,7 +1205,7 @@ let validate_task ~id ~parent ~log_lines ~total t =
    parent is ignored rather than fatal. *)
 let existing_task ~id t = Option.bind id (Hashtbl.find_opt t.by_key)
 
-let add_task ~id ~parent ~bar ~color ~log_lines ~total t label =
+let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label =
   let now = t.now () in
   let rid = t.next_task_id in
   t.next_task_id <- rid + 1;
@@ -1227,6 +1228,7 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total t label =
       rlabel = sanitize label;
       metric =
         (match total with Some total -> Count (0, total) | None -> Spin);
+      transient;
       rstart = now;
       rfinish = Option.map (Fun.const now) inherited;
       rmessage = None;
@@ -1247,11 +1249,13 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total t label =
   touch r;
   r
 
-let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total t label =
+let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total ?(transient = false) t
+    label =
   validate_task ~id ~parent ~log_lines ~total t;
   match existing_task ~id t with
   | Some existing -> existing
-  | None -> add_task ~id ~parent ~bar ~color ~log_lines ~total t label
+  | None ->
+      add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label
 
 let set_label r label =
   check_open "set_label" r.disp;
@@ -1440,7 +1444,7 @@ let rec finish ?(swept = false) outcome ?message r =
     t.finished <- t.finished + 1;
     let message = Option.value r.rmessage ~default:r.rlabel in
     record ~task:r t (`Finished outcome) message;
-    if not swept then
+    if not (swept || r.transient) then
       emit_history_line t ~plain:(plain_committed t r)
         ~styled:(styled_committed t r)
   end
@@ -1449,8 +1453,10 @@ let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
-let with_task ?id ?parent ?bar ?color ?log_lines ?total t label f =
-  let task = task ?id ?parent ?bar ?color ?log_lines ?total t label in
+let with_task ?id ?parent ?bar ?color ?log_lines ?total ?transient t label f =
+  let task =
+    task ?id ?parent ?bar ?color ?log_lines ?total ?transient t label
+  in
   match f task with
   | value ->
       succeed task;

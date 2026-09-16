@@ -266,6 +266,7 @@ val task :
   ?color:color ->
   ?log_lines:int ->
   ?total:int ->
+  ?transient:bool ->
   t ->
   string ->
   task
@@ -287,6 +288,11 @@ val task :
     cancellation when the parent failed or was cancelled. [log_lines] defaults
     to eight and controls only the bounded activity tail; every log is still
     permanent.
+
+    [transient] (defaults to [false]) makes a task that is drawn while it runs
+    and leaves no line when it ends: the screen keeps what happened, not how the
+    work got there. Its start, its ending and its logs are in {!history} like
+    any task's, and a pipe, which draws nothing that runs, never sees it.
 
     {b Raises.} [Invalid_argument] if the display is closed, [id] is empty,
     [log_lines] or [total] is negative, or [parent] belongs to another display.
@@ -341,6 +347,7 @@ val with_task :
   ?color:color ->
   ?log_lines:int ->
   ?total:int ->
+  ?transient:bool ->
   t ->
   string ->
   (task -> 'a) ->
