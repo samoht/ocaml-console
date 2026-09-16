@@ -734,6 +734,42 @@ let test_failed_install_releases_owner () =
       let task = Display.task display "recovered" in
       Display.succeed task)
 
+let hide = "\027[?25l"
+let show = "\027[?25h"
+
+(* A signal handler that ends the process is the one exit [run] never sees,
+   so it asks the display for the terminal back before it re-raises. What the
+   buffer holds at the call is the reading: the close after it shows the
+   cursor again on its own. *)
+let test_restore_terminal_from_a_handler () =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let now () = 0. in
+  let at_the_call = ref "" in
+  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ()) ~mode:`Activity
+    (fun display ->
+      let task = Display.task display "work" in
+      Display.restore_terminal ();
+      at_the_call := Buffer.contents buffer;
+      Display.succeed task);
+  Alcotest.(check bool)
+    "the activity projection hid the cursor" true
+    (contains hide !at_the_call);
+  Alcotest.(check bool)
+    "restore_terminal shows it, flushed, at the call" true
+    (String.ends_with ~suffix:show !at_the_call);
+  let (), history =
+    capture (fun display _ ->
+        let task = Display.task display "work" in
+        Display.restore_terminal ();
+        Display.succeed task)
+  in
+  Alcotest.(check bool)
+    "a history display hid nothing, so nothing is shown" false
+    (contains show history);
+  (* Outside a run there is no terminal to give back, and no error either. *)
+  Display.restore_terminal ()
+
 let terminal_run ?(height = 8) ?(width = 40) ?header f =
   let buffer = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -1179,6 +1215,8 @@ let suite =
         test_nested_run_reuses_owner;
       Alcotest.test_case "failed install releases owner" `Quick
         test_failed_install_releases_owner;
+      Alcotest.test_case "restore_terminal from a handler" `Quick
+        test_restore_terminal_from_a_handler;
       Alcotest.test_case "activity tick does not leak" `Quick
         test_activity_does_not_leak_on_ticks;
       Alcotest.test_case "differential redraw and right edge" `Quick

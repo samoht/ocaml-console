@@ -176,11 +176,15 @@ let uninstall_reporter () =
       saved_reporter := None;
       Logs.set_reporter r
 
-let restore_terminal ppf =
+let show_cursor_on ppf =
   try
     Format.pp_print_string ppf show_cursor;
     Format.pp_print_flush ppf ()
   with Sys_error _ -> ()
+
+(* The formatter that hid the cursor is the one that shows it. *)
+let restore_terminal () =
+  match !active_region with Some r -> show_cursor_on r.ppf | None -> ()
 
 (** {1 Row layout}
 
@@ -987,7 +991,7 @@ let take_activity t ppf =
         active_region := None;
         uninstall_reporter ();
         Atomic.set activity_claimed false;
-        restore_terminal ppf;
+        show_cursor_on ppf;
         raise exn
   end
 
@@ -1563,7 +1567,7 @@ let close t =
               match banner with Some s -> line s | None -> ()))
         ~finally:(fun () ->
           t.live_height <- 0;
-          restore_terminal t.dppf;
+          show_cursor_on t.dppf;
           release_activity t)
   end
 
@@ -1579,7 +1583,7 @@ let cleanup_after_exception t =
   with exn ->
     t.torn_down <- true;
     if not t.plain then begin
-      restore_terminal t.dppf;
+      show_cursor_on t.dppf;
       release_activity t
     end;
     Log.warn (fun m -> m "Console display cleanup failed: %a" Fmt.exn exn)
