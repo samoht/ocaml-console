@@ -14,6 +14,15 @@ let contains needle haystack =
   in
   n = 0 || loop 0
 
+let count_occurrences needle haystack =
+  let n = String.length needle and m = String.length haystack in
+  let rec loop i count =
+    if i + n > m then count
+    else if String.sub haystack i n = needle then loop (i + n) (count + 1)
+    else loop (i + 1) count
+  in
+  if n = 0 then 0 else loop 0 0
+
 let fake_clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
@@ -807,6 +816,60 @@ let test_activity_does_not_leak_on_ticks () =
   in
   Alcotest.(check int) "header appears once" 1 (count_rows vte "BUILD")
 
+(* The producer's pace is not the eye's: a writer reporting every few
+   kilobytes of a large file paints the terminal at most once per 100 ms
+   between the driver's ticks, the cadence buildkit's and cargo's progress
+   redraw at, and the tick that follows draws the frame the last report
+   left. On a pipe nothing between the reports is drawn at all.
+
+   MUTATION: a touch that paints on every report reds this on the count of
+   frames. *)
+let test_reports_between_ticks_paint_at_the_eyes_pace () =
+  let buffer = Buffer.create 65536 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let now, advance = fake_clock () in
+  let reports = 1000 in
+  let total = mib (reports + 1) in
+  let frames () =
+    Format.pp_print_flush ppf ();
+    count_occurrences "disk image" (Buffer.contents buffer)
+  in
+  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ()) ~mode:`Activity
+    (fun display ->
+      let task = Display.task display "disk image" in
+      let at_start = frames () in
+      (* A report a millisecond for a second: the writer's cadence. *)
+      for i = 1 to reports do
+        advance 0.001;
+        Display.set_bytes task ~cur:(mib i) ~total
+      done;
+      let painted = frames () - at_start in
+      (* Ten frames in the second, and one the first report may paint. *)
+      let most = 11 in
+      Alcotest.(check bool)
+        (Fmt.str "%d reports in a second paint at most %d frames, not %d"
+           reports most painted)
+        true (painted <= most);
+      Alcotest.(check bool)
+        "and more than one: the screen moved during the second" true
+        (painted > 1);
+      (* The driver paints, so the next report lands inside the interval. *)
+      Display.tick display;
+      advance 0.05;
+      Display.set_bytes task ~cur:total ~total;
+      Format.pp_print_flush ppf ();
+      (* The current figure ahead of the total, which every frame names. *)
+      let last = Display.bytes total ^ " / " in
+      Alcotest.(check bool)
+        "a report inside the interval is not yet on screen" false
+        (contains last (Buffer.contents buffer));
+      Display.tick display;
+      Format.pp_print_flush ppf ();
+      Alcotest.(check bool)
+        "the tick draws it" true
+        (contains last (Buffer.contents buffer));
+      Display.succeed task)
+
 let test_differential_redraw_and_right_edge () =
   let width = 48 and height = 8 in
   let buffer = Buffer.create 512 in
@@ -1219,6 +1282,8 @@ let suite =
         test_restore_terminal_from_a_handler;
       Alcotest.test_case "activity tick does not leak" `Quick
         test_activity_does_not_leak_on_ticks;
+      Alcotest.test_case "reports between ticks paint at the eye's pace" `Quick
+        test_reports_between_ticks_paint_at_the_eyes_pace;
       Alcotest.test_case "differential redraw and right edge" `Quick
         test_differential_redraw_and_right_edge;
       Alcotest.test_case "zero progress has no empty bar" `Quick
