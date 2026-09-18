@@ -379,4 +379,10 @@ val set_result :
 
 val tick : t -> unit
 (** [tick display] refreshes an activity projection. Driver libraries call it
-    periodically; it is a no-op after the session closes. *)
+    periodically; it is a no-op after the session closes.
+
+    A task update repaints the projection when the frame on screen is 100 ms old
+    or older, and otherwise changes the snapshot and leaves the paint to the
+    next update past that age or to [tick], so a producer reporting every few
+    kilobytes writes the terminal at the eye's pace and not its own. Permanent
+    events paint at once. *)

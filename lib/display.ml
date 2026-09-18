@@ -381,6 +381,7 @@ type t = {
   mutable finished : int;
   mutable live_height : int;
   mutable last_lines : string list; (* the lines currently on screen *)
+  mutable painted_at : float; (* when the region was last painted *)
   mutable torn_down : bool;
   mutable owns_activity : bool;
   mutable suspended : int;
@@ -872,6 +873,7 @@ let refresh_size t =
 
 let paint t =
   if (not t.plain) && (not t.torn_down) && t.suspended = 0 then begin
+    t.painted_at <- t.now ();
     let resized = refresh_size t in
     let lines = live_lines t in
     (* Skip the repaint when the frame is byte-identical to what is already on
@@ -974,6 +976,7 @@ let state ~(ctx : view) ~plain ~theme ~palette ~bar ~width ~height ~header =
     finished = 0;
     live_height = 0;
     last_lines = [];
+    painted_at = neg_infinity;
     torn_down = false;
     owns_activity = false;
     suspended = 0;
@@ -1014,7 +1017,15 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
   let t = state ~ctx ~plain ~theme ~palette ~bar ~width ~height ~header in
   if plain then t else take_activity t ctx.ppf
 
-let touch r = if not r.disp.plain then paint r.disp
+(* A row's update paints the region when the frame on screen is older than
+   {!redraw_interval}; a younger one is left to the next paint, the driver's
+   tick or the next update past the interval, so a producer reporting every
+   few kilobytes writes the terminal at the eye's pace and not its own. *)
+let redraw_interval = 0.1
+
+let touch r =
+  let t = r.disp in
+  if (not t.plain) && t.now () -. t.painted_at >= redraw_interval then paint t
 
 (* A row's accent: an explicit [color], else the next palette colour (fixed at
    creation, so it is stable across redraws), else the base style's own. *)

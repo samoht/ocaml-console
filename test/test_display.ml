@@ -784,16 +784,21 @@ let terminal_run ?(height = 8) ?(width = 40) ?header f =
   let ppf = Format.formatter_of_buffer buffer in
   let now, advance = fake_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
-  let sync () =
+  let feed () =
     Format.pp_print_flush ppf ();
     Vte.feed_string vte (Buffer.contents buffer);
     Buffer.clear buffer
   in
   Display.run ~ctx:(ctx ~is_tty:true ~width ~height ~ppf ~now ())
     ~mode:`Activity ~width ~height ?header (fun display ->
+      (* What a reader sees: the driver's tick has painted the snapshot. *)
+      let sync () =
+        Display.tick display;
+        feed ()
+      in
       f display advance sync vte;
       sync ());
-  sync ();
+  feed ();
   vte
 
 let terminal_rows vte =
@@ -881,6 +886,7 @@ let test_differential_redraw_and_right_edge () =
       ignore (Display.task display "[R1] prepare");
       let changed = Display.task display "[R2] download" in
       ignore (Display.task display "[R3] verify");
+      Display.tick display;
       Format.pp_print_flush ppf ();
       Vte.feed_string vte (Buffer.contents buffer);
       Buffer.clear buffer;
@@ -889,6 +895,7 @@ let test_differential_redraw_and_right_edge () =
       for cur = 1 to 10 do
         Vte.clear_dirty vte;
         Display.set_count changed ~cur ~total:10;
+        Display.tick display;
         Format.pp_print_flush ppf ();
         Vte.feed_string vte (Buffer.contents buffer);
         Buffer.clear buffer;
@@ -974,6 +981,7 @@ let test_default_visual_hierarchy_and_color_scope () =
     ~mode:`Activity ~width ~height:4 (fun display ->
       let root = Display.task display "compile" in
       ignore (Display.task ~parent:root display "link");
+      Display.tick display;
       Format.pp_print_flush ppf ();
       Vte.feed_string vte (Buffer.contents buffer);
       let rows = Vte.to_string vte |> String.split_on_char '\n' in
