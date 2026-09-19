@@ -123,6 +123,69 @@ let test_frozen_clock_pins_every_elapsed () =
     "the variable no longer freezes once cleared" false
     (ends_with_frozen_elapsed (String.trim (capture_a_slow_task ())))
 
+(* Under a terminal [run] takes SIGINT, to give the cursor back before the
+   process dies of it, and on return gives back the handler it displaced. A
+   program whose Ctrl-C is its own affair installs its handler under [run]
+   and keeps it past [run]'s return, as a run that must answer a Ctrl-C after
+   its display has closed does: what [run] restores is the handler it found,
+   and only where its own still stands. The terminal is a pseudo-terminal put
+   on stdout for the span of the case. *)
+let handler_installed_under_run (_ : int) = ()
+let handler_installed_before_run (_ : int) = ()
+
+let is handler = function
+  | Sys.Signal_handle f -> f == handler
+  | Sys.Signal_default | Sys.Signal_ignore -> false
+
+let test_a_handler_installed_under_run_outlives_it () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty =
+    match Eio_unix.Pty.open_pty ~sw () with
+    | pty -> pty
+    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+        Alcotest.skip ()
+  in
+  (* What the display draws is read and dropped, so no write to the terminal
+     blocks on a full buffer. *)
+  Eio.Fiber.fork_daemon ~sw (fun () ->
+      let buf = Cstruct.create 4096 in
+      let source = Eio_unix.Pty.source pty in
+      (try
+         while true do
+           ignore (Eio.Flow.single_read source buf : int)
+         done
+       with End_of_file | Eio.Io _ -> ());
+      `Stop_daemon);
+  let stdout = Unix.dup Unix.stdout in
+  let before = Sys.signal Sys.sigint Sys.Signal_default in
+  Sys.set_signal Sys.sigint before;
+  Fun.protect ~finally:(fun () ->
+      Unix.dup2 stdout Unix.stdout;
+      Unix.close stdout;
+      Sys.set_signal Sys.sigint before)
+  @@ fun () ->
+  Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
+      Unix.dup2 tty Unix.stdout);
+  let run f = Console_eio.run ~clock:(Eio.Stdenv.clock env) ~mode:`History f in
+  (* The control: [run] takes the terminal, installs a handler of its own and,
+     where nothing replaced it, gives back the one it found. *)
+  Sys.set_signal Sys.sigint (Sys.Signal_handle handler_installed_before_run);
+  run (fun _display ->
+      match Sys.signal Sys.sigint Sys.Signal_default with
+      | Sys.Signal_handle h as own when h != handler_installed_before_run ->
+          Sys.set_signal Sys.sigint own
+      | Sys.Signal_handle _ | Sys.Signal_default | Sys.Signal_ignore ->
+          Alcotest.fail "run installed no handler: stdout is not a terminal");
+  Alcotest.(check bool)
+    "the handler run found is back once run returns" true
+    (is handler_installed_before_run (Sys.signal Sys.sigint Sys.Signal_default));
+  run (fun _display ->
+      Sys.set_signal Sys.sigint (Sys.Signal_handle handler_installed_under_run));
+  Alcotest.(check bool)
+    "the handler installed under run still stands after it" true
+    (is handler_installed_under_run (Sys.signal Sys.sigint Sys.Signal_default))
+
 let suite =
   ( "console_eio",
     [
@@ -142,4 +205,6 @@ let suite =
         test_dimensions_are_at_least_one_cell;
       Alcotest.test_case "frozen clock pins every elapsed" `Quick
         test_frozen_clock_pins_every_elapsed;
+      Alcotest.test_case "a handler installed under run outlives it" `Quick
+        test_a_handler_installed_under_run_outlives_it;
     ] )
