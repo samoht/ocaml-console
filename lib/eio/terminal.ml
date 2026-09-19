@@ -44,15 +44,27 @@ let hide_cursor ppf = Fmt.pf ppf "\027[?25l%!"
    so a CTRL-C during a cursor-hidden region still restores the cursor. The
    handler reinstalls the default disposition and re-raises SIGINT, so the
    program still terminates -- with a SIGINT wait status -- as the user expects.
-   The previously installed handler is restored when [f] returns or raises;
-   nesting is safe, since each call saves and restores the handler it replaced. *)
+   When [f] returns or raises, the handler installed here gives way to the one
+   it replaced; a handler [f] installed in its place is the program's own and
+   stays, since the program that took SIGINT under a display still answers it
+   once the display is gone. The current handler is read by installing the
+   previous one, so SIGINT is held for the span of the exchange and delivered
+   to whichever handler stands at its end. *)
 let on_interrupt cleanup f =
-  let previous =
-    Sys.signal Sys.sigint
-      (Sys.Signal_handle
-         (fun signum ->
-           cleanup ();
-           Sys.set_signal Sys.sigint Sys.Signal_default;
-           Unix.kill (Unix.getpid ()) signum))
+  let interrupt signum =
+    cleanup ();
+    Sys.set_signal Sys.sigint Sys.Signal_default;
+    Unix.kill (Unix.getpid ()) signum
   in
-  Fun.protect ~finally:(fun () -> Sys.set_signal Sys.sigint previous) f
+  let previous = Sys.signal Sys.sigint (Sys.Signal_handle interrupt) in
+  let restore () =
+    let held = Unix.sigprocmask Unix.SIG_BLOCK [ Sys.sigint ] in
+    Fun.protect
+      ~finally:(fun () ->
+        ignore (Unix.sigprocmask Unix.SIG_SETMASK held : int list))
+      (fun () ->
+        match Sys.signal Sys.sigint previous with
+        | Sys.Signal_handle h when h == interrupt -> ()
+        | current -> Sys.set_signal Sys.sigint current)
+  in
+  Fun.protect ~finally:restore f

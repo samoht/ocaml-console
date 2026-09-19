@@ -27,6 +27,7 @@ val on_interrupt : (unit -> unit) -> (unit -> 'a) -> 'a
     and then re-raises SIGINT under the default handler, so a CTRL-C still
     terminates the process but [cleanup] runs first -- the hook a cursor-hidden
     region uses to {!show_cursor} again before exiting, since the default
-    handler terminates before any [Fun.protect] finaliser would run. The
-    previously installed handler is restored when [f] returns or raises; nested
-    calls save and restore the handler each replaced. *)
+    handler terminates before any [Fun.protect] finaliser would run. When [f]
+    returns or raises, the handler installed here gives way to the one it
+    replaced, so nested calls each put back what they found; a handler [f]
+    installed in its place is the program's own and is left standing. *)
