@@ -997,6 +997,9 @@ let test_default_visual_hierarchy_and_color_scope () =
   let width = 60 in
   let buffer = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buffer in
+  (* The accent exists because this formatter renders style; the terminal alone
+     does not decide it. *)
+  Fmt.set_style_renderer ppf `Ansi_tty;
   let now () = 0. in
   let vte = Vte.create ~rows:4 ~cols:width () in
   Display.run ~ctx:(ctx ~is_tty:true ~width ~height:4 ~ppf ~now ())
@@ -1260,6 +1263,119 @@ let test_large_percentage_does_not_overflow () =
   Alcotest.(check bool) "max_int percentage" true !count_ok;
   Alcotest.(check bool) "int64 percentage" true !bytes_ok
 
+(* The SGR sequences in [s]: a CSI whose final byte is ['m']. A cursor move
+   (final ['A']), an erase (['K']) and the cursor-visibility pair (['h'], ['l'])
+   are CSIs too and are not counted, which is what separates no colour from no
+   redraw. *)
+let sgr_sequences s =
+  let n = String.length s in
+  let rec final j =
+    if j >= n then j
+    else
+      let c = Char.code s.[j] in
+      if c >= 0x40 && c <= 0x7e then j else final (j + 1)
+  in
+  let rec go i count =
+    if i + 1 >= n then count
+    else if s.[i] = '\027' && s.[i + 1] = '[' then
+      let stop = final (i + 2) in
+      go (stop + 1) (if stop < n && s.[stop] = 'm' then count + 1 else count)
+    else go (i + 1) count
+  in
+  go 0 0
+
+let colour_width = 40
+let colour_height = 10
+
+(* One live session on a terminal of a fixed geometry, drawn on a formatter
+   whose style renderer is [renderer]: a row that logs and finishes, then a
+   verdict. Its bytes are what the terminal received. *)
+let colour_session renderer =
+  let buffer = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Fmt.set_style_renderer ppf renderer;
+  let now () = 0. in
+  Display.run
+    ~ctx:
+      (ctx ~is_tty:true ~width:colour_width ~height:colour_height ~ppf ~now ())
+    ~mode:`Activity ~width:colour_width ~height:colour_height ~header:"Build"
+    (fun display ->
+      let task = Display.task display "app" in
+      Display.log task "planning";
+      Display.succeed task;
+      Display.set_result display (`Ok "done"));
+  Format.pp_print_flush ppf ();
+  Buffer.contents buffer
+
+let colour_screen bytes =
+  let vte = Vte.create ~rows:colour_height ~cols:colour_width () in
+  Vte.feed_string vte bytes;
+  vte
+
+(* The screen the session leaves: the log line the finished row handed to
+   history, the row's own committed line with its elapsed time at the right
+   edge, then the header and the verdict the close writes. Four rows, whatever
+   the colour: the region was redrawn in place rather than appended to. *)
+let colour_expected_screen =
+  [
+    "  # planning";
+    "=> app" ^ String.make 30 ' ' ^ "0.0s";
+    "[+] Build 0.0s (1/1)";
+    "✓ done";
+  ]
+
+(* A reader who turned colour off still gets the redraw: the bytes carry no
+   SGR at all, no cell on the screen is styled, and the screen is the one a
+   coloured run leaves. https://no-color.org asks that the addition of ANSI
+   colour be prevented, and the library adds it through one answer --
+   [Fmt.style_renderer] on the formatter it writes to -- which is the same
+   answer every other surface here reads. *)
+let test_a_plain_renderer_writes_no_sgr () =
+  let bytes = colour_session `None in
+  Alcotest.(check int) "no SGR reached the terminal" 0 (sgr_sequences bytes);
+  let vte = colour_screen bytes in
+  let grid = Vte.grid vte in
+  let blank = Grid.get_style grid (Grid.idx grid ~x:(colour_width - 1) ~y:0) in
+  let styled_cells =
+    List.filter
+      (fun i -> not (Ansi.Style.equal (Grid.get_style grid i) blank))
+      (List.init (Grid.width grid * Grid.height grid) Fun.id)
+  in
+  Alcotest.(check int)
+    "no cell on the screen is styled" 0 (List.length styled_cells);
+  Alcotest.(check (list string))
+    "the region still redrew in place" colour_expected_screen
+    (Console_vte.screen ~scrollback:true vte)
+
+(* The positive control, and the reading that says the session had colour to
+   lose: the same session on a formatter that renders style carries the
+   outcome's green, the label's bold and the metadata's dim, and puts exactly
+   the same glyphs on the screen. *)
+let test_an_ansi_renderer_writes_sgr () =
+  let bytes = colour_session `Ansi_tty in
+  Alcotest.(check bool)
+    "the committed marker is green" true
+    (contains "\027[32m" bytes);
+  Alcotest.(check bool) "the label is bold" true (contains "\027[1m" bytes);
+  Alcotest.(check bool) "the metadata is dim" true (contains "\027[2m" bytes);
+  Alcotest.(check (list string))
+    "colour changes no glyph" colour_expected_screen
+    (Console_vte.screen ~scrollback:true (colour_screen bytes))
+
+(* No colour is not no redraw. The cursor control the live region is made of
+   is emitted whatever the style renderer says: it hides the cursor, moves up
+   over the frame it is replacing, erases to the end of a line it shortened,
+   and shows the cursor again at the close. *)
+let test_a_plain_renderer_keeps_the_cursor_control () =
+  let bytes = colour_session `None in
+  let has what sequence =
+    Alcotest.(check bool) what true (contains sequence bytes)
+  in
+  has "the cursor was hidden" "\027[?25l";
+  has "the frame above was reached" "\027[1A";
+  has "a shortened line was erased" "\027[K";
+  has "the cursor came back" "\027[?25h"
+
 let suite =
   ( "display",
     [
@@ -1340,4 +1456,10 @@ let suite =
         test_tiny_activity_is_bounded;
       Alcotest.test_case "large percentage" `Quick
         test_large_percentage_does_not_overflow;
+      Alcotest.test_case "a plain renderer writes no SGR" `Quick
+        test_a_plain_renderer_writes_no_sgr;
+      Alcotest.test_case "an ansi renderer writes SGR" `Quick
+        test_an_ansi_renderer_writes_sgr;
+      Alcotest.test_case "a plain renderer keeps the cursor control" `Quick
+        test_a_plain_renderer_keeps_the_cursor_control;
     ] )
