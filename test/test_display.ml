@@ -1324,28 +1324,41 @@ let colour_expected_screen =
     "✓ done";
   ]
 
-(* A reader who turned colour off still gets the redraw: the bytes carry no
-   SGR at all, no cell on the screen is styled, and the screen is the one a
-   coloured run leaves. https://no-color.org asks that the addition of ANSI
-   colour be prevented, and the library adds it through one answer --
-   [Fmt.style_renderer] on the formatter it writes to -- which is the same
-   answer every other surface here reads. *)
+(* The known-correct screen: the same four lines typed straight at a terminal
+   of the same geometry, with no styling and no cursor control to reach a
+   frame above. Comparing the session's screen against this one, cell for
+   cell, says both halves at once -- a cell that carries a style the plain
+   text does not, and a glyph that is not where the plain text put it. *)
+let colour_plain_screen () =
+  let vte = Vte.create ~rows:colour_height ~cols:colour_width () in
+  List.iter
+    (fun line -> Vte.feed_string vte (line ^ "\r\n"))
+    colour_expected_screen;
+  vte
+
+let unlike_plain_text vte =
+  let drawn = Vte.grid vte and plain = Vte.grid (colour_plain_screen ()) in
+  List.filter
+    (fun i -> not (Grid.cells_equal drawn i plain i))
+    (List.init (Grid.width plain * Grid.height plain) Fun.id)
+
+(* A reader who turned colour off still gets the redraw: no SGR reaches the
+   terminal, and the screen is the one the same text typed plainly leaves --
+   no cell styled, every glyph where the plain text put it, so the region was
+   redrawn in place rather than appended to. https://no-color.org asks that
+   "the addition of ANSI color" be prevented, and the library adds it through
+   one answer -- [Fmt.style_renderer] on the formatter it writes to -- which
+   is the answer every other surface here already reads. *)
 let test_a_plain_renderer_writes_no_sgr () =
   let bytes = colour_session `None in
   Alcotest.(check int) "no SGR reached the terminal" 0 (sgr_sequences bytes);
   let vte = colour_screen bytes in
-  let grid = Vte.grid vte in
-  let blank = Grid.get_style grid (Grid.idx grid ~x:(colour_width - 1) ~y:0) in
-  let styled_cells =
-    List.filter
-      (fun i -> not (Ansi.Style.equal (Grid.get_style grid i) blank))
-      (List.init (Grid.width grid * Grid.height grid) Fun.id)
-  in
-  Alcotest.(check int)
-    "no cell on the screen is styled" 0 (List.length styled_cells);
   Alcotest.(check (list string))
     "the region still redrew in place" colour_expected_screen
-    (Console_vte.screen ~scrollback:true vte)
+    (Console_vte.screen ~scrollback:true vte);
+  Alcotest.(check int)
+    "no cell differs from the same text typed plainly" 0
+    (List.length (unlike_plain_text vte))
 
 (* The positive control, and the reading that says the session had colour to
    lose: the same session on a formatter that renders style carries the
