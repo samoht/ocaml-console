@@ -354,6 +354,12 @@ let dumb () =
 type t = {
   dppf : Format.formatter;
   plain : bool;
+      (* append-only lines instead of a live region: a surface with no terminal
+         behind it, or a caller that asked for [`History] *)
+  styling : bool;
+      (* whether [dppf] takes ANSI, read once from {!Ansi.should_style}. It is a
+         separate question from [plain]: a terminal whose reader turned colour
+         off is still a terminal, so the region keeps redrawing in place *)
   now : unit -> float;
   dimensions : unit -> int * int;
       (* terminal (width, height), re-read each paint so a resize is handled *)
@@ -434,6 +440,14 @@ let pp ppf t =
     (List.length t.rows)
     (if t.torn_down then " torn-down" else "")
 
+(* Every SGR the display adds passes through these, so one answer --
+   {!Ansi.should_style} on the formatter this display writes to -- decides
+   colour for the whole surface, the way it decides it for {!Span} and so for
+   every other surface here. They shadow the unconditional {!Ansi} forms on
+   purpose: a call site that reaches past them is a second answer. *)
+let code t sequence = if t.styling then sequence else ""
+let styled t sequence s = if t.styling then Ansi.styled sequence s else s
+let dimmed t s = if t.styling then Ansi.dimmed s else s
 let render_width t = t.width
 let string_width t = Width.string_width ?char_width:t.char_width
 let truncate t = Width.truncate ?char_width:t.char_width
@@ -503,22 +517,24 @@ let pct_of = function
 (* Render one style piece against a row's current data; [""] when the piece does
    not apply. [Label] and [Spacer] render empty here -- they are substituted
    after width budgeting. Glyphs come from the display's {!Theme.t}. *)
-let render_spinner theme ~finished ~color ~frame row =
+let render_spinner t ~finished ~color ~frame row =
   (* Match the header's marker vocabulary so a row and the summary never use two
      different glyphs for the same state: green [+] done, red [x] on error, the
      animated spinner while running. *)
+  let theme = t.theme in
   if not finished then
-    styled (color_code color) (Spinner.frame (Theme.spinner theme) frame)
+    styled t (color_code color) (Spinner.frame (Theme.spinner theme) frame)
   else
     match row.routcome with
-    | Some `Failed -> styled (bold ^ color_code Color.red) "[x]"
-    | Some `Cancelled -> styled (bold ^ color_code Color.yellow) "[~]"
+    | Some `Failed -> styled t (bold ^ color_code Color.red) "[x]"
+    | Some `Cancelled -> styled t (bold ^ color_code Color.yellow) "[~]"
     | Some `Succeeded | None ->
-        styled (bold ^ color_code Color.green) (Theme.done_marker theme)
+        styled t (bold ^ color_code Color.green) (Theme.done_marker theme)
 
-let render_bar theme row ~finished ~color ~width =
+let render_bar t row ~finished ~color ~width =
   if finished then ""
   else
+    let theme = t.theme in
     match (row.metric, pct_of row.metric) with
     | (Count (0, _) | Bytes (0L, _)), Some _ -> ""
     | (Count _ | Bytes _), Some p ->
@@ -531,43 +547,43 @@ let render_bar theme row ~finished ~color ~width =
           | `Blocky | `Rainbow -> width
         in
         let minimum = if units = 0 then 0 else (100 + units - 1) / units in
-        Bar.render ~theme ~color ~width ~pct:(max minimum p) ()
+        Bar.render ~theme ~color ~styled:t.styling ~width ~pct:(max minimum p)
+          ()
     | _, None -> ""
     | Spin, Some _ -> assert false
 
-let render_percent row ~finished =
+let render_percent t row ~finished =
   if finished then ""
   else
     match pct_of row.metric with
-    | Some p -> Fmt.kstr dimmed "%3d%%" p
+    | Some p -> Fmt.kstr (dimmed t) "%3d%%" p
     | None -> ""
 
-let render_count row =
+let render_count t row =
   match row.metric with
-  | Count (c, tot) -> Fmt.kstr dimmed "%d/%d" c tot
-  | Bytes (c, tot) -> dimmed (bytes c ^ " / " ^ bytes tot)
+  | Count (c, tot) -> Fmt.kstr (dimmed t) "%d/%d" c tot
+  | Bytes (c, tot) -> dimmed t (bytes c ^ " / " ^ bytes tot)
   | Spin -> ""
 
-let render_rate row ~finished =
+let render_rate t row ~finished =
   if finished then ""
   else
     match row.metric with
     | Bytes _ when row.rate > 1. ->
-        dimmed (bytes (Int64.of_float row.rate) ^ "/s")
+        dimmed t (bytes (Int64.of_float row.rate) ^ "/s")
     | _ -> ""
 
 let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
-  let theme = t.theme in
   match piece with
-  | Line.Spinner -> render_spinner theme ~finished ~color ~frame row
+  | Line.Spinner -> render_spinner t ~finished ~color ~frame row
   | Line.Label | Line.Spacer -> ""
-  | Line.Bar n -> render_bar theme row ~finished ~color ~width:n
-  | Line.Percent -> render_percent row ~finished
-  | Line.Count -> render_count row
-  | Line.Rate -> render_rate row ~finished
-  | Line.Elapsed -> dimmed (span (elapsed t row))
+  | Line.Bar n -> render_bar t row ~finished ~color ~width:n
+  | Line.Percent -> render_percent t row ~finished
+  | Line.Count -> render_count t row
+  | Line.Rate -> render_rate t row ~finished
+  | Line.Elapsed -> dimmed t (span (elapsed t row))
   | Line.Text s -> s
-  | Line.Accent s -> styled (bold ^ color_code color) s
+  | Line.Accent s -> styled t (bold ^ color_code color) s
 
 (* Render a row from its style. The label is the flexible content (truncated to
    fit) and a single [Spacer] absorbs the remaining slack so later pieces (the
@@ -610,7 +626,7 @@ let render_row t row =
   List.iter
     (fun (p, s) ->
       match p with
-      | Line.Label -> Buffer.add_string buf (styled bold label_shown)
+      | Line.Label -> Buffer.add_string buf (styled t bold label_shown)
       | Line.Spacer -> Buffer.add_string buf (String.make slack ' ')
       | _ -> Buffer.add_string buf s)
     rendered;
@@ -651,7 +667,7 @@ let styled_committed t row =
   in
   let indent, marker, label, metric, elapsed = committed_parts t row in
   let width = render_width t in
-  let marker = Ansi.styled marker_style marker in
+  let marker = styled t marker_style marker in
   let fixed_width = string_width t indent + string_width t marker + 1 in
   let metric = String.trim metric in
   let metadata = if metric = "" then elapsed else metric ^ "  " ^ elapsed in
@@ -668,8 +684,8 @@ let styled_committed t row =
   let label = ellipsize t label_width label in
   let left = String.concat "" [ indent; marker; " "; label ] in
   let gap = width - string_width t left - metadata_width in
-  if gap > 0 then left ^ String.make gap ' ' ^ dimmed metadata
-  else truncate t width (left ^ dimmed metadata)
+  if gap > 0 then left ^ String.make gap ' ' ^ dimmed t metadata
+  else truncate t width (left ^ dimmed t metadata)
 
 let complete t =
   let total = List.length t.rows in
@@ -720,15 +736,15 @@ let header_styled t =
            (String.concat ""
               (let marker, color = header_marker t in
                [
-                 color_code color;
+                 code t (color_code color);
                  marker;
-                 reset_code;
+                 code t reset_code;
                  " ";
-                 bold;
+                 code t bold;
                  h;
-                 reset_code;
+                 code t reset_code;
                  " ";
-                 Fmt.kstr dimmed "%s (%d/%d)"
+                 Fmt.kstr (dimmed t) "%s (%d/%d)"
                    (span (t.now () -. t.dstart))
                    t.finished (List.length t.rows);
                ])))
@@ -752,9 +768,9 @@ let level_style = function
   | `Warning -> bold ^ color_code Color.yellow
   | `Error -> bold ^ color_code Color.red
 
-let styled_log level marker message suffix =
+let styled_log t level marker message suffix =
   String.concat ""
-    [ Ansi.styled (level_style level) marker; " "; message; dimmed suffix ]
+    [ styled t (level_style level) marker; " "; message; dimmed t suffix ]
 
 let row_block_parts t row =
   let tail =
@@ -779,7 +795,7 @@ let row_block_parts t row =
           (String.concat ""
              [
                prefix;
-               styled_log log.llevel marker
+               styled_log t log.llevel marker
                  (ellipsize t ~at:`End room log.lmessage)
                  suffix;
              ]))
@@ -799,7 +815,8 @@ let rec drop n = function _ :: tl when n > 0 -> drop (n - 1) tl | l -> l
    what was hidden. If even the bare rows overflow, keep the most recent
    ones. *)
 let region_marker t hidden =
-  truncate t (render_width t) (Fmt.kstr dimmed "  ... (%d more lines)" hidden)
+  truncate t (render_width t)
+    (Fmt.kstr (dimmed t) "  ... (%d more lines)" hidden)
 
 let cap_rows t ~header ~budget ~total blocks =
   (* Even the bare rows do not fit. Keep the phase/root and the active leaf,
@@ -950,7 +967,8 @@ let validate_geometry ~width ~height =
       invalid_arg "Console.Display.run: height must be positive"
   | _ -> ()
 
-let state ~(ctx : view) ~plain ~theme ~palette ~bar ~width ~height ~header =
+let state ~(ctx : view) ~plain ~styling ~theme ~palette ~bar ~width ~height
+    ~header =
   let auto_width = width = None and auto_height = height = None in
   let term_w, term_h = ctx.dimensions () in
   let width = match width with Some w -> w | None -> max 1 term_w in
@@ -958,6 +976,7 @@ let state ~(ctx : view) ~plain ~theme ~palette ~bar ~width ~height ~header =
   {
     dppf = ctx.ppf;
     plain;
+    styling;
     now = ctx.now;
     dimensions = ctx.dimensions;
     char_width = ctx.char_width;
@@ -1014,9 +1033,17 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
   | Some region when plain && region.ppf == ctx.ppf ->
       invalid_arg "Console.Display.run: output formatter is already active"
   | Some _ | None -> ());
+  (* Whether the surface takes ANSI is the formatter's own answer, read once
+     here and threaded: a terminal whose reader turned colour off still gets
+     the region, and a pipe whose caller forced colour on would get it on the
+     surface it asked for rather than on the one this display happens to be
+     beside. *)
+  let styling = should_style ctx.ppf in
   (* A pinned [width]/[height] (tests) stays fixed; otherwise re-read the live
      terminal geometry on every paint so a resize is handled. *)
-  let t = state ~ctx ~plain ~theme ~palette ~bar ~width ~height ~header in
+  let t =
+    state ~ctx ~plain ~styling ~theme ~palette ~bar ~width ~height ~header
+  in
   if plain then t else take_activity t ctx.ppf
 
 (* A row's update paints the region when the frame on screen is older than
@@ -1288,7 +1315,7 @@ let commit_log t r entry =
   let suffix = gap_suffix entry.lgap in
   let plain = Fmt.str "%s  %s %s%s" (indent r) marker entry.lmessage suffix in
   let styled =
-    continuation t r ^ styled_log entry.llevel marker entry.lmessage suffix
+    continuation t r ^ styled_log t entry.llevel marker entry.lmessage suffix
   in
   emit_history_line t ~plain ~styled
 
@@ -1347,7 +1374,7 @@ let event ?(level = `Info) t message =
           let marker = level_marker t.theme level in
           emit_history_line t
             ~plain:(marker ^ " " ^ message)
-            ~styled:(Ansi.styled (level_style level) marker ^ " " ^ message))
+            ~styled:(styled t (level_style level) marker ^ " " ^ message))
     lines
 
 let set_count r ~cur ~total =
@@ -1516,7 +1543,7 @@ let tick t = if not t.plain then paint t
    cut at the width -- this is printed after the live region is released, so a
    second physical line is safe. *)
 let result_line t result =
-  let marker, code, msg =
+  let marker, accent, msg =
     match result with
     | `Ok msg -> (Theme.ok_marker t.theme, color_code Color.green, msg)
     | `Fail msg -> (Theme.fail_marker t.theme, color_code Color.red, msg)
@@ -1532,7 +1559,7 @@ let result_line t result =
         String.sub body indent (String.length body - indent)
       else body
     in
-    styled (dim ^ code) marker ^ " " ^ styled bold rest
+    styled t (dim ^ accent) marker ^ " " ^ styled t bold rest
   end
 
 (* The optional detail paragraph shown dimmed just above the verdict banner: the
@@ -1547,7 +1574,8 @@ let detail_lines t = function
         (fun l ->
           if t.plain then [ l ]
           else
-            String.split_on_char '\n' (Width.wrap t.width l) |> List.map dimmed)
+            String.split_on_char '\n' (Width.wrap t.width l)
+            |> List.map (dimmed t))
         (String.split_on_char '\n' d)
 
 let close t =

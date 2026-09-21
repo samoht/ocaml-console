@@ -108,7 +108,16 @@ val ctx :
   unit ->
   ctx
 (** [ctx] constructs a display context from explicit output, clock, geometry and
-    terminal detection functions. Driver libraries normally do this. *)
+    terminal detection functions. Driver libraries normally do this.
+
+    [is_tty] says whether a live region can be drawn at all; whether that region
+    carries colour is [ppf]'s own answer, [Fmt.style_renderer], which is what
+    {!Span.pp} and every other surface here renders by and what
+    [Fmt_tty.setup_std_outputs] sets from [--color] and [NO_COLOR]. So a
+    terminal whose reader turned colour off still gets the region, drawn in
+    place and with no ANSI in it, and a formatter nobody configured draws plain
+    the way an unconfigured [Fmt.styled] prints plain. It is read once, when the
+    display opens. *)
 
 val ctx_ppf : ctx -> Format.formatter
 (** [ctx_ppf ctx] is the formatter [ctx] draws on. A wrapper that hands [ctx] to

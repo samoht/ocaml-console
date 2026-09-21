@@ -14,29 +14,34 @@ let rainbow_palette =
     Color.red; Color.yellow; Color.green; Color.cyan; Color.blue; Color.magenta;
   |]
 
+(* The SGR a bar adds, dropped when the caller renders unstyled: the glyphs
+   carry the shape and the colour only reinforces it, so a bar without colour
+   is the same bar. *)
+let code ~styled sequence = if styled then sequence else ""
+
 (* A blocky DOS-style bar: dim [ ] brackets, full-block fill, dim shade
    track. *)
-let blocky ~color ~width ~pct =
+let blocky ~styled ~color ~width ~pct =
   let full = width * pct / 100 in
   let empty = max 0 (width - full) in
   let fill = String.concat "" (List.init full (fun _ -> "█")) in
   let track = String.concat "" (List.init empty (fun _ -> "░")) in
   String.concat ""
     [
-      Ansi.dim;
+      code ~styled Ansi.dim;
       "[";
-      Ansi.reset_code;
-      Ansi.color_code color;
+      code ~styled Ansi.reset_code;
+      code ~styled (Ansi.color_code color);
       fill;
-      Ansi.reset_code;
-      Ansi.dim;
+      code ~styled Ansi.reset_code;
+      code ~styled Ansi.dim;
       track;
       "]";
-      Ansi.reset_code;
+      code ~styled Ansi.reset_code;
     ]
 
 (* A smooth bar with sub-cell eighth fills and thin brackets. *)
-let smooth ~color ~width ~pct =
+let smooth ~styled ~color ~width ~pct =
   let total = width * 8 in
   let filled = total * pct / 100 in
   let full = filled / 8 in
@@ -48,36 +53,39 @@ let smooth ~color ~width ~pct =
   in
   String.concat ""
     [
-      Ansi.dim;
+      code ~styled Ansi.dim;
       "▕";
-      Ansi.reset_code;
-      Ansi.color_code color;
+      code ~styled Ansi.reset_code;
+      code ~styled (Ansi.color_code color);
       fill;
-      Ansi.reset_code;
-      Ansi.dim;
+      code ~styled Ansi.reset_code;
+      code ~styled Ansi.dim;
       String.make empty ' ';
       "▏";
-      Ansi.reset_code;
+      code ~styled Ansi.reset_code;
     ]
 
 (* A rainbow bar: each filled cell steps through the spectrum. *)
-let rainbow ~color:_ ~width ~pct =
+let rainbow ~styled ~color:_ ~width ~pct =
   let full = width * pct / 100 in
   let empty = max 0 (width - full) in
   let buf = Buffer.create (width * 8) in
-  Buffer.add_string buf (Ansi.dim ^ "[" ^ Ansi.reset_code);
+  Buffer.add_string buf
+    (code ~styled Ansi.dim ^ "[" ^ code ~styled Ansi.reset_code);
   for i = 0 to full - 1 do
     let c = rainbow_palette.(i mod Array.length rainbow_palette) in
-    Buffer.add_string buf (Ansi.color_code c ^ "█" ^ Ansi.reset_code)
+    Buffer.add_string buf
+      (code ~styled (Ansi.color_code c) ^ "█" ^ code ~styled Ansi.reset_code)
   done;
-  Buffer.add_string buf Ansi.dim;
+  Buffer.add_string buf (code ~styled Ansi.dim);
   for _ = 1 to empty do
     Buffer.add_string buf "░"
   done;
-  Buffer.add_string buf ("]" ^ Ansi.reset_code);
+  Buffer.add_string buf ("]" ^ code ~styled Ansi.reset_code);
   Buffer.contents buf
 
-let draw_style : style -> color:color -> width:int -> pct:int -> string =
+let draw_style :
+    style -> styled:bool -> color:color -> width:int -> pct:int -> string =
   function
   | `Blocky -> blocky
   | `Smooth -> smooth
@@ -98,13 +106,13 @@ let resolve ?theme ?style ?color () =
   in
   (style, color)
 
-let render ?theme ?style ?color ~width ~pct () =
+let render ?theme ?style ?color ?(styled = true) ~width ~pct () =
   if width < 0 then invalid_arg "Console.Bar.render: negative width";
   let style, color = resolve ?theme ?style ?color () in
   let pct = max 0 (min 100 pct) in
-  draw_style style ~color ~width ~pct
+  draw_style style ~styled ~color ~width ~pct
 
-let at ?theme ?style ?color ~width ~elapsed () =
+let at ?theme ?style ?color ?(styled = true) ~width ~elapsed () =
   if width < 0 then invalid_arg "Console.Bar.at: negative width";
   let style, color = resolve ?theme ?style ?color () in
   (* Sweep the fill up and back over a two-second period: a triangle wave on
@@ -115,7 +123,7 @@ let at ?theme ?style ?color ~width ~elapsed () =
     else Float.rem (elapsed /. period) 1.0
   in
   let tri = if phase < 0.5 then phase *. 2. else (1. -. phase) *. 2. in
-  draw_style style ~color ~width ~pct:(int_of_float (tri *. 100.))
+  draw_style style ~styled ~color ~width ~pct:(int_of_float (tri *. 100.))
 
-let anim ?theme ?style ?color ~width () =
-  Anim.v (fun ~elapsed -> at ?theme ?style ?color ~width ~elapsed ())
+let anim ?theme ?style ?color ?styled ~width () =
+  Anim.v (fun ~elapsed -> at ?theme ?style ?color ?styled ~width ~elapsed ())

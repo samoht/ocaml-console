@@ -77,14 +77,9 @@ let pp_atom base ppf { style; link; text } =
     the target formatter. *)
 let pp_plain ppf t = List.iter (fun { text; _ } -> Fmt.string ppf text) t
 
-(** Whether to emit ANSI on [ppf]. Defers to [Fmt.style_renderer] — set by
-    {!Fmt_tty.setup_std_outputs} (which ocaml-observe calls based on its
-    [--color] / [NO_COLOR] cmdliner terms). *)
-let should_style ppf =
-  match Fmt.style_renderer ppf with `Ansi_tty -> true | `None -> false
-
 let pp_with_style style ppf t =
-  if should_style ppf then List.iter (pp_atom style ppf) t else pp_plain ppf t
+  if Ansi.should_style ppf then List.iter (pp_atom style ppf) t
+  else pp_plain ppf t
 
 let pp = pp_with_style Style.none
 let to_string t = Render.to_string pp t

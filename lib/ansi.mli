@@ -24,3 +24,10 @@ val styled : string -> string -> string
 
 val dimmed : string -> string
 (** [dimmed s] renders [s] dim, or [""] unchanged. *)
+
+val should_style : Format.formatter -> bool
+(** [should_style ppf] is whether [ppf] takes ANSI: [Fmt.style_renderer ppf] is
+    [`Ansi_tty]. It is the one answer every surface in this library renders by,
+    set by [Fmt_tty.setup_std_outputs] (commonly through
+    [Fmt_cli.style_renderer]), so [--color=auto|always|never] and [NO_COLOR] are
+    honoured wherever they are read rather than once per surface. *)
