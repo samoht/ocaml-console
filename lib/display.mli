@@ -110,6 +110,12 @@ val ctx :
 (** [ctx] constructs a display context from explicit output, clock, geometry and
     terminal detection functions. Driver libraries normally do this. *)
 
+val ctx_ppf : ctx -> Format.formatter
+(** [ctx_ppf ctx] is the formatter [ctx] draws on. A wrapper that hands [ctx] to
+    {!run} and then writes to the same surface itself -- the newline that closes
+    a line the session left open, say -- reads it here rather than being told
+    twice, which is the arrangement in which the two answers can differ. *)
+
 val with_char_width : ctx -> (Uchar.t -> int) -> ctx
 (** [with_char_width ctx width] overrides Unicode terminal-cell measurement. *)
 

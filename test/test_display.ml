@@ -129,6 +129,28 @@ let test_history_output () =
    ^ "=> fetch  30.00 MiB / 2.00 GiB  2.0s\n" ^ "[+] Building 3.3s (2/2)\n")
     output
 
+(* A wrapper hands [run] a context and then has to write to the same surface
+   itself: the newline that closes a line the session left open is written
+   after the display is torn down, so it cannot come out of the display. The
+   context is where that surface was named, and [ctx_ppf] is where the wrapper
+   reads it, so the byte it writes lands in the session's own transcript and
+   after it. *)
+let test_a_context_names_the_surface_it_draws_on () =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let now, advance = fake_clock () in
+  let ctx = ctx ~ppf ~now () in
+  Display.run ~ctx ~mode:`History ~header:"Building" (fun display ->
+      let resolve = Display.task display "resolve" in
+      advance 1.3;
+      Display.succeed resolve);
+  Fmt.pf (Display.ctx_ppf ctx) "after the session@.";
+  Format.pp_print_flush ppf ();
+  Alcotest.(check string)
+    "the wrapper wrote onto the session's own surface, after it"
+    ("=> resolve  1.3s\n" ^ "[+] Building 1.3s (1/1)\n" ^ "after the session\n")
+    (Buffer.contents buffer)
+
 (* Every log line and every finished row the display draws carries a marker,
    and the marker is the theme's. The default half pins the six default
    glyphs; the custom half is what proves they are read from the theme rather
@@ -1244,6 +1266,8 @@ let suite =
       Alcotest.test_case "bytes" `Quick test_bytes;
       Alcotest.test_case "span" `Quick test_span;
       Alcotest.test_case "history output" `Quick test_history_output;
+      Alcotest.test_case "a context names the surface it draws on" `Quick
+        test_a_context_names_the_surface_it_draws_on;
       Alcotest.test_case "a transient row leaves no line" `Quick
         test_transient_row_leaves_no_line;
       Alcotest.test_case "markers come from the theme" `Quick

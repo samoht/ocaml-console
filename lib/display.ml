@@ -335,6 +335,8 @@ let view ~ppf ~now ~dimensions ~is_tty ~char_width =
 let ctx ~ppf ~now ~dimensions ~is_tty () =
   Fresh (view ~ppf ~now ~dimensions ~is_tty ~char_width:None)
 
+let ctx_ppf (Fresh c) = c.ppf
+
 let with_char_width (Fresh c) char_width =
   Fresh { c with char_width = Some char_width }
 
