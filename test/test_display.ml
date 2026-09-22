@@ -1080,6 +1080,51 @@ let test_timer_keeps_its_cell () =
     [ "470/470    9.9s"; "470/470   10.0s"; "470/470   1m40s" ]
     !seen
 
+(* The count cell is the block's and is sized from each row's total, so the
+   columns a live label may take are one budget for the whole block: a row that
+   has counted nothing yet towards 470 and a row with no count at all both give
+   the label what is left after a seven-column count cell ("470/470"), not after
+   the five their own text needs ("0/470") or the none a countless row needs. On
+   a forty-column terminal that leaves 21 columns (a spinner, a space, the
+   spacer's column, the count cell, two separators and the six-column timer
+   cell), so a 22-column label is cut on both rows. A row counting from zero
+   draws no bar, so the bar takes no columns from either. *)
+let test_block_shares_one_label_budget () =
+  let width = 40 in
+  let rows = ref [] in
+  ignore
+    (terminal_run ~height:6 ~width (fun display _advance sync vte ->
+         let counting = Display.task display "workspace prepared now" in
+         Display.set_count counting ~cur:0 ~total:470;
+         let bare = Display.task display "packages checked twice" in
+         sync ();
+         rows :=
+           List.filteri
+             (fun i _ -> i < 2)
+             (String.split_on_char '\n' (Vte.to_string vte));
+         Display.succeed counting;
+         Display.succeed bare));
+  let expected =
+    [
+      ("workspace prepared now", "  0/470    0.0s");
+      ("packages checked twice", "           0.0s");
+    ]
+  in
+  Alcotest.(check int) "two live rows" 2 (List.length !rows);
+  List.iter2
+    (fun (label, cells) row ->
+      Alcotest.(check bool)
+        (label ^ " is cut to the block's budget")
+        false (contains label row);
+      Alcotest.(check bool)
+        (label ^ " carries the ellipsis")
+        true
+        (contains "\xe2\x80\xa6" row);
+      Alcotest.(check string)
+        (label ^ ": count cell, two spaces, timer cell")
+        cells (trailing 15 row))
+    expected !rows
+
 let test_default_visual_hierarchy_and_color_scope () =
   let width = 60 in
   let buffer = Buffer.create 512 in
@@ -1609,6 +1654,8 @@ let suite =
         test_rows_share_one_grid;
       Alcotest.test_case "a ticking timer keeps its cell" `Quick
         test_timer_keeps_its_cell;
+      Alcotest.test_case "a live block shares one label budget" `Quick
+        test_block_shares_one_label_budget;
       Alcotest.test_case "default visual hierarchy and color scope" `Quick
         test_default_visual_hierarchy_and_color_scope;
       Alcotest.test_case "activity collapse" `Quick test_activity_collapse;
