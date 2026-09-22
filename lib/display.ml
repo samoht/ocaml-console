@@ -37,6 +37,19 @@ let span secs =
     if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
     else Fmt.str "%dh%02dm" (s / 3600) (s / 60 mod 60)
 
+(* The columns a row's timer is laid out in. {!span} is six wide at its widest
+   below a hundred hours ("59m59s", "23h59m"), so a timer right-aligned in six
+   does not widen as it crosses ten seconds, a minute or an hour, and nothing
+   to its left moves while it ticks. A longer run takes the columns it needs
+   rather than losing a digit. *)
+let elapsed_cell = 6
+
+(* [s] right-aligned in [width] columns. Every cell here holds a count pair or
+   a span, both ASCII, so bytes are columns. *)
+let pad_left width s =
+  let n = String.length s in
+  if n >= width then s else String.make (width - n) ' ' ^ s
+
 (* Caller text is validated before it participates in width budgeting: a
    malformed sequence occupies a replacement-glyph cell in real terminals and
    controls could otherwise inject escapes or desynchronise redraw geometry. *)
@@ -259,6 +272,26 @@ end
 type mode = [ `Auto | `Activity | `History ]
 type metric = Spin | Count of int * int | Bytes of int64 * int64
 
+(* The pair a row's count cell holds: items done over items announced, or the
+   same in bytes. *)
+let count_text = function
+  | Spin -> ""
+  | Count (c, tot) -> Fmt.str "%d/%d" c tot
+  | Bytes (c, tot) -> bytes c ^ " / " ^ bytes tot
+
+(* The columns [metric] needs: the pair it ends on, so the cell is sized from
+   the total before the first update and a count does not walk left as it gains
+   digits, and the pair it holds now, which is wider only where a unit changes
+   under it ("1023.99 KiB" against a total of "1.00 MiB"). *)
+let count_width metric =
+  let full =
+    match metric with
+    | Spin -> Spin
+    | Count (_, total) -> Count (total, total)
+    | Bytes (_, total) -> Bytes (total, total)
+  in
+  max (String.length (count_text metric)) (String.length (count_text full))
+
 module Event = struct
   type level = [ `Info | `Warning | `Error ]
   type outcome = [ `Succeeded | `Failed | `Cancelled ]
@@ -379,6 +412,11 @@ type t = {
   auto_width : bool;
   auto_height : bool;
   mutable rows : row list; (* insertion order *)
+  mutable count_cell : int;
+      (* the columns every row lays its count pair in: the widest any row here
+         has needed. One width for the whole block, so a row counting to 2 puts
+         its pair in the same columns as one counting to 470, and monotone, so
+         a block already on screen never narrows under a later row *)
   by_key : (string, row) Hashtbl.t;
   mutable events_rev : Event.t list;
       (* permanent semantic events, newest first *)
@@ -559,11 +597,13 @@ let render_percent t row ~finished =
     | Some p -> Fmt.kstr (dimmed t) "%3d%%" p
     | None -> ""
 
-let render_count t row =
-  match row.metric with
-  | Count (c, tot) -> Fmt.kstr (dimmed t) "%d/%d" c tot
-  | Bytes (c, tot) -> dimmed t (bytes c ^ " / " ^ bytes tot)
-  | Spin -> ""
+(* A cell's text right-aligned in it, the padding outside the styling so an
+   empty cell carries no escapes. *)
+let dim_cell t width text =
+  let pad = String.make (max 0 (width - String.length text)) ' ' in
+  if text = "" then pad else pad ^ dimmed t text
+
+let render_count t row = dim_cell t t.count_cell (count_text row.metric)
 
 let render_rate t row ~finished =
   if finished then ""
@@ -581,7 +621,7 @@ let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
   | Line.Percent -> render_percent t row ~finished
   | Line.Count -> render_count t row
   | Line.Rate -> render_rate t row ~finished
-  | Line.Elapsed -> dimmed t (span (elapsed t row))
+  | Line.Elapsed -> dim_cell t elapsed_cell (span (elapsed t row))
   | Line.Text s -> s
   | Line.Accent s -> styled t (bold ^ color_code color) s
 
@@ -634,13 +674,6 @@ let render_row t row =
      (which assumes one row per line) corrupts. *)
   truncate t width (Buffer.contents buf)
 
-(* The compact metric for a finished row in a plain (non-tty) log line. *)
-let final_metric row =
-  match row.metric with
-  | Spin -> ""
-  | Count (c, tot) -> Fmt.str "  %d/%d" c tot
-  | Bytes (c, tot) -> Fmt.str "  %s / %s" (bytes c) (bytes tot)
-
 let committed_parts t row =
   let label = Option.value row.rmessage ~default:row.rlabel in
   let marker =
@@ -651,7 +684,7 @@ let committed_parts t row =
     | Some outcome -> Theme.committed_marker t.theme outcome
     | None -> ".."
   in
-  (indent row, marker, label, final_metric row, span (elapsed t row))
+  (indent row, marker, label, span (elapsed t row))
 
 (* The marker's style for a committed row: the outcome's colour, or dim for a
    row that never reported one. One producer for the compact and the
@@ -666,9 +699,14 @@ let committed_marker_style row =
 (* Compact against width-aligned is the only difference between this line and
    {!styled_committed}: both read {!t.styling} through {!styled}/{!dimmed}, so
    the outcome's colour is on the marker and dim on the metadata on either
-   surface. *)
+   surface. An appended line has no right edge to lay a grid against and no
+   later line can move an earlier one, so its metric takes the columns it
+   takes. *)
 let plain_committed t row =
-  let indent, marker, label, metric, elapsed = committed_parts t row in
+  let indent, marker, label, elapsed = committed_parts t row in
+  let metric =
+    match count_text row.metric with "" -> "" | text -> "  " ^ text
+  in
   let metadata = metric ^ "  " ^ elapsed in
   Fmt.str "%s%s %s%s" indent
     (styled t (committed_marker_style row) marker)
@@ -676,19 +714,23 @@ let plain_committed t row =
 
 let styled_committed t row =
   let marker_style = committed_marker_style row in
-  let indent, marker, label, metric, elapsed = committed_parts t row in
+  let indent, marker, label, elapsed = committed_parts t row in
   let width = render_width t in
   let marker = styled t marker_style marker in
   let fixed_width = string_width t indent + string_width t marker + 1 in
-  let metric = String.trim metric in
-  let metadata = if metric = "" then elapsed else metric ^ "  " ^ elapsed in
   (* Permanent TTY history keeps the same visual columns as the live row: the
-     elapsed time reaches the terminal's right edge and count/byte metadata is
-     right-aligned immediately before it. Labels absorb all width variation.
-     Plain redirected output remains compact. *)
+     elapsed time reaches the terminal's right edge in a cell of its own, and
+     the count sits in the block's cell immediately before it, so every row of
+     a block ends its count where every other one does. Labels absorb all width
+     variation. A terminal too narrow for both keeps the timer. *)
+  let timer = pad_left elapsed_cell elapsed in
+  let metadata =
+    if t.count_cell = 0 then timer
+    else pad_left t.count_cell (count_text row.metric) ^ "  " ^ timer
+  in
   let metadata =
     if fixed_width + 2 + string_width t metadata <= width then metadata
-    else elapsed
+    else timer
   in
   let metadata_width = string_width t metadata in
   let label_width = max 0 (width - fixed_width - metadata_width - 2) in
@@ -996,6 +1038,7 @@ let state ~(ctx : view) ~plain ~styling ~theme ~palette ~bar ~width ~height
     auto_width = auto_width && not plain;
     auto_height = auto_height && not plain;
     rows = [];
+    count_cell = 0;
     by_key = Hashtbl.create 16;
     events_rev = [];
     next_task_id = 0;
@@ -1386,6 +1429,13 @@ let event ?(level = `Info) t message =
           emit_history_line t ~plain:log ~styled:log)
     lines
 
+(* Every metric change goes through here, so the block's count cell widens with
+   the row that needs it and one width serves them all. *)
+let set_metric r metric =
+  r.metric <- metric;
+  r.disp.count_cell <- max r.disp.count_cell (count_width metric);
+  touch r
+
 let set_count r ~cur ~total =
   check_open "set_count" r.disp;
   if cur < 0 || total < 0 then
@@ -1401,8 +1451,7 @@ let set_count r ~cur ~total =
       | Bytes _ ->
           invalid_arg "Console.Display.set_count: task already tracks bytes"
     in
-    r.metric <- Count (cur, total);
-    touch r
+    set_metric r (Count (cur, total))
   end
 
 let advance ?(by = 1) ?total ?label r =
@@ -1452,8 +1501,7 @@ let set_bytes r ~cur ~total =
       r.last_cur <- cur;
       r.last_t <- now
     end;
-    r.metric <- Bytes (cur, total);
-    touch r
+    set_metric r (Bytes (cur, total))
   end
 
 let running_children r =

@@ -56,13 +56,19 @@ module Line : sig
   (** Completion percentage for determinate progress. *)
 
   val count : piece
-  (** Item count or byte-count pair, according to the task metric. *)
+  (** Item count or byte-count pair, according to the task metric, right-aligned
+      in one cell for the whole display. The cell is sized from the totals the
+      rows announce, never from what they have reached, so a count holds its
+      columns as it climbs and every row of a block ends its pair in the same
+      place. A row with no metric leaves the cell empty. *)
 
   val rate : piece
   (** Transfer rate for byte-count tasks. *)
 
   val elapsed : piece
-  (** Time elapsed since the task started. *)
+  (** Time elapsed since the task started, right-aligned in a cell wide enough
+      for the widest {!span} below a hundred hours, so nothing to its left moves
+      when the timer crosses ten seconds, a minute or an hour. *)
 
   val text : string -> piece
   (** [text s] is a sanitized literal separator. *)
