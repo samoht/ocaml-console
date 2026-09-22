@@ -993,6 +993,93 @@ let test_committed_metadata_is_right_aligned () =
   Alcotest.(check (pair int int))
     "cursor begins the row after history" (3, 0) (Vte.cursor_pos vte)
 
+(* The trailing cells of a row as the terminal received them: its last
+   [columns] columns, which are the count cell, two spaces and the elapsed
+   cell. Bytes are columns here -- a bar glyph or a wide label sits further
+   left, and a count pair and a span are ASCII. *)
+let trailing columns row =
+  let n = String.length row in
+  if n < columns then row else String.sub row (n - columns) columns
+
+(* A whole block of rows shares one column grid: a count cell sized from the
+   widest total the block carries ("470/470", seven columns), two spaces, and a
+   timer cell six columns wide. So a row counting to 2 puts its pair in the same
+   columns as one counting to 470, a row with no count leaves those columns
+   empty rather than sliding its timer left, and the row whose timer passed ten
+   seconds does not sit a column off its neighbours. The expected cells are the
+   grid itself, not this display's own answer read back. *)
+let test_rows_share_one_grid () =
+  let width = 70 in
+  let vte =
+    terminal_run ~height:10 ~width (fun display advance _sync _vte ->
+        let finish ?count elapsed label =
+          let task = Display.task display label in
+          Option.iter
+            (fun (cur, total) -> Display.set_count task ~cur ~total)
+            count;
+          advance elapsed;
+          Display.succeed task
+        in
+        finish ~count:(12, 256) 0.0 "pins synced";
+        finish ~count:(470, 470) 0.2 "opam synced";
+        finish ~count:(470, 470) 11.4 "packages checked";
+        finish 0.4 "workspace prepared";
+        finish 0.0 "split";
+        finish ~count:(2, 2) 1.0 "pushed")
+  in
+  let rows =
+    terminal_rows vte
+    |> List.filter (fun row -> String.starts_with ~prefix:"=>" row)
+  in
+  let expected =
+    [
+      (" 12/256", "  0.0s");
+      ("470/470", "  0.2s");
+      ("470/470", " 11.4s");
+      ("       ", "  0.4s");
+      ("       ", "  0.0s");
+      ("    2/2", "  1.0s");
+    ]
+  in
+  Alcotest.(check int)
+    "six permanent task rows" (List.length expected) (List.length rows);
+  List.iter2
+    (fun (count, elapsed) row ->
+      Alcotest.(check int)
+        "committed row reaches the right edge" width (Width.string_width row);
+      Alcotest.(check string)
+        "count cell, two spaces, timer cell"
+        (count ^ "  " ^ elapsed)
+        (trailing 15 row))
+    expected rows;
+  Alcotest.(check int)
+    "committed rows do not enter scrollback" 0 (Vte.scrollback_size vte)
+
+(* The same grid on a row that is still running. The timer crosses ten seconds
+   and then a minute; it grows inside its own cell, so the count to its left
+   holds its columns and the live line does not jump as it ticks. *)
+let test_timer_keeps_its_cell () =
+  let width = 70 in
+  let seen = ref [] in
+  ignore
+    (terminal_run ~height:6 ~width (fun display advance sync vte ->
+         let task = Display.task display "packages checked" in
+         Display.set_count task ~cur:470 ~total:470;
+         List.iter
+           (fun dt ->
+             advance dt;
+             sync ();
+             let row =
+               List.hd (String.split_on_char '\n' (Vte.to_string vte))
+             in
+             seen := !seen @ [ trailing 15 row ])
+           [ 9.9; 0.1; 90.0 ];
+         Display.succeed task));
+  Alcotest.(check (list string))
+    "the timer grows inside its cell"
+    [ "470/470    9.9s"; "470/470   10.0s"; "470/470   1m40s" ]
+    !seen
+
 let test_default_visual_hierarchy_and_color_scope () =
   let width = 60 in
   let buffer = Buffer.create 512 in
@@ -1518,6 +1605,10 @@ let suite =
         test_zero_progress_has_no_empty_bar;
       Alcotest.test_case "committed metadata is right aligned" `Quick
         test_committed_metadata_is_right_aligned;
+      Alcotest.test_case "a block shares one column grid" `Quick
+        test_rows_share_one_grid;
+      Alcotest.test_case "a ticking timer keeps its cell" `Quick
+        test_timer_keeps_its_cell;
       Alcotest.test_case "default visual hierarchy and color scope" `Quick
         test_default_visual_hierarchy_and_color_scope;
       Alcotest.test_case "activity collapse" `Quick test_activity_collapse;
