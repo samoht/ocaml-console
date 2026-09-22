@@ -44,12 +44,6 @@ let span secs =
    rather than losing a digit. *)
 let elapsed_cell = 6
 
-(* [s] right-aligned in [width] columns. Every cell here holds a count pair or
-   a span, both ASCII, so bytes are columns. *)
-let pad_left width s =
-  let n = String.length s in
-  if n >= width then s else String.make (width - n) ' ' ^ s
-
 (* Caller text is validated before it participates in width budgeting: a
    malformed sequence occupies a replacement-glyph cell in real terminals and
    controls could otherwise inject escapes or desynchronise redraw geometry. *)
@@ -490,6 +484,7 @@ let render_width t = t.width
 let string_width t = Width.string_width ?char_width:t.char_width
 let truncate t = Width.truncate ?char_width:t.char_width
 let ellipsize t = Width.ellipsize ?char_width:t.char_width
+let pad_left t = Width.pad_left ?char_width:t.char_width
 let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
 
 (* Plain (append-only) mode keeps a flat indent: a committed line is emitted
@@ -600,8 +595,8 @@ let render_percent t row ~finished =
 (* A cell's text right-aligned in it, the padding outside the styling so an
    empty cell carries no escapes. *)
 let dim_cell t width text =
-  let pad = String.make (max 0 (width - String.length text)) ' ' in
-  if text = "" then pad else pad ^ dimmed t text
+  if text = "" then String.make (max 0 width) ' '
+  else pad_left t width (dimmed t text)
 
 let render_count t row = dim_cell t t.count_cell (count_text row.metric)
 
@@ -723,10 +718,10 @@ let styled_committed t row =
      the count sits in the block's cell immediately before it, so every row of
      a block ends its count where every other one does. Labels absorb all width
      variation. A terminal too narrow for both keeps the timer. *)
-  let timer = pad_left elapsed_cell elapsed in
+  let timer = pad_left t elapsed_cell elapsed in
   let metadata =
     if t.count_cell = 0 then timer
-    else pad_left t.count_cell (count_text row.metric) ^ "  " ^ timer
+    else pad_left t t.count_cell (count_text row.metric) ^ "  " ^ timer
   in
   let metadata =
     if fixed_width + 2 + string_width t metadata <= width then metadata
