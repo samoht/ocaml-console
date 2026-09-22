@@ -653,18 +653,29 @@ let committed_parts t row =
   in
   (indent row, marker, label, final_metric row, span (elapsed t row))
 
+(* The marker's style for a committed row: the outcome's colour, or dim for a
+   row that never reported one. One producer for the compact and the
+   width-aligned rendering, which differ in layout alone. *)
+let committed_marker_style row =
+  match row.routcome with
+  | Some `Succeeded -> bold ^ color_code Color.green
+  | Some `Failed -> bold ^ color_code Color.red
+  | Some `Cancelled -> bold ^ color_code Color.yellow
+  | None -> dim
+
+(* Compact against width-aligned is the only difference between this line and
+   {!styled_committed}: both read {!t.styling} through {!styled}/{!dimmed}, so
+   the outcome's colour is on the marker and dim on the metadata on either
+   surface. *)
 let plain_committed t row =
   let indent, marker, label, metric, elapsed = committed_parts t row in
-  Fmt.str "%s%s %s%s  %s" indent marker label metric elapsed
+  let metadata = metric ^ "  " ^ elapsed in
+  Fmt.str "%s%s %s%s" indent
+    (styled t (committed_marker_style row) marker)
+    label (dimmed t metadata)
 
 let styled_committed t row =
-  let marker_style =
-    match row.routcome with
-    | Some `Succeeded -> bold ^ color_code Color.green
-    | Some `Failed -> bold ^ color_code Color.red
-    | Some `Cancelled -> bold ^ color_code Color.yellow
-    | None -> dim
-  in
+  let marker_style = committed_marker_style row in
   let indent, marker, label, metric, elapsed = committed_parts t row in
   let width = render_width t in
   let marker = styled t marker_style marker in
@@ -709,45 +720,38 @@ let header_marker t =
   else if any_cancelled t then ("[~]", Color.yellow)
   else ("[+]", Color.green)
 
-let summary t =
-  match t.header with
-  | None -> None
-  | Some h ->
-      Fmt.kstr
-        (fun s -> Some s)
-        "%s %s %s (%d/%d)"
-        (fst (header_marker t))
-        h
-        (span (t.now () -. t.dstart))
-        t.finished (List.length t.rows)
+(* The header: a bright marker, a bold name, a dim elapsed and done/total.
+   One line under two names, [summary] and [header_styled], until the surface
+   that asks for it decided the layout and the colour together; now [fit]
+   alone separates the compact append-only line from the width-aligned
+   terminal one, and both read {!t.styling} like every other line.
 
-(* The coloured header for a terminal: a bright marker, a bold name, a dim
-   elapsed and done/total. *)
-let header_styled t =
+   [fit] bounds the line to the terminal width, like every row: an over-wide
+   header that wrapped onto a second physical row would make the redraw
+   under-clear by one line every frame and strand a stale header (the
+   crawling-timestamp duplication). *)
+let summary_line t ~fit =
   match t.header with
   | None -> None
   | Some h ->
-      (* Bounded to the terminal width, like every row: an over-wide header that
-         wrapped onto a second physical row would make the redraw under-clear by
-         one line every frame and strand a stale header (the crawling-timestamp
-         duplication). *)
-      Some
-        (truncate t (render_width t)
-           (String.concat ""
-              (let marker, color = header_marker t in
-               [
-                 code t (color_code color);
-                 marker;
-                 code t reset_code;
-                 " ";
-                 code t bold;
-                 h;
-                 code t reset_code;
-                 " ";
-                 Fmt.kstr (dimmed t) "%s (%d/%d)"
-                   (span (t.now () -. t.dstart))
-                   t.finished (List.length t.rows);
-               ])))
+      let marker, color = header_marker t in
+      let line =
+        String.concat ""
+          [
+            code t (color_code color);
+            marker;
+            code t reset_code;
+            " ";
+            code t bold;
+            h;
+            code t reset_code;
+            " ";
+            Fmt.kstr (dimmed t) "%s (%d/%d)"
+              (span (t.now () -. t.dstart))
+              t.finished (List.length t.rows);
+          ]
+      in
+      Some (if fit then truncate t (render_width t) line else line)
 
 (* A live row split into its own line and its log tail (dimmed and indented
    beneath it, like buildkit's "=> => # ..." lines). Keeping the two apart lets
@@ -872,7 +876,9 @@ let rec row_live row =
   && match row.parent with None -> true | Some parent -> row_live parent
 
 let live_lines t =
-  let header = match header_styled t with Some s -> [ s ] | None -> [] in
+  let header =
+    match summary_line t ~fit:true with Some s -> [ s ] | None -> []
+  in
   let active = List.filter row_live t.rows in
   let blocks = List.map (row_block_parts t) active in
   cap_region t ~header ~blocks
@@ -1313,7 +1319,11 @@ let set_label r label =
 let commit_log t r entry =
   let marker = level_marker t.theme entry.llevel in
   let suffix = gap_suffix entry.lgap in
-  let plain = Fmt.str "%s  %s %s%s" (indent r) marker entry.lmessage suffix in
+  let plain =
+    Fmt.str "%s  %s %s%s" (indent r)
+      (styled t (level_style entry.llevel) marker)
+      entry.lmessage (dimmed t suffix)
+  in
   let styled =
     continuation t r ^ styled_log t entry.llevel marker entry.lmessage suffix
   in
@@ -1372,9 +1382,8 @@ let event ?(level = `Info) t message =
       | `Info -> emit_history_line t ~plain:message ~styled:message
       | (`Warning | `Error) as level ->
           let marker = level_marker t.theme level in
-          emit_history_line t
-            ~plain:(marker ^ " " ^ message)
-            ~styled:(styled t (level_style level) marker ^ " " ^ message))
+          let log = styled t (level_style level) marker ^ " " ^ message in
+          emit_history_line t ~plain:log ~styled:log)
     lines
 
 let set_count r ~cur ~total =
@@ -1548,7 +1557,7 @@ let result_line t result =
     | `Ok msg -> (Theme.ok_marker t.theme, color_code Color.green, msg)
     | `Fail msg -> (Theme.fail_marker t.theme, color_code Color.red, msg)
   in
-  if t.plain then marker ^ " " ^ msg
+  if t.plain then styled t (dim ^ accent) marker ^ " " ^ styled t bold msg
   else begin
     let indent = string_width t marker + 1 in
     let body = Width.wrap ~indent t.width msg in
@@ -1572,7 +1581,7 @@ let detail_lines t = function
   | Some d ->
       List.concat_map
         (fun l ->
-          if t.plain then [ l ]
+          if t.plain then [ dimmed t l ]
           else
             String.split_on_char '\n' (Width.wrap t.width l)
             |> List.map (dimmed t))
@@ -1589,7 +1598,9 @@ let close t =
     let detail = detail_lines t detail in
     let banner = Option.map (result_line t) result in
     if t.plain then begin
-      (match summary t with Some s -> Fmt.pf t.dppf "%s@." s | None -> ());
+      (match summary_line t ~fit:false with
+      | Some s -> Fmt.pf t.dppf "%s@." s
+      | None -> ());
       List.iter (fun s -> Fmt.pf t.dppf "%s@." s) detail;
       (match banner with Some s -> Fmt.pf t.dppf "%s@." s | None -> ());
       Format.pp_print_flush t.dppf ()
@@ -1603,7 +1614,9 @@ let close t =
         (fun () ->
           with_unlimited_margin t.dppf (fun () ->
               pp_clear t.dppf t.live_height;
-              (match header_styled t with Some s -> line s | None -> ());
+              (match summary_line t ~fit:true with
+              | Some s -> line s
+              | None -> ());
               List.iter line detail;
               match banner with Some s -> line s | None -> ()))
         ~finally:(fun () ->

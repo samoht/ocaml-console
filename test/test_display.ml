@@ -1452,7 +1452,8 @@ let test_history_adds_no_sgr_on_a_plain_surface () =
 
 let test_history_glyphs_do_not_depend_on_colour () =
   Alcotest.(check string)
-    "colour changes no glyph" (history_colour_session `None)
+    "colour changes no glyph"
+    (history_colour_session `None)
     (strip_sgr (history_colour_session `Ansi_tty))
 
 let suite =
