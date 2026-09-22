@@ -756,6 +756,7 @@ let test_differential_redraw label wbyte =
       ignore (Display.task display "[R1] prepare");
       let changed = Display.task display ("[R2] " ^ label) in
       ignore (Display.task display "[R3] verify");
+      Display.tick display;
       Format.pp_print_flush ppf ();
       Vte.feed_string vte (Buffer.contents buf);
       Buffer.clear buf;
@@ -764,6 +765,9 @@ let test_differential_redraw label wbyte =
       for cur = 1 to 10 do
         Vte.clear_dirty vte;
         Display.set_count changed ~cur ~total:10;
+        (* An update of its own repaints at the eye's pace, which on this
+           pinned clock is never; the tick is what puts the row on screen. *)
+        Display.tick display;
         Format.pp_print_flush ppf ();
         let update = Buffer.contents buf in
         Vte.feed_string vte update;

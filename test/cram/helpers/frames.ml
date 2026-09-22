@@ -31,7 +31,11 @@ let () =
     Vte.feed_string vte (Buffer.contents buf);
     Buffer.clear buf
   in
-  let frame title =
+  (* A frame is what the driver's tick painted. An update of its own repaints
+     at the eye's pace, which on this pinned clock is never, so a frame taken
+     without the tick shows the region as the previous one left it. *)
+  let frame ?display title =
+    Option.iter Console.Display.tick display;
     sync ();
     Fmt.pr "--- %s ---@." title;
     List.iter
@@ -40,6 +44,7 @@ let () =
   in
   let module P = Console.Display in
   P.run ~ctx ~mode:`Activity ~height ~header:"Build" (fun display ->
+      let frame title = frame ~display title in
       (* A tree: app -> {resolve, compile}, each with a small log window. *)
       let app = P.task ~log_lines:2 display "app" in
       P.log app "planning";
