@@ -1389,6 +1389,72 @@ let test_a_plain_renderer_keeps_the_cursor_control () =
   has "a shortened line was erased" "\027[K";
   has "the cursor came back" "\027[?25h"
 
+(* The append-only layout is compact, not colourless: a history-mode session on
+   a formatter that renders style carries the outcome's green on a committed
+   row's marker and dim on its metadata, and its header carries the same styles
+   the terminal header does. The one answer whether to colour is the
+   formatter's own style renderer, so the same session on [`None] adds no SGR
+   at all and the glyphs are unchanged. *)
+let history_colour_session renderer =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Fmt.set_style_renderer ppf renderer;
+  let now, advance = fake_clock () in
+  Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History ~header:"Build"
+    (fun display ->
+      let task = Display.task display "app" in
+      advance 1.3;
+      Display.succeed task);
+  Format.pp_print_flush ppf ();
+  Buffer.contents buffer
+
+(* The glyphs and layout of [s], with every SGR sequence removed. *)
+let strip_sgr s =
+  let n = String.length s in
+  let buffer = Buffer.create n in
+  let rec final j =
+    if j >= n then j
+    else
+      let c = Char.code s.[j] in
+      if c >= 0x40 && c <= 0x7e then j else final (j + 1)
+  in
+  let rec go i =
+    if i >= n then ()
+    else if i + 1 < n && s.[i] = '\027' && s.[i + 1] = '[' then begin
+      let stop = final (i + 2) in
+      if stop < n && s.[stop] = 'm' then go (stop + 1)
+      else begin
+        Buffer.add_substring buffer s i (stop + 1 - i);
+        go (stop + 1)
+      end
+    end
+    else begin
+      Buffer.add_char buffer s.[i];
+      go (i + 1)
+    end
+  in
+  go 0;
+  Buffer.contents buffer
+
+let test_history_carries_colour_on_a_styled_surface () =
+  let bytes = history_colour_session `Ansi_tty in
+  Alcotest.(check bool)
+    "the committed marker carries the outcome's green" true
+    (contains "\027[1m\027[32m=>\027[0m app" bytes);
+  Alcotest.(check bool)
+    "the committed metadata is dim" true
+    (contains "\027[2m  1.3s\027[0m" bytes)
+
+let test_history_adds_no_sgr_on_a_plain_surface () =
+  Alcotest.(check int)
+    "no SGR reached the pipe" 0
+    (sgr_sequences (history_colour_session `None))
+
+let test_history_glyphs_do_not_depend_on_colour () =
+  Alcotest.(check string)
+    "colour changes no glyph" (history_colour_session `None)
+    (strip_sgr (history_colour_session `Ansi_tty))
+
 let suite =
   ( "display",
     [
@@ -1475,4 +1541,10 @@ let suite =
         test_an_ansi_renderer_writes_sgr;
       Alcotest.test_case "a plain renderer keeps the cursor control" `Quick
         test_a_plain_renderer_keeps_the_cursor_control;
+      Alcotest.test_case "history carries colour on a styled surface" `Quick
+        test_history_carries_colour_on_a_styled_surface;
+      Alcotest.test_case "history adds no SGR on a plain surface" `Quick
+        test_history_adds_no_sgr_on_a_plain_surface;
+      Alcotest.test_case "history glyphs do not depend on colour" `Quick
+        test_history_glyphs_do_not_depend_on_colour;
     ] )
