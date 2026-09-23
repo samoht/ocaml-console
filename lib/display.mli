@@ -355,10 +355,23 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
     task finished do nothing. A task cannot switch between counting items and
     counting bytes. *)
 
-val log : ?level:Event.level -> task -> string -> unit
+val log : ?level:Event.level -> ?keep:bool -> task -> string -> unit
 (** [log task text] appends each line permanently to {!history}; the latest
     lines also appear in the task's bounded activity tail. Logs arriving after
-    completion remain attached to the completed task in permanent history. *)
+    completion remain attached to the completed task in permanent history.
+
+    With [~keep:false] (default [true]) a line is a window line: it is drawn in
+    the task's tail while it is one of the last [log_lines], and it never
+    reaches history or {!history}, neither when it leaves the tail nor when the
+    task ends. Where there is no tail to draw it in (an appending display, a
+    task with no [log_lines], a finished task) it is not written at all. This is
+    how a live stream is watched in a bounded window, the way BuildKit's TTY
+    progress shows the last lines of a running step and drops them when the step
+    ends.
+
+    A tail line that does not fit the terminal loses words from its end, and one
+    whose first word does not fit folds under it, whole; the tail is [log_lines]
+    lines high on screen whatever its lines fold into. *)
 
 val event : ?level:Event.level -> t -> string -> unit
 (** [event display text] appends permanent session-level messages, one per input

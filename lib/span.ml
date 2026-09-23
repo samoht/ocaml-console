@@ -108,6 +108,25 @@ let truncate ?(char_width = Width.default_char_width) target t =
     in
     loop target [] t
 
+(* [t] without its first [width head] columns, [head] being a prefix of [t]
+   that {!truncate} made, which never cuts a grapheme. *)
+let drop ~char_width head t =
+  let rec skip n = function
+    | [] -> []
+    | atom :: rest ->
+        let w = Width.string_width ~char_width atom.text in
+        if w <= n then skip (n - w) rest
+        else
+          let kept = Width.truncate ~char_width n atom.text in
+          let off = String.length kept in
+          {
+            atom with
+            text = String.sub atom.text off (String.length atom.text - off);
+          }
+          :: rest
+  in
+  skip (width ~char_width head) t
+
 let tokens t =
   let result = ref [] and current = ref [] in
   let add atom text =
@@ -157,13 +176,16 @@ let wrap ?(char_width = Width.default_char_width) target t =
           loop acc (line ++ token) (line_width + token_width) rest
         else if line <> empty then
           loop (line :: acc) empty 0 (trim_leading_space token :: rest)
+        else if token_width <= target then loop (token :: acc) empty 0 rest
         else
-          let shown =
-            if token_width <= target then token
-            else if target = 1 then truncate ~char_width 1 token
-            else truncate ~char_width (target - 1) token ++ text "…"
-          in
-          loop (shown :: acc) empty 0 rest
+          (* A token wider than a whole line goes on at the start of the next,
+             so every character of a path or a digest is printed. *)
+          let head = truncate ~char_width target token in
+          if width ~char_width head > 0 then
+            loop (head :: acc) empty 0 (drop ~char_width head token :: rest)
+          else
+            (* A glyph wider than the whole line cannot be drawn in it. *)
+            loop acc empty 0 rest
   in
   match tokens t with [] -> [ empty ] | tokens -> loop [] empty 0 tokens
 

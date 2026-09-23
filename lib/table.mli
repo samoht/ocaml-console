@@ -16,7 +16,9 @@ type align = [ `Left | `Center | `Right ]
 type overflow = [ `Truncate | `Wrap ]
 (** How to handle content that exceeds max_width.
 
-    - [`Truncate]: Cut off with ellipsis
+    - [`Truncate]: Keep the leading words that fit on one line and drop the
+      rest; a value whose first word does not fit is printed whole, over several
+      lines, as with [`Wrap]. No word is ever cut.
     - [`Wrap]: Wrap to multiple lines (default) *)
 
 type column

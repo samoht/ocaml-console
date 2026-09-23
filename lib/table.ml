@@ -165,7 +165,7 @@ let rendered_width t widths =
 
 (* Shrink columns to fit [max_width] columns when given. With no width to fit --
    a pipe or file -- squeezing would wrap or clip cell text (e.g. a long event
-   name to "sp…"), corrupting output meant to be read or machine-ingested, so
+   name to "sp"), corrupting output meant to be read or machine-ingested, so
    the natural widths are kept. *)
 let shrink_widths_to_terminal ?max_width t unbroken_widths widths =
   match max_width with
@@ -291,13 +291,20 @@ let process_cell ~char_width ~styled ~style ~pad_right overflow align width span
     if width <= 0 then [ Span.empty ]
     else
       match overflow with
-      | `Truncate ->
+      | `Truncate -> (
           let cell_width = Span.width ~char_width span in
           if cell_width <= width then [ span ]
-          else if width <= 1 then [ Span.truncate ~char_width width span ]
           else
-            let truncated = Span.truncate ~char_width (width - 1) span in
-            [ Span.(truncated ++ text "…") ]
+            (* Whole words from the start, never a word cut; a value whose
+               first word does not fit is printed whole, over several lines. *)
+            match Width.shorten ~char_width width (Span.to_string span) with
+            | "" -> Span.wrap ~char_width width span
+            | kept ->
+                [
+                  Span.truncate ~char_width
+                    (Width.string_width ~char_width kept)
+                    span;
+                ])
       | `Wrap -> Span.wrap ~char_width width span
   in
   let lines = span_lines span |> List.concat_map process_line in

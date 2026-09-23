@@ -374,6 +374,208 @@ let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
         in
         String.concat "" [ head; closing head; ellipsis; tail; closing tail ]
 
+let is_space (piece, _) = String.equal piece " "
+
+let is_escape (piece, width) =
+  width = 0 && String.length piece > 0 && piece.[0] = '\027'
+
+(* Where a row may lose its end: a space outside any bracket, so a group such
+   as "(300s bound)" goes as one word and never leaves "(300s" behind. A
+   bracket that never closes groups nothing, and every space is a break. *)
+let breaks atoms =
+  let depth = ref 0 in
+  let grouped =
+    List.map
+      (fun ((piece, _) as atom) ->
+        (match piece with
+        | "(" | "[" | "{" -> incr depth
+        | ")" | "]" | "}" -> depth := max 0 (!depth - 1)
+        | _ -> ());
+        (atom, !depth = 0 && is_space atom))
+      atoms
+  in
+  if !depth = 0 then grouped
+  else List.map (fun atom -> (atom, is_space atom)) atoms
+
+(* A run of words that lost its tail ends on a word, not on the separator the
+   next word needed. *)
+let rec trim_end = function
+  | (piece, _) :: rest
+    when String.equal piece " " || String.equal piece ","
+         || String.equal piece ";" ->
+      trim_end rest
+  | atoms -> atoms
+
+(* The words that only lead into the words after them: a row that lost those
+   words does not end on one ("building in", "waiting for"). *)
+let leading_words =
+  [
+    "a";
+    "an";
+    "and";
+    "as";
+    "at";
+    "by";
+    "for";
+    "from";
+    "in";
+    "into";
+    "of";
+    "on";
+    "or";
+    "the";
+    "to";
+    "via";
+    "with";
+  ]
+
+(* [kept_rev], reversed atoms, without the separators and the leading words at
+   its end, nor a colon that introduced what went. *)
+let rec settle kept_rev =
+  match trim_end kept_rev with
+  | (":", _) :: rest -> settle rest
+  | kept_rev -> (
+      let rec last_word word = function
+        | atom :: rest when not (is_space atom) -> last_word (atom :: word) rest
+        | rest -> (word, rest)
+      in
+      let word, rest = last_word [] kept_rev in
+      let text =
+        String.lowercase_ascii (String.concat "" (List.map fst word))
+      in
+      match rest with
+      | _ :: _ when List.mem text leading_words -> settle rest
+      | _ -> kept_rev)
+
+let shorten ?(char_width = default_char_width) target_width str =
+  if string_width ~char_width str <= target_width then str
+  else if target_width <= 0 then ""
+  else
+    let rec walk kept_rev width best = function
+      | [] -> best
+      | (((_, piece_width) as atom), break) :: rest ->
+          let best =
+            if break && width <= target_width then kept_rev else best
+          in
+          if width > target_width then best
+          else walk (atom :: kept_rev) (width + piece_width) best rest
+    in
+    let kept_rev = walk [] 0 [] (breaks (atoms ~char_width str)) in
+    match List.rev (settle kept_rev) with
+    | [] -> ""
+    | kept ->
+        let head = String.concat "" (List.map fst kept) in
+        head ^ closing head
+
+(* The escapes still in force after [piece]: a reset ends every style, a
+   hyperlink's close ends the hyperlink, and anything else is added. *)
+let in_force active piece =
+  let sgr p = String.length p > 1 && p.[1] = '[' in
+  let link p = String.starts_with ~prefix:"\027]8;" p in
+  let closes_link p =
+    String.equal p "\027]8;;\027\\" || String.equal p "\027]8;;\007"
+  in
+  if String.equal piece "\027[0m" || String.equal piece "\027[m" then
+    List.filter (fun p -> not (sgr p)) active
+  else if closes_link piece then List.filter (fun p -> not (link p)) active
+  else active @ [ piece ]
+
+(* [atoms] as runs of words and runs of spaces, each with its width. *)
+let runs atoms =
+  let flush current acc =
+    match current with
+    | [] -> acc
+    | _ :: _ as run ->
+        let run = List.rev run in
+        (run, List.fold_left (fun n (_, w) -> n + w) 0 run) :: acc
+  in
+  let rec go current kind acc = function
+    | [] -> List.rev (flush current acc)
+    | atom :: rest ->
+        let space = is_space atom in
+        if (not (is_escape atom)) && space <> kind && current <> [] then
+          go [ atom ] space (flush current acc) rest
+        else if current = [] then go [ atom ] space acc rest
+        else go (atom :: current) kind acc rest
+  in
+  go [] false [] atoms
+
+(* The line [fold] is filling: its atoms, newest first, and its width; the
+   lines it has finished, newest first; and the escapes in force, at the end
+   of the line and where it began. *)
+type folding = {
+  mutable lines : string list;
+  mutable line : (string * int) list;
+  mutable width : int;
+  mutable active : string list;
+  mutable opened : string list;
+}
+
+let add f ((piece, piece_width) as atom) =
+  f.line <- atom :: f.line;
+  f.width <- f.width + piece_width;
+  if is_escape atom then f.active <- in_force f.active piece
+
+let finish f =
+  let text = String.concat "" (List.rev_map fst (trim_end f.line)) in
+  let text = String.concat "" f.opened ^ text in
+  f.lines <- (text ^ closing (String.concat "" f.active)) :: f.lines;
+  f.line <- [];
+  f.width <- 0;
+  f.opened <- f.active
+
+let blank f = List.for_all is_escape f.line
+let run_width run = List.fold_left (fun n (_, w) -> n + w) 0 run
+
+(* The atoms of a word wider than a line that fit on the line under way,
+   which starts blank; a glyph wider than the whole line goes on alone. What
+   is left of the word is returned. *)
+let rec fill f target_width = function
+  | [] -> []
+  | ((_, w) as atom) :: rest ->
+      if f.width + w <= target_width || (blank f && w > target_width) then begin
+        add f atom;
+        fill f target_width rest
+      end
+      else atom :: rest
+
+let rec place f ~split target_width run =
+  let fits = f.width + run_width run <= target_width in
+  match run with
+  | [] -> ()
+  | first :: _ when is_space first ->
+      (* A line after a break starts at its word, not at the spaces the break
+         stood on; the first line keeps its indentation. *)
+      if blank f && f.lines <> [] then ()
+      else if fits then List.iter (add f) run
+      else if not (blank f) then finish f
+  | _ when fits -> List.iter (add f) run
+  | _ when not (blank f) ->
+      finish f;
+      place f ~split target_width run
+  | _ when not split ->
+      List.iter (add f) run;
+      finish f
+  | _ -> (
+      (* The word alone is wider than a line: it goes on, whole, at the start
+         of the next one. *)
+      match fill f target_width run with
+      | [] -> ()
+      | rest ->
+          finish f;
+          place f ~split target_width rest)
+
+let fold ?(char_width = default_char_width) ?(split = false) target_width str =
+  if target_width <= 0 || string_width ~char_width str <= target_width then
+    [ str ]
+  else
+    let f = { lines = []; line = []; width = 0; active = []; opened = [] } in
+    List.iter
+      (fun (run, _) -> place f ~split target_width run)
+      (runs (atoms ~char_width str));
+    if (not (blank f)) || f.lines = [] then finish f;
+    List.rev f.lines
+
 let pad_right ?(char_width = default_char_width) target_width str =
   let str_width = string_width ~char_width str in
   if str_width >= target_width then str

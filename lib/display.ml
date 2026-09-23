@@ -432,6 +432,8 @@ and row_log = {
   lgap : float;
   llevel : Event.level;
   lmessage : string;
+  lkept : bool;
+      (* history takes it when it leaves the tail; a window line is dropped *)
 }
 
 and row = {
@@ -483,7 +485,8 @@ let dimmed t s = if t.styling then Ansi.dimmed s else s
 let render_width t = t.width
 let string_width t = Width.string_width ?char_width:t.char_width
 let truncate t = Width.truncate ?char_width:t.char_width
-let ellipsize t = Width.ellipsize ?char_width:t.char_width
+let shorten t = Width.shorten ?char_width:t.char_width
+let fold t = Width.fold ?char_width:t.char_width
 let pad_left t = Width.pad_left ?char_width:t.char_width
 let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
 
@@ -620,9 +623,12 @@ let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
   | Line.Text s -> s
   | Line.Accent s -> styled t (bold ^ color_code color) s
 
-(* Render a row from its style. The label is the flexible content (truncated to
-   fit) and a single [Spacer] absorbs the remaining slack so later pieces (the
-   elapsed timer) sit at the right margin. *)
+(* Render a row from its style. The label is the flexible content and a single
+   [Spacer] absorbs the remaining slack so later pieces (the elapsed timer) sit
+   at the right margin. A live row is one line, which the redraw counts on, so
+   a label too wide for it loses words from its end, never characters; one
+   whose first word does not fit is not drawn while the row runs, and the line
+   the row commits carries it whole. *)
 let render_row t row =
   let finished = row.rfinish <> None in
   let { Line.pieces; color } = row.style in
@@ -652,8 +658,8 @@ let render_row t row =
   let avail = max 0 (width - fixed_w - reserve) in
   let label_shown =
     if not has_label then ""
-    else if string_width t label_text > avail then ellipsize t avail label_text
-    else label_text
+    else if string_width t label_text <= avail then label_text
+    else shorten t avail label_text
   in
   let slack = max reserve (width - fixed_w - string_width t label_shown) in
   let buf = Buffer.create 80 in
@@ -665,8 +671,9 @@ let render_row t row =
       | Line.Spacer -> Buffer.add_string buf (String.make slack ' ')
       | _ -> Buffer.add_string buf s)
     rendered;
-  (* Final guard: never exceed the width, or the line wraps and the redraw maths
-     (which assumes one row per line) corrupts. *)
+  (* Final guard for pieces that are not the label: a row whose fixed pieces
+     alone are wider than the terminal would wrap, and the redraw maths (which
+     assumes one row per line) corrupts. *)
   truncate t width (Buffer.contents buf)
 
 let committed_parts t row =
@@ -729,11 +736,23 @@ let styled_committed t row =
   in
   let metadata_width = string_width t metadata in
   let label_width = max 0 (width - fixed_width - metadata_width - 2) in
-  let label = ellipsize t label_width label in
-  let left = String.concat "" [ indent; marker; " "; label ] in
+  (* History has no redraw to protect, so a label that does not fit folds
+     onto the lines below it, like a long git subject in [git log --oneline]
+     does in a terminal, rather than losing words; a word wider than the room
+     stands whole and the terminal wraps it. *)
+  let first, rest =
+    match fold t label_width label with
+    | first :: rest when string_width t first <= label_width -> (first, rest)
+    | lines -> ("", lines)
+  in
+  let left = String.concat "" [ indent; marker; " "; first ] in
   let gap = width - string_width t left - metadata_width in
-  if gap > 0 then left ^ String.make gap ' ' ^ dimmed t metadata
-  else truncate t width (left ^ dimmed t metadata)
+  let head =
+    if gap > 0 then left ^ String.make gap ' ' ^ dimmed t metadata
+    else truncate t width (left ^ dimmed t metadata)
+  in
+  let under = String.make fixed_width ' ' in
+  String.concat "\r\n" (head :: List.map (fun line -> under ^ line) rest)
 
 let complete t =
   let total = List.length t.rows in
@@ -772,6 +791,18 @@ let summary_line t ~fit =
   | None -> None
   | Some h ->
       let marker, color = header_marker t in
+      let meta =
+        Fmt.str "%s (%d/%d)"
+          (span (t.now () -. t.dstart))
+          t.finished (List.length t.rows)
+      in
+      let h =
+        if not fit then h
+        else
+          shorten t
+            (render_width t - string_width t marker - string_width t meta - 2)
+            h
+      in
       let line =
         String.concat ""
           [
@@ -783,9 +814,7 @@ let summary_line t ~fit =
             h;
             code t reset_code;
             " ";
-            Fmt.kstr (dimmed t) "%s (%d/%d)"
-              (span (t.now () -. t.dstart))
-              t.finished (List.length t.rows);
+            dimmed t meta;
           ]
       in
       Some (if fit then truncate t (render_width t) line else line)
@@ -814,33 +843,48 @@ let styled_log t level marker message suffix =
     [ styled t (level_style level) marker; " "; message; dimmed t suffix ]
 
 let row_block_parts t row =
+  let prefix = continuation t row in
   let tail =
-    List.map
+    List.concat_map
       (fun log ->
         let marker = level_marker t.theme log.llevel in
         let suffix = gap_suffix log.lgap in
-        let prefix = continuation t row in
         (* The message is what has to give when the room runs out: the marker
            says how loud the line is and the suffix how long the gap before it
-           was, and neither survives being cut. It gives at its END, unlike a
-           row label. A label is this display's own naming of a value, where a
-           middle cut keeps the head that identifies a digest and the tail that
-           names a file; a message is the caller's own text, where the same cut
-           joins two ends that were never next to each other and leaves a
-           shorter sentence rather than a line that says it was shortened. *)
+           was. It gives words from its end, so what is drawn is the line's own
+           start and never a line cut through a word; one whose first word does
+           not fit folds under the marker, whole. *)
         let room =
           render_width t - string_width t prefix - string_width t marker - 1
           - string_width t suffix
         in
-        truncate t (render_width t)
-          (String.concat ""
-             [
-               prefix;
-               styled_log t log.llevel marker
-                 (ellipsize t ~at:`End room log.lmessage)
-                 suffix;
-             ]))
+        let lines =
+          match shorten t room log.lmessage with
+          | "" when room > 0 -> fold t ~split:true room log.lmessage
+          | "" -> []
+          | shown -> [ shown ]
+        in
+        let under = String.make (string_width t marker) ' ' in
+        List.mapi
+          (fun i line ->
+            let last = i = List.length lines - 1 in
+            truncate t (render_width t)
+              (String.concat ""
+                 [
+                   prefix;
+                   (if i = 0 then
+                      styled_log t log.llevel marker line
+                        (if last then suffix else "")
+                    else
+                      under ^ " " ^ line ^ if last then dimmed t suffix else "");
+                 ]))
+          lines)
       row.logs
+  in
+  (* The tail is [log_lines] high on screen whatever its lines fold into. *)
+  let tail =
+    let excess = List.length tail - row.log_lines in
+    if excess > 0 then List.filteri (fun i _ -> i >= excess) tail else tail
   in
   (render_row t row, tail)
 
@@ -1374,7 +1418,7 @@ let commit_log t r entry =
    it when it ages out of the tail or the row finishes: still permanent, still
    in order, drawn once. A line with no tail to hold it -- plain output, a row
    that keeps none, a row already finished -- is committed where it is made. *)
-let log ?(level = `Info) r line =
+let log ?(level = `Info) ?(keep = true) r line =
   check_open "log" r.disp;
   let t = r.disp in
   let lines = List.map sanitize (lines_of_string line) in
@@ -1388,19 +1432,25 @@ let log ?(level = `Info) r line =
   List.iter
     (fun line ->
       let time, gap, line = gap_of line in
-      record ~task:r t (`Log level) line;
+      if keep then record ~task:r t (`Log level) line;
       let entry =
-        { ltime = time; lgap = gap; llevel = level; lmessage = line }
+        {
+          ltime = time;
+          lgap = gap;
+          llevel = level;
+          lmessage = line;
+          lkept = keep;
+        }
       in
       let tailed = r.rfinish = None && r.log_lines > 0 in
       let held = tailed && not t.plain in
-      if not held then commit_log t r entry;
+      if (not held) && keep then commit_log t r entry;
       if tailed then begin
         r.logs <- r.logs @ [ entry ];
         if List.length r.logs > r.log_lines then
           match r.logs with
           | oldest :: rest ->
-              if held then commit_log t r oldest;
+              if held && oldest.lkept then commit_log t r oldest;
               r.logs <- rest
           | [] -> ()
       end)
@@ -1531,7 +1581,7 @@ let rec finish ?(swept = false) outcome ?message r =
     (* The tail was holding these; the row is about to leave the live region,
        so history takes them, before the line that closes the row. *)
     if not t.plain then begin
-      List.iter (commit_log t r) r.logs;
+      List.iter (fun log -> if log.lkept then commit_log t r log) r.logs;
       r.logs <- []
     end;
     r.rfinish <- Some (t.now ());

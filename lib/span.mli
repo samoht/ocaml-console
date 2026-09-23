@@ -95,9 +95,10 @@ val truncate : ?char_width:(Uchar.t -> int) -> int -> t -> t
 
 val wrap : ?char_width:(Uchar.t -> int) -> int -> t -> t list
 (** [wrap width span] word-wraps a single-line span at spaces and path
-    separators, preserving styles and hyperlinks on every line. An overlong
-    token is truncated with an ellipsis. {b Raises.} [Invalid_argument] if
-    [width] is not positive. *)
+    separators, preserving styles and hyperlinks on every line. A token wider
+    than [width] is continued on the next line where the room ends, so every
+    character is printed and nothing is marked as cut. {b Raises.}
+    [Invalid_argument] if [width] is not positive. *)
 
 (** {1:animation Animation} *)
 

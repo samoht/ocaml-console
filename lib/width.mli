@@ -48,6 +48,34 @@ val ellipsize :
     zero columns and are never cut; a style or hyperlink left open at either end
     is closed. *)
 
+val shorten : ?char_width:(Uchar.t -> int) -> int -> string -> string
+(** [shorten width s] is [s] when it fits in [width] terminal columns, and
+    otherwise the longest run of its leading words that does: the words it drops
+    are taken from its end, whole. A word ends at a space outside any bracket,
+    so a group such as ["(300s bound)"] is dropped as one word. What is kept
+    does not end on a separator (a space, a comma, a semicolon, a colon) nor on
+    a word that only leads into the ones dropped (an article, a preposition, a
+    conjunction: ["building in"] is ["building"]). No word is ever cut, so [s]
+    whose first word is wider than [width] is [""]: a path, an id or a digest is
+    kept whole or not at all.
+
+    Escape sequences count as zero columns and a style or hyperlink left open is
+    closed. *)
+
+val fold :
+  ?char_width:(Uchar.t -> int) -> ?split:bool -> int -> string -> string list
+(** [fold width s] is [s] broken at spaces into lines of at most [width]
+    terminal columns, the way [fold -s] breaks a line, with the spaces at each
+    break dropped. [s] that fits, or a [width] of zero or less, is [[s]].
+
+    A word wider than [width] is never cut: it stands whole on a line of its
+    own, which is wider than [width]. With [~split:true] it is instead continued
+    on the next line where the room ends, so that every line fits and every
+    character is still printed, for a surface that cannot let a line wrap.
+
+    A style or hyperlink open at a break is closed at the end of the line and
+    opened again at the start of the next. *)
+
 val pad_right : ?char_width:(Uchar.t -> int) -> int -> string -> string
 (** [pad_right width s] is [s] padded with spaces on the right to reach [width]
     columns, or [s] unchanged if it is already wider. *)

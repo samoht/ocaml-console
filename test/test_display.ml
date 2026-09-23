@@ -1400,6 +1400,58 @@ let test_no_row_carries_an_ellipsis () =
       (Span.wrap width (Span.text digest_label))
   done
 
+(* A window line is a live stream watched through the row's tail: never more
+   lines than the tail holds, and nothing left behind, on the screen or in the
+   history, once the row ends. *)
+let kernel_line i =
+  Fmt.str "[    0.%06d] pci 0000:00:%02d.0: [1af4:1041] type 00 class 0x020000"
+    (i * 1733) i
+
+let test_a_window_line_never_reaches_history () =
+  let width = 60 and window = 8 in
+  let logged = ref [] in
+  let vte =
+    terminal_run ~height:14 ~width (fun display _advance sync vte ->
+        let task = Display.task ~log_lines:window display "Target: booting" in
+        for i = 1 to 30 do
+          Display.log ~keep:false task (kernel_line i);
+          sync ();
+          let shown =
+            List.length
+              (List.filter (contains "pci 0000")
+                 (String.split_on_char '\n' (Vte.to_string vte)))
+          in
+          if shown > window then
+            Alcotest.failf "after %d lines the window is %d lines high" i shown
+        done;
+        Display.succeed task;
+        logged :=
+          List.filter
+            (fun event ->
+              match Display.Event.kind event with
+              | `Log _ -> true
+              | `Started | `Message _ | `Finished _ | `Result _ -> false)
+            (Display.history display))
+  in
+  Alcotest.(check int)
+    "no window line is left on the screen or in scrollback" 0
+    (List.length (List.filter (contains "pci 0000") (terminal_rows vte)));
+  Alcotest.(check int) "and none is in the history" 0 (List.length !logged)
+
+let test_an_appending_display_writes_no_window () =
+  let (), output =
+    capture (fun display _ ->
+        let task = Display.task display "Target: booting" in
+        Display.log ~keep:false task (kernel_line 1);
+        Display.succeed task)
+  in
+  Alcotest.(check bool)
+    "a pipe gets the row and not the window" false
+    (contains "pci 0000" output);
+  Alcotest.(check bool)
+    "but it gets the row" true
+    (contains "Target: booting" output)
+
 let test_activity_lines_are_bounded () =
   let vte =
     terminal_run ~height:5 ~width:18 ~header:"HEADER-UNIQUE-LONG"
@@ -1730,6 +1782,10 @@ let suite =
         test_a_log_line_loses_words_from_its_end;
       Alcotest.test_case "a narrow log line loses words from its end" `Quick
         test_a_narrow_log_line_loses_words_from_its_end;
+      Alcotest.test_case "a window line never reaches history" `Quick
+        test_a_window_line_never_reaches_history;
+      Alcotest.test_case "an appending display writes no window" `Quick
+        test_an_appending_display_writes_no_window;
       Alcotest.test_case "activity lines bounded" `Quick
         test_activity_lines_are_bounded;
       Alcotest.test_case "tiny activity bounded" `Quick

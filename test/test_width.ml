@@ -102,6 +102,69 @@ let test_ellipsize_ansi_costs_nothing () =
     "the head's style is closed before the mark" true
     (String.starts_with ~prefix:"\027[1mab\027[0m\xe2\x80\xa6" cut)
 
+(* A row that does not fit is shortened by words, never
+   by characters, and a path, an id or a digest is always printed whole. *)
+let waiting = "Target: waiting for op-hello's boot verdict (300s bound)"
+
+let test_shorten_drops_words_from_the_end () =
+  Alcotest.(check string)
+    "the bracketed group goes as one word"
+    "Target: waiting for op-hello's boot verdict" (Width.shorten 50 waiting);
+  Alcotest.(check string)
+    "and then the words before it, never ending on one that leads into what \
+     went"
+    "Target: waiting" (Width.shorten 22 waiting);
+  Alcotest.(check string)
+    "nor on the colon that introduced it" "Target" (Width.shorten 10 waiting);
+  Alcotest.(check string)
+    "a value that fits is untouched" waiting
+    (Width.shorten 200 waiting);
+  Alcotest.(check string)
+    "a separator left at the end goes with its word" "kept 76 of 96 frames"
+    (Width.shorten 22 "kept 76 of 96 frames, dropped 20")
+
+let test_shorten_never_cuts_a_word () =
+  Alcotest.(check string)
+    "a digest is kept whole or not at all" "" (Width.shorten 21 digest);
+  Alcotest.(check string)
+    "and so is a path after a word" "pushed"
+    (Width.shorten 40 ("pushed " ^ digest))
+
+let test_shorten_closes_a_style () =
+  let styled = "\027[1mone two three\027[0m" in
+  Alcotest.(check string)
+    "the style open at the cut is closed" "\027[1mone two\027[0m"
+    (Width.shorten 9 styled)
+
+let test_fold_breaks_at_spaces () =
+  Alcotest.(check (list string))
+    "each line fits, broken where a space was"
+    [ "Target: waiting for"; "op-hello's boot"; "verdict (300s bound)" ]
+    (Width.fold 20 waiting);
+  Alcotest.(check (list string))
+    "a value that fits is one line" [ waiting ] (Width.fold 80 waiting)
+
+let test_fold_keeps_a_word_whole () =
+  Alcotest.(check (list string))
+    "a digest wider than the line stands whole on its own"
+    [ "pushed"; digest; "to the registry" ]
+    (Width.fold 20 ("pushed " ^ digest ^ " to the registry"));
+  let split = Width.fold ~split:true 20 digest in
+  Alcotest.(check string)
+    "split, every character is still printed" digest (String.concat "" split);
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        "and every line fits" true
+        (Width.string_width line <= 20))
+    split
+
+let test_fold_reopens_a_style () =
+  Alcotest.(check (list string))
+    "a style open at a break is closed and opened again"
+    [ "\027[1mone\027[0m"; "\027[1mtwo\027[0m" ]
+    (Width.fold 4 "\027[1mone two\027[0m")
+
 let test_wrap_basic () =
   let result = Width.wrap 20 "hello world foo bar baz" in
   Alcotest.(check string) "wraps at width" "hello world foo bar\nbaz" result
@@ -169,6 +232,17 @@ let suite =
       Alcotest.test_case "ellipsize with no room" `Quick test_ellipsize_no_room;
       Alcotest.test_case "ellipsize counts no escape" `Quick
         test_ellipsize_ansi_costs_nothing;
+      Alcotest.test_case "shorten drops words from the end" `Quick
+        test_shorten_drops_words_from_the_end;
+      Alcotest.test_case "shorten never cuts a word" `Quick
+        test_shorten_never_cuts_a_word;
+      Alcotest.test_case "shorten closes a style" `Quick
+        test_shorten_closes_a_style;
+      Alcotest.test_case "fold breaks at spaces" `Quick
+        test_fold_breaks_at_spaces;
+      Alcotest.test_case "fold keeps a word whole" `Quick
+        test_fold_keeps_a_word_whole;
+      Alcotest.test_case "fold reopens a style" `Quick test_fold_reopens_a_style;
       Alcotest.test_case "wrap basic" `Quick test_wrap_basic;
       Alcotest.test_case "wrap with indent" `Quick test_wrap_with_indent;
       Alcotest.test_case "wrap short" `Quick test_wrap_short;

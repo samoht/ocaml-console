@@ -796,13 +796,15 @@ let test_differential_redraw label wbyte =
 
 (* Completion moves a task from the live projection into permanent history,
    but must not change the layout contract: arbitrary labels and count widths
-   leave the timer on the exact right edge without an implicit VTE wrap. *)
+   leave the timer on the exact right edge of the row's first line without an
+   implicit VTE wrap. A label that does not fit beside it folds onto the lines
+   under it, whole, so the history may take more than one line. *)
 let test_committed_right_edge label wbyte =
   let width = 16 + (wbyte land 0x7f mod 105) in
   let buf = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0. in
-  let vte = Vte.create ~rows:4 ~cols:width () in
+  let vte = Vte.create ~rows:1024 ~cols:width () in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
     ~mode:`Activity ~width ~height:4 (fun display ->
       let task = Display.task display label in
@@ -823,7 +825,8 @@ let test_committed_right_edge label wbyte =
   invariant "committed timer does not occupy the terminal's final cell"
     (Grid.get_text grid (Grid.idx grid ~x:(width - 1) ~y:0) = "s");
   invariant "committed row leaked into scrollback" (Vte.scrollback_size vte = 0);
-  invariant "committed row drifted the cursor" (Vte.cursor_pos vte = (1, 0))
+  invariant "committed row drifted the cursor"
+    (Vte.cursor_pos vte = (List.length (nonblank (vt_rows vte)), 0))
 
 (* A keyed event stream needs no caller-owned task registry. Randomly duplicate,
    reorder and contradict starts, progress updates, logs and outcomes over eight
