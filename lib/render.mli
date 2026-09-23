@@ -19,5 +19,6 @@ val sanitize_styles : ?keep_newlines:bool -> string -> string
     last one left a style open. *)
 
 val newline : Format.formatter -> unit
-(** End one physical output row. ANSI formatters use CRLF so a row that exactly
-    fills the terminal cannot leave the terminal in pending-wrap state. *)
+(** [newline ppf] ends one output row on [ppf]. An ANSI formatter gets CRLF, so
+    that a row filling the terminal exactly cannot leave the terminal in its
+    pending-wrap state. *)

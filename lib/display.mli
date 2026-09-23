@@ -37,38 +37,40 @@ val span : float -> string
     second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
     hours and minutes (["1h02m"]). A negative [seconds] is ["0.0s"]. *)
 
-(** {1 Task layout} *)
+(** {1:task_layout Task layout} *)
 
 module Line : sig
   type piece
   (** One piece of a task's activity rendering. *)
 
   val spinner : piece
-  (** Animated activity marker, replaced by the outcome marker on completion. *)
+  (** [spinner] is the animated activity marker, replaced by the outcome marker
+      when the task finishes. *)
 
   val label : piece
-  (** Flexible task label or completion message. *)
+  (** [label] is the task label, or its completion message, in a cell of
+      flexible width. *)
 
   val bar : int -> piece
   (** [bar width] is a progress bar occupying [width] terminal cells. *)
 
   val percent : piece
-  (** Completion percentage for determinate progress. *)
+  (** [percent] is the completion percentage of a task with a known total. *)
 
   val count : piece
-  (** Item count or byte-count pair, according to the task metric, right-aligned
-      in one cell for the whole display. The cell is sized from the totals the
-      rows announce, never from what they have reached, so a count holds its
-      columns as it climbs and every row of a block ends its pair in the same
-      place. A row with no metric leaves the cell empty. *)
+  (** [count] is the item or byte count and its total, right-aligned in one cell
+      for the whole display. The cell is sized from the totals the rows
+      announce, never from what they have reached, so a count holds its columns
+      as it climbs and every row of a block ends its pair in the same place. A
+      row with no metric leaves the cell empty. *)
 
   val rate : piece
-  (** Transfer rate for byte-count tasks. *)
+  (** [rate] is the transfer rate of a task that counts bytes. *)
 
   val elapsed : piece
-  (** Time elapsed since the task started, right-aligned in a cell wide enough
-      for the widest {!span} below a hundred hours, so nothing to its left moves
-      when the timer crosses ten seconds, a minute or an hour. *)
+  (** [elapsed] is the time since the task started, right-aligned in a cell wide
+      enough for the widest {!span} below a hundred hours, so nothing to its
+      left moves when the timer crosses ten seconds, a minute or an hour. *)
 
   val text : string -> piece
   (** [text s] is a sanitized literal separator. *)
@@ -77,7 +79,8 @@ module Line : sig
   (** [accent s] is sanitized literal text in the task accent colour. *)
 
   val spacer : piece
-  (** Flexible space that pushes all following pieces to the right edge. *)
+  (** [spacer] is flexible space that pushes the pieces after it to the right
+      edge. *)
 
   type t
   (** A task-line layout and accent colour. *)
@@ -92,10 +95,11 @@ module Line : sig
   (** [with_color color line] changes [line]'s accent colour. *)
 
   val default : t
-  (** The default label, bar, count, rate and right-aligned elapsed layout. *)
+  (** [default] is the layout of a label, a bar, a count, a rate and the
+      right-aligned elapsed time. *)
 end
 
-(** {1 Rendering context} *)
+(** {1:rendering_context Rendering context} *)
 
 type mode = [ `Auto | `Activity | `History ]
 (** [`Activity] renders permanent history plus a bounded projection of running
@@ -137,7 +141,7 @@ val with_char_width : ctx -> (Uchar.t -> int) -> ctx
 val dumb : unit -> ctx
 (** [dumb ()] is an append-only 80 by 24 context with a zero clock. *)
 
-(** {1 Immutable event history} *)
+(** {1:immutable_event_history Immutable event history} *)
 
 module Event : sig
   type level = [ `Info | `Warning | `Error ]
@@ -157,31 +161,33 @@ module Event : sig
   type t
 
   val elapsed : t -> float
-  (** Seconds since the display session started. *)
+  (** [elapsed e] is the time of [e] in seconds since the session started. *)
 
   val task : t -> int option
-  (** The numeric task identity, or [None] for a session-level event. *)
+  (** [task e] is the numeric identity of the task of [e], or [None] for a
+      session-level event. *)
 
   val key : t -> string option
-  (** The caller-supplied stable task ID, when there is one. *)
+  (** [key e] is the stable identity the caller gave the task of [e], if any. *)
 
   val path : t -> string list
-  (** Task labels from the root task through the event's owning task. *)
+  (** [path e] are the labels of the tasks from the root task down to the task
+      of [e]. *)
 
   val kind : t -> kind
-  (** The typed event kind. *)
+  (** [kind e] is the kind of [e]. *)
 
   val message : t -> string
-  (** The sanitized event message. *)
+  (** [message e] is the sanitized message of [e]. *)
 
   val detail : t -> string option
-  (** Additional result detail, present only when supplied to {!set_result}. *)
+  (** [detail e] is the result detail given to {!set_result}, if any. *)
 
   val pp : t Fmt.t
-  (** Pretty-printer for diagnostics. *)
+  (** [pp] formats a value for diagnostics, in an unspecified format. *)
 end
 
-(** {1 Immutable activity projection} *)
+(** {1:immutable_activity_projection Immutable activity projection} *)
 
 module Activity : sig
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
@@ -193,53 +199,54 @@ module Activity : sig
   type log
 
   val log_elapsed : log -> float
-  (** Seconds from display start to this log entry. *)
+  (** [log_elapsed l] is the time of [l] in seconds since the session started.
+  *)
 
   val log_level : log -> Event.level
-  (** The log severity. *)
+  (** [log_level l] is the severity of [l]. *)
 
   val log_message : log -> string
-  (** The sanitized log message. *)
+  (** [log_message l] is the sanitized message of [l]. *)
 
   type item
 
   val id : item -> int
-  (** Stable numeric task identity. *)
+  (** [id i] is the numeric identity of the task of [i]. *)
 
   val key : item -> string option
-  (** Caller-provided stable identity, when present. *)
+  (** [key i] is the stable identity the caller gave the task, if any. *)
 
   val parent : item -> int option
-  (** Numeric identity of the parent task, when present. *)
+  (** [parent i] is the numeric identity of the parent task, if any. *)
 
   val label : item -> string
-  (** Current task label. *)
+  (** [label i] is the current label of the task. *)
 
   val progress : item -> progress
-  (** Current progress metric. *)
+  (** [progress i] is the current progress of the task. *)
 
   val elapsed : item -> float
-  (** Seconds elapsed since this task started. *)
+  (** [elapsed i] is the time in seconds since the task started. *)
 
   val logs : item -> log list
-  (** Bounded live log tail, oldest first. *)
+  (** [logs i] are the latest log lines of the task, oldest first. *)
 
   type t
 
   val items : t -> item list
-  (** Running task items in display order. *)
+  (** [items a] are the running tasks of [a] in display order. *)
 
   val pp : t Fmt.t
-  (** Pretty-printer for diagnostics. *)
+  (** [pp] formats a value for diagnostics, in an unspecified format. *)
 end
 
-(** {1 Scoped sessions} *)
+(** {1:scoped_sessions Scoped sessions} *)
 
 type t
 (** A display session. Values are created only by {!run}. *)
 
 val pp : t Fmt.t
-(** Pretty-printer for display diagnostics. *)
+(** [pp] formats a display for diagnostics, in an unspecified format. *)
 
 val run :
   ctx:ctx ->
@@ -341,11 +348,12 @@ val advance : ?by:int -> ?total:int -> ?label:string -> task -> unit
     task on its first advance. *)
 
 val set_bytes : task -> cur:int64 -> total:int64 -> unit
-(** Counts and byte counts must be non-negative; a [cur] beyond a provisional
-    [total] expands the total automatically. Progress is monotonic: an older
-    update cannot move a task backwards or reduce its known total. Updates after
-    completion are harmless no-ops. A task cannot switch between count and byte
-    units. *)
+(** [set_bytes task ~cur ~total] is like {!set_count} for a task that counts
+    bytes. Counts and byte counts must be non-negative, and a [cur] beyond
+    [total] raises the total to [cur]. Progress is monotonic: an older update
+    cannot move a task backwards or reduce its known total. Updates after the
+    task finished do nothing. A task cannot switch between counting items and
+    counting bytes. *)
 
 val log : ?level:Event.level -> task -> string -> unit
 (** [log task text] appends each line permanently to {!history}; the latest
@@ -358,15 +366,18 @@ val event : ?level:Event.level -> t -> string -> unit
     directly while an activity projection owns the output. *)
 
 val succeed : ?message:string -> task -> unit
-(** Finish a task successfully, optionally replacing its committed label. *)
+(** [succeed ~message task] finishes [task] successfully, recording [message] in
+    place of its label if given. A task finishes once: the first of {!succeed},
+    {!fail} and {!cancel} wins and later calls do nothing. Its unfinished
+    descendants finish first, children before parents: they succeed when [task]
+    succeeds and are cancelled when it fails or is cancelled. *)
 
 val fail : ?message:string -> task -> unit
-(** Finish a task as failed, optionally replacing its committed label. *)
+(** [fail ~message task] is like {!succeed} but finishes [task] as failed. *)
 
 val cancel : ?message:string -> task -> unit
-(** Outcomes are idempotent: the first outcome wins and duplicates are no-ops.
-    Finishing a task first settles unfinished descendants children-first:
-    success succeeds them, while failure or cancellation cancels them. *)
+(** [cancel ~message task] is like {!succeed} but finishes [task] as cancelled.
+*)
 
 val with_task :
   ?id:string ->

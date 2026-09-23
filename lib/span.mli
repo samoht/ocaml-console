@@ -11,7 +11,7 @@
 type t
 (** A styled text span. *)
 
-(** {1 Constructors} *)
+(** {1:constructors Constructors} *)
 
 val text : string -> t
 (** [text str] is a plain, unstyled span of [str]. *)
@@ -35,7 +35,7 @@ val space : t
 val newline : t
 (** [newline] is a newline character span. *)
 
-(** {1 Concatenation} *)
+(** {1:concatenation Concatenation} *)
 
 val concat : t list -> t
 (** [concat spans] concatenates a list of spans. *)
@@ -55,13 +55,13 @@ val split_lines : t -> t list
 (** [split_lines span] splits [span] at line feeds without losing styles. The
     result is non-empty; an empty span is one empty line. *)
 
-(** {1 Rendering}
+(** {1:rendering Rendering}
 
-    Rendering defers to the target formatter's style renderer — set by
-    [Fmt_tty.setup_std_outputs] (commonly via [Fmt_cli.style_renderer], wired
-    through [ocaml-observe.setup]). There is no global colour toggle: the source
-    of truth is [Fmt.style_renderer ppf], which honours
-    [--color=auto|always|never] and [NO_COLOR]. *)
+    Rendering follows the style renderer of the target formatter,
+    [Fmt.style_renderer ppf], which [Fmt_tty.setup_std_outputs] sets (usually
+    through [Fmt_cli.style_renderer] or [Observe.setup]) from
+    [--color=auto|always|never] and [NO_COLOR]. There is no global colour
+    switch. *)
 
 val pp : t Fmt.t
 (** [pp] pretty-prints the span with ANSI codes when the target formatter's
@@ -82,7 +82,7 @@ val to_ansi_string : ?style:Style.t -> t -> string
 (** [to_ansi_string span] renders [span] with ANSI codes. [style] is composed
     underneath each style in the span. *)
 
-(** {1 Measurements} *)
+(** {1:measurements Measurements} *)
 
 val width : ?char_width:(Uchar.t -> int) -> t -> int
 (** [width span] is the display width of [span] in terminal columns, excluding
@@ -99,7 +99,7 @@ val wrap : ?char_width:(Uchar.t -> int) -> int -> t -> t list
     token is truncated with an ellipsis. {b Raises.} [Invalid_argument] if
     [width] is not positive. *)
 
-(** {1 Animation} *)
+(** {1:animation Animation} *)
 
 val anim : t -> string Anim.t
 (** [anim span] is [span] as a still {!Anim.t}: every frame is

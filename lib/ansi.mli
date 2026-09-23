@@ -11,13 +11,13 @@ val color_code : Color.t -> string
 (** [color_code c] is the SGR sequence that sets the foreground to [c]. *)
 
 val dim : string
-(** The SGR sequence that starts dim (faint) text. *)
+(** [dim] is the SGR sequence that starts dim (faint) text. *)
 
 val bold : string
-(** The SGR sequence that starts bold text. *)
+(** [bold] is the SGR sequence that starts bold text. *)
 
 val reset_code : string
-(** The SGR reset sequence. *)
+(** [reset_code] is the SGR reset sequence. *)
 
 val styled : string -> string -> string
 (** [styled code s] wraps [s] in [code] and a {!reset_code}. *)

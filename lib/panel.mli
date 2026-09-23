@@ -7,12 +7,12 @@
 
     A panel is a box with a border that can contain styled text. *)
 
-(** {1 Types} *)
+(** {1:types Types} *)
 
 type t
 (** A panel. *)
 
-(** {1 Construction} *)
+(** {1:construction Construction} *)
 
 val v :
   ?theme:Theme.t ->
@@ -50,7 +50,7 @@ val lines :
   t
 (** [lines] is like {!v} but takes the content already split into lines. *)
 
-(** {1 Rendering} *)
+(** {1:rendering Rendering} *)
 
 val pp : t Fmt.t
 (** [pp] renders the panel, following the formatter's style renderer. *)
@@ -61,7 +61,7 @@ val to_string : t -> string
 val to_ansi_string : t -> string
 (** [to_ansi_string panel] is the panel with ANSI styling. *)
 
-(** {1 Animation} *)
+(** {1:animation Animation} *)
 
 val anim : t -> string Anim.t
 (** [anim panel] is [panel] as an {!Anim.t}. It is still ({!to_ansi_string} on

@@ -7,7 +7,7 @@
 
     Provides ASCII and Unicode box-drawing character sets. *)
 
-(** {1 Types} *)
+(** {1:types Types} *)
 
 type chars = {
   top_left : string;
@@ -38,35 +38,40 @@ val chars : t -> chars
 val style : t -> Style.t
 (** [style t] is the style applied to [t]'s characters. *)
 
-(** {1 Predefined borders} *)
+(** {1:predefined_borders Predefined borders} *)
 
 val none : t
-(** No border (empty strings). *)
+(** [none] is the border drawn with empty strings. *)
 
 val ascii : t
-(** [ascii] uses "+", "-", and "|" characters. *)
+(** [ascii] is the border drawn with [+], [-] and [|]. *)
 
 val single : t
-(** [single] uses Unicode single-line box-drawing characters. *)
+(** [single] is the border drawn with Unicode single-line box-drawing
+    characters. *)
 
 val double : t
-(** [double] uses Unicode double-line box-drawing characters. *)
+(** [double] is the border drawn with Unicode double-line box-drawing
+    characters. *)
 
 val rounded : t
-(** [rounded] uses Unicode rounded-corner box-drawing characters. *)
+(** [rounded] is the border drawn with Unicode rounded-corner box-drawing
+    characters. *)
 
 val heavy : t
-(** [heavy] uses Unicode heavy-line box-drawing characters. *)
+(** [heavy] is the border drawn with Unicode heavy-line box-drawing characters.
+*)
 
 val hidden : t
-(** Space characters (maintains spacing but invisible). *)
+(** [hidden] is the border drawn with spaces, which keeps the spacing of a
+    border without showing it. *)
 
-(** {1 Styling} *)
+(** {1:styling Styling} *)
 
 val with_style : Style.t -> t -> t
 (** [with_style style border] applies a style to the border characters. *)
 
-(** {1 Operations} *)
+(** {1:operations Operations} *)
 
 val equal : t -> t -> bool
 (** [equal a b] is [true] when [a] and [b] have the same characters and style.

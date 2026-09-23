@@ -17,12 +17,15 @@ Terminal styling and layout widgets for OCaml CLI applications.
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-console renders *inline* output: styled text, tables, trees, panels and
-live progress rows written into the normal scroll-back, degrading to
-plain append-only lines when stdout is not a terminal. It is not a TUI
-framework -- it never switches to the alternate screen, takes over the
-full window, or runs an event loop owning the terminal. For full-screen
-terminal applications, see [notty](https://github.com/pqwy/notty) or
+A command-line tool that prints a table, a tree or a progress bar has to
+measure every string in terminal cells, keep ANSI styling out of redirected
+output, and redraw live rows without scrambling the scrollback. `console` does
+that work once. It renders *inline* output (styled text, tables, trees, panels
+and live progress rows) into the normal scrollback, and falls back to plain
+append-only lines when standard output is not a terminal. It is not a TUI
+framework: it never switches to the alternate screen, never takes over the
+whole window and never runs an event loop that owns the terminal. For
+full-screen applications, use [notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term).
 
 - **Composable styles**: `Style.(bold + fg Color.red + underline)`, over ANSI
@@ -132,12 +135,12 @@ let main env =
 ```
 
 `Tree.pp` and `Panel.pp` render the other two structural widgets the same way.
-A `Theme.t` bundles every visual choice they share -- accent colour and palette,
-border, tree guide, spinner, bar style and markers -- so passing `~theme` to any
-widget styles the whole output consistently; an explicit `~border` or `~guide`
-still wins. The presets are `Theme.dos` (amber ASCII CRT, the default),
-`Theme.unicode`, `Theme.matrix` and `Theme.rainbow`, and `Theme.v` builds your
-own.
+A `Theme.t` bundles the visual choices they share (accent colour and palette,
+border, tree guide, spinner, bar style and markers), so passing the same
+`~theme` to every widget gives the output one look; an explicit `~border` or
+`~guide` still takes precedence. The presets are `Theme.unicode` (the default),
+`Theme.dos` (an amber ASCII terminal), `Theme.matrix` and `Theme.rainbow`, and
+`Theme.v` builds your own.
 
 `Rule` and `Layout` fill the small composition gaps without introducing a
 second box model:
@@ -171,17 +174,15 @@ let build ~clock =
   Display.succeed step
 ```
 
-That is the ordinary API: one `Console_eio.run`, `Display.task`, semantic
-updates and an outcome. The default line automatically chooses an indeterminate
-spinner or determinate progress, count, rate and elapsed time from the updates
-it receives. Returning normally completes forgotten tasks; raising cancels them;
+Most programs need only this: one `Console_eio.run`, a `Display.task` per step,
+progress updates and an outcome. The default row shows a spinner until a total
+is known, then a bar, a count, a rate and the elapsed time. Returning normally completes forgotten tasks; raising cancels them;
 nested `Console_eio.run` calls join the existing display instead of claiming the
 terminal again. Stable `~id` values deduplicate repeated or out-of-order task
 events without a caller-side table.
 
-For applications with genuinely unusual information density, the advanced
-`Display.Line` API can compose spinner, label, bar, percent, count, rate,
-elapsed and spacer pieces. Most callers should never need it.
+A program that needs a different row composes one with `Display.Line` from
+spinner, label, bar, percent, count, rate, elapsed and spacer pieces.
 
 ### Animation and layout
 
@@ -196,7 +197,7 @@ components while sampling them at the same elapsed time. A runnable demo lives i
 
 <!-- $MDX skip -->
 ```sh
-$ dune exec ocaml-console/examples/matrix/main.exe
+$ dune exec examples/matrix/main.exe
 ```
 
 ## API
@@ -232,6 +233,6 @@ $ dune exec ocaml-console/examples/matrix/main.exe
 - [notty](https://github.com/pqwy/notty) - OCaml library for declarative terminal graphics.
 - [down](https://erratique.ch/software/down) - OCaml toplevel line editor by Daniel Buenzli; model for `Console.Input`'s key bindings, history and completion.
 
-## Licence
+## License
 
-ISC licence. See [LICENSE.md](LICENSE.md) for details.
+ISC. See [LICENSE.md](LICENSE.md).

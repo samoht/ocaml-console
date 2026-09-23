@@ -8,7 +8,7 @@
     Tables display data in aligned columns with optional headers and
     customizable borders. *)
 
-(** {1 Types} *)
+(** {1:types Types} *)
 
 type align = [ `Left | `Center | `Right ]
 (** Column alignment. *)
@@ -25,7 +25,7 @@ type column
 type t
 (** A table. *)
 
-(** {1 Column construction} *)
+(** {1:column_construction Column construction} *)
 
 val column :
   ?align:align ->
@@ -62,7 +62,7 @@ val column_span :
 (** [column_span] is like {!val-column} but takes a styled span for the header.
 *)
 
-(** {1 Table construction} *)
+(** {1:table_construction Table construction} *)
 
 val v :
   ?theme:Theme.t ->
@@ -103,7 +103,7 @@ val of_string_rows :
   t
 (** [of_string_rows] is like {!of_rows} but takes plain strings. *)
 
-(** {1 Rendering} *)
+(** {1:rendering Rendering} *)
 
 val pp : t Fmt.t
 (** [pp table] follows the formatter's style renderer and fits the table to its
@@ -120,7 +120,7 @@ val to_ansi_string : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
 (** [to_ansi_string table] renders with ANSI styling. [width], when supplied, is
     a hard maximum for every physical row. *)
 
-(** {1 Animation} *)
+(** {1:animation Animation} *)
 
 val anim : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string Anim.t
 (** [anim table] is [table] as an {!Anim.t}. It is still ({!to_ansi_string} on

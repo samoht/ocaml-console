@@ -7,7 +7,7 @@
 
     Renders tree structures with ASCII or Unicode guide lines. *)
 
-(** {1 Types} *)
+(** {1:types Types} *)
 
 (** A generic tree node. *)
 type 'a node = Node of 'a * 'a node list
@@ -15,7 +15,7 @@ type 'a node = Node of 'a * 'a node list
 type t
 (** A renderable tree of spans. *)
 
-(** {1 Construction} *)
+(** {1:construction Construction} *)
 
 val of_tree : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
 (** [of_tree tree] is a renderable tree from a tree of spans. The branch glyphs
@@ -58,7 +58,7 @@ val v :
     let () = assert (String.length (Console.Tree.to_string tree) > 0)
     ]} *)
 
-(** {1 Guides} *)
+(** {1:guides Guides} *)
 
 val prefix : ?guide:Guide.t -> bool list -> string
 (** [prefix ?guide lasts] is the guide prefix drawn before a node, where [lasts]
@@ -71,7 +71,7 @@ val prefix : ?guide:Guide.t -> bool list -> string
     ["│   ├── "]. A live renderer that draws its own rows (a progress tree)
     shares the guide drawing through it. *)
 
-(** {1 Rendering} *)
+(** {1:rendering Rendering} *)
 
 val pp : t Fmt.t
 (** [pp] pretty-prints the tree, one node per line, with guide lines. *)
@@ -82,7 +82,7 @@ val to_string : t -> string
 val to_ansi_string : t -> string
 (** [to_ansi_string tree] renders with ANSI styling. *)
 
-(** {1 Animation} *)
+(** {1:animation Animation} *)
 
 val anim : t -> string Anim.t
 (** [anim tree] is [tree] as a still {!Anim.t}: every frame is {!to_ansi_string}

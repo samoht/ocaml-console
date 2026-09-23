@@ -20,7 +20,7 @@ val pp : Format.formatter -> t -> unit
 val equal : t -> t -> bool
 (** [equal a b] is [true] when [a] and [b] have the same frames in order. *)
 
-(** {1 Spinners} *)
+(** {1:spinners Spinners} *)
 
 val v : string array -> t
 (** [v frames] is a spinner cycling [frames] left to right.
@@ -37,7 +37,7 @@ val ascii : t
 (** [ascii] cycles the four ASCII frames "|", "/", "-", and backslash, for
     terminals or fonts without braille. *)
 
-(** {1 Frames} *)
+(** {1:frames Frames} *)
 
 val frame : t -> int -> string
 (** [frame t i] is the [i]th frame. [i] wraps around the sequence, so every

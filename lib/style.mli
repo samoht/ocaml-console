@@ -7,44 +7,44 @@
 
     Styles can be composed: [Style.(bold + fg Color.red + underline)]. *)
 
-(** {1 Style type} *)
+(** {1:style_type Style type} *)
 
 type t
 (** A composable style specification. *)
 
-(** {1 Constructors} *)
+(** {1:constructors Constructors} *)
 
 val none : t
-(** No styling. *)
+(** [none] is the empty style. *)
 
 val bold : t
-(** Bold text. *)
+(** [bold] is the style of bold text. *)
 
 val faint : t
-(** Faint text. *)
+(** [faint] is the style of faint text. *)
 
 val italic : t
-(** Italic text. *)
+(** [italic] is the style of italic text. *)
 
 val underline : t
-(** Underlined text. *)
+(** [underline] is the style of underlined text. *)
 
 val blink : t
-(** Blinking text. *)
+(** [blink] is the style of blinking text. *)
 
 val reverse : t
-(** Reverse video text. *)
+(** [reverse] is the style of reverse video text. *)
 
 val strikethrough : t
-(** Strikethrough text. *)
+(** [strikethrough] is the style of struck-through text. *)
 
 val fg : Color.t -> t
-(** Foreground color. *)
+(** [fg c] is the style with foreground colour [c]. *)
 
 val bg : Color.t -> t
-(** Background color. *)
+(** [bg c] is the style with background colour [c]. *)
 
-(** {1 Composition} *)
+(** {1:composition Composition} *)
 
 val ( + ) : t -> t -> t
 (** [s1 + s2] combines two styles. Later styles override earlier ones for
@@ -53,7 +53,7 @@ val ( + ) : t -> t -> t
 val merge : t list -> t
 (** [merge styles] merges a list of styles left to right. *)
 
-(** {1 ANSI escape codes} *)
+(** {1:ansi_escape_codes ANSI escape codes} *)
 
 val to_ansi : t -> string
 (** [to_ansi s] is the ANSI escape sequence that enables [s], or the empty
@@ -62,7 +62,7 @@ val to_ansi : t -> string
 val reset : string
 (** [reset] is the ANSI escape sequence to reset all styling. *)
 
-(** {1 Fmt integration} *)
+(** {1:fmt_integration Fmt integration} *)
 
 val styled : t -> 'a Fmt.t -> 'a Fmt.t
 (** [styled style pp] applies [style] when the target formatter's style renderer
@@ -70,7 +70,7 @@ val styled : t -> 'a Fmt.t -> 'a Fmt.t
 
     Example: [Fmt.pr "%a" (Style.styled Style.bold Fmt.string) "hello"]. *)
 
-(** {1 Operations} *)
+(** {1:operations Operations} *)
 
 val equal : t -> t -> bool
 (** [equal a b] is [true] if [a] and [b] are the same style. *)

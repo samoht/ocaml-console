@@ -14,7 +14,7 @@
     ({!Bar.render}, {!Tree}, {!Table}, {!Panel}, {!Display}); it renders nothing
     itself. *)
 
-(** {1 Themes} *)
+(** {1:themes Themes} *)
 
 type bar = [ `Blocky | `Smooth | `Rainbow ]
 (** A bar's look: full blocks on a shaded track, fractional eighth-cell fills,
@@ -123,15 +123,17 @@ val dos : t
 *)
 
 val unicode : t
-(** Modern unicode: a rounded border, a braille spinner, a smooth fractional
-    bar, one restrained activity accent, and semantic success/failure markers.
-*)
+(** [unicode] is modern Unicode: a rounded border, a braille spinner, a smooth
+    fractional bar, one restrained activity accent, and semantic success/failure
+    markers. *)
 
 val matrix : t
-(** Monochrome green-on-black: a single-line border and a braille spinner. *)
+(** [matrix] is monochrome green on black, with a single-line border and a
+    braille spinner. *)
 
 val rainbow : t
-(** Rows and nodes cycle the spectrum, and the bar is a colour gradient. *)
+(** [rainbow] cycles the rows and nodes through the spectrum and draws the bar
+    as a colour gradient. *)
 
 val default : t
 (** [default] is {!unicode}. *)
