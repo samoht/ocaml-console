@@ -1087,8 +1087,8 @@ let test_timer_keeps_its_cell () =
    the five their own text needs ("0/470") or the none a countless row needs. On
    a forty-column terminal that leaves 21 columns (a spinner, a space, the
    spacer's column, the count cell, two separators and the six-column timer
-   cell), so a 22-column label is cut on both rows. A row counting from zero
-   draws no bar, so the bar takes no columns from either. *)
+   cell), so a 22-column label loses its last word on both rows. A row
+   counting from zero draws no bar, so the bar takes no columns from either. *)
 let test_block_shares_one_label_budget () =
   let width = 40 in
   let rows = ref [] in
@@ -1106,19 +1106,23 @@ let test_block_shares_one_label_budget () =
          Display.succeed bare));
   let expected =
     [
-      ("workspace prepared now", "  0/470    0.0s");
-      ("packages checked twice", "           0.0s");
+      ("workspace prepared now", "workspace prepared", "  0/470    0.0s");
+      ("packages checked twice", "packages checked", "           0.0s");
     ]
   in
   Alcotest.(check int) "two live rows" 2 (List.length !rows);
   List.iter2
-    (fun (label, cells) row ->
+    (fun (label, kept, cells) row ->
       Alcotest.(check bool)
-        (label ^ " is cut to the block's budget")
+        (label ^ " is shortened to the block's budget")
         false (contains label row);
       Alcotest.(check bool)
-        (label ^ " carries the ellipsis")
+        (label ^ " keeps its leading words whole")
         true
+        (contains (" " ^ kept ^ " ") row);
+      Alcotest.(check bool)
+        (label ^ " carries no ellipsis")
+        false
         (contains "\xe2\x80\xa6" row);
       Alcotest.(check string)
         (label ^ ": count cell, two spaces, timer cell")
@@ -1226,33 +1230,45 @@ let test_log_reaches_the_terminal_once () =
 let digest_label =
   "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
 
-let check_marked_cut what row ~width =
-  Alcotest.(check bool)
-    (what ^ " fits the terminal")
-    true
-    (Width.string_width row <= width);
-  Alcotest.(check bool)
-    (what ^ " marks the cut") true
-    (contains "\xe2\x80\xa6" row);
-  Alcotest.(check bool)
-    (what ^ " keeps the leading characters")
-    true
-    (contains "sha256:a376" row);
-  Alcotest.(check bool)
-    (what ^ " keeps the trailing characters")
-    true (contains "e1d2c3" row)
+(* A row that does not fit the terminal is shortened by words, never by
+   characters: it drops words the row can lose, or folds onto a second line
+   the way git and cargo do. A path, an id or a digest is always printed
+   whole. The row below is a digest between two words, on a terminal
+   too narrow for all of it. *)
+let pushed_label = "pushed " ^ digest_label ^ " to the registry"
 
-let test_row_marks_its_cut () =
-  let width = 60 in
-  ignore
-    (terminal_run ~height:4 ~width (fun display _advance sync vte ->
-         let task = Display.task display digest_label in
-         sync ();
-         let line rows = List.hd (String.split_on_char '\n' rows) in
-         check_marked_cut "the live row" ~width (line (Vte.to_string vte));
-         Display.succeed task;
-         sync ();
-         check_marked_cut "the committed row" ~width (line (Vte.to_string vte))))
+let check_whole what ~width rows =
+  Alcotest.(check bool)
+    (what ^ " prints the digest whole")
+    true
+    (List.exists (contains digest_label) rows);
+  Alcotest.(check bool)
+    (what ^ " carries no ellipsis")
+    false
+    (List.exists (contains "\xe2\x80\xa6") rows);
+  List.iter
+    (fun row ->
+      Alcotest.(check bool)
+        (what ^ " fits the terminal")
+        true
+        (Width.string_width row <= width))
+    rows
+
+let test_row_keeps_a_digest_whole () =
+  let width = 100 in
+  let committed =
+    terminal_run ~height:6 ~width (fun display _advance sync vte ->
+        let task = Display.task display pushed_label in
+        sync ();
+        check_whole "the live row" ~width
+          [ List.hd (String.split_on_char '\n' (Vte.to_string vte)) ];
+        Display.succeed task)
+  in
+  let rows = terminal_rows committed in
+  check_whole "the committed row" ~width rows;
+  Alcotest.(check bool)
+    "the word that did not fit beside it folds under it" true
+    (List.exists (fun row -> String.equal (String.trim row) "registry") rows)
 
 (* A row's label is the display's own naming of a value, and the cut above is
    right for it. A log line is not: it is the caller's own text, printed by the
@@ -1265,8 +1281,8 @@ let test_row_marks_its_cut () =
    three-service exemplar on a 100-column terminal. Its own docstring sends the
    developer to watch the frames it drops and the cloud threshold it drops them
    over, and a middle cut removes exactly that clause and leaves a sentence
-   behind. So a log line is cut at its END, where the marker sits at the right
-   edge and says the line goes on. *)
+   behind. So a log line keeps its start and loses words from its end, whole:
+   no word is cut and no mark is drawn. *)
 let service_line =
   "[filter] kept 76 of 96 frames, 466944 bytes, dropped 20 over 0.35 cloud \
    (from the recorded pass in scene/, not from camera: services cannot send \
@@ -1308,38 +1324,81 @@ let logged_line ~width =
   | None -> Alcotest.fail "the service's own line never reached the screen"
   | Some row -> rstrip row
 
-let check_end_cut what ~width row =
+let check_word_cut what ~width row =
   Alcotest.(check bool)
     (what ^ " fits the terminal")
     true
     (Width.string_width row <= width);
   Alcotest.(check bool)
-    (what ^ " marks the cut at the right edge")
-    true
-    (String.ends_with ~suffix:ellipsis row);
-  let shown = String.sub row 0 (String.length row - String.length ellipsis) in
-  match index_of "[filter]" shown with
+    (what ^ " carries no ellipsis")
+    false (contains ellipsis row);
+  match index_of "[filter]" row with
   | None -> Alcotest.fail (what ^ " lost the start of the service's line")
   | Some start ->
-      let message = String.sub shown start (String.length shown - start) in
-      let expected =
-        String.sub service_line 0
-          (min (String.length message) (String.length service_line))
-      in
+      let message = String.sub row start (String.length row - start) in
+      let n = String.length message in
       Alcotest.(check string)
         (what ^ " is the service's own line, from its start")
-        expected message
+        (String.sub service_line 0 (min n (String.length service_line)))
+        message;
+      Alcotest.(check bool)
+        (what ^ " ends where a word of the line ends")
+        true
+        (n >= String.length service_line || service_line.[n] = ' ')
 
-let test_a_log_line_is_cut_at_its_end () =
+let test_a_log_line_loses_words_from_its_end () =
   let row = logged_line ~width:100 in
-  check_end_cut "a service's line on a 100-column terminal" ~width:100 row;
+  check_word_cut "a service's line on a 100-column terminal" ~width:100 row;
   Alcotest.(check bool)
-    "the number the developer is told to watch survives the cut" true
+    "the number the developer is told to watch is kept" true
     (contains "dropped 20 over 0.35 cloud" row)
 
-let test_a_narrow_log_line_is_cut_at_its_end () =
-  check_end_cut "a service's line on a 60-column terminal" ~width:60
+let test_a_narrow_log_line_loses_words_from_its_end () =
+  check_word_cut "a service's line on a 60-column terminal" ~width:60
     (logged_line ~width:60)
+
+(* Every label and line this suite draws, on every terminal from 20 to 200
+   columns wide: the live frame and the history after it carry no U+2026. *)
+let ellipsis_fixtures =
+  [
+    digest_label;
+    pushed_label;
+    service_line;
+    "workspace prepared now";
+    "packages checked twice";
+    "a very long task label with \xe4\xbd\xa0\xe5\xa5\xbd and control\tbytes";
+    "Target: waiting for op-hello's boot verdict (300s bound)";
+  ]
+
+let test_no_row_carries_an_ellipsis () =
+  for width = 20 to 200 do
+    List.iter
+      (fun label ->
+        let live = ref "" in
+        let vte =
+          terminal_run ~height:12 ~width ~header:label
+            (fun display _advance sync vte ->
+              let task = Display.task ~log_lines:2 display label in
+              Display.log task service_line;
+              Display.log task label;
+              sync ();
+              live := Vte.to_string vte;
+              Display.succeed task)
+        in
+        List.iter
+          (fun row ->
+            if contains ellipsis row then
+              Alcotest.failf "%d columns, %S: a row carries U+2026: %S" width
+                label row)
+          (String.split_on_char '\n' !live @ terminal_rows vte))
+      ellipsis_fixtures;
+    List.iter
+      (fun line ->
+        if contains ellipsis (Span.to_string line) then
+          Alcotest.failf "%d columns: Span.wrap marks a cut: %S" width
+            (Span.to_string line))
+      (Span.wrap width (Span.text digest_label))
+  done
 
 let test_activity_lines_are_bounded () =
   let vte =
@@ -1663,11 +1722,14 @@ let suite =
         test_history_survives_activity;
       Alcotest.test_case "a log line is drawn once" `Quick
         test_log_reaches_the_terminal_once;
-      Alcotest.test_case "a cut row is marked" `Quick test_row_marks_its_cut;
-      Alcotest.test_case "a log line is cut at its end" `Quick
-        test_a_log_line_is_cut_at_its_end;
-      Alcotest.test_case "a narrow log line is cut at its end" `Quick
-        test_a_narrow_log_line_is_cut_at_its_end;
+      Alcotest.test_case "a row keeps a digest whole" `Quick
+        test_row_keeps_a_digest_whole;
+      Alcotest.test_case "no row carries an ellipsis" `Quick
+        test_no_row_carries_an_ellipsis;
+      Alcotest.test_case "a log line loses words from its end" `Quick
+        test_a_log_line_loses_words_from_its_end;
+      Alcotest.test_case "a narrow log line loses words from its end" `Quick
+        test_a_narrow_log_line_loses_words_from_its_end;
       Alcotest.test_case "activity lines bounded" `Quick
         test_activity_lines_are_bounded;
       Alcotest.test_case "tiny activity bounded" `Quick

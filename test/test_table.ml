@@ -23,19 +23,40 @@ let test_empty () =
   let output = Table.to_string table in
   Alcotest.(check bool) "contains X" true (contains "X" output)
 
+(* A cell too wide for its column keeps the words that fit and drops the rest,
+   never cutting one; a value with no word that fits, a digest, is printed
+   whole over several lines. *)
 let test_truncation () =
   let table =
     Table.(
       of_rows
-        [ column ~max_width:6 ~overflow:`Truncate "Header" ]
-        [ [ Span.text "very long text that should be truncated" ] ])
+        [ column ~max_width:9 ~overflow:`Truncate "Header" ]
+        [ [ Span.text "very long text that should be shortened" ] ])
   in
   let output = Table.to_string table in
-  (* Should contain ellipsis and not the full text *)
-  Alcotest.(check bool) "contains ellipsis" true (contains "…" output);
+  Alcotest.(check bool) "carries no ellipsis" false (contains "…" output);
   Alcotest.(check bool)
-    "does not contain full text" false
-    (contains "truncated" output)
+    "keeps the words that fit" true
+    (contains "very long" output);
+  Alcotest.(check bool)
+    "drops the words that do not" false
+    (contains "shortened" output);
+  Alcotest.(check bool) "cuts no word" false (contains "tex" output);
+  let digest = "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e" in
+  let table =
+    Table.(
+      of_rows ~border:Border.none
+        [ column ~max_width:12 ~overflow:`Truncate "Digest" ]
+        [ [ Span.text digest ] ])
+  in
+  let cells =
+    Table.to_string table |> String.split_on_char '\n'
+    |> List.filter_map (fun row ->
+        match String.trim row with "" | "Digest" -> None | cell -> Some cell)
+  in
+  Alcotest.(check string)
+    "a digest is printed whole, over several lines" digest
+    (String.concat "" cells)
 
 let test_wrap () =
   let table =
