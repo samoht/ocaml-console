@@ -19,13 +19,18 @@ Terminal styling and layout widgets for OCaml CLI applications.
 
 A command-line tool that prints a table, a tree or a progress bar has to
 measure every string in terminal cells, keep ANSI styling out of redirected
-output, and redraw live rows without scrambling the scrollback. `console` does
-that work once. It renders *inline* output (styled text, tables, trees, panels
-and live progress rows) into the normal scrollback, and falls back to plain
-append-only lines when standard output is not a terminal. It is not a TUI
-framework: it never switches to the alternate screen, never takes over the
-whole window and never runs an event loop that owns the terminal. For
-full-screen applications, use [notty](https://github.com/pqwy/notty) or
+output, and redraw live rows without scrambling the scrollback. A terminal reads
+commands inside the text it prints, as escape sequences: a CSI sequence (ESC `[`
+...) moves the cursor or sets colours, and an OSC sequence (ESC `]` ...) passes
+a command to the terminal, such as OSC 8, which makes the text it wraps a
+clickable link to a URI. `console` does that work once. It renders *inline*
+output (styled text, tables, trees, panels and live progress rows) into the
+normal scrollback, and falls back to plain append-only lines when standard
+output is not a terminal. It is not a TUI framework: it never switches to the
+alternate screen (the second screen buffer that full-screen programs such as
+`vim` draw on, leaving the scrollback untouched), never takes over the whole
+window and never runs an event loop that owns the terminal. For full-screen
+applications, use [notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term).
 
 - **Composable styles**: `Style.(bold + fg Color.red + underline)`, over ANSI
