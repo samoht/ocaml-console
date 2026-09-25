@@ -1937,6 +1937,8 @@ let test_an_appending_display_draws_no_scene () =
   in
   Alcotest.(check bool) "no scene in the history" false (contains "scene" out)
 
+(* The row sits under an open group so that it stays drawn once it has
+   finished, which is where its outcome must replace the marker. *)
 let test_a_marker_moves_with_the_ticks () =
   let bar =
     Display.Line.(
@@ -1948,24 +1950,35 @@ let test_a_marker_moves_with_the_ticks () =
         ])
   in
   let screens = ref [] in
-  let vte =
+  let _vte =
     terminal_run ~header:"BUILD" (fun display _advance sync vte ->
-        let task = Display.task ~bar display "compile" in
-        sync ();
-        screens := screen_rows vte :: !screens;
-        sync ();
-        screens := screen_rows vte :: !screens;
-        Display.succeed task)
+        let group = Display.task ~group:true display "entry" in
+        let task = Display.task ~parent:group ~bar display "compile" in
+        let shot () =
+          sync ();
+          screens := screen_rows vte :: !screens
+        in
+        shot ();
+        shot ();
+        Display.succeed task;
+        shot ();
+        Display.succeed group)
   in
-  (match List.rev !screens with
-  | [ first; second ] ->
+  match List.rev !screens with
+  | [ first; second; finished ] ->
+      let row screen =
+        match List.find_opt (contains "compile") screen with
+        | Some row -> String.trim row
+        | None -> Alcotest.fail "no compile row"
+      in
       Alcotest.(check (list string))
         "the marker at frames 1 and 2"
-        [ "<1> compile"; "<2> compile" ]
-        [ List.nth first 1; List.nth second 1 ]
-  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens));
-  Alcotest.(check int)
-    "a finished row draws its outcome, not the marker" 0 (count_rows vte "<")
+        [ "└── <1> compile"; "└── <2> compile" ]
+        [ row first; row second ];
+      Alcotest.(check bool)
+        "a finished row draws its outcome, not the marker" false
+        (contains "<" (row finished))
+  | screens -> Alcotest.failf "%d screens, expected 3" (List.length screens)
 
 let suite =
   ( "display",
