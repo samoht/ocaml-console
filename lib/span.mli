@@ -58,10 +58,11 @@ val split_lines : t -> t list
 (** {1:rendering Rendering}
 
     Rendering follows the style renderer of the target formatter,
-    [Fmt.style_renderer ppf], which [Fmt_tty.setup_std_outputs] sets (usually
-    through [Fmt_cli.style_renderer] or [Observe.setup]) from
-    [--color=auto|always|never] and [NO_COLOR]. There is no global colour
-    switch. *)
+    [Fmt.style_renderer ppf], which [Console_eio.setup] sets from
+    [--color=auto|always|never], [NO_COLOR] and [TERM]
+    ({!Console.style_renderer}). There is no global colour switch. A style with
+    a gradient ({!Style.fg_gradient}) colours each cell by its column, column
+    [0] being the span's first cell. *)
 
 val pp : t Fmt.t
 (** [pp] pretty-prints the span with ANSI codes when the target formatter's

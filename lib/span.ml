@@ -77,9 +77,23 @@ let pp_atom base ppf { style; link; text } =
     the target formatter. *)
 let pp_plain ppf t = List.iter (fun { text; _ } -> Fmt.string ppf text) t
 
+(* A span with a gradient is inked cell by cell, each cell taking the
+   gradient's colour on its own column. *)
+let pp_painted base ppf t =
+  let p = Paint.v ppf in
+  List.iter
+    (fun { style; link; text } ->
+      Option.iter (fun uri -> Paint.text p (osc8_open uri)) link;
+      Paint.ink p Style.(base + style) text;
+      Option.iter (fun _ -> Paint.text p osc8_close) link)
+    t;
+  Paint.close p
+
 let pp_with_style style ppf t =
-  if Ansi.should_style ppf then List.iter (pp_atom style ppf) t
-  else pp_plain ppf t
+  if not (Ansi.should_style ppf) then pp_plain ppf t
+  else if List.exists (fun a -> Style.(has_gradient (style + a.style))) t then
+    pp_painted style ppf t
+  else List.iter (pp_atom style ppf) t
 
 let pp = pp_with_style Style.none
 let to_string t = Render.to_string pp t

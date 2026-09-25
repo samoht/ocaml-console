@@ -250,13 +250,9 @@ let calc_col_widths ~char_width ?max_width t =
   apply_width_constraints t widths;
   shrink_widths_to_terminal ?max_width t unbroken_widths widths |> Array.to_list
 
-(* Emit a border glyph according to the target formatter's style renderer. *)
-let put_border ppf style ch = Style.styled style Fmt.string ppf ch
-
-let render_horizontal ppf t widths left_char mid_char right_char horiz_char =
+let render_horizontal p t widths left_char mid_char right_char horiz_char =
   let chars = Border.chars t.border in
-  let border_style = Border.style t.border in
-  let put = put_border ppf border_style in
+  let put = Paint.ink p (Border.style t.border) in
   if chars.top = "" then () (* No border *)
   else (
     put left_char;
@@ -269,7 +265,7 @@ let render_horizontal ppf t widths left_char mid_char right_char horiz_char =
         if i < List.length widths - 1 then put mid_char)
       widths;
     put right_char;
-    Render.newline ppf)
+    Paint.newline p)
 
 let align_span ~char_width ~pad_right align target span =
   let width = Span.width ~char_width span in
@@ -314,24 +310,23 @@ let process_cell ~char_width ~styled ~style ~pad_right overflow align width span
       if styled then Span.to_ansi_string ~style line else Span.to_string line)
     lines
 
-let render_physical_row ppf t widths line_cells =
+let render_physical_row p t widths line_cells =
   let chars = Border.chars t.border in
-  let border_style = Border.style t.border in
   let num_cols = List.length widths in
-  let put = put_border ppf border_style in
+  let put = Paint.ink p (Border.style t.border) in
   let edged = edged t in
   if edged then put chars.left;
   List.iteri
     (fun i ((_col, _col_width), line) ->
-      if edged || i > 0 then Fmt.char ppf ' ';
-      Fmt.string ppf line;
-      if edged || i < num_cols - 1 then Fmt.char ppf ' ';
+      let before = if edged || i > 0 then " " else "" in
+      let after = if edged || i < num_cols - 1 then " " else "" in
+      Paint.text p (before ^ line ^ after);
       if i < num_cols - 1 && edged then put chars.right)
     (List.combine (List.combine t.columns widths) line_cells);
   if chars.right <> "" then put chars.right;
-  Render.newline ppf
+  Paint.newline p
 
-let render_row ~char_width ~styled ppf t widths style cells =
+let render_row ~char_width ~styled p t widths style cells =
   (* Index cells and widths by column once: the per-column [List.nth]/
      [List.length] this replaced made rendering a row quadratic in the column
      count. *)
@@ -364,7 +359,7 @@ let render_row ~char_width ~styled ppf t widths style cells =
           else "")
         cell_lines
     in
-    render_physical_row ppf t widths line_cells
+    render_physical_row p t widths line_cells
   done
 
 let pp_with ~char_width ?max_width ppf t =
@@ -374,38 +369,40 @@ let pp_with ~char_width ?max_width ppf t =
   if List.length t.columns = 0 then ()
   else
     let styled = Fmt.style_renderer ppf = `Ansi_tty in
+    let p = Paint.v ppf in
     let chars = Border.chars t.border in
     let widths = calc_col_widths ~char_width ?max_width t in
 
     (* Top border *)
-    render_horizontal ppf t widths chars.top_left chars.top_cross
-      chars.top_right chars.top;
+    render_horizontal p t widths chars.top_left chars.top_cross chars.top_right
+      chars.top;
 
     (* Header row (skip if all headers are empty) *)
     let headers = List.map (fun col -> col.header) t.columns in
     let has_headers = List.exists (fun h -> Span.to_string h <> "") headers in
     if has_headers then (
-      render_row ~char_width ~styled ppf t widths t.header_style headers;
+      render_row ~char_width ~styled p t widths t.header_style headers;
       if List.length t.rows > 0 then
-        render_horizontal ppf t widths chars.left_cross chars.cross
+        render_horizontal p t widths chars.left_cross chars.cross
           chars.right_cross chars.top);
 
     (* Data rows *)
     let rec render_rows = function
       | [] -> ()
-      | [ row ] -> render_row ~char_width ~styled ppf t widths Style.none row
+      | [ row ] -> render_row ~char_width ~styled p t widths Style.none row
       | row :: rows ->
-          render_row ~char_width ~styled ppf t widths Style.none row;
+          render_row ~char_width ~styled p t widths Style.none row;
           if t.row_separators then
-            render_horizontal ppf t widths chars.left_cross chars.cross
+            render_horizontal p t widths chars.left_cross chars.cross
               chars.right_cross chars.top;
           render_rows rows
     in
     render_rows (List.rev t.rows);
 
     (* Bottom border *)
-    render_horizontal ppf t widths chars.bottom_left chars.bottom_cross
-      chars.bottom_right chars.bottom
+    render_horizontal p t widths chars.bottom_left chars.bottom_cross
+      chars.bottom_right chars.bottom;
+    Paint.close p
 
 let pp ppf t =
   let max_width = Format.pp_get_margin ppf () in

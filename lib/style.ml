@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+type paint = Solid of Color.t | Gradient of Gradient.t
+
 type t = {
   bold : bool;
   faint : bool;
@@ -11,8 +13,8 @@ type t = {
   blink : bool;
   reverse : bool;
   strikethrough : bool;
-  fg : Color.t option;
-  bg : Color.t option;
+  fg : paint option;
+  bg : paint option;
 }
 
 let none =
@@ -35,8 +37,10 @@ let underline = { none with underline = true }
 let blink = { none with blink = true }
 let reverse = { none with reverse = true }
 let strikethrough = { none with strikethrough = true }
-let fg color = { none with fg = Some color }
-let bg color = { none with bg = Some color }
+let fg color = { none with fg = Some (Solid color) }
+let bg color = { none with bg = Some (Solid color) }
+let fg_gradient g = { none with fg = Some (Gradient g) }
+let bg_gradient g = { none with bg = Some (Gradient g) }
 let merge_opt left right = match right with Some _ -> right | None -> left
 
 let ( + ) left right =
@@ -72,15 +76,43 @@ let active_bool_attrs style =
 
 let bool_attrs style = List.map fst (active_bool_attrs style)
 
+let resolve ~row ~column = function
+  | Solid c -> c
+  | Gradient g -> Gradient.cell g ~row ~column
+
+let is_gradient = function Some (Gradient _) -> true | _ -> false
+let has_gradient style = is_gradient style.fg || is_gradient style.bg
+
+let shows_on_space style =
+  style.bg <> None || style.reverse || style.underline || style.strikethrough
+
+let at ~row ~column style =
+  let solid = Option.map (fun p -> Solid (resolve ~row ~column p)) in
+  { style with fg = solid style.fg; bg = solid style.bg }
+
+let foreground style = Option.map (resolve ~row:0 ~column:0) style.fg
+let background style = Option.map (resolve ~row:0 ~column:0) style.bg
+
+let map_paint f = function
+  | Solid c -> Solid (f c)
+  | Gradient g -> Gradient (Gradient.map f g)
+
+let map_color ?(fg = Fun.id) ?(bg = Fun.id) style =
+  {
+    style with
+    fg = Option.map (map_paint fg) style.fg;
+    bg = Option.map (map_paint bg) style.bg;
+  }
+
 let to_ansi style =
   let codes = bool_attrs style in
   let codes =
-    match style.fg with
+    match foreground style with
     | Some c -> codes @ [ Color.to_fg_code c ]
     | None -> codes
   in
   let codes =
-    match style.bg with
+    match background style with
     | Some c -> codes @ [ Color.to_bg_code c ]
     | None -> codes
   in
@@ -109,6 +141,12 @@ let opt_equal eq left right =
   | Some l, Some r -> eq l r
   | _ -> false
 
+let equal_paint a b =
+  match (a, b) with
+  | Solid a, Solid b -> Color.equal a b
+  | Gradient a, Gradient b -> Gradient.equal a b
+  | _ -> false
+
 let equal left right =
   Bool.equal left.bold right.bold
   && Bool.equal left.faint right.faint
@@ -117,8 +155,8 @@ let equal left right =
   && Bool.equal left.blink right.blink
   && Bool.equal left.reverse right.reverse
   && Bool.equal left.strikethrough right.strikethrough
-  && opt_equal Color.equal left.fg right.fg
-  && opt_equal Color.equal left.bg right.bg
+  && opt_equal equal_paint left.fg right.fg
+  && opt_equal equal_paint left.bg right.bg
 
 let bool_attr_names style = List.map snd (active_bool_attrs style)
 
@@ -126,14 +164,18 @@ let pp ppf style =
   if is_none style then Fmt.pf ppf "none"
   else
     let parts = bool_attr_names style in
+    let pp_paint ppf = function
+      | Solid c -> Color.pp ppf c
+      | Gradient g -> Gradient.pp ppf g
+    in
     let parts =
       match style.fg with
-      | Some c -> parts @ [ Fmt.str "fg(%a)" Color.pp c ]
+      | Some p -> parts @ [ Fmt.str "fg(%a)" pp_paint p ]
       | None -> parts
     in
     let parts =
       match style.bg with
-      | Some c -> parts @ [ Fmt.str "bg(%a)" Color.pp c ]
+      | Some p -> parts @ [ Fmt.str "bg(%a)" pp_paint p ]
       | None -> parts
     in
     Fmt.pf ppf "%s" (String.concat " + " parts)

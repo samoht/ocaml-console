@@ -44,6 +44,14 @@ val fg : Color.t -> t
 val bg : Color.t -> t
 (** [bg c] is the style with background colour [c]. *)
 
+val fg_gradient : Gradient.t -> t
+(** [fg_gradient g] is the style whose foreground is [g], laid over the cells it
+    styles: each cell takes the colour {!Gradient.cell} gives its row and
+    column. *)
+
+val bg_gradient : Gradient.t -> t
+(** [bg_gradient g] is like {!fg_gradient} for the background. *)
+
 (** {1:composition Composition} *)
 
 val ( + ) : t -> t -> t
@@ -53,11 +61,39 @@ val ( + ) : t -> t -> t
 val merge : t list -> t
 (** [merge styles] merges a list of styles left to right. *)
 
+(** {1:colours Colours} *)
+
+val at : row:int -> column:int -> t -> t
+(** [at ~row ~column s] is [s] on the cell at [row] and [column]: each gradient
+    of [s] replaced by its colour on that cell, the rest of [s] unchanged. *)
+
+val has_gradient : t -> bool
+(** [has_gradient s] is [true] iff the foreground or the background of [s] is a
+    gradient, so that [at] gives different styles on different cells. *)
+
+val shows_on_space : t -> bool
+(** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
+    an unstyled one: [s] sets a background, reverse video, underline or
+    strikethrough. *)
+
+val foreground : t -> Color.t option
+(** [foreground s] is the foreground colour of [s], if it sets one. A gradient
+    foreground is its colour on row [0], column [0]. *)
+
+val background : t -> Color.t option
+(** [background s] is like {!foreground} for the background. *)
+
+val map_color : ?fg:(Color.t -> Color.t) -> ?bg:(Color.t -> Color.t) -> t -> t
+(** [map_color ~fg ~bg s] is [s] with [fg] applied to its foreground colour and
+    [bg] to its background colour (each defaults to the identity), every stop of
+    a gradient included. *)
+
 (** {1:ansi_escape_codes ANSI escape codes} *)
 
 val to_ansi : t -> string
-(** [to_ansi s] is the ANSI escape sequence that enables [s], or the empty
-    string for {!none}. *)
+(** [to_ansi s] is the ANSI escape sequence that enables
+    [at ~row:0 ~column:0 s], or the empty string for {!none}. Its colours are
+    written at {!Color.val-depth}. *)
 
 val reset : string
 (** [reset] is the ANSI escape sequence to reset all styling. *)

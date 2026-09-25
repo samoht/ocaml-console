@@ -174,6 +174,24 @@ val sanitize_styles : ?keep_newlines:bool -> string -> string
     An SGR sequence is zero columns wide ({!Width.string_width}), so what this
     returns measures and lays out as the visible text alone. *)
 
+(** {1:setup Colour on or off} *)
+
+val style_renderer :
+  ?renderer:Fmt.style_renderer ->
+  getenv:(string -> string option) ->
+  is_tty:bool ->
+  unit ->
+  Fmt.style_renderer
+(** [style_renderer ~renderer ~getenv ~is_tty ()] is whether an output takes
+    ANSI styling, read from the environment [getenv] reads:
+    - [renderer] when given, the reader's [--color=always|never];
+    - [`None] when [NO_COLOR] is set to a non-empty value
+      ({{:https://no-color.org}no-color.org});
+    - [`None] when [TERM] is unset, empty or [dumb];
+    - [`Ansi_tty] iff [is_tty], the output being a terminal, otherwise.
+
+    [Console_eio.setup] sets stdout and stderr by it. *)
+
 (** {1:modules Modules} *)
 
 module Color = Color
@@ -182,6 +200,9 @@ module Color = Color
 module Style = Style
 (** Text attributes: foreground and background colour, bold, italic, underline.
 *)
+
+module Gradient = Gradient
+(** Linear colour gradients laid over terminal cells. *)
 
 module Width = Width
 (** The display width of text in terminal cells, counting wide glyphs as two. *)
@@ -222,6 +243,9 @@ module Rule = Rule
 
 module Layout = Layout
 (** Joining rendered text blocks side by side into aligned columns. *)
+
+module Canvas = Canvas
+(** Grids of styled cells, for pixel art and scenes. *)
 
 module Display = Display
 (** A live progress display that redraws rows in place. *)

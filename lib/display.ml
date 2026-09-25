@@ -578,10 +578,10 @@ let render_spinner t ~finished ~color ~frame row =
     styled t (color_code color) (Spinner.frame (Theme.spinner theme) frame)
   else
     match row.routcome with
-    | Some `Failed -> styled t (bold ^ color_code Color.red) "[x]"
-    | Some `Cancelled -> styled t (bold ^ color_code Color.yellow) "[~]"
+    | Some `Failed -> styled t (bold ^ color_code (Theme.fail theme)) "[x]"
+    | Some `Cancelled -> styled t (bold ^ color_code (Theme.warn theme)) "[~]"
     | Some `Succeeded | None ->
-        styled t (bold ^ color_code Color.green) (Theme.done_marker theme)
+        styled t (bold ^ color_code (Theme.ok theme)) (Theme.done_marker theme)
 
 let render_bar t row ~finished ~color ~width =
   if finished then ""
@@ -714,11 +714,11 @@ let committed_parts t row =
 (* The marker's style for a committed row: the outcome's colour, or dim for a
    row that never reported one. One producer for the compact and the
    width-aligned rendering, which differ in layout alone. *)
-let committed_marker_style row =
+let committed_marker_style t row =
   match row.routcome with
-  | Some `Succeeded -> bold ^ color_code Color.green
-  | Some `Failed -> bold ^ color_code Color.red
-  | Some `Cancelled -> bold ^ color_code Color.yellow
+  | Some `Succeeded -> bold ^ color_code (Theme.ok t.theme)
+  | Some `Failed -> bold ^ color_code (Theme.fail t.theme)
+  | Some `Cancelled -> bold ^ color_code (Theme.warn t.theme)
   | None -> dim
 
 (* Compact against width-aligned is the only difference between this line and
@@ -734,11 +734,11 @@ let plain_committed t row =
   in
   let metadata = metric ^ "  " ^ elapsed in
   Fmt.str "%s%s %s%s" indent
-    (styled t (committed_marker_style row) marker)
+    (styled t (committed_marker_style t row) marker)
     label (dimmed t metadata)
 
 let styled_committed t row =
-  let marker_style = committed_marker_style row in
+  let marker_style = committed_marker_style t row in
   let indent, marker, label, elapsed = committed_parts t row in
   let width = render_width t in
   let marker = styled t marker_style marker in
@@ -795,9 +795,9 @@ let header_marker t =
     match t.pending with
     | Some (`Fail _, _) -> true
     | Some (`Ok _, _) | None -> false
-  then ("[x]", Color.red)
-  else if any_cancelled t then ("[~]", Color.yellow)
-  else ("[+]", Color.green)
+  then ("[x]", Theme.fail t.theme)
+  else if any_cancelled t then ("[~]", Theme.warn t.theme)
+  else ("[+]", Theme.ok t.theme)
 
 (* The header: a bright marker, a bold name, a dim elapsed and done/total.
    One line under two names, [summary] and [header_styled], until the surface
@@ -856,14 +856,16 @@ let level_marker theme = function
   | `Warning -> Theme.warn_marker theme
   | `Error -> Theme.error_marker theme
 
-let level_style = function
+let level_style theme = function
   | `Info -> dim
-  | `Warning -> bold ^ color_code Color.yellow
-  | `Error -> bold ^ color_code Color.red
+  | `Warning -> bold ^ color_code (Theme.warn theme)
+  | `Error -> bold ^ color_code (Theme.fail theme)
 
 let styled_log t level marker message suffix =
   String.concat ""
-    [ styled t (level_style level) marker; " "; message; dimmed t suffix ]
+    [
+      styled t (level_style t.theme level) marker; " "; message; dimmed t suffix;
+    ]
 
 let row_block_parts t row =
   let prefix = continuation t row in
@@ -1476,7 +1478,7 @@ let commit_log t r entry =
     let marker = level_marker t.theme entry.llevel in
     let plain =
       Fmt.str "%s  %s %s%s" (indent r)
-        (styled t (level_style entry.llevel) marker)
+        (styled t (level_style t.theme entry.llevel) marker)
         entry.lmessage
         (dimmed t (gap_suffix entry.lgap))
     in
@@ -1541,7 +1543,9 @@ let event ?(level = `Info) t message =
       | `Info -> emit_history_line t ~plain:message ~styled:message
       | (`Warning | `Error) as level ->
           let marker = level_marker t.theme level in
-          let log = styled t (level_style level) marker ^ " " ^ message in
+          let log =
+            styled t (level_style t.theme level) marker ^ " " ^ message
+          in
           emit_history_line t ~plain:log ~styled:log)
     lines
 
@@ -1777,8 +1781,9 @@ let set_scene t scene =
 let result_line t result =
   let marker, accent, msg =
     match result with
-    | `Ok msg -> (Theme.ok_marker t.theme, color_code Color.green, msg)
-    | `Fail msg -> (Theme.fail_marker t.theme, color_code Color.red, msg)
+    | `Ok msg -> (Theme.ok_marker t.theme, color_code (Theme.ok t.theme), msg)
+    | `Fail msg ->
+        (Theme.fail_marker t.theme, color_code (Theme.fail t.theme), msg)
   in
   if t.plain then styled t (dim ^ accent) marker ^ " " ^ styled t bold msg
   else begin

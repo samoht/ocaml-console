@@ -45,9 +45,9 @@ let lines ?theme ?border ?title ?subtitle ?(padding = 1) ?width
   build ~fn:"Console.Panel.lines" ?theme ?border ?title ?subtitle ~padding
     ?width ~char_width lines
 
-let render_horizontal ppf border_style count char =
+let render_horizontal p border_style count char =
   for _ = 1 to count do
-    Style.styled border_style Fmt.string ppf char
+    Paint.ink p border_style char
   done
 
 let natural_width panel =
@@ -97,48 +97,45 @@ let render_span ppf ~char_width ~width span =
 (* Render a horizontal border row (top or bottom) with optional embedded
    centered text. Used by both [render_top_border] (title) and
    [render_bottom_border] (subtitle). *)
-let render_horiz_border ppf border_style ~char_width ~left_char ~mid_char
+let render_horiz_border ppf p border_style ~char_width ~left_char ~mid_char
     ~right_char inner_width text =
-  Style.styled border_style Fmt.string ppf left_char;
+  Paint.ink p border_style left_char;
   (match text with
-  | None -> render_horizontal ppf border_style inner_width mid_char
+  | None -> render_horizontal p border_style inner_width mid_char
   | Some span when inner_width >= 3 ->
       let text = render_span ppf ~char_width ~width:(inner_width - 2) span in
       let w = Width.string_width ~char_width text in
       let left_border = (inner_width - w - 2) / 2 in
       let right_border = inner_width - w - 2 - left_border in
-      render_horizontal ppf border_style left_border mid_char;
-      Fmt.char ppf ' ';
-      Fmt.string ppf text;
-      Fmt.char ppf ' ';
-      render_horizontal ppf border_style right_border mid_char
-  | Some _ -> render_horizontal ppf border_style inner_width mid_char);
-  Style.styled border_style Fmt.string ppf right_char
+      render_horizontal p border_style left_border mid_char;
+      Paint.text p (" " ^ text ^ " ");
+      render_horizontal p border_style right_border mid_char
+  | Some _ -> render_horizontal p border_style inner_width mid_char);
+  Paint.ink p border_style right_char
 
-let render_top_border ppf panel border_style chars inner_width =
-  render_horiz_border ppf border_style ~char_width:panel.char_width
+let render_top_border ppf p panel border_style chars inner_width =
+  render_horiz_border ppf p border_style ~char_width:panel.char_width
     ~left_char:chars.Border.top_left ~mid_char:chars.Border.top
     ~right_char:chars.Border.top_right inner_width panel.title;
-  Render.newline ppf
+  Paint.newline p
 
-let render_content_lines ppf panel border_style chars cw pad =
+let render_content_lines ppf p panel border_style chars cw pad =
   List.iter
     (fun line ->
-      Style.styled border_style Fmt.string ppf chars.Border.left;
-      Fmt.string ppf pad;
+      Paint.ink p border_style chars.Border.left;
       let line = render_span ppf ~char_width:panel.char_width ~width:cw line in
-      Fmt.string ppf line;
       let spaces = cw - Width.string_width ~char_width:panel.char_width line in
-      if spaces > 0 then Fmt.string ppf (String.make spaces ' ');
-      Fmt.string ppf pad;
-      Style.styled border_style Fmt.string ppf chars.Border.right;
-      Render.newline ppf)
+      Paint.text p
+        (pad ^ line ^ (if spaces > 0 then String.make spaces ' ' else "") ^ pad);
+      Paint.ink p border_style chars.Border.right;
+      Paint.newline p)
     (fitted_lines panel cw)
 
-let render_bottom_border ppf panel border_style chars inner_width =
-  render_horiz_border ppf border_style ~char_width:panel.char_width
+let render_bottom_border ppf p panel border_style chars inner_width =
+  render_horiz_border ppf p border_style ~char_width:panel.char_width
     ~left_char:chars.Border.bottom_left ~mid_char:chars.Border.bottom
-    ~right_char:chars.Border.bottom_right inner_width panel.subtitle
+    ~right_char:chars.Border.bottom_right inner_width panel.subtitle;
+  Paint.close p
 
 let pp ppf panel =
   let chars = Border.chars panel.border in
@@ -146,9 +143,10 @@ let pp ppf panel =
   let cw = content_width ~margin:(Format.pp_get_margin ppf ()) panel in
   let inner_width = cw + (panel.padding * 2) in
   let pad = String.make panel.padding ' ' in
-  render_top_border ppf panel border_style chars inner_width;
-  render_content_lines ppf panel border_style chars cw pad;
-  render_bottom_border ppf panel border_style chars inner_width
+  let p = Paint.v ppf in
+  render_top_border ppf p panel border_style chars inner_width;
+  render_content_lines ppf p panel border_style chars cw pad;
+  render_bottom_border ppf p panel border_style chars inner_width
 
 let to_string panel = Render.to_string pp panel
 let to_ansi_string panel = Render.to_string ~style_renderer:`Ansi_tty pp panel

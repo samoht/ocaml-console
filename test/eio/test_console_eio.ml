@@ -220,9 +220,40 @@ let test_history_on_a_terminal_writes_only_its_output () =
   Alcotest.(check string)
     "only the output" "plain\r\n" (Buffer.contents written)
 
+(* [setup] reads the environment once: NO_COLOR turns stdout's styling off
+   whatever it is, and TERM sets the depth colours are written at. *)
+let test_setup_reads_the_environment () =
+  let saved name = (name, Sys.getenv_opt name) in
+  let env = List.map saved [ "NO_COLOR"; "TERM"; "COLORTERM" ] in
+  let restore () =
+    List.iter
+      (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
+      env;
+    Console.Color.set_depth `True_color;
+    Fmt.set_style_renderer Fmt.stdout `None;
+    Fmt.set_style_renderer Fmt.stderr `None
+  in
+  Fun.protect ~finally:restore (fun () ->
+      Unix.putenv "NO_COLOR" "1";
+      Unix.putenv "TERM" "xterm-256color";
+      Unix.putenv "COLORTERM" "";
+      Console_eio.setup ~style_renderer:`Ansi_tty ();
+      Alcotest.(check bool)
+        "--color wins over NO_COLOR" true
+        (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
+      Alcotest.(check bool)
+        "depth from TERM" true
+        (Console.Color.depth () = `Ansi_256);
+      Console_eio.setup ();
+      Alcotest.(check bool)
+        "NO_COLOR" true
+        (Fmt.style_renderer Fmt.stdout = `None))
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "setup reads the environment" `Quick
+        test_setup_reads_the_environment;
       Alcotest.test_case "run returns without cursor restore on non-tty" `Quick
         test_run_returns_without_cursor_restore_on_non_tty;
       Alcotest.test_case "run exception without cursor restore on non-tty"

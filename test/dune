@@ -8,6 +8,8 @@
   test_border
   test_guide
   test_color
+  test_gradient
+  test_canvas
   test_panel
   test_display
   test_spinner

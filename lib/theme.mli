@@ -26,6 +26,18 @@ type t
 val accent : t -> Color.t
 (** [accent t] is the default row, spinner, and bar colour. *)
 
+val ok : t -> Color.t
+(** [ok t] is the colour of success: a succeeded row's marker and the [OK]
+    result banner. *)
+
+val fail : t -> Color.t
+(** [fail t] is the colour of failure: a failed row's marker, an error log line
+    and the [FAIL] result banner. *)
+
+val warn : t -> Color.t
+(** [warn t] is the colour of what needs attention without having failed: a
+    cancelled row's marker and a warning log line. *)
+
 val palette : t -> Color.t list
 (** [palette t] is the colour cycle for successive rows and nodes. *)
 
@@ -84,6 +96,9 @@ val pp : t Fmt.t
 
 val v :
   ?accent:Color.t ->
+  ?ok:Color.t ->
+  ?fail:Color.t ->
+  ?warn:Color.t ->
   ?palette:Color.t list ->
   ?border:Border.t ->
   ?table_row_separators:bool ->
@@ -101,8 +116,10 @@ val v :
   unit ->
   t
 (** [v ~spinner ~done_marker ()] is a custom theme; the other fields take modern
-    defaults. [table_row_separators] defaults to [false], and the six log and
-    committed markers to ["#"], ["!"], ["x"], ["=>"], ["!!"] and ["--"]. *)
+    defaults. [ok], [fail] and [warn] default to {!Color.green}, {!Color.red}
+    and {!Color.yellow}, as in every preset theme. [table_row_separators]
+    defaults to [false], and the six log and committed markers to ["#"], ["!"],
+    ["x"], ["=>"], ["!!"] and ["--"]. *)
 
 val with_verdict :
   ?ok:string ->

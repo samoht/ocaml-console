@@ -397,9 +397,27 @@ let test_no_border_draws_no_edge () =
           [ Table.column "NAME"; Table.column "NOTE" ]
           [ [ "a"; "one\ntwo" ] ]))
 
+(* A border in one style is one sequence per run of border glyphs. *)
+let test_styled_border_runs () =
+  let t =
+    Table.of_rows
+      ~border:(Border.with_style Style.(fg Color.red) Border.single)
+      [ Table.column "a" ]
+      [ [ Span.text "b" ] ]
+  in
+  let lines = String.split_on_char '\n' (Table.to_ansi_string t) in
+  Alcotest.(check string)
+    "top"
+    "\027[31m\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90\027[0m\r"
+    (List.hd lines);
+  Alcotest.(check string)
+    "data row" "\027[31m\xe2\x94\x82\027[0m b \027[31m\xe2\x94\x82\027[0m\r"
+    (List.nth lines 3)
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "styled border runs" `Quick test_styled_border_runs;
       Alcotest.test_case "no border draws no edge" `Quick
         test_no_border_draws_no_edge;
       Alcotest.test_case "basic" `Quick test_basic;

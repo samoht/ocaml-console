@@ -4,7 +4,7 @@
  (libraries ascii fmt logs matrix.glyph uucp uutf)
  ; Low-level ANSI, Matrix rain, formatter conversion and widget resolution
  ; helpers. None is part of the public API.
- (private_modules ansi rain render widget))
+ (private_modules ansi paint rain render widget))
 
 (mdx
  (package console)

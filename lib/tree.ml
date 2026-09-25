@@ -54,6 +54,8 @@ let continuation ~guide lasts =
 
 let pp ppf t =
   let margin = Format.pp_get_margin ppf () in
+  let p = Paint.v ppf in
+  let style = Guide.style t.guide in
   (* [lasts] is the is-last flag at each level from the top down to this node;
      the root carries the empty list and prints with no prefix. A literal
      newline separates nodes: a [Fmt.cut] break hint collapses with no
@@ -61,8 +63,8 @@ let pp ppf t =
   let rec go lasts (Node (label, children)) =
     let prefix = prefix ~guide:t.guide lasts in
     if lasts <> [] then (
-      Render.newline ppf;
-      Fmt.string ppf prefix);
+      Paint.newline p;
+      Paint.ink p style prefix);
     let label = Span.sanitize ~keep_newlines:false label in
     let room = max 1 (margin - Width.string_width prefix) in
     (match
@@ -71,18 +73,21 @@ let pp ppf t =
      with
     | [] -> ()
     | first :: rest ->
+        Paint.close p;
         Span.pp ppf first;
         let beside = continuation ~guide:t.guide lasts in
         List.iter
           (fun line ->
-            Render.newline ppf;
-            Fmt.string ppf beside;
+            Paint.newline p;
+            Paint.ink p style beside;
+            Paint.close p;
             Span.pp ppf line)
           rest);
     let n = List.length children in
     List.iteri (fun i child -> go (lasts @ [ i = n - 1 ]) child) children
   in
-  go [] t.tree
+  go [] t.tree;
+  Paint.close p
 
 let to_string = Render.to_string pp
 let to_ansi_string = Render.to_string ~style_renderer:`Ansi_tty pp

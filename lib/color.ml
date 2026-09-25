@@ -94,7 +94,138 @@ let is_bright = function
       true
   | _ -> false
 
-let to_code ~normal ~bright ~extended = function
+type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
+
+let contains ~sub s =
+  let n = String.length sub and m = String.length s in
+  let rec at i = i + n <= m && (String.sub s i n = sub || at (i + 1)) in
+  at 0
+
+let ends_with ~suffix s =
+  let n = String.length suffix and m = String.length s in
+  m >= n && String.sub s (m - n) n = suffix
+
+let depth_of_env getenv =
+  match (getenv "COLORTERM", getenv "TERM") with
+  | Some ("truecolor" | "24bit"), _ -> `True_color
+  | _, Some term when ends_with ~suffix:"-direct" term -> `True_color
+  | _, Some term when contains ~sub:"256color" term -> `Ansi_256
+  | _ -> `Ansi_16
+
+let current_depth : depth Atomic.t = Atomic.make `True_color
+let depth () = Atomic.get current_depth
+let set_depth d = Atomic.set current_depth d
+
+(* The xterm defaults of the 16 named colours, in palette order. *)
+let named =
+  [|
+    (`Black, (0, 0, 0));
+    (`Red, (205, 0, 0));
+    (`Green, (0, 205, 0));
+    (`Yellow, (205, 205, 0));
+    (`Blue, (0, 0, 238));
+    (`Magenta, (205, 0, 205));
+    (`Cyan, (0, 205, 205));
+    (`White, (229, 229, 229));
+    (`Bright_black, (127, 127, 127));
+    (`Bright_red, (255, 0, 0));
+    (`Bright_green, (0, 255, 0));
+    (`Bright_yellow, (255, 255, 0));
+    (`Bright_blue, (92, 92, 255));
+    (`Bright_magenta, (255, 0, 255));
+    (`Bright_cyan, (0, 255, 255));
+    (`Bright_white, (255, 255, 255));
+  |]
+
+let cube = [| 0; 95; 135; 175; 215; 255 |]
+
+let to_rgb = function
+  | Rgb (r, g, b) -> (r, g, b)
+  | Ansi a -> snd (List.find (fun (a', _) -> a' = a) (Array.to_list named))
+  | Palette n when n < 16 -> snd named.(n)
+  | Palette n when n < 232 ->
+      let n = n - 16 in
+      (cube.(n / 36), cube.(n / 6 mod 6), cube.(n mod 6))
+  | Palette n ->
+      let v = 8 + (10 * (n - 232)) in
+      (v, v, v)
+
+let nearest_level v =
+  let best = ref 0 in
+  Array.iteri
+    (fun i level -> if abs (level - v) < abs (cube.(!best) - v) then best := i)
+    cube;
+  !best
+
+let distance (r, g, b) (r', g', b') =
+  ((r - r') * (r - r')) + ((g - g') * (g - g')) + ((b - b') * (b - b'))
+
+(* tmux's colour_find_rgb: the nearest cube entry or grey, whichever is
+   nearer. *)
+let xterm_256 (r, g, b) =
+  let ri = nearest_level r and gi = nearest_level g and bi = nearest_level b in
+  let cube_rgb = (cube.(ri), cube.(gi), cube.(bi)) in
+  let grey_index = max 0 (min 23 ((((r + g + b) / 3) - 8 + 5) / 10)) in
+  let grey = 8 + (10 * grey_index) in
+  if distance (r, g, b) (grey, grey, grey) < distance (r, g, b) cube_rgb then
+    232 + grey_index
+  else 16 + (36 * ri) + (6 * gi) + bi
+
+(* CIE 1976 L*a*b* of an sRGB colour, under the D65 white point. *)
+let lab (r, g, b) =
+  let linear c =
+    let c = float_of_int c /. 255. in
+    if c <= 0.04045 then c /. 12.92 else Float.pow ((c +. 0.055) /. 1.055) 2.4
+  in
+  let r = linear r and g = linear g and b = linear b in
+  let x = ((0.4124 *. r) +. (0.3576 *. g) +. (0.1805 *. b)) /. 0.95047
+  and y = (0.2126 *. r) +. (0.7152 *. g) +. (0.0722 *. b)
+  and z = ((0.0193 *. r) +. (0.1192 *. g) +. (0.9505 *. b)) /. 1.08883 in
+  let f t =
+    if t > 0.008856 then Float.cbrt t else (7.787 *. t) +. (16. /. 116.)
+  in
+  let fx = f x and fy = f y and fz = f z in
+  ((116. *. fy) -. 16., 500. *. (fx -. fy), 200. *. (fy -. fz))
+
+(* CIE76 colour difference, squared. *)
+let delta_e c c' =
+  let l, a, b = lab c and l', a', b' = lab c' in
+  ((l -. l') *. (l -. l'))
+  +. ((a -. a') *. (a -. a'))
+  +. ((b -. b') *. (b -. b'))
+
+let nearest_named rgb =
+  let best = ref named.(0) in
+  Array.iter
+    (fun ((_, rgb') as entry) ->
+      if delta_e rgb rgb' < delta_e rgb (snd !best) then best := entry)
+    named;
+  fst !best
+
+let downsample depth c =
+  match (depth, c) with
+  | `True_color, c
+  | `Ansi_256, ((Ansi _ | Palette _) as c)
+  | `Ansi_16, (Ansi _ as c) ->
+      c
+  | `Ansi_256, Rgb (r, g, b) -> Palette (xterm_256 (r, g, b))
+  | `Ansi_16, c -> Ansi (nearest_named (to_rgb c))
+
+let clamp v = max 0 (min 255 v)
+
+let blend c0 c1 t =
+  let t = Float.max 0. (Float.min 1. t) in
+  let r, g, b = to_rgb c0 and r', g', b' = to_rgb c1 in
+  let mix a a' = a + int_of_float (Float.round (t *. float_of_int (a' - a))) in
+  Rgb (mix r r', mix g g', mix b b')
+
+let scale f c =
+  let r, g, b = to_rgb c in
+  let s v = clamp (int_of_float (Float.round (float_of_int v *. f))) in
+  Rgb (s r, s g, s b)
+
+let to_code ~normal ~bright ~extended c =
+  match downsample (depth ()) c with
   | Ansi color ->
       string_of_int
         ((if is_bright color then bright else normal) + ansi_position color)

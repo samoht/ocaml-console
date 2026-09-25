@@ -85,9 +85,38 @@ let test_margin_wraps () =
   str "to_string is natural"
     "root\n├── a\n│   └── leaf label that is long\n└── b" (Tree.to_string tree)
 
+(* A styled guide is drawn in its style, a gradient taken on the tree's own
+   rows. *)
+let test_guide_style () =
+  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
+  let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
+  let guide = Guide.with_style (Style.fg_gradient down) Guide.unicode in
+  let tree =
+    Tree.of_tree ~guide
+      (Tree.Node
+         ( Span.text "r",
+           [ Tree.Node (Span.text "a", []); Tree.Node (Span.text "b", []) ] ))
+  in
+  Alcotest.(check string)
+    "rows"
+    "r\r\n\
+     \027[38;2;127;0;128m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\r\n\
+     \027[38;2;0;0;255m\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\027[0m b"
+    (Tree.to_ansi_string tree);
+  Alcotest.(check bool)
+    "with_style" true
+    (Style.equal (Style.fg_gradient down) (Guide.style guide));
+  Alcotest.(check string)
+    "plain"
+    "r\n\
+     \xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80 a\n\
+     \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80 b"
+    (Tree.to_string tree)
+
 let suite =
   ( "tree",
     [
+      Alcotest.test_case "guide style" `Quick test_guide_style;
       Alcotest.test_case "prefix unicode" `Quick test_prefix_unicode;
       Alcotest.test_case "prefix ascii" `Quick test_prefix_ascii;
       Alcotest.test_case "render exact" `Quick test_render_exact;

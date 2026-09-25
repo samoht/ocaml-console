@@ -7,6 +7,16 @@ module Prompt = Prompt
 let is_tty = Terminal.is_tty
 let dimensions = Terminal.dimensions
 
+let setup ?style_renderer () =
+  let set ppf fd =
+    Fmt.set_style_renderer ppf
+      (Console.style_renderer ?renderer:style_renderer ~getenv:Sys.getenv_opt
+         ~is_tty:(Unix.isatty fd) ())
+  in
+  set Fmt.stdout Unix.stdout;
+  set Fmt.stderr Unix.stderr;
+  Console.Color.set_depth (Console.Color.depth_of_env Sys.getenv_opt)
+
 (* A library may itself be written as a complete Console application and then
    be called by another Console application.  Re-entering [run] in that case
    must not try to claim the terminal a second time: the current display is a

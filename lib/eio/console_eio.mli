@@ -49,6 +49,18 @@ val run :
     itself and only that one: a [ctx] has already said what time the display
     reads. *)
 
+val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
+(** [setup ~style_renderer ()] configures the process's terminal output once,
+    before anything is drawn:
+    - the style renderer of {!Fmt.stdout} and {!Fmt.stderr} is
+      {!Console.style_renderer} of [style_renderer] (the value of
+      [Fmt_cli.style_renderer]'s [--color] option), the environment and whether
+      that output is a terminal, so [--color], [NO_COLOR] and [TERM] are
+      honoured the same way by every command;
+    - {!Console.Color.val-depth} is {!Console.Color.depth_of_env} of the
+      environment, so a colour a terminal cannot show is drawn as its nearest
+      one. *)
+
 val is_tty : unit -> bool
 (** [is_tty ()] is [true] iff stdout is connected to a terminal. It is the
     terminal question answered once for every CLI that renders through this

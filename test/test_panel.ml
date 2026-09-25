@@ -152,9 +152,71 @@ let test_margin_natural () =
     (Width.string_width
        (List.hd (lines (Panel.to_string (Panel.v (Span.text long))))))
 
+(* A gradient border takes its colour on each border cell; a run of border
+   glyphs opens one sequence and recolours only where the colour changes. *)
+let test_gradient_border () =
+  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
+  let across = Gradient.v ~length:1 [ red; blue ] in
+  let panel g =
+    Panel.v ~padding:0
+      ~border:(Border.with_style (Style.fg_gradient g) Border.single)
+      (Span.text "x")
+  in
+  let r = "\027[38;2;255;0;0m" and b = "\027[38;2;0;0;255m" in
+  let reset = "\027[0m" in
+  Alcotest.(check string)
+    "across"
+    (String.concat ""
+       [
+         r;
+         "\xe2\x94\x8c";
+         b;
+         "\xe2\x94\x80\xe2\x94\x90";
+         reset;
+         "\r\n";
+         r;
+         "\xe2\x94\x82";
+         reset;
+         "x";
+         b;
+         "\xe2\x94\x82";
+         reset;
+         "\r\n";
+         r;
+         "\xe2\x94\x94";
+         b;
+         "\xe2\x94\x80\xe2\x94\x98";
+         reset;
+       ])
+    (Panel.to_ansi_string (panel across));
+  let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
+  let p = "\027[38;2;127;0;128m" in
+  Alcotest.(check string)
+    "down"
+    (String.concat ""
+       [
+         r;
+         "\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x90";
+         reset;
+         "\r\n";
+         p;
+         "\xe2\x94\x82";
+         reset;
+         "x";
+         p;
+         "\xe2\x94\x82";
+         reset;
+         "\r\n";
+         b;
+         "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x98";
+         reset;
+       ])
+    (Panel.to_ansi_string (panel down))
+
 let suite =
   ( "panel",
     [
+      Alcotest.test_case "gradient border" `Quick test_gradient_border;
       Alcotest.test_case "basic" `Quick test_basic;
       Alcotest.test_case "with title" `Quick test_with_title;
       Alcotest.test_case "multiline styles" `Quick

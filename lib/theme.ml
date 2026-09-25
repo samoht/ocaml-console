@@ -17,6 +17,9 @@ type bar = [ `Blocky | `Smooth | `Rainbow ]
 
 type t = {
   accent : Color.t;
+  ok : Color.t;
+  fail : Color.t;
+  warn : Color.t;
   palette : Color.t list;
   border : Border.t;
   table_row_separators : bool;
@@ -37,6 +40,8 @@ type t = {
 
 let equal a b =
   Color.equal a.accent b.accent
+  && Color.equal a.ok b.ok && Color.equal a.fail b.fail
+  && Color.equal a.warn b.warn
   && List.equal Color.equal a.palette b.palette
   && Border.equal a.border b.border
   && Bool.equal a.table_row_separators b.table_row_separators
@@ -63,6 +68,9 @@ let pp ppf t =
     t.committed_cancelled
 
 let accent t = t.accent
+let ok t = t.ok
+let fail t = t.fail
+let warn t = t.warn
 let palette t = t.palette
 let border t = t.border
 let table_row_separators t = t.table_row_separators
@@ -82,7 +90,8 @@ let committed_marker t = function
   | `Failed -> t.committed_failed
   | `Cancelled -> t.committed_cancelled
 
-let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
+let v ?(accent = Color.cyan) ?(ok = Color.green) ?(fail = Color.red)
+    ?(warn = Color.yellow) ?(palette = []) ?(border = Border.rounded)
     ?(table_row_separators = false) ?(animated_border = false)
     ?(guide = Guide.unicode) ?(bar = `Smooth) ?(note_marker = "#")
     ?(warn_marker = "!") ?(error_marker = "x") ?(committed_succeeded = "=>")
@@ -90,6 +99,9 @@ let v ?(accent = Color.cyan) ?(palette = []) ?(border = Border.rounded)
     ~done_marker () =
   {
     accent;
+    ok;
+    fail;
+    warn;
     palette;
     border;
     table_row_separators;
@@ -126,6 +138,9 @@ let with_verdict ?ok ?fail ?committed_succeeded ?committed_failed
 let dos =
   {
     accent = amber;
+    ok = Color.green;
+    fail = Color.red;
+    warn = Color.yellow;
     palette = [ amber ];
     border = Border.ascii;
     table_row_separators = false;
@@ -150,6 +165,9 @@ let dos =
 let unicode =
   {
     accent = Color.cyan;
+    ok = Color.green;
+    fail = Color.red;
+    warn = Color.yellow;
     palette = [ Color.cyan ];
     border = Border.rounded;
     table_row_separators = false;
@@ -173,6 +191,9 @@ let unicode =
 let matrix =
   {
     accent = matrix_green;
+    ok = Color.green;
+    fail = Color.red;
+    warn = Color.yellow;
     palette = [ matrix_green ];
     border = Border.single;
     table_row_separators = false;
@@ -195,6 +216,9 @@ let matrix =
 let rainbow =
   {
     accent = Color.magenta;
+    ok = Color.green;
+    fail = Color.red;
+    warn = Color.yellow;
     palette =
       [
         Color.red;

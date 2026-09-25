@@ -129,7 +129,7 @@ val ctx :
     [is_tty] says whether a live region can be drawn at all; whether that region
     carries colour is [ppf]'s own answer, [Fmt.style_renderer], which is what
     {!Span.pp} and every other surface here renders by and what
-    [Fmt_tty.setup_std_outputs] sets from [--color] and [NO_COLOR]. So a
+    [Console_eio.setup] sets from [--color], [NO_COLOR] and [TERM]. So a
     terminal whose reader turned colour off still gets the region, drawn in
     place and with no ANSI in it, and a formatter nobody configured draws plain
     the way an unconfigured [Fmt.styled] prints plain. It is read once, when the

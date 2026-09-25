@@ -1797,16 +1797,17 @@ let test_a_plain_renderer_keeps_the_cursor_control () =
    the terminal header does. The one answer whether to colour is the
    formatter's own style renderer, so the same session on [`None] adds no SGR
    at all and the glyphs are unchanged. *)
-let history_colour_session renderer =
+let history_colour_session ?theme ?(ending = Display.succeed ?message:None)
+    renderer =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_style_renderer ppf renderer;
   let now, advance = fake_clock () in
-  Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History ~header:"Build"
+  Display.run ~ctx:(ctx ~ppf ~now ()) ?theme ~mode:`History ~header:"Build"
     (fun display ->
       let task = Display.task display "app" in
       advance 1.3;
-      Display.succeed task);
+      ending task);
   Format.pp_print_flush ppf ();
   Buffer.contents buffer
 
@@ -1846,6 +1847,23 @@ let test_history_carries_colour_on_a_styled_surface () =
   Alcotest.(check bool)
     "the committed metadata is dim" true
     (contains "\027[2m  1.3s\027[0m" bytes)
+
+(* The theme's roles colour an outcome: ok a success, fail a failure, warn a
+   cancellation. *)
+let test_history_takes_the_theme_roles () =
+  let theme =
+    Theme.v ~ok:(Color.palette 82) ~fail:(Color.palette 197)
+      ~warn:(Color.palette 214) ~spinner:Spinner.ascii ~done_marker:"+" ()
+  in
+  let check label expected ending =
+    Alcotest.(check bool)
+      label true
+      (contains expected (history_colour_session ~theme ~ending `Ansi_tty))
+  in
+  check "ok" "\027[1m\027[38;5;82m=>\027[0m app" (Display.succeed ?message:None);
+  check "fail" "\027[1m\027[38;5;197m!!\027[0m app" (Display.fail ?message:None);
+  check "warn" "\027[1m\027[38;5;214m--\027[0m app"
+    (Display.cancel ?message:None)
 
 let test_history_adds_no_sgr_on_a_plain_surface () =
   Alcotest.(check int)
@@ -1983,6 +2001,8 @@ let test_a_marker_moves_with_the_ticks () =
 let suite =
   ( "display",
     [
+      Alcotest.test_case "history takes the theme roles" `Quick
+        test_history_takes_the_theme_roles;
       Alcotest.test_case "bytes" `Quick test_bytes;
       Alcotest.test_case "span" `Quick test_span;
       Alcotest.test_case "history output" `Quick test_history_output;

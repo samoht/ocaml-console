@@ -126,9 +126,34 @@ let test_pp_wrapped () =
     (render 20 "slot 1: held by an owner, process 42");
   Alcotest.(check string) "fits" "slot 1: free" (render 20 "slot 1: free")
 
+(* A gradient colours each cell by its column; cells of one colour share one
+   sequence, and a change of attributes resets before the next. *)
+let test_gradient_span () =
+  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
+  let ramp = Gradient.v ~length:2 [ red; blue ] in
+  Alcotest.(check string)
+    "per column"
+    "\027[38;2;255;0;0ma\027[38;2;127;0;128mb\027[38;2;0;0;255mc\027[0m"
+    (Span.to_ansi_string (Span.styled (Style.fg_gradient ramp) "abc"));
+  let flat = Gradient.v ~length:2 [ red; red ] in
+  Alcotest.(check string)
+    "one colour, one sequence" "\027[38;2;255;0;0mabc\027[0m"
+    (Span.to_ansi_string (Span.styled (Style.fg_gradient flat) "abc"));
+  Alcotest.(check string)
+    "columns run across atoms"
+    "\027[1;38;2;255;0;0ma\027[0m\027[2;38;2;127;0;128mb\027[0m"
+    (Span.to_ansi_string
+       Span.(
+         styled Style.(bold + fg_gradient ramp) "a"
+         ++ styled Style.(faint + fg_gradient ramp) "b"));
+  Alcotest.(check string)
+    "plain" "abc"
+    (Span.to_string (Span.styled (Style.fg_gradient ramp) "abc"))
+
 let suite =
   ( "span",
     [
+      Alcotest.test_case "gradient span" `Quick test_gradient_span;
       Alcotest.test_case "text" `Quick test_text;
       Alcotest.test_case "concat" `Quick test_concat;
       Alcotest.test_case "plain" `Quick test_plain;
