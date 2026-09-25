@@ -107,6 +107,11 @@ val hanging : ?char_width:(Uchar.t -> int) -> t -> int
     [span] is one word. [wrap ~hang:(hanging span)] sets a continuation under
     that text, as a label's value hangs beside it. *)
 
+val pp_wrapped : t Fmt.t
+(** [pp_wrapped] is {!pp} for a single-line span that fits its formatter's
+    margin: a span wider than the margin is wrapped to it ({!wrap}), each
+    continuation hanging under the text after its first word ({!hanging}). *)
+
 (** {1:animation Animation} *)
 
 val anim : t -> string Anim.t

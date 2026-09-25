@@ -201,4 +201,16 @@ let hanging ?(char_width = Width.default_char_width) t =
   if word = n || text = n then 0
   else Width.string_width ~char_width (String.sub s 0 text)
 
+let pp_wrapped ppf t =
+  let t = sanitize ~keep_newlines:false t in
+  let margin = Format.pp_get_margin ppf () in
+  let lines =
+    if width t <= margin then [ t ] else wrap ~hang:(hanging t) margin t
+  in
+  List.iteri
+    (fun i line ->
+      if i > 0 then Render.newline ppf;
+      pp ppf line)
+    lines
+
 let anim t = Anim.const (to_ansi_string t)

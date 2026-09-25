@@ -111,6 +111,21 @@ let test_hanging () =
   Alcotest.(check int) "one word" 0 (hanging "word");
   Alcotest.(check int) "trailing spaces" 0 (hanging "word   ")
 
+(* A span wider than its formatter's margin wraps to it under its label. *)
+let test_pp_wrapped () =
+  let render margin s =
+    let buf = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buf in
+    Format.pp_set_margin ppf margin;
+    Span.pp_wrapped ppf (Span.text s);
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  Alcotest.(check string)
+    "wrapped" "slot 1: held by an\n     owner, process\n     42"
+    (render 20 "slot 1: held by an owner, process 42");
+  Alcotest.(check string) "fits" "slot 1: free" (render 20 "slot 1: free")
+
 let suite =
   ( "span",
     [
@@ -122,6 +137,7 @@ let suite =
         test_wrap_preserves_styles;
       Alcotest.test_case "wrap hang" `Quick test_wrap_hang;
       Alcotest.test_case "hanging" `Quick test_hanging;
+      Alcotest.test_case "pp wrapped" `Quick test_pp_wrapped;
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "link" `Quick test_link;
