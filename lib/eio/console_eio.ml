@@ -48,7 +48,7 @@ let context ~clock ~ppf ~ctx =
           ()
       in
       let restore =
-        if is_tty then Some (fun () -> Terminal.show_cursor ppf) else None
+        if is_tty then Some Console.Display.restore_terminal else None
       in
       (ctx, restore)
 
