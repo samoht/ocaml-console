@@ -429,6 +429,8 @@ type t = {
   mutable torn_down : bool;
   mutable owns_activity : bool;
   mutable suspended : int;
+  mutable frame : int; (* the ticks that refreshed the projection *)
+  mutable scene : (frame:int -> width:int -> Span.t list) option;
 }
 
 and row_log = {
@@ -625,6 +627,10 @@ let render_rate t row ~finished =
         dimmed t (bytes (Int64.of_float row.rate) ^ "/s")
     | _ -> ""
 
+(* A span of the caller's, drawn in colour exactly when the surface takes it. *)
+let scene_line t span =
+  if t.styling then Span.to_ansi_string span else Span.to_string span
+
 let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
   match piece with
   | Line.Spinner -> render_spinner t ~finished ~color ~frame row
@@ -636,7 +642,9 @@ let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
   | Line.Elapsed -> dim_cell t elapsed_cell (span (elapsed t row))
   | Line.Text s -> s
   | Line.Accent s -> styled t (bold ^ color_code color) s
-  | Line.Marker _ -> failwith "Console.Display.Line.marker: not drawn yet"
+  | Line.Marker f ->
+      if finished then render_spinner t ~finished ~color ~frame row
+      else scene_line t (f ~frame:t.frame)
 
 (* Render a row from its style. The label is the flexible content and a single
    [Spacer] absorbs the remaining slack so later pieces (the elapsed timer) sit
@@ -984,12 +992,32 @@ let rec row_live row =
   || (waits_for_group row && not (row.swept || row.transient)))
   && match row.parent with None -> true | Some parent -> row_live parent
 
+(* The scene goes above the header only when the region still holds every
+   running row beneath it: it repeats what the rows say, so it is the first
+   thing to give way. *)
+let scene_lines t ~header ~blocks =
+  match t.scene with
+  | None -> []
+  | Some scene ->
+      let width = render_width t in
+      let lines =
+        List.map
+          (fun span ->
+            scene_line t (Span.truncate ?char_width:t.char_width width span))
+          (scene ~frame:t.frame ~width)
+      in
+      let capacity = max 0 (t.height - 1) in
+      if List.length lines + List.length header + List.length blocks <= capacity
+      then lines
+      else []
+
 let live_lines t =
   let header =
     match summary_line t ~fit:true with Some s -> [ s ] | None -> []
   in
   let active = List.filter row_live t.rows in
   let blocks = List.map (row_block_parts t) active in
+  let header = scene_lines t ~header ~blocks @ header in
   cap_region t ~header ~blocks
 
 (* Re-read the terminal geometry (unless pinned) so a resize between frames is
@@ -1117,6 +1145,8 @@ let state ~(ctx : view) ~plain ~styling ~theme ~palette ~bar ~width ~height
     torn_down = false;
     owns_activity = false;
     suspended = 0;
+    frame = 0;
+    scene = None;
   }
 
 let take_activity t ppf =
@@ -1726,9 +1756,18 @@ let set_result t ?detail result =
     record ?detail t kind message
   end
 
-let tick t = if not t.plain then paint t
-let frame _ = failwith "Console.Display.frame: not counted yet"
-let set_scene _ _ = failwith "Console.Display.set_scene: not drawn yet"
+let tick t =
+  if not t.plain then begin
+    t.frame <- t.frame + 1;
+    paint t
+  end
+
+let frame t = t.frame
+
+let set_scene t scene =
+  check_open "set_scene" t;
+  t.scene <- Some scene;
+  if (not t.plain) && t.now () -. t.painted_at >= redraw_interval then paint t
 
 (* The final result banner: a faint coloured [OK]/[FAIL] marker (green or red)
    followed by the message in bold, unstyled text in history-only output. A long message
