@@ -1858,6 +1858,115 @@ let test_history_glyphs_do_not_depend_on_colour () =
     (history_colour_session `None)
     (strip_sgr (history_colour_session `Ansi_tty))
 
+(* The rows of a terminal as a reader sees them, blanks trimmed off the right. *)
+let screen_rows vte =
+  String.split_on_char '\n' (Vte.to_string vte)
+  |> List.map (fun row ->
+      let n = ref (String.length row) in
+      while !n > 0 && row.[!n - 1] = ' ' do
+        decr n
+      done;
+      String.sub row 0 !n)
+
+let scene_screens ?(height = 8) ?(width = 30) ?(rows = [ "compile" ]) scene =
+  let screens = ref [] in
+  let _vte =
+    terminal_run ~height ~width ~header:"BUILD"
+      (fun display _advance sync vte ->
+        Display.set_scene display scene;
+        List.iter (fun row -> ignore (Display.task display row)) rows;
+        sync ();
+        screens := screen_rows vte :: !screens;
+        sync ();
+        screens := screen_rows vte :: !screens)
+  in
+  List.rev !screens
+
+let first_rows n rows = List.filteri (fun i _ -> i < n) rows
+
+(* The clock of [terminal_run] never moves, so a scene that changes between two
+   ticks is sampled at the frame the ticks advance, not at the time. *)
+let test_a_scene_moves_with_the_ticks () =
+  let scene ~frame ~width =
+    [ Span.text (Fmt.str "scene %d of %d" frame width) ]
+  in
+  match scene_screens scene with
+  | [ first; second ] ->
+      Alcotest.(check (list string))
+        "the first tick draws frame 1 above the header"
+        [ "scene 1 of 30"; "[-] BUILD 0.0s (0/1)" ]
+        (first_rows 2 first);
+      Alcotest.(check (list string))
+        "the second tick draws frame 2"
+        [ "scene 2 of 30"; "[-] BUILD 0.0s (0/1)" ]
+        (first_rows 2 second)
+  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
+
+let test_a_scene_is_cut_to_the_width () =
+  let scene ~frame:_ ~width:_ = [ Span.text (String.make 50 'x') ] in
+  match scene_screens scene with
+  | [ _; screen ] ->
+      Alcotest.(check (list string))
+        "the scene line stops at the right edge and wraps onto nothing"
+        [ String.make 30 'x'; "[-] BUILD 0.0s (0/1)" ]
+        (first_rows 2 screen)
+  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
+
+(* Four rows hold the header and two running rows and the cursor's row, and
+   nothing more: the scene gives way before any row does. *)
+let test_a_scene_gives_way_on_a_short_terminal () =
+  let scene ~frame:_ ~width:_ = [ Span.text "scene" ] in
+  match scene_screens ~height:4 ~rows:[ "compile"; "link" ] scene with
+  | [ _; screen ] ->
+      let shows word = List.exists (contains word) screen in
+      Alcotest.(check (list bool))
+        "the header and both rows, no scene"
+        [ true; true; true; false ]
+        [ shows "BUILD"; shows "compile"; shows "link"; shows "scene" ]
+  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
+
+let test_an_appending_display_draws_no_scene () =
+  let (), out =
+    capture ~header:"BUILD" (fun display _advance ->
+        Display.set_scene display (fun ~frame:_ ~width:_ ->
+            [ Span.text "scene" ]);
+        let task = Display.task display "compile" in
+        Display.tick display;
+        Display.tick display;
+        Display.succeed task)
+  in
+  Alcotest.(check bool) "no scene in the history" false (contains "scene" out)
+
+let test_a_marker_moves_with_the_ticks () =
+  let bar =
+    Display.Line.(
+      v
+        [
+          marker (fun ~frame -> Span.text (Fmt.str "<%d>" frame));
+          text " ";
+          label;
+        ])
+  in
+  let screens = ref [] in
+  let vte =
+    terminal_run ~header:"BUILD" (fun display _advance sync vte ->
+        let task = Display.task ~bar display "compile" in
+        sync ();
+        screens := screen_rows vte :: !screens;
+        sync ();
+        screens := screen_rows vte :: !screens;
+        Display.succeed task)
+  in
+  (match List.rev !screens with
+  | [ first; second ] ->
+      Alcotest.(check (list string))
+        "the marker at frames 1 and 2"
+        [ "<1> compile"; "<2> compile" ]
+        [ List.nth first 1; List.nth second 1 ]
+  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens));
+  Alcotest.(check int)
+    "a finished row draws its outcome, not the marker" 0 (count_rows vte "<")
+
 let suite =
   ( "display",
     [
@@ -1970,4 +2079,14 @@ let suite =
         test_history_adds_no_sgr_on_a_plain_surface;
       Alcotest.test_case "history glyphs do not depend on colour" `Quick
         test_history_glyphs_do_not_depend_on_colour;
+      Alcotest.test_case "a scene moves with the ticks" `Quick
+        test_a_scene_moves_with_the_ticks;
+      Alcotest.test_case "a scene is cut to the width" `Quick
+        test_a_scene_is_cut_to_the_width;
+      Alcotest.test_case "a scene gives way on a short terminal" `Quick
+        test_a_scene_gives_way_on_a_short_terminal;
+      Alcotest.test_case "an appending display draws no scene" `Quick
+        test_an_appending_display_draws_no_scene;
+      Alcotest.test_case "a marker moves with the ticks" `Quick
+        test_a_marker_moves_with_the_ticks;
     ] )

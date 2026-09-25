@@ -82,6 +82,12 @@ module Line : sig
   (** [spacer] is flexible space that pushes the pieces after it to the right
       edge. *)
 
+  val marker : (frame:int -> Span.t) -> piece
+  (** [marker f] is an activity marker drawn as [f ~frame] at every paint, where
+      [frame] is the display's {!val-frame}, so its glyphs and colours may
+      change from one frame to the next. Once the task finishes it is the
+      outcome marker {!spinner} draws. *)
+
   type t
   (** A task-line layout and accent colour. *)
 
@@ -434,6 +440,21 @@ val set_result :
     verdict as a permanent semantic event, and emits it when {!run} closes.
     [`Ok] succeeds remaining work; [`Fail] cancels it. It is exactly-once; a
     later call is a harmless no-op. *)
+
+val frame : t -> int
+(** [frame display] is the number of times {!tick} has refreshed [display]'s
+    activity projection: the frame an animation draws. It moves with the
+    driver's ticks and not with the display's clock, so a display whose clock is
+    frozen still animates. *)
+
+val set_scene : t -> (frame:int -> width:int -> Span.t list) -> unit
+(** [set_scene display scene] draws [scene ~frame ~width] above the header of
+    [display]'s activity projection at every paint, [frame] being {!val-frame}
+    and [width] the terminal's width, and replaces any scene set before. Each
+    line is cut to the width. The scene is left out of a paint whose terminal is
+    too short to hold it with the header and every running row, and an appending
+    display never draws it, so it holds nothing that is not also said elsewhere.
+*)
 
 val tick : t -> unit
 (** [tick display] refreshes an activity projection. Driver libraries call it

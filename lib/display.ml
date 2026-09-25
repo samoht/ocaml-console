@@ -212,6 +212,9 @@ module Line = struct
     | Text of string  (** a literal separator *)
     | Accent of string  (** a literal rendered with the row accent *)
     | Spacer  (** flexible gap; absorbs slack to push later pieces right *)
+    | Marker of (frame:int -> Span.t)
+        (** an activity marker drawn anew each frame; the outcome once finished
+        *)
 
   type t = { pieces : piece list; color : color }
 
@@ -229,6 +232,7 @@ module Line = struct
   let text s = Text (sanitize s)
   let accent s = Accent (sanitize s)
   let spacer = Spacer
+  let marker f = Marker f
 
   let v ?(color = Color.cyan) pieces =
     let count piece =
@@ -632,6 +636,7 @@ let render_piece t row ~finished ~color ~frame (piece : Line.piece) =
   | Line.Elapsed -> dim_cell t elapsed_cell (span (elapsed t row))
   | Line.Text s -> s
   | Line.Accent s -> styled t (bold ^ color_code color) s
+  | Line.Marker _ -> failwith "Console.Display.Line.marker: not drawn yet"
 
 (* Render a row from its style. The label is the flexible content and a single
    [Spacer] absorbs the remaining slack so later pieces (the elapsed timer) sit
@@ -1722,6 +1727,8 @@ let set_result t ?detail result =
   end
 
 let tick t = if not t.plain then paint t
+let frame _ = failwith "Console.Display.frame: not counted yet"
+let set_scene _ _ = failwith "Console.Display.set_scene: not drawn yet"
 
 (* The final result banner: a faint coloured [OK]/[FAIL] marker (green or red)
    followed by the message in bold, unstyled text in history-only output. A long message
