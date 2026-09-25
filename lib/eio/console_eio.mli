@@ -28,8 +28,12 @@ val run :
     coordinate display ownership.
 
     [ppf] selects the output formatter and defaults to stdout. Unix terminal
-    dimensions and tty detection are automatic. Cursor visibility is restored on
-    return, exception and SIGINT.
+    dimensions and tty detection are automatic: the width is the terminal's
+    columns, and when stdout is no terminal it is [$COLUMNS] if that names more
+    than 10 columns and 80 otherwise; the height is likewise the terminal's
+    rows, [$LINES] above 2, or 24. {!Console.Display.with_output} hands that
+    width to a formatter-based widget as its margin. Cursor visibility is
+    restored on return, exception and SIGINT.
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
     the display clock's reading at zero, so every elapsed time renders as

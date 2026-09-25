@@ -83,8 +83,8 @@ module Line : sig
       edge. *)
 
   val marker : (frame:int -> Span.t) -> piece
-  (** [marker f] is an activity marker drawn as [f ~frame] at every paint, where
-      [frame] is the display's {!val-frame}, so its glyphs and colours may
+  (** [marker f] is an activity marker drawn as [f ~frame:n] at every paint,
+      where [n] is the display's {!val-frame}, so its glyphs and colours may
       change from one frame to the next. Once the task finishes it is the
       outcome marker {!spinner} draws. *)
 
@@ -462,7 +462,7 @@ val frame : t -> int
 
 val set_scene : t -> (frame:int -> width:int -> Span.t list) -> unit
 (** [set_scene display scene] draws [scene ~frame ~width] above the header of
-    [display]'s activity projection at every paint, [frame] being {!val-frame}
+    [display]'s activity projection at every paint, the frame being {!val-frame}
     and [width] the terminal's width, and replaces any scene set before. Each
     line is cut to the width. The scene is left out of a paint whose terminal is
     too short to hold it with the header and every running row, and an appending

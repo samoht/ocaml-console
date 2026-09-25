@@ -1906,7 +1906,7 @@ let first_rows n rows = List.filteri (fun i _ -> i < n) rows
    ticks is sampled at the frame the ticks advance, not at the time. *)
 let test_a_scene_moves_with_the_ticks () =
   let scene ~frame ~width =
-    [ Span.text (Fmt.str "scene %d of %d" frame width) ]
+    [ Fmt.kstr Span.text "scene %d of %d" frame width ]
   in
   match scene_screens scene with
   | [ first; second ] ->
@@ -1962,7 +1962,7 @@ let test_a_marker_moves_with_the_ticks () =
     Display.Line.(
       v
         [
-          marker (fun ~frame -> Span.text (Fmt.str "<%d>" frame));
+          marker (fun ~frame -> Fmt.kstr Span.text "<%d>" frame);
           text " ";
           label;
         ])

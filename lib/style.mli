@@ -69,7 +69,7 @@ val at : row:int -> column:int -> t -> t
 
 val has_gradient : t -> bool
 (** [has_gradient s] is [true] iff the foreground or the background of [s] is a
-    gradient, so that [at] gives different styles on different cells. *)
+    gradient, so that {!val-at} gives different styles on different cells. *)
 
 val shows_on_space : t -> bool
 (** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
