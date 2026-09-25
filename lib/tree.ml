@@ -44,18 +44,41 @@ let prefix ?(guide = Guide.unicode) lasts =
         (if own then Guide.last guide else Guide.branch guide);
       Buffer.contents buf
 
+(* The guide beside the continuation of a node's label: each ancestor's, then
+   the node's own vertical line if a sibling follows it. *)
+let continuation ~guide lasts =
+  String.concat ""
+    (List.map
+       (fun last -> if last then Guide.space guide else Guide.pipe guide)
+       lasts)
+
 let pp ppf t =
+  let margin = Format.pp_get_margin ppf () in
   (* [lasts] is the is-last flag at each level from the top down to this node;
      the root carries the empty list and prints with no prefix. A literal
      newline separates nodes: a [Fmt.cut] break hint collapses with no
      enclosing box. *)
   let rec go lasts (Node (label, children)) =
-    (match lasts with
+    let prefix = prefix ~guide:t.guide lasts in
+    if lasts <> [] then (
+      Render.newline ppf;
+      Fmt.string ppf prefix);
+    let label = Span.sanitize ~keep_newlines:false label in
+    let room = max 1 (margin - Width.string_width prefix) in
+    (match
+       if Span.width label <= room then [ label ]
+       else Span.wrap ~hang:(Span.hanging label) room label
+     with
     | [] -> ()
-    | _ ->
-        Render.newline ppf;
-        Fmt.string ppf (prefix ~guide:t.guide lasts));
-    Span.pp ppf (Span.sanitize ~keep_newlines:false label);
+    | first :: rest ->
+        Span.pp ppf first;
+        let beside = continuation ~guide:t.guide lasts in
+        List.iter
+          (fun line ->
+            Render.newline ppf;
+            Fmt.string ppf beside;
+            Span.pp ppf line)
+          rest);
     let n = List.length children in
     List.iteri (fun i child -> go (lasts @ [ i = n - 1 ]) child) children
   in

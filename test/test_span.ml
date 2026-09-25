@@ -87,6 +87,30 @@ let test_anim () =
     "frame matches to_string" (Span.to_string span)
     (Anim.frame a ~elapsed:2.0)
 
+(* Every line after the first starts with [hang] spaces and still fits; a hang
+   of more than half the width is clamped to half. *)
+let test_wrap_hang () =
+  let span = Span.text "abcd efgh ijkl mnop" in
+  Alcotest.(check (list string))
+    "hanging"
+    [ "abcd efgh"; "    ijkl"; "    mnop" ]
+    (List.map Span.to_string (Span.wrap ~hang:4 10 span));
+  Alcotest.(check (list string))
+    "clamped"
+    [ "abcd"; "   efgh"; "   ijkl"; "   mnop" ]
+    (List.map Span.to_string (Span.wrap ~hang:5 7 span))
+
+(* The text after a label: leading spaces, the first word, the spaces after. *)
+let test_hanging () =
+  let hanging s = Span.hanging (Span.text s) in
+  Alcotest.(check int) "label" 8 (hanging "REFUSED main has no baseline");
+  Alcotest.(check int) "indented" 7 (hanging "  1/2  id");
+  Alcotest.(check int)
+    "styled label" 8
+    (Span.hanging Span.(styled Style.bold "REFUSED" ++ text " the reason"));
+  Alcotest.(check int) "one word" 0 (hanging "word");
+  Alcotest.(check int) "trailing spaces" 0 (hanging "word   ")
+
 let suite =
   ( "span",
     [
@@ -96,6 +120,8 @@ let suite =
       Alcotest.test_case "sanitize" `Quick test_sanitize;
       Alcotest.test_case "wrap preserves styles" `Quick
         test_wrap_preserves_styles;
+      Alcotest.test_case "wrap hang" `Quick test_wrap_hang;
+      Alcotest.test_case "hanging" `Quick test_hanging;
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "link" `Quick test_link;

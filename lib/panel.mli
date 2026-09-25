@@ -31,7 +31,8 @@ val v :
     - [title] / [subtitle] label the top / bottom edge.
     - [padding] is the internal horizontal padding (default [1]).
     - [width] fixes the width, truncating content and edge labels to keep the
-      box rectangular; by default it is sized to the content.
+      box rectangular; by default it is sized to the content. Either way {!pp}
+      draws it no wider than its formatter's margin.
     - [char_width] measures terminal cells (default
       {!Width.default_char_width}).
 
@@ -52,11 +53,22 @@ val lines :
 
 (** {1:rendering Rendering} *)
 
+val content_width : ?margin:int -> t -> int
+(** [content_width ~margin panel] is the cells each content line of [panel] is
+    drawn in when the whole box may take at most [margin] cells (default
+    unbounded): the room of a fixed [width], else the widest line or edge label,
+    and never more than [margin] leaves inside the border and padding. A line
+    that fills it exactly is drawn in full. *)
+
 val pp : t Fmt.t
-(** [pp] renders the panel, following the formatter's style renderer. *)
+(** [pp] renders the panel, following the formatter's style renderer. The
+    formatter's margin caps the box. In a box sized to its content, a line wider
+    than {!content_width} wraps at its words ({!Span.wrap}), each continuation
+    hanging under the text after the line's first word ({!Span.hanging}); in a
+    box of fixed [width] it is truncated. Edge labels are truncated. *)
 
 val to_string : t -> string
-(** [to_string panel] is the plain panel. *)
+(** [to_string panel] is the plain panel at its natural width. *)
 
 val to_ansi_string : t -> string
 (** [to_ansi_string panel] is the panel with ANSI styling. *)

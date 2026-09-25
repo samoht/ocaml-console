@@ -50,27 +50,40 @@ let render_horizontal ppf border_style count char =
     Style.styled border_style Fmt.string ppf char
   done
 
-let content_width panel =
-  match panel.width with
-  | Some total_w -> total_w - 2 - (panel.padding * 2)
-  | None ->
-      let max_line =
-        List.fold_left
-          (fun acc line ->
-            max acc (Span.width ~char_width:panel.char_width line))
-          0 panel.lines
-      in
-      let title_w =
-        match panel.title with
-        | Some span -> Span.width ~char_width:panel.char_width span
-        | None -> 0
-      in
-      let subtitle_w =
-        match panel.subtitle with
-        | Some span -> Span.width ~char_width:panel.char_width span
-        | None -> 0
-      in
-      max max_line (max title_w subtitle_w)
+let natural_width panel =
+  let max_line =
+    List.fold_left
+      (fun acc line -> max acc (Span.width ~char_width:panel.char_width line))
+      0 panel.lines
+  in
+  let label = function
+    | Some span -> Span.width ~char_width:panel.char_width span
+    | None -> 0
+  in
+  max max_line (max (label panel.title) (label panel.subtitle))
+
+(* The cells a content line has: the fixed width's room, else the content's
+   own, capped by what [margin] leaves beside the border and padding. *)
+let content_width ?(margin = max_int) panel =
+  let frame = 2 + (panel.padding * 2) in
+  let room =
+    match panel.width with
+    | Some total_w -> total_w - frame
+    | None -> natural_width panel
+  in
+  max 1 (min room (margin - frame))
+
+(* The lines as drawn in [cw] cells: in a box sized to its content, one wider
+   than that wraps at its words, hanging under the text after its label; a
+   fixed width truncates instead. *)
+let fitted_lines panel cw =
+  let char_width = panel.char_width in
+  List.concat_map
+    (fun line ->
+      let line = Span.sanitize ~keep_newlines:false line in
+      if panel.width <> None || Span.width ~char_width line <= cw then [ line ]
+      else Span.wrap ~char_width ~hang:(Span.hanging ~char_width line) cw line)
+    panel.lines
 
 let render_span ppf ~char_width ~width span =
   let span = Span.sanitize ~keep_newlines:false span in
@@ -120,7 +133,7 @@ let render_content_lines ppf panel border_style chars cw pad =
       Fmt.string ppf pad;
       Style.styled border_style Fmt.string ppf chars.Border.right;
       Render.newline ppf)
-    panel.lines
+    (fitted_lines panel cw)
 
 let render_bottom_border ppf panel border_style chars inner_width =
   render_horiz_border ppf border_style ~char_width:panel.char_width
@@ -130,7 +143,7 @@ let render_bottom_border ppf panel border_style chars inner_width =
 let pp ppf panel =
   let chars = Border.chars panel.border in
   let border_style = Border.style panel.border in
-  let cw = content_width panel in
+  let cw = content_width ~margin:(Format.pp_get_margin ppf ()) panel in
   let inner_width = cw + (panel.padding * 2) in
   let pad = String.make panel.padding ' ' in
   render_top_border ppf panel border_style chars inner_width;

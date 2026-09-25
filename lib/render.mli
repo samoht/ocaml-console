@@ -6,7 +6,8 @@
 (** Internal conversion of formatter output to strings. *)
 
 val to_string : ?style_renderer:Fmt.style_renderer -> 'a Fmt.t -> 'a -> string
-(** [to_string pp value] captures [pp value], optionally with ANSI styling. *)
+(** [to_string pp value] captures [pp value], optionally with ANSI styling, on a
+    formatter with no margin, so a widget renders at its natural width. *)
 
 val sanitize : ?keep_newlines:bool -> string -> string
 (** [sanitize s] validates UTF-8, replaces malformed sequences with the Unicode

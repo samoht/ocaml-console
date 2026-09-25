@@ -74,10 +74,14 @@ val prefix : ?guide:Guide.t -> bool list -> string
 (** {1:rendering Rendering} *)
 
 val pp : t Fmt.t
-(** [pp] pretty-prints the tree, one node per line, with guide lines. *)
+(** [pp] pretty-prints the tree, one node per line, with guide lines. The
+    formatter's margin caps every row: a label wider than the room its guide
+    leaves wraps at its words ({!Span.wrap}), each continuation hanging under
+    the text after the label's first word ({!Span.hanging}) beside the guide of
+    its level. *)
 
 val to_string : t -> string
-(** [to_string tree] renders as plain text. *)
+(** [to_string tree] renders as plain text at its natural width. *)
 
 val to_ansi_string : t -> string
 (** [to_ansi_string tree] renders with ANSI styling. *)

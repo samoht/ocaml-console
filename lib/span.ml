@@ -165,28 +165,40 @@ let trim_leading_space = function
       if text = "" then rest else { atom with text } :: rest
   | token -> token
 
-let wrap ?(char_width = Width.default_char_width) target t =
+let wrap ?(char_width = Width.default_char_width) ?(hang = 0) target t =
   if target <= 0 then invalid_arg "Console.Span.wrap: non-positive width";
-  let finish line acc = if line = empty then acc else line :: acc in
-  let rec loop acc line line_width = function
-    | [] -> List.rev (finish line acc)
+  let hang = max 0 (min hang (target / 2)) in
+  let indent = if hang = 0 then empty else text (String.make hang ' ') in
+  (* [fresh] is a line holding nothing but its indent. *)
+  let finish line fresh acc = if fresh then acc else line :: acc in
+  let rec loop acc line line_width fresh = function
+    | [] -> List.rev (finish line fresh acc)
     | token :: rest ->
         let token_width = width ~char_width token in
         if line_width + token_width <= target then
-          loop acc (line ++ token) (line_width + token_width) rest
-        else if line <> empty then
-          loop (line :: acc) empty 0 (trim_leading_space token :: rest)
-        else if token_width <= target then loop (token :: acc) empty 0 rest
+          loop acc (line ++ token) (line_width + token_width) false rest
+        else if not fresh then
+          loop (line :: acc) indent hang true (trim_leading_space token :: rest)
         else
           (* A token wider than a whole line goes on at the start of the next,
              so every character of a path or a digest is printed. *)
-          let head = truncate ~char_width target token in
+          let head = truncate ~char_width (target - line_width) token in
           if width ~char_width head > 0 then
-            loop (head :: acc) empty 0 (drop ~char_width head token :: rest)
+            loop ((line ++ head) :: acc) indent hang true
+              (drop ~char_width head token :: rest)
           else
             (* A glyph wider than the whole line cannot be drawn in it. *)
-            loop acc empty 0 rest
+            loop acc line line_width fresh rest
   in
-  match tokens t with [] -> [ empty ] | tokens -> loop [] empty 0 tokens
+  match tokens t with [] -> [ empty ] | tokens -> loop [] empty 0 true tokens
+
+let hanging ?(char_width = Width.default_char_width) t =
+  let s = to_string t in
+  let n = String.length s in
+  let rec skip p i = if i < n && p s.[i] then skip p (i + 1) else i in
+  let word = skip (fun c -> c <> ' ') (skip (( = ) ' ') 0) in
+  let text = skip (( = ) ' ') word in
+  if word = n || text = n then 0
+  else Width.string_width ~char_width (String.sub s 0 text)
 
 let anim t = Anim.const (to_ansi_string t)

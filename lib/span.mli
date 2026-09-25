@@ -93,12 +93,19 @@ val truncate : ?char_width:(Uchar.t -> int) -> int -> t -> t
     terminal cells. Styles and hyperlinks are preserved. A non-positive width
     gives {!empty}. *)
 
-val wrap : ?char_width:(Uchar.t -> int) -> int -> t -> t list
+val wrap : ?char_width:(Uchar.t -> int) -> ?hang:int -> int -> t -> t list
 (** [wrap width span] word-wraps a single-line span at spaces and path
     separators, preserving styles and hyperlinks on every line. A token wider
     than [width] is continued on the next line where the room ends, so every
-    character is printed and nothing is marked as cut. {b Raises.}
-    [Invalid_argument] if [width] is not positive. *)
+    character is printed and nothing is marked as cut. Every line after the
+    first starts with [hang] spaces (default [0]), clamped to half of [width].
+    {b Raises.} [Invalid_argument] if [width] is not positive. *)
+
+val hanging : ?char_width:(Uchar.t -> int) -> t -> int
+(** [hanging span] is the column the text after [span]'s label starts at: its
+    leading spaces, its first word and the spaces after it. It is [0] when
+    [span] is one word. [wrap ~hang:(hanging span)] sets a continuation under
+    that text, as a label's value hangs beside it. *)
 
 (** {1:animation Animation} *)
 
