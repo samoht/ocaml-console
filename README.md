@@ -17,35 +17,36 @@ Terminal styling and layout widgets for OCaml CLI applications.
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-A command-line tool that prints a table, a tree or a progress bar has to
-measure every string in terminal cells, keep ANSI styling out of redirected
-output, and redraw live rows without scrambling the scrollback. A terminal reads
-commands inside the text it prints, as escape sequences: a CSI sequence (ESC `[`
-...) moves the cursor or sets colours, and an OSC sequence (ESC `]` ...) passes
-a command to the terminal, such as OSC 8, which makes the text it wraps a
-clickable link to a URI. `console` does that work once. It renders *inline*
-output (styled text, tables, trees, panels and live progress rows) into the
-normal scrollback, and falls back to plain append-only lines when standard
-output is not a terminal. It is not a TUI framework: it never switches to the
-alternate screen (the second screen buffer that full-screen programs such as
-`vim` draw on, leaving the scrollback untouched), never takes over the whole
-window and never runs an event loop that owns the terminal. For full-screen
-applications, use [notty](https://github.com/pqwy/notty) or
+A command-line tool that prints a table, a tree or a progress bar must measure
+each string in terminal cells, keep ANSI styling out of output sent to a file,
+and redraw its live rows without garbling the scrollback. The terminal takes
+its commands from escape sequences inside the printed text. A CSI sequence (ESC
+`[` ...) moves the cursor or sets a colour; an OSC sequence (ESC `]` ...) sends
+the terminal a command, and OSC 8 turns the text it wraps into a link to a URI.
+
+`console` handles this in one place. It prints styled text, tables, trees,
+panels and live progress rows *inline*, into the normal scrollback, and when
+standard output is not a terminal it prints plain lines that are only ever
+appended. It never switches to the alternate screen (the second buffer that
+full-screen programs such as `vim` draw on, leaving the scrollback alone), and
+it runs no event loop of its own on the terminal. For a full-screen program,
+use [notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term).
 
-- **Composable styles**: `Style.(bold + fg Color.red + underline)`, over ANSI
-  16, the 256-colour palette and true colour (RGB/hex)
-- **Rich spans**: styled text, safe OSC-8 hyperlinks, style-preserving wrapping
-  and truncation, with clean plain-text fallbacks
-- **Widgets**: tables with headers and alignment, directory-style trees,
-  bordered panels, horizontal rules, and five border styles
-- **Themes**: one `Theme.t` styles every widget consistently (`dos`,
-  `unicode`, `matrix`, `rainbow`)
-- **Live progress**: a `Display` of rows that update in place, degrading to
-  one tidy line per step with no terminal
-- **Animation and layout**: spinners, progress bars and Matrix rain driven by a
-  single `Anim.t`, composed horizontally or vertically with `Layout`
-- **Unicode-aware**: proper width calculation for CJK and emoji
+- **Styles** add up with `+`, as in `Style.(bold + fg Color.red + underline)`,
+  over the 16 ANSI colours, the 256-colour palette and true colour (RGB or hex).
+- **Spans** carry styled text and OSC 8 hyperlinks (a URI with a space or a
+  control character is refused), and keep their style when wrapped or
+  truncated. Printed without ANSI, a span is plain text.
+- **Widgets** cover tables with headers and column alignment, directory-style
+  trees, bordered panels and horizontal rules, with five border styles.
+- **Themes** give every widget the same look from one `Theme.t`; the presets
+  are `dos`, `unicode`, `matrix` and `rainbow`.
+- **Live progress** comes from a `Display`, whose rows update in place on a
+  terminal. Without one it prints a single line per step.
+- **Animations** (spinners, progress bars and Matrix rain) are all `Anim.t`
+  values, and `Layout` places them side by side or one above the other.
+- **Widths** of CJK characters and emoji are counted in the cells they take.
 
 ## Contents
 
@@ -89,10 +90,11 @@ let () =
   Fmt.pr "%a@." (Style.styled error Fmt.string) "✗ Tests failed"
 ```
 
-`Span` is the composable text value used by every widget. Styling and terminal
-hyperlinks follow the destination formatter: `Span.pp` emits them only when
-the formatter's `Fmt.style_renderer` allows ANSI, while `Span.to_string` is
-always plain text. This keeps redirected output and logs clean.
+Every widget takes its text as a `Span`. Whether a span's styles and links
+reach the output depends on where it is printed: `Span.pp` writes them only
+when the formatter's `Fmt.style_renderer` allows ANSI, and `Span.to_string`
+always returns plain text, so logs and redirected output carry no escape
+sequences.
 
 ```ocaml
 open Console
@@ -105,9 +107,9 @@ let docs =
 let () = Fmt.pr "%a@." Span.pp docs
 ```
 
-Static widgets are ordinary formatter printers. They render at their natural
-width by default; pass `~width` only when a known boundary matters, such as a
-remote PTY:
+The static widgets are plain `Fmt` printers. Each one takes the width its
+content needs, unless you give it `~width` because the output has a known
+limit, for instance on a remote PTY:
 
 ```ocaml
 open Console
@@ -139,16 +141,17 @@ let main env =
 ╰───────────┴──────┴─────────────╯
 ```
 
-`Tree.pp` and `Panel.pp` render the other two structural widgets the same way.
-A `Theme.t` bundles the visual choices they share (accent colour and palette,
-border, tree guide, spinner, bar style and markers), so passing the same
-`~theme` to every widget gives the output one look; an explicit `~border` or
-`~guide` still takes precedence. The presets are `Theme.unicode` (the default),
-`Theme.dos` (an amber ASCII terminal), `Theme.matrix` and `Theme.rainbow`, and
-`Theme.v` builds your own.
+Trees and panels print the same way, with `Tree.pp` and `Panel.pp`. A
+`Theme.t` holds the visual choices the widgets share: accent colour and
+palette, border, tree guide, spinner, bar style and markers. Give each widget
+the same `~theme` and the output has one look; an explicit `~border` or
+`~guide` still wins over the theme. The presets are `Theme.unicode` (the
+default), `Theme.dos` (an amber ASCII terminal), `Theme.matrix` and
+`Theme.rainbow`, and `Theme.v` builds a new one.
 
-`Rule` and `Layout` fill the small composition gaps without introducing a
-second box model:
+For the small things between widgets there is `Rule`, a horizontal line with
+an optional label, and `Layout`, which puts rendered strings next to each
+other or one under the other:
 
 ```ocaml
 open Console
@@ -163,10 +166,12 @@ let report =
 
 ### Progress
 
-A `Display` has two projections: append-only event history and an immutable
-snapshot of current activity. On a terminal, only the bounded activity snapshot
-is redrawn; logs and finished tasks stay in scrollback. A pipe or captured log
-gets the same permanent history without cursor movement.
+A `Display` records every event (a task started, a log line, a task finished)
+in a history that only grows, and it also keeps a snapshot of what is running
+right now. On a terminal, the snapshot is what gets redrawn, and it never
+takes more lines than the screen has. Logs and finished tasks are printed once
+into the scrollback. When the output is a pipe or a log file, you get the same
+history and no cursor movement at all.
 
 ```ocaml
 open Console
@@ -179,26 +184,29 @@ let build ~clock =
   Display.succeed step
 ```
 
-Most programs need only this: one `Console_eio.run`, a `Display.task` per step,
-progress updates and an outcome. The default row shows a spinner until a total
-is known, then a bar, a count, a rate and the elapsed time. Returning normally completes forgotten tasks; raising cancels them;
-nested `Console_eio.run` calls join the existing display instead of claiming the
-terminal again. Stable `~id` values deduplicate repeated or out-of-order task
-events without a caller-side table.
+That is usually all you need. Wrap the work in one `Console_eio.run` and
+create a `Display.task` for each step. Until a task knows its total, its row
+shows a spinner; after that it shows a bar, a count, a rate and the elapsed
+time. If you forget to finish a task, it is marked as succeeded when the
+callback returns, or cancelled if the callback raises. Calling
+`Console_eio.run` again inside the callback reuses the display that is already
+there. A task can also take a stable `~id`: asking for the same id again
+returns the same task, which is handy when the events for one task arrive
+twice or out of order.
 
-A program that needs a different row composes one with `Display.Line` from
-spinner, label, bar, percent, count, rate, elapsed and spacer pieces.
+For another row layout, `Display.Line` builds one from pieces: spinner, label,
+bar, percent, count, rate, elapsed time and spacer.
 
 ### Animation and layout
 
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
-An `Anim.t` is a value sampled at an elapsed time. `Spinner`, `Bar` and
-`Panel.rain` / `Table.rain` expose one. A panel or table
-made with `~theme:Theme.matrix` rains automatically. `Anim.map2`, `Anim.all`,
-`Layout.hcat_anim` and `Layout.vcat_anim` combine independently animated
-components while sampling them at the same elapsed time. A runnable demo lives in
-[`examples/matrix`](examples/matrix):
+An `Anim.t` is a value that depends on the elapsed time; each frame reads it
+at the current time. `Spinner`, `Bar`, `Panel.rain` and `Table.rain` each give
+one, and a panel or table built with `~theme:Theme.matrix` rains with no more
+code. `Anim.map2`, `Anim.all`, `Layout.hcat_anim` and `Layout.vcat_anim` put
+several animations together and read them all at the same time. The demo in
+[`examples/matrix`](examples/matrix) runs with:
 
 <!-- $MDX skip -->
 ```sh
