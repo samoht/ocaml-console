@@ -107,6 +107,51 @@ let test_anim_theme () =
     "non-matrix theme stays still" (Panel.to_ansi_string u)
     (Anim.frame (Panel.anim u) ~elapsed:0.4)
 
+let render_at margin panel =
+  let buf = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf margin;
+  Panel.pp ppf panel;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* The formatter's margin is a ceiling on the box: a line wider than the room
+   wraps at its words, each continuation hanging under the text after the
+   line's first word, and the box is exactly the margin wide. *)
+let test_margin_wraps () =
+  let panel =
+    Panel.lines
+      [
+        Span.text
+          "REFUSED main has no baseline and the gate worktree does not exist";
+        Span.text "ok";
+      ]
+  in
+  Alcotest.(check string)
+    "wrapped box"
+    (String.concat "\n"
+       [
+         "╭────────────────────────────╮";
+         "│ REFUSED main has no        │";
+         "│         baseline and the   │";
+         "│         gate worktree does │";
+         "│         not exist          │";
+         "│ ok                         │";
+         "╰────────────────────────────╯";
+       ])
+    (render_at 30 panel)
+
+(* A box that fits keeps its natural width, and [to_string] is natural. *)
+let test_margin_natural () =
+  Alcotest.(check string)
+    "fits" "╭────╮\n│ ok │\n╰────╯"
+    (render_at 30 (Panel.v (Span.text "ok")));
+  let long = String.make 100 'x' in
+  Alcotest.(check int)
+    "to_string is natural" 104
+    (Width.string_width
+       (List.hd (lines (Panel.to_string (Panel.v (Span.text long))))))
+
 let suite =
   ( "panel",
     [
@@ -120,4 +165,6 @@ let suite =
       Alcotest.test_case "anim is still" `Quick test_anim_const;
       Alcotest.test_case "matrix rain" `Quick test_rain;
       Alcotest.test_case "anim honours theme" `Quick test_anim_theme;
+      Alcotest.test_case "margin wraps" `Quick test_margin_wraps;
+      Alcotest.test_case "margin natural" `Quick test_margin_natural;
     ] )

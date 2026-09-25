@@ -57,6 +57,34 @@ let test_anim_const () =
   str "frame is terminal-ready" (Tree.to_ansi_string t)
     (Anim.frame (Tree.anim t) ~elapsed:3.0)
 
+(* The formatter's margin is a ceiling on every row: a label wider than the
+   room left by its guide wraps, hanging under the text after its first word,
+   and the guide of its level runs on beside the continuation. *)
+let test_margin_wraps () =
+  let n label children = Tree.Node (Span.text label, children) in
+  let tree =
+    Tree.of_tree
+      (n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ])
+  in
+  let buf = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf 20;
+  Tree.pp ppf tree;
+  Format.pp_print_flush ppf ();
+  str "wrapped tree"
+    (String.concat "\n"
+       [
+         "root";
+         "├── a";
+         "│   └── leaf label";
+         "│            that is";
+         "│            long";
+         "└── b";
+       ])
+    (Buffer.contents buf);
+  str "to_string is natural"
+    "root\n├── a\n│   └── leaf label that is long\n└── b" (Tree.to_string tree)
+
 let suite =
   ( "tree",
     [
@@ -65,4 +93,5 @@ let suite =
       Alcotest.test_case "render exact" `Quick test_render_exact;
       Alcotest.test_case "render single" `Quick test_render_single;
       Alcotest.test_case "anim is still" `Quick test_anim_const;
+      Alcotest.test_case "margin wraps" `Quick test_margin_wraps;
     ] )
