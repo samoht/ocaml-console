@@ -37,40 +37,32 @@ let display_clock clock =
   | None | Some "" -> fun () -> Eio.Time.now clock
   | Some _ -> fun () -> 0.
 
-(* The context [run] would build for itself, and the terminal it then owes a
-   restored cursor. A caller that supplies its own context has answered the
-   output, clock, geometry and terminal questions already, and with them the
-   question of who owns the terminal: [run] configures none and restores none,
-   because the surface it was handed may not be one. *)
-let context ~clock ~ppf ~ctx =
-  match ctx with
-  | Some ctx ->
-      if Option.is_some ppf then
-        invalid_arg
-          "Console_eio.run: ppf and ctx are both given; a context already \
-           carries its formatter";
-      (ctx, None)
-  | None ->
-      let ppf = Option.value ppf ~default:Fmt.stdout in
-      let is_tty = is_tty () in
-      let ctx =
-        Console.Display.ctx ~ppf ~now:(display_clock clock) ~dimensions ~is_tty
-          ()
-      in
-      let restore =
-        if is_tty then Some Console.Display.restore_terminal else None
-      in
-      (ctx, restore)
+(* The context [run] builds for the terminal, and the cursor it then owes it.
+   The wait is the clock's own sleep: under CONSOLE_FROZEN_CLOCK the reading
+   stops and the pace does not, so a refresh still turns. *)
+let context ~clock ~ppf =
+  let ppf = Option.value ppf ~default:Fmt.stdout in
+  let is_tty = is_tty () in
+  let ctx =
+    Console.Display.ctx ~ppf ~now:(display_clock clock)
+      ~wait:(Eio.Time.sleep clock) ~dimensions ~is_tty ()
+  in
+  let restore =
+    if is_tty then Some Console.Display.restore_terminal else None
+  in
+  (ctx, restore)
 
-let run ~clock ?ppf ?ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
+(* Only the outermost call opens a display and asks for its context; a call
+   under it contributes to the display that stands. *)
+let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Eio.Fiber.get current with
   | Some display -> f display
   | None -> (
-      let ctx, restore = context ~clock ~ppf ~ctx in
+      let ctx, restore = context () in
       let run () =
         Eio.Switch.run (fun sw ->
-            Display.run ~sw ~clock ~ctx ?mode ?theme ?palette ?bar ?width
-              ?height ?header (fun display ->
+            Display.run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height
+              ?header (fun display ->
                 Eio.Fiber.with_binding current display (fun () -> f display)))
       in
       match restore with
@@ -78,3 +70,17 @@ let run ~clock ?ppf ?ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
       | Some restore ->
           Terminal.on_interrupt restore (fun () ->
               Fun.protect ~finally:restore run))
+
+let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
+  session
+    ~context:(fun () -> context ~clock ~ppf)
+    ?mode ?theme ?palette ?bar ?width ?height ?header f
+
+(* A caller that supplies its own context has answered the output, clock,
+   geometry and terminal questions already, and with them the question of who
+   owns the terminal: [run_on] configures none and restores none, because the
+   surface it was handed may not be one. *)
+let run_on ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
+  session
+    ~context:(fun () -> (ctx, None))
+    ?mode ?theme ?palette ?bar ?width ?height ?header f

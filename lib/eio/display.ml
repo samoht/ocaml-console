@@ -1,8 +1,11 @@
-let animate ~sw ~clock display =
+(* The refresh waits on the display's own clock, the one its rows read, so a
+   context whose clock a caller moves by hand paces the refresh as well. *)
+let animate ~sw display =
+  let wait = Console.Display.wait display in
   let running = ref true in
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
-        Eio.Time.sleep clock 0.12;
+        wait 0.12;
         if !running then begin
           Console.Display.tick display;
           loop ()
@@ -32,7 +35,7 @@ let reporter display =
   in
   { Logs.report }
 
-let run ~sw ~clock ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
+let run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   if not (Atomic.compare_and_set active false true) then
     invalid_arg "Console_eio.run: another display is active";
   Fun.protect
@@ -43,7 +46,7 @@ let run ~sw ~clock ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
           Logs.set_reporter (reporter display);
           Fun.protect
             (fun () ->
-              let stop = animate ~sw ~clock display in
+              let stop = animate ~sw display in
               Fun.protect (fun () -> f display) ~finally:stop)
             ~finally:(fun () -> Logs.set_reporter previous)))
     ~finally:(fun () -> Atomic.set active false)

@@ -119,12 +119,20 @@ type ctx
 val ctx :
   ppf:Format.formatter ->
   now:(unit -> float) ->
+  ?wait:(float -> unit) ->
   dimensions:(unit -> int * int) ->
   is_tty:bool ->
   unit ->
   ctx
 (** [ctx] constructs a display context from explicit output, clock, geometry and
     terminal detection functions. Driver libraries normally do this.
+
+    [now ()] is the time the display reads, in seconds, and [wait s] returns
+    once [now] has advanced by [s]: they are one clock, and whatever paces the
+    display or the work drawn on it waits through {!val-wait} rather than on a
+    clock of its own, so a context whose clock a test moves by hand moves every
+    reader of it. A context built without [wait] can be drawn on but not driven:
+    {!val-wait} refuses on it.
 
     [is_tty] says whether a live region can be drawn at all; whether that region
     carries colour is [ppf]'s own answer, [Fmt.style_renderer], which is what
@@ -140,6 +148,11 @@ val ctx_ppf : ctx -> Format.formatter
     {!run} and then writes to the same surface itself -- the newline that closes
     a line the session left open, say -- reads it here rather than being told
     twice, which is the arrangement in which the two answers can differ. *)
+
+val ctx_now : ctx -> float
+(** [ctx_now ctx] is the time on [ctx]'s clock, the one a display opened on it
+    reads ({!val-now}). A caller timing work that spans the display's opening
+    reads it here rather than keeping a clock of its own beside [ctx]. *)
 
 val with_char_width : ctx -> (Uchar.t -> int) -> ctx
 (** [with_char_width ctx width] overrides Unicode terminal-cell measurement. *)
@@ -455,6 +468,19 @@ val set_scene : t -> (frame:int -> width:int -> Span.t list) -> unit
     too short to hold it with the header and every running row, and an appending
     display never draws it, so it holds nothing that is not also said elsewhere.
 *)
+
+val now : t -> float
+(** [now display] is the time on the clock of the context [display] was opened
+    with. *)
+
+val wait : t -> float -> unit
+(** [wait display s] returns once the clock of the context [display] was opened
+    with has advanced by [s] seconds. A driver's refresh and a renderer's
+    periodic work wait here, so the display has one clock.
+
+    @raise Invalid_argument
+      if that context was built without [~wait], on the partial application
+      [wait display] already. *)
 
 val tick : t -> unit
 (** [tick display] refreshes an activity projection. Driver libraries call it

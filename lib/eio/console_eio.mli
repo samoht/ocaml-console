@@ -6,7 +6,6 @@ module Prompt = Prompt
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
-  ?ctx:Console.Display.ctx ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?palette:Console.Color.t list ->
@@ -16,38 +15,51 @@ val run :
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a
-(** [run ~clock f] is the Eio driver for {!Console.Display.run}. It constructs
-    the terminal context, or takes the one [ctx] hands it, scopes the refresh
-    fiber and Logs reporter, and passes the ordinary {!Console.Display.t} to
-    [f]. All task operations are in {!Console.Display}; this module adds no
-    parallel display API.
+(** [run ~clock f] is the Eio driver for {!Console.Display.run} on the terminal.
+    It constructs the terminal context, whose clock is [clock] for both its
+    reading and its waits, scopes the refresh fiber and Logs reporter, and
+    passes the ordinary {!Console.Display.t} to [f]. All task operations are in
+    {!Console.Display}; this module adds no parallel display API.
 
-    Calls compose: when [run] is called from inside an existing [run] scope in
-    the same fiber tree, [f] receives the existing display. Only the outermost
-    call owns terminal configuration and teardown. This lets a library expose a
-    complete Console operation without forcing its caller to coordinate display
-    ownership.
+    Calls compose: when [run] or {!run_on} is called from inside an existing
+    scope of either in the same fiber tree, [f] receives the existing display.
+    Only the outermost call owns terminal configuration and teardown. This lets
+    a library expose a complete Console operation without forcing its caller to
+    coordinate display ownership.
 
     [ppf] selects the output formatter and defaults to stdout. Unix terminal
     dimensions and tty detection are automatic. Cursor visibility is restored on
     return, exception and SIGINT.
 
-    [ctx] replaces the context [run] builds, so the formatter, the display
-    clock, the geometry and the terminal answer are all the caller's. [run] then
-    configures and restores no terminal, because a caller that says which
-    surface it draws on has taken that ownership, and the surface it named need
-    not be a terminal at all. It is how a command grades its own live region --
-    a pinned geometry and a clock that does not move make the frames something a
-    diff can hold -- without going around the entry point it ships. Passing
-    [ppf] as well raises [Invalid_argument]: a context already carries one.
-    [clock] is still required, and still paces the refresh.
-
     [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
-    the display clock at zero, so every elapsed time renders as [0.0s]. A test
-    that captures this output would otherwise record how fast the machine that
-    ran it was, and fail on a slower one. It replaces the clock [run] reads for
-    itself and only that one: a [ctx] has already said what time the display
+    the display clock's reading at zero, so every elapsed time renders as
+    [0.0s]; the refresh still waits on [clock]. A test that captures this output
+    would otherwise record how fast the machine that ran it was, and fail on a
+    slower one. It replaces the reading [run] builds for itself and only that
+    one: a context handed to {!run_on} has already said what time the display
     reads. *)
+
+val run_on :
+  ctx:Console.Display.ctx ->
+  ?mode:Console.Display.mode ->
+  ?theme:Console.Theme.t ->
+  ?palette:Console.Color.t list ->
+  ?bar:Console.Display.Line.t ->
+  ?width:int ->
+  ?height:int ->
+  ?header:string ->
+  (Console.Display.t -> 'a) ->
+  'a
+(** [run_on ~ctx f] is {!run} on the context [ctx], so the formatter, the
+    display clock and its waits, the geometry and the terminal answer are all
+    the caller's, and the refresh waits on [ctx]'s clock. It configures and
+    restores no terminal, because a caller that says which surface it draws on
+    has taken that ownership, and the surface it named need not be a terminal at
+    all. It is how a command grades its own live region -- a pinned geometry and
+    a clock the caller moves make the frames something a diff can hold --
+    without going around the entry point it ships.
+
+    @raise Invalid_argument if [ctx] was built without [~wait]. *)
 
 val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 (** [setup ~style_renderer ()] configures the process's terminal output once,

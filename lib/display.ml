@@ -348,11 +348,12 @@ module Event = struct
 end
 
 (* The effects a live display needs from its environment: where to write, the
-   clock that drives the animation, the terminal geometry to fit, and whether
-   the output is a terminal. The eio driver supplies these. *)
+   clock that drives the animation and how to wait on it, the terminal geometry
+   to fit, and whether the output is a terminal. The eio driver supplies these. *)
 type view = {
   ppf : Format.formatter;
   now : unit -> float;
+  wait : (float -> unit) option;
   dimensions : unit -> int * int;
   is_tty : bool;
   char_width : (Uchar.t -> int) option;
@@ -360,13 +361,14 @@ type view = {
 
 type ctx = Fresh of view
 
-let view ~ppf ~now ~dimensions ~is_tty ~char_width =
-  { ppf; now; dimensions; is_tty; char_width }
+let view ~ppf ~now ~wait ~dimensions ~is_tty ~char_width =
+  { ppf; now; wait; dimensions; is_tty; char_width }
 
-let ctx ~ppf ~now ~dimensions ~is_tty () =
-  Fresh (view ~ppf ~now ~dimensions ~is_tty ~char_width:None)
+let ctx ~ppf ~now ?wait ~dimensions ~is_tty () =
+  Fresh (view ~ppf ~now ~wait ~dimensions ~is_tty ~char_width:None)
 
 let ctx_ppf (Fresh c) = c.ppf
+let ctx_now (Fresh c) = c.now ()
 
 let with_char_width (Fresh c) char_width =
   Fresh { c with char_width = Some char_width }
@@ -392,6 +394,7 @@ type t = {
          separate question from [plain]: a terminal whose reader turned colour
          off is still a terminal, so the region keeps redrawing in place *)
   now : unit -> float;
+  wait : (float -> unit) option;
   dimensions : unit -> int * int;
       (* terminal (width, height), re-read each paint so a resize is handled *)
   char_width : (Uchar.t -> int) option;
@@ -1123,6 +1126,7 @@ let state ~(ctx : view) ~plain ~styling ~theme ~palette ~bar ~width ~height
     plain;
     styling;
     now = ctx.now;
+    wait = ctx.wait;
     dimensions = ctx.dimensions;
     char_width = ctx.char_width;
     header = Option.map sanitize header;
@@ -1772,6 +1776,18 @@ let set_scene t scene =
   check_open "set_scene" t;
   t.scene <- Some scene;
   if (not t.plain) && t.now () -. t.painted_at >= redraw_interval then paint t
+
+let now t = t.now ()
+
+(* The refusal is taken on [wait display], before any second is asked for, so
+   a driver that reads the wait before forking refuses at once. *)
+let wait t =
+  match t.wait with
+  | Some wait -> wait
+  | None ->
+      invalid_arg
+        "Console.Display.wait: the context was built without ~wait, so its \
+         clock cannot be waited on"
 
 (* The final result banner: a faint coloured [OK]/[FAIL] marker (green or red)
    followed by the message in bold, unstyled text in history-only output. A long message
