@@ -302,6 +302,7 @@ val task :
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
+  ?group:bool ->
   t ->
   string ->
   task
@@ -328,6 +329,16 @@ val task :
     and leaves no line when it ends: the screen keeps what happened, not how the
     work got there. Its start, its ending and its logs are in {!history} like
     any task's, and a pipe, which draws nothing that runs, never sees it.
+
+    [group] (defaults to [false]) makes a group row, the way a build draws one
+    row per service with its steps beneath it. A row under an open group that
+    ends stays drawn beneath the group, with its outcome and its frozen timer,
+    and its permanent line waits for the group's: when the group settles, its
+    line and then its rows' lines, each with its kept log lines, are written as
+    one block, on the block's grid. A group settles when its last row does:
+    {!succeed}, {!fail} or {!cancel} on a group with rows still open records
+    that ending, and the group takes it, with its timer stopped then, when the
+    last of those rows ends. A pipe writes every line as it comes.
 
     {b Raises.} [Invalid_argument] if the display is closed, [id] is empty,
     [log_lines] or [total] is negative, or [parent] belongs to another display.
@@ -383,7 +394,8 @@ val succeed : ?message:string -> task -> unit
     place of its label if given. A task finishes once: the first of {!succeed},
     {!fail} and {!cancel} wins and later calls do nothing. Its unfinished
     descendants finish first, children before parents: they succeed when [task]
-    succeeds and are cancelled when it fails or is cancelled. *)
+    succeeds and are cancelled when it fails or is cancelled. A group with rows
+    still open finishes when the last of them does instead (see {!task}). *)
 
 val fail : ?message:string -> task -> unit
 (** [fail ~message task] is like {!succeed} but finishes [task] as failed. *)
@@ -400,6 +412,7 @@ val with_task :
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
+  ?group:bool ->
   t ->
   string ->
   (task -> 'a) ->

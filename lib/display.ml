@@ -451,6 +451,16 @@ and row = {
   mutable rlabel : string;
   mutable metric : metric;
   transient : bool; (* drawn while it runs; its ending commits no line *)
+  group : bool;
+      (* its rows' permanent lines wait for it, and it settles with its last
+         row *)
+  mutable requested : (Event.outcome * string option) option;
+      (* the first ending asked of a group while rows under it were open *)
+  mutable swept : bool;
+  mutable waiting : bool;
+      (* settled under a group that has not, so its line is not written yet *)
+  mutable spilled : row_log list;
+      (* kept log lines that left the row while it waited for its group *)
   rstart : float;
   mutable rfinish : float option;
   mutable rmessage : string option;
@@ -952,8 +962,21 @@ let cap_region t ~header ~blocks =
     cap_rows t ~header ~budget ~total blocks
   else cap_logs t ~header ~budget ~total blocks
 
+(* A row under a group that has not settled keeps its permanent lines until
+   the group does, so the group's line and its rows' are written as one block,
+   the group's first, and the rows stay drawn beneath it in the meantime. An
+   appending surface has no region to keep them in and writes each line as it
+   comes. *)
+let rec under_open_group r =
+  match r.parent with
+  | None -> false
+  | Some p -> (p.group && p.rfinish = None) || under_open_group p
+
+let waits_for_group r = (not r.disp.plain) && under_open_group r
+
 let rec row_live row =
-  row.rfinish = None
+  (row.rfinish = None
+  || (waits_for_group row && not (row.swept || row.transient)))
   && match row.parent with None -> true | Some parent -> row_live parent
 
 let live_lines t =
@@ -1337,7 +1360,8 @@ let validate_task ~id ~parent ~log_lines ~total t =
    parent is ignored rather than fatal. *)
 let existing_task ~id t = Option.bind id (Hashtbl.find_opt t.by_key)
 
-let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label =
+let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t label
+    =
   let now = t.now () in
   let rid = t.next_task_id in
   t.next_task_id <- rid + 1;
@@ -1361,6 +1385,11 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label =
       metric =
         (match total with Some total -> Count (0, total) | None -> Spin);
       transient;
+      group;
+      requested = None;
+      swept = false;
+      waiting = false;
+      spilled = [];
       rstart = now;
       rfinish = Option.map (Fun.const now) inherited;
       rmessage = None;
@@ -1381,13 +1410,14 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label =
   touch r;
   r
 
-let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total ?(transient = false) t
-    label =
+let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total ?(transient = false)
+    ?(group = false) t label =
   validate_task ~id ~parent ~log_lines ~total t;
   match existing_task ~id t with
   | Some existing -> existing
   | None ->
-      add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient t label
+      add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t
+        label
 
 let set_label r label =
   check_open "set_label" r.disp;
@@ -1396,20 +1426,26 @@ let set_label r label =
     touch r
   end
 
-(* One log line, written where history goes: above the activity region on a
-   terminal, straight to the output without one. *)
-let commit_log t r entry =
+(* One log line as a terminal's history draws it, under its row's guide. *)
+let log_line t r entry =
   let marker = level_marker t.theme entry.llevel in
   let suffix = gap_suffix entry.lgap in
-  let plain =
-    Fmt.str "%s  %s %s%s" (indent r)
-      (styled t (level_style entry.llevel) marker)
-      entry.lmessage (dimmed t suffix)
-  in
-  let styled =
-    continuation t r ^ styled_log t entry.llevel marker entry.lmessage suffix
-  in
-  emit_history_line t ~plain ~styled
+  continuation t r ^ styled_log t entry.llevel marker entry.lmessage suffix
+
+(* One log line, written where history goes: above the activity region on a
+   terminal, straight to the output without one, or held with its row while
+   the row waits for its group. *)
+let commit_log t r entry =
+  if waits_for_group r then r.spilled <- r.spilled @ [ entry ]
+  else
+    let marker = level_marker t.theme entry.llevel in
+    let plain =
+      Fmt.str "%s  %s %s%s" (indent r)
+        (styled t (level_style entry.llevel) marker)
+        entry.lmessage
+        (dimmed t (gap_suffix entry.lgap))
+    in
+    emit_history_line t ~plain ~styled:(log_line t r entry)
 
 (* A line is on screen once. The bounded tail beneath a running row already
    draws it, so committing it at the same time puts the same line in two places
@@ -1549,14 +1585,40 @@ let set_bytes r ~cur ~total =
     set_metric r (Bytes (cur, total))
   end
 
-let running_children r =
+let children r =
   List.filter
     (fun child ->
-      child.rfinish = None
-      && match child.parent with Some parent -> parent == r | None -> false)
+      match child.parent with Some parent -> parent == r | None -> false)
     r.disp.rows
 
-(* [swept] is a row that never reported an ending of its own: the row it hung
+let running_children r =
+  List.filter (fun child -> child.rfinish = None) (children r)
+
+(* The lines that waited for [r], depth first in the order the rows started:
+   each row's kept log lines, then the row's own line, then the rows under it.
+   A row that waited for an inner group is still waiting when that group
+   settles under an outer one, and is written here with the rest. *)
+let rec waited_lines t r =
+  List.concat_map
+    (fun child ->
+      let logs = List.map (log_line t child) child.spilled in
+      child.spilled <- [];
+      let own =
+        if child.waiting then begin
+          child.waiting <- false;
+          [ styled_committed t child ]
+        end
+        else []
+      in
+      logs @ own @ waited_lines t child)
+    (children r)
+
+(* A group asked to end while rows under it are open keeps the first ending it
+   was asked for and settles with it when its last open row settles, so its
+   cost runs to that moment. Any other row settles at once, its open
+   descendants first.
+
+   [swept] is a row that never reported an ending of its own: the row it hung
    under ended while it was still running, so the display takes it out of the
    live region on that row's behalf. Such a row commits no permanent line and
    carries no message. Permanent history is what the run did, and a row that
@@ -1568,40 +1630,62 @@ let running_children r =
    nothing. *)
 let rec finish ?(swept = false) outcome ?message r =
   check_open "finish" r.disp;
-  if r.rfinish = None then begin
-    let child_outcome =
-      match outcome with
-      | `Succeeded -> `Succeeded
-      | `Failed | `Cancelled -> `Cancelled
-    in
-    List.iter
-      (fun child -> finish ~swept:true child_outcome child)
-      (running_children r);
-    let t = r.disp in
-    (* The tail was holding these; the row is about to leave the live region,
-       so history takes them, before the line that closes the row. *)
-    if not t.plain then begin
-      List.iter (fun log -> if log.lkept then commit_log t r log) r.logs;
-      r.logs <- []
-    end;
-    r.rfinish <- Some (t.now ());
-    r.rmessage <- Option.map sanitize message;
-    r.routcome <- Some outcome;
-    t.finished <- t.finished + 1;
-    let message = Option.value r.rmessage ~default:r.rlabel in
-    record ~task:r t (`Finished outcome) message;
-    if not (swept || r.transient) then
-      emit_history_line t ~plain:(plain_committed t r)
-        ~styled:(styled_committed t r)
-  end
+  if r.rfinish = None then
+    if (not swept) && r.group && running_children r <> [] then
+      r.requested <- Some (Option.value r.requested ~default:(outcome, message))
+    else settle ~swept outcome ?message r
+
+and settle ~swept outcome ?message r =
+  let child_outcome =
+    match outcome with
+    | `Succeeded -> `Succeeded
+    | `Failed | `Cancelled -> `Cancelled
+  in
+  List.iter
+    (fun child -> finish ~swept:true child_outcome child)
+    (running_children r);
+  let t = r.disp in
+  (* The tail was holding these; the row is about to leave the live region,
+     so history takes them, before the line that closes the row. *)
+  if not t.plain then begin
+    List.iter (fun log -> if log.lkept then commit_log t r log) r.logs;
+    r.logs <- []
+  end;
+  r.rfinish <- Some (t.now ());
+  r.rmessage <- Option.map sanitize message;
+  r.routcome <- Some outcome;
+  r.swept <- swept;
+  t.finished <- t.finished + 1;
+  let message = Option.value r.rmessage ~default:r.rlabel in
+  record ~task:r t (`Finished outcome) message;
+  let own = not (swept || r.transient) in
+  (if waits_for_group r then r.waiting <- own
+   else if t.plain then (if own then Fmt.pf t.dppf "%s@." (plain_committed t r))
+   else
+     match
+       (if own then [ styled_committed t r ] else []) @ waited_lines t r
+     with
+     | [] -> ()
+     | lines -> commit t (String.concat "\r\n" lines));
+  match r.parent with
+  | Some parent when not swept -> settle_requested parent
+  | Some _ | None -> ()
+
+and settle_requested group =
+  match group.requested with
+  | Some (outcome, message)
+    when group.rfinish = None && running_children group = [] ->
+      settle ~swept:false outcome ?message group
+  | Some _ | None -> ()
 
 let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
-let with_task ?id ?parent ?bar ?color ?log_lines ?total ?transient t label f =
+let with_task ?id ?parent ?bar ?color ?log_lines ?total ?transient ?group t
+    label f =
   let task =
-    task ?id ?parent ?bar ?color ?log_lines ?total ?transient t label
+    task ?id ?parent ?bar ?color ?log_lines ?total ?transient ?group t label
   in
   match f task with
   | value ->
