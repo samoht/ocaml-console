@@ -186,6 +186,40 @@ let test_a_handler_installed_under_run_outlives_it () =
     "the handler installed under run still stands after it" true
     (is handler_installed_under_run (Sys.signal Sys.sigint Sys.Signal_default))
 
+(* A history display on a terminal hides no cursor, so it writes nothing to
+   show one: what reaches the terminal is what the caller printed, the bytes a
+   pipe would get apart from the terminal's own CR before each LF. *)
+let test_history_on_a_terminal_writes_only_its_output () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty =
+    match Eio_unix.Pty.open_pty ~sw () with
+    | pty -> pty
+    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+        Alcotest.skip ()
+  in
+  let stdout = Unix.dup Unix.stdout in
+  ( Fun.protect ~finally:(fun () ->
+        Unix.dup2 stdout Unix.stdout;
+        Unix.close stdout)
+  @@ fun () ->
+    Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
+        Unix.dup2 tty Unix.stdout);
+    Console_eio.run ~clock:(Eio.Stdenv.clock env) ~mode:`History (fun display ->
+        Console.Display.with_output display (fun ppf -> Fmt.pf ppf "plain@."))
+  );
+  let written = Buffer.create 64 and buf = Cstruct.create 4096 in
+  let source = Eio_unix.Pty.source pty in
+  (try
+     while true do
+       Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 0.2 (fun () ->
+           let n = Eio.Flow.single_read source buf in
+           Buffer.add_string written (Cstruct.to_string ~len:n buf))
+     done
+   with Eio.Time.Timeout | End_of_file | Eio.Io _ -> ());
+  Alcotest.(check string)
+    "only the output" "plain\r\n" (Buffer.contents written)
+
 let suite =
   ( "console_eio",
     [
@@ -207,4 +241,6 @@ let suite =
         test_frozen_clock_pins_every_elapsed;
       Alcotest.test_case "a handler installed under run outlives it" `Quick
         test_a_handler_installed_under_run_outlives_it;
+      Alcotest.test_case "history on a terminal writes only its output" `Quick
+        test_history_on_a_terminal_writes_only_its_output;
     ] )
