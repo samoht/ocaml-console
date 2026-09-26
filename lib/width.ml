@@ -608,6 +608,27 @@ let rec wrap_words ~char_width ~effective acc line len = function
         wrap_words ~char_width ~effective (word :: acc) "" 0 rest
       else wrap_words ~char_width ~effective (line :: acc) word wlen rest
 
+(* A backquoted run is one word: a row never ends inside a command the reader
+   copies back. A backquote that never closes groups nothing. *)
+let backquoted words =
+  let odd word =
+    String.fold_left (fun n c -> if c = '`' then n + 1 else n) 0 word mod 2 = 1
+  in
+  let rec close run = function
+    | [] -> None
+    | word :: rest when odd word -> Some (List.rev (word :: run), rest)
+    | word :: rest -> close (word :: run) rest
+  in
+  let rec go acc = function
+    | [] -> List.rev acc
+    | word :: rest when odd word -> (
+        match close [ word ] rest with
+        | Some (run, rest) -> go (String.concat " " run :: acc) rest
+        | None -> go (word :: acc) rest)
+    | word :: rest -> go (word :: acc) rest
+  in
+  go [] words
+
 let wrap ?(char_width = default_char_width) ?(indent = 0) width text =
   let effective = width - indent in
   if effective <= 0 then text
@@ -617,6 +638,6 @@ let wrap ?(char_width = default_char_width) ?(indent = 0) width text =
       text |> String.split_on_char '\n' |> List.map String.trim
       |> String.concat " "
     in
-    let words = String.split_on_char ' ' normalized in
+    let words = backquoted (String.split_on_char ' ' normalized) in
     let lines = List.rev (wrap_words ~char_width ~effective [] "" 0 words) in
     String.concat "\n" (List.map (fun l -> prefix ^ l) lines)

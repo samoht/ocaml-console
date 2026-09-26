@@ -92,4 +92,6 @@ val wrap :
   ?char_width:(Uchar.t -> int) -> ?indent:int -> int -> string -> string
 (** [wrap ?char_width ?indent width text] is [text] word-wrapped to [width]
     terminal columns, broken at spaces, each line prefixed with [indent] spaces
-    (default [0]). *)
+    (default [0]). A backquoted run is one word, so a command in backquotes is
+    never broken across lines; a word wider than a line takes a line of its own.
+*)
