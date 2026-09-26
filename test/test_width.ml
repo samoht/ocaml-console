@@ -189,6 +189,12 @@ let test_wrap_keeps_backquoted_run () =
     "run on one row" "use\n`space run a/b.yaml`,\nthen go"
     (Width.wrap 12 "use `space run a/b.yaml`, then go")
 
+(* A word that opens and closes its own run groups nothing after it. *)
+let test_wrap_closed_backquote () =
+  Alcotest.(check string)
+    "closed in one word" "`a`\nb c\n`d`"
+    (Width.wrap 4 "`a` b c `d`")
+
 (* A backquote that never closes groups nothing, and every space is a break. *)
 let test_wrap_unclosed_backquote () =
   Alcotest.(check string) "unclosed" "a `b c\nd e" (Width.wrap 6 "a `b c d e")
@@ -261,6 +267,8 @@ let suite =
         test_wrap_single_long_word;
       Alcotest.test_case "wrap keeps backquoted run" `Quick
         test_wrap_keeps_backquoted_run;
+      Alcotest.test_case "wrap closed backquote" `Quick
+        test_wrap_closed_backquote;
       Alcotest.test_case "wrap unclosed backquote" `Quick
         test_wrap_unclosed_backquote;
       Alcotest.test_case "wrap multiline input" `Quick test_wrap_multiline_input;
