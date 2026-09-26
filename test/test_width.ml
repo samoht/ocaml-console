@@ -182,6 +182,17 @@ let test_wrap_single_long_word () =
   let result = Width.wrap 5 "superlongword next" in
   Alcotest.(check string) "long word on own line" "superlongword\nnext" result
 
+(* A backquoted run is a command the reader copies back whole, so a row never
+   ends inside one; one wider than the row takes a row of its own. *)
+let test_wrap_keeps_backquoted_run () =
+  Alcotest.(check string)
+    "run on one row" "use\n`space run a/b.yaml`,\nthen go"
+    (Width.wrap 12 "use `space run a/b.yaml`, then go")
+
+(* A backquote that never closes groups nothing, and every space is a break. *)
+let test_wrap_unclosed_backquote () =
+  Alcotest.(check string) "unclosed" "a `b c\nd e" (Width.wrap 6 "a `b c d e")
+
 let test_wrap_multiline_input () =
   let result = Width.wrap 20 "line one\nline two\nline three" in
   Alcotest.(check string)
@@ -248,6 +259,10 @@ let suite =
       Alcotest.test_case "wrap short" `Quick test_wrap_short;
       Alcotest.test_case "wrap single long word" `Quick
         test_wrap_single_long_word;
+      Alcotest.test_case "wrap keeps backquoted run" `Quick
+        test_wrap_keeps_backquoted_run;
+      Alcotest.test_case "wrap unclosed backquote" `Quick
+        test_wrap_unclosed_backquote;
       Alcotest.test_case "wrap multiline input" `Quick test_wrap_multiline_input;
       Alcotest.test_case "wrap empty" `Quick test_wrap_empty;
       Alcotest.test_case "wrap terminal cells" `Quick
