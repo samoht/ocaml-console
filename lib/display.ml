@@ -1874,11 +1874,14 @@ let cancel_running t message =
     (fun task -> if task.rfinish = None then cancel ~message task)
     (List.rev t.rows)
 
+(* Runs while another exception unwinds: a write failure on the display's
+   channel ([Sys_error], as an out_channel formatter raises) is logged so that
+   the original exception is the one that propagates. *)
 let cleanup_after_exception t =
   try
     cancel_running t "interrupted";
     close t
-  with exn ->
+  with Sys_error _ as exn ->
     t.torn_down <- true;
     if not t.plain then begin
       show_cursor_on t.dppf;
