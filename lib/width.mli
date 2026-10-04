@@ -28,7 +28,7 @@ val truncate : ?char_width:(Uchar.t -> int) -> int -> string -> string
 
 val ellipsize :
   ?char_width:(Uchar.t -> int) ->
-  ?at:[ `Middle | `End ] ->
+  ?at:[ `Middle | `Start ] ->
   int ->
   string ->
   string

@@ -362,7 +362,7 @@ let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
     let atoms = atoms ~char_width str in
     let keep = target_width - 1 in
     match at with
-    | `End ->
+    | `Start ->
         let head = String.concat "" (take keep atoms) in
         String.concat "" [ head; closing head; ellipsis ]
     | `Middle ->
