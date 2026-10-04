@@ -51,7 +51,10 @@ let digest =
 let test_ellipsize_keeps_both_ends () =
   let cut = Width.ellipsize 21 digest in
   Alcotest.(check string) "the middle is what goes" "sha256:a3...5f0e1d2c3" cut;
-  Alcotest.(check int) "and the result fits" 21 (Width.string_width cut)
+  Alcotest.(check int) "and the result fits" 21 (Width.string_width cut);
+  Alcotest.(check string)
+    "an odd room gives the head the extra column" "sha256:a37...5f0e1d2c3"
+    (Width.ellipsize 22 digest)
 
 (* [git diff --stat] shows a path too long for its column with "..." at the
    front and the cut moved on to the next "/", so a name is never left starting
