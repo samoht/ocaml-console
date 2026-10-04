@@ -135,19 +135,23 @@ let test_dimensions_are_at_least_one_cell () =
 
 (* An elapsed time comes from the machine, not from the program, so a test that
    captures a display's output cannot assert one. CONSOLE_FROZEN_CLOCK is the
-   door that makes such output reproducible: the same work, slow enough that a
-   real clock would show it, renders 0.0s with the variable set. Both halves are
-   asserted, because a frozen clock that was already frozen proves nothing. *)
+   door that makes such output reproducible: the same work, long enough that a
+   moving clock shows it, renders 0.0s with the variable set. Both halves are
+   asserted, because a frozen clock that was already frozen proves nothing. The
+   clock is a mock the task moves a quarter of a second, so the work takes no
+   time on the machine's. *)
 let capture_a_slow_task () =
-  with_clock (fun clock ->
-      let buf = Buffer.create 128 in
-      let ppf = Format.formatter_of_buffer buf in
-      Console_eio.run ~clock ~ppf ~mode:`History (fun display ->
-          let task = Console.Display.task display "slow step" in
-          Eio.Time.sleep clock 0.25;
-          Console.Display.succeed task);
-      Format.pp_print_flush ppf ();
-      Buffer.contents buf)
+  Eio_main.run @@ fun _env ->
+  let mock = Eio_mock.Clock.make () in
+  let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+  let buf = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buf in
+  Console_eio.run ~clock ~ppf ~mode:`History (fun display ->
+      let task = Console.Display.task display "slow step" in
+      Eio_mock.Clock.set_time mock 0.25;
+      Console.Display.succeed task);
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
 
 let ends_with_frozen_elapsed line =
   String.length line > 5 && String.ends_with ~suffix:"  0.0s" line
@@ -156,7 +160,7 @@ let test_frozen_clock_pins_every_elapsed () =
   let variable = "CONSOLE_FROZEN_CLOCK" in
   let running = capture_a_slow_task () in
   Alcotest.(check bool)
-    "a real clock times the work" false
+    "a moving clock times the work" false
     (ends_with_frozen_elapsed (String.trim running));
   Unix.putenv variable "1";
   let frozen =
@@ -232,6 +236,11 @@ let test_a_handler_installed_under_run_outlives_it () =
     "the handler installed under run still stands after it" true
     (is handler_installed_under_run (Sys.signal Sys.sigint Sys.Signal_default))
 
+(* A mark no display writes, so a reader of the terminal knows it has read
+   everything written before it. *)
+let end_mark = "<end of the case's output>"
+let ends_with_mark s = String.ends_with ~suffix:end_mark s
+
 (* A history display on a terminal hides no cursor, so it writes nothing to
    show one: what reaches the terminal is what the caller printed, the bytes a
    pipe would get apart from the terminal's own CR before each LF. *)
@@ -252,19 +261,30 @@ let test_history_on_a_terminal_writes_only_its_output () =
     Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
         Unix.dup2 tty Unix.stdout);
     Console_eio.run ~clock:(Eio.Stdenv.clock env) ~mode:`History (fun display ->
-        Console.Display.with_output display (fun ppf -> Fmt.pf ppf "plain@."))
-  );
+        Console.Display.with_output display (fun ppf -> Fmt.pf ppf "plain@."));
+    (* The end of the display's output is a mark written after it returns, on
+       the same terminal: the pseudoterminal end reads in order, so everything
+       before the mark is what the display wrote, with no window of silence to
+       wait out. Closing the terminal end instead loses its unread output on
+       macOS. *)
+    ignore
+      (Unix.write_substring Unix.stdout end_mark 0 (String.length end_mark)) );
   let written = Buffer.create 64 and buf = Cstruct.create 4096 in
   let source = Eio_unix.Pty.source pty in
-  (try
-     while true do
-       Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 0.2 (fun () ->
-           let n = Eio.Flow.single_read source buf in
-           Buffer.add_string written (Cstruct.to_string ~len:n buf))
-     done
-   with Eio.Time.Timeout | End_of_file | Eio.Io _ -> ());
+  let rec read_to_mark () =
+    if not (ends_with_mark (Buffer.contents written)) then (
+      let n = Eio.Flow.single_read source buf in
+      Buffer.add_string written (Cstruct.to_string ~len:n buf);
+      read_to_mark ())
+  in
+  (match
+     Eio.Time.with_timeout (Eio.Stdenv.clock env) 10. (fun () ->
+         Ok (read_to_mark ()))
+   with
+  | Ok () -> ()
+  | Error `Timeout -> Alcotest.fail "the end mark was not read in 10 s");
   Alcotest.(check string)
-    "only the output" "plain\r\n" (Buffer.contents written)
+    "only the output" ("plain\r\n" ^ end_mark) (Buffer.contents written)
 
 (* [setup] reads the environment once: NO_COLOR turns stdout's styling off
    whatever it is, and TERM sets the depth colours are written at. *)
