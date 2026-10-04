@@ -274,7 +274,7 @@ let truncate ?(char_width = default_char_width) target_width str =
     truncate_graphemes target_width str
   else truncate_codepoints ~char_width target_width str
 
-let ellipsis = "\xe2\x80\xa6"
+let ellipsis = "..."
 
 (* [str] as the pieces a terminal draws it in: an escape sequence, which takes
    no column and is never cut, or one grapheme cluster with the width it
@@ -357,14 +357,21 @@ let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
     str =
   if target_width <= 0 then ""
   else if string_width ~char_width str <= target_width then str
-  else if target_width = 1 then ellipsis
+  else if target_width <= String.length ellipsis then
+    String.sub ellipsis 0 target_width
   else
     let atoms = atoms ~char_width str in
-    let keep = target_width - 1 in
+    let keep = target_width - String.length ellipsis in
     match at with
     | `Start ->
-        let head = String.concat "" (take keep atoms) in
-        String.concat "" [ head; closing head; ellipsis ]
+        let kept = List.rev (take keep (List.rev atoms)) in
+        let rec from_slash = function
+          | [] -> kept
+          | "/" :: _ as rest -> rest
+          | _ :: rest -> from_slash rest
+        in
+        let tail = String.concat "" (from_slash kept) in
+        String.concat "" [ ellipsis; tail; closing tail ]
     | `Middle ->
         let head_width = (keep + 1) / 2 in
         let head = String.concat "" (take head_width atoms) in

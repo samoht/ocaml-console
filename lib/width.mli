@@ -33,15 +33,18 @@ val ellipsize :
   string ->
   string
 (** [ellipsize width s] is [s] fitted into [width] terminal columns with a
-    single ellipsis standing where the cut fell. [at] says where it falls.
+    single ASCII ["..."] standing where the cut fell. [at] says where it falls.
 
     [`Middle], the default, replaces the middle, so both ends of the value
     survive: the leading characters that identify a hash, and the trailing ones
-    that name a file. [`End] keeps the leading characters alone and marks the
-    right-hand edge, for a value whose tail carries nothing a reader needs.
+    that name a file. [`Start] is [git diff --stat]'s form for a path: the mark
+    leads, the cut moves on to the next ["/"] within the room, and the rest of
+    the path follows whole, so [ocaml-console/lib/width.ml] in sixteen columns
+    is [".../lib/width.ml"]. A value is never left with dots after it, where it
+    would read as complete.
 
-    [s] already within [width] is returned unchanged, and a [width] of one is
-    the ellipsis alone.
+    [s] already within [width] is returned unchanged, and a [width] of three or
+    less is the mark's first [width] dots.
 
     Unlike {!truncate}, which ends a value wherever the room does and leaves it
     reading as a line that wraps, this marks the cut. Escape sequences count as
