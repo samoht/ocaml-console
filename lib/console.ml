@@ -5,6 +5,7 @@
 
 let sanitize = Render.sanitize
 let sanitize_styles = Render.sanitize_styles
+let strip ?keep_newlines:_ _ = failwith "Console.strip: not implemented"
 
 let style_renderer ?renderer ~getenv ~is_tty () =
   match renderer with
