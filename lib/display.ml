@@ -1880,10 +1880,16 @@ let close t =
         Format.pp_print_string t.dppf s;
         Format.pp_print_string t.dppf "\r\n"
       in
+      (* The cursor is shown before the closing lines, so the last byte the
+         display writes ends a line and what the program writes next starts
+         one. *)
+      let shown = ref false in
       Fun.protect
         (fun () ->
           with_unlimited_margin t.dppf (fun () ->
               pp_clear t.dppf t.live_height;
+              Format.pp_print_string t.dppf show_cursor;
+              shown := true;
               (match summary_line t ~fit:true with
               | Some s -> line s
               | None -> ());
@@ -1891,7 +1897,9 @@ let close t =
               match banner with Some s -> line s | None -> ()))
         ~finally:(fun () ->
           t.live_height <- 0;
-          show_cursor_on t.dppf;
+          if !shown then
+            try Format.pp_print_flush t.dppf () with Sys_error _ -> ()
+          else show_cursor_on t.dppf;
           release_activity t)
   end
 
