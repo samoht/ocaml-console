@@ -35,3 +35,8 @@
  (name minimal_progress)
  (modules minimal_progress)
  (libraries unix fmt))
+
+(mdx
+ (package console)
+ (files fitting.md)
+ (libraries console))
