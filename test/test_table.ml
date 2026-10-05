@@ -336,9 +336,13 @@ let test_invalid_shape () =
     (Invalid_argument "Console.Table.column: min_width exceeds max_width")
     (fun () -> ignore (Table.column ~min_width:3 ~max_width:2 "A"));
   let table = Table.v [ Table.column "A"; Table.column "B" ] in
-  Alcotest.check_raises "row arity"
-    (Invalid_argument "Console.Table.add_row: expected 2 cells, got 1")
-    (fun () -> ignore (Table.add_row [ Span.text "only one" ] table))
+  Alcotest.check_raises "more cells than columns"
+    (Invalid_argument "Console.Table.add_row: expected 1 to 2 cells, got 3")
+    (fun () ->
+      ignore (Table.add_row (List.map Span.text [ "a"; "b"; "c" ]) table));
+  Alcotest.check_raises "no cell"
+    (Invalid_argument "Console.Table.add_row: expected 1 to 2 cells, got 0")
+    (fun () -> ignore (Table.add_row [] table))
 
 (* A [~shrinkable:false] column keeps its full width when the table is fitted to
    a narrow terminal; a shrinkable neighbour gives way instead. *)
@@ -395,7 +399,14 @@ let test_no_border_draws_no_edge () =
     (lines
        (Table.of_string_rows ~border:Border.none
           [ Table.column "NAME"; Table.column "NOTE" ]
-          [ [ "a"; "one\ntwo" ] ]))
+          [ [ "a"; "one\ntwo" ] ]));
+  let col = Table.column "" in
+  Alcotest.(check string)
+    "a line ends at its last cell that is not empty"
+    "fix   stuck  /pool\nmain\n"
+    (Table.to_string
+       (Table.of_string_rows ~border:Border.none [ col; col; col ]
+          [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))
 
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
