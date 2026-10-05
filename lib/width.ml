@@ -522,7 +522,7 @@ let elide ?(char_width = default_char_width) ?(see = "") target_width str =
     in
     match items str with
     | [] -> alone ()
-    | first :: rest ->
+    | first :: rest -> (
         let total = 1 + List.length rest in
         let fits kept k =
           let c = kept ^ more (total - k) ^ see in
@@ -546,7 +546,7 @@ let elide ?(char_width = default_char_width) ?(see = "") target_width str =
         else
           match fits first 1 with
           | None -> cut ()
-          | Some c -> longest first 1 c rest
+          | Some c -> longest first 1 c rest)
 
 (* The escapes still in force after [piece]: a reset ends every style, a
    hyperlink's close ends the hyperlink, and anything else is added. *)

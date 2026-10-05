@@ -27,6 +27,7 @@ let concat spans = List.concat spans
 
 let with_style base t =
   List.map (fun atom -> { atom with style = Style.(base + atom.style) }) t
+
 let ( ++ ) a b = a @ b
 
 let sanitize ?(keep_newlines = true) t =

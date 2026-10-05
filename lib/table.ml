@@ -280,13 +280,15 @@ let horizontal t widths left_char mid_char right_char horiz_char =
   else
     let last = Array.length widths - 1 in
     let line =
-      (Edge left_char
+      Edge left_char
       :: List.concat
            (List.mapi
               (fun i col_width ->
-                Edge (String.concat "" (List.init (col_width + 2) (fun _ -> horiz_char)))
+                Edge
+                  (String.concat ""
+                     (List.init (col_width + 2) (fun _ -> horiz_char)))
                 :: (if i < last then [ Edge mid_char ] else []))
-              (Array.to_list widths)))
+              (Array.to_list widths))
       @ [ Edge right_char ]
     in
     Some line
@@ -367,12 +369,12 @@ let slots ?max_width t widths cells =
     (fun i cell ->
       let width =
         if i < n - 1 || n = num_cols then Some widths.(i)
-        else if edged t then
+        else if edged t then (
           let spanned = ref 0 in
           for j = i to num_cols - 1 do
             spanned := !spanned + widths.(j)
           done;
-          Some (!spanned + ((num_cols - 1 - i) * separator_width t))
+          Some (!spanned + ((num_cols - 1 - i) * separator_width t)))
         else
           let before = ref 0 in
           for j = 0 to i - 1 do
@@ -446,7 +448,9 @@ let row_lines ~char_width ?max_width t widths style row =
       (slots ?max_width t widths row.cells)
   in
   let height =
-    List.fold_left (fun acc (_, _, lines) -> max acc (List.length lines)) 0 cells
+    List.fold_left
+      (fun acc (_, _, lines) -> max acc (List.length lines))
+      0 cells
   in
   let style col = Style.(style + col.style) in
   let render = if edged t then edged_line else open_line in

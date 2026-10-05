@@ -20,8 +20,8 @@ type overflow = [ `Truncate | `Wrap | `Elide ]
       rest; a value whose first word does not fit is printed whole, over several
       lines, as with [`Wrap]. No word is ever cut.
     - [`Wrap]: Wrap to multiple lines (default)
-    - [`Elide]: Keep one line that says what it left out ({!Width.elide}),
-      with the row's [see] after a cell it cut. *)
+    - [`Elide]: Keep one line that says what it left out ({!Width.elide}), with
+      the row's [see] after a cell it cut. *)
 
 type column
 (** A column specification. *)
@@ -88,9 +88,9 @@ val add_row : ?see:string -> Span.t list -> t -> t
     against none of them, takes the overflow, alignment and style of the column
     it starts in, and in a table without edges runs to the end of the line, the
     rendering width or unbounded. A one-cell row spans every column, as a line
-    under a row does. In a table without edges a line ends at its last cell
-    that is not empty, unpadded. {b Raises.} [Invalid_argument] if [cells] is
-    empty or has more cells than [table] has columns. *)
+    under a row does. In a table without edges a line ends at its last cell that
+    is not empty, unpadded. {b Raises.} [Invalid_argument] if [cells] is empty
+    or has more cells than [table] has columns. *)
 
 val add_row_strings : string list -> t -> t
 (** [add_row_strings strings table] adds a row of plain strings. *)
@@ -103,8 +103,8 @@ val of_rows :
   Span.t list list ->
   t
 (** [of_rows columns rows] is a table with all its data at once, each row as
-    {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds; they produce physical lines inside
-    that logical row. *)
+    {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds;
+    they produce physical lines inside that logical row. *)
 
 val of_string_rows :
   ?theme:Theme.t ->
