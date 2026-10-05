@@ -13,3 +13,8 @@
   fmt
   logs
   unix))
+
+(mdx
+ (package console-eio)
+ (files typing.md)
+ (libraries console console-eio eio unix))
