@@ -127,3 +127,14 @@ let at ?theme ?style ?color ?(styled = true) ~width ~elapsed () =
 
 let anim ?theme ?style ?color ?styled ~width () =
   Anim.v (fun ~elapsed -> at ?theme ?style ?color ?styled ~width ~elapsed ())
+
+let v ?style:_ ?track:_ ?brackets:_ ~width:_ _ =
+  failwith "Console.Bar.v: not implemented"
+
+let cells ~width:_ ~scale:_ _ = failwith "Console.Bar.cells: not implemented"
+
+let spread ?style:_ ?track:_ ?brackets:_ ~width:_ ~scale:_ _ _ =
+  failwith "Console.Bar.spread: not implemented"
+
+let stacked ?track:_ ?brackets:_ ~width:_ _ =
+  failwith "Console.Bar.stacked: not implemented"
