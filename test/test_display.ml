@@ -801,6 +801,26 @@ let test_restore_terminal_from_a_handler () =
   (* Outside a run there is no terminal to give back, and no error either. *)
   Display.restore_terminal ()
 
+(* A close that writes its header line hands the terminal back at the start
+   of a line with nothing of the display on it: the cursor is shown before
+   that line ends, so what the program writes next (its outcome on standard
+   output, a shell prompt) begins with its own first byte, not with the
+   display's escape. *)
+let test_close_ends_on_a_line_end () =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let now () = 0. in
+  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ())
+    ~mode:`Activity ~header:"land" (fun display ->
+      let task = Display.task display "work" in
+      Display.succeed task);
+  Format.pp_print_flush ppf ();
+  let bytes = Buffer.contents buffer in
+  Alcotest.(check bool) "the cursor came back" true (contains show bytes);
+  Alcotest.(check bool)
+    "the last byte the display wrote ends a line" true
+    (String.ends_with ~suffix:"\r\n" bytes)
+
 let terminal_run ?(height = 8) ?(width = 40) ?header f =
   let buffer = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -2052,6 +2072,8 @@ let suite =
         test_failed_install_releases_owner;
       Alcotest.test_case "restore_terminal from a handler" `Quick
         test_restore_terminal_from_a_handler;
+      Alcotest.test_case "close ends on a line end" `Quick
+        test_close_ends_on_a_line_end;
       Alcotest.test_case "activity tick does not leak" `Quick
         test_activity_does_not_leak_on_ticks;
       Alcotest.test_case "reports between ticks paint at the eye's pace" `Quick
