@@ -87,9 +87,20 @@ let test_auto_asks_the_formatters_own_descriptor () =
   let tty = tty pty in
   Fun.protect ~finally:(fun () -> Unix.close tty) @@ fun () ->
   with_null @@ fun null ->
-  with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
-      draw_a_task ();
-      mark Unix.stderr);
+  let err_tty, out_tty, auto =
+    with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
+        let asked =
+          ( Console_eio.is_tty Unix.stderr,
+            Console_eio.is_tty Unix.stdout,
+            Console_eio.auto Fmt.stderr )
+        in
+        draw_a_task ();
+        mark Unix.stderr;
+        asked)
+  in
+  Alcotest.(check bool) "standard error is a terminal" true err_tty;
+  Alcotest.(check bool) "standard output is not" false out_tty;
+  Alcotest.(check bool) "auto on standard error" true (auto = `Activity);
   let written = read_to_mark env pty in
   Alcotest.(check bool)
     "a live region on standard error's terminal" true
@@ -106,9 +117,14 @@ let test_auto_appends_on_a_pipe () =
   Fun.protect ~finally:(fun () -> Unix.close tty) @@ fun () ->
   let r, w = Unix.pipe ~cloexec:true () in
   Fun.protect ~finally:(fun () -> Unix.close r) @@ fun () ->
-  ( Fun.protect ~finally:(fun () -> Unix.close w) @@ fun () ->
+  let auto =
+    Fun.protect ~finally:(fun () -> Unix.close w) @@ fun () ->
     with_fds ~stdout:tty ~stderr:w ~term:"xterm-256color" (fun () ->
-        draw_a_task ()) );
+        let auto = Console_eio.auto Fmt.stderr in
+        draw_a_task ();
+        auto)
+  in
+  Alcotest.(check bool) "auto on standard error" true (auto = `History);
   let written = Buffer.create 256 and buf = Bytes.create 4096 in
   let rec drain () =
     match Unix.read r buf 0 (Bytes.length buf) with
@@ -147,6 +163,34 @@ let test_auto_appends_under_term_dumb () =
     "the task's line under dumb" true
     (is_infix ~affix:"=> step  0.0s" dumb)
 
+(* A formatter of the caller's own on standard error's channel names no
+   descriptor, so [`Auto] appends; with [~fd] naming standard error, the
+   region is drawn on its terminal. *)
+let test_a_formatter_of_ones_own_says_its_descriptor () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  let tty = tty pty in
+  Fun.protect ~finally:(fun () -> Unix.close tty) @@ fun () ->
+  with_null @@ fun null ->
+  let draw ?fd () =
+    let ppf = Format.formatter_of_out_channel Stdlib.stderr in
+    with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
+        let mock = Eio_mock.Clock.make () in
+        let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+        Console_eio.run ~clock ~ppf ?fd ~mode:`Auto (fun display ->
+            Console.Display.succeed (Console.Display.task display "step"));
+        mark Unix.stderr);
+    read_to_mark env pty
+  in
+  let unnamed = draw () in
+  Alcotest.(check bool)
+    "no escape without ~fd" false
+    (is_infix ~affix:"\027[" unnamed);
+  Alcotest.(check bool)
+    "a live region with ~fd" true
+    (is_infix ~affix:hide_cursor (draw ~fd:Unix.stderr ()))
+
 let suite =
   ( "auto",
     [
@@ -156,4 +200,6 @@ let suite =
         test_auto_appends_on_a_pipe;
       Alcotest.test_case "auto appends under TERM=dumb" `Quick
         test_auto_appends_under_term_dumb;
+      Alcotest.test_case "a formatter of one's own says its descriptor" `Quick
+        test_a_formatter_of_ones_own_says_its_descriptor;
     ] )

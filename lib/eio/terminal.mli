@@ -1,18 +1,20 @@
 (** Terminal geometry and tty detection over Unix. *)
 
-val width : unit -> int
-(** [width ()] returns the terminal width in columns: the [TIOCGWINSZ] ioctl,
-    else [$COLUMNS], else [80]. *)
+val width : Eio_unix.Fd.t option -> int
+(** [width fd] returns the width in columns of the terminal behind [fd]: the
+    [TIOCGWINSZ] ioctl on [fd], else [$COLUMNS], else [80]. [None] asks no
+    ioctl. *)
 
-val height : unit -> int
-(** [height ()] returns the terminal height in rows: the [TIOCGWINSZ] ioctl,
-    else [$LINES], else [24]. *)
+val height : Eio_unix.Fd.t option -> int
+(** [height fd] returns the height in rows of the terminal behind [fd]: the
+    [TIOCGWINSZ] ioctl on [fd], else [$LINES], else [24]. [None] asks no ioctl.
+*)
 
-val is_tty : unit -> bool
-(** [is_tty ()] is [true] iff stdout is connected to a terminal. *)
+val is_tty : Unix.file_descr -> bool
+(** [is_tty fd] is [true] iff [fd] is connected to a terminal. *)
 
-val dimensions : unit -> int * int
-(** [dimensions ()] is [(width (), height ())]. *)
+val dimensions : Eio_unix.Fd.t option -> int * int
+(** [dimensions fd] is [(width fd, height fd)]. *)
 
 val hide_cursor : Format.formatter -> unit
 (** [hide_cursor ppf] writes the escape sequence that hides the terminal cursor

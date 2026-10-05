@@ -6,6 +6,7 @@ module Prompt = Prompt
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
+  ?fd:Unix.file_descr ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?palette:Console.Color.t list ->
@@ -27,13 +28,16 @@ val run :
     a library expose a complete Console operation without forcing its caller to
     coordinate display ownership.
 
-    [ppf] selects the output formatter and defaults to stdout. Unix terminal
-    dimensions and tty detection are automatic: the width is the terminal's
-    columns, and when stdout is no terminal it is [$COLUMNS] if that names more
-    than 10 columns and 80 otherwise; the height is likewise the terminal's
-    rows, [$LINES] above 2, or 24. {!Console.Display.with_output} hands that
-    width to a formatter-based widget as its margin. Cursor visibility is
-    restored on return, exception and SIGINT.
+    [ppf] selects the output formatter and defaults to stdout. [fd] is the
+    descriptor [ppf] writes to: it defaults to standard output's for
+    {!Fmt.stdout}, standard error's for {!Fmt.stderr}, and none for any other
+    formatter, which then draws on no terminal. [`Auto], the default [mode], is
+    {!auto}[ ?fd ppf]. The geometry is that of the terminal behind [fd]: its
+    columns, and when there is none [$COLUMNS] if that names more than 10
+    columns and 80 otherwise; the height is likewise the terminal's rows,
+    [$LINES] above 2, or 24. {!Console.Display.with_output} hands that width to
+    a formatter-based widget as its margin. Cursor visibility is restored on
+    return, exception and SIGINT.
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
     the display clock's reading at zero, so every elapsed time renders as
@@ -77,14 +81,30 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
       environment, so a colour a terminal cannot show is drawn as its nearest
       one. *)
 
-val is_tty : unit -> bool
-(** [is_tty ()] is [true] iff stdout is connected to a terminal. It is the
+val is_tty : Unix.file_descr -> bool
+(** [is_tty fd] is [true] iff [fd] is connected to a terminal. It is the
     terminal question answered once for every CLI that renders through this
-    library: a command choosing a table over a stream of plain records asks the
-    console it already draws on, rather than asking Unix itself. *)
+    library: a command choosing a table over a stream of plain records asks
+    [is_tty Unix.stdout], and one asking whether a person typed it asks
+    [is_tty Unix.stdin], of the console it already draws on rather than of Unix
+    itself. *)
+
+val auto : ?fd:Unix.file_descr -> Format.formatter -> [ `Activity | `History ]
+(** [auto ?fd ppf] is the display [`Auto] chooses on [ppf] under {!run}:
+    [`Activity] iff the descriptor [ppf] writes to ([fd], as {!run} defaults it)
+    is a terminal and [TERM] is not [dumb], a terminal with no cursor to move;
+    [`History] otherwise. A command that draws something else when no live
+    region can be drawn asks here, so it and {!run} give one answer. *)
+
+val frame_drawn : Console.Display.t -> int -> unit Eio.Promise.t
+(** [frame_drawn display n] is resolved when the terminal holds frame [n] of
+    [display] ({!Console.Display.on_frame}): by the refresh that draws it, so a
+    fiber that needs a frame on screen before it goes on awaits it rather than a
+    span of time. It is resolved at once when that frame is already drawn and
+    when [display] draws no frames, and is resolved when [display] closes. *)
 
 val dimensions : unit -> int * int
-(** [dimensions ()] is the terminal size as [(columns, rows)]: the [TIOCGWINSZ]
-    ioctl, else [$COLUMNS] and [$LINES], else 80 by 24. It always answers, and
-    no source of an answer reports less than a single cell in either direction.
-*)
+(** [dimensions ()] is the size of the terminal on standard output as
+    [(columns, rows)]: the [TIOCGWINSZ] ioctl, else [$COLUMNS] and [$LINES],
+    else 80 by 24. It always answers, and no source of an answer reports less
+    than a single cell in either direction. *)

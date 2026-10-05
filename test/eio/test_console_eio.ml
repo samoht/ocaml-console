@@ -123,7 +123,9 @@ let test_run_on_refuses_a_context_it_cannot_wait_on () =
    that attached a terminal leaves the case nothing to pin. *)
 let test_is_tty_is_false_without_a_terminal () =
   if Unix.isatty Unix.stdout then Alcotest.skip ();
-  Alcotest.(check bool) "stdout is not a terminal" false (Console_eio.is_tty ())
+  Alcotest.(check bool)
+    "stdout is not a terminal" false
+    (Console_eio.is_tty Unix.stdout)
 
 (* Dimensions always answer, whatever the environment: the ioctl, else
    $COLUMNS/$LINES, else the 80x24 default. No source of an answer can make

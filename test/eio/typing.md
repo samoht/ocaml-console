@@ -10,7 +10,7 @@ standard error while standard output is a pipe.
 # Console.Display.on_frame;;
 - : Console.Display.t -> int -> (unit -> unit) -> unit = <fun>
 # Console_eio.frame_drawn;;
-- : Console.Display.t -> int -> unit Eio.Promise.t = <fun>
+- : Console.Display.t -> int -> unit Eio__core.Promise.t = <fun>
 # Console_eio.is_tty;;
 - : Unix.file_descr -> bool = <fun>
 ```

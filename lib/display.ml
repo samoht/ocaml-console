@@ -433,6 +433,9 @@ type t = {
   mutable owns_activity : bool;
   mutable suspended : int;
   mutable frame : int; (* the ticks that refreshed the projection *)
+  mutable drawn : int; (* the frame last painted on the terminal, or -1 *)
+  mutable frame_waiters : (int * (unit -> unit)) list;
+      (* the callers of {!on_frame} whose frame is not drawn yet *)
   mutable scene : (frame:int -> width:int -> Span.t list) option;
 }
 
@@ -1038,6 +1041,20 @@ let refresh_size t =
   end;
   t.width <> old_width || t.height <> old_height
 
+(* The waiters whose frame [t.drawn] has reached, called once and dropped. *)
+let wake_frames t =
+  let ready, waiting =
+    List.partition (fun (n, _) -> n <= t.drawn) t.frame_waiters
+  in
+  t.frame_waiters <- waiting;
+  List.iter (fun (_, k) -> k ()) (List.rev ready)
+
+(* Every waiter, once the display draws no frame again. *)
+let release_frames t =
+  let all = t.frame_waiters in
+  t.frame_waiters <- [];
+  List.iter (fun (_, k) -> k ()) (List.rev all)
+
 let paint t =
   if (not t.plain) && (not t.torn_down) && t.suspended = 0 then begin
     t.painted_at <- t.now ();
@@ -1066,7 +1083,10 @@ let paint t =
          returns to column 0 from there. *)
       t.live_height <- List.length lines;
       t.last_lines <- lines
-    end
+    end;
+    (* Skipped or written, the terminal now holds this frame. *)
+    t.drawn <- t.frame;
+    wake_frames t
   end
 
 (* Clear the activity projection, append [s] permanently, then repaint current
@@ -1152,6 +1172,8 @@ let state ~(ctx : view) ~plain ~styling ~theme ~palette ~bar ~width ~height
     owns_activity = false;
     suspended = 0;
     frame = 0;
+    drawn = -1;
+    frame_waiters = [];
     scene = None;
   }
 
@@ -1772,6 +1794,10 @@ let tick t =
 
 let frame t = t.frame
 
+let on_frame t n k =
+  if t.plain || t.torn_down || t.drawn >= n then k ()
+  else t.frame_waiters <- (n, k) :: t.frame_waiters
+
 let set_scene t scene =
   check_open "set_scene" t;
   t.scene <- Some scene;
@@ -1896,7 +1922,9 @@ let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
       let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
       Domain.DLS.set current (Some t);
       Fun.protect
-        ~finally:(fun () -> Domain.DLS.set current None)
+        ~finally:(fun () ->
+          Domain.DLS.set current None;
+          release_frames t)
         (fun () ->
           match f t with
           | value ->

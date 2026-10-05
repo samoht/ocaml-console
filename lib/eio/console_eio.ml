@@ -5,7 +5,34 @@ module Prompt = Prompt
    here rather than reaching for Unix. Terminal stays private: the rest of it
    -- the cursor escapes, the interrupt handler -- is the driver's business. *)
 let is_tty = Terminal.is_tty
-let dimensions = Terminal.dimensions
+let dimensions () = Terminal.dimensions (Some Eio_unix.Fd.stdout)
+
+(* The descriptor a formatter writes to, where the formatter says so by being
+   one of the two the standard library opens on them. *)
+let descriptor ?fd ppf =
+  match fd with
+  | Some _ -> fd
+  | None ->
+      if ppf == Fmt.stdout then Some Unix.stdout
+      else if ppf == Fmt.stderr then Some Unix.stderr
+      else None
+
+(* A region moves the cursor, which a terminal whose TERM is dumb has none of
+   to move. *)
+let region_on fd =
+  is_tty fd
+  && not (Option.equal String.equal (Sys.getenv_opt "TERM") (Some "dumb"))
+
+let auto ?fd ppf =
+  match descriptor ?fd ppf with
+  | Some fd when region_on fd -> `Activity
+  | Some _ | None -> `History
+
+let frame_drawn display n =
+  let promise, resolver = Eio.Promise.create () in
+  Console.Display.on_frame display n (fun () ->
+      ignore (Eio.Promise.try_resolve resolver () : bool));
+  promise
 
 let setup ?style_renderer () =
   let set ppf fd =
@@ -37,18 +64,28 @@ let display_clock clock =
   | None | Some "" -> fun () -> Eio.Time.now clock
   | Some _ -> fun () -> 0.
 
-(* The context [run] builds for the terminal, and the cursor it then owes it.
-   The wait is the clock's own sleep: under CONSOLE_FROZEN_CLOCK the reading
-   stops and the pace does not, so a refresh still turns. *)
-let context ~clock ~ppf =
+(* The context [run] builds for the descriptor [ppf] writes to, and the cursor
+   it then owes a terminal there. The geometry is that terminal's, read for
+   the span of [sw]. The wait is the clock's own sleep: under
+   CONSOLE_FROZEN_CLOCK the reading stops and the pace does not, so a refresh
+   still turns. *)
+let context ~sw ~clock ~ppf ~fd =
   let ppf = Option.value ppf ~default:Fmt.stdout in
-  let is_tty = is_tty () in
+  let tty =
+    match descriptor ?fd ppf with
+    | Some fd when is_tty fd -> Some fd
+    | Some _ | None -> None
+  in
+  let window = Option.map (Eio_unix.Fd.of_unix ~sw ~close_unix:false) tty in
   let ctx =
     Console.Display.ctx ~ppf ~now:(display_clock clock)
-      ~wait:(Eio.Time.sleep clock) ~dimensions ~is_tty ()
+      ~wait:(Eio.Time.sleep clock)
+      ~dimensions:(fun () -> Terminal.dimensions window)
+      ~is_tty:(auto ?fd ppf = `Activity)
+      ()
   in
   let restore =
-    if is_tty then Some Console.Display.restore_terminal else None
+    if Option.is_some tty then Some Console.Display.restore_terminal else None
   in
   (ctx, restore)
 
@@ -58,12 +95,12 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Eio.Fiber.get current with
   | Some display -> f display
   | None -> (
-      let ctx, restore = context () in
+      Eio.Switch.run @@ fun sw ->
+      let ctx, restore = context ~sw in
       let run () =
-        Eio.Switch.run (fun sw ->
-            Display.run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height
-              ?header (fun display ->
-                Eio.Fiber.with_binding current display (fun () -> f display)))
+        Display.run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
+          (fun display ->
+            Eio.Fiber.with_binding current display (fun () -> f display))
       in
       match restore with
       | None -> run ()
@@ -71,9 +108,9 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
           Terminal.on_interrupt restore (fun () ->
               Fun.protect ~finally:restore run))
 
-let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
+let run ~clock ?ppf ?fd ?mode ?theme ?palette ?bar ?width ?height ?header f =
   session
-    ~context:(fun () -> context ~clock ~ppf)
+    ~context:(fun ~sw -> context ~sw ~clock ~ppf ~fd)
     ?mode ?theme ?palette ?bar ?width ?height ?header f
 
 (* A caller that supplies its own context has answered the output, clock,
@@ -82,5 +119,5 @@ let run ~clock ?ppf ?mode ?theme ?palette ?bar ?width ?height ?header f =
    surface it was handed may not be one. *)
 let run_on ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   session
-    ~context:(fun () -> (ctx, None))
+    ~context:(fun ~sw:_ -> (ctx, None))
     ?mode ?theme ?palette ?bar ?width ?height ?header f
