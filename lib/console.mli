@@ -146,20 +146,20 @@ val sanitize : ?keep_newlines:bool -> string -> string
 val strip : ?keep_newlines:bool -> string -> string
 (** [strip s] is the text a terminal shows of [s]: each control sequence
     (ECMA-48 5.4) and each control string (ECMA-48 5.6: OSC, DCS, SOS, PM and
-    APC) is removed whole, in its 7-bit form opened by ESC and in its 8-bit
-    form opened by a C1 control, and what is left is what {!sanitize} makes of
-    it. A hyperlink's target, a window title or a DCS payload is never read as
-    text, and the result holds no ESC and no C1 control.
+    APC) is removed whole, in its 7-bit form opened by ESC and in its 8-bit form
+    opened by a C1 control, and what is left is what {!sanitize} makes of it. A
+    hyperlink's target, a window title or a DCS payload is never read as text,
+    and the result holds no ESC and no C1 control.
 
-    A control string ends at ST (ECMA-48 8.3.143), an OSC also at BEL as
-    xterm's does, any of them at CAN, SUB, ESC or a C1 control, and at the end
-    of [s] when nothing ends it before. A C0 control inside a control sequence
-    stays text and the sequence goes on, as the DEC parser xterm follows does;
-    a character outside the ranges of ECMA-48 5.4 ends the sequence and is
-    text. The other C1 controls and the escape sequences of ECMA-35 (ESC, then
-    intermediate bytes, then a final byte) are removed. [s] is read as UTF-8,
-    so the 8-bit form of CSI is U+009B and a lone byte 0x9B is a malformed
-    sequence, the replacement character. *)
+    A control string ends at ST (ECMA-48 8.3.143), an OSC also at BEL as xterm's
+    does, any of them at CAN, SUB, ESC or a C1 control, and at the end of [s]
+    when nothing ends it before. Inside a control sequence, as in the DEC parser
+    xterm follows, another C0 control is what {!sanitize} makes of it and the
+    sequence goes on, and a character outside the ranges of ECMA-48 5.4 ends the
+    sequence and is text. The other C1 controls and the escape sequences of
+    ECMA-35 (ESC, then intermediate bytes, then a final byte) are removed. [s]
+    is read as UTF-8, so the 8-bit form of CSI is U+009B and a lone byte 0x9B is
+    a malformed sequence, the replacement character. *)
 
 val sanitize_styles : ?keep_newlines:bool -> string -> string
 (** [sanitize_styles s] is {!sanitize} over [s] except that the styling [s]

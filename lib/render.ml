@@ -14,26 +14,7 @@ let to_string ?(style_renderer = `None) pp v =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-let sanitize ?(keep_newlines = true) str =
-  let buf = Buffer.create (String.length str) in
-  let decoder = Uutf.decoder ~encoding:`UTF_8 (`String str) in
-  let rec loop () =
-    match Uutf.decode decoder with
-    | `Uchar u ->
-        let c = Uchar.to_int u in
-        if
-          (keep_newlines && c = 0x0a)
-          || (c >= 0x20 && not (c >= 0x7f && c <= 0x9f))
-        then Uutf.Buffer.add_utf_8 buf u
-        else Buffer.add_char buf ' ';
-        loop ()
-    | `Malformed _ ->
-        Uutf.Buffer.add_utf_8 buf Uutf.u_rep;
-        loop ()
-    | `End -> Buffer.contents buf
-    | `Await -> assert false
-  in
-  loop ()
+let sanitize = Console_text.sanitize
 
 (* ECMA-48 8.3.117 SELECT GRAPHIC RENDITION, inside the control sequence of
    ECMA-48 5.4: CSI, parameter bytes, final byte 'm'. The accepted parameter
