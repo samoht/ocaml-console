@@ -60,21 +60,21 @@ When the first item does not fit, its leading words that do are kept
 - : string = "check could not... and 3999 more (mq status x)"
 ```
 
-A value that is not a list is the same case with no count.
+A middle dot between spaces separates items as a comma does.
 
 ```ocaml
 # let queue = "1 queued · checking docs-mq/workflow (check, 11m15s) · overdue since 16:16"
 val queue : string =
   "1 queued · checking docs-mq/workflow (check, 11m15s) · overdue since 16:16"
 # Width.elide 30 queue
-- : string = "1 queued · checking..."
+- : string = "1 queued and 2 more"
 ```
 
 What is kept ends on a word, never on the `·` that joined it to the next.
 
 ```ocaml
 # Width.elide 20 queue
-- : string = "1 queued..."
+- : string = "1 queued and 2 more"
 # Width.shorten 12 queue
 - : string = "1 queued"
 ```
@@ -83,15 +83,16 @@ What is kept ends on a word, never on the `·` that joined it to the next.
 
 There is never a count without the items it counts: with no word of the
 first item in the room, `see` alone is left, without its leading spaces,
-and with no `see` the mark alone, each cut to the width.
+when it fits, else the mark alone when it fits, else nothing: no word is
+cut.
 
 ```ocaml
 # Width.elide ~see:" (mq status x)" 20 refused
 - : string = "(mq status x)"
 # Width.elide ~see:" (mq status x)" 5 refused
-- : string = "(mq s"
+- : string = "..."
 # Width.elide 2 refused
-- : string = ".."
+- : string = ""
 ```
 
 Widths are terminal cells: a wide glyph takes two.
@@ -147,12 +148,12 @@ val reason : Table.column = <abstr>
 val table : Table.t = <abstr>
 # print_string (Table.to_string ~width:70 table)
 fix      stuck  changed... and 3999 more (mq status fix)   /pool/fix.3
-staging  1 queued · checking docs-mq/workflow (check, 11m15s)...
+staging  1 queued and 2 more
   14:05 queued fix for staging
 - : unit = ()
 # print_string (Table.to_string ~width:60 table)
 fix      stuck  (mq status fix)                  /pool/fix.3
-staging  1 queued · checking docs-mq/workflow...
+staging  1 queued and 2 more
   14:05 queued fix for staging
 - : unit = ()
 ```
@@ -163,8 +164,7 @@ staging  1 queued · checking docs-mq/workflow...
 # List.map Span.to_string (Table.lines ~width:70 table)
 - : string list =
 ["fix      stuck  changed... and 3999 more (mq status fix)   /pool/fix.3";
- "staging  1 queued · checking docs-mq/workflow (check, 11m15s)...";
- "  14:05 queued fix for staging"]
+ "staging  1 queued and 2 more"; "  14:05 queued fix for staging"]
 ```
 
 A cut keeps the style of what it kept.

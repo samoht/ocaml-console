@@ -477,27 +477,38 @@ let shorten ?(char_width = default_char_width) target_width str =
         let head = String.concat "" (List.map fst kept) in
         head ^ closing head
 
-(* The items of [str]: its pieces between the [", "] outside any bracket. A
-   bracket that never closes groups nothing. *)
+(* The items of [str], each with the separator before it ([""] for the
+   first): its pieces between the [", "] and the [" \xc2\xb7 "] outside any
+   bracket. A bracket that never closes groups nothing. *)
 let items str =
   let len = String.length str in
+  let dot = " \xc2\xb7 " in
+  let at i sep =
+    i + String.length sep <= len
+    && String.equal (String.sub str i (String.length sep)) sep
+  in
   let split ~grouped =
     let depth = ref 0 in
-    let rec go acc from i =
-      if i >= len then List.rev (String.sub str from (len - from) :: acc)
+    let rec go acc sep from i =
+      if i >= len then List.rev ((sep, String.sub str from (len - from)) :: acc)
       else
         match str.[i] with
         | ('(' | '[' | '{') when grouped ->
             incr depth;
-            go acc from (i + 1)
+            go acc sep from (i + 1)
         | (')' | ']' | '}') when grouped ->
             depth := max 0 (!depth - 1);
-            go acc from (i + 1)
-        | ',' when !depth = 0 && i + 1 < len && str.[i + 1] = ' ' ->
-            go (String.sub str from (i - from) :: acc) (i + 2) (i + 2)
-        | _ -> go acc from (i + 1)
+            go acc sep from (i + 1)
+        | ',' when !depth = 0 && at i ", " ->
+            go
+              ((sep, String.sub str from (i - from)) :: acc)
+              ", " (i + 2) (i + 2)
+        | ' ' when !depth = 0 && at i dot ->
+            let n = String.length dot in
+            go ((sep, String.sub str from (i - from)) :: acc) dot (i + n) (i + n)
+        | _ -> go acc sep from (i + 1)
     in
-    let items = go [] 0 0 in
+    let items = go [] "" 0 0 in
     (items, !depth = 0)
   in
   match split ~grouped:true with
@@ -518,11 +529,13 @@ let elide ?(char_width = default_char_width) ?(see = "") target_width str =
         done;
         String.sub see !i (String.length see - !i)
       in
-      truncate ~char_width target_width (if see = "" then ellipsis else see)
+      if see <> "" && width see <= target_width then see
+      else if width ellipsis <= target_width then ellipsis
+      else ""
     in
     match items str with
     | [] -> alone ()
-    | first :: rest -> (
+    | (_, first) :: rest -> (
         let total = 1 + List.length rest in
         let fits kept k =
           let c = kept ^ more (total - k) ^ see in
@@ -530,8 +543,8 @@ let elide ?(char_width = default_char_width) ?(see = "") target_width str =
         in
         let rec longest kept k best = function
           | [] -> best
-          | item :: rest -> (
-              let kept = kept ^ ", " ^ item in
+          | (sep, item) :: rest -> (
+              let kept = kept ^ sep ^ item in
               match fits kept (k + 1) with
               | Some c -> longest kept (k + 1) c rest
               | None -> best)

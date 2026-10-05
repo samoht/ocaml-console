@@ -69,15 +69,15 @@ val elide :
   ?char_width:(Uchar.t -> int) -> ?see:string -> int -> string -> string
 (** [elide ?see width s] is [s] when it fits in [width] terminal columns, and
     otherwise [s] on one line that says what it left out. [s] is read as a list
-    of items separated by [", "] outside any bracket, so ["(build, test)"] is
-    part of one item: [elide] keeps the leading items that fit, then
-    [" and N more"] for the N it leaves out, then [see] (default [""]), which
-    names where [s] is read whole. When the first item alone does not fit, its
-    leading words that do ({!shorten}) are followed by ["..."], the count and
-    [see]; a value that is not a list is that case with no count. When no word
-    fits, [elide] is [see] without its leading spaces, or ["..."] when [see] is
-    empty, cut to [width] ({!truncate}): a count is never left without the items
-    it counts. *)
+    of items separated by [", "] or by a middle dot (U+00B7) between spaces,
+    outside any bracket, so ["(build, test)"] is part of one item: [elide] keeps
+    the leading items that fit, then [" and N more"] for the N it leaves out,
+    then [see] (default [""]), which names where [s] is read whole. When the
+    first item alone does not fit, its leading words that do ({!shorten}) are
+    followed by ["..."], the count and [see]; a value that is not a list is that
+    case with no count. When no word fits, [elide] is [see] without its leading
+    spaces when that fits, else ["..."] when that fits, else [""]: a count is
+    never left without the items it counts, and nothing is cut inside a word. *)
 
 val fold :
   ?char_width:(Uchar.t -> int) -> ?split:bool -> int -> string -> string list
