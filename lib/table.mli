@@ -13,13 +13,15 @@
 type align = [ `Left | `Center | `Right ]
 (** Column alignment. *)
 
-type overflow = [ `Truncate | `Wrap ]
+type overflow = [ `Truncate | `Wrap | `Elide ]
 (** How to handle content that exceeds max_width.
 
     - [`Truncate]: Keep the leading words that fit on one line and drop the
       rest; a value whose first word does not fit is printed whole, over several
       lines, as with [`Wrap]. No word is ever cut.
-    - [`Wrap]: Wrap to multiple lines (default) *)
+    - [`Wrap]: Wrap to multiple lines (default)
+    - [`Elide]: Keep one line that says what it left out ({!Width.elide}),
+      with the row's [see] after a cell it cut. *)
 
 type column
 (** A column specification. *)
@@ -77,10 +79,18 @@ val v :
     theme with {!Theme.table_row_separators} enabled draws rules between logical
     data rows. *)
 
-val add_row : Span.t list -> t -> t
-(** [add_row cells table] adds a row of styled cells. {b Raises.}
-    [Invalid_argument] if the number of cells differs from the number of
-    columns. *)
+val add_row : ?see:string -> Span.t list -> t -> t
+(** [add_row ?see cells table] adds a row of styled cells. [see] follows a cell
+    of the row an [`Elide] column cuts ({!Width.elide}).
+
+    A row with fewer cells than [table] has columns ends in a cell that spans
+    the columns left, the separators between them included: it is measured
+    against none of them, takes the overflow, alignment and style of the column
+    it starts in, and in a table without edges runs to the end of the line, the
+    rendering width or unbounded. A one-cell row spans every column, as a line
+    under a row does. In a table without edges a line ends at its last cell
+    that is not empty, unpadded. {b Raises.} [Invalid_argument] if [cells] is
+    empty or has more cells than [table] has columns. *)
 
 val add_row_strings : string list -> t -> t
 (** [add_row_strings strings table] adds a row of plain strings. *)
@@ -92,8 +102,8 @@ val of_rows :
   column list ->
   Span.t list list ->
   t
-(** [of_rows columns rows] is a table with all its data at once; styling is as
-    in {!v}. A cell may contain line feeds; they produce physical lines inside
+(** [of_rows columns rows] is a table with all its data at once, each row as
+    {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds; they produce physical lines inside
     that logical row. *)
 
 val of_string_rows :
@@ -121,6 +131,12 @@ val to_string : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
 val to_ansi_string : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
 (** [to_ansi_string table] renders with ANSI styling. [width], when supplied, is
     a hard maximum for every physical row. *)
+
+val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
+(** [lines table] is each physical row of [table] as a styled span, the lines
+    {!to_string} renders, for a live screen to draw. [width], when supplied, is
+    a hard maximum for every one. A border's gradient is taken along each line.
+*)
 
 (** {1:animation Animation} *)
 

@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 type align = [ `Left | `Center | `Right ]
-type overflow = [ `Truncate | `Wrap ]
+type overflow = [ `Truncate | `Wrap | `Elide ]
 
 type column = {
   header : Span.t;
@@ -16,13 +16,15 @@ type column = {
   style : Style.t;
 }
 
+type row = { cells : Span.t list; see : string option }
+
 type t = {
   border : Border.t;
   row_separators : bool;
   animated : bool;
   header_style : Style.t;
   columns : column list;
-  rows : Span.t list list;
+  rows : row list;
 }
 
 let check_widths min_width max_width =
@@ -59,12 +61,12 @@ let v ?theme ?border ?(header_style = Style.bold) columns =
     rows = [];
   }
 
-let add_row cells t =
+let add_row ?see cells t =
   let expected = List.length t.columns and got = List.length cells in
-  if got <> expected then
-    Fmt.invalid_arg "Console.Table.add_row: expected %d cells, got %d" expected
-      got;
-  { t with rows = cells :: t.rows }
+  if got > expected || (got = 0 && expected > 0) then
+    Fmt.invalid_arg "Console.Table.add_row: expected 1 to %d cells, got %d"
+      expected got;
+  { t with rows = { cells; see } :: t.rows }
 
 let add_row_strings strings t = add_row (List.map Span.text strings) t
 
@@ -87,6 +89,13 @@ let span_width ~char_width span =
        (fun width line -> max width (Span.width ~char_width line))
        0
 
+(* The cells of [row] its columns are measured by: a short row's last cell
+   spans the columns it leaves and is measured against none of them. *)
+let measured num_cols row =
+  let n = List.length row.cells in
+  if n >= num_cols then row.cells
+  else List.filteri (fun i _ -> i < n - 1) row.cells
+
 let apply_header_widths ~char_width t widths =
   List.iteri
     (fun i col ->
@@ -101,7 +110,7 @@ let apply_row_widths ~char_width t widths =
         (fun i cell ->
           if i < num_cols then
             widths.(i) <- max widths.(i) (span_width ~char_width cell))
-        row)
+        (measured num_cols row))
     t.rows
 
 (* A whitespace-delimited token is kept intact while any column still has a
@@ -131,7 +140,7 @@ let apply_row_unbroken_widths ~char_width t widths =
         (fun i cell ->
           if i < num_cols then
             widths.(i) <- max widths.(i) (span_unbroken_width ~char_width cell))
-        row)
+        (measured num_cols row))
     t.rows
 
 let apply_width_constraints t widths =
@@ -146,8 +155,12 @@ let apply_width_constraints t widths =
     t.columns
 
 (* A border with no glyphs has no edge: no padding outside the first and the
-   last cell, and the last cell not padded out to its column. *)
+   last cell, the last cell not padded out to its column, and a line ends at
+   its last cell that is not empty. *)
 let edged t = (Border.chars t.border).left <> ""
+
+let separator_width t =
+  if edged t then 2 + Width.string_width (Border.chars t.border).right else 2
 
 let structural_overhead t count =
   if count = 0 then 0
@@ -176,7 +189,7 @@ let shrink_widths_to_terminal ?max_width t unbroken_widths widths =
       let semantic_min i =
         let token =
           match cols.(i).overflow with
-          | `Truncate -> 0
+          | `Truncate | `Elide -> 0
           | `Wrap -> unbroken_widths.(i)
         in
         min widths.(i) (max (min_of i) token)
@@ -237,7 +250,13 @@ let fit_columns max_width t =
     {
       t with
       columns = take count t.columns;
-      rows = List.map (take count) t.rows;
+      rows =
+        List.filter_map
+          (fun r ->
+            match take count r.cells with
+            | [] -> None
+            | cells -> Some { r with cells })
+          t.rows;
     }
 
 let calc_col_widths ~char_width ?max_width t =
@@ -248,24 +267,29 @@ let calc_col_widths ~char_width ?max_width t =
   apply_header_unbroken_widths ~char_width t unbroken_widths;
   apply_row_unbroken_widths ~char_width t unbroken_widths;
   apply_width_constraints t widths;
-  shrink_widths_to_terminal ?max_width t unbroken_widths widths |> Array.to_list
+  shrink_widths_to_terminal ?max_width t unbroken_widths widths
 
-let render_horizontal p t widths left_char mid_char right_char horiz_char =
+(* A rendered line, in pieces: border glyphs, inked in the border's style;
+   padding between cells; and a cell's text with the style composed under
+   it. *)
+type piece = Edge of string | Gap of string | Cell of Style.t * Span.t
+
+let horizontal t widths left_char mid_char right_char horiz_char =
   let chars = Border.chars t.border in
-  let put = Paint.ink p (Border.style t.border) in
-  if chars.top = "" then () (* No border *)
-  else (
-    put left_char;
-    List.iteri
-      (fun i col_width ->
-        for _ = 1 to col_width + 2 do
-          (* +2 for padding *)
-          put horiz_char
-        done;
-        if i < List.length widths - 1 then put mid_char)
-      widths;
-    put right_char;
-    Paint.newline p)
+  if chars.top = "" then None
+  else
+    let last = Array.length widths - 1 in
+    let line =
+      (Edge left_char
+      :: List.concat
+           (List.mapi
+              (fun i col_width ->
+                Edge (String.concat "" (List.init (col_width + 2) (fun _ -> horiz_char)))
+                :: (if i < last then [ Edge mid_char ] else []))
+              (Array.to_list widths)))
+      @ [ Edge right_char ]
+    in
+    Some line
 
 let align_span ~char_width ~pad_right align target span =
   let width = Span.width ~char_width span in
@@ -281,128 +305,223 @@ let align_span ~char_width ~pad_right align target span =
     let right = if pad_right then right else 0 in
     Span.(text (String.make left ' ') ++ span ++ text (String.make right ' '))
 
-let process_cell ~char_width ~styled ~style ~pad_right overflow align width span
-    =
-  let process_line span =
-    if width <= 0 then [ Span.empty ]
-    else
-      match overflow with
-      | `Truncate -> (
-          let cell_width = Span.width ~char_width span in
-          if cell_width <= width then [ span ]
-          else
-            (* Whole words from the start, never a word cut; a value whose
-               first word does not fit is printed whole, over several lines. *)
-            match Width.shorten ~char_width width (Span.to_string span) with
-            | "" -> Span.wrap ~char_width width span
-            | kept ->
-                [
-                  Span.truncate ~char_width
-                    (Width.string_width ~char_width kept)
-                    span;
-                ])
-      | `Wrap -> Span.wrap ~char_width width span
-  in
-  let lines = span_lines span |> List.concat_map process_line in
-  List.map
-    (fun line ->
-      let line = align_span ~char_width ~pad_right align width line in
-      if styled then Span.to_ansi_string ~style line else Span.to_string line)
-    lines
-
-let render_physical_row p t widths line_cells =
-  let chars = Border.chars t.border in
-  let num_cols = List.length widths in
-  let put = Paint.ink p (Border.style t.border) in
-  let edged = edged t in
-  if edged then put chars.left;
-  List.iteri
-    (fun i ((_col, _col_width), line) ->
-      let before = if edged || i > 0 then " " else "" in
-      let after = if edged || i < num_cols - 1 then " " else "" in
-      Paint.text p (before ^ line ^ after);
-      if i < num_cols - 1 && edged then put chars.right)
-    (List.combine (List.combine t.columns widths) line_cells);
-  if chars.right <> "" then put chars.right;
-  Paint.newline p
-
-let render_row ~char_width ~styled p t widths style cells =
-  (* Index cells and widths by column once: the per-column [List.nth]/
-     [List.length] this replaced made rendering a row quadratic in the column
-     count. *)
-  let cells_arr = Array.of_list cells in
-  let ncells = Array.length cells_arr in
-  let widths_arr = Array.of_list widths in
-  let last = List.length widths - 1 in
-  let pad_right i = edged t || i < last in
-  (* Process each cell to get list of lines *)
-  let cell_lines =
-    List.mapi
-      (fun i (col, col_width) ->
-        let cell = if i < ncells then cells_arr.(i) else Span.empty in
-        let style = Style.(style + col.style) in
-        process_cell ~char_width ~styled ~style ~pad_right:(pad_right i)
-          col.overflow col.align col_width cell)
-      (List.combine t.columns widths)
-  in
-  (* Find max number of lines *)
-  let max_lines =
-    List.fold_left (fun acc lines -> max acc (List.length lines)) 0 cell_lines
-  in
-  (* Render each physical row *)
-  for line_idx = 0 to max_lines - 1 do
-    let line_cells =
-      List.mapi
-        (fun i lines ->
-          if line_idx < List.length lines then List.nth lines line_idx
-          else if pad_right i then String.make widths_arr.(i) ' '
-          else "")
-        cell_lines
+(* [span] cut by [Width.elide] to [width], the style of what it keeps kept:
+   what [elide] keeps is a prefix of the text, and what follows it is plain. *)
+let elide_span ~char_width ?see width span =
+  if Span.width ~char_width span <= width then span
+  else
+    let s = Span.to_string span in
+    let e = Width.elide ~char_width ?see width s in
+    let n = min (String.length s) (String.length e) in
+    let rec common i = if i < n && s.[i] = e.[i] then common (i + 1) else i in
+    let rec boundary i =
+      if i > 0 && i < String.length s && Char.code s.[i] land 0xC0 = 0x80 then
+        boundary (i - 1)
+      else i
     in
-    render_physical_row p t widths line_cells
-  done
+    let p = boundary (common 0) in
+    Span.(
+      truncate ~char_width
+        (Width.string_width ~char_width (String.sub s 0 p))
+        span
+      ++ text (String.sub e p (String.length e - p)))
 
-let pp_with ~char_width ?max_width ppf t =
+(* The physical lines of a cell in [width] columns, not padded; [None] is a
+   cell nothing bounds, the last of a line without edges and no width. *)
+let cell_lines ~char_width ?see overflow width span =
+  let fit line =
+    match width with
+    | None -> [ line ]
+    | Some width when width <= 0 -> [ Span.empty ]
+    | Some width -> (
+        match overflow with
+        | `Truncate -> (
+            let cell_width = Span.width ~char_width line in
+            if cell_width <= width then [ line ]
+            else
+              (* Whole words from the start, never a word cut; a value whose
+                 first word does not fit is printed whole, over several
+                 lines. *)
+              match Width.shorten ~char_width width (Span.to_string line) with
+              | "" -> Span.wrap ~char_width width line
+              | kept ->
+                  [
+                    Span.truncate ~char_width
+                      (Width.string_width ~char_width kept)
+                      line;
+                  ])
+        | `Wrap -> Span.wrap ~char_width width line
+        | `Elide -> [ elide_span ~char_width ?see width line ])
+  in
+  span_lines span |> List.concat_map fit
+
+(* Each cell of [cells] with its column and the width it fills. A short row's
+   last cell fills the columns it spans and the separators between them, and
+   in a table without edges runs to the end of the line: to [max_width], or
+   unbounded. *)
+let slots ?max_width t widths cells =
+  let columns = Array.of_list t.columns in
+  let num_cols = Array.length columns in
+  let n = List.length cells in
+  List.mapi
+    (fun i cell ->
+      let width =
+        if i < n - 1 || n = num_cols then Some widths.(i)
+        else if edged t then
+          let spanned = ref 0 in
+          for j = i to num_cols - 1 do
+            spanned := !spanned + widths.(j)
+          done;
+          Some (!spanned + ((num_cols - 1 - i) * separator_width t))
+        else
+          let before = ref 0 in
+          for j = 0 to i - 1 do
+            before := !before + widths.(j) + 2
+          done;
+          Option.map (fun w -> max 0 (w - !before)) max_width
+      in
+      (columns.(i), width, cell))
+    cells
+
+(* One physical line of a table with edges: every cell padded, between
+   separators. *)
+let edged_line ~char_width t style line =
+  let chars = Border.chars t.border in
+  let last = List.length line - 1 in
+  let pieces =
+    List.concat
+      (List.mapi
+         (fun i (col, width, text) ->
+           let text = Option.value ~default:Span.empty text in
+           let target = Option.value ~default:0 width in
+           [
+             Gap " ";
+             Cell
+               ( style col,
+                 align_span ~char_width ~pad_right:true col.align target text );
+             Gap " ";
+           ]
+           @ if i < last then [ Edge chars.right ] else [])
+         line)
+  in
+  (Edge chars.left :: pieces) @ [ Edge chars.right ]
+
+(* One physical line of a table without edges: it ends at its last cell that
+   is not empty, unpadded. *)
+let open_line ~char_width t style line =
+  let chars = Border.chars t.border in
+  let shown =
+    let rec upto i acc = function
+      | [] -> acc
+      | (_, _, Some text) :: rest when Span.to_string text <> "" ->
+          upto (i + 1) i rest
+      | _ :: rest -> upto (i + 1) acc rest
+    in
+    upto 0 0 line
+  in
+  let pieces =
+    List.concat
+      (List.mapi
+         (fun i (col, width, text) ->
+           if i > shown then []
+           else
+             let text = Option.value ~default:Span.empty text in
+             let target = Option.value ~default:0 width in
+             (if i > 0 then [ Gap "  " ] else [])
+             @ [
+                 Cell
+                   ( style col,
+                     align_span ~char_width ~pad_right:(i < shown) col.align
+                       target text );
+               ])
+         line)
+  in
+  if chars.right <> "" then pieces @ [ Edge chars.right ] else pieces
+
+let row_lines ~char_width ?max_width t widths style row =
+  let cells =
+    List.map
+      (fun (col, width, cell) ->
+        (col, width, cell_lines ~char_width ?see:row.see col.overflow width cell))
+      (slots ?max_width t widths row.cells)
+  in
+  let height =
+    List.fold_left (fun acc (_, _, lines) -> max acc (List.length lines)) 0 cells
+  in
+  let style col = Style.(style + col.style) in
+  let render = if edged t then edged_line else open_line in
+  List.init height (fun line_idx ->
+      render ~char_width t style
+        (List.map
+           (fun (col, width, lines) ->
+             (col, width, List.nth_opt lines line_idx))
+           cells))
+
+let render_lines ~char_width ?max_width t =
   let t =
     match max_width with None -> t | Some width -> fit_columns (max 0 width) t
   in
-  if List.length t.columns = 0 then ()
+  if List.length t.columns = 0 then []
   else
-    let styled = Fmt.style_renderer ppf = `Ansi_tty in
-    let p = Paint.v ppf in
     let chars = Border.chars t.border in
     let widths = calc_col_widths ~char_width ?max_width t in
-
-    (* Top border *)
-    render_horizontal p t widths chars.top_left chars.top_cross chars.top_right
-      chars.top;
-
-    (* Header row (skip if all headers are empty) *)
+    let rule l m r h = Option.to_list (horizontal t widths l m r h) in
+    let row style r = row_lines ~char_width ?max_width t widths style r in
     let headers = List.map (fun col -> col.header) t.columns in
     let has_headers = List.exists (fun h -> Span.to_string h <> "") headers in
-    if has_headers then (
-      render_row ~char_width ~styled p t widths t.header_style headers;
-      if List.length t.rows > 0 then
-        render_horizontal p t widths chars.left_cross chars.cross
-          chars.right_cross chars.top);
-
-    (* Data rows *)
-    let rec render_rows = function
-      | [] -> ()
-      | [ row ] -> render_row ~char_width ~styled p t widths Style.none row
-      | row :: rows ->
-          render_row ~char_width ~styled p t widths Style.none row;
-          if t.row_separators then
-            render_horizontal p t widths chars.left_cross chars.cross
-              chars.right_cross chars.top;
-          render_rows rows
+    let rows = List.rev t.rows in
+    let body =
+      List.concat
+        (List.mapi
+           (fun i r ->
+             (if i > 0 && t.row_separators then
+                rule chars.left_cross chars.cross chars.right_cross chars.top
+              else [])
+             @ row Style.none r)
+           rows)
     in
-    render_rows (List.rev t.rows);
+    rule chars.top_left chars.top_cross chars.top_right chars.top
+    @ (if has_headers then
+         row t.header_style { cells = headers; see = None }
+         @
+         if rows <> [] then
+           rule chars.left_cross chars.cross chars.right_cross chars.top
+         else []
+       else [])
+    @ body
+    @ rule chars.bottom_left chars.bottom_cross chars.bottom_right chars.bottom
 
-    (* Bottom border *)
-    render_horizontal p t widths chars.bottom_left chars.bottom_cross
-      chars.bottom_right chars.bottom;
-    Paint.close p
+let pp_with ~char_width ?max_width ppf t =
+  let styled = Fmt.style_renderer ppf = `Ansi_tty in
+  let p = Paint.v ppf in
+  let border = Border.style t.border in
+  List.iter
+    (fun line ->
+      List.iter
+        (function
+          | Edge s -> Paint.ink p border s
+          | Gap s -> Paint.text p s
+          | Cell (style, span) ->
+              Paint.text p
+                (if styled then Span.to_ansi_string ~style span
+                 else Span.to_string span))
+        line;
+      Paint.newline p)
+    (render_lines ~char_width ?max_width t);
+  Paint.close p
+
+let lines ?width ?(char_width = Width.default_char_width) t =
+  let border = Border.style t.border in
+  List.map
+    (fun line ->
+      Span.concat
+        (List.map
+           (function
+             | Edge s -> Span.styled border s
+             | Gap s -> Span.text s
+             | Cell (style, span) -> Span.with_style style span)
+           line))
+    (render_lines ~char_width ?max_width:width t)
 
 let pp ppf t =
   let max_width = Format.pp_get_margin ppf () in

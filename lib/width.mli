@@ -56,14 +56,28 @@ val shorten : ?char_width:(Uchar.t -> int) -> int -> string -> string
     otherwise the longest run of its leading words that does: the words it drops
     are taken from its end, whole. A word ends at a space outside any bracket,
     so a group such as ["(300s bound)"] is dropped as one word. What is kept
-    does not end on a separator (a space, a comma, a semicolon, a colon) nor on
-    a word that only leads into the ones dropped (an article, a preposition, a
-    conjunction: ["building in"] is ["building"]). No word is ever cut, so [s]
-    whose first word is wider than [width] is [""]: a path, an id or a digest is
-    kept whole or not at all.
+    does not end on a separator (a space, a comma, a semicolon, a colon, a
+    middle dot) nor on a word that only leads into the ones dropped (an article,
+    a preposition, a conjunction: ["building in"] is ["building"]). No word is
+    ever cut, so [s] whose first word is wider than [width] is [""]: a path, an
+    id or a digest is kept whole or not at all.
 
     Escape sequences count as zero columns and a style or hyperlink left open is
     closed. *)
+
+val elide :
+  ?char_width:(Uchar.t -> int) -> ?see:string -> int -> string -> string
+(** [elide ?see width s] is [s] when it fits in [width] terminal columns, and
+    otherwise [s] on one line that says what it left out. [s] is read as a list
+    of items separated by [", "] outside any bracket, so ["(build, test)"] is
+    part of one item: [elide] keeps the leading items that fit, then
+    [" and N more"] for the N it leaves out, then [see] (default [""]), which
+    names where [s] is read whole. When the first item alone does not fit, its
+    leading words that do ({!shorten}) are followed by ["..."], the count and
+    [see]; a value that is not a list is that case with no count. When no word
+    fits, [elide] is [see] without its leading spaces, or ["..."] when [see] is
+    empty, cut to [width] ({!truncate}): a count is never left without the items
+    it counts. *)
 
 val fold :
   ?char_width:(Uchar.t -> int) -> ?split:bool -> int -> string -> string list

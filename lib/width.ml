@@ -437,7 +437,8 @@ let leading_words =
   ]
 
 (* [kept_rev], reversed atoms, without the separators and the leading words at
-   its end, nor a colon that introduced what went. *)
+   its end, nor a colon that introduced what went, nor a middle dot that joined
+   it to the next clause. *)
 let rec settle kept_rev =
   match trim_end kept_rev with
   | (":", _) :: rest -> settle rest
@@ -451,7 +452,9 @@ let rec settle kept_rev =
         String.lowercase_ascii (String.concat "" (List.map fst word))
       in
       match rest with
-      | _ :: _ when List.mem text leading_words -> settle rest
+      | _ :: _ when String.equal text "\xc2\xb7" || List.mem text leading_words
+        ->
+          settle rest
       | _ -> kept_rev)
 
 let shorten ?(char_width = default_char_width) target_width str =
@@ -473,6 +476,77 @@ let shorten ?(char_width = default_char_width) target_width str =
     | kept ->
         let head = String.concat "" (List.map fst kept) in
         head ^ closing head
+
+(* The items of [str]: its pieces between the [", "] outside any bracket. A
+   bracket that never closes groups nothing. *)
+let items str =
+  let len = String.length str in
+  let split ~grouped =
+    let depth = ref 0 in
+    let rec go acc from i =
+      if i >= len then List.rev (String.sub str from (len - from) :: acc)
+      else
+        match str.[i] with
+        | ('(' | '[' | '{') when grouped ->
+            incr depth;
+            go acc from (i + 1)
+        | (')' | ']' | '}') when grouped ->
+            depth := max 0 (!depth - 1);
+            go acc from (i + 1)
+        | ',' when !depth = 0 && i + 1 < len && str.[i + 1] = ' ' ->
+            go (String.sub str from (i - from) :: acc) (i + 2) (i + 2)
+        | _ -> go acc from (i + 1)
+    in
+    let items = go [] 0 0 in
+    (items, !depth = 0)
+  in
+  match split ~grouped:true with
+  | items, true -> items
+  | _, false -> fst (split ~grouped:false)
+
+let more n = if n = 0 then "" else " and " ^ string_of_int n ^ " more"
+
+let elide ?(char_width = default_char_width) ?(see = "") target_width str =
+  let width = string_width ~char_width in
+  if width str <= target_width then str
+  else
+    let alone () =
+      let see =
+        let i = ref 0 in
+        while !i < String.length see && see.[!i] = ' ' do
+          incr i
+        done;
+        String.sub see !i (String.length see - !i)
+      in
+      truncate ~char_width target_width (if see = "" then ellipsis else see)
+    in
+    match items str with
+    | [] -> alone ()
+    | first :: rest ->
+        let total = 1 + List.length rest in
+        let fits kept k =
+          let c = kept ^ more (total - k) ^ see in
+          if width c <= target_width then Some c else None
+        in
+        let rec longest kept k best = function
+          | [] -> best
+          | item :: rest -> (
+              let kept = kept ^ ", " ^ item in
+              match fits kept (k + 1) with
+              | Some c -> longest kept (k + 1) c rest
+              | None -> best)
+        in
+        let cut () =
+          let tail = ellipsis ^ more (total - 1) ^ see in
+          match shorten ~char_width (target_width - width tail) first with
+          | "" -> alone ()
+          | kept -> kept ^ tail
+        in
+        if total = 1 then cut ()
+        else
+          match fits first 1 with
+          | None -> cut ()
+          | Some c -> longest first 1 c rest
 
 (* The escapes still in force after [piece]: a reset ends every style, a
    hyperlink's close ends the hyperlink, and anything else is added. *)

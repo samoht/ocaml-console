@@ -40,6 +40,10 @@ val newline : t
 val concat : t list -> t
 (** [concat spans] concatenates a list of spans. *)
 
+val with_style : Style.t -> t -> t
+(** [with_style base span] is [span] with [base] composed underneath each of
+    its styles, as {!pp_with_style} prints it. *)
+
 val ( ++ ) : t -> t -> t
 (** [a ++ b] concatenates two spans. *)
 
