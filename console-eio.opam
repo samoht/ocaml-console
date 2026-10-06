@@ -7,7 +7,9 @@ Helpers that animate Console.Display bars from an Eio fiber. Split out
 maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"
-tags: ["org:blacksun" "cli" "format" "eio"]
+tags: [
+  "org:blacksun" "cli" "format" "eio" "area:text_editors" "area:concurrency"
+]
 homepage: "https://tangled.org/gazagnaire.org/ocaml-console"
 bug-reports: "https://tangled.org/gazagnaire.org/ocaml-console/issues"
 depends: [
