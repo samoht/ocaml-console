@@ -8,7 +8,7 @@ Type-safe terminal styling (colors, bold, italic) and layout widgets
 maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"
-tags: ["org:blacksun" "cli" "format" "area:text_editors"]
+tags: ["org:blacksun" "command-line-utilities" "format" "area:10010862"]
 homepage: "https://tangled.org/gazagnaire.org/ocaml-console"
 bug-reports: "https://tangled.org/gazagnaire.org/ocaml-console/issues"
 depends: [

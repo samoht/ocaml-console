@@ -8,7 +8,7 @@ maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"
 tags: [
-  "org:blacksun" "cli" "format" "eio" "area:text_editors" "area:concurrency"
+  "org:blacksun" "command-line-utilities" "format" "eio" "area:10010862"
 ]
 homepage: "https://tangled.org/gazagnaire.org/ocaml-console"
 bug-reports: "https://tangled.org/gazagnaire.org/ocaml-console/issues"
