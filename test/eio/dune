@@ -18,3 +18,8 @@
  (package console-eio)
  (files typing.md)
  (libraries console console-eio eio unix))
+
+(rule
+ (alias report-domains)
+ (action
+  (run ./test.exe test report_domains)))
