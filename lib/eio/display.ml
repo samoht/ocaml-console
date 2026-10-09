@@ -22,31 +22,81 @@ let event_level : Logs.level -> Console.Display.Event.level = function
   | Logs.Error -> `Error
   | Logs.App | Logs.Info | Logs.Debug -> `Info
 
-let reporter display =
+type request = {
+  level : Console.Display.Event.level;
+  message : string;
+  reply : (unit, exn) result Eio.Promise.t Eio.Promise.u;
+}
+
+let closed_reporter () =
+  invalid_arg "Console_eio: the display reporter is closed"
+
+let reporter ~owner ~closed ~requests display =
+  let emit level message =
+    if Option.is_some (Eio.Promise.peek closed) then closed_reporter ();
+    if Domain.self () = owner then Console.Display.event ~level display message
+    else
+      Eio.Fiber.first
+        (fun () ->
+          let answer, reply = Eio.Promise.create () in
+          Eio.Stream.add requests { level; message; reply };
+          Eio.Promise.await answer |> Eio.Promise.await_exn)
+        (fun () ->
+          Eio.Promise.await closed;
+          closed_reporter ())
+  in
   let report _src level ~over k msgf =
     msgf (fun ?header:_ ?tags:_ fmt ->
         Fmt.kstr
           (fun message ->
-            if message <> "" then
-              Console.Display.event ~level:(event_level level) display message;
+            if message <> "" then emit (event_level level) message;
             over ();
             k ())
           fmt)
   in
   { Logs.report }
 
-let run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
+let receive ~sw ~closed requests display =
+  let rec loop () =
+    let { level; message; reply } = Eio.Stream.take requests in
+    let output =
+      Eio.Fiber.fork_promise ~sw (fun () ->
+          Eio.Fiber.first
+            (fun () ->
+              if Option.is_some (Eio.Promise.peek closed) then
+                closed_reporter ();
+              Console.Display.event ~level display message)
+            (fun () ->
+              Eio.Promise.await closed;
+              closed_reporter ()))
+    in
+    Eio.Promise.resolve reply output;
+    ignore (Eio.Promise.await output : (unit, exn) result);
+    Eio.Fiber.check ();
+    loop ()
+  in
+  loop ()
+
+let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   if not (Atomic.compare_and_set active false true) then
     invalid_arg "Console_eio.run: another display is active";
   Fun.protect
     (fun () ->
       Console.Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
         (fun display ->
+          Eio.Switch.run @@ fun sw ->
+          let owner = Domain.self () in
+          let requests = Eio.Stream.create 1 in
+          let closed, close = Eio.Promise.create () in
           let previous = Logs.reporter () in
-          Logs.set_reporter (reporter display);
+          Eio.Fiber.fork_daemon ~sw (fun () ->
+              receive ~sw ~closed requests display);
+          Logs.set_reporter (reporter ~owner ~closed ~requests display);
           Fun.protect
             (fun () ->
               let stop = animate ~sw display in
               Fun.protect (fun () -> f display) ~finally:stop)
-            ~finally:(fun () -> Logs.set_reporter previous)))
+            ~finally:(fun () ->
+              Logs.set_reporter previous;
+              Eio.Promise.resolve close ())))
     ~finally:(fun () -> Atomic.set active false)

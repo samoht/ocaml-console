@@ -19,7 +19,11 @@ val run :
 (** [run ~clock f] is the Eio driver for {!Console.Display.run} on the terminal.
     It constructs the terminal context, whose clock is [clock] for both its
     reading and its waits, scopes the refresh fiber and Logs reporter, and
-    passes the ordinary {!Console.Display.t} to [f]. All task operations are in
+    passes the ordinary {!Console.Display.t} to [f]. Worker log messages are
+    routed through a one-message queue to this display's domain and completed
+    before their logging continuation resumes. Foreign logging domains must run
+    an Eio scheduler. Closing the scope releases queued or awaiting log calls; a
+    captured reporter used after closure refuses. All task operations are in
     {!Console.Display}; this module adds no parallel display API.
 
     Calls compose: when [run] or {!run_on} is called from inside an existing

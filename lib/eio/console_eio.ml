@@ -98,7 +98,7 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
       Eio.Switch.run @@ fun sw ->
       let ctx, restore = context ~sw in
       let run () =
-        Display.run ~sw ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
+        Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
           (fun display ->
             Eio.Fiber.with_binding current display (fun () -> f display))
       in

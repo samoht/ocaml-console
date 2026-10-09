@@ -1,7 +1,6 @@
 (** Eio driver for {!Console.Display}. *)
 
 val run :
-  sw:Eio.Switch.t ->
   ctx:Console.Display.ctx ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
