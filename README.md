@@ -219,6 +219,7 @@ $ dune exec examples/matrix/main.exe
 |---|---|
 | `Console.Color` | ANSI, RGB, hex, and 256-palette colours |
 | `Console.Style` | Composable text styles |
+| `Console.Gradient` | Linear colour gradients laid over terminal cells |
 | `Console.Span` | Styled text, hyperlinks, wrapping and truncation |
 | `Console.Width` | Unicode-, CSI-, and OSC-aware cell measurement |
 | `Console.Border` | Custom and predefined box-drawing borders |
@@ -229,12 +230,15 @@ $ dune exec examples/matrix/main.exe
 | `Console.Panel` | Bordered panels with edge labels |
 | `Console.Rule` | Fixed-width horizontal rules with styled labels |
 | `Console.Layout` | Horizontal and vertical static/animated composition |
+| `Console.Canvas` | Grids of styled cells, for pixel art and scenes |
 | `Console.Spinner` | Animated spinners for indeterminate work |
 | `Console.Bar` | Determinate and moving horizontal progress bars |
 | `Console.Anim` | Composable time-varying values |
 | `Console.Display` | Live nested progress rows with plain fallback |
 | `Console.Input` | Line editing with history and completion |
 | `Console_eio` | Eio driver: terminal detection, geometry, the refresh fiber |
+| `Console_eio.Prompt` | Questions over Eio flows, and a masked secret from the terminal |
+| `Console_text` | Sanitizing and stripping untrusted text, without the rest of `console` |
 | `Console_vte` | The screen a terminal recording put up, frame by frame |
 
 ## Related Work
