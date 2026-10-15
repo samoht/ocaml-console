@@ -128,12 +128,37 @@ let test_is_tty_is_false_without_a_terminal () =
     (Console_eio.is_tty Unix.stdout)
 
 (* Dimensions always answer, whatever the environment: the ioctl, else
-   $COLUMNS/$LINES, else the 80x24 default. No source of an answer can make
-   either component smaller than a single cell. *)
-let test_dimensions_are_at_least_one_cell () =
-  let width, height = Console_eio.dimensions () in
-  Alcotest.(check bool) "width is at least one cell" true (width >= 1);
-  Alcotest.(check bool) "height is at least one cell" true (height >= 1)
+   $COLUMNS/$LINES, else the 80x24 default. Ten columns or two rows is no
+   answer, and the next source is asked. Under [dune test] stdout is no
+   terminal, so the ioctl has nothing to say and the environment decides. *)
+let with_env bindings f =
+  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
+  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
+  Fun.protect f ~finally:(fun () ->
+      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
+
+let test_dimensions_read_the_environment () =
+  if Unix.isatty Unix.stdout then Alcotest.skip ();
+  let dims = Alcotest.(pair int int) in
+  with_env
+    [ ("COLUMNS", "123"); ("LINES", "45") ]
+    (fun () ->
+      Alcotest.check dims "the exported size" (123, 45)
+        (Console_eio.dimensions ()));
+  with_env
+    [ ("COLUMNS", "11"); ("LINES", "3") ]
+    (fun () ->
+      Alcotest.check dims "the smallest size taken" (11, 3)
+        (Console_eio.dimensions ()));
+  with_env
+    [ ("COLUMNS", "10"); ("LINES", "2") ]
+    (fun () ->
+      Alcotest.check dims "a smaller one is no answer" (80, 24)
+        (Console_eio.dimensions ()));
+  with_env
+    [ ("COLUMNS", ""); ("LINES", "") ]
+    (fun () ->
+      Alcotest.check dims "nor is none" (80, 24) (Console_eio.dimensions ()))
 
 (* An elapsed time comes from the machine, not from the program, so a test that
    captures a display's output cannot assert one. CONSOLE_FROZEN_CLOCK is the
@@ -351,8 +376,8 @@ let suite =
         test_run_on_refuses_a_context_it_cannot_wait_on;
       Alcotest.test_case "is_tty is false without a terminal" `Quick
         test_is_tty_is_false_without_a_terminal;
-      Alcotest.test_case "dimensions are at least one cell" `Quick
-        test_dimensions_are_at_least_one_cell;
+      Alcotest.test_case "dimensions read the environment" `Quick
+        test_dimensions_read_the_environment;
       Alcotest.test_case "frozen clock pins every elapsed" `Quick
         test_frozen_clock_pins_every_elapsed;
       Alcotest.test_case "a handler installed under run outlives it" `Quick

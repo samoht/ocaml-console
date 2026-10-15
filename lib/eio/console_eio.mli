@@ -110,5 +110,5 @@ val frame_drawn : Console.Display.t -> int -> unit Eio.Promise.t
 val dimensions : unit -> int * int
 (** [dimensions ()] is the size of the terminal on standard output as
     [(columns, rows)]: the [TIOCGWINSZ] ioctl, else [$COLUMNS] and [$LINES],
-    else 80 by 24. It always answers, and no source of an answer reports less
-    than a single cell in either direction. *)
+    else 80 by 24. A width of ten columns or less and a height of two rows or
+    less are not taken from either source, so the answer is at least 11 by 3. *)
