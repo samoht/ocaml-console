@@ -70,8 +70,6 @@ let expect t question word =
    terminal and a Unix descriptor, which is why it lives here in the driver
    rather than in the freestanding half of the library. *)
 
-let err_msg fmt = Fmt.kstr (fun msg -> Error (`Msg msg)) fmt
-
 let rec write_all fd s off =
   if off < String.length s then
     match Unix.write_substring fd s off (String.length s - off) with
@@ -121,5 +119,5 @@ let secret ?(prompt = "") () =
               loop ()))
     with
     | Unix.Unix_error (e, fn, arg) ->
-        err_msg "%s(%s): %s" fn arg (Unix.error_message e)
+        Fmt.error_msg "%s(%s): %s" fn arg (Unix.error_message e)
     | End_of_file -> Error (`Msg "terminal output closed while prompting")
