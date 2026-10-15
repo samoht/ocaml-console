@@ -80,14 +80,46 @@ let test_ellipsize_at_start_is_diffstats () =
     (Width.ellipsize 21 digest)
     (Width.ellipsize ~at:`Middle 21 digest)
 
-(* A cut closes what it left open: the reset stands between the kept head and
-   the mark, so the mark is not drawn in the value's style. *)
+(* A cut closes what it left open, and only that: the reset stands between the
+   kept head and the mark, so the mark is not drawn in the value's style, and a
+   part that already ends on a reset (SGR 0, ECMA-48 8.3.117) gets no second
+   one. *)
 let test_ellipsize_closes_style () =
-  let cut = Width.ellipsize 9 "\027[1mabcdefghij\027[0m" in
-  Alcotest.(check int) "styling occupies no column" 9 (Width.string_width cut);
-  Alcotest.(check bool)
-    "the head's style is closed before the mark" true
-    (String.starts_with ~prefix:"\027[1mabc\027[0m..." cut)
+  let check = Alcotest.(check string) in
+  check "a head left open is closed before the mark" "\027[1mabc\027[0m...hij"
+    (Width.ellipsize 9 "\027[1mabcdefghij");
+  check "a head that closed its style is not closed again"
+    "\027[1mab\027[0mc...hij"
+    (Width.ellipsize 9 "\027[1mab\027[0mcdefghij");
+  check "nor is one that ends on its reset" "\027[1mabc\027[0m...hij"
+    (Width.ellipsize 9 "\027[1mabc\027[0mdefghij");
+  check "a tail left open is closed" "abc...\027[1mhij\027[0m"
+    (Width.ellipsize 9 "abcdefg\027[1mhij");
+  check "a tail that ends on its reset is not closed again"
+    "abc...\027[1mhij\027[0m"
+    (Width.ellipsize 9 "abcdefg\027[1mhij\027[0m");
+  check "nor is a tail cut at the start" "...\027[1mefghij\027[0m"
+    (Width.ellipsize ~at:`Start 9 "abcd\027[1mefghij\027[0m")
+
+(* The same holds of a cut with no mark, under the grapheme measure and under a
+   caller's code-point one. *)
+let test_truncate_closes_style () =
+  let one _ = 1 in
+  List.iter
+    (fun (msg, expected, s) ->
+      Alcotest.(check string) msg expected (Width.truncate 3 s);
+      Alcotest.(check string)
+        (msg ^ ", by code point") expected
+        (Width.truncate ~char_width:one 3 s))
+    [
+      ("a style left open is closed", "\027[1mabc\027[0m", "\027[1mabcdef");
+      ( "a closed style is not closed again",
+        "\027[1mab\027[0mc",
+        "\027[1mab\027[0mcdef" );
+      ( "nor is one that ends on its reset",
+        "\027[1mabc\027[0m",
+        "\027[1mabc\027[0mdef" );
+    ]
 
 let test_ellipsize_short_enough () =
   Alcotest.(check string)
@@ -245,6 +277,8 @@ let suite =
         test_ellipsize_at_start_is_diffstats;
       Alcotest.test_case "ellipsize closes a style" `Quick
         test_ellipsize_closes_style;
+      Alcotest.test_case "truncate closes a style" `Quick
+        test_truncate_closes_style;
       Alcotest.test_case "ellipsize leaves a short value" `Quick
         test_ellipsize_short_enough;
       Alcotest.test_case "ellipsize with no room" `Quick test_ellipsize_no_room;
