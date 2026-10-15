@@ -25,11 +25,12 @@ val show_cursor : Format.formatter -> unit
     to [ppf] and flushes. *)
 
 val on_interrupt : (unit -> unit) -> (unit -> 'a) -> 'a
-(** [on_interrupt cleanup f] runs [f] with a SIGINT handler that calls [cleanup]
-    and then re-raises SIGINT under the default handler, so a CTRL-C still
-    terminates the process but [cleanup] runs first -- the hook a cursor-hidden
-    region uses to {!show_cursor} again before exiting, since the default
-    handler terminates before any [Fun.protect] finaliser would run. When [f]
-    returns or raises, the handler installed here gives way to the one it
-    replaced, so nested calls each put back what they found; a handler [f]
-    installed in its place is the program's own and is left standing. *)
+(** [on_interrupt cleanup f] runs [f] with a SIGINT and a SIGTERM handler that
+    call [cleanup] and then re-raise the signal under the default handler, so a
+    CTRL-C or a [kill] still terminates the process but [cleanup] runs first --
+    the hook a cursor-hidden region uses to {!show_cursor} again before exiting,
+    since the default handler terminates before any [Fun.protect] finaliser
+    would run. When [f] returns or raises, the handler installed here gives way
+    to the one it replaced, so nested calls each put back what they found; a
+    handler [f] installed in its place is the program's own and is left
+    standing. *)

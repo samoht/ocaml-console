@@ -193,6 +193,21 @@ let show_cursor_on ppf =
 let restore_terminal () =
   match !active_region with Some r -> show_cursor_on r.ppf | None -> ()
 
+(* [exit] ends the process without unwinding, so a command that calls it inside
+   a display skips the display's teardown. The exit handlers still run: one
+   resets the attributes, ends the region's last line and shows the cursor on
+   the formatter of a region still standing, so the cursor is the last thing
+   the terminal is handed. Registered once, by the first region. *)
+let restore_at_exit =
+  lazy
+    (at_exit (fun () ->
+         match !active_region with
+         | None -> ()
+         | Some r ->
+             (try Format.pp_print_string r.ppf "\027[0m\r\n"
+              with Sys_error _ -> ());
+             show_cursor_on r.ppf))
+
 (** {1 Row layout}
 
     A small composable DSL for the look of a row, in the spirit of
@@ -1108,6 +1123,7 @@ let commit t s =
    {!suspend} uses around foreign output, wrap the installed Logs reporter so a
    log line suspends the live region, and paint the initial frame. *)
 let install_region t =
+  Lazy.force restore_at_exit;
   Format.pp_print_string t.dppf hide_cursor;
   Format.pp_print_flush t.dppf ();
   install_reporter ();

@@ -296,9 +296,10 @@ val run :
 val restore_terminal : unit -> unit
 (** [restore_terminal ()] shows the cursor on the formatter of the open activity
     projection, which hid it, and flushes; without one it does nothing. {!run}
-    gives the terminal back itself on return and on an exception. A signal
-    handler that ends the process under the signal's default disposition is the
-    one exit {!run} never sees, and calls this before it re-raises. *)
+    gives the terminal back itself on return and on an exception, and an
+    [at_exit] handler gives it back when the program calls [exit] inside it. A
+    signal handler that ends the process under the signal's default disposition
+    is the one exit {!run} never sees, and calls this before it re-raises. *)
 
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] temporarily removes the activity projection and
