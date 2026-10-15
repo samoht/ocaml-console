@@ -94,7 +94,8 @@ module Report_domains = struct
     let ppf =
       Format.make_formatter
         (fun text offset length ->
-          if Domain.self () <> owner then Atomic.incr foreign;
+          if not (Int.equal (Domain.self () :> int) (owner :> int)) then
+            Atomic.incr foreign;
           on_write ();
           Buffer.add_substring buffer text offset length)
         (fun () -> ())
