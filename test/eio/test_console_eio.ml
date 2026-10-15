@@ -212,10 +212,13 @@ let test_a_handler_installed_under_run_outlives_it () =
   let stdout = Unix.dup Unix.stdout in
   let before = Sys.signal Sys.sigint Sys.Signal_default in
   Sys.set_signal Sys.sigint before;
+  let before_term = Sys.signal Sys.sigterm Sys.Signal_default in
+  Sys.set_signal Sys.sigterm before_term;
   Fun.protect ~finally:(fun () ->
       Unix.dup2 stdout Unix.stdout;
       Unix.close stdout;
-      Sys.set_signal Sys.sigint before)
+      Sys.set_signal Sys.sigint before;
+      Sys.set_signal Sys.sigterm before_term)
   @@ fun () ->
   Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
       Unix.dup2 tty Unix.stdout);
@@ -229,6 +232,18 @@ let test_a_handler_installed_under_run_outlives_it () =
           Sys.set_signal Sys.sigint own
       | Sys.Signal_handle _ | Sys.Signal_default | Sys.Signal_ignore ->
           Alcotest.fail "run installed no handler: stdout is not a terminal");
+  (* A TERM, as [kill] and a supervisor send, ends the process as a Ctrl-C
+     does, and gives the cursor back first the same way. *)
+  run (fun _display ->
+      match Sys.signal Sys.sigterm Sys.Signal_default with
+      | Sys.Signal_handle _ as own -> Sys.set_signal Sys.sigterm own
+      | Sys.Signal_default | Sys.Signal_ignore ->
+          Alcotest.fail "run installed no SIGTERM handler");
+  Alcotest.(check bool)
+    "the TERM disposition run found is back once run returns" true
+    (match Sys.signal Sys.sigterm Sys.Signal_default with
+    | Sys.Signal_default -> true
+    | Sys.Signal_handle _ | Sys.Signal_ignore -> false);
   Alcotest.(check bool)
     "the handler run found is back once run returns" true
     (is handler_installed_before_run (Sys.signal Sys.sigint Sys.Signal_default));
