@@ -34,7 +34,8 @@ let closed_reporter () =
 let reporter ~owner ~closed ~requests display =
   let emit level message =
     if Option.is_some (Eio.Promise.peek closed) then closed_reporter ();
-    if Domain.self () = owner then Console.Display.event ~level display message
+    if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
+      Console.Display.event ~level display message
     else
       Eio.Fiber.first
         (fun () ->
