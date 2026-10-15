@@ -96,20 +96,16 @@ let measured num_cols row =
   if n >= num_cols then row.cells
   else List.filteri (fun i _ -> i < n - 1) row.cells
 
-let apply_header_widths ~char_width t widths =
-  List.iteri
-    (fun i col ->
-      widths.(i) <- max widths.(i) (span_width ~char_width col.header))
-    t.columns
-
-let apply_row_widths ~char_width t widths =
+(* [widen measure t widths] raises each column's entry in [widths] to the
+   [measure] of its header and of each of its measured cells. *)
+let widen measure t widths =
   let num_cols = Array.length widths in
+  let widen_to i span = widths.(i) <- max widths.(i) (measure span) in
+  List.iteri (fun i col -> widen_to i col.header) t.columns;
   List.iter
     (fun row ->
       List.iteri
-        (fun i cell ->
-          if i < num_cols then
-            widths.(i) <- max widths.(i) (span_width ~char_width cell))
+        (fun i cell -> if i < num_cols then widen_to i cell)
         (measured num_cols row))
     t.rows
 
@@ -125,23 +121,6 @@ let span_unbroken_width ~char_width span =
     |> List.map (Width.string_width ~char_width)
   in
   span_lines span |> List.concat_map word_widths |> List.fold_left max 0
-
-let apply_header_unbroken_widths ~char_width t widths =
-  List.iteri
-    (fun i col ->
-      widths.(i) <- max widths.(i) (span_unbroken_width ~char_width col.header))
-    t.columns
-
-let apply_row_unbroken_widths ~char_width t widths =
-  let num_cols = Array.length widths in
-  List.iter
-    (fun row ->
-      List.iteri
-        (fun i cell ->
-          if i < num_cols then
-            widths.(i) <- max widths.(i) (span_unbroken_width ~char_width cell))
-        (measured num_cols row))
-    t.rows
 
 let apply_width_constraints t widths =
   List.iteri
@@ -262,10 +241,8 @@ let fit_columns max_width t =
 let calc_col_widths ~char_width ?max_width t =
   let widths = Array.make (List.length t.columns) 0 in
   let unbroken_widths = Array.make (List.length t.columns) 0 in
-  apply_header_widths ~char_width t widths;
-  apply_row_widths ~char_width t widths;
-  apply_header_unbroken_widths ~char_width t unbroken_widths;
-  apply_row_unbroken_widths ~char_width t unbroken_widths;
+  widen (span_width ~char_width) t widths;
+  widen (span_unbroken_width ~char_width) t unbroken_widths;
   apply_width_constraints t widths;
   shrink_widths_to_terminal ?max_width t unbroken_widths widths
 
