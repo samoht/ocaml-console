@@ -15,13 +15,10 @@ let capture ?header f =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-let is_infix ~affix s =
-  let n = String.length affix and m = String.length s in
-  let rec at i = i + n <= m && (String.sub s i n = affix || at (i + 1)) in
-  n = 0 || at 0
-
 let mem ~msg needle haystack =
-  Alcotest.(check bool) msg true (is_infix ~affix:needle haystack)
+  Alcotest.(check bool)
+    msg true
+    (Astring.String.is_infix ~affix:needle haystack)
 
 (* A finished task commits its label; set_result `Ok prints the verdict. *)
 let test_run_banner () =

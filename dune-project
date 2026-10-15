@@ -29,6 +29,7 @@
   uucp
   (uutf (>= 1.0))
   (alcotest :with-test)
+  (astring :with-test)
   (mdx :with-test)
   (alcobar :with-test)
   (eio_main :with-test)
@@ -49,4 +50,5 @@
   logs
   cstruct
   optint
-  (alcotest :with-test)))
+  (alcotest :with-test)
+  (astring :with-test)))

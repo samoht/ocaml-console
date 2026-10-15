@@ -24,7 +24,16 @@
   test_width
   test_input
   test_console_vte)
- (libraries console console.vte matrix.grid matrix.vte alcotest re fmt logs))
+ (libraries
+  console
+  console.vte
+  matrix.grid
+  matrix.vte
+  alcotest
+  astring
+  re
+  fmt
+  logs))
 
 (executable
  (name debug_progress)

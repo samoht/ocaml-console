@@ -7,12 +7,7 @@ open Console
 
 exception Broken_formatter
 
-let contains needle haystack =
-  let n = String.length needle and m = String.length haystack in
-  let rec loop i =
-    i + n <= m && (String.sub haystack i n = needle || loop (i + 1))
-  in
-  n = 0 || loop 0
+let contains affix s = Astring.String.is_infix ~affix s
 
 let count_occurrences needle haystack =
   let n = String.length needle and m = String.length haystack in
@@ -30,31 +25,24 @@ let fake_clock () =
 let ctx ?(is_tty = false) ?(width = 80) ?(height = 24) ~ppf ~now () =
   Display.ctx ~ppf ~now ~dimensions:(fun () -> (width, height)) ~is_tty ()
 
-let capture ?header ?bar ?theme f =
+let capture_on ~is_tty ~mode ?header ?bar ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let now, advance = fake_clock () in
   let value =
-    Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History ?header ?bar ?theme
+    Display.run ~ctx:(ctx ~is_tty ~ppf ~now ()) ~mode ?header ?bar ?theme
       (fun display -> f display advance)
   in
   Format.pp_print_flush ppf ();
   (value, Buffer.contents buffer)
 
+let capture ?header = capture_on ~is_tty:false ~mode:`History ?header
+
 (* The same session on a live display. [capture] pins [`History], which is the
    appending writer; a terminal gets [`Activity], which paints a region and
    writes what is permanent around it. A result that reaches one and not the
    other is a result a developer does not get. *)
-let capture_live ?header ?bar ?theme f =
-  let buffer = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now, advance = fake_clock () in
-  let value =
-    Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ())
-      ~mode:`Activity ?header ?bar ?theme (fun display -> f display advance)
-  in
-  Format.pp_print_flush ppf ();
-  (value, Buffer.contents buffer)
+let capture_live ?header = capture_on ~is_tty:true ~mode:`Activity ?header
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f

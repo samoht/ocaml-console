@@ -22,6 +22,7 @@ depends: [
   "cstruct"
   "optint"
   "alcotest" {with-test}
+  "astring" {with-test}
   "odoc" {with-doc}
 ]
 build: [

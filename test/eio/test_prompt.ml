@@ -39,11 +39,6 @@ let string_answer = answer Alcotest.string
 let bool_answer = answer Alcotest.bool
 let unit_answer = answer Alcotest.unit
 
-let contains ~needle s =
-  let n = String.length needle and len = String.length s in
-  let rec at i = i + n <= len && (String.sub s i n = needle || at (i + 1)) in
-  n = 0 || at 0
-
 (* A string source is not a terminal, so the default is a prompt that refuses
    every question without writing a byte. *)
 let test_a_string_source_is_not_a_terminal () =
@@ -139,7 +134,7 @@ let test_expect_refuses_without_naming_the_word () =
   Alcotest.check unit_answer "answer" Refused (seen result);
   Alcotest.(check bool)
     "the message never echoes the word" false
-    (contains ~needle:"backups" (error_message result))
+    (Astring.String.is_infix ~affix:"backups" (error_message result))
 
 let test_expect_at_end_of_input_is_refused () =
   run @@ fun () ->

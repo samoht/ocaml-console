@@ -6,11 +6,6 @@
 
 module D = Console.Display
 
-let is_infix ~affix s =
-  let n = String.length affix and m = String.length s in
-  let rec at i = i + n <= m && (String.sub s i n = affix || at (i + 1)) in
-  n = 0 || at 0
-
 let resolved p = Option.is_some (Eio.Promise.peek p)
 
 (* A context on [buf] whose clock reads zero for ever; [wait] is how the
@@ -29,7 +24,7 @@ let scene ~frame ~width:_ = [ Fmt.kstr Console.Span.text "frame %d" frame ]
 
 let on_screen ppf buf n =
   Format.pp_print_flush ppf ();
-  is_infix ~affix:(Fmt.str "frame %d" n) (Buffer.contents buf)
+  Astring.String.is_infix ~affix:(Fmt.str "frame %d" n) (Buffer.contents buf)
 
 (* Display.on_frame: the promise for frame 2 is pending through the paint of
    frame 1 and resolved by the paint of frame 2, which is then on the

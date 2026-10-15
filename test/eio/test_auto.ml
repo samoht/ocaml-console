@@ -8,11 +8,6 @@
 
 let hide_cursor = "\027[?25l"
 
-let is_infix ~affix s =
-  let n = String.length affix and m = String.length s in
-  let rec at i = i + n <= m && (String.sub s i n = affix || at (i + 1)) in
-  n = 0 || at 0
-
 let open_pty ~sw =
   match Eio_unix.Pty.open_pty ~sw () with
   | pty -> pty
@@ -104,7 +99,7 @@ let test_auto_asks_the_formatters_own_descriptor () =
   let written = read_to_mark env pty in
   Alcotest.(check bool)
     "a live region on standard error's terminal" true
-    (is_infix ~affix:hide_cursor written)
+    (Astring.String.is_infix ~affix:hide_cursor written)
 
 (* Standard error is a pipe and standard output a terminal: the display
    appends, and the pipe holds the task's line and no escape. An
@@ -135,7 +130,9 @@ let test_auto_appends_on_a_pipe () =
   in
   drain ();
   let written = Buffer.contents written in
-  Alcotest.(check bool) "no escape" false (is_infix ~affix:"\027[" written);
+  Alcotest.(check bool)
+    "no escape" false
+    (Astring.String.is_infix ~affix:"\027[" written);
   Alcotest.(check string) "the task's line" "=> step  0.0s\n" written
 
 (* Both descriptors are the same terminal; under TERM=xterm-256color the
@@ -154,14 +151,14 @@ let test_auto_appends_under_term_dumb () =
   in
   Alcotest.(check bool)
     "a live region under xterm-256color" true
-    (is_infix ~affix:hide_cursor (draw "xterm-256color"));
+    (Astring.String.is_infix ~affix:hide_cursor (draw "xterm-256color"));
   let dumb = draw "dumb" in
   Alcotest.(check bool)
     "no escape under dumb" false
-    (is_infix ~affix:"\027[" dumb);
+    (Astring.String.is_infix ~affix:"\027[" dumb);
   Alcotest.(check bool)
     "the task's line under dumb" true
-    (is_infix ~affix:"=> step  0.0s" dumb)
+    (Astring.String.is_infix ~affix:"=> step  0.0s" dumb)
 
 (* A formatter of the caller's own on standard error's channel names no
    descriptor, so [`Auto] appends; with [~fd] naming standard error, the
@@ -186,10 +183,10 @@ let test_a_formatter_of_ones_own_says_its_descriptor () =
   let unnamed = draw () in
   Alcotest.(check bool)
     "no escape without ~fd" false
-    (is_infix ~affix:"\027[" unnamed);
+    (Astring.String.is_infix ~affix:"\027[" unnamed);
   Alcotest.(check bool)
     "a live region with ~fd" true
-    (is_infix ~affix:hide_cursor (draw ~fd:Unix.stderr ()))
+    (Astring.String.is_infix ~affix:hide_cursor (draw ~fd:Unix.stderr ()))
 
 let suite =
   ( "auto",

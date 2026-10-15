@@ -10,6 +10,7 @@
   eio.mock
   eio_main
   alcotest
+  astring
   fmt
   logs
   unix))
