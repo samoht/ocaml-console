@@ -127,6 +127,20 @@ let weird =
 
 let pick_weird c = weird.(Char.code c mod Array.length weird)
 
+(* [pick lo hi i] is [i] folded into the range [lo] to [hi]. *)
+let pick lo hi i = lo + (i mod (hi - lo + 1))
+
+(* [byte s k] is the [k]th byte of [s], or [0] past its end. *)
+let byte s k = if String.length s > k then Char.code s.[k] else 0
+
+(* [ticking_clock ()] is a clock that moves a tenth of a second each time it
+   is read. *)
+let ticking_clock () =
+  let clock = ref 0.0 in
+  fun () ->
+    clock := !clock +. 0.1;
+    !clock
+
 (* A task marker [Rn] -- one per emitted row, so tasks never share a line. *)
 let task_re = Re.compile Re.(seq [ str "[R"; rep1 digit; char ']' ])
 
@@ -192,19 +206,14 @@ let step_display_op d live fresh c =
   | _ -> Display.tick d
 
 let test_display_invariants s =
-  let pick lo hi i = lo + (i mod (hi - lo + 1)) in
-  let byte k = if String.length s > k then Char.code s.[k] else 0 in
+  let byte = byte s in
   (* height >= 3: a header plus a scrolling region and a cursor row need that
      many; a two-row terminal cannot show a header without it scrolling off. *)
   let height = pick 3 16 (byte 0) and width = pick 8 60 (byte 1) in
   let vte = Vte.create ~rows:height ~cols:width () in
   let buf = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let header = "[HEADER]" ^ pick_weird (Char.chr (byte 2)) in
   let sync () =
     Format.pp_print_flush ppf ();
@@ -369,11 +378,7 @@ let test_collapse n =
   let height = 6 and width = 40 in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   let screen =
     Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
@@ -407,11 +412,7 @@ let test_nesting depth =
   let width = 70 and height = 40 in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   let rows =
     Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
@@ -453,11 +454,7 @@ let test_bar cur total wbyte =
   let width = 16 + (abs wbyte mod 200) in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:4 ~cols:width () in
   let bar = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
@@ -612,11 +609,7 @@ let test_composed wbyte =
   in
   let buf = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:12 ~cols:width () in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:12)
     ~mode:`Activity ~width ~height:12 ~header:"[H]" (fun d ->
@@ -641,17 +634,12 @@ let test_composed wbyte =
    miscounted as [D1]; a marker may legitimately drop to zero when the timer
    crowds it off a narrow line, but it must never appear twice. *)
 let test_scrollback_no_dup s =
-  let byte k = if String.length s > k then Char.code s.[k] else 0 in
-  let pick lo hi i = lo + (i mod (hi - lo + 1)) in
+  let byte = byte s in
   let height = pick 3 8 (byte 0) and width = pick 12 50 (byte 1) in
   let n = pick 6 24 (byte 2) in
   let buf = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
     ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
@@ -682,17 +670,12 @@ let test_scrollback_no_dup s =
    missing from the history is a dropped-from-model bug, one appearing twice a
    re-emitted redraw. *)
 let test_scrollback_collapse_commits s =
-  let byte k = if String.length s > k then Char.code s.[k] else 0 in
-  let pick lo hi i = lo + (i mod (hi - lo + 1)) in
+  let byte = byte s in
   let height = pick 3 7 (byte 0) and width = pick 40 70 (byte 1) in
   let n = pick (2 * height) (4 * height) (byte 2) in
   let buf = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buf in
-  let clock = ref 0.0 in
-  let now () =
-    clock := !clock +. 0.1;
-    !clock
-  in
+  let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
     ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
@@ -718,8 +701,7 @@ let test_scrollback_collapse_commits s =
    clock is the point: with the timers held still, an unchanged tree renders the
    identical frame, so a correct display has nothing to redraw. *)
 let test_minimal_redraw s =
-  let byte k = if String.length s > k then Char.code s.[k] else 0 in
-  let pick lo hi i = lo + (i mod (hi - lo + 1)) in
+  let byte = byte s in
   let height = pick 3 16 (byte 0) and width = pick 8 60 (byte 1) in
   let buf = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buf in
