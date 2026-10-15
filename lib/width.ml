@@ -165,13 +165,6 @@ let starts_at str prefix at =
   let plen = String.length prefix in
   at + plen <= String.length str && String.sub str at plen = prefix
 
-let contains str prefix =
-  let rec loop at =
-    at + String.length prefix <= String.length str
-    && (starts_at str prefix at || loop (at + 1))
-  in
-  loop 0
-
 let hyperlink_is_open str =
   let prefix = "\027]8;;" and terminator = "\027\\" in
   let rec find_terminator at =
@@ -189,6 +182,14 @@ let hyperlink_is_open str =
     else loop (at + 1) open_
   in
   loop 0 false
+
+(* Whatever the cut left open, closed: a style the last SGR left on, and a
+   hyperlink whose closing OSC 8 the cut dropped. *)
+let closing rendered =
+  let buffer = Buffer.create 8 in
+  if Render.style_is_open rendered then Buffer.add_string buffer "\027[0m";
+  if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\";
+  Buffer.contents buffer
 
 let normalize_utf8 str =
   let buffer = Buffer.create (String.length str) in
@@ -244,11 +245,7 @@ let truncate_graphemes target_width str =
       loop stop
   in
   loop 0;
-  if !stopped then begin
-    let rendered = Buffer.contents buffer in
-    if contains rendered "\027[" then Buffer.add_string buffer "\027[0m";
-    if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\"
-  end;
+  if !stopped then Buffer.add_string buffer (closing (Buffer.contents buffer));
   Buffer.contents buffer
 
 let truncate_codepoints ~char_width target_width str =
@@ -262,9 +259,7 @@ let truncate_codepoints ~char_width target_width str =
       truncate_loop ~char_width decoder ~buf ~width ~target_width ~state
     in
     if truncated then begin
-      let rendered = Buffer.contents buf in
-      if contains rendered "\027[" then Buffer.add_string buf "\027[0m";
-      if hyperlink_is_open rendered then Buffer.add_string buf "\027]8;;\027\\"
+      Buffer.add_string buf (closing (Buffer.contents buf))
     end;
     Buffer.contents buf
 
@@ -345,13 +340,6 @@ let take target atoms =
       atoms
   in
   kept
-
-(* Whatever the cut left open, closed. *)
-let closing rendered =
-  let buffer = Buffer.create 8 in
-  if contains rendered "\027[" then Buffer.add_string buffer "\027[0m";
-  if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\";
-  Buffer.contents buffer
 
 let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
     str =

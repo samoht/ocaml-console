@@ -60,6 +60,17 @@ let sgr_closes_style seq =
   in
   last = "" || int_of_string_opt last = Some 0
 
+let style_is_open s =
+  let n = String.length s in
+  let rec scan i open_ =
+    if i >= n then open_
+    else
+      match sgr_length s i with
+      | 0 -> scan (i + 1) open_
+      | len -> scan (i + len) (not (sgr_closes_style (String.sub s i len)))
+  in
+  scan 0 false
+
 let sanitize_styles ?keep_newlines str =
   let n = String.length str in
   let buf = Buffer.create n in

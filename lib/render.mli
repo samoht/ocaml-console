@@ -19,6 +19,10 @@ val sanitize_styles : ?keep_newlines:bool -> string -> string
     SGR sequence survives, and the result is closed with an SGR reset when the
     last one left a style open. *)
 
+val style_is_open : string -> bool
+(** [style_is_open s] is [true] iff the last SGR sequence in [s] leaves a style
+    on, so that what follows [s] would be drawn in it. *)
+
 val newline : Format.formatter -> unit
 (** [newline ppf] ends one output row on [ppf]. An ANSI formatter gets CRLF, so
     that a row filling the terminal exactly cannot leave the terminal in its
