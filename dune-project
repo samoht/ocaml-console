@@ -51,4 +51,5 @@
   cstruct
   optint
   (alcotest :with-test)
-  (astring :with-test)))
+  (astring :with-test)
+  (eio_main :with-test)))

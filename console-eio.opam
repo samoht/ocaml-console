@@ -23,6 +23,7 @@ depends: [
   "optint"
   "alcotest" {with-test}
   "astring" {with-test}
+  "eio_main" {with-test}
   "odoc" {with-doc}
 ]
 build: [
