@@ -49,13 +49,15 @@ val v :
       }
 
     let tree =
-      Console.Tree.v
+      Console.Tree.v ~guide:Console.Guide.ascii
         (fun render (dir : dir) ->
           Console.Tree.Node
             (Console.Span.text dir.name, List.map render dir.children))
         root_dir
 
-    let () = assert (String.length (Console.Tree.to_string tree) > 0)
+    let () =
+      assert (
+        Console.Tree.to_string tree = "root\n+-- bin\n+-- etc\n    +-- hosts")
     ]} *)
 
 (** {1:guides Guides} *)

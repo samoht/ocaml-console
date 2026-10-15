@@ -329,7 +329,9 @@ val task :
 (** [task display label] starts a task. With [~id], repeated calls return the
     same task, so event streams can use their native stable IDs without keeping
     a registry. The first call fixes its parent and rendering options; use
-    {!set_label} when a later start event supplies a better label.
+    {!set_label} when a later start event supplies a better label. [label] is
+    sanitized: a newline or another control character becomes a space, so a task
+    is always drawn on one row.
 
     {b The first parent wins.} A later call offering a different [parent] for a
     known [id] returns the existing task where it already sits, and does not
@@ -365,7 +367,8 @@ val task :
 *)
 
 val set_label : task -> string -> unit
-(** [set_label task label] atomically changes the live task label. *)
+(** [set_label task label] atomically changes the live label of [task] to
+    [label], sanitized as in {!task}. *)
 
 val set_count : task -> cur:int -> total:int -> unit
 (** [set_count task ~cur ~total] records monotonic count progress. Estimates

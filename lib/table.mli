@@ -40,8 +40,8 @@ val column :
   ?style:Style.t ->
   string ->
   column
-(** [column ?align ?min_width ?max_width ?overflow ?style header] is a column
-    specification.
+(** [column ?align ?min_width ?max_width ?overflow ?shrinkable ?style header] is
+    a column specification.
 
     - [align] is the text alignment (default [`Left]).
     - [min_width] is the preferred minimum column width. Terminal fitting may
