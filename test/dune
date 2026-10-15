@@ -35,16 +35,6 @@
   fmt
   logs))
 
-(executable
- (name debug_progress)
- (modules debug_progress)
- (libraries console unix fmt))
-
-(executable
- (name minimal_progress)
- (modules minimal_progress)
- (libraries unix fmt))
-
 (mdx
  (package console)
  (files fitting.md)
