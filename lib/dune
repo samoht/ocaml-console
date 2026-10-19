@@ -10,7 +10,9 @@
   display_row
   display_state
   display_text
-  inked))
+  inked
+  sgr
+  span_core))
 
 (mdx
  (package console)

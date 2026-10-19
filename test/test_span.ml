@@ -116,18 +116,6 @@ let test_wrap_preserves_styles () =
     "blue second line" true
     (contains "\027[34m" (List.nth ansi 1))
 
-(* Every line after the first starts under the text after the first word, and
-   still fits; a hang of more than half the width is clamped to half. *)
-let test_wrap_hang () =
-  Alcotest.(check (list string))
-    "hanging"
-    [ "abcd efgh"; "     ijkl"; "     mnop" ]
-    (strings (Span.wrap_hanging 10 (Span.text "abcd efgh ijkl mnop")));
-  Alcotest.(check (list string))
-    "clamped"
-    [ "abcdef"; "   gh"; "   ij" ]
-    (strings (Span.wrap_hanging 7 (Span.text "abcdef gh ij")))
-
 let test_link () =
   let span =
     Span.link ~style:Style.underline ~uri:"https://example.com" "docs"
@@ -207,7 +195,6 @@ let suite =
         test_wrap_oversized;
       Alcotest.test_case "wrap preserves styles" `Quick
         test_wrap_preserves_styles;
-      Alcotest.test_case "wrap hang" `Quick test_wrap_hang;
       Alcotest.test_case "link" `Quick test_link;
       Alcotest.test_case "runs" `Quick test_runs;
       Alcotest.test_case "depth" `Quick test_depth;

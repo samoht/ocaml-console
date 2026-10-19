@@ -53,7 +53,7 @@ let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
         if got > expected || (got = 0 && expected > 0) then
           Fmt.invalid_arg
             "Console.Table.of_rows: expected 1 to %d cells, got %d" expected got;
-        Array.of_list (List.map Span.lines cells))
+        Array.of_list (List.map Span_core.lines cells))
       rows
   in
   let columns = Array.of_list columns in
@@ -70,7 +70,7 @@ let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
       };
     header_style;
     columns;
-    headers = Array.map (fun c -> Span.lines c.header) columns;
+    headers = Array.map (fun c -> Span_core.lines c.header) columns;
     rows;
   }
 
@@ -100,7 +100,7 @@ let lines_width = List.fold_left (fun n l -> max n (Span.width l)) 0
 (* The widest word of a cell: the width a column keeps while another column
    can still give room, so that an identifier stays whole. *)
 let word_width lines =
-  List.fold_left (fun n line -> max n (Span.widest_word line)) 0 lines
+  List.fold_left (fun n line -> max n (Span_core.widest_word line)) 0 lines
 
 (* A short row's last cell spans the columns it leaves and is measured
    against none of them. *)
@@ -317,7 +317,7 @@ let lines ?max_width t =
     | Some w -> List.map (Span.truncate w) lines
 
 let pp ppf t =
-  Span.pp_lines ppf (lines ~max_width:(Format.pp_get_margin ppf ()) t)
+  Span_core.pp_lines ppf (lines ~max_width:(Format.pp_get_margin ppf ()) t)
 
 let to_string ?styled ?width t =
-  Span.string_of_lines ?styled (lines ?max_width:width t)
+  Span_core.string_of_lines ?styled (lines ?max_width:width t)

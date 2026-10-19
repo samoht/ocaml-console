@@ -28,8 +28,8 @@ let label_lines ~room label =
     (fun line ->
       if room <= 0 then [ Span.empty ]
       else if Span.width line <= room then [ line ]
-      else Span.wrap_hanging room line)
-    (Span.lines label)
+      else Span_core.wrap_hanging room line)
+    (Span_core.lines label)
 
 let lines ~margin t =
   let guide = t.guide in

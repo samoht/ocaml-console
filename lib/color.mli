@@ -14,7 +14,7 @@
 
 (** {1:colours Colours} *)
 
-type t
+type t = Sgr.color
 (** The type for terminal colours. *)
 
 val rgb : int -> int -> int -> t
@@ -141,14 +141,3 @@ val downsample : depth -> t -> t
 val pp : t Fmt.t
 (** [pp] formats an RGB colour as [#rrggbb], which {!of_hex} reads back, and a
     named or palette colour by its name or number. *)
-
-(**/**)
-
-val to_fg_code : t -> string
-(** [to_fg_code c] is the parameters of the escape code that sets the text
-    colour to [c]. *)
-
-val to_bg_code : t -> string
-(** [to_bg_code c] is like {!to_fg_code} for the background. *)
-
-(**/**)

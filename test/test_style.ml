@@ -5,12 +5,17 @@
 
 open Console
 
+(* The escape code a style starts its text with, as a span prints it. *)
+let to_ansi style =
+  let s = Span.to_string ~styled:true (Span.styled style "x") in
+  String.sub s 0 (String.index s 'x')
+
 let test_none () =
-  let ansi = Style.to_ansi Style.none in
+  let ansi = to_ansi Style.none in
   Alcotest.(check string) "none produces empty" "" ansi
 
 let test_bold () =
-  let ansi = Style.to_ansi Style.bold in
+  let ansi = to_ansi Style.bold in
   Alcotest.(check string) "bold ANSI code" "\027[1m" ansi
 
 let test_composition () =
@@ -26,7 +31,7 @@ let test_colours () =
     "foreground" (Some "#ff0000")
     (Option.map (Fmt.str "%a" Color.pp) (Style.foreground s));
   Alcotest.(check string)
-    "to_ansi" "\027[1;38;2;255;0;0;48;2;0;0;255m" (Style.to_ansi s);
+    "to_ansi" "\027[1;38;2;255;0;0;48;2;0;0;255m" (to_ansi s);
   Alcotest.(check bool)
     "the right colour wins" true
     (Style.equal (Style.fg blue) Style.(fg red + fg blue))

@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = {
+type t = Sgr.style = {
   bold : bool;
   faint : bool;
   italic : bool;
@@ -48,37 +48,8 @@ let ( + ) left right =
     bg = merge_opt left.bg right.bg;
   }
 
-(* Active boolean attributes paired with their ANSI code and human name.
-   [bool_attrs] and [bool_attr_names] are filters over this list. *)
-let active_bool_attrs style =
-  let pick flag code name = if flag then Some (code, name) else None in
-  List.filter_map
-    (fun x -> x)
-    [
-      pick style.bold "1" "bold";
-      pick style.faint "2" "faint";
-      pick style.italic "3" "italic";
-      pick style.underline "4" "underline";
-      pick style.reverse "7" "reverse";
-      pick style.strikethrough "9" "strikethrough";
-    ]
-
-let bool_attrs style = List.map fst (active_bool_attrs style)
 let foreground style = style.fg
 let background style = style.bg
-
-let to_ansi ?(depth = `True_color) style =
-  let colour code c = code (Color.downsample depth c) in
-  let codes =
-    bool_attrs style
-    @ Option.to_list (Option.map (colour Color.to_fg_code) style.fg)
-    @ Option.to_list (Option.map (colour Color.to_bg_code) style.bg)
-  in
-  match codes with
-  | [] -> ""
-  | _ -> String.concat "" [ "\027["; String.concat ";" codes; "m" ]
-
-let reset = "\027[0m"
 
 let is_none style =
   (not style.bold) && (not style.faint) && (not style.italic)
@@ -101,12 +72,10 @@ let equal left right =
   && opt_equal Color.equal left.fg right.fg
   && opt_equal Color.equal left.bg right.bg
 
-let bool_attr_names style = List.map snd (active_bool_attrs style)
-
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"
   else
-    let parts = bool_attr_names style in
+    let parts = List.map snd (Sgr.attributes style) in
     let parts =
       match style.fg with
       | Some p -> parts @ [ Fmt.str "fg(%a)" Color.pp p ]

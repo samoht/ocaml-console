@@ -21,7 +21,7 @@
 
 (** {1:spans Spans} *)
 
-type t
+type t = Span_core.t
 (** The type for spans. *)
 
 val empty : t
@@ -88,29 +88,3 @@ val pp : t Fmt.t
 val to_string : ?styled:bool -> t -> string
 (** [to_string s] is [s] with its styles and links iff [styled] (defaults to
     [false]), in 24-bit colour. *)
-
-(**/**)
-
-val lines : t -> t list
-(** [lines s] are the lines of [s], without their line feeds. It is never empty.
-*)
-
-val wrap_hanging : int -> t -> t list
-(** [wrap_hanging w s] is like {!wrap} but the lines after the first of each
-    line start under the text after its first word, at most [w / 2] cells in. *)
-
-val widest_word : t -> int
-(** [widest_word s] is the width of the widest run of [s] without a space. *)
-
-val render : ?depth:Color.depth -> t -> string
-(** [render ~depth s] is [s] with its styles at [depth], or its text alone
-    without [depth]. *)
-
-val pp_lines : t list Fmt.t
-(** [pp_lines] formats spans one per line, with no line end after the last. *)
-
-val string_of_lines : ?styled:bool -> t list -> string
-(** [string_of_lines lines] is [lines] joined by line feeds, each as
-    {!to_string} gives it. *)
-
-(**/**)

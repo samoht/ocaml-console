@@ -69,7 +69,10 @@ let test_downsample r g b =
     (fun d ->
       let once = Color.downsample d c in
       check (Color.equal once (Color.downsample d once));
-      let code = Color.to_fg_code once in
+      let code =
+        let s = Span.to_string ~styled:true (Span.styled (Style.fg once) "x") in
+        String.sub s 2 (String.index s 'm' - 2)
+      in
       match d with
       | `Ansi_256 -> check (String.starts_with ~prefix:"38;5;" code)
       | `Ansi_16 -> check (not (String.contains code ';'))

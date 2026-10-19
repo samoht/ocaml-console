@@ -62,12 +62,21 @@ let test_invalid_constructors () =
     (Invalid_argument "Console.Color.palette: index outside 0..255") (fun () ->
       ignore (Color.palette 256))
 
+(* The parameters of the escape code that selects a colour, as a span in
+   that colour prints it. *)
+let code style c =
+  let s = Span.to_string ~styled:true (Span.styled (style c) "x") in
+  String.sub s 2 (String.index s 'm' - 2)
+
+let to_fg_code = code Style.fg
+let to_bg_code = code Style.bg
+
 let test_codes () =
   let check = Alcotest.(check string) in
-  check "red foreground" "31" (Color.to_fg_code Color.red);
-  check "bright cyan background" "106" (Color.to_bg_code Color.bright_cyan);
-  check "RGB foreground" "38;2;1;2;3" (Color.to_fg_code (Color.rgb 1 2 3));
-  check "palette background" "48;5;42" (Color.to_bg_code (Color.palette 42))
+  check "red foreground" "31" (to_fg_code Color.red);
+  check "bright cyan background" "106" (to_bg_code Color.bright_cyan);
+  check "RGB foreground" "38;2;1;2;3" (to_fg_code (Color.rgb 1 2 3));
+  check "palette background" "48;5;42" (to_bg_code (Color.palette 42))
 
 let color = Alcotest.testable Color.pp Color.equal
 
@@ -141,13 +150,13 @@ let test_codes_at_depth () =
   let at d c = Color.downsample d c in
   Alcotest.(check string)
     "foreground" "38;5;196"
-    (Color.to_fg_code (at `Ansi_256 (Color.rgb 255 0 0)));
+    (to_fg_code (at `Ansi_256 (Color.rgb 255 0 0)));
   Alcotest.(check string)
     "background" "48;5;21"
-    (Color.to_bg_code (at `Ansi_256 (Color.rgb 0 0 255)));
+    (to_bg_code (at `Ansi_256 (Color.rgb 0 0 255)));
   Alcotest.(check string)
     "as given" "38;2;255;0;0"
-    (Color.to_fg_code (Color.rgb 255 0 0))
+    (to_fg_code (Color.rgb 255 0 0))
 
 let suite =
   ( "color",

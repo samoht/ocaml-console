@@ -34,7 +34,7 @@ let v ?theme ?border ?title ?subtitle ?(padding = 1) ?width content =
   | _ -> ());
   let title = Option.map Widget.one_line title
   and subtitle = Option.map Widget.one_line subtitle in
-  { border; title; subtitle; padding; width; lines = Span.lines content }
+  { border; title; subtitle; padding; width; lines = Span_core.lines content }
 
 let natural_width panel =
   let label = function Some span -> Span.width span + 2 | None -> 0 in
@@ -64,7 +64,7 @@ let fitted_lines panel cw =
       (fun line ->
         if Span.width line <= cw then [ line ]
         else if panel.width <> None then [ Span.truncate cw line ]
-        else Span.wrap_hanging cw line)
+        else Span_core.wrap_hanging cw line)
       panel.lines
 
 let pad = Widget.pad

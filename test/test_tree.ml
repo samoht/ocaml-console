@@ -92,9 +92,28 @@ let test_guide_style () =
      \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80 b"
     (Tree.to_string tree)
 
+let at_margin margin t =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf margin;
+  Fmt.pf ppf "%a%!" Tree.pp t;
+  Buffer.contents buf
+
+(* A label wider than the margin wraps, each line after the first under the
+   text after its first word; a hang of more than half the width is clamped to
+   half. *)
+let test_wrap_hang () =
+  Alcotest.(check string)
+    "hanging" "abcd efgh\n     ijkl\n     mnop"
+    (at_margin 10 (Tree.v (Span.text "abcd efgh ijkl mnop") []));
+  Alcotest.(check string)
+    "clamped" "abcdef\n   gh\n   ij"
+    (at_margin 7 (Tree.v (Span.text "abcdef gh ij") []))
+
 let suite =
   ( "tree",
     [
+      Alcotest.test_case "wrapped label hangs" `Quick test_wrap_hang;
       Alcotest.test_case "guide style" `Quick test_guide_style;
       Alcotest.test_case "guides" `Quick test_guides;
       Alcotest.test_case "render exact" `Quick test_render_exact;

@@ -20,7 +20,7 @@ let write t s =
       out.out_flush ()
     with Sys_error _ -> ()
 
-let render t span = Span.render ?depth:t.depth span
+let render t span = Span_core.render ?depth:t.depth span
 
 (* {1 The frame} *)
 

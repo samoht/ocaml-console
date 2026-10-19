@@ -3,25 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type ansi =
-  [ `Black
-  | `Red
-  | `Green
-  | `Yellow
-  | `Blue
-  | `Magenta
-  | `Cyan
-  | `White
-  | `Bright_black
-  | `Bright_red
-  | `Bright_green
-  | `Bright_yellow
-  | `Bright_blue
-  | `Bright_magenta
-  | `Bright_cyan
-  | `Bright_white ]
-
-type t = Ansi of ansi | Rgb of int * int * int | Palette of int
+type t = Sgr.color =
+  | Ansi of Sgr.ansi
+  | Rgb of int * int * int
+  | Palette of int
 
 let rgb r g b =
   if r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 then
@@ -77,22 +62,6 @@ let bright_blue = Ansi `Bright_blue
 let bright_magenta = Ansi `Bright_magenta
 let bright_cyan = Ansi `Bright_cyan
 let bright_white = Ansi `Bright_white
-
-let ansi_position = function
-  | `Black | `Bright_black -> 0
-  | `Red | `Bright_red -> 1
-  | `Green | `Bright_green -> 2
-  | `Yellow | `Bright_yellow -> 3
-  | `Blue | `Bright_blue -> 4
-  | `Magenta | `Bright_magenta -> 5
-  | `Cyan | `Bright_cyan -> 6
-  | `White | `Bright_white -> 7
-
-let is_bright = function
-  | `Bright_black | `Bright_red | `Bright_green | `Bright_yellow | `Bright_blue
-  | `Bright_magenta | `Bright_cyan | `Bright_white ->
-      true
-  | _ -> false
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
 
@@ -238,19 +207,6 @@ let scale f c =
     if Float.is_nan x then 0 else int_of_float (Float.max 0. (Float.min 255. x))
   in
   Rgb (s r, s g, s b)
-
-let to_code ~normal ~bright ~extended c =
-  match c with
-  | Ansi color ->
-      string_of_int
-        ((if is_bright color then bright else normal) + ansi_position color)
-  | Rgb (r, g, b) ->
-      String.concat ";" (List.map string_of_int [ extended; 2; r; g; b ])
-  | Palette index ->
-      String.concat ";" (List.map string_of_int [ extended; 5; index ])
-
-let to_fg_code = to_code ~normal:30 ~bright:90 ~extended:38
-let to_bg_code = to_code ~normal:40 ~bright:100 ~extended:48
 
 let equal left right =
   match (left, right) with

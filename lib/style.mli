@@ -10,7 +10,7 @@
 
 (** {1:styles Styles} *)
 
-type t
+type t = Sgr.style
 (** The type for styles. *)
 
 val none : t
@@ -64,15 +64,3 @@ val equal : t -> t -> bool
 
 val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)
-
-(**/**)
-
-val to_ansi : ?depth:Color.depth -> t -> string
-(** [to_ansi ~depth s] is the escape code that starts [s], its colours as a
-    terminal of [depth] shows them (defaults to [`True_color]), or [""] for
-    {!none}. *)
-
-val reset : string
-(** [reset] is the escape code that turns every attribute off. *)
-
-(**/**)
