@@ -142,9 +142,15 @@ let test_stacked_large_counts () =
 let test_spread_zero () =
   check_plain "zero cells requested" "" (Bar.spread ~width:0 ~scale:1. 0.5 1.)
 
+let test_stacked_product () =
+  check_plain "the only part receives every cell" "██"
+    (Bar.stacked ~width:2 [ (max_int, red) ])
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "stacked keeps width with a large single count" `Quick
+        test_stacked_product;
       Alcotest.test_case "spread respects zero width" `Quick test_spread_zero;
       Alcotest.test_case "stacked accepts large counts" `Quick
         test_stacked_large_counts;
