@@ -1,8 +1,8 @@
 # Fitting a row to the terminal's width
 
 A summary row is one line: what does not fit is left out, and the row says
-how much it left out and where the whole value can be read. These cases are
-the contract of `Width.elide` and of a `Table` fitted to a width.
+how much it left out. These cases are the contract of a `Table` fitted to a
+width.
 
 ```ocaml
 open Console
@@ -12,94 +12,8 @@ let paths =
     (List.init 4000 (fun i -> Printf.sprintf "_build/p%d" (i + 1)))
 
 let changed = "changed paths: " ^ paths
-let refused = "check could not run: consumer /tmp/c has changed paths: " ^ paths
-```
-
-## A list keeps its leading items and counts the others
-
-A value that fits is itself.
-
-```ocaml
-# Width.elide 20 "a, b"
-- : string = "a, b"
-```
-
-Items are separated by `", "`; the leading ones that fit stay whole, then
-`and N more` for the N left out.
-
-```ocaml
-# Width.elide 40 changed
-- : string = "changed paths: _build/p1 and 3999 more"
-```
-
-`see` follows the count and names where the value is read whole; the room
-it takes is the items'.
-
-```ocaml
-# Width.elide ~see:" (mq status x)" 60 changed
-- : string = "changed paths: _build/p1 and 3999 more (mq status x)"
-# Width.elide ~see:" (mq status x)" 80 changed
-- : string =
-"changed paths: _build/p1, _build/p2, _build/p3 and 3997 more (mq status x)"
-```
-
-A separator inside brackets does not end an item.
-
-```ocaml
-# Width.elide 33 "checks failed (build, test), lint skipped, fmt skipped"
-- : string = "checks failed... and 2 more"
-```
-
-## An item too wide alone keeps its leading words
-
-When the first item does not fit, its leading words that do are kept
-(`Width.shorten`), then `...` marks the cut, then the count and `see`.
-
-```ocaml
-# Width.elide ~see:" (mq status x)" 50 refused
-- : string = "check could not... and 3999 more (mq status x)"
-```
-
-A middle dot between spaces separates items as a comma does.
-
-```ocaml
-# let queue = "1 queued · checking docs-mq/workflow (check, 11m15s) · overdue since 16:16"
-val queue : string =
+let queue =
   "1 queued · checking docs-mq/workflow (check, 11m15s) · overdue since 16:16"
-# Width.elide 30 queue
-- : string = "1 queued and 2 more"
-```
-
-What is kept ends on a word, never on the `·` that joined it to the next.
-
-```ocaml
-# Width.elide 20 queue
-- : string = "1 queued and 2 more"
-# Width.shorten 12 queue
-- : string = "1 queued"
-```
-
-## When no word fits, the pointer alone
-
-There is never a count without the items it counts: with no word of the
-first item in the room, `see` alone is left, without its leading spaces,
-when it fits, else the mark alone when it fits, else nothing: no word is
-cut.
-
-```ocaml
-# Width.elide ~see:" (mq status x)" 20 refused
-- : string = "(mq status x)"
-# Width.elide ~see:" (mq status x)" 5 refused
-- : string = "..."
-# Width.elide 2 refused
-- : string = ""
-```
-
-Widths are terminal cells: a wide glyph takes two.
-
-```ocaml
-# Width.elide ~see:" (mq status 修正)" 44 refused
-- : string = "check... and 3999 more (mq status 修正)"
 ```
 
 ## A table row fitted to a width
@@ -130,7 +44,8 @@ main
 - : unit = ()
 ```
 
-An `` `Elide `` column fits its cells with `Width.elide`. A spanning cell takes the overflow of the column it
+An `` `Elide `` column keeps the leading items of a list that fit, then says
+how many it left out. A spanning cell takes the overflow of the column it
 starts in. A column that is not shrinkable keeps its width while another
 yields.
 

@@ -17,8 +17,9 @@
     a multi-byte one, even when its bytes arrive across separate {!feed} calls)
     is inserted, backspace erases the character before the cursor, and the left
     and right arrows step over one character. A character's width in cells is
-    measured as {!Width} measures it, so cursor motion is exact for wide CJK and
-    emoji. {!crlf} is the matching output-side translation a terminal expects.
+    measured as {!Span.width} measures it, so cursor motion is exact for wide
+    CJK and emoji. {!crlf} is the matching output-side translation a terminal
+    expects.
 
     The key bindings and the history and completion model follow Daniel
     Buenzli's [down] toplevel line editor (ISC licensed). *)

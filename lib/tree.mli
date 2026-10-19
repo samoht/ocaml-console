@@ -63,7 +63,7 @@ val pp : t Fmt.t
 (** [pp] formats a tree, one node per row behind its guide. The formatter's
     margin caps every row: a label wider than the room its guide leaves wraps at
     its words ({!Span.wrap}), each continuation hanging under the text after the
-    label's first word ({!Span.hanging}) beside the guide of its level. *)
+    label's first word beside the guide of its level. *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string tree] is [tree] rendered at its natural width, with ANSI styling

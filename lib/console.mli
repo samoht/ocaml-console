@@ -6,7 +6,7 @@
 (** Terminal styling and layout for command-line tools.
 
     A {!Span.t} is the unit of output: a run of text carrying a {!Style.t} -- a
-    {!Color.t}, bold, italic, and so on. {!Width} measures spans the way a
+    {!Color.t}, bold, italic, and so on. {!Span.width} measures spans the way a
     terminal does, counting wide CJK and emoji cells rather than bytes, so the
     widgets align correctly. {!Panel}, {!Table}, {!Tree} and {!Rule} compose
     spans into bordered, columned, nested and divided blocks; {!Border} and
@@ -155,9 +155,6 @@ module Style = Style
 
 module Gradient = Gradient
 (** Linear colour gradients laid over terminal cells. *)
-
-module Width = Width
-(** The display width of text in terminal cells, counting wide glyphs as two. *)
 
 module Span = Span
 (** A run of styled text: the unit every widget lays out. *)

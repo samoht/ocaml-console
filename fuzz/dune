@@ -1,6 +1,19 @@
+; Width is private to the library; the properties compile it in.
+
+(copy_files# ../lib/width.{ml,mli})
+
 (executable
  (name fuzz)
- (libraries console matrix.grid matrix.vte fmt re uutf alcobar))
+ (libraries
+  console
+  console.text
+  matrix.glyph
+  matrix.grid
+  matrix.vte
+  fmt
+  re
+  uutf
+  alcobar))
 
 ; The default per-test budget (2s) makes this VT-emulator-heavy suite a ~20s
 ; inner-loop tax: ~9 properties render a Display, feed a real terminal emulator

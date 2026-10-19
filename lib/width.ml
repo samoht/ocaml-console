@@ -101,34 +101,6 @@ let truncate target_width str =
     if List.compare_lengths taken atoms = 0 then kept else kept ^ closing kept
 
 let ellipsis = "..."
-
-let ellipsize ?(at = `Middle) target_width str =
-  if target_width <= 0 then ""
-  else if string_width str <= target_width then str
-  else if target_width <= String.length ellipsis then
-    String.sub ellipsis 0 target_width
-  else
-    let atoms = atoms str in
-    let keep = target_width - String.length ellipsis in
-    match at with
-    | `Start ->
-        let kept = List.rev (take keep (List.rev atoms)) in
-        let rec from_slash = function
-          | [] -> kept
-          | "/" :: _ as rest -> rest
-          | _ :: rest -> from_slash rest
-        in
-        let tail = String.concat "" (from_slash kept) in
-        String.concat "" [ ellipsis; tail; closing tail ]
-    | `Middle ->
-        let head_width = (keep + 1) / 2 in
-        let head = String.concat "" (take head_width atoms) in
-        let tail =
-          String.concat ""
-            (List.rev (take (keep - head_width) (List.rev atoms)))
-        in
-        String.concat "" [ head; closing head; ellipsis; tail; closing tail ]
-
 let is_space (piece, _) = String.equal piece " "
 
 let is_escape (piece, width) =
@@ -265,28 +237,17 @@ let items str =
 
 let more n = if n = 0 then "" else " and " ^ string_of_int n ^ " more"
 
-let elide ?(see = "") target_width str =
+let elide target_width str =
   let width = string_width in
   if width str <= target_width then str
   else
-    let alone () =
-      let see =
-        let i = ref 0 in
-        while !i < String.length see && see.[!i] = ' ' do
-          incr i
-        done;
-        String.sub see !i (String.length see - !i)
-      in
-      if see <> "" && width see <= target_width then see
-      else if width ellipsis <= target_width then ellipsis
-      else ""
-    in
+    let alone () = if width ellipsis <= target_width then ellipsis else "" in
     match items str with
     | [] -> alone ()
     | (_, first) :: rest -> (
         let total = 1 + List.length rest in
         let fits kept k =
-          let c = kept ^ more (total - k) ^ see in
+          let c = kept ^ more (total - k) in
           if width c <= target_width then Some c else None
         in
         let rec longest kept k best = function
@@ -298,7 +259,7 @@ let elide ?(see = "") target_width str =
               | None -> best)
         in
         let cut () =
-          let tail = ellipsis ^ more (total - 1) ^ see in
+          let tail = ellipsis ^ more (total - 1) in
           match shorten (target_width - width tail) first with
           | "" -> alone ()
           | kept -> kept ^ tail
@@ -422,15 +383,6 @@ let pad_left target_width str =
   let str_width = string_width str in
   if str_width >= target_width then str
   else String.make (target_width - str_width) ' ' ^ str
-
-let center target_width str =
-  let str_width = string_width str in
-  if str_width >= target_width then str
-  else
-    let total_pad = target_width - str_width in
-    let left_pad = total_pad / 2 in
-    let right_pad = total_pad - left_pad in
-    String.make left_pad ' ' ^ str ^ String.make right_pad ' '
 
 let rec wrap_words ~effective acc line len = function
   | [] -> if line = "" then acc else line :: acc

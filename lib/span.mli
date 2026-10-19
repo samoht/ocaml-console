@@ -7,7 +7,7 @@
 
     A span is a sequence of runs of text, each carrying a {!Style.t} and
     optionally a hyperlink. It is the unit every widget lays out, measured in
-    terminal cells ({!Width}). *)
+    terminal cells. *)
 
 (** {1:spans Spans} *)
 
@@ -54,27 +54,21 @@ val split_lines : t -> t list
 (** {1:measuring Measuring and fitting} *)
 
 val width : t -> int
-(** [width s] is the number of terminal cells [s] takes ({!Width.string_width}).
-*)
+(** [width s] is the number of terminal cells [s] takes: a wide character, such
+    as a Chinese one or an emoji, takes two, and an accent added to a letter
+    none. *)
 
 val truncate : int -> t -> t
 (** [truncate w s] is the longest prefix of [s] that fits in [w] terminal cells,
     styles and hyperlinks kept. It is {!empty} if [w] is not positive. *)
 
-val wrap : ?hang:int -> int -> t -> t list
+val wrap : int -> t -> t list
 (** [wrap w s] is the single-line span [s] broken at spaces and path separators
     into lines of at most [w] cells, styles and hyperlinks kept on every line. A
     word wider than [w] is continued on the next line where the room ends, so
-    every character is printed. Every line after the first starts with [hang]
-    spaces (defaults to [0]), clamped to half of [w].
+    every character is printed.
 
     @raise Invalid_argument if [w] is not positive. *)
-
-val hanging : t -> int
-(** [hanging s] is the column the text after the first word of [s] starts at:
-    its leading spaces, its first word and the spaces after it. It is [0] when
-    [s] is one word. [wrap ~hang:(hanging s)] sets each continuation under that
-    text, as a label's value hangs beside it. *)
 
 (** {1:fmt Formatting}
 
@@ -88,11 +82,14 @@ val pp : t Fmt.t
 (** [pp] formats a span, with ANSI styling iff the formatter's style renderer is
     [`Ansi_tty]. *)
 
-val pp_wrapped : t Fmt.t
-(** [pp_wrapped] is like {!pp} but a single-line span wider than the formatter's
-    margin is {!wrap}ped to it, each continuation hanging under the text after
-    its first word ({!hanging}). *)
-
 val to_string : ?styled:bool -> t -> string
 (** [to_string s] is [s] rendered with ANSI styling iff [styled] (defaults to
     [false], the plain text of [s]). *)
+
+(**/**)
+
+val wrap_hanging : int -> t -> t list
+(** [wrap_hanging w s] is like {!wrap} but each line after the first starts
+    under the text after the first word of [s]. *)
+
+(**/**)

@@ -19,26 +19,6 @@ val truncate : int -> string -> string
     preserving ANSI escape sequences, closing an active SGR style or OSC 8
     hyperlink when cut, and adding no ellipsis. *)
 
-val ellipsize : ?at:[ `Middle | `Start ] -> int -> string -> string
-(** [ellipsize width s] is [s] fitted into [width] terminal columns with a
-    single ASCII ["..."] standing where the cut fell. [at] says where it falls.
-
-    [`Middle], the default, replaces the middle, so both ends of the value
-    survive: the leading characters that identify a hash, and the trailing ones
-    that name a file. [`Start] is [git diff --stat]'s form for a path: the mark
-    leads, the cut moves on to the next ["/"] within the room, and the rest of
-    the path follows whole, so [ocaml-console/lib/width.ml] in sixteen columns
-    is [".../lib/width.ml"]. A value is never left with dots after it, where it
-    would read as complete.
-
-    [s] already within [width] is returned unchanged, and a [width] of three or
-    less is the mark's first [width] dots.
-
-    Unlike {!truncate}, which ends a value wherever the room does and leaves it
-    reading as a line that wraps, this marks the cut. Escape sequences count as
-    zero columns and are never cut; a style or hyperlink left open at either end
-    is closed. *)
-
 val shorten : int -> string -> string
 (** [shorten width s] is [s] when it fits in [width] terminal columns, and
     otherwise the longest run of its leading words that does: the words it drops
@@ -53,18 +33,14 @@ val shorten : int -> string -> string
     Escape sequences count as zero columns and a style or hyperlink left open is
     closed. *)
 
-val elide : ?see:string -> int -> string -> string
-(** [elide ?see width s] is [s] when it fits in [width] terminal columns, and
+val elide : int -> string -> string
+(** [elide width s] is [s] when it fits in [width] terminal columns, and
     otherwise [s] on one line that says what it left out. [s] is read as a list
     of items separated by [", "] or by a middle dot (U+00B7) between spaces,
-    outside any bracket, so ["(build, test)"] is part of one item: [elide] keeps
-    the leading items that fit, then [" and N more"] for the N it leaves out,
-    then [see] (default [""]), which names where [s] is read whole. When the
-    first item alone does not fit, its leading words that do ({!shorten}) are
-    followed by ["..."], the count and [see]; a value that is not a list is that
-    case with no count. When no word fits, [elide] is [see] without its leading
-    spaces when that fits, else ["..."] when that fits, else [""]: a count is
-    never left without the items it counts, and nothing is cut inside a word. *)
+    outside any bracket: [elide] keeps the leading items that fit, then
+    [" and N more"] for the N it leaves out. When the first item alone does not
+    fit, its leading words that do ({!shorten}) are followed by ["..."] and the
+    count. When no word fits, [elide] is ["..."] when that fits, else [""]. *)
 
 val fold : ?split:bool -> int -> string -> string list
 (** [fold width s] is [s] broken at spaces into lines of at most [width]
@@ -90,10 +66,6 @@ val pad_right : int -> string -> string
 val pad_left : int -> string -> string
 (** [pad_left width s] is [s] padded with spaces on the left to reach [width]
     columns, or [s] unchanged if it is already wider. *)
-
-val center : int -> string -> string
-(** [center width s] is [s] centred within [width] columns with spaces on both
-    sides, or [s] unchanged if it is already wider. *)
 
 val wrap : ?indent:int -> int -> string -> string
 (** [wrap ?indent width text] is [text] word-wrapped to [width] terminal

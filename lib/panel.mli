@@ -54,5 +54,5 @@ val pp : t Fmt.t
 (** [pp] formats a panel, following the formatter's style renderer. The
     formatter's margin caps the box. In a box sized to its content, a line wider
     than {!content_width} wraps at its words ({!Span.wrap}), each continuation
-    hanging under the text after the line's first word ({!Span.hanging}); in a
-    box of fixed [width] it is truncated. Edge labels are truncated. *)
+    hanging under the text after the line's first word; in a box of fixed
+    [width] it is truncated. Edge labels are truncated. *)

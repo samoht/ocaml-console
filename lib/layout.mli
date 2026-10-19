@@ -21,9 +21,9 @@ val hcat : ?gutter:int -> ?align:[ `Top | `Bottom ] -> string list -> string
 
     Each block is split on newlines and every line is padded on the right to
     that block's widest line -- ANSI escapes and wide glyphs counted as the
-    terminal renders them (see {!Width.string_width}) -- so each column keeps a
-    fixed width regardless of styling. Adjacent columns are separated by
-    [gutter] spaces (default [1]).
+    terminal renders them (see {!Span.width}) -- so each column keeps a fixed
+    width regardless of styling. Adjacent columns are separated by [gutter]
+    spaces (default [1]).
 
     When the blocks differ in height the shorter ones are padded with blank
     lines: at the bottom for [`Top] (the default), at the top for [`Bottom]. No

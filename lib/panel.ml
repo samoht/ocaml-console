@@ -59,7 +59,7 @@ let fitted_lines panel cw =
     (fun line ->
       let line = Span.sanitize ~keep_newlines:false line in
       if panel.width <> None || Span.width line <= cw then [ line ]
-      else Span.wrap ~hang:(Span.hanging line) cw line)
+      else Span.wrap_hanging cw line)
     panel.lines
 
 let render_span ppf ~width span =

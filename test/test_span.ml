@@ -78,44 +78,18 @@ let test_link () =
     (Invalid_argument "Console.Span.link: empty URI") (fun () ->
       ignore (Span.link ~uri:"" "bad"))
 
-(* Every line after the first starts with [hang] spaces and still fits; a hang
-   of more than half the width is clamped to half. *)
+(* Every line after the first starts under the text after the first word, and
+   still fits; a hang of more than half the width is clamped to half. *)
 let test_wrap_hang () =
-  let span = Span.text "abcd efgh ijkl mnop" in
   Alcotest.(check (list string))
     "hanging"
-    [ "abcd efgh"; "    ijkl"; "    mnop" ]
-    (List.map Span.to_string (Span.wrap ~hang:4 10 span));
+    [ "abcd efgh"; "     ijkl"; "     mnop" ]
+    (List.map Span.to_string
+       (Span.wrap_hanging 10 (Span.text "abcd efgh ijkl mnop")));
   Alcotest.(check (list string))
     "clamped"
-    [ "abcd"; "   efgh"; "   ijkl"; "   mnop" ]
-    (List.map Span.to_string (Span.wrap ~hang:5 7 span))
-
-(* The text after a label: leading spaces, the first word, the spaces after. *)
-let test_hanging () =
-  let hanging s = Span.hanging (Span.text s) in
-  Alcotest.(check int) "label" 8 (hanging "REFUSED main has no baseline");
-  Alcotest.(check int) "indented" 7 (hanging "  1/2  id");
-  Alcotest.(check int)
-    "styled label" 8
-    (Span.hanging Span.(styled Style.bold "REFUSED" ++ text " the reason"));
-  Alcotest.(check int) "one word" 0 (hanging "word");
-  Alcotest.(check int) "trailing spaces" 0 (hanging "word   ")
-
-(* A span wider than its formatter's margin wraps to it under its label. *)
-let test_pp_wrapped () =
-  let render margin s =
-    let buf = Buffer.create 64 in
-    let ppf = Format.formatter_of_buffer buf in
-    Format.pp_set_margin ppf margin;
-    Span.pp_wrapped ppf (Span.text s);
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
-  Alcotest.(check string)
-    "wrapped" "slot 1: held by an\n     owner, process\n     42"
-    (render 20 "slot 1: held by an owner, process 42");
-  Alcotest.(check string) "fits" "slot 1: free" (render 20 "slot 1: free")
+    [ "abcdef"; "   gh"; "   ij" ]
+    (List.map Span.to_string (Span.wrap_hanging 7 (Span.text "abcdef gh ij")))
 
 (* A gradient colours each cell by its column; cells of one colour share one
    sequence, and a change of attributes resets before the next. *)
@@ -152,8 +126,6 @@ let suite =
       Alcotest.test_case "wrap preserves styles" `Quick
         test_wrap_preserves_styles;
       Alcotest.test_case "wrap hang" `Quick test_wrap_hang;
-      Alcotest.test_case "hanging" `Quick test_hanging;
-      Alcotest.test_case "pp wrapped" `Quick test_pp_wrapped;
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "link" `Quick test_link;

@@ -15,7 +15,6 @@ let style_renderer ?renderer ~getenv ~is_tty () =
 module Color = Color
 module Style = Style
 module Gradient = Gradient
-module Width = Width
 module Span = Span
 module Border = Border
 module Guide = Guide

@@ -34,7 +34,7 @@ let test_width_non_negative s =
 let test_span_width_consistency s =
   let span = Span.text s in
   let span_w = Span.width span in
-  let direct_w = Console.Width.string_width s in
+  let direct_w = Width.string_width s in
   check (span_w = direct_w)
 
 (* Span concatenation width is sum of widths *)

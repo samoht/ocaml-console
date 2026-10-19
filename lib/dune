@@ -9,6 +9,7 @@
   paint
   render
   widget
+  width
   display_activity
   display_ctx
   display_event

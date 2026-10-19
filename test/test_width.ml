@@ -3,7 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-open Console
+let digest =
+  "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
 
 let test_ascii () =
   let width = Width.string_width "hello" in
@@ -42,65 +43,6 @@ let test_osc_ignored () =
     "OSC preserved by truncation"
     "\027]8;;https://example.com\027\\do\027]8;;\027\\" (Width.truncate 2 link)
 
-(* A value cut to fit reads as a value that wraps unless the cut is marked, and
-   the mark is ASCII, as git's diffstat writes it. A hash is identified by both
-   of its ends, so the mark goes in the middle and the result still fits. *)
-let digest =
-  "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
-
-let test_ellipsize_keeps_both_ends () =
-  let cut = Width.ellipsize 21 digest in
-  Alcotest.(check string) "the middle is what goes" "sha256:a3...5f0e1d2c3" cut;
-  Alcotest.(check int) "and the result fits" 21 (Width.string_width cut);
-  Alcotest.(check string)
-    "an odd room gives the head the extra column" "sha256:a37...5f0e1d2c3"
-    (Width.ellipsize 22 digest)
-
-(* [git diff --stat] shows a path too long for its column with "..." at the
-   front and the cut moved on to the next "/", so a name is never left starting
-   in the middle of a directory: [ocaml-console/lib/width.ml] shows as
-   [.../lib/width.ml] in a 16 column name and [.../width.ml] in a 12 column one.
-   [`Start] is that form. *)
-let test_ellipsize_at_start_is_diffstats () =
-  let path = "ocaml-console/lib/width.ml" in
-  Alcotest.(check string)
-    "the front goes, to a slash" ".../lib/width.ml"
-    (Width.ellipsize ~at:`Start 16 path);
-  Alcotest.(check string)
-    "a narrower column drops a directory more" ".../width.ml"
-    (Width.ellipsize ~at:`Start 12 path);
-  Alcotest.(check string)
-    "a cut inside a directory name moves on to its slash" ".../lib/width.ml"
-    (Width.ellipsize ~at:`Start 18 "console-it/lib/width.ml");
-  Alcotest.(check string)
-    "a value with no slash keeps its tail" "...5f0e1d2c3"
-    (Width.ellipsize ~at:`Start 12 digest);
-  Alcotest.(check string)
-    "the default is the middle"
-    (Width.ellipsize 21 digest)
-    (Width.ellipsize ~at:`Middle 21 digest)
-
-(* A cut closes what it left open, and only that: the reset stands between the
-   kept head and the mark, so the mark is not drawn in the value's style, and a
-   part that already ends on a reset (SGR 0, ECMA-48 8.3.117) gets no second
-   one. *)
-let test_ellipsize_closes_style () =
-  let check = Alcotest.(check string) in
-  check "a head left open is closed before the mark" "\027[1mabc\027[0m...hij"
-    (Width.ellipsize 9 "\027[1mabcdefghij");
-  check "a head that closed its style is not closed again"
-    "\027[1mab\027[0mc...hij"
-    (Width.ellipsize 9 "\027[1mab\027[0mcdefghij");
-  check "nor is one that ends on its reset" "\027[1mabc\027[0m...hij"
-    (Width.ellipsize 9 "\027[1mabc\027[0mdefghij");
-  check "a tail left open is closed" "abc...\027[1mhij\027[0m"
-    (Width.ellipsize 9 "abcdefg\027[1mhij");
-  check "a tail that ends on its reset is not closed again"
-    "abc...\027[1mhij\027[0m"
-    (Width.ellipsize 9 "abcdefg\027[1mhij\027[0m");
-  check "nor is a tail cut at the start" "...\027[1mefghij\027[0m"
-    (Width.ellipsize ~at:`Start 9 "abcd\027[1mefghij\027[0m")
-
 (* The same holds of a cut with no mark. *)
 let test_truncate_closes_style () =
   List.iter
@@ -115,19 +57,6 @@ let test_truncate_closes_style () =
         "\027[1mabc\027[0m",
         "\027[1mabc\027[0mdef" );
     ]
-
-let test_ellipsize_short_enough () =
-  Alcotest.(check string)
-    "a value that fits is untouched" "abc" (Width.ellipsize 3 "abc");
-  Alcotest.(check string)
-    "and so is a shorter one" "abc" (Width.ellipsize 8 "abc")
-
-let test_ellipsize_no_room () =
-  Alcotest.(check string)
-    "nothing fits in nothing" "" (Width.ellipsize 0 digest);
-  Alcotest.(check string)
-    "three columns say only that it was cut" "..." (Width.ellipsize 3 digest);
-  Alcotest.(check string) "and fewer, less" ".." (Width.ellipsize 2 digest)
 
 (* A row that does not fit is shortened by words, never
    by characters, and a path, an id or a digest is always printed whole. *)
@@ -282,17 +211,8 @@ let suite =
       Alcotest.test_case "ANSI preserves grapheme" `Quick
         test_ansi_does_not_break_grapheme;
       Alcotest.test_case "OSC ignored" `Quick test_osc_ignored;
-      Alcotest.test_case "ellipsize keeps both ends" `Quick
-        test_ellipsize_keeps_both_ends;
-      Alcotest.test_case "ellipsize at the start is diffstat's" `Quick
-        test_ellipsize_at_start_is_diffstats;
-      Alcotest.test_case "ellipsize closes a style" `Quick
-        test_ellipsize_closes_style;
       Alcotest.test_case "truncate closes a style" `Quick
         test_truncate_closes_style;
-      Alcotest.test_case "ellipsize leaves a short value" `Quick
-        test_ellipsize_short_enough;
-      Alcotest.test_case "ellipsize with no room" `Quick test_ellipsize_no_room;
       Alcotest.test_case "shorten drops words from the end" `Quick
         test_shorten_drops_words_from_the_end;
       Alcotest.test_case "shorten never cuts a word" `Quick

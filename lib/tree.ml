@@ -64,7 +64,7 @@ let pp ppf t =
     let room = max 1 (margin - Width.string_width prefix) in
     (match
        if Span.width label <= room then [ label ]
-       else Span.wrap ~hang:(Span.hanging label) room label
+       else Span.wrap_hanging room label
      with
     | [] -> ()
     | first :: rest ->

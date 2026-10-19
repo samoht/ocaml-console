@@ -173,7 +173,7 @@ let trim_leading_space = function
       if text = "" then rest else { atom with text } :: rest
   | token -> token
 
-let wrap ?(hang = 0) target t =
+let wrap_hang ~hang target t =
   if target <= 0 then invalid_arg "Console.Span.wrap: non-positive width";
   let hang = max 0 (min hang (target / 2)) in
   let indent = if hang = 0 then empty else text (String.make hang ' ') in
@@ -208,14 +208,5 @@ let hanging t =
   let text = skip (( = ) ' ') word in
   if word = n || text = n then 0 else Width.string_width (String.sub s 0 text)
 
-let pp_wrapped ppf t =
-  let t = sanitize ~keep_newlines:false t in
-  let margin = Format.pp_get_margin ppf () in
-  let lines =
-    if width t <= margin then [ t ] else wrap ~hang:(hanging t) margin t
-  in
-  List.iteri
-    (fun i line ->
-      if i > 0 then Fmt.char ppf '\n';
-      pp ppf line)
-    lines
+let wrap target t = wrap_hang ~hang:0 target t
+let wrap_hanging target t = wrap_hang ~hang:(hanging t) target t
