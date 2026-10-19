@@ -26,15 +26,6 @@
       Console.Display.succeed resolve
     ]} *)
 
-val pp_bytes : int64 Fmt.t
-(** [pp_bytes] formats a byte count as a row draws it, in the largest binary
-    unit that keeps it at least one: ["512 B"], ["1.50 KiB"], ["30.00 MiB"]. *)
-
-val pp_span : float Fmt.t
-(** [pp_span] formats seconds as a row draws its elapsed time: tenths of a
-    second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
-    hours and minutes (["1h02m"]). A negative span is ["0.0s"]. *)
-
 (** {1:task_layout Task layout} *)
 
 module Line : sig
@@ -491,6 +482,15 @@ val tick : t -> unit
     events paint at once. *)
 
 (** {1:fmt Formatting} *)
+
+val pp_bytes : int64 Fmt.t
+(** [pp_bytes] formats a byte count as a row draws it, in the largest binary
+    unit that keeps it at least one: ["512 B"], ["1.50 KiB"], ["30.00 MiB"]. *)
+
+val pp_span : float Fmt.t
+(** [pp_span] formats seconds as a row draws its elapsed time: tenths of a
+    second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
+    hours and minutes (["1h02m"]). A negative span is ["0.0s"]. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
