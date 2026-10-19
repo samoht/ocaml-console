@@ -1189,9 +1189,17 @@ let test_widget_line_endings s =
         failf "%s emitted CR: %S" widget output)
     outputs
 
+let test_stacked_large_width count n =
+  let width = adversarial_width n in
+  let count = max_int - (count land 255) in
+  let bar = Bar.stacked ~width [ (count, Style.bold) ] in
+  check_eq ~pp:Fmt.int width (Span.width bar)
+
 let suite =
   ( "console",
     [
+      test_case "large stacked counts conserve width" [ int; int ]
+        test_stacked_large_width;
       test_case "widgets use LF line endings" [ bytes ] test_widget_line_endings;
       test_case "sanitized colour does not leak" [ int; int; int ]
         test_sanitized_colour;
