@@ -359,6 +359,20 @@ let test_pp_ending () =
     "caller supplies the line ending" "x!"
     (Fmt.str "%a!" Table.pp table)
 
+let test_huge_min_width () =
+  let t =
+    Table.of_rows
+      [ Table.column ~min_width:max_int "A"; Table.column "B" ]
+      [ [ Span.text "x"; Span.text "y" ] ]
+  in
+  let out = Table.to_string ~width:20 t in
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        "huge minimum still fits width 20" true
+        (Span.width (Span.text line) <= 20))
+    (String.split_on_char '\n' out)
+
 let suite =
   ( "table",
     [
@@ -367,6 +381,8 @@ let suite =
       Alcotest.test_case "styled border runs" `Quick test_styled_border_runs;
       Alcotest.test_case "no border draws no edge" `Quick
         test_no_border_draws_no_edge;
+      Alcotest.test_case "huge minimum narrows to available width" `Quick
+        test_huge_min_width;
       Alcotest.test_case "basic" `Quick test_basic;
       Alcotest.test_case "shrinkable protects column" `Quick
         test_shrinkable_protects_column;

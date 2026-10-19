@@ -120,9 +120,21 @@ let test_shape s n =
   | _ -> if k = 0 || k > 2 then fail "bad row accepted"
   | exception Invalid_argument _ -> if k >= 1 && k <= 2 then fail "row refused"
 
+let test_huge_min_width n =
+  let minimum = max_int - (n mod 1024) in
+  let t =
+    Table.of_rows
+      [ Table.column ~min_width:minimum "A"; Table.column "B" ]
+      [ [ Span.text "x"; Span.text "y" ] ]
+  in
+  let out = Table.to_string ~width:20 t in
+  check_fits 20 (String.split_on_char '\n' out)
+
 let suite =
   ( "table",
     [
+      test_case "huge minimum narrows to available width" [ uint8 ]
+        test_huge_min_width;
       test_case "fits the margin" [ bytes; int ] test_fits;
       test_case "right-aligned cells line up" [ bytes ] test_right_aligned;
       test_case "row shape" [ bytes; int ] test_shape;
