@@ -1104,9 +1104,41 @@ let test_table_bytes s =
   let table = Table.of_rows [ Table.column "value" ] [ [ Span.text s ] ] in
   ignore (Table.to_string ~width:12 table)
 
+(* Generate valid printable text with cell and grapheme boundaries that differ
+   from byte boundaries. No external UTF-8 decoder is part of the oracle. *)
+let adversarial_text s =
+  let alphabet = [| "x"; "界"; "é"; "\xea\xa8\xb4"; " "; ","; ";" |] in
+  let b = Buffer.create (String.length s) in
+  String.iter
+    (fun c ->
+      Buffer.add_string b alphabet.(Char.code c mod Array.length alphabet))
+    s;
+  Buffer.contents b
+
+let without_spaces s =
+  let b = Buffer.create (String.length s) in
+  let rec loop i =
+    if i < String.length s then begin
+      let d = String.get_utf_8_uchar s i in
+      let u = Uchar.utf_decode_uchar d in
+      if Uchar.to_int u <> 0x20 then Buffer.add_utf_8_uchar b u;
+      loop (i + Uchar.utf_decode_length d)
+    end
+  in
+  loop 0;
+  Buffer.contents b
+
+let test_wrap_preserves_text s n =
+  let s = adversarial_text s in
+  let lines = Span.wrap (adversarial_width n) (Span.text s) in
+  check_eq ~pp:Fmt.Dump.string (without_spaces s)
+    (without_spaces (String.concat "" (List.map Span.to_string lines)))
+
 let suite =
   ( "console",
     [
+      test_case "wrapping preserves non-space text" [ bytes; int ]
+        test_wrap_preserves_text;
       test_case "Span.wrap accepts arbitrary bytes" [ bytes; int ]
         test_span_wrap_bytes;
       test_case "Span.truncate accepts arbitrary bytes" [ bytes; int ]
