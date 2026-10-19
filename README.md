@@ -230,12 +230,11 @@ The `console-eio` library:
 | `Console_eio` | Runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio): finds the terminal and its size, and redraws |
 | `Console_eio.Prompt` | Asking the user a question, or a password without showing it |
 
-Two small libraries that come with `console`:
+A small library that comes with `console`:
 
 | Library | Module | What it does |
 |---|---|---|
 | `console.text` | `Console_text` | Removing colour codes and control characters from text you do not trust |
-| `console.vte` | `Console_vte` | Replaying a recorded terminal session, to test what it showed |
 
 ## Related work
 

@@ -1,3 +1,3 @@
 (executables
  (names dump_progress frames)
- (libraries console console.vte fmt matrix.vte unix))
+ (libraries console console_vte fmt matrix.vte unix))

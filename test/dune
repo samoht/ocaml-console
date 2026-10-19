@@ -8,7 +8,7 @@
  (libraries
   console
   console.text
-  console.vte
+  console_vte
   matrix.glyph
   display_harness
   matrix.grid

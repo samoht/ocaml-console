@@ -1,4 +1,0 @@
-(library
- (name console_vte)
- (public_name console.vte)
- (libraries matrix.vte))

@@ -8,7 +8,7 @@
     A recording of a program that redraws lines in place holds every redraw, so
     reading it as text does not say what the screen showed. These functions
     replay a recording into a terminal emulator and read the screen after each
-    write, with the time of the write. This library is [console.vte]. *)
+    write, with the time of the write. *)
 
 val screen : ?scrollback:bool -> Vte.t -> string list
 (** [screen vte] is the emulator's visible screen: one string per row, trailing

@@ -1,0 +1,5 @@
+; Replays a terminal recording into an emulator, for the tests.
+
+(library
+ (name console_vte)
+ (libraries matrix.vte))
