@@ -14,3 +14,7 @@ type t = {
 
 let v ?char_width ~ppf ~now ~wait ~dimensions ~is_tty () =
   { ppf; now; wait; dimensions; is_tty; char_width }
+
+let pp ppf t =
+  let width, height = t.dimensions () in
+  Fmt.pf ppf "<ctx %dx%d%s>" width height (if t.is_tty then " tty" else "")

@@ -12,7 +12,7 @@
 type t = {
   ppf : Format.formatter;  (** The output. *)
   now : unit -> float;  (** The clock, in seconds. *)
-  wait : float -> unit;  (** Waits on [now]. *)
+  wait : float -> unit;  (** Waits on {!field-now}. *)
   dimensions : unit -> int * int;  (** The terminal width and height. *)
   is_tty : bool;  (** Whether a live region can be drawn. *)
   char_width : (Uchar.t -> int) option;  (** Cell measurement override. *)
@@ -30,3 +30,6 @@ val v :
   t
 (** [v ~char_width ~ppf ~now ~wait ~dimensions ~is_tty ()] is a context with
     those fields. *)
+
+val pp : t Fmt.t
+(** [pp] formats a context for diagnostics, in an unspecified format. *)
