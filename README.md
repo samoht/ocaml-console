@@ -1,33 +1,31 @@
 # console
 
-Colours, tables, trees and progress bars for OCaml command-line tools.
+Colours, tables, trees and progress rows for OCaml command-line tools.
 
-console prints the way `make` or `ls` do. Each line goes below the previous
-one, and everything is still there when the program exits. It is not meant
-for full-screen programs such as `vim` or `htop`; for those, use
-[notty](https://github.com/pqwy/notty) or
-[lambda-term](https://github.com/ocaml-community/lambda-term).
-
-Progress bars update in place while the work runs. When the output goes to a
-file or to another program, as in a CI log, console prints the same
-information as plain lines. No colour codes or progress-bar updates end up
-mixed into the text.
+console prints into your terminal's normal scrollback, like Rich or
+indicatif, and redraws only its progress rows; for programs that take over
+the whole screen, use [notty](https://github.com/pqwy/notty) or
+[lambda-term](https://github.com/ocaml-community/lambda-term). Windows
+consoles are not supported.
 
 It has:
 
 - text styles (bold, underline, colours) that you combine with `+`, from the
-  standard terminal colours up to any RGB colour;
+  standard terminal colours up to any RGB colour, brought down to what the
+  terminal can show;
 - clickable links, in the terminals that support them;
-- tables, trees, framed panels and horizontal lines, in several frame styles;
-- progress bars and spinners that update in place;
+- tables, trees, framed panels, horizontal lines and bars;
+- progress rows that update in place on a terminal, and plain lines in a
+  pipe or a CI log;
 - correct alignment for wide characters, such as Chinese, Japanese, Korean
-  and emoji, which take two columns on screen.
+  and emoji, which take two columns on screen;
+- seventeen themes, from the colour schemes you may already use.
 
 ## Installation
 
 <!-- $MDX skip -->
 ```sh
-$ opam install console
+$ opam install console console-eio
 ```
 
 Until console is in the opam repository, install it from GitHub:
@@ -37,7 +35,76 @@ Until console is in the opam repository, install it from GitHub:
 $ opam pin add https://github.com/samoht/ocaml-console.git
 ```
 
-## Usage
+## Progress
+
+![A build whose running steps are redrawn in place](examples/display/display.gif)
+
+A display shows one row for each task that runs and redraws those rows in
+place; a task that ends, and each line it logs, is printed once above them and
+stays. The smallest program:
+
+```ocaml
+let build display =
+  let step = Console.Display.task display "compile" in
+  Console.Display.set_count step ~cur:2 ~total:2;
+  Console.Display.log step "compiled parser.ml";
+  Console.Display.succeed step
+
+let main () =
+  Eio_main.run @@ fun env ->
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build
+```
+
+When the output is not a terminal, nothing is redrawn and the same work prints
+these lines, each log line after the name of its task and the header last, as
+a summary:
+
+```text
+  › compile: compiled parser.ml
+✓ compile  2/2  0.0s
+✓ Building 0.0s (1/1)
+```
+
+Each line starts with a mark that says how its task ended; the theme chooses
+the marks:
+
+| Task | `Theme.unicode` | `Theme.dos` |
+|---|---|---|
+| succeeded | `✓` | `[+]` |
+| failed | `✗` | `[x]` |
+| cancelled | `○` | `[~]` |
+
+Good to know:
+
+- The display draws on standard error, so standard output stays the
+  program's; what the program prints with `Fmt.pr` while the display runs
+  goes above the rows, a line at a time, and so do `Logs` messages.
+- A program decides on colour once, with `Console_eio.setup`: none under
+  `NO_COLOR` or a `TERM` that is unset or `dumb`, otherwise colour on a
+  terminal, in as many colours as `COLORTERM` and `TERM` announce. A
+  `--color` option overrides it (below).
+- When your function raises, or its fiber is cancelled, the tasks still
+  running are cancelled and the exception goes on; when the program exits in
+  the middle, the display still closes and shows the cursor again.
+- A `Console_eio.run` inside another one gets the same display, so a library
+  can start one without knowing whether its caller did.
+- `Console_eio.Prompt` asks a question, or a password without echoing it,
+  and takes the rows off the screen while it asks.
+
+A `--color=auto|always|never` option comes from `fmt.cli`, and its value goes
+straight to `setup`:
+
+```ocaml
+let main style_renderer =
+  Console_eio.setup ?style_renderer ();
+  Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
+
+let cmd =
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "ready")
+    Cmdliner.Term.(const main $ Fmt_cli.style_renderer ())
+```
+
+## Styles and widgets
 
 Styles combine with `+`, and text in a style is a `Span.t`, printed by a
 [`Fmt`](https://erratique.ch/software/fmt) printer. `Console_eio.setup`
@@ -128,11 +195,6 @@ src
 - : unit = ()
 ```
 
-To give every widget the same look, pass them the same `~theme`. A theme sets the
-main colour, the frame style, the lines that connect tree branches, the
-spinner and the progress bar. The built-in themes are `Theme.unicode` (the
-default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
-
 `Rule` draws a horizontal line as wide as the output, with an optional title:
 
 ```ocaml
@@ -144,50 +206,6 @@ default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
 - : unit = ()
 ```
 
-### Progress
-
-A `Display` shows one line per task that is still running, and updates
-those lines in place. Log messages and finished tasks are printed once, above
-them, and stay on screen. `Console_eio.run` opens a display and passes it to
-your function:
-
-```ocaml
-open Console
-
-let build display =
-  let step = Display.task display "compile" in
-  Display.set_count step ~cur:2 ~total:2;
-  Display.log step "compiled parser.ml";
-  Display.succeed step
-```
-
-```ocaml
-# Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build;;
-  › compile: compiled parser.ml
-✓ compile  2/2  0.0s
-✓ Building 0.0s (1/1)
-- : unit = ()
-```
-
-The output here is not a terminal, so nothing is redrawn: these are the plain
-lines a pipe or a CI log gets. Each line starts with a mark that says what it
-is:
-
-- `=>`, `!!` and `--` start the line of a task that succeeded, failed or was
-  cancelled, followed by its count and the time it took;
-- `#`, `!` and `x` start a log line that informs, warns or reports an error;
-  the lines of a task are indented under it;
-- the header line starts with `[-]` while tasks run, then `[+]` when all
-  succeeded, `[x]` when one failed or `[~]` when one was cancelled, and ends
-  with the time so far and the tasks that ended out of those started, here
-  `(1/1)`. On a terminal it stays above the rows; in a pipe it is printed
-  last, as a summary.
-
-While a display runs, print through `Display.with_output`, which takes the
-rows off the screen for the time it prints, rather than with `Fmt.pr`, which
-would print in the middle of them.
-
 `Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
 ```ocaml
@@ -196,11 +214,10 @@ would print in the middle of them.
 - : unit = ()
 ```
 
-A task shows a spinner until it knows how much work it has, then a progress
-bar with a count, a speed and the time spent so far. If your function returns
-while a task is still running, the task is marked as done. If your function
-raises an exception, it is marked as cancelled. Calling `Console_eio.run`
-inside another `Console_eio.run` reuses the same display.
+To give every widget the same look, pass them the same `~theme`: it sets the
+main colour, the colours of success, warning and failure, the marks, the
+frame style, the lines that connect tree branches and the spinner. The
+themes are shown [at the end](#themes).
 
 ## API
 
@@ -218,8 +235,8 @@ The `console` library:
 | `Console.Tree` | Trees, drawn like the output of `tree` |
 | `Console.Panel` | Text in a frame, with an optional title |
 | `Console.Rule` | Horizontal lines with an optional title |
-| `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Bar` | Horizontal bars, for progress and for figures |
+| `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
 | `Console.Input` | Reading a line from the keyboard, with history and completion |
 
@@ -227,19 +244,21 @@ The `console-eio` library:
 
 | Module | What it does |
 |---|---|
-| `Console_eio` | Runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio): finds the terminal and its size, and redraws |
+| `Console_eio` | Decides on colour, and runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio) |
 | `Console_eio.Prompt` | Asking the user a question, or a password without showing it |
 
-A small library that comes with `console`:
-
-| Library | Module | What it does |
-|---|---|---|
-| `console.text` | `Console_text` | Removing colour codes and control characters from text you do not trust |
+The `console.text` library has one module, `Console_text`, which removes
+colour codes and control characters from text you do not trust, without the
+rest of console.
 
 ## Related work
 
 - [Rich](https://github.com/Textualize/rich), the Python library console is
-  modelled on.
+  modelled on, and [indicatif](https://github.com/console-rs/indicatif), its
+  Rust counterpart for progress bars.
+- [BuildKit](https://github.com/moby/buildkit), whose progress output, a
+  header with the time and the count of steps above one row per running step,
+  the display follows.
 - [lipgloss](https://github.com/charmbracelet/lipgloss), a Go library whose way
   of combining styles `Style` follows.
 - [printbox](https://github.com/c-cube/printbox), which prints boxes, tables
@@ -249,6 +268,99 @@ A small library that comes with `console`:
 - [down](https://erratique.ch/software/down), Daniel Bünzli's line editor
   for the OCaml toplevel, which `Console.Input` follows for its keys, history
   and completion.
+- [cli-spinners](https://github.com/sindresorhus/cli-spinners) by Sindre
+  Sorhus (MIT), the source of the braille spinner's frames.
+- Paul Williams's [DEC ANSI parser](https://vt100.net/emu/dec_ansi_parser)
+  state diagram on vt100.net, which `Console_text` follows to find escape
+  codes.
+- tmux's `colour_find_rgb`, after which `Color.downsample` picks the nearest
+  of the 256 colours.
+- The colour schemes of the themes, each taken from its upstream source:
+  [Dracula](https://draculatheme.com) by Zeno Rocha (MIT),
+  [Nord](https://www.nordtheme.com) by Sven Greb (MIT),
+  [Solarized](https://ethanschoonover.com/solarized/) by Ethan Schoonover
+  (MIT), [gruvbox](https://github.com/morhetz/gruvbox) by Pavel Pertsev
+  (MIT/X11), [Catppuccin](https://catppuccin.com) by the Catppuccin
+  organisation (MIT), [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
+  by enkia (MIT) in the palette of
+  [tokyonight.nvim](https://github.com/folke/tokyonight.nvim) by Folke
+  Lemaitre (Apache-2.0), One Dark by GitHub for Atom (MIT), Monokai by Wimer
+  Hazenberg (no licence stated), and
+  [GitHub Dark and Light](https://github.com/primer/github-vscode-theme) by
+  GitHub (MIT).
+
+## Themes
+
+Each picture is [the same program](examples/themes/main.ml) in one theme,
+recorded by [its tape](examples/themes/tape.ml).
+
+### `Theme.unicode`
+
+![The theme demo in unicode](examples/themes/unicode.png)
+
+### `Theme.dos`
+
+![The theme demo in dos](examples/themes/dos.png)
+
+### `Theme.matrix`
+
+![The theme demo in matrix](examples/themes/matrix.png)
+
+### `Theme.rainbow`
+
+![The theme demo in rainbow](examples/themes/rainbow.png)
+
+### `Theme.dracula`
+
+![The theme demo in dracula](examples/themes/dracula.png)
+
+### `Theme.nord`
+
+![The theme demo in nord](examples/themes/nord.png)
+
+### `Theme.solarized_dark`
+
+![The theme demo in solarized-dark](examples/themes/solarized-dark.png)
+
+### `Theme.solarized_light`
+
+![The theme demo in solarized-light](examples/themes/solarized-light.png)
+
+### `Theme.gruvbox_dark`
+
+![The theme demo in gruvbox-dark](examples/themes/gruvbox-dark.png)
+
+### `Theme.gruvbox_light`
+
+![The theme demo in gruvbox-light](examples/themes/gruvbox-light.png)
+
+### `Theme.catppuccin_latte`
+
+![The theme demo in catppuccin-latte](examples/themes/catppuccin-latte.png)
+
+### `Theme.catppuccin_mocha`
+
+![The theme demo in catppuccin-mocha](examples/themes/catppuccin-mocha.png)
+
+### `Theme.tokyo_night`
+
+![The theme demo in tokyo-night](examples/themes/tokyo-night.png)
+
+### `Theme.one_dark`
+
+![The theme demo in one-dark](examples/themes/one-dark.png)
+
+### `Theme.monokai`
+
+![The theme demo in monokai](examples/themes/monokai.png)
+
+### `Theme.github_dark`
+
+![The theme demo in github-dark](examples/themes/github-dark.png)
+
+### `Theme.github_light`
+
+![The theme demo in github-light](examples/themes/github-light.png)
 
 ## License
 
