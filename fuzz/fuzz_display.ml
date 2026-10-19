@@ -182,9 +182,22 @@ let finish task o =
   | 1 -> Display.fail task
   | _ -> Display.cancel task
 
-(* A second redraw at the same time changes nothing and writes nothing. *)
+(* A redraw changes only the region: the rows from the cursor's up to the
+   height of the screen less one. A second redraw at the same time changes
+   nothing and writes nothing. *)
 let redraw_twice t =
+  let before = screen t.vte in
   Display.redraw (display t);
+  let after = screen t.vte in
+  let _, height = !(t.size) in
+  let top = fst (Vte.cursor_pos t.vte) - (height - 2) in
+  if Vte.scrollback_size t.vte = 0 || List.length before = List.length after
+  then
+    List.iteri
+      (fun i (b, a) ->
+        if i < top && not (String.equal a b) then
+          failf "row %d above the region changed: %S -> %S" i b a)
+      (List.combine before after);
   let before = !(t.chunks) in
   Display.redraw (display t);
   if !(t.chunks) <> before then fail "an idle redraw wrote"
