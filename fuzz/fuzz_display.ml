@@ -420,10 +420,42 @@ let test_static_rows_and_idle n =
   done;
   Display.close d
 
+(* Compare every visible frame: CRLF handling may remove trailing padding
+   without changing what the terminal shows. Keep cursor state in the oracle. *)
+let capture_frames () =
+  let out = Buffer.create 512 and chunk = Buffer.create 512 in
+  let vte = Vte.create ~rows:8 ~cols:40 () in
+  Vte.feed_string vte "OUTSIDE_SENTINEL\r\n";
+  let frames = ref [] in
+  let write bytes start len =
+    Buffer.add_substring out bytes start len;
+    Buffer.add_substring chunk bytes start len
+  in
+  let flush () =
+    let bytes = Buffer.contents chunk in
+    Buffer.clear chunk;
+    if bytes <> "" then begin
+      Vte.feed_string vte bytes;
+      let rows = List.map rstrip (Vte.scrollback_lines vte @ screen vte) in
+      frames := (rows, Vte.cursor_pos vte, Vte.cursor_visible vte) :: !frames
+    end
+  in
+  (Format.make_formatter write flush, out, frames)
+
+let sanitized_log_lines input =
+  String.split_on_char '\n' input
+  |> List.map (fun line ->
+      let line =
+        if String.ends_with ~suffix:"\r" line then
+          String.sub line 0 (String.length line - 1)
+        else line
+      in
+      Console_text.sanitize line)
+  |> String.concat "\n"
+
 let test_untrusted_arguments s =
-  let render input =
-    let out = Buffer.create 512 in
-    let ppf = Format.formatter_of_buffer out in
+  let render input lines =
+    let ppf, out, frames = capture_frames () in
     Fmt.set_style_renderer ppf `Ansi_tty;
     let theme =
       Theme.v ~marks:(fun _ -> input) ~spinner:(Spinner.v [| input |]) ()
@@ -439,22 +471,28 @@ let test_untrusted_arguments s =
     in
     let task = Display.task d input in
     Display.set_label task input;
-    Display.log task input;
-    Display.message ~level:`Warning d input;
+    Display.log task lines;
+    Display.message ~level:`Warning d lines;
     Display.redraw d;
     Display.succeed ~message:input task;
-    Display.set_result ~detail:input d (`Ok input);
+    Display.set_result ~detail:lines d (`Ok input);
     Display.close d;
     Format.pp_print_flush ppf ();
-    Buffer.contents out
+    (Buffer.contents out, List.rev !frames)
   in
   List.iter
     (fun input ->
-      let raw = render input in
-      check (String.is_valid_utf_8 raw);
-      check_eq ~pp:Fmt.Dump.string (render (Console_text.sanitize input)) raw)
+      let raw, actual = render input input in
+      let _, expected =
+        render (Console_text.sanitize input) (sanitized_log_lines input)
+      in
+      check (String.is_valid_utf_8 raw && not (has "\027]" raw));
+      check_styles_closed raw;
+      if actual <> expected then failf "unsafe visible frame from %S" input)
     [
       s;
+      String.make 18 'x' ^ "\r";
+      "s\002\246\147/\194\r";
       "\027]52;c;Y2xpcGJvYXJk\007";
       "\027]8;;https://evil.invalid\027\\click";
       "\027[2J\027[?25l";
