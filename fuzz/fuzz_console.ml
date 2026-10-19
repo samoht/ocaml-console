@@ -1162,9 +1162,37 @@ let test_sanitized_colour r g b =
   check (Grid.get_fg_g a ai = Grid.get_fg_g e ei);
   check (Grid.get_fg_b a ai = Grid.get_fg_b e ei)
 
+let test_widget_line_endings s =
+  let s = Console_text.strip s in
+  let span = Span.text s in
+  let buffer = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Display.run
+    ~ctx:(display_ctx ~ppf ~now:(fun () -> 0.) ~width:40 ~height:8)
+    (fun display -> Display.succeed (Display.task display s));
+  Format.pp_print_flush ppf ();
+  let outputs =
+    [
+      ("span", Span.to_string span);
+      ("panel", Panel.to_string (Panel.v span));
+      ("tree", Tree.to_string (Tree.v span []));
+      ( "table",
+        Table.to_string (Table.of_rows [ Table.column "value" ] [ [ span ] ]) );
+      ("bar", Span.to_string (Bar.v ~width:4 0.5));
+      ("rule", Fmt.str "%a" Rule.pp (Rule.v ~label:span ()));
+      ("display", Buffer.contents buffer);
+    ]
+  in
+  List.iter
+    (fun (widget, output) ->
+      if String.contains output '\r' then
+        failf "%s emitted CR: %S" widget output)
+    outputs
+
 let suite =
   ( "console",
     [
+      test_case "widgets use LF line endings" [ bytes ] test_widget_line_endings;
       test_case "sanitized colour does not leak" [ int; int; int ]
         test_sanitized_colour;
       test_case "styled concatenation has joined width" [ bytes; bytes ]
