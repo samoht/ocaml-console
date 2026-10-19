@@ -85,10 +85,6 @@ let print_files () =
       ]
   ) in
   Fmt.pr "%a@." Table.pp table
-
-let main env =
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) @@ fun _display ->
-  print_files ()
 ```
 
 ```ocaml
@@ -169,39 +165,32 @@ let report =
 
 A `Display` shows one line per task that is still running, and updates
 those lines in place. Log messages and finished tasks are printed once, above
-them, and stay on screen. When the output is not a terminal, the same calls
-print one plain line per event instead.
+them, and stay on screen. `Console_eio.run` opens a display and passes it to
+your function:
 
 ```ocaml
 open Console
 
-let build ~clock =
-  Console_eio.run ~clock ~theme:Theme.unicode ~header:"Building" @@ fun display ->
+let build display =
   let step = Display.task display "compile" in
   Display.set_count step ~cur:2 ~total:2;
   Display.log step "compiled parser.ml";
   Display.succeed step
 ```
 
-When the output is not a terminal, the same calls print plain lines. A
-context on standard output with a clock that does not move stands in for that
-case here:
-
 ```ocaml
-# let ctx =
-    Display.ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ~wait:ignore
-      ~dimensions:(fun () -> (80, 24)) ~live:false ();;
-val ctx : Display.ctx = <abstr>
-# Display.run ~ctx ~header:"Building" (fun display ->
-    let step = Display.task display "compile" in
-    Display.set_count step ~cur:2 ~total:2;
-    Display.log step "compiled parser.ml";
-    Display.succeed step);;
+# Eio_main.run @@ fun env ->
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build;;
   # compiled parser.ml
 => compile  2/2  0.0s
 [+] Building 0.0s (1/1)
 - : unit = ()
 ```
+
+The output here is not a terminal, so nothing is redrawn: these are the plain
+lines a pipe or a CI log gets. While a display runs, print through
+`Display.with_output`, which takes the rows off the screen for the time it
+prints, rather than with `Fmt.pr`, which would print in the middle of them.
 
 `Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
