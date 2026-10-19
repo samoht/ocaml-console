@@ -79,10 +79,13 @@ Good to know:
 - The display draws on standard error, so standard output stays the
   program's; what the program prints with `Fmt.pr` while the display runs
   goes above the rows, a line at a time, and so do `Logs` messages.
-- A program decides on colour once, with `Console_eio.setup`: none under
-  `NO_COLOR` or a `TERM` that is unset or `dumb`, otherwise colour on a
-  terminal, in as many colours as `COLORTERM` and `TERM` announce. A
-  `--color` option overrides it (below).
+- A program decides on colour once, with `Console_eio.setup`: no colour
+  when `NO_COLOR` is set and not empty, or when `TERM` is unset, empty or
+  `dumb`; otherwise colour if and only if the output is a terminal, in as
+  many colours as `COLORTERM` and `TERM` announce. A `--color` option passed
+  to `setup` as its `?style_renderer` decides instead (below). If the
+  program does not call `setup`, `Console_eio.run` does, for the outputs on
+  which the program chose nothing itself.
 - A task your function did not end is shown as cancelled when the display
   closes, unless the function said the work succeeded with
   `Display.set_result`. When it raises, or its fiber is cancelled, the
@@ -94,16 +97,27 @@ Good to know:
   and takes the rows off the screen while it asks.
 
 A `--color=auto|always|never` option comes from `fmt.cli`, and its value goes
-straight to `setup`:
+straight to `setup`. This is a whole program, `ready`, whose entry point is
+`let () = main ()`:
 
 ```ocaml
-let main style_renderer =
+let ready style_renderer =
   Console_eio.setup ?style_renderer ();
   Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "ready")
-    Cmdliner.Term.(const main $ Fmt_cli.style_renderer ())
+    Cmdliner.Term.(const ready $ Fmt_cli.style_renderer ())
+
+let main () = exit (Cmdliner.Cmd.eval cmd)
+```
+
+Run as `ready --color=never`, it prints plain text:
+
+```ocaml
+# Cmdliner.Cmd.eval ~argv:[| "ready"; "--color=never" |] cmd;;
+ready
+- : int = 0
 ```
 
 ## Styles and widgets
@@ -240,18 +254,27 @@ The `console` library:
 | `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
-| `Console.Input` | Reading a line from the keyboard, with history and completion |
+| `Console.Input` | A line editor that turns bytes typed into echo and lines, with history and completion; it does no input or output itself |
 
 The `console-eio` library:
 
 | Module | What it does |
 |---|---|
 | `Console_eio` | Decides on colour, and runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio) |
-| `Console_eio.Prompt` | Asking the user a question, or a password without showing it |
+| `Console_eio.Prompt` | Asking a question on the terminal and reading the answer with Eio, or a password without showing it |
 
-The `console.text` library has one module, `Console_text`, which removes
-colour codes and control characters from text you do not trust, without the
-rest of console.
+The `console.text` library has one module, `Console_text`, which makes text
+you do not trust safe to print: it removes escape codes, control characters
+and the characters that reorder text, without the rest of console. It comes
+with the `console` package; add `console.text` to the `libraries` of your
+`dune` file:
+
+```ocaml
+# Console_text.strip "\027[31mred\027[0m and \027]0;title\007plain";;
+- : string = "red and plain"
+# Console_text.sanitize "rm \027[2J-rf";;
+- : string = "rm  [2J-rf"
+```
 
 ## Related work
 

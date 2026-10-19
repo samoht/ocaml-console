@@ -7,4 +7,13 @@
 (mdx
  (package console-eio)
  (files README.md)
- (libraries console console-eio eio eio.unix eio_main fmt fmt.cli cmdliner))
+ (libraries
+  console
+  console.text
+  console-eio
+  eio
+  eio.unix
+  eio_main
+  fmt
+  fmt.cli
+  cmdliner))
