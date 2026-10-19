@@ -1,24 +1,24 @@
-(** Interactive prompts over Eio flows.
+(** Questions asked on the terminal.
 
-    A prompt writes a question to an output flow and reads the answer as one
-    line from an input flow. Both are Eio capabilities, so a fiber waiting for
-    an answer suspends instead of parking the whole domain in a blocking read,
-    and a test drives the very same code from a string source. Every question is
-    result-typed: a prompt with nobody at the other end refuses rather than
-    waiting for input that will never be typed. *)
+    A prompt writes a question on a formatter and reads the answer, one line,
+    from an Eio flow, so a fiber waiting for an answer lets the others run. A
+    prompt with nobody to type an answer says so with an [Error] instead of
+    waiting for ever.
+
+    While a {!Console.Display} runs, ask inside {!Console.Display.with_output},
+    which takes the progress rows off the screen for the time of the question:
+    {[
+    Console.Display.with_output display (fun _ ->
+        Console_eio.Prompt.confirm prompt "Delete the volume?")
+    ]} *)
 
 type t
 (** The type for prompts: where questions go, and the buffered input answers
     come from. *)
 
-val v :
-  ?interactive:bool ->
-  stdin:_ Eio.Flow.source ->
-  stdout:_ Eio.Flow.sink ->
-  unit ->
-  t
-(** [v ~stdin ~stdout ()] is a prompt reading answers from [stdin] and writing
-    questions to [stdout].
+val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
+(** [v stdin] is a prompt reading answers from [stdin] and writing questions on
+    [ppf] (defaults to {!Fmt.stdout}).
 
     [interactive] defaults to whether [stdin] is a terminal: an Eio flow backed
     by a Unix descriptor for which [isatty] holds. A prompt that is not
@@ -38,8 +38,8 @@ val line : t -> string -> (string, [ `Msg of string ]) result
     is not interactive or the input ends. *)
 
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
-(** [confirm t label] asks [label ^ " [y/N] "] and is [true] for an answer of
-    ["y"] or ["yes"], compared after trimming surrounding whitespace and
+(** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
+    of ["y"] or ["yes"], compared after trimming surrounding whitespace and
     ignoring case, and [false] for any other line, an empty one included: the
     capital in [N] is the promise that only an explicit yes goes ahead. This is
     [Error] when [t] is not interactive or the input ends. *)
@@ -54,9 +54,10 @@ val expect : t -> string -> string -> (unit, [ `Msg of string ]) result
 *)
 
 val secret : t -> string -> (string, [ `Msg of string ]) result
-(** [secret t question] is like {!line} but the answer is not echoed: one [*] is
-    written for each character typed instead, and the answer is never retained.
-    Masking switches echo off on the terminal behind [t]'s input, so this is
-    [Error] when that input is not a terminal, and when [t] is not interactive
-    or the input ends. The terminal is given back as it was found on return, on
-    an exception and on SIGINT or SIGTERM. *)
+(** [secret t question] is like {!line} but the answer is not shown: one [*] is
+    written for each character typed instead, then a line feed when the answer
+    ends, and the answer is never retained. Masking switches echo off on the
+    terminal behind [t]'s input, so this is [Error] when that input is not a
+    terminal, and when [t] is not interactive or the input ends. The terminal is
+    given back as it was found on return, on an exception and on SIGINT or
+    SIGTERM. *)

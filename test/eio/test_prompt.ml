@@ -2,14 +2,14 @@ module Prompt = Console_eio.Prompt
 
 let run f = Eio_main.run (fun _env -> f ())
 
-(* A prompt over a string source and a buffer sink: the same code path a
-   terminal takes, with the answers scripted and the questions captured. *)
+(* A prompt over a string source and a buffer: the same code path a terminal
+   takes, with the answers scripted and the questions captured. *)
 let prompt ?interactive input =
   let out = Buffer.create 64 in
   let t =
     Prompt.v ?interactive
-      ~stdin:(Eio.Flow.string_source input)
-      ~stdout:(Eio.Flow.buffer_sink out) ()
+      ~ppf:(Format.formatter_of_buffer out)
+      (Eio.Flow.string_source input)
   in
   (t, out)
 
@@ -188,9 +188,9 @@ let test_secret_leaves_the_domain_running () =
       Eio.Fiber.both
         (fun () ->
           let t =
-            Prompt.v ~stdin:(Eio.Stdenv.stdin env)
-              ~stdout:(Eio.Flow.buffer_sink (Buffer.create 16))
-              ()
+            Prompt.v
+              ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
+              (Eio.Stdenv.stdin env)
           in
           result := Prompt.secret t "secret: ";
           ticks_at_answer := !ticks;

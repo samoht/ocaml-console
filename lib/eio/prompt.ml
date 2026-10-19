@@ -1,13 +1,12 @@
-(* A prompt is the pair of flows the program was handed, plus the buffer that
-   remembers where reading got to. Both halves are Eio capabilities: asking
-   suspends the fiber instead of parking the domain, and a test drives the same
-   code from a string source. *)
+(* A prompt reads its answers from an Eio flow, so that waiting for one
+   suspends the fiber instead of parking the domain, and writes its questions
+   on a formatter, as every other output of the library is written. *)
 
 type t = {
   interactive : bool;
   terminal : Eio_unix.Fd.t option;
   input : Eio.Buf_read.t;
-  output : Eio.Flow.sink_ty Eio.Resource.t;
+  ppf : Format.formatter;
 }
 
 (* A typed answer is one line from a human. The cap keeps a source that never
@@ -22,7 +21,7 @@ let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
       if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
 
-let v ?interactive ~stdin ~stdout () =
+let v ?interactive ?(ppf = Fmt.stdout) stdin =
   let terminal = terminal stdin in
   let interactive =
     Option.value interactive ~default:(Option.is_some terminal)
@@ -31,7 +30,7 @@ let v ?interactive ~stdin ~stdout () =
     interactive;
     terminal;
     input = Eio.Buf_read.of_flow ~max_size:max_answer stdin;
-    output = (stdout :> Eio.Flow.sink_ty Eio.Resource.t);
+    ppf;
   }
 
 let interactive t = t.interactive
@@ -41,7 +40,7 @@ let line t question =
   else begin
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
-    Eio.Flow.copy_string question t.output;
+    Fmt.pf t.ppf "%s%!" question;
     match Eio.Buf_read.line t.input with
     | answer -> Ok answer
     | exception End_of_file -> Error (`Msg "no answer: the input ended")
@@ -49,8 +48,8 @@ let line t question =
         Error (`Msg "no answer: the line is too long")
   end
 
-let confirm t label =
-  match line t (label ^ " [y/N] ") with
+let confirm t question =
+  match line t (question ^ " [y/N] ") with
   | Error (`Msg _ as e) -> Error e
   | Ok answer -> (
       match String.lowercase_ascii (String.trim answer) with
@@ -86,7 +85,7 @@ let rec read_masked t input =
   | exception End_of_file -> Error (`Msg "no answer: the input ended")
   | c -> (
       let echo, lines = Console.Input.feed input (String.make 1 c) in
-      Eio.Flow.copy_string echo t.output;
+      Fmt.pf t.ppf "%s%!" echo;
       match lines with line :: _ -> Ok line | [] -> read_masked t input)
 
 let secret t question =
@@ -98,7 +97,7 @@ let secret t question =
         Eio_unix.Fd.use_exn "secret" fd @@ fun fd ->
         let original = Unix.tcgetattr fd in
         let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
-        Eio.Flow.copy_string question t.output;
+        Fmt.pf t.ppf "%s%!" question;
         Terminal.on_interrupt restore @@ fun () ->
         Fun.protect ~finally:restore @@ fun () ->
         Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
