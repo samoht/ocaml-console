@@ -61,15 +61,11 @@ let fitted_lines panel cw =
         else Span.wrap_hanging cw line)
       panel.lines
 
-let repeat n glyph =
-  if n <= 0 || glyph = "" then ""
-  else String.concat "" (List.init n (Fun.const glyph))
-
-let pad n = Span.text (String.make (max 0 n) ' ')
+let pad = Widget.pad
 
 (* A top or bottom edge, [label] centred in it. *)
 let edge style ~left ~mid ~right inner label =
-  let draw n = Span.styled style (repeat n mid) in
+  let draw n = Span.styled style (Widget.repeat n mid) in
   let middle =
     match label with
     | Some label when inner >= 3 ->
@@ -117,8 +113,5 @@ let lines ~margin panel =
   (* A margin too narrow for the border itself still bounds every line. *)
   List.map (Span.truncate margin) (top @ body @ bottom)
 
-let pp ppf panel =
-  Span.pp_lines ppf (lines ~margin:(Format.pp_get_margin ppf ()) panel)
-
-let to_string ?styled panel =
-  Span.string_of_lines ?styled (lines ~margin:max_int panel)
+let pp = Widget.pp lines
+let to_string = Widget.to_string lines

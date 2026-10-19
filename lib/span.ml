@@ -84,9 +84,7 @@ type layout = {
   widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
 }
 
-let is_ascii_text s =
-  String.for_all (fun c -> Char.code c >= 0x20 && Char.code c < 0x7f) s
-
+let is_ascii_text = Width.is_ascii
 let ascii line = List.for_all (fun a -> is_ascii_text a.text) line
 
 let layout line =

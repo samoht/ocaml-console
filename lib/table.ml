@@ -153,10 +153,6 @@ let widths ?max_width t =
 
 (* {1 Lines} *)
 
-let repeat n glyph =
-  if n <= 0 || glyph = "" then ""
-  else String.concat "" (List.init n (Fun.const glyph))
-
 let rule t widths ~left ~mid ~right ~line =
   if (chars t).top = "" then []
   else
@@ -165,12 +161,13 @@ let rule t widths ~left ~mid ~right ~line =
     let parts =
       Array.to_list
         (Array.mapi
-           (fun i w -> repeat (w + 2) line ^ if i < last then mid else "")
+           (fun i w ->
+             Widget.repeat (w + 2) line ^ if i < last then mid else "")
            widths)
     in
     [ Span.styled style (String.concat "" ((left :: parts) @ [ right ])) ]
 
-let pad n = Span.text (String.make (max 0 n) ' ')
+let pad = Widget.pad
 
 let align_span ~pad_right align target span =
   let padding = target - Span.width span in

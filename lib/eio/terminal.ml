@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let usable_width w = if w > 0 then Some w else None
+let positive n = if n > 0 then Some n else None
 
 let window_size = function
   | None -> None
@@ -12,7 +12,7 @@ let window_size = function
       with Unix.Unix_error _ -> None)
 
 let width_of_ioctl fd () =
-  Option.bind (window_size fd) (fun w -> usable_width w.cols)
+  Option.bind (window_size fd) (fun w -> positive w.cols)
 
 let dimension_of_env name usable =
   Option.bind (Sys.getenv_opt name) (fun value ->
@@ -33,16 +33,14 @@ let first ~default sources =
    inside this Eio driver to say so. *)
 let width fd =
   first ~default:80
-    [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" usable_width) ]
-
-let usable_height h = if h > 0 then Some h else None
+    [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" positive) ]
 
 let height_of_ioctl fd () =
-  Option.bind (window_size fd) (fun w -> usable_height w.rows)
+  Option.bind (window_size fd) (fun w -> positive w.rows)
 
 let height fd =
   first ~default:24
-    [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" usable_height) ]
+    [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" positive) ]
 
 let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)

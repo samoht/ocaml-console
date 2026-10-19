@@ -10,3 +10,6 @@ val string_width : string -> int
     control character: grapheme clusters (UAX #29) at their East Asian width
     (UAX #11), so that a wide character takes two cells, a combining mark none,
     and an emoji sequence, a flag or a keycap two. *)
+
+val is_ascii : string -> bool
+(** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)

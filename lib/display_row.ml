@@ -7,7 +7,7 @@ open Display_state
 
 let text = Span.text
 let faint s = Span.styled Style.faint s
-let pad n = text (String.make (max 0 n) ' ')
+let pad = Widget.pad
 
 let pad_left n span =
   let w = Span.width span in
