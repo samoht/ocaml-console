@@ -253,18 +253,22 @@ let test_validation () =
       Display.set_result display (`Ok "settled"))
   |> ignore
 
-let test_nested_run_reuses_owner () =
+(* One display runs at a time: a second one, whatever its mode, is refused,
+   and the first one's ending frees the claim. *)
+let test_one_display_at_a_time () =
   let buffer = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
   let c = ctx ~is_tty:true ~ppf ~now () in
-  Display.run ~ctx:c ~mode:`Activity (fun outer ->
-      Display.run ~ctx:c ~mode:`Activity (fun inner ->
-          Alcotest.(check bool) "same activity display" true (outer == inner));
-      Display.run ~ctx:c ~mode:`History (fun inner ->
-          Alcotest.(check bool) "mode cannot fork display" true (outer == inner));
-      let task = Display.task outer "outer" in
-      Display.succeed task)
+  let refused mode =
+    match Display.run ~ctx:c ~mode ignore with
+    | () -> false
+    | exception Invalid_argument _ -> true
+  in
+  Display.run ~ctx:c ~mode:`Activity (fun _ ->
+      Alcotest.(check bool) "a second live display" true (refused `Activity);
+      Alcotest.(check bool) "a second appending display" true (refused `History));
+  Alcotest.(check bool) "free once the first ends" false (refused `History)
 
 (* The permanent rows a terminal holds: those led, past their indent, by one of
    the default theme's committed markers. *)
@@ -476,8 +480,8 @@ let suite =
       Alcotest.test_case "exception cancellation" `Quick
         test_exception_cancels_and_propagates;
       Alcotest.test_case "validation" `Quick test_validation;
-      Alcotest.test_case "nested run reuses owner" `Quick
-        test_nested_run_reuses_owner;
+      Alcotest.test_case "one display at a time" `Quick
+        test_one_display_at_a_time;
       Alcotest.test_case "a group lays its rows beneath it at 80 columns" `Quick
         (test_group_lays_its_rows_beneath_it 80);
       Alcotest.test_case "a group lays its rows beneath it at 120 columns"

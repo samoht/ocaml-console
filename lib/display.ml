@@ -26,11 +26,6 @@ module Activity = Display_activity
 type nonrec t = t
 type task = row
 
-(* Nested library calls compose into the domain's current display. The outer
-   scope alone owns configuration, completion and terminal teardown. A DLS
-   binding keeps independent domains separate; the activity claim still
-   prevents two domains from repainting the same terminal concurrently. *)
-let current = Domain.DLS.new_key (fun () -> None)
 let pp = Display_state.pp
 
 let validate_geometry ~width ~height =
@@ -77,7 +72,7 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     last_lines = [];
     painted_at = neg_infinity;
     torn_down = false;
-    owns_activity = false;
+    claimed = false;
     suspended = 0;
     frame = 0;
     drawn = -1;
@@ -85,25 +80,24 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     scene = None;
   }
 
-let release_activity t =
-  if t.owns_activity then begin
-    t.owns_activity <- false;
-    Display_term.set_active None;
+let release_claim t =
+  if t.claimed then begin
+    t.claimed <- false;
     Display_term.release ()
   end
 
-let take_activity t =
-  if not (Display_term.claim ()) then
-    invalid_arg "Console.Display.run: another activity display is active"
-  else begin
-    t.owns_activity <- true;
+let claim t =
+  let live = if t.plain then None else Some t.dppf in
+  if not (Display_term.claim ~live) then
+    invalid_arg "Console.Display.run: a display is already running";
+  t.claimed <- true;
+  if not t.plain then
     match Display_projection.install t with
-    | () -> t
+    | () -> ()
     | exception exn ->
-        release_activity t;
+        release_claim t;
         Display_term.show_cursor_on t.dppf;
         raise exn
-  end
 
 let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
     ?(bar = Line.default) ?width ?height ?header () =
@@ -114,17 +108,14 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
     | `Activity -> false
     | `Auto -> not ctx.Display_ctx.is_tty
   in
-  (match Display_term.active () with
-  | Some region when plain && region.ppf == ctx.ppf ->
-      invalid_arg "Console.Display.run: output formatter is already active"
-  | Some _ | None -> ());
   (* Whether the surface takes ANSI is the formatter's own answer, read once
      here: a terminal whose reader turned colour off still gets the region. *)
   let styling = Ansi.should_style ctx.ppf in
   let t =
     state ~ctx ~plain ~styling ~theme ~palette ~bar ~width ~height ~header
   in
-  if plain then t else take_activity t
+  claim t;
+  t
 
 let touch r = Display_projection.paint_if_stale r.disp
 
@@ -162,26 +153,22 @@ let with_output t f =
       ~finally:(fun () -> Format.pp_set_margin t.dppf margin)
   in
   if t.plain || t.suspended > 0 then call ()
-  else
-    match Display_term.active () with
-    | Some region when region.ppf == t.dppf -> (
-        region.clear ();
-        t.suspended <- t.suspended + 1;
-        let resume ~preserve =
-          t.suspended <- t.suspended - 1;
-          if preserve then
-            try Display_projection.paint t with Sys_error _ -> ()
-          else Display_projection.paint t
-        in
-        match call () with
-        | value ->
-            resume ~preserve:false;
-            value
-        | exception exn ->
-            resume ~preserve:true;
-            raise exn)
-    | Some _ | None ->
-        invalid_arg "Console.Display.with_output: display does not own output"
+  else begin
+    Display_projection.clear t;
+    t.suspended <- t.suspended + 1;
+    let resume ~preserve =
+      t.suspended <- t.suspended - 1;
+      if preserve then try Display_projection.paint t with Sys_error _ -> ()
+      else Display_projection.paint t
+    in
+    match call () with
+    | value ->
+        resume ~preserve:false;
+        value
+    | exception exn ->
+        resume ~preserve:true;
+        raise exn
+  end
 
 (** {1 History} *)
 
@@ -628,7 +615,7 @@ let close t =
           if !shown then
             try Format.pp_print_flush t.dppf () with Sys_error _ -> ()
           else Display_term.show_cursor_on t.dppf;
-          release_activity t)
+          release_claim t)
   end
 
 let cancel_running t message =
@@ -645,29 +632,22 @@ let cleanup_after_exception t =
     close t
   with Sys_error _ ->
     t.torn_down <- true;
-    if not t.plain then begin
-      Display_term.show_cursor_on t.dppf;
-      release_activity t
-    end
+    if not t.plain then Display_term.show_cursor_on t.dppf
 
 let restore = Display_term.restore
 
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
-  match Domain.DLS.get current with
-  | Some t -> f t
-  | None ->
-      let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
-      Domain.DLS.set current (Some t);
-      Fun.protect
-        ~finally:(fun () ->
-          Domain.DLS.set current None;
-          Display_projection.release_frames t)
-        (fun () ->
-          match f t with
-          | value ->
-              finish_running `Succeeded t;
-              close t;
-              value
-          | exception exn ->
-              cleanup_after_exception t;
-              raise exn)
+  let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
+  Fun.protect
+    ~finally:(fun () ->
+      release_claim t;
+      Display_projection.release_frames t)
+    (fun () ->
+      match f t with
+      | value ->
+          finish_running `Succeeded t;
+          close t;
+          value
+      | exception exn ->
+          cleanup_after_exception t;
+          raise exn)

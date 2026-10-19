@@ -51,7 +51,7 @@ type t = {
   mutable last_lines : string list;
   mutable painted_at : float;
   mutable torn_down : bool;
-  mutable owns_activity : bool;
+  mutable claimed : bool;
   mutable suspended : int;
   mutable frame : int;
   mutable drawn : int;

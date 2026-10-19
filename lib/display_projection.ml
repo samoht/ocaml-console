@@ -173,13 +173,6 @@ let install t =
   Display_term.restore_at_exit ();
   Format.pp_print_string t.dppf Display_term.hide_cursor;
   Format.pp_print_flush t.dppf ();
-  Display_term.set_active
-    (Some
-       {
-         ppf = t.dppf;
-         clear = (fun () -> clear t);
-         redraw = (fun () -> paint t);
-       });
   paint t
 
 let redraw_interval = 0.1

@@ -64,7 +64,7 @@ type t = {
   mutable last_lines : string list;  (** The lines on screen. *)
   mutable painted_at : float;  (** When the region was last painted. *)
   mutable torn_down : bool;
-  mutable owns_activity : bool;
+  mutable claimed : bool;
   mutable suspended : int;  (** Nesting of [with_output]. *)
   mutable frame : int;  (** The ticks that refreshed the projection. *)
   mutable drawn : int;  (** The frame last painted, or [-1]. *)

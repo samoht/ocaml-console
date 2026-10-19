@@ -66,28 +66,18 @@ let show_cursor_on ppf =
     Format.pp_print_flush ppf ()
   with Sys_error _ -> ()
 
-type region = {
-  ppf : Format.formatter;
-  clear : unit -> unit;
-  redraw : unit -> unit;
-}
+(* The display running now, and the formatter of its live region if it draws
+   one. Read by the [at_exit] handler. *)
+let current : Format.formatter option option Atomic.t = Atomic.make None
+let claim ~live = Atomic.compare_and_set current None (Some live)
+let release () = Atomic.set current None
 
-(* Read by the [at_exit] handler. *)
-let active_region : region option Atomic.t = Atomic.make None
-let active () = Atomic.get active_region
-let set_active r = Atomic.set active_region r
-let activity_claimed = Atomic.make false
-let claim () = Atomic.compare_and_set activity_claimed false true
-let release () = Atomic.set activity_claimed false
-
-(* [exit] ends the process without unwinding, so a command that calls it inside
-   a display skips the display's teardown; the exit handlers still run. *)
 let restore () =
-  match active () with
-  | None -> ()
-  | Some r ->
-      (try Format.pp_print_string r.ppf "\027[0m\r\n" with Sys_error _ -> ());
-      show_cursor_on r.ppf
+  match Atomic.get current with
+  | Some (Some ppf) ->
+      (try Format.pp_print_string ppf "\027[0m\r\n" with Sys_error _ -> ());
+      show_cursor_on ppf
+  | Some None | None -> ()
 
 let restore_at_exit = lazy (at_exit restore)
 let restore_at_exit () = Lazy.force restore_at_exit

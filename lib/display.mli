@@ -254,16 +254,11 @@ val run :
     raises, they are cancelled children-first and the original exception is
     re-raised. The terminal is restored in both cases.
 
-    Calls compose: a nested [run] on the same domain receives the existing
-    display, and only the outermost call applies configuration and teardown.
-    Across domains an activity display remains exclusive. A history display may
-    run concurrently only on a different formatter; sharing an owned formatter
-    is rejected before output can corrupt the activity region.
+    One display runs at a time in a program.
 
     @raise Invalid_argument
-      if [width] or [height] is not positive, if [mode] asks for an activity
-      display while another domain's is open, or for a history display on the
-      formatter an activity display owns. *)
+      if [width] or [height] is not positive, or if a display is already
+      running. *)
 
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] temporarily removes the activity projection and

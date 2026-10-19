@@ -15,8 +15,6 @@ let animate ~sw display =
       loop ());
   fun () -> running := false
 
-let active = Atomic.make false
-
 let event_level : Logs.level -> Console.Display.Event.level = function
   | Logs.Warning -> `Warning
   | Logs.Error -> `Error
@@ -79,25 +77,19 @@ let receive ~sw ~closed requests display =
   loop ()
 
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
-  if not (Atomic.compare_and_set active false true) then
-    invalid_arg "Console_eio.run: another display is active";
-  Fun.protect
-    (fun () ->
-      Console.Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
-        (fun display ->
-          Eio.Switch.run @@ fun sw ->
-          let owner = Domain.self () in
-          let requests = Eio.Stream.create 1 in
-          let closed, close = Eio.Promise.create () in
-          let previous = Logs.reporter () in
-          Eio.Fiber.fork_daemon ~sw (fun () ->
-              receive ~sw ~closed requests display);
-          Logs.set_reporter (reporter ~owner ~closed ~requests display);
-          Fun.protect
-            (fun () ->
-              let stop = animate ~sw display in
-              Fun.protect (fun () -> f display) ~finally:stop)
-            ~finally:(fun () ->
-              Logs.set_reporter previous;
-              Eio.Promise.resolve close ())))
-    ~finally:(fun () -> Atomic.set active false)
+  Console.Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
+    (fun display ->
+      Eio.Switch.run @@ fun sw ->
+      let owner = Domain.self () in
+      let requests = Eio.Stream.create 1 in
+      let closed, close = Eio.Promise.create () in
+      let previous = Logs.reporter () in
+      Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests display);
+      Logs.set_reporter (reporter ~owner ~closed ~requests display);
+      Fun.protect
+        (fun () ->
+          let stop = animate ~sw display in
+          Fun.protect (fun () -> f display) ~finally:stop)
+        ~finally:(fun () ->
+          Logs.set_reporter previous;
+          Eio.Promise.resolve close ()))

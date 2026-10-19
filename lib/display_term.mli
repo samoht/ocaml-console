@@ -40,31 +40,19 @@ val show_cursor_on : Format.formatter -> unit
 (** [show_cursor_on ppf] writes {!show_cursor} on [ppf] and flushes, ignoring
     [Sys_error]. *)
 
-(** {1:region The active region} *)
+(** {1:claim The running display} *)
 
-type region = {
-  ppf : Format.formatter;  (** The formatter the region is drawn on. *)
-  clear : unit -> unit;  (** Erases the region. *)
-  redraw : unit -> unit;  (** Draws the region again. *)
-}
-(** The type for the live region on the terminal. *)
-
-val active : unit -> region option
-(** [active ()] is the region on the terminal, if any. *)
-
-val set_active : region option -> unit
-(** [set_active r] makes [r] the region on the terminal. *)
-
-val claim : unit -> bool
-(** [claim ()] is [true] iff it took the process's one activity claim, which was
-    free. *)
+val claim : live:Format.formatter option -> bool
+(** [claim ~live] is [true] iff no display was running, and makes the caller the
+    running one; [live] is the formatter its live region is drawn on, if it
+    draws one. *)
 
 val release : unit -> unit
-(** [release ()] frees the activity claim. *)
+(** [release ()] ends the running display's claim. *)
 
 val restore : unit -> unit
 (** [restore ()] resets attributes, ends the line and shows the cursor on the
-    {!active} region's formatter, if there is one. *)
+    running display's live region, if it draws one. *)
 
 val restore_at_exit : unit -> unit
 (** [restore_at_exit ()] registers {!restore} with [at_exit], once per process.
