@@ -130,9 +130,41 @@ let test_huge_min_width n =
   let out = Table.to_string ~width:20 t in
   check_fits 20 (String.split_on_char '\n' out)
 
+let test_wide_border n =
+  let glyph = String.make (2 + (n mod 3)) '#' in
+  let border =
+    Border.v
+      Border.
+        {
+          top_left = glyph;
+          top = glyph;
+          top_right = glyph;
+          left = glyph;
+          right = glyph;
+          bottom_left = glyph;
+          bottom = glyph;
+          bottom_right = glyph;
+          cross = glyph;
+          top_cross = glyph;
+          bottom_cross = glyph;
+          left_cross = glyph;
+          right_cross = glyph;
+        }
+  in
+  let t =
+    Table.of_rows ~border
+      [ Table.column "A"; Table.column "B" ]
+      [ [ Span.text "x"; Span.text "y" ] ]
+  in
+  let lines = String.split_on_char '\n' (Table.to_string ~width:40 t) in
+  check_fits 40 lines;
+  let widths = List.map cells lines in
+  List.iter (fun w -> check_eq ~pp:Fmt.int (List.hd widths) w) widths
+
 let suite =
   ( "table",
     [
+      test_case "multi-cell borders stay rectangular" [ uint8 ] test_wide_border;
       test_case "huge minimum narrows to available width" [ uint8 ]
         test_huge_min_width;
       test_case "fits the margin" [ bytes; int ] test_fits;

@@ -373,9 +373,44 @@ let test_huge_min_width () =
         (Span.width (Span.text line) <= 20))
     (String.split_on_char '\n' out)
 
+let test_wide_border () =
+  let border =
+    Border.v
+      Border.
+        {
+          top_left = "\u{754c}";
+          top = "\u{754c}";
+          top_right = "\u{754c}";
+          left = "\u{754c}";
+          right = "\u{754c}";
+          bottom_left = "\u{754c}";
+          bottom = "\u{754c}";
+          bottom_right = "\u{754c}";
+          cross = "\u{754c}";
+          top_cross = "\u{754c}";
+          bottom_cross = "\u{754c}";
+          left_cross = "\u{754c}";
+          right_cross = "\u{754c}";
+        }
+  in
+  let t =
+    Table.of_rows ~border
+      [ Table.column "A"; Table.column "B" ]
+      [ [ Span.text "x"; Span.text "y" ] ]
+  in
+  let widths =
+    List.map
+      (fun l -> Span.width (Span.text l))
+      (String.split_on_char '\n' (Table.to_string ~width:20 t))
+  in
+  Alcotest.(check (list int))
+    "two-cell frame remains rectangular" [ 12; 12; 12; 12; 12 ] widths
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "two-cell border stays rectangular" `Quick
+        test_wide_border;
       Alcotest.test_case "formatter composes without a trailing newline" `Quick
         test_pp_ending;
       Alcotest.test_case "styled border runs" `Quick test_styled_border_runs;
