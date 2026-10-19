@@ -17,8 +17,3 @@ val sanitize : ?keep_newlines:bool -> string -> string
 
 val sanitize_styles : ?keep_newlines:bool -> string -> string
 (** [sanitize_styles s] is {!Console_text.sanitize_styles} [s]. *)
-
-val newline : Format.formatter -> unit
-(** [newline ppf] ends one output row on [ppf]. An ANSI formatter gets CRLF, so
-    that a row filling the terminal exactly cannot leave the terminal in its
-    pending-wrap state. *)

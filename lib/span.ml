@@ -216,6 +216,6 @@ let pp_wrapped ppf t =
   in
   List.iteri
     (fun i line ->
-      if i > 0 then Render.newline ppf;
+      if i > 0 then Fmt.char ppf '\n';
       pp ppf line)
     lines

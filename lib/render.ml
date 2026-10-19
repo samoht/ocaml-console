@@ -16,10 +16,3 @@ let to_string pp ?(styled = false) v =
 
 let sanitize = Console_text.sanitize
 let sanitize_styles = Console_text.sanitize_styles
-
-(* A terminal that has just filled its last column is in the pending-wrap
-   state.  LF alone moves down but keeps that state/column on common VTs, so
-   the next glyph may wrap once more.  CRLF is the unambiguous physical-row
-   separator for ANSI output; plain formatter output keeps conventional LF. *)
-let newline ppf =
-  Fmt.string ppf (if Fmt.style_renderer ppf = `Ansi_tty then "\r\n" else "\n")

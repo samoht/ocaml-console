@@ -173,7 +173,7 @@ let test_gradient_border () =
          b;
          "\xe2\x94\x80\xe2\x94\x90";
          reset;
-         "\r\n";
+         "\n";
          r;
          "\xe2\x94\x82";
          reset;
@@ -181,7 +181,7 @@ let test_gradient_border () =
          b;
          "\xe2\x94\x82";
          reset;
-         "\r\n";
+         "\n";
          r;
          "\xe2\x94\x94";
          b;
@@ -198,7 +198,7 @@ let test_gradient_border () =
          r;
          "\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x90";
          reset;
-         "\r\n";
+         "\n";
          p;
          "\xe2\x94\x82";
          reset;
@@ -206,7 +206,7 @@ let test_gradient_border () =
          p;
          "\xe2\x94\x82";
          reset;
-         "\r\n";
+         "\n";
          b;
          "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x98";
          reset;

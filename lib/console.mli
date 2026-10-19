@@ -24,10 +24,6 @@
     content cannot move the cursor. Fitting preferences may change which content
     is shortened, but may not push a border into the next row.
 
-    ANSI multi-line widgets use terminal-safe physical row boundaries, so a row
-    that ends exactly at the right edge cannot leave the next border or glyph
-    wrapped onto an extra line.
-
     {1:quickstart Quick start}
 
     {2:styled Styled text}

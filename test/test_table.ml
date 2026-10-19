@@ -426,10 +426,10 @@ let test_styled_border_runs () =
   let lines = String.split_on_char '\n' (Table.to_string ~styled:true t) in
   Alcotest.(check string)
     "top"
-    "\027[31m\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90\027[0m\r"
+    "\027[31m\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90\027[0m"
     (List.hd lines);
   Alcotest.(check string)
-    "data row" "\027[31m\xe2\x94\x82\027[0m b \027[31m\xe2\x94\x82\027[0m\r"
+    "data row" "\027[31m\xe2\x94\x82\027[0m b \027[31m\xe2\x94\x82\027[0m"
     (List.nth lines 3)
 
 let suite =

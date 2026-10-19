@@ -69,6 +69,6 @@ let text p s =
 
 let newline p =
   close p;
-  Render.newline p.ppf;
+  Fmt.char p.ppf '\n';
   p.row <- p.row + 1;
   p.column <- 0

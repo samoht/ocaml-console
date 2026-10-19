@@ -86,8 +86,8 @@ let test_guide_style () =
   in
   Alcotest.(check string)
     "rows"
-    "r\r\n\
-     \027[38;2;127;0;128m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\r\n\
+    "r\n\
+     \027[38;2;127;0;128m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\n\
      \027[38;2;0;0;255m\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\027[0m b"
     (Tree.to_string ~styled:true tree);
   Alcotest.(check bool)

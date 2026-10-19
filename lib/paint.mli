@@ -28,7 +28,7 @@ val text : t -> string -> unit
     the column by its display width. *)
 
 val newline : t -> unit
-(** [newline p] closes any open run and ends the row ({!Render.newline}). *)
+(** [newline p] closes any open run and ends the row with a line feed. *)
 
 val close : t -> unit
 (** [close p] closes any open run. *)

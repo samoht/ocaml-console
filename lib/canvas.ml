@@ -92,6 +92,6 @@ let pp ppf c =
   let margin = Format.pp_get_margin ppf () in
   List.iteri
     (fun i row ->
-      if i > 0 then Render.newline ppf;
+      if i > 0 then Fmt.char ppf '\n';
       Span.pp ppf (Span.truncate margin row))
     (rows c)
