@@ -106,14 +106,15 @@
     {[
     open Console
 
-    let build_step ~clock =
-      Console_eio.run ~clock ~theme:Theme.unicode ~header:"Building"
-      @@ fun display ->
+    let build_step display =
       let step = Display.task display "compile" in
       Display.set_count step ~cur:1 ~total:2;
       Display.log step "compiled parser.ml";
       Display.succeed step
     ]}
+
+    The binary runs it with
+    [Console_eio.run ~clock ~theme:Theme.unicode ~header:"Building" build_step].
 
     {2:animation Animation}
 

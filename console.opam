@@ -23,7 +23,6 @@ depends: [
   "astring" {with-test}
   "mdx" {with-test}
   "alcobar" {with-test}
-  "eio_main" {with-test}
   "re" {with-test}
   "odoc" {with-doc}
 ]

@@ -2,7 +2,9 @@
  (dev
   (flags :standard %{dune-warnings})))
 
+; The README shows the Eio driver, which lives in console-eio.
+
 (mdx
- (package console)
+ (package console-eio)
  (files README.md)
  (libraries console console-eio eio fmt))

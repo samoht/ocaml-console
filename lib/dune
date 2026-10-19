@@ -25,4 +25,4 @@
 (mdx
  (package console)
  (files tree.mli display.mli console.mli)
- (libraries console console-eio fmt logs logs.fmt eio eio.core eio.unix))
+ (libraries console fmt))

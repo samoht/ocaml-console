@@ -31,7 +31,6 @@
   (astring :with-test)
   (mdx :with-test)
   (alcobar :with-test)
-  (eio_main :with-test)
   (re :with-test)))
 
 (package
@@ -51,4 +50,5 @@
   optint
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
+  (mdx :with-test)
   (eio_main :with-test)))
