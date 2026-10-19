@@ -209,6 +209,9 @@ let run ~clock ~intercept:formatters display f =
       Fun.protect ~finally:(fun () ->
           Logs.set_reporter previous;
           Eio.Promise.resolve close ())
+      @@ fun () ->
+      Interrupt.protect ~restore:(fun () ->
+          Display.close ~running:`Cancel display)
       @@ fun () -> Eio.Fiber.with_binding current display (fun () -> f display)
     with
     | v -> v

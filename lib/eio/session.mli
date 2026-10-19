@@ -33,5 +33,5 @@ val run :
     fiber's and the program's one, redrawn ten times a second on [clock],
     {!Logs} messages and each whole line written on the formatters of
     [intercept] printed above its region, and closed when [f] returns, raises,
-    is cancelled or the program exits. A {!claim} must be held; it is released.
-*)
+    is cancelled, the program exits or a signal ends it ({!Interrupt}). A
+    {!claim} must be held; it is released. *)

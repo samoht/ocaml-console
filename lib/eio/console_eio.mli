@@ -10,7 +10,8 @@
     is a terminal and how large it is, redraws the progress rows ten times a
     second, prints {!Logs} messages and the program's own output above them, and
     gives the terminal back as it found it when the function returns or raises,
-    when its fiber is cancelled and when the program exits. *)
+    when its fiber is cancelled, when the program exits and when SIGINT or
+    SIGTERM ends it. *)
 
 module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
@@ -49,7 +50,10 @@ val run :
     Otherwise each line is printed in turn. When [f] returns, the tasks still
     running succeed; when it raises or its fiber is cancelled, they are
     cancelled and the exception is raised again. Either way, and when the
-    program exits during [f], the display closes.
+    program exits during [f], the display closes. So it does when SIGINT or
+    SIGTERM arrives during [f] and the program left that signal at its default
+    disposition: the display closes, then the signal ends the program as it
+    would have. A signal the program handles or ignores is left to it.
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
