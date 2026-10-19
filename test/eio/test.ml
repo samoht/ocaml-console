@@ -6,4 +6,5 @@ let () =
       Test_console_eio.suite;
       Test_terminal.suite;
       Test_prompt.suite;
+      Test_mock.suite;
     ]
