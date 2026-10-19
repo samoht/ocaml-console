@@ -8,7 +8,9 @@ let test s =
       ()
   in
   let a = make () and b = make () in
-  check (Input.pending a = "" && Input.history a = [ s ]);
+  check
+    (Input.pending a = ""
+    && Input.history a = [ Console_text.sanitize ~keep_newlines:false s ]);
   let echo, lines = Input.feed a s in
   let echoes = Buffer.create 64 and completed = ref [] in
   String.iter

@@ -267,9 +267,23 @@ let test_complete_utf8 () =
   ignore (Input.feed t "\t");
   Alcotest.(check string) "no complete character is shared" "" (Input.pending t)
 
+let test_echo_is_text () =
+  let no_escape msg (echo, _) =
+    Alcotest.(check bool) msg false (String.contains echo '\027')
+  in
+  let t =
+    Input.v ~prompt:"\027[2J> " ~history:[ "\027]0;owned\007" ]
+      ~complete:(fun _ -> [ "a\027[31m"; "ab\027[2J" ])
+      ()
+  in
+  no_escape "completion and prompt" (Input.feed t "\t");
+  no_escape "history" (Input.feed t "\027[A")
+
 let suite =
   ( "input",
     [
+      Alcotest.test_case "echo holds no escape from the caller" `Quick
+        test_echo_is_text;
       Alcotest.test_case "completion inserts only complete UTF-8 characters"
         `Quick test_complete_utf8;
       Alcotest.test_case "printable" `Quick test_printable;

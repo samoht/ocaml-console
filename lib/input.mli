@@ -48,6 +48,9 @@ val v :
     word to the candidates' longest common prefix and, when more than one
     remains, lists them. With no [complete], Tab does nothing.
 
+    A control character in [prompt], [history], [mask] or a candidate is echoed
+    as a space, so none of them can move the cursor or change colours.
+
     [mask], when provided, is echoed once for each typed character while the
     real line remains available through {!pending} and {!feed}. Masked editors
     disable completion and history navigation, and never retain submitted lines

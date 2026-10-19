@@ -24,14 +24,17 @@ type t = {
   mutable need : int; (* continuation bytes still expected for [partial] *)
 }
 
+(* What the editor echoes is text, never a control the terminal acts on. *)
+let clean = Console_text.sanitize ~keep_newlines:false
+
 let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
   {
     left = [];
     right = [];
-    prompt;
+    prompt = clean prompt;
     complete;
-    mask;
-    hist = List.rev history;
+    mask = Option.map clean mask;
+    hist = List.rev_map clean history;
     pos = None;
     draft = "";
     esc = Normal;
@@ -186,7 +189,7 @@ let complete t echo =
   else
     let before = String.concat "" (List.rev t.left) in
     let word = last_word before in
-    let candidates = t.complete word in
+    let candidates = List.map clean (t.complete word) in
     match List.filter (String.starts_with ~prefix:word) candidates with
     | [] -> ()
     | candidates ->
