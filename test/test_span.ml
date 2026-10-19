@@ -115,9 +115,16 @@ let test_gradient_span () =
     "plain" "abc"
     (Span.to_string (Span.styled (Style.fg_gradient ramp) "abc"))
 
+let test_wrap_malformed () =
+  Alcotest.(check (list string))
+    "each byte sequence remains visible" [ "\u{FFFD}"; "a" ]
+    (List.map Span.to_string (Span.wrap 1 (Span.text "\255a")))
+
 let suite =
   ( "span",
     [
+      Alcotest.test_case "wrapping replaces malformed UTF-8" `Quick
+        test_wrap_malformed;
       Alcotest.test_case "gradient span" `Quick test_gradient_span;
       Alcotest.test_case "text" `Quick test_text;
       Alcotest.test_case "concat" `Quick test_concat;
