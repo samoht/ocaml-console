@@ -71,6 +71,74 @@ let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in
   Alcotest.(check bool) "mentions the done marker" true (contains "[+]" s)
 
+(* WCAG 2.1 contrast ratio: (L1 + 0.05) / (L2 + 0.05) of the relative
+   luminances, the lighter first. *)
+let luminance c =
+  let r, g, b = Color.to_rgb c in
+  let lin v =
+    let v = float_of_int v /. 255. in
+    if v <= 0.04045 then v /. 12.92 else Float.pow ((v +. 0.055) /. 1.055) 2.4
+  in
+  (0.2126 *. lin r) +. (0.7152 *. lin g) +. (0.0722 *. lin b)
+
+let contrast c0 c1 =
+  let l0 = luminance c0 and l1 = luminance c1 in
+  (Float.max l0 l1 +. 0.05) /. (Float.min l0 l1 +. 0.05)
+
+let presets =
+  Theme.
+    [
+      ("unicode", unicode);
+      ("ascii", ascii);
+      ("dos", dos);
+      ("matrix", matrix);
+      ("rainbow", rainbow);
+      ("dracula", dracula);
+      ("nord", nord);
+      ("solarized_dark", solarized_dark);
+      ("solarized_light", solarized_light);
+      ("gruvbox_dark", gruvbox_dark);
+      ("gruvbox_light", gruvbox_light);
+      ("catppuccin_latte", catppuccin_latte);
+      ("catppuccin_mocha", catppuccin_mocha);
+      ("tokyo_night", tokyo_night);
+      ("one_dark", one_dark);
+      ("monokai", monokai);
+      ("github_dark", github_dark);
+      ("github_light", github_light);
+    ]
+
+(* The text a theme colours stands out from its background at 3:1 or more;
+   a theme without a background is read on black and on white alike. *)
+let test_contrast () =
+  List.iter
+    (fun (name, t) ->
+      let backgrounds =
+        match Theme.background t with
+        | Some bg -> [ bg ]
+        | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
+      in
+      let colours =
+        [
+          ("accent", Theme.accent t);
+          ("ok", Theme.ok t);
+          ("warn", Theme.warn t);
+          ("fail", Theme.fail t);
+        ]
+        @ List.mapi (fun i c -> (Fmt.str "palette %d" i, c)) (Theme.palette t)
+      in
+      List.iter
+        (fun bg ->
+          List.iter
+            (fun (what, c) ->
+              let ratio = contrast c bg in
+              if ratio < 3. then
+                Alcotest.failf "%s: %s %a on %a is %.2f:1" name what Color.pp c
+                  Color.pp bg ratio)
+            colours)
+        backgrounds)
+    presets
+
 let suite =
   ( "theme",
     [
@@ -80,4 +148,5 @@ let suite =
       Alcotest.test_case "v defaults" `Quick test_v_defaults;
       Alcotest.test_case "schemes" `Quick test_schemes;
       Alcotest.test_case "pp" `Quick test_pp;
+      Alcotest.test_case "contrast" `Quick test_contrast;
     ] )

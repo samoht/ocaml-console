@@ -385,7 +385,8 @@ let test_colours () =
   Display.fail a;
   Display.close t.display;
   let out = written t in
-  Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
+  (* The default theme's red is entry 160 of the 256-colour palette. *)
+  Alcotest.(check bool) "red failure" true (contains "\027[1;38;5;160m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
 let suite =

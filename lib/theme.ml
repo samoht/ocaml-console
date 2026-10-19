@@ -51,13 +51,22 @@ let ascii_marks = function
   | `Warning -> "!"
   | `Error -> "x"
 
+(* Entries of the xterm 256-colour palette whose contrast is 3:1 or more on
+   black and on white alike, for a terminal whose background is unknown. *)
+let teal = Color.palette 30
+let green = Color.palette 28
+let amber = Color.palette 136
+let red = Color.palette 160
+let blue = Color.palette 63
+let magenta = Color.palette 164
+
 let unicode =
   {
-    accent = Color.cyan;
-    palette = [ Color.cyan ];
-    ok = Color.green;
-    warn = Color.yellow;
-    fail = Color.red;
+    accent = teal;
+    palette = [ teal ];
+    ok = green;
+    warn = amber;
+    fail = red;
     header = Style.bold;
     background = None;
     border = Border.rounded;
@@ -91,12 +100,13 @@ let ascii =
   v ~border:Border.ascii ~guide:Guide.ascii ~spinner:Spinner.ascii
     ~marks:ascii_marks ()
 
-let amber = Color.rgb 0xff 0xb0 0x00
+let dos_amber = Color.rgb 0xff 0xb0 0x00
 
 let dos =
-  v ~accent:amber ~ok:amber ~warn:amber ~fail:(Color.rgb 0xff 0x55 0x55)
-    ~background:Color.black ~border:Border.ascii ~guide:Guide.ascii
-    ~spinner:Spinner.ascii ~marks:ascii_marks ()
+  v ~accent:dos_amber ~ok:dos_amber ~warn:dos_amber
+    ~fail:(Color.rgb 0xff 0x55 0x55) ~background:Color.black
+    ~border:Border.ascii ~guide:Guide.ascii ~spinner:Spinner.ascii
+    ~marks:ascii_marks ()
 
 let matrix_green = Color.rgb 0x33 0xff 0x33
 
@@ -106,20 +116,12 @@ let matrix =
     ~border:Border.single ()
 
 let rainbow =
-  v ~accent:Color.magenta
-    ~palette:
-      [
-        Color.red;
-        Color.yellow;
-        Color.green;
-        Color.cyan;
-        Color.blue;
-        Color.magenta;
-      ]
-    ()
+  v ~accent:magenta ~palette:[ red; amber; green; teal; blue; magenta ] ()
 
 (* The colours of each scheme are taken from its upstream source, named
-   beside it, and degrade to 256 or 16 colours as a terminal's depth asks. *)
+   beside it, and degrade to 256 or 16 colours as a terminal's depth asks.
+   Where a scheme's colour is below 3:1 contrast on its own background, it
+   is darkened to just above it. *)
 
 let scheme ~accent ~ok ~warn ~fail ~background =
   v ~accent:(Color.hex accent) ~ok:(Color.hex ok) ~warn:(Color.hex warn)
@@ -142,7 +144,7 @@ let solarized_dark =
 
 (* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
 let solarized_light =
-  scheme ~accent:"#268bd2" ~ok:"#859900" ~warn:"#b58900" ~fail:"#dc322f"
+  scheme ~accent:"#268bd2" ~ok:"#819400" ~warn:"#b18600" ~fail:"#dc322f"
     ~background:"#fdf6e3"
 
 (* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
@@ -157,7 +159,7 @@ let gruvbox_light =
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette palette.json 1.8.0. *)
 let catppuccin_latte =
-  scheme ~accent:"#8839ef" ~ok:"#40a02b" ~warn:"#df8e1d" ~fail:"#d20f39"
+  scheme ~accent:"#8839ef" ~ok:"#3e9b2a" ~warn:"#be7919" ~fail:"#d20f39"
     ~background:"#eff1f5"
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette palette.json 1.8.0. *)

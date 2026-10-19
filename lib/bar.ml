@@ -6,7 +6,7 @@
 (* Eighth-of-a-cell glyphs. *)
 let eighths = [| " "; "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
 let repeat n glyph = String.concat "" (List.init (max 0 n) (fun _ -> glyph))
-let default_style = Style.fg Color.cyan
+let default_style = Style.fg (Theme.accent Theme.unicode)
 
 (* [n] cells of [glyph] in [style]; no cell adds nothing, not even a style. *)
 let run style n glyph =

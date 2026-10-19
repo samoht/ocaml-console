@@ -11,7 +11,11 @@
     {!Display}. Give the same theme to each widget to make them match.
 
     Colours are given as the scheme defines them; a terminal that shows fewer
-    colours gets the nearest ones it has ({!Color.val-depth}). *)
+    colours gets the nearest ones it has ({!Color.val-depth}). In every
+    predefined theme, the main colour, the colours of a success, a warning and a
+    failure and those of the progress rows have a contrast of 3:1 or more with
+    its {!background}, as WCAG 2.1 measures it, or with black and with white
+    alike when it has none. *)
 
 (** {1:themes Themes} *)
 
@@ -44,12 +48,12 @@ val v :
   t
 (** [v ()] is {!unicode} with the given parts replaced:
 
-    - [accent] is the main colour (defaults to {!Color.cyan});
+    - [accent] is the main colour (defaults to {!unicode}'s teal);
     - [palette] are the colours successive progress rows take in turn (defaults
       to [[accent]], as does [[]]);
     - [ok], [warn] and [fail] colour the marks of a success, of a warning or a
-      cancellation, and of a failure or an error (default to {!Color.green},
-      {!Color.yellow} and {!Color.red});
+      cancellation, and of a failure or an error (default to {!unicode}'s green,
+      amber and red);
     - [header] is the style of a display's header (defaults to {!Style.bold});
     - [background] is the background the colours are chosen for, light or dark
       (defaults to none: the terminal's own). The widgets do not paint it;
@@ -100,9 +104,11 @@ val mark : t -> mark -> string
     authors define them; their {!background} is the scheme's. *)
 
 val unicode : t
-(** [unicode] is cyan, with rounded frames, a braille spinner and, for the
-    states of {!type-mark} in order, a bullet, a check mark, a cross, a circle,
-    a single right-pointing angle quotation mark, [!] and a cross. *)
+(** [unicode] is teal, with a green, an amber and a red taken from the xterm
+    256-colour palette (entries 30, 28, 136 and 160) for their contrast on dark
+    and light backgrounds alike, with rounded frames, a braille spinner and, for
+    the states of {!type-mark} in order, a bullet, a check mark, a cross, a
+    circle, a single right-pointing angle quotation mark, [!] and a cross. *)
 
 val ascii : t
 (** [ascii] is {!unicode} drawn with ASCII characters only: ASCII frames, tree
@@ -117,7 +123,8 @@ val matrix : t
 (** [matrix] is bright green on black, with single-line frames. *)
 
 val rainbow : t
-(** [rainbow] gives successive progress rows the colours of the rainbow. *)
+(** [rainbow] gives successive progress rows the colours of the rainbow, taken
+    from the xterm 256-colour palette as {!unicode}'s are. *)
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background
@@ -133,7 +140,8 @@ val solarized_dark : t
 
 val solarized_light : t
 (** [solarized_light] is like {!solarized_dark} for Solarized's light background
-    [#fdf6e3]. *)
+    [#fdf6e3], its green and yellow darkened to [#819400] and [#b18600] for
+    contrast. *)
 
 val gruvbox_dark : t
 (** [gruvbox_dark] is gruvbox's orange and its bright green, yellow and red, for
@@ -145,7 +153,8 @@ val gruvbox_light : t
 
 val catppuccin_latte : t
 (** [catppuccin_latte] is Catppuccin Latte's mauve, green, yellow and red, for
-    its background [#eff1f5]. *)
+    its background [#eff1f5], its green and yellow darkened to [#3e9b2a] and
+    [#be7919] for contrast. *)
 
 val catppuccin_mocha : t
 (** [catppuccin_mocha] is Catppuccin Mocha's mauve, green, yellow and red, for
