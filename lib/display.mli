@@ -487,11 +487,12 @@ val activity : t -> Activity.t
 (** [activity display] is a snapshot of currently running tasks. *)
 
 val set_result :
-  t -> ?detail:string -> [ `Ok of string | `Fail of string ] -> unit
+  ?detail:string -> t -> [ `Ok of string | `Fail of string ] -> unit
 (** [set_result display result] settles remaining tasks, records the final
     verdict as a permanent semantic event, and emits it when {!run} closes.
-    [`Ok] succeeds remaining work; [`Fail] cancels it. It is exactly-once; a
-    later call is a harmless no-op. *)
+    [`Ok] succeeds remaining work; [`Fail] cancels it. [detail], if given, is
+    written dimmed above the verdict, one line per line of it. It is
+    exactly-once; a later call is a harmless no-op. *)
 
 val frame : t -> int
 (** [frame display] is the number of times {!tick} has refreshed [display]'s

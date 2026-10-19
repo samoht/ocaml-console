@@ -557,7 +557,7 @@ let finish_running outcome ?message t =
     (fun task -> if task.rfinish = None then finish outcome ?message task)
     (List.rev t.rows)
 
-let set_result t ?detail result =
+let set_result ?detail t result =
   check_open "set_result" t;
   if Option.is_none t.pending then begin
     (match result with
