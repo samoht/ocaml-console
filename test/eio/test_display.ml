@@ -250,9 +250,20 @@ module Report_domains = struct
         (Failure "close display") run
     else run ();
 
-    Alcotest.check_raises "external worker is released by closure"
-      (Invalid_argument "Console_eio: the display reporter is closed")
-      (fun () -> Eio.Promise.await_exn (Option.get !worker));
+    (* Each of the worker's writes can see the closed reporter, so on a host
+       with spare cores it may report the same error twice. *)
+    let closed =
+      Invalid_argument "Console_eio: the display reporter is closed"
+    in
+    (match Eio.Promise.await_exn (Option.get !worker) with
+    | () -> Alcotest.fail "external worker is released by closure: no error"
+    | exception e when e = closed -> ()
+    | exception Eio.Exn.Multiple exns
+      when List.for_all (fun (e, _) -> e = closed) exns ->
+        ()
+    | exception e ->
+        Alcotest.failf "external worker is released by closure: got %a" Fmt.exn
+          e);
     Alcotest.(check bool)
       "consumer stopped before display teardown" false !in_output;
     Alcotest.(check int)
