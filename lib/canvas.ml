@@ -17,22 +17,16 @@ let replacement = "\xef\xbf\xbd"
 
 let cells ?(style = Style.none) s =
   let s = Render.sanitize ~keep_newlines:false s in
-  let n = String.length s in
-  let rec go i acc =
-    if i >= n then List.rev acc
-    else
-      let d = String.get_utf_8_uchar s i in
-      let len = Uchar.utf_decode_length d in
-      let g = String.sub s i len in
-      let w = Width.default_char_width (Uchar.utf_decode_uchar d) in
-      match (w, acc) with
-      | 0, c :: rest ->
-          go (i + len) (Inked.v ~style:(Inked.style c) (Inked.get c ^ g) :: rest)
-      | 0, [] -> go (i + len) acc
-      | 1, _ -> go (i + len) (Inked.v ~style g :: acc)
-      | _ -> go (i + len) (Inked.v ~style replacement :: acc)
-  in
-  go 0 []
+  List.rev
+    (List.fold_left
+       (fun acc (g, w) ->
+         match (w, acc) with
+         | 0, c :: rest ->
+             Inked.v ~style:(Inked.style c) (Inked.get c ^ g) :: rest
+         | 0, [] -> acc
+         | 1, _ -> Inked.v ~style g :: acc
+         | _ -> Inked.v ~style replacement :: acc)
+       [] (Width.atoms s))
 
 let glyph = Inked.get
 let style = Inked.style

@@ -35,8 +35,8 @@ let header t ~fit =
       let h =
         if not fit then h
         else
-          shorten t
-            (t.width - string_width t marker - string_width t meta - 2)
+          Width.shorten
+            (t.width - Width.string_width marker - Width.string_width meta - 2)
             h
       in
       let line =
@@ -53,7 +53,7 @@ let header t ~fit =
             dimmed t meta;
           ]
       in
-      Some (if fit then truncate t t.width line else line)
+      Some (if fit then Width.truncate t.width line else line)
 
 let verdict t result =
   let marker, accent, msg =
@@ -64,7 +64,7 @@ let verdict t result =
   in
   if t.plain then styled t (dim ^ accent) marker ^ " " ^ styled t bold msg
   else begin
-    let indent = string_width t marker + 1 in
+    let indent = Width.string_width marker + 1 in
     let body = Width.wrap ~indent t.width msg in
     (* [wrap] indents every line, including the first; the marker takes the
        first line's indent. *)

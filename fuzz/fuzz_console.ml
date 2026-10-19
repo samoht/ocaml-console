@@ -10,8 +10,8 @@ let of_string_rows ?theme ?border columns rows =
   Table.of_rows ?theme ?border columns (List.map (List.map Span.text) rows)
 
 (* Every property here checks the library against a real VT emulator, which
-   places combining marks at zero cells and wide glyphs at two; Uucp-backed
-   [Width.default_char_width] follows that same policy. *)
+   places combining marks at zero cells and wide glyphs at two, as the
+   library's grapheme measure does. *)
 
 let display_ctx ~ppf ~now ~width ~height =
   Display.ctx ~ppf ~now ~wait:ignore

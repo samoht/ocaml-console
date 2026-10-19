@@ -104,7 +104,6 @@ type ctx
     applications let [Console_eio.run] construct it. *)
 
 val ctx :
-  ?char_width:(Uchar.t -> int) ->
   ppf:Format.formatter ->
   now:(unit -> float) ->
   wait:(float -> unit) ->
@@ -114,9 +113,7 @@ val ctx :
   ctx
 (** [ctx ~ppf ~now ~wait ~dimensions ~is_tty ()] is a display context on the
     output [ppf], the clock [now], the terminal geometry [dimensions] and the
-    terminal answer [is_tty]. Driver libraries normally build it. [char_width]
-    measures terminal cells (defaults to Unicode grapheme measurement, see
-    {!Width}).
+    terminal answer [is_tty]. Driver libraries normally build it.
 
     [now ()] is the time the display reads, in seconds, and [wait s] returns
     once [now] has advanced by [s]: they are one clock, and whatever paces the

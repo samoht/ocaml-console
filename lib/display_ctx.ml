@@ -9,11 +9,10 @@ type t = {
   wait : float -> unit;
   dimensions : unit -> int * int;
   is_tty : bool;
-  char_width : (Uchar.t -> int) option;
 }
 
-let v ?char_width ~ppf ~now ~wait ~dimensions ~is_tty () =
-  { ppf; now; wait; dimensions; is_tty; char_width }
+let v ~ppf ~now ~wait ~dimensions ~is_tty () =
+  { ppf; now; wait; dimensions; is_tty }
 
 let pp ppf t =
   let width, height = t.dimensions () in

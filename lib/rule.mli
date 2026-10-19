@@ -11,7 +11,6 @@ type align = [ `Left | `Center | `Right ]
 (** The type for label alignments within a rule. *)
 
 val v :
-  ?char_width:(Uchar.t -> int) ->
   ?theme:Theme.t ->
   ?style:Style.t ->
   ?glyph:string ->

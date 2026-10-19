@@ -35,7 +35,6 @@ type t = {
   wait : float -> unit;
   dimensions : unit -> int * int;
       (** The terminal width and height, re-read each paint. *)
-  char_width : (Uchar.t -> int) option;
   header : string option;
   default_style : Display_line.t;
   theme : Theme.t;
@@ -119,11 +118,10 @@ and row = {
 val pp : t Fmt.t
 (** [pp] formats a session for diagnostics, in an unspecified format. *)
 
-(** {1:styling Styling and measuring}
+(** {1:styling Styling}
 
     The values of this section style only when the session's
-    {{!type-t.field-styling}styling} is set, and measure cells with its
-    {{!type-t.field-char_width}char_width}. *)
+    {{!type-t.field-styling}styling} is set. *)
 
 val code : t -> string -> string
 (** [code t seq] is [seq], or [""] without styling. *)
@@ -133,21 +131,6 @@ val styled : t -> string -> string -> string
 
 val dimmed : t -> string -> string
 (** [dimmed t s] is [Ansi.dimmed s], or [s] without styling. *)
-
-val string_width : t -> string -> int
-(** [string_width t s] is {!Width.string_width} [s]. *)
-
-val truncate : t -> int -> string -> string
-(** [truncate t w s] is {!Width.truncate} [w s]. *)
-
-val shorten : t -> int -> string -> string
-(** [shorten t w s] is {!Width.shorten} [w s]. *)
-
-val fold : t -> ?split:bool -> int -> string -> string list
-(** [fold t ~split w s] is {!Width.fold} [~split w s]. *)
-
-val pad_left : t -> int -> string -> string
-(** [pad_left t w s] is {!Width.pad_left} [w s]. *)
 
 (** {1:rows Rows} *)
 

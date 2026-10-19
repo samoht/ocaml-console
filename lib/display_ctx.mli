@@ -15,12 +15,10 @@ type t = {
   wait : float -> unit;  (** Waits on {!field-now}. *)
   dimensions : unit -> int * int;  (** The terminal width and height. *)
   is_tty : bool;  (** Whether a live region can be drawn. *)
-  char_width : (Uchar.t -> int) option;  (** Cell measurement override. *)
 }
 (** The type for contexts. *)
 
 val v :
-  ?char_width:(Uchar.t -> int) ->
   ppf:Format.formatter ->
   now:(unit -> float) ->
   wait:(float -> unit) ->
@@ -28,8 +26,8 @@ val v :
   is_tty:bool ->
   unit ->
   t
-(** [v ~char_width ~ppf ~now ~wait ~dimensions ~is_tty ()] is a context with
-    those fields. *)
+(** [v ~ppf ~now ~wait ~dimensions ~is_tty ()] is a context with those fields.
+*)
 
 val pp : t Fmt.t
 (** [pp] formats a context for diagnostics, in an unspecified format. *)

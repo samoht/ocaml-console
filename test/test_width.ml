@@ -101,16 +101,11 @@ let test_ellipsize_closes_style () =
   check "nor is a tail cut at the start" "...\027[1mefghij\027[0m"
     (Width.ellipsize ~at:`Start 9 "abcd\027[1mefghij\027[0m")
 
-(* The same holds of a cut with no mark, under the grapheme measure and under a
-   caller's code-point one. *)
+(* The same holds of a cut with no mark. *)
 let test_truncate_closes_style () =
-  let one _ = 1 in
   List.iter
     (fun (msg, expected, s) ->
-      Alcotest.(check string) msg expected (Width.truncate 3 s);
-      Alcotest.(check string)
-        (msg ^ ", by code point") expected
-        (Width.truncate ~char_width:one 3 s))
+      Alcotest.(check string) msg expected (Width.truncate 3 s))
     [
       ("a style left open is closed", "\027[1mabc\027[0m", "\027[1mabcdef");
       ( "a closed style is not closed again",
@@ -241,10 +236,7 @@ let test_wrap_empty () =
   Alcotest.(check string) "empty string" "" result
 
 let test_wrap_uses_terminal_cells () =
-  let wide u = if Uchar.to_int u = 0x754c then 2 else 1 in
-  Alcotest.(check string)
-    "uses terminal cells" "界 a"
-    (Width.wrap ~char_width:wide 4 "界 a")
+  Alcotest.(check string) "uses terminal cells" "界 a\nb" (Width.wrap 4 "界 a b")
 
 (* Grapheme clusters measure as a terminal renders them, not as the sum of their
    code points: a ZWJ emoji sequence (a family) is one 2-wide cell, not 6.

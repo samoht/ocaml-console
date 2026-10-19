@@ -14,7 +14,6 @@ type t = {
   mutable right : string list;
   prompt : string;
   complete : string -> string list;
-  char_width : Uchar.t -> int; (* display cells per character, for redraws *)
   mask : string option; (* replacement echoed for each secret character *)
   mutable hist : string list; (* submitted lines, newest first, seed included *)
   mutable pos : int option; (* history index being viewed, newest is 0 *)
@@ -25,14 +24,12 @@ type t = {
   mutable need : int; (* continuation bytes still expected for [partial] *)
 }
 
-let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> [])
-    ?(char_width = Width.default_char_width) ?mask () =
+let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
   {
     left = [];
     right = [];
     prompt;
     complete;
-    char_width;
     mask;
     hist = List.rev history;
     pos = None;
@@ -67,13 +64,11 @@ let chars s =
 let display_char t c = match t.mask with Some mask -> mask | None -> c
 let display t s = String.concat "" (List.map (display_char t) (chars s))
 
-(* Display width in terminal cells, via the caller's [char_width] hint -- the
-   same mechanism the rest of console uses, so a wide CJK glyph counts as two by
-   default. A masked editor measures the replacement glyphs, never the secret
+(* A masked editor measures the replacement glyphs, never the secret
    characters they conceal. *)
-let width t s = Width.string_width ~char_width:t.char_width (display t s)
+let width t s = Width.string_width (display t s)
 let display_chars t cs = String.concat "" (List.map (display_char t) cs)
-let cols t cs = Width.string_width ~char_width:t.char_width (display_chars t cs)
+let cols t cs = Width.string_width (display_chars t cs)
 
 (* Move the cursor back over [t.right] after rewriting it, one backspace per
    cell. *)

@@ -56,7 +56,6 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     now = ctx.now;
     wait = ctx.wait;
     dimensions = ctx.dimensions;
-    char_width = ctx.char_width;
     header = Option.map sanitize header;
     default_style = bar;
     theme;

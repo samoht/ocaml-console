@@ -3,58 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* ANSI escape sequence detection *)
-type ansi_state = Normal | Escape | Csi | Osc | Osc_escape
-
-let next_ansi_state state c =
-  match state with
-  | Normal -> if c = 0x1b then Escape else Normal
-  | Escape ->
-      if c = 0x5b (* '[' *) then Csi
-      else if c = 0x5d (* ']' *) then Osc
-      else Normal
-  | Csi ->
-      (* CSI sequence ends with a byte in the range 0x40-0x7E. *)
-      if c >= 0x40 && c <= 0x7e then Normal else Csi
-  | Osc ->
-      if c = 0x07 (* BEL *) then Normal
-      else if c = 0x1b then Osc_escape
-      else Osc
-  | Osc_escape -> if c = 0x5c (* '\\' *) then Normal else Osc
-
-(* The per-codepoint fallback used for an explicitly supplied width function.
-   Default string measurement below is grapheme-aware: terminals render a
-   cluster, not the sum of its scalar values. *)
-let default_char_width u =
-  match Uucp.Break.tty_width_hint u with -1 -> 0 | width -> width
-
-let update_width_state ~char_width ~width ~state ~zwj u =
-  let c = Uchar.to_int u in
-  match !state with
-  | Normal ->
-      if c = 0x1b then state := next_ansi_state Normal c
-      else if c = 0x200d (* zero-width joiner *) then
-        (* The next glyph fuses into this grapheme cluster -- an emoji ZWJ
-           sequence like a family renders as a single cell, not the sum of its
-           parts -- so it must add no width. *)
-        zwj := true
-      else if !zwj then zwj := false
-      else width := !width + char_width u
-  | current -> state := next_ansi_state current c
-
 (* [iter_uchars f s] is [f] on each code point of [s], a malformed sequence
    read as U+FFFD. *)
 let iter_uchars f s =
   Uutf.String.fold_utf_8
     (fun () _ -> function `Uchar u -> f u | `Malformed _ -> f Uutf.u_rep)
     () s
-
-let codepoint_string_width ~char_width str =
-  let width = ref 0 in
-  let state = ref Normal in
-  let zwj = ref false in
-  iter_uchars (update_width_state ~char_width ~width ~state ~zwj) str;
-  !width
 
 let ansi_end str start =
   let len = String.length str in
@@ -83,7 +37,7 @@ let ansi_end str start =
         min len (start + 1 + Uchar.utf_decode_length decoded)
     | _ -> min len (start + 2)
 
-let grapheme_string_width str =
+let string_width str =
   (* Styling controls do not break a terminal grapheme. Strip them before
      segmentation so a combining mark or ZWJ sequence spanning an ANSI reset
      has exactly the same width here as it does in the terminal. Measuring each
@@ -100,58 +54,6 @@ let grapheme_string_width str =
   copy 0;
   Glyph.String.measure ~width_method:`Unicode ~tab_width:2
     (Buffer.contents visible)
-
-let string_width ?(char_width = default_char_width) str =
-  if char_width == default_char_width then grapheme_string_width str
-  else codepoint_string_width ~char_width str
-
-let handle_truncate_normal ~char_width ~buf ~width ~target_width ~state u =
-  let c = Uchar.to_int u in
-  if c = 0x1b then begin
-    state := Escape;
-    Uutf.Buffer.add_utf_8 buf u;
-    `Continue
-  end
-  else
-    let w = char_width u in
-    if !width + w <= target_width then begin
-      width := !width + w;
-      Uutf.Buffer.add_utf_8 buf u;
-      `Continue
-    end
-    else `Stop
-
-let handle_truncate_ansi ~buf ~state u =
-  let c = Uchar.to_int u in
-  Uutf.Buffer.add_utf_8 buf u;
-  state := next_ansi_state !state c;
-  `Continue
-
-let handle_truncate_uchar ~char_width ~buf ~width ~target_width ~state u =
-  match !state with
-  | Normal ->
-      handle_truncate_normal ~char_width ~buf ~width ~target_width ~state u
-  | Escape | Csi | Osc | Osc_escape -> handle_truncate_ansi ~buf ~state u
-
-let rec truncate_loop ~char_width decoder ~buf ~width ~target_width ~state =
-  match Uutf.decode decoder with
-  | `Uchar u -> (
-      match
-        handle_truncate_uchar ~char_width ~buf ~width ~target_width ~state u
-      with
-      | `Continue ->
-          truncate_loop ~char_width decoder ~buf ~width ~target_width ~state
-      | `Stop -> true)
-  | `End -> false
-  | `Await -> assert false
-  | `Malformed _ -> (
-      match
-        handle_truncate_uchar ~char_width ~buf ~width ~target_width ~state
-          Uutf.u_rep
-      with
-      | `Continue ->
-          truncate_loop ~char_width decoder ~buf ~width ~target_width ~state
-      | `Stop -> true)
 
 let starts_at str prefix at =
   let plen = String.length prefix in
@@ -229,26 +131,8 @@ let truncate_graphemes target_width str =
   if !stopped then Buffer.add_string buffer (closing (Buffer.contents buffer));
   Buffer.contents buffer
 
-let truncate_codepoints ~char_width target_width str =
-  if target_width <= 0 then ""
-  else
-    let buf = Buffer.create (String.length str) in
-    let width = ref 0 in
-    let state = ref Normal in
-    let decoder = Uutf.decoder ~encoding:`UTF_8 (`String str) in
-    let truncated =
-      truncate_loop ~char_width decoder ~buf ~width ~target_width ~state
-    in
-    if truncated then begin
-      Buffer.add_string buf (closing (Buffer.contents buf))
-    end;
-    Buffer.contents buf
-
-let truncate ?(char_width = default_char_width) target_width str =
-  if target_width <= 0 then ""
-  else if char_width == default_char_width then
-    truncate_graphemes target_width str
-  else truncate_codepoints ~char_width target_width str
+let truncate target_width str =
+  if target_width <= 0 then "" else truncate_graphemes target_width str
 
 let ellipsis = "..."
 
@@ -256,27 +140,10 @@ let ellipsis = "..."
    no column and is never cut, or one grapheme cluster with the width it
    occupies. Fitting a value by its middle has to take from both of its ends,
    which neither direction of truncation on its own can do. *)
-let atoms ~char_width str =
+let atoms str =
   let str = normalize_utf8 str in
   let pieces = ref [] in
   let push piece width = pieces := (piece, width) :: !pieces in
-  let codepoints run =
-    let decoder = Uutf.decoder ~encoding:`UTF_8 (`String run) in
-    let rec loop () =
-      match Uutf.decode decoder with
-      | `End -> ()
-      | `Await -> assert false
-      | (`Uchar _ | `Malformed _) as decoded ->
-          let u =
-            match decoded with `Uchar u -> u | `Malformed _ -> Uutf.u_rep
-          in
-          let buffer = Buffer.create 4 in
-          Uutf.Buffer.add_utf_8 buffer u;
-          push (Buffer.contents buffer) (char_width u);
-          loop ()
-    in
-    loop ()
-  in
   let graphemes run =
     Glyph.String.iter_graphemes
       (fun ~offset ~len ->
@@ -296,7 +163,7 @@ let atoms ~char_width str =
     else
       let stop = visible_run_end str i in
       let run = String.sub str i (stop - i) in
-      if char_width == default_char_width then graphemes run else codepoints run;
+      graphemes run;
       loop stop
   in
   loop 0;
@@ -322,14 +189,13 @@ let take target atoms =
   in
   kept
 
-let ellipsize ?(char_width = default_char_width) ?(at = `Middle) target_width
-    str =
+let ellipsize ?(at = `Middle) target_width str =
   if target_width <= 0 then ""
-  else if string_width ~char_width str <= target_width then str
+  else if string_width str <= target_width then str
   else if target_width <= String.length ellipsis then
     String.sub ellipsis 0 target_width
   else
-    let atoms = atoms ~char_width str in
+    let atoms = atoms str in
     let keep = target_width - String.length ellipsis in
     match at with
     | `Start ->
@@ -426,8 +292,8 @@ let rec settle kept_rev =
           settle rest
       | _ -> kept_rev)
 
-let shorten ?(char_width = default_char_width) target_width str =
-  if string_width ~char_width str <= target_width then str
+let shorten target_width str =
+  if string_width str <= target_width then str
   else if target_width <= 0 then ""
   else
     let rec walk kept_rev width best = function
@@ -439,7 +305,7 @@ let shorten ?(char_width = default_char_width) target_width str =
           if width > target_width then best
           else walk (atom :: kept_rev) (width + piece_width) best rest
     in
-    let kept_rev = walk [] 0 [] (breaks (atoms ~char_width str)) in
+    let kept_rev = walk [] 0 [] (breaks (atoms str)) in
     match List.rev (settle kept_rev) with
     | [] -> ""
     | kept ->
@@ -486,8 +352,8 @@ let items str =
 
 let more n = if n = 0 then "" else " and " ^ string_of_int n ^ " more"
 
-let elide ?(char_width = default_char_width) ?(see = "") target_width str =
-  let width = string_width ~char_width in
+let elide ?(see = "") target_width str =
+  let width = string_width in
   if width str <= target_width then str
   else
     let alone () =
@@ -520,7 +386,7 @@ let elide ?(char_width = default_char_width) ?(see = "") target_width str =
         in
         let cut () =
           let tail = ellipsis ^ more (total - 1) ^ see in
-          match shorten ~char_width (target_width - width tail) first with
+          match shorten (target_width - width tail) first with
           | "" -> alone ()
           | kept -> kept ^ tail
         in
@@ -628,29 +494,28 @@ let rec place f ~split target_width run =
           finish f;
           place f ~split target_width rest)
 
-let fold ?(char_width = default_char_width) ?(split = false) target_width str =
-  if target_width <= 0 || string_width ~char_width str <= target_width then
-    [ str ]
+let fold ?(split = false) target_width str =
+  if target_width <= 0 || string_width str <= target_width then [ str ]
   else
     let f = { lines = []; line = []; width = 0; active = []; opened = [] } in
     List.iter
       (fun (run, _) -> place f ~split target_width run)
-      (runs (atoms ~char_width str));
+      (runs (atoms str));
     if (not (blank f)) || f.lines = [] then finish f;
     List.rev f.lines
 
-let pad_right ?(char_width = default_char_width) target_width str =
-  let str_width = string_width ~char_width str in
+let pad_right target_width str =
+  let str_width = string_width str in
   if str_width >= target_width then str
   else str ^ String.make (target_width - str_width) ' '
 
-let pad_left ?(char_width = default_char_width) target_width str =
-  let str_width = string_width ~char_width str in
+let pad_left target_width str =
+  let str_width = string_width str in
   if str_width >= target_width then str
   else String.make (target_width - str_width) ' ' ^ str
 
-let center ?(char_width = default_char_width) target_width str =
-  let str_width = string_width ~char_width str in
+let center target_width str =
+  let str_width = string_width str in
   if str_width >= target_width then str
   else
     let total_pad = target_width - str_width in
@@ -658,18 +523,18 @@ let center ?(char_width = default_char_width) target_width str =
     let right_pad = total_pad - left_pad in
     String.make left_pad ' ' ^ str ^ String.make right_pad ' '
 
-let rec wrap_words ~char_width ~effective acc line len = function
+let rec wrap_words ~effective acc line len = function
   | [] -> if line = "" then acc else line :: acc
   | word :: rest ->
-      let wlen = string_width ~char_width word in
+      let wlen = string_width word in
       let space = if line = "" then 0 else 1 in
       if len + space + wlen <= effective then
         let line = if line = "" then word else line ^ " " ^ word in
-        wrap_words ~char_width ~effective acc line (len + space + wlen) rest
+        wrap_words ~effective acc line (len + space + wlen) rest
       else if line = "" then
         (* Word longer than width; accept it on its own line *)
-        wrap_words ~char_width ~effective (word :: acc) "" 0 rest
-      else wrap_words ~char_width ~effective (line :: acc) word wlen rest
+        wrap_words ~effective (word :: acc) "" 0 rest
+      else wrap_words ~effective (line :: acc) word wlen rest
 
 (* A backquoted run is one word: a row never ends inside a command the reader
    copies back. A backquote that never closes groups nothing. *)
@@ -692,7 +557,7 @@ let backquoted words =
   in
   go [] words
 
-let wrap ?(char_width = default_char_width) ?(indent = 0) width text =
+let wrap ?(indent = 0) width text =
   let effective = width - indent in
   if effective <= 0 then text
   else
@@ -702,5 +567,5 @@ let wrap ?(char_width = default_char_width) ?(indent = 0) width text =
       |> String.concat " "
     in
     let words = backquoted (String.split_on_char ' ' normalized) in
-    let lines = List.rev (wrap_words ~char_width ~effective [] "" 0 words) in
+    let lines = List.rev (wrap_words ~effective [] "" 0 words) in
     String.concat "\n" (List.map (fun l -> prefix ^ l) lines)

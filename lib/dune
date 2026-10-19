@@ -1,7 +1,7 @@
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt matrix.glyph uucp uutf)
+ (libraries console.text fmt matrix.glyph uutf)
  ; Low-level ANSI, Matrix rain, formatter conversion and widget resolution
  ; helpers, and the pieces of Display. None is part of the public API.
  (private_modules

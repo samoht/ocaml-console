@@ -74,11 +74,9 @@ let of_rows ?theme ?border ?header_style columns rows =
 let span_lines span =
   span |> Span.sanitize ~keep_newlines:true |> Span.split_lines
 
-let span_width ~char_width span =
+let span_width span =
   span_lines span
-  |> List.fold_left
-       (fun width line -> max width (Span.width ~char_width line))
-       0
+  |> List.fold_left (fun width line -> max width (Span.width line)) 0
 
 (* The cells of [row] its columns are measured by: a short row's last cell
    spans the columns it leaves and is measured against none of them. *)
@@ -106,10 +104,10 @@ let widen measure t widths =
    terminal width still wins when every such break has been exhausted. Slashes
    are intentionally part of the token here even though [Span.wrap] may use
    them as the final fallback. *)
-let span_unbroken_width ~char_width span =
+let span_unbroken_width span =
   let word_widths line =
     Span.to_string line |> String.split_on_char ' '
-    |> List.map (Width.string_width ~char_width)
+    |> List.map Width.string_width
   in
   span_lines span |> List.concat_map word_widths |> List.fold_left max 0
 
@@ -229,11 +227,11 @@ let fit_columns max_width t =
           t.rows;
     }
 
-let calc_col_widths ~char_width ?max_width t =
+let calc_col_widths ?max_width t =
   let widths = Array.make (List.length t.columns) 0 in
   let unbroken_widths = Array.make (List.length t.columns) 0 in
-  widen (span_width ~char_width) t widths;
-  widen (span_unbroken_width ~char_width) t unbroken_widths;
+  widen span_width t widths;
+  widen span_unbroken_width t unbroken_widths;
   apply_width_constraints t widths;
   shrink_widths_to_terminal ?max_width t unbroken_widths widths
 
@@ -261,8 +259,8 @@ let horizontal t widths left_char mid_char right_char horiz_char =
     in
     Some line
 
-let align_span ~char_width ~pad_right align target span =
-  let width = Span.width ~char_width span in
+let align_span ~pad_right align target span =
+  let width = Span.width span in
   if width >= target then span
   else
     let padding = target - width in
@@ -277,11 +275,11 @@ let align_span ~char_width ~pad_right align target span =
 
 (* [span] cut by [Width.elide] to [width], the style of what it keeps kept:
    what [elide] keeps is a prefix of the text, and what follows it is plain. *)
-let elide_span ~char_width ?see width span =
-  if Span.width ~char_width span <= width then span
+let elide_span ?see width span =
+  if Span.width span <= width then span
   else
     let s = Span.to_string span in
-    let e = Width.elide ~char_width ?see width s in
+    let e = Width.elide ?see width s in
     let n = min (String.length s) (String.length e) in
     let rec common i = if i < n && s.[i] = e.[i] then common (i + 1) else i in
     let rec boundary i =
@@ -291,14 +289,12 @@ let elide_span ~char_width ?see width span =
     in
     let p = boundary (common 0) in
     Span.(
-      truncate ~char_width
-        (Width.string_width ~char_width (String.sub s 0 p))
-        span
+      truncate (Width.string_width (String.sub s 0 p)) span
       ++ text (String.sub e p (String.length e - p)))
 
 (* The physical lines of a cell in [width] columns, not padded; [None] is a
    cell nothing bounds, the last of a line without edges and no width. *)
-let cell_lines ~char_width ?see overflow width span =
+let cell_lines ?see overflow width span =
   let fit line =
     match width with
     | None -> [ line ]
@@ -306,22 +302,17 @@ let cell_lines ~char_width ?see overflow width span =
     | Some width -> (
         match overflow with
         | `Truncate -> (
-            let cell_width = Span.width ~char_width line in
+            let cell_width = Span.width line in
             if cell_width <= width then [ line ]
             else
               (* Whole words from the start, never a word cut; a value whose
                  first word does not fit is printed whole, over several
                  lines. *)
-              match Width.shorten ~char_width width (Span.to_string line) with
-              | "" -> Span.wrap ~char_width width line
-              | kept ->
-                  [
-                    Span.truncate ~char_width
-                      (Width.string_width ~char_width kept)
-                      line;
-                  ])
-        | `Wrap -> Span.wrap ~char_width width line
-        | `Elide -> [ elide_span ~char_width ?see width line ])
+              match Width.shorten width (Span.to_string line) with
+              | "" -> Span.wrap width line
+              | kept -> [ Span.truncate (Width.string_width kept) line ])
+        | `Wrap -> Span.wrap width line
+        | `Elide -> [ elide_span ?see width line ])
   in
   span_lines span |> List.concat_map fit
 
@@ -355,7 +346,7 @@ let slots ?max_width t widths cells =
 
 (* One physical line of a table with edges: every cell padded, between
    separators. *)
-let edged_line ~char_width t style line =
+let edged_line t style line =
   let chars = Border.chars t.border in
   let last = List.length line - 1 in
   let pieces =
@@ -366,9 +357,7 @@ let edged_line ~char_width t style line =
            let target = Option.value ~default:0 width in
            [
              Gap " ";
-             Cell
-               ( style col,
-                 align_span ~char_width ~pad_right:true col.align target text );
+             Cell (style col, align_span ~pad_right:true col.align target text);
              Gap " ";
            ]
            @ if i < last then [ Edge chars.right ] else [])
@@ -378,7 +367,7 @@ let edged_line ~char_width t style line =
 
 (* One physical line of a table without edges: it ends at its last cell that
    is not empty, unpadded. *)
-let open_line ~char_width t style line =
+let open_line t style line =
   let chars = Border.chars t.border in
   let shown =
     let rec upto i acc = function
@@ -401,18 +390,17 @@ let open_line ~char_width t style line =
              @ [
                  Cell
                    ( style col,
-                     align_span ~char_width ~pad_right:(i < shown) col.align
-                       target text );
+                     align_span ~pad_right:(i < shown) col.align target text );
                ])
          line)
   in
   if chars.right <> "" then pieces @ [ Edge chars.right ] else pieces
 
-let row_lines ~char_width ?max_width t widths style row =
+let row_lines ?max_width t widths style row =
   let cells =
     List.map
       (fun (col, width, cell) ->
-        (col, width, cell_lines ~char_width ?see:row.see col.overflow width cell))
+        (col, width, cell_lines ?see:row.see col.overflow width cell))
       (slots ?max_width t widths row.cells)
   in
   let height =
@@ -423,22 +411,22 @@ let row_lines ~char_width ?max_width t widths style row =
   let style col = Style.(style + col.style) in
   let render = if edged t then edged_line else open_line in
   List.init height (fun line_idx ->
-      render ~char_width t style
+      render t style
         (List.map
            (fun (col, width, lines) ->
              (col, width, List.nth_opt lines line_idx))
            cells))
 
-let render_lines ~char_width ?max_width t =
+let render_lines ?max_width t =
   let t =
     match max_width with None -> t | Some width -> fit_columns (max 0 width) t
   in
   if List.length t.columns = 0 then []
   else
     let chars = Border.chars t.border in
-    let widths = calc_col_widths ~char_width ?max_width t in
+    let widths = calc_col_widths ?max_width t in
     let rule l m r h = Option.to_list (horizontal t widths l m r h) in
-    let row style r = row_lines ~char_width ?max_width t widths style r in
+    let row style r = row_lines ?max_width t widths style r in
     let headers = List.map (fun col -> col.header) t.columns in
     let has_headers = List.exists (fun h -> Span.to_string h <> "") headers in
     let rows = List.rev t.rows in
@@ -463,7 +451,7 @@ let render_lines ~char_width ?max_width t =
     @ body
     @ rule chars.bottom_left chars.bottom_cross chars.bottom_right chars.bottom
 
-let pp_with ~char_width ?max_width ppf t =
+let pp_with ?max_width ppf t =
   let styled = Fmt.style_renderer ppf = `Ansi_tty in
   let p = Paint.v ppf in
   let border = Border.style t.border in
@@ -480,10 +468,10 @@ let pp_with ~char_width ?max_width ppf t =
                  else Span.to_string span))
         line;
       Paint.newline p)
-    (render_lines ~char_width ?max_width t);
+    (render_lines ?max_width t);
   Paint.close p
 
-let lines ?width ?(char_width = Width.default_char_width) t =
+let lines ?width t =
   let border = Border.style t.border in
   List.map
     (fun line ->
@@ -494,26 +482,26 @@ let lines ?width ?(char_width = Width.default_char_width) t =
              | Gap s -> Span.text s
              | Cell (style, span) -> Span.with_style style span)
            line))
-    (render_lines ~char_width ?max_width:width t)
+    (render_lines ?max_width:width t)
 
 let pp ppf t =
   let max_width = Format.pp_get_margin ppf () in
-  pp_with ~char_width:Width.default_char_width ~max_width ppf t
+  pp_with ~max_width ppf t
 
-let to_string ?styled ?width ?(char_width = Width.default_char_width) t =
-  Render.to_string (pp_with ~char_width ?max_width:width) ?styled t
+let to_string ?styled ?width t =
+  Render.to_string (pp_with ?max_width:width) ?styled t
 
 (* Frame the rendered table with a Matrix rain border. *)
-let rain ?width ?(char_width = Width.default_char_width) t =
+let rain ?width t =
   Anim.v (fun ~elapsed ->
       let body =
-        to_string ~styled:true ?width ~char_width t
+        to_string ~styled:true ?width t
         |> String.split_on_char '\n'
         |> List.filter (fun l -> l <> "")
       in
-      Rain.frame ~char_width body ~elapsed)
+      Rain.frame body ~elapsed)
 
 (* A still frame, unless the theme asked for an animated border. *)
-let anim ?width ?char_width t =
-  if t.animated then rain ?width ?char_width t
-  else Anim.const (to_string ~styled:true ?width ?char_width t)
+let anim ?width t =
+  if t.animated then rain ?width t
+  else Anim.const (to_string ~styled:true ?width t)

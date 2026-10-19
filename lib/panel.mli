@@ -20,7 +20,6 @@ val v :
   ?subtitle:Span.t ->
   ?padding:int ->
   ?width:int ->
-  ?char_width:(Uchar.t -> int) ->
   Span.t ->
   t
 (** [v content] is a panel around [content].
@@ -32,8 +31,6 @@ val v :
     - [width] fixes the width, truncating content and edge labels to keep the
       box rectangular; by default it is sized to the content. Either way {!pp}
       draws it no wider than its formatter's margin.
-    - [char_width] measures terminal cells (default
-      {!Width.default_char_width}).
 
     @raise Invalid_argument
       if [padding] is negative or [width] cannot hold the border and padding. *)

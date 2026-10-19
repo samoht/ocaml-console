@@ -52,15 +52,15 @@ val split_lines : t -> t list
 
 (** {1:measuring Measuring and fitting} *)
 
-val width : ?char_width:(Uchar.t -> int) -> t -> int
+val width : t -> int
 (** [width s] is the number of terminal cells [s] takes ({!Width.string_width}).
 *)
 
-val truncate : ?char_width:(Uchar.t -> int) -> int -> t -> t
+val truncate : int -> t -> t
 (** [truncate w s] is the longest prefix of [s] that fits in [w] terminal cells,
     styles and hyperlinks kept. It is {!empty} if [w] is not positive. *)
 
-val wrap : ?char_width:(Uchar.t -> int) -> ?hang:int -> int -> t -> t list
+val wrap : ?hang:int -> int -> t -> t list
 (** [wrap w s] is the single-line span [s] broken at spaces and path separators
     into lines of at most [w] cells, styles and hyperlinks kept on every line. A
     word wider than [w] is continued on the next line where the room ends, so
@@ -69,7 +69,7 @@ val wrap : ?char_width:(Uchar.t -> int) -> ?hang:int -> int -> t -> t list
 
     @raise Invalid_argument if [w] is not positive. *)
 
-val hanging : ?char_width:(Uchar.t -> int) -> t -> int
+val hanging : t -> int
 (** [hanging s] is the column the text after the first word of [s] starts at:
     its leading spaces, its first word and the spaces after it. It is [0] when
     [s] is one word. [wrap ~hang:(hanging s)] sets each continuation under that

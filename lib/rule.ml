@@ -8,8 +8,7 @@ type align = [ `Left | `Center | `Right ]
 let space = Span.text " "
 let repeat glyph n = String.concat "" (List.init n (fun _ -> glyph))
 
-let v ?(char_width = Width.default_char_width) ?theme ?style ?(glyph = "─")
-    ?(align = `Center) ?label ~width () =
+let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?label ~width () =
   if width < 0 then invalid_arg "Console.Rule.v: negative width";
   String.iter
     (fun ch ->
@@ -17,7 +16,7 @@ let v ?(char_width = Width.default_char_width) ?theme ?style ?(glyph = "─")
       if code < 0x20 || code = 0x7f then
         invalid_arg "Console.Rule.v: control character in glyph")
     glyph;
-  if Width.string_width ~char_width glyph <> 1 then
+  if Width.string_width glyph <> 1 then
     invalid_arg "Console.Rule.v: glyph must occupy one cell";
   let style =
     match (style, theme) with
@@ -30,7 +29,7 @@ let v ?(char_width = Width.default_char_width) ?theme ?style ?(glyph = "─")
   | None -> fill width
   | Some label -> (
       let label = Span.sanitize ~keep_newlines:false label in
-      let label_width = Span.width ~char_width label in
+      let label_width = Span.width label in
       if label_width > width then
         invalid_arg "Console.Rule.v: label wider than rule";
       let available = width - label_width in

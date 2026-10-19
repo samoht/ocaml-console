@@ -13,7 +13,7 @@ let rec drop n = function _ :: tl when n > 0 -> drop (n - 1) tl | l -> l
    with a marker counting what was hidden. If even the bare rows overflow, the
    first and the most recent ones stay. *)
 let region_marker t hidden =
-  truncate t t.width (Fmt.kstr (dimmed t) "  ... (%d more lines)" hidden)
+  Width.truncate t.width (Fmt.kstr (dimmed t) "  ... (%d more lines)" hidden)
 
 let cap_rows t ~header ~budget ~total blocks =
   let rows = List.map fst blocks in
@@ -77,9 +77,7 @@ let scene_lines t ~header ~blocks =
       let width = t.width in
       let lines =
         List.map
-          (fun span ->
-            Display_row.span_line t
-              (Span.truncate ?char_width:t.char_width width span))
+          (fun span -> Display_row.span_line t (Span.truncate width span))
           (scene ~frame:t.frame ~width)
       in
       if

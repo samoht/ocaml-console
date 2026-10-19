@@ -16,10 +16,9 @@
     Editing is by whole UTF-8 character at the cursor: a printable character (or
     a multi-byte one, even when its bytes arrive across separate {!feed} calls)
     is inserted, backspace erases the character before the cursor, and the left
-    and right arrows step over one character. A character's width in cells comes
-    from the [char_width] hint (see {!v}), so cursor motion is exact for wide
-    CJK and emoji when one is supplied. {!crlf} is the matching output-side
-    translation a terminal expects.
+    and right arrows step over one character. A character's width in cells is
+    measured as {!Width} measures it, so cursor motion is exact for wide CJK and
+    emoji. {!crlf} is the matching output-side translation a terminal expects.
 
     The key bindings and the history and completion model follow Daniel
     Buenzli's [down] toplevel line editor (ISC licensed). *)
@@ -32,11 +31,10 @@ val v :
   ?prompt:string ->
   ?history:string list ->
   ?complete:(string -> string list) ->
-  ?char_width:(Uchar.t -> int) ->
   ?mask:string ->
   unit ->
   t
-(** [v ?prompt ?history ?complete ?char_width ?mask ()] is a line editor.
+(** [v ?prompt ?history ?complete ?mask ()] is a line editor.
 
     [prompt] (default empty) is reprinted before the current line after Tab
     lists several completion candidates, so the redrawn line keeps its prompt;
@@ -48,11 +46,6 @@ val v :
     delimited [word] of the line when Tab is pressed. The editor extends the
     word to the candidates' longest common prefix and, when more than one
     remains, lists them. With no [complete], Tab does nothing.
-
-    [char_width] gives the display cells a character occupies, used to place the
-    cursor and redraw the line; it defaults to the Unicode-aware
-    {!Console.Width.default_char_width}. Override it when the target terminal
-    uses a different width policy.
 
     [mask], when provided, is echoed once for each typed character while the
     real line remains available through {!pending} and {!feed}. Masked editors

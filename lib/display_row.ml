@@ -65,7 +65,7 @@ let render_percent t row ~finished =
 (* The padding is outside the styling, so an empty cell carries no escapes. *)
 let dim_cell t width text =
   if text = "" then String.make (max 0 width) ' '
-  else pad_left t width (dimmed t text)
+  else Width.pad_left width (dimmed t text)
 
 let render_count t row = dim_cell t t.count_cell (count_text row.metric)
 
@@ -112,12 +112,12 @@ let live t row =
     List.exists (fun (p, _) -> Display_line.is_spacer p) rendered
   in
   let fixed_w =
-    string_width t indent_s
+    Width.string_width indent_s
     + List.fold_left
         (fun acc (p, s) ->
           match p with
           | Display_line.Label | Spacer -> acc
-          | _ -> acc + string_width t s)
+          | _ -> acc + Width.string_width s)
         0 rendered
   in
   let label_text =
@@ -130,10 +130,10 @@ let live t row =
   let avail = max 0 (width - fixed_w - reserve) in
   let label_shown =
     if not has_label then ""
-    else if string_width t label_text <= avail then label_text
-    else shorten t avail label_text
+    else if Width.string_width label_text <= avail then label_text
+    else Width.shorten avail label_text
   in
-  let slack = max reserve (width - fixed_w - string_width t label_shown) in
+  let slack = max reserve (width - fixed_w - Width.string_width label_shown) in
   let buf = Buffer.create 80 in
   Buffer.add_string buf indent_s;
   List.iter
@@ -145,7 +145,7 @@ let live t row =
     rendered;
   (* Fixed pieces alone may be wider than the terminal, and a wrapped row
      breaks the one-row-per-line redraw. *)
-  truncate t width (Buffer.contents buf)
+  Width.truncate width (Buffer.contents buf)
 
 let committed_parts t row =
   let label = Option.value row.rmessage ~default:row.rlabel in
@@ -181,34 +181,34 @@ let committed t row =
   let indent, marker, label, elapsed = committed_parts t row in
   let width = t.width in
   let marker = styled t marker_style marker in
-  let fixed_width = string_width t indent + string_width t marker + 1 in
+  let fixed_width = Width.string_width indent + Width.string_width marker + 1 in
   (* The elapsed time reaches the right edge in a cell of its own and the
      count sits in the block's cell before it, as on the live row. A terminal
      too narrow for both keeps the timer. *)
-  let timer = pad_left t Display_text.elapsed_cell elapsed in
+  let timer = Width.pad_left Display_text.elapsed_cell elapsed in
   let metadata =
     if t.count_cell = 0 then timer
-    else pad_left t t.count_cell (count_text row.metric) ^ "  " ^ timer
+    else Width.pad_left t.count_cell (count_text row.metric) ^ "  " ^ timer
   in
   let metadata =
-    if fixed_width + 2 + string_width t metadata <= width then metadata
+    if fixed_width + 2 + Width.string_width metadata <= width then metadata
     else timer
   in
-  let metadata_width = string_width t metadata in
+  let metadata_width = Width.string_width metadata in
   let label_width = max 0 (width - fixed_width - metadata_width - 2) in
   (* History has no redraw to protect, so a label that does not fit folds
      onto the lines below it rather than losing words; a word wider than the
      room stands whole and the terminal wraps it. *)
   let first, rest =
-    match fold t label_width label with
-    | first :: rest when string_width t first <= label_width -> (first, rest)
+    match Width.fold label_width label with
+    | first :: rest when Width.string_width first <= label_width -> (first, rest)
     | lines -> ("", lines)
   in
   let left = String.concat "" [ indent; marker; " "; first ] in
-  let gap = width - string_width t left - metadata_width in
+  let gap = width - Width.string_width left - metadata_width in
   let head =
     if gap > 0 then left ^ String.make gap ' ' ^ dimmed t metadata
-    else truncate t width (left ^ dimmed t metadata)
+    else Width.truncate width (left ^ dimmed t metadata)
   in
   let under = String.make fixed_width ' ' in
   String.concat "\r\n" (head :: List.map (fun line -> under ^ line) rest)
@@ -245,20 +245,20 @@ let tail t row =
         (* The message gives way when the room runs out, words from its end;
            one whose first word does not fit folds under the marker, whole. *)
         let room =
-          t.width - string_width t prefix - string_width t marker - 1
-          - string_width t suffix
+          t.width - Width.string_width prefix - Width.string_width marker - 1
+          - Width.string_width suffix
         in
         let lines =
-          match shorten t room log.lmessage with
-          | "" when room > 0 -> fold t ~split:true room log.lmessage
+          match Width.shorten room log.lmessage with
+          | "" when room > 0 -> Width.fold ~split:true room log.lmessage
           | "" -> []
           | shown -> [ shown ]
         in
-        let under = String.make (string_width t marker) ' ' in
+        let under = String.make (Width.string_width marker) ' ' in
         List.mapi
           (fun i line ->
             let last = i = List.length lines - 1 in
-            truncate t t.width
+            Width.truncate t.width
               (String.concat ""
                  [
                    prefix;

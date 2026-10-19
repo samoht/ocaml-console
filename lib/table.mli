@@ -93,19 +93,18 @@ val of_rows :
 
 (** {1:converting Converting} *)
 
-val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
+val lines : ?width:int -> t -> Span.t list
 (** [lines table] is each physical row of [table] as a styled span, the lines
     {!to_string} renders, for a live screen to draw. [width], when supplied, is
     a hard maximum for every one. A border's gradient is taken along each line.
 *)
 
-val to_string :
-  ?styled:bool -> ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
+val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string table] is [table] rendered with ANSI styling iff [styled]
     (defaults to [false]). [width], when supplied, is a hard maximum for every
     physical row. *)
 
-val anim : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string Anim.t
+val anim : ?width:int -> t -> string Anim.t
 (** [anim table] is [table] as an {!Anim.t}: [to_string ~styled:true table] on
     every frame, unless [table]'s theme sets {!Theme.animated_border}, as
     {!Theme.matrix} does. Then the rendered table is framed by the digital rain

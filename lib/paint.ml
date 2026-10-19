@@ -60,21 +60,7 @@ let ink p style glyphs =
     p.column <- p.column + Width.string_width glyphs
   end
   else
-    let n = String.length glyphs in
-    let rec go i =
-      if i < n then begin
-        let d = String.get_utf_8_uchar glyphs i in
-        let len = Uchar.utf_decode_length d in
-        let width =
-          if Uchar.utf_decode_is_valid d then
-            Width.default_char_width (Uchar.utf_decode_uchar d)
-          else 1
-        in
-        ink_cell p style (String.sub glyphs i len) width;
-        go (i + len)
-      end
-    in
-    go 0
+    List.iter (fun (g, width) -> ink_cell p style g width) (Width.atoms glyphs)
 
 let text p s =
   close p;

@@ -11,7 +11,6 @@ type t = {
   padding : int;
   width : int option;
   lines : Span.t list;
-  char_width : Uchar.t -> int;
 }
 
 let check_geometry fn padding width =
@@ -21,8 +20,7 @@ let check_geometry fn padding width =
       invalid_arg (fn ^ ": width too small for padding")
   | _ -> ()
 
-let build ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width
-    ?(char_width = Width.default_char_width) lines =
+let build ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width lines =
   check_geometry fn padding width;
   let border = Widget.border ?theme ?border ~default:Border.rounded () in
   {
@@ -33,12 +31,11 @@ let build ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width
     padding;
     width;
     lines;
-    char_width;
   }
 
-let v ?theme ?border ?title ?subtitle ?padding ?width ?char_width content =
+let v ?theme ?border ?title ?subtitle ?padding ?width content =
   build ~fn:"Console.Panel.v" ?theme ?border ?title ?subtitle ?padding ?width
-    ?char_width (Span.split_lines content)
+    (Span.split_lines content)
 
 let render_horizontal p border_style count char =
   for _ = 1 to count do
@@ -47,14 +44,9 @@ let render_horizontal p border_style count char =
 
 let natural_width panel =
   let max_line =
-    List.fold_left
-      (fun acc line -> max acc (Span.width ~char_width:panel.char_width line))
-      0 panel.lines
+    List.fold_left (fun acc line -> max acc (Span.width line)) 0 panel.lines
   in
-  let label = function
-    | Some span -> Span.width ~char_width:panel.char_width span
-    | None -> 0
-  in
+  let label = function Some span -> Span.width span | None -> 0 in
   max max_line (max (label panel.title) (label panel.subtitle))
 
 (* The cells a content line has: the fixed width's room, else the content's
@@ -72,34 +64,33 @@ let content_width ?(margin = max_int) panel =
    than that wraps at its words, hanging under the text after its label; a
    fixed width truncates instead. *)
 let fitted_lines panel cw =
-  let char_width = panel.char_width in
   List.concat_map
     (fun line ->
       let line = Span.sanitize ~keep_newlines:false line in
-      if panel.width <> None || Span.width ~char_width line <= cw then [ line ]
-      else Span.wrap ~char_width ~hang:(Span.hanging ~char_width line) cw line)
+      if panel.width <> None || Span.width line <= cw then [ line ]
+      else Span.wrap ~hang:(Span.hanging line) cw line)
     panel.lines
 
-let render_span ppf ~char_width ~width span =
+let render_span ppf ~width span =
   let span = Span.sanitize ~keep_newlines:false span in
   let text =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Span.to_string ~styled:true span
     | `None -> Span.to_string span
   in
-  Width.truncate ~char_width width text
+  Width.truncate width text
 
 (* Render a horizontal border row (top or bottom) with optional embedded
    centered text. Used by both [render_top_border] (title) and
    [render_bottom_border] (subtitle). *)
-let render_horiz_border ppf p border_style ~char_width ~left_char ~mid_char
-    ~right_char inner_width text =
+let render_horiz_border ppf p border_style ~left_char ~mid_char ~right_char
+    inner_width text =
   Paint.ink p border_style left_char;
   (match text with
   | None -> render_horizontal p border_style inner_width mid_char
   | Some span when inner_width >= 3 ->
-      let text = render_span ppf ~char_width ~width:(inner_width - 2) span in
-      let w = Width.string_width ~char_width text in
+      let text = render_span ppf ~width:(inner_width - 2) span in
+      let w = Width.string_width text in
       let left_border = (inner_width - w - 2) / 2 in
       let right_border = inner_width - w - 2 - left_border in
       render_horizontal p border_style left_border mid_char;
@@ -109,17 +100,17 @@ let render_horiz_border ppf p border_style ~char_width ~left_char ~mid_char
   Paint.ink p border_style right_char
 
 let render_top_border ppf p panel border_style chars inner_width =
-  render_horiz_border ppf p border_style ~char_width:panel.char_width
-    ~left_char:chars.Border.top_left ~mid_char:chars.Border.top
-    ~right_char:chars.Border.top_right inner_width panel.title;
+  render_horiz_border ppf p border_style ~left_char:chars.Border.top_left
+    ~mid_char:chars.Border.top ~right_char:chars.Border.top_right inner_width
+    panel.title;
   Paint.newline p
 
 let render_content_lines ppf p panel border_style chars cw pad =
   List.iter
     (fun line ->
       Paint.ink p border_style chars.Border.left;
-      let line = render_span ppf ~char_width:panel.char_width ~width:cw line in
-      let spaces = cw - Width.string_width ~char_width:panel.char_width line in
+      let line = render_span ppf ~width:cw line in
+      let spaces = cw - Width.string_width line in
       Paint.text p
         (pad ^ line ^ (if spaces > 0 then String.make spaces ' ' else "") ^ pad);
       Paint.ink p border_style chars.Border.right;
@@ -127,9 +118,9 @@ let render_content_lines ppf p panel border_style chars cw pad =
     (fitted_lines panel cw)
 
 let render_bottom_border ppf p panel border_style chars inner_width =
-  render_horiz_border ppf p border_style ~char_width:panel.char_width
-    ~left_char:chars.Border.bottom_left ~mid_char:chars.Border.bottom
-    ~right_char:chars.Border.bottom_right inner_width panel.subtitle;
+  render_horiz_border ppf p border_style ~left_char:chars.Border.bottom_left
+    ~mid_char:chars.Border.bottom ~right_char:chars.Border.bottom_right
+    inner_width panel.subtitle;
   Paint.close p
 
 let pp ppf panel =
@@ -155,13 +146,11 @@ let rain panel =
         let l =
           Span.sanitize ~keep_newlines:false l
           |> Span.to_string ~styled:true
-          |> Width.truncate ~char_width:panel.char_width cw
+          |> Width.truncate cw
         in
-        pad ^ Width.pad_right ~char_width:panel.char_width cw l ^ pad
+        pad ^ Width.pad_right cw l ^ pad
       in
-      Rain.frame ~char_width:panel.char_width
-        (List.map line panel.lines)
-        ~elapsed)
+      Rain.frame (List.map line panel.lines) ~elapsed)
 
 (* A still frame, unless the theme asked for an animated border. *)
 let anim panel =

@@ -147,19 +147,20 @@ let test_utf8_split_across_feeds () =
   Alcotest.(check string)
     "completed once its bytes arrive" "\xc3\xa9" (Input.pending t)
 
-(* ---- Wide characters (char_width hint) --------------------------------- *)
+(* ---- Wide characters ---------------------------------------------------- *)
 
-(* A hint of two cells per character must drive the cursor motion and the erase,
-   not the character count. *)
-let wide () = Input.v ~char_width:(fun _ -> 2) ()
-
+(* A character two cells wide drives the cursor motion and the erase by its
+   cells, not by the character count. *)
 let test_wide_backspace_clears_two_cells () =
-  let echo, _ = Input.feed (wide ()) "a\127" in
-  Alcotest.(check string) "two cells cleared" "a\b\b  \b\b" echo
+  let echo, _ = Input.feed (Input.v ()) "\xe4\xb8\xad\127" in
+  Alcotest.(check string) "two cells cleared" "\xe4\xb8\xad\b\b  \b\b" echo
 
 let test_wide_left_steps_two_cells () =
-  let echo, _ = Input.feed (wide ()) ("ab" ^ "\027[D") in
-  Alcotest.(check string) "left steps over two cells" "ab\b\b" echo
+  let echo, _ =
+    Input.feed (Input.v ()) ("\xe4\xb8\xad\xe6\x96\x87" ^ "\027[D")
+  in
+  Alcotest.(check string)
+    "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
 
 (* ---- History ----------------------------------------------------------- *)
 

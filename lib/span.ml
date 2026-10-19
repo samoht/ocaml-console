@@ -97,22 +97,20 @@ let pp_with_style style ppf t =
 let pp = pp_with_style Style.none
 let to_string = Render.to_string pp
 
-let width ?(char_width = Width.default_char_width) t =
-  List.fold_left
-    (fun acc { text; _ } -> acc + Width.string_width ~char_width text)
-    0 t
+let width t =
+  List.fold_left (fun acc { text; _ } -> acc + Width.string_width text) 0 t
 
-let truncate ?(char_width = Width.default_char_width) target t =
+let truncate target t =
   if target <= 0 then empty
   else
     let rec loop remaining acc = function
       | [] -> List.rev acc
       | atom :: rest ->
-          let atom_width = Width.string_width ~char_width atom.text in
+          let atom_width = Width.string_width atom.text in
           if atom_width <= remaining then
             loop (remaining - atom_width) (atom :: acc) rest
           else
-            let text = Width.truncate ~char_width remaining atom.text in
+            let text = Width.truncate remaining atom.text in
             let acc = if text = "" then acc else { atom with text } :: acc in
             List.rev acc
     in
@@ -120,14 +118,14 @@ let truncate ?(char_width = Width.default_char_width) target t =
 
 (* [t] without its first [width head] columns, [head] being a prefix of [t]
    that {!truncate} made, which never cuts a grapheme. *)
-let drop ~char_width head t =
+let drop head t =
   let rec skip n = function
     | [] -> []
     | atom :: rest ->
-        let w = Width.string_width ~char_width atom.text in
+        let w = Width.string_width atom.text in
         if w <= n then skip (n - w) rest
         else
-          let kept = Width.truncate ~char_width n atom.text in
+          let kept = Width.truncate n atom.text in
           let off = String.length kept in
           {
             atom with
@@ -135,7 +133,7 @@ let drop ~char_width head t =
           }
           :: rest
   in
-  skip (width ~char_width head) t
+  skip (width head) t
 
 let tokens t =
   let result = ref [] and current = ref [] in
@@ -175,7 +173,7 @@ let trim_leading_space = function
       if text = "" then rest else { atom with text } :: rest
   | token -> token
 
-let wrap ?(char_width = Width.default_char_width) ?(hang = 0) target t =
+let wrap ?(hang = 0) target t =
   if target <= 0 then invalid_arg "Console.Span.wrap: non-positive width";
   let hang = max 0 (min hang (target / 2)) in
   let indent = if hang = 0 then empty else text (String.make hang ' ') in
@@ -184,7 +182,7 @@ let wrap ?(char_width = Width.default_char_width) ?(hang = 0) target t =
   let rec loop acc line line_width fresh = function
     | [] -> List.rev (finish line fresh acc)
     | token :: rest ->
-        let token_width = width ~char_width token in
+        let token_width = width token in
         if line_width + token_width <= target then
           loop acc (line ++ token) (line_width + token_width) false rest
         else if not fresh then
@@ -192,24 +190,23 @@ let wrap ?(char_width = Width.default_char_width) ?(hang = 0) target t =
         else
           (* A token wider than a whole line goes on at the start of the next,
              so every character of a path or a digest is printed. *)
-          let head = truncate ~char_width (target - line_width) token in
-          if width ~char_width head > 0 then
+          let head = truncate (target - line_width) token in
+          if width head > 0 then
             loop ((line ++ head) :: acc) indent hang true
-              (drop ~char_width head token :: rest)
+              (drop head token :: rest)
           else
             (* A glyph wider than the whole line cannot be drawn in it. *)
             loop acc line line_width fresh rest
   in
   match tokens t with [] -> [ empty ] | tokens -> loop [] empty 0 true tokens
 
-let hanging ?(char_width = Width.default_char_width) t =
+let hanging t =
   let s = to_string t in
   let n = String.length s in
   let rec skip p i = if i < n && p s.[i] then skip p (i + 1) else i in
   let word = skip (fun c -> c <> ' ') (skip (( = ) ' ') 0) in
   let text = skip (( = ) ' ') word in
-  if word = n || text = n then 0
-  else Width.string_width ~char_width (String.sub s 0 text)
+  if word = n || text = n then 0 else Width.string_width (String.sub s 0 text)
 
 let pp_wrapped ppf t =
   let t = sanitize ~keep_newlines:false t in

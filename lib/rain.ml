@@ -33,11 +33,9 @@ let cell ~head ~perim ~frame pidx =
 (* Perimeter cells are numbered clockwise from the top-left -- top edge, right
    edge, bottom edge (right to left), left edge (bottom to top) -- so the head
    sweeps round the box. *)
-let frame ?(char_width = Width.default_char_width) lines ~elapsed =
+let frame lines ~elapsed =
   let elapsed = Float.max 0. elapsed in
-  let iw =
-    List.fold_left (fun a l -> max a (Width.string_width ~char_width l)) 0 lines
-  in
+  let iw = List.fold_left (fun a l -> max a (Width.string_width l)) 0 lines in
   let width = iw + 2 in
   let h = List.length lines in
   let perim = (2 * width) + (2 * h) in
@@ -54,7 +52,7 @@ let frame ?(char_width = Width.default_char_width) lines ~elapsed =
       let left_pidx = (2 * width) + h + (h - 1 - r) in
       let right_pidx = width + r in
       Buffer.add_string buf (cell left_pidx);
-      Buffer.add_string buf (Width.pad_right ~char_width iw line);
+      Buffer.add_string buf (Width.pad_right iw line);
       Buffer.add_string buf (cell right_pidx);
       Buffer.add_char buf '\n')
     lines;

@@ -29,7 +29,6 @@ type t = {
   now : unit -> float;
   wait : float -> unit;
   dimensions : unit -> int * int;
-  char_width : (Uchar.t -> int) option;
   header : string option;
   default_style : Display_line.t;
   theme : Theme.t;
@@ -104,11 +103,6 @@ let pp ppf t =
 let code t sequence = if t.styling then sequence else ""
 let styled t sequence s = if t.styling then Ansi.styled sequence s else s
 let dimmed t s = if t.styling then Ansi.dimmed s else s
-let string_width t = Width.string_width ?char_width:t.char_width
-let truncate t = Width.truncate ?char_width:t.char_width
-let shorten t = Width.shorten ?char_width:t.char_width
-let fold t = Width.fold ?char_width:t.char_width
-let pad_left t = Width.pad_left ?char_width:t.char_width
 
 let rec task_path r =
   match r.parent with
