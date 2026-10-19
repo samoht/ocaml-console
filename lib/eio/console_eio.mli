@@ -57,14 +57,6 @@ val run :
     by {!setup} cannot be told from no renderer at all: use {!setup} to turn
     colour off.
 
-    [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
-    the display clock's reading at zero, so every elapsed time renders as
-    [0.0s]; the refresh still waits on [clock]. A test that captures this output
-    would otherwise record how fast the machine that ran it was, and fail on a
-    slower one. It replaces the reading [run] builds for itself and only that
-    one: a context handed to {!run_on} has already said what time the display
-    reads.
-
     @raise Invalid_argument
       if a display opened by [run] or {!run_on} outside the current fiber tree
       is still open. *)

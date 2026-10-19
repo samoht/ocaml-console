@@ -123,46 +123,6 @@ let test_dimensions_read_the_environment () =
   check "a smaller one is no answer" "10" 80;
   check "nor is none" "" 80
 
-(* An elapsed time comes from the machine, not from the program, so a test that
-   captures a display's output cannot assert one. CONSOLE_FROZEN_CLOCK is the
-   door that makes such output reproducible: the same work, long enough that a
-   moving clock shows it, renders 0.0s with the variable set. Both halves are
-   asserted, because a frozen clock that was already frozen proves nothing. The
-   clock is a mock the task moves a quarter of a second, so the work takes no
-   time on the machine's. *)
-let capture_a_slow_task () =
-  Eio_main.run @@ fun _env ->
-  let mock = Eio_mock.Clock.make () in
-  let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Console_eio.run ~clock ~ppf ~mode:`History (fun display ->
-      let task = Console.Display.task display "slow step" in
-      Eio_mock.Clock.set_time mock 0.25;
-      Console.Display.succeed task);
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
-
-let ends_with_frozen_elapsed line =
-  String.length line > 5 && String.ends_with ~suffix:"  0.0s" line
-
-let test_frozen_clock_pins_every_elapsed () =
-  let variable = "CONSOLE_FROZEN_CLOCK" in
-  let running = capture_a_slow_task () in
-  Alcotest.(check bool)
-    "a moving clock times the work" false
-    (ends_with_frozen_elapsed (String.trim running));
-  Unix.putenv variable "1";
-  let frozen =
-    Fun.protect ~finally:(fun () -> Unix.putenv variable "") capture_a_slow_task
-  in
-  Alcotest.(check bool)
-    "a frozen clock reads zero" true
-    (ends_with_frozen_elapsed (String.trim frozen));
-  Alcotest.(check bool)
-    "the variable no longer freezes once cleared" false
-    (ends_with_frozen_elapsed (String.trim (capture_a_slow_task ())))
-
 (* Under a terminal [run] takes SIGINT, to give the cursor back before the
    process dies of it, and on return gives back the handler it displaced. A
    program whose Ctrl-C is its own affair installs its handler under [run]
@@ -333,8 +293,6 @@ let suite =
         test_run_on_waits_on_the_contexts_clock;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
-      Alcotest.test_case "frozen clock pins every elapsed" `Quick
-        test_frozen_clock_pins_every_elapsed;
       Alcotest.test_case "a handler installed under run outlives it" `Quick
         test_a_handler_installed_under_run_outlives_it;
       Alcotest.test_case "history on a terminal writes only its output" `Quick

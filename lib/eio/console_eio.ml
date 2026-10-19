@@ -66,24 +66,9 @@ let with_renderer renderer f =
    contribute tasks and events to the outer session. *)
 let current : Console.Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
 
-(* An elapsed time is the one part of a rendered display the machine writes
-   rather than the program, so a captured transcript that shows one pins the
-   speed of the host that recorded it and goes red on a slower host.
-   CONSOLE_FROZEN_CLOCK, set to any non-empty value, stops the display clock at
-   zero: every elapsed then renders as 0.0s and the transcript asserts the
-   program's own output and nothing about the machine. It replaces the real
-   clock read here and only that one, since a caller that builds a context with
-   a clock of its own has already said what time the display reads. *)
-let display_clock clock =
-  match Sys.getenv_opt "CONSOLE_FROZEN_CLOCK" with
-  | None | Some "" -> fun () -> Eio.Time.now clock
-  | Some _ -> fun () -> 0.
-
 (* The context [run] builds for the descriptor [ppf] writes to, what gives a
    terminal there its cursor back when a signal ends the process under the
-   display, and the renderer it draws with. The geometry is that terminal's.
-   The wait is the clock's own sleep: under CONSOLE_FROZEN_CLOCK the reading
-   stops and the pace does not, so a refresh still turns. *)
+   display, and the renderer it draws with. The geometry is that terminal's. *)
 let context ~clock ~ppf ~fd =
   let ppf = Option.value ppf ~default:Fmt.stdout in
   let tty =
@@ -94,7 +79,9 @@ let context ~clock ~ppf ~fd =
   let ctx =
     Console.Display.ctx
       ~depth:(Console.Color.depth_of_env Sys.getenv_opt)
-      ~ppf ~now:(display_clock clock) ~wait:(Eio.Time.sleep clock)
+      ~ppf
+      ~now:(fun () -> Eio.Time.now clock)
+      ~wait:(Eio.Time.sleep clock)
       ~dimensions:(fun () -> Terminal.dimensions tty)
       ~is_tty:(auto ?fd ppf = `Activity)
       ()
