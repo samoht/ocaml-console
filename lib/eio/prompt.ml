@@ -104,6 +104,7 @@ let secret t question =
         let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
         Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
+        Interrupt.protect ~restore @@ fun () ->
         Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
         read_masked t (Console.Input.v ~mask:"*" ())
       with Unix.Unix_error (e, fn, _) ->
