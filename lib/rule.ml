@@ -7,12 +7,7 @@ type align = [ `Left | `Center | `Right ]
 type t = { style : Style.t; glyph : string; align : align; label : Span.t }
 
 let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?(label = Span.empty) () =
-  String.iter
-    (fun ch ->
-      let code = Char.code ch in
-      if code < 0x20 || code = 0x7f then
-        invalid_arg "Console.Rule.v: control character in glyph")
-    glyph;
+  let glyph = Console_text.sanitize ~keep_newlines:false glyph in
   if Width.string_width glyph <> 1 then
     invalid_arg "Console.Rule.v: glyph must occupy one cell";
   let style =

@@ -24,7 +24,9 @@ val v :
     [label], if given, sits in the line at [align] (defaults to [`Center]), with
     a space on each side.
 
-    @raise Invalid_argument if [glyph] is not one terminal cell wide. *)
+    @raise Invalid_argument
+      if [glyph], with each control character a space, is not one terminal cell
+      wide. *)
 
 val pp : t Fmt.t
 (** [pp] formats a line as wide as the formatter's margin. A label wider than

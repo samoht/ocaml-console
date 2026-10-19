@@ -6,7 +6,7 @@ let test s n =
   let ppf = Format.formatter_of_buffer b in
   let width = 8 + (n land 63) in
   Format.pp_set_margin ppf width;
-  if Width.string_width s <> 1 then
+  if Width.string_width (Console_text.sanitize ~keep_newlines:false s) <> 1 then
     check
       (try
          ignore (Rule.v ~glyph:s ());

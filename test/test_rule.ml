@@ -38,9 +38,9 @@ let test_invalid () =
   Alcotest.check_raises "wide glyph"
     (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
       ignore (Rule.v ~glyph:"--" ()));
-  Alcotest.check_raises "unsafe glyph"
-    (Invalid_argument "Console.Rule.v: control character in glyph") (fun () ->
-      ignore (Rule.v ~glyph:"\027" ()))
+  Alcotest.check_raises "a control is a space"
+    (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
+      ignore (Rule.v ~glyph:"-\027" ()))
 
 let suite =
   ( "rule",
