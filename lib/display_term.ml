@@ -72,29 +72,30 @@ type region = {
   redraw : unit -> unit;
 }
 
-let active_region : region option ref = ref None
-let active () = !active_region
-let set_active r = active_region := r
+(* Read by the [at_exit] handler and by Logs reports from any domain. *)
+let active_region : region option Atomic.t = Atomic.make None
+let active () = Atomic.get active_region
+let set_active r = Atomic.set active_region r
 let activity_claimed = Atomic.make false
 let claim () = Atomic.compare_and_set activity_claimed false true
 let release () = Atomic.set activity_claimed false
 
 let suspend f =
-  match !active_region with
+  match active () with
   | None -> f ()
   | Some r ->
       r.clear ();
       Fun.protect f ~finally:r.redraw
 
 let restore_terminal () =
-  match !active_region with Some r -> show_cursor_on r.ppf | None -> ()
+  match active () with Some r -> show_cursor_on r.ppf | None -> ()
 
 (* [exit] ends the process without unwinding, so a command that calls it inside
    a display skips the display's teardown; the exit handlers still run. *)
 let restore_at_exit =
   lazy
     (at_exit (fun () ->
-         match !active_region with
+         match active () with
          | None -> ()
          | Some r ->
              (try Format.pp_print_string r.ppf "\027[0m\r\n"

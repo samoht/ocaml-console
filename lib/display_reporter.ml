@@ -10,19 +10,13 @@ let wrap (r : Logs.reporter) : Logs.reporter =
   in
   { Logs.report }
 
-let saved : Logs.reporter option ref = ref None
+let saved : Logs.reporter option Atomic.t = Atomic.make None
 
 let install () =
-  match !saved with
-  | Some _ -> ()
-  | None ->
-      let r = Logs.reporter () in
-      saved := Some r;
-      Logs.set_reporter (wrap r)
+  let r = Logs.reporter () in
+  if Atomic.compare_and_set saved None (Some r) then Logs.set_reporter (wrap r)
 
 let uninstall () =
-  match !saved with
+  match Atomic.exchange saved None with
   | None -> ()
-  | Some r ->
-      saved := None;
-      Logs.set_reporter r
+  | Some r -> Logs.set_reporter r
