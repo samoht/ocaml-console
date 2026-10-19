@@ -34,6 +34,22 @@ let test_plain_lines () =
     ]
     (String.split_on_char '\n' out)
 
+(* A line the display prints starts at the first column, even after the
+   program left a line unfinished on the same formatter. *)
+let test_plain_column () =
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let d = Display.v ~theme ~now:(fun () -> 0.) ppf in
+  Fmt.pf ppf "partial%!";
+  Display.message d "next";
+  Fmt.pf ppf "again";
+  Display.succeed (Display.task d "t");
+  Display.close d;
+  Fmt.pf ppf "after@.";
+  check_lines "each display line on its own"
+    [ "partial"; "next"; "again"; "[+] t  0.0s"; "after"; "" ]
+    (String.split_on_char '\n' (Buffer.contents buffer))
+
 let test_plain_attribution () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -394,6 +410,7 @@ let suite =
     [
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
+      Alcotest.test_case "plain lines start a line" `Quick test_plain_column;
       Alcotest.test_case "plain sanitizes" `Quick test_plain_sanitizes;
       Alcotest.test_case "plain result" `Quick test_plain_result;
       Alcotest.test_case "empty live header remains pending" `Quick

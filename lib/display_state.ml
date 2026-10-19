@@ -54,6 +54,8 @@ type t = {
   mutable painted : int * int * int * int;
   mutable closed : bool;
   mutable suspended : int;
+  mutable partial : bool;
+  mutable release : unit -> unit;
 }
 
 and row = {

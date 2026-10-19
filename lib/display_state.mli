@@ -60,6 +60,8 @@ type t = {
   mutable painted : int * int * int * int;
   mutable closed : bool;
   mutable suspended : int;
+  mutable partial : bool;
+  mutable release : unit -> unit;
 }
 
 and row = {
@@ -86,7 +88,10 @@ and row = {
 }
 (** The type for displays and their tasks. {!field-running} holds the tasks in
     the order they started, the running ones and at most as many that ended
-    ({!field-stale}); {!field-frame} is the region on the screen, as written. *)
+    ({!field-stale}); {!field-frame} is the region on the screen, as written.
+    Without a terminal, {!field-partial} is [true] iff the last byte written on
+    {!field-ppf} did not end a line, and {!field-release} gives {!field-ppf} its
+    own output functions back. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)

@@ -15,6 +15,7 @@ let write t s =
   if s <> "" then
     try
       Format.pp_print_flush t.ppf ();
+      let s = if t.partial && not (is_live t) then "\n" ^ s else s in
       let out = Format.pp_get_formatter_out_functions t.ppf () in
       out.out_string s 0 (String.length s);
       out.out_flush ()

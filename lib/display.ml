@@ -11,6 +11,40 @@ type task = row
 
 let pp = Display_state.pp
 
+(* Without a terminal, what the program and the display write on [ppf] is
+   watched for its last byte, so that a line the display prints starts at
+   the first column. *)
+let watch_lines t =
+  Format.pp_print_flush t.ppf ();
+  let out = Format.pp_get_formatter_out_functions t.ppf () in
+  let out_string s o l =
+    if l > 0 then t.partial <- s.[o + l - 1] <> '\n';
+    out.out_string s o l
+  in
+  let out_newline () =
+    t.partial <- false;
+    out.out_newline ()
+  in
+  let blank write n =
+    if n > 0 then t.partial <- true;
+    write n
+  in
+  let ours =
+    {
+      out with
+      out_string;
+      out_newline;
+      out_spaces = blank out.out_spaces;
+      out_indent = blank out.out_indent;
+    }
+  in
+  Format.pp_set_formatter_out_functions t.ppf ours;
+  t.release <-
+    (fun () ->
+      let now = Format.pp_get_formatter_out_functions t.ppf () in
+      if now.out_string == ours.out_string then
+        Format.pp_set_formatter_out_functions t.ppf out)
+
 let v ?(theme = Theme.unicode) ?(layout = Line.default) ?header ?size ~now ppf =
   let depth =
     match Fmt.style_renderer ppf with
@@ -47,13 +81,16 @@ let v ?(theme = Theme.unicode) ?(layout = Line.default) ?header ?size ~now ppf =
       painted = (-1, -1, -1, -1);
       closed = false;
       suspended = 0;
+      partial = false;
+      release = ignore;
     }
   in
   ignore (Display_region.refresh_size t);
   if is_live t then begin
     Display_region.write t Display_region.hide_cursor;
     Display_region.paint t
-  end;
+  end
+  else watch_lines t;
   t
 
 let check_open fn t =
@@ -371,5 +408,8 @@ let close ?(running = `Succeed) t =
       List.iter (fun l -> Buffer.add_string buf (render l)) lines;
       Display_region.write t (Buffer.contents buf)
     end
-    else Display_region.write t (String.concat "" (List.map render lines))
+    else begin
+      Display_region.write t (String.concat "" (List.map render lines));
+      t.release ()
+    end
   end
