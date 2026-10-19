@@ -276,12 +276,32 @@ let test_concurrent_order () =
       ]
   done
 
+(* A signal handler the program installs while a run holds the terminal is
+   still in place after the run. *)
+let mine (_ : int) = ()
+
+let test_handler_kept () =
+  let before = Sys.signal Sys.sigterm Sys.Signal_default in
+  Fun.protect ~finally:(fun () -> Sys.set_signal Sys.sigterm before)
+  @@ fun () ->
+  Eio_main.run @@ fun env ->
+  let ppf = Format.formatter_of_buffer (Buffer.create 64) in
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf (fun _ ->
+      Sys.set_signal Sys.sigterm (Sys.Signal_handle mine));
+  Alcotest.(check bool)
+    "the program's handler" true
+    (match Sys.signal Sys.sigterm Sys.Signal_default with
+    | Sys.Signal_handle f -> f == mine
+    | _ -> false)
+
 let suite =
   ( "session",
     [
       Alcotest.test_case "bytewise CRLF and buffer reuse" `Quick test_bytewise;
       Alcotest.test_case "nested fibers and domains keep their order" `Quick
         test_concurrent_order;
+      Alcotest.test_case "a handler set during a run is kept" `Quick
+        test_handler_kept;
       Alcotest.test_case "split UTF-8 and buffered second line" `Quick
         test_utf8_split;
       Alcotest.test_case "partial line at EOF is refused" `Quick
