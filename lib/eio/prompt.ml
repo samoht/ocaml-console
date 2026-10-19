@@ -41,7 +41,15 @@ let line t question =
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
     Fmt.pf t.ppf "%s%!" question;
-    match Eio.Buf_read.line t.input with
+    (* [Buf_read.line] returns an unterminated last line as if it were one;
+       an answer cut short by the end of the input is no answer. *)
+    let read () =
+      let line = Eio.Buf_read.take_while (fun c -> c <> '\n') t.input in
+      Eio.Buf_read.char '\n' t.input;
+      let n = String.length line in
+      if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1) else line
+    in
+    match read () with
     | answer -> Ok answer
     | exception End_of_file -> Error (`Msg "no answer: the input ended")
     | exception Eio.Buf_read.Buffer_limit_exceeded ->

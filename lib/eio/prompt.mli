@@ -31,7 +31,7 @@ val line : t -> string -> (string, [ `Msg of string ]) result
 (** [line t question] writes [question] verbatim, flushed and with no newline
     added, and is the next line of input without its terminator (LF or CRLF).
     The answer is returned as typed, spaces included. This is [Error] when [t]
-    is not interactive or the input ends. *)
+    is not interactive or the input ends before a line feed. *)
 
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
