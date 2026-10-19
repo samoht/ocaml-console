@@ -170,16 +170,21 @@ let sgr seq =
   in
   if not params_ok then None
   else
-    (* Parameters apply left to right and 0 turns every attribute off, so the
-       last one decides; an empty parameter is 0. *)
-    let params = String.sub seq 2 (n - 3) in
-    let last =
-      match String.rindex_opt params ';' with
-      | None -> params
-      | Some k -> String.sub params (k + 1) (String.length params - k - 1)
+    (* Parameters apply left to right and 0, or an empty one, turns every
+       attribute off. 38, 48 and 58 take a colour as the parameters after
+       them, [5;n] or [2;r;g;b], which are values rather than commands. *)
+    let params = String.split_on_char ';' (String.sub seq 2 (n - 3)) in
+    let rec state acc = function
+      | [] -> acc
+      | ("38" | "48" | "58") :: "5" :: _ :: rest -> state `Set rest
+      | ("38" | "48" | "58") :: "2" :: _ :: _ :: _ :: rest -> state `Set rest
+      | p :: rest ->
+          let acc =
+            if p = "" || int_of_string_opt p = Some 0 then `Reset else `Set
+          in
+          state acc rest
     in
-    if last = "" || int_of_string_opt last = Some 0 then Some `Reset
-    else Some `Set
+    Some (state `Reset params)
 
 let rewrite ~keep_newlines ~keep str =
   let buf = Buffer.create (String.length str) in
