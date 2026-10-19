@@ -209,8 +209,6 @@ let downsample depth c =
   | `Ansi_256, Rgb (r, g, b) -> Palette (xterm_256 (r, g, b))
   | `Ansi_16, c -> Ansi (nearest_named (to_rgb c))
 
-let clamp v = max 0 (min 255 v)
-
 let blend c0 c1 t =
   let t = Float.max 0. (Float.min 1. t) in
   let r, g, b = to_rgb c0 and r', g', b' = to_rgb c1 in
@@ -219,7 +217,11 @@ let blend c0 c1 t =
 
 let scale f c =
   let r, g, b = to_rgb c in
-  let s v = clamp (int_of_float (Float.round (float_of_int v *. f))) in
+  (* Clamped as a float: a large factor overflows [int_of_float]. *)
+  let s v =
+    let x = Float.round (float_of_int v *. f) in
+    if Float.is_nan x then 0 else int_of_float (Float.max 0. (Float.min 255. x))
+  in
   Rgb (s r, s g, s b)
 
 let to_code ~normal ~bright ~extended c =

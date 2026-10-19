@@ -122,7 +122,8 @@ val blend : t -> t -> float -> t
 
 val scale : float -> t -> t
 (** [scale f c] is the RGB colour whose components are those of [c] times [f],
-    rounded and clamped to 0 to 255: [scale 0.5] darkens by half. *)
+    rounded and clamped to 0 to 255, a NaN component being 0: [scale 0.5]
+    darkens by half. *)
 
 (** {1:preds Predicates and comparisons} *)
 
