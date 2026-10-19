@@ -102,9 +102,17 @@ let test_strip_leaves_no_control () =
       scan 0)
     stripped
 
+let test_truecolour_reset () =
+  let input = "\027[38;2;255;0;0mX" in
+  Alcotest.(check string)
+    "red must not leak into subsequent output" (input ^ "\027[0m")
+    (Console_text.sanitize_styles input)
+
 let suite =
   ( "console_text",
     [
+      Alcotest.test_case "truecolour is reset after text" `Quick
+        test_truecolour_reset;
       Alcotest.test_case "strip" `Quick test_strip;
       Alcotest.test_case "strip leaves no control" `Quick
         test_strip_leaves_no_control;
