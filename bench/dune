@@ -1,0 +1,11 @@
+; Deterministic workloads, timed and counted; not part of runtest:
+; dune build @bench
+
+(executable
+ (name bench)
+ (libraries console fmt unix))
+
+(rule
+ (alias bench)
+ (action
+  (run %{exe:bench.exe})))
