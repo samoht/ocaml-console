@@ -6,7 +6,9 @@
 open Ansi
 open Display_state
 
-let complete t = t.finished >= List.length t.rows
+(* A session with no task yet is still pending until it closes. *)
+let complete t =
+  t.torn_down || (t.rows <> [] && t.finished >= List.length t.rows)
 let any_error t = List.exists (fun r -> r.routcome = Some `Failed) t.rows
 let any_cancelled t = List.exists (fun r -> r.routcome = Some `Cancelled) t.rows
 
