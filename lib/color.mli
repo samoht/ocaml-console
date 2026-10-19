@@ -31,10 +31,10 @@ type ansi =
   | `Bright_magenta
   | `Bright_cyan
   | `Bright_white ]
-(** Standard 16-color ANSI palette. *)
+(** The type for the 16 named ANSI colours. *)
 
 type t
-(** A terminal color. *)
+(** The type for terminal colours. *)
 
 (** {1:constructors Constructors} *)
 
@@ -43,15 +43,23 @@ val ansi : ansi -> t
 
 val rgb : int -> int -> int -> t
 (** [rgb r g b] is the 24-bit colour with the given components (each 0 to 255).
-    {b Raises.} [Invalid_argument] if a component is out of range. *)
+
+    @raise Invalid_argument if a component is out of range. *)
+
+val of_hex : string -> (t, [ `Msg of string ]) result
+(** [of_hex s] is the colour written [s] in hexadecimal: ["RRGGBB"] or ["RGB"],
+    optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled. *)
 
 val hex : string -> t
-(** [hex s] is the colour parsed from a hex string like ["#RRGGBB"] or
-    ["RRGGBB"]. {b Raises.} [Invalid_argument] if the string is malformed. *)
+(** [hex s] is like {!of_hex} but raises on a malformed [s]. Use {!of_hex} to
+    deal with untrusted input.
+
+    @raise Invalid_argument if the string is malformed. *)
 
 val palette : int -> t
-(** [palette n] is the 256-colour palette entry [n]. {b Raises.}
-    [Invalid_argument] if [n] is not 0 to 255. *)
+(** [palette n] is the 256-colour palette entry [n].
+
+    @raise Invalid_argument if [n] is not 0 to 255. *)
 
 (** {1:predefined_colors Predefined colors} *)
 
@@ -167,4 +175,4 @@ val equal : t -> t -> bool
 (** [equal a b] is [true] iff [a] and [b] are the same colour. *)
 
 val pp : t Fmt.t
-(** [pp] pretty-prints [c]. *)
+(** [pp] formats a colour for diagnostics, in an unspecified format. *)

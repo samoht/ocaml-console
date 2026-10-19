@@ -30,31 +30,32 @@ let rgb r g b =
     invalid_arg "Console.Color.rgb: component outside 0..255";
   Rgb (r, g, b)
 
-let hex str =
-  let str =
-    if String.length str > 0 && str.[0] = '#' then
-      String.sub str 1 (String.length str - 1)
-    else str
+let of_hex s =
+  let s =
+    if String.length s > 0 && s.[0] = '#' then
+      String.sub s 1 (String.length s - 1)
+    else s
   in
-  let len = String.length str in
-  let hex_digit = function
-    | '0' .. '9' as c -> Char.code c - Char.code '0'
-    | 'a' .. 'f' as c -> Char.code c - Char.code 'a' + 10
-    | 'A' .. 'F' as c -> Char.code c - Char.code 'A' + 10
-    | _ -> invalid_arg "Console.Color.hex: invalid hex character"
+  let digit = function
+    | '0' .. '9' as c -> Some (Char.code c - Char.code '0')
+    | 'a' .. 'f' as c -> Some (Char.code c - Char.code 'a' + 10)
+    | 'A' .. 'F' as c -> Some (Char.code c - Char.code 'A' + 10)
+    | _ -> None
   in
-  let parse_hex2 i =
-    let hi = str.[i] and lo = str.[i + 1] in
-    (hex_digit hi * 16) + hex_digit lo
-  in
-  let parse_hex1 i =
-    let d = hex_digit str.[i] in
-    (d * 16) + d
-  in
-  match len with
-  | 6 -> Rgb (parse_hex2 0, parse_hex2 2, parse_hex2 4)
-  | 3 -> Rgb (parse_hex1 0, parse_hex1 1, parse_hex1 2)
-  | _ -> invalid_arg "Console.Color.hex: expected 3 or 6 hex digits"
+  let digits = List.filter_map digit (List.of_seq (String.to_seq s)) in
+  if List.length digits <> String.length s then
+    Error (`Msg "invalid hex character")
+  else
+    match digits with
+    | [ r1; r0; g1; g0; b1; b0 ] ->
+        Ok (Rgb ((r1 * 16) + r0, (g1 * 16) + g0, (b1 * 16) + b0))
+    | [ r; g; b ] -> Ok (Rgb (r * 17, g * 17, b * 17))
+    | _ -> Error (`Msg "expected 3 or 6 hex digits")
+
+let hex s =
+  match of_hex s with
+  | Ok c -> c
+  | Error (`Msg m) -> invalid_arg ("Console.Color.hex: " ^ m)
 
 let palette index =
   if index < 0 || index > 255 then

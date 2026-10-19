@@ -34,6 +34,20 @@ let test_rgb_range () =
   rejected "negative component" (fun () -> ignore (Color.rgb (-1) 0 0));
   rejected "component above 255" (fun () -> ignore (Color.rgb 0 0 256))
 
+let test_of_hex () =
+  let parsed s =
+    match Color.of_hex s with
+    | Ok c -> Some (Color.to_rgb c)
+    | Error (`Msg _) -> None
+  in
+  let check = Alcotest.(check (option (triple int int int))) in
+  check "six digits" (Some (255, 85, 0)) (parsed "#FF5500");
+  check "three digits" (Some (255, 85, 0)) (parsed "f50");
+  check "four digits" None (parsed "1234");
+  check "not a digit" None (parsed "12x");
+  check "empty" None (parsed "");
+  check "a lone hash" None (parsed "#")
+
 let test_invalid_constructors () =
   Alcotest.check_raises "malformed hex"
     (Invalid_argument "Console.Color.hex: expected 3 or 6 hex digits")
@@ -143,6 +157,7 @@ let suite =
       Alcotest.test_case "hex 6-digit" `Quick test_hex_6digit;
       Alcotest.test_case "hex 3-digit" `Quick test_hex_3digit;
       Alcotest.test_case "hex no hash" `Quick test_hex_no_hash;
+      Alcotest.test_case "of_hex" `Quick test_of_hex;
       Alcotest.test_case "predefined" `Quick test_predefined;
       Alcotest.test_case "rgb range" `Quick test_rgb_range;
       Alcotest.test_case "invalid constructors" `Quick test_invalid_constructors;
