@@ -20,8 +20,6 @@ type piece =
   | Text of string  (** A sanitized literal. *)
   | Accent of string  (** A sanitized literal in the accent colour. *)
   | Spacer  (** Flexible space. *)
-  | Marker of (frame:int -> Span.t)
-      (** An activity marker drawn anew each frame. *)
 
 type t = { pieces : piece list; color : Color.t }
 (** The type for layouts: pieces and an accent colour. *)
@@ -63,9 +61,6 @@ val accent : string -> piece
 
 val spacer : piece
 (** [spacer] is {!constructor-Spacer}. *)
-
-val marker : (frame:int -> Span.t) -> piece
-(** [marker f] is {!constructor-Marker} [f]. *)
 
 val v : ?color:Color.t -> piece list -> t
 (** [v ~color pieces] is the layout [pieces] with accent [color] (defaults to

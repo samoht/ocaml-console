@@ -66,7 +66,6 @@ type t = {
   mutable torn_down : bool;
   mutable claimed : bool;
   mutable suspended : int;  (** Nesting of [with_output]. *)
-  mutable frame : int;  (** The ticks that refreshed the projection. *)
 }
 (** The type for display sessions. *)
 

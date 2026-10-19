@@ -6,10 +6,8 @@
 (** Animated spinners.
 
     A spinner is a short cyclic sequence of frames -- braille dots, a spinning
-    ASCII bar -- shown beside an indeterminate task. The core is pure: {!frame}
-    and {!at} pick the glyph to show and the caller draws it. {!Console.Display}
-    animates one per running row, and a {!Theme.t} carries the one a display
-    uses. *)
+    ASCII bar -- shown beside an indeterminate task. {!Console.Display} animates
+    one per running row, and a {!Theme.t} carries the one a display uses. *)
 
 (** {1:spinners Spinners} *)
 
@@ -28,25 +26,17 @@ val braille : t
 (** [braille] cycles the ten braille dots [⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]. *)
 
 val ascii : t
-(** [ascii] cycles the four frames [|], [/], [-] and [\\], for terminals or
-    fonts without braille. *)
+(** [ascii] cycles the four frames [|], [/], [-] and a backslash, for terminals
+    or fonts without braille. *)
 
-(** {1:frames Frames} *)
-
-val frame : t -> int -> string
-(** [frame t i] is the [i]th frame. [i] wraps around the sequence, so every
-    integer names a frame and [frame t] never raises. *)
-
-val at : ?fps:float -> t -> elapsed:float -> string
-(** [at t ~elapsed] is the frame to show [elapsed] seconds into the animation,
-    advancing at [fps] frames per second (defaults to [10.]). A non-positive
-    [elapsed] shows the first frame.
-
-    @raise Invalid_argument if [fps] is not finite and positive. *)
+(** {1:anim Animation} *)
 
 val anim : ?fps:float -> t -> string Anim.t
-(** [anim t] is [t] as an {!Anim.t}: its frame at [elapsed] is
-    [at ?fps t ~elapsed]. *)
+(** [anim t] is [t] as an {!Anim.t}: its frames in turn, [fps] a second
+    (defaults to [10.]), starting from the first at [0.]. A time that is not
+    finite shows the first frame.
+
+    @raise Invalid_argument if [fps] is not finite and positive. *)
 
 (** {1:fmt Formatting} *)
 

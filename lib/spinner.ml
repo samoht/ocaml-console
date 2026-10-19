@@ -17,16 +17,11 @@ let braille = [| "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; 
 
 let ascii = [| "|"; "/"; "-"; "\\" |]
 
-let frame t i =
-  let n = Array.length t in
-  t.(((i mod n) + n) mod n)
-
-let at ?(fps = 10.) t ~elapsed =
+let anim ?(fps = 10.) t =
   if (not Float.(is_finite fps)) || fps <= 0. then
-    invalid_arg "Console.Spinner.at: fps must be positive";
-  if (not (Float.is_finite elapsed)) || elapsed <= 0. then t.(0)
-  else
-    let cycle = Float.of_int (Array.length t) /. fps in
-    frame t (int_of_float (Float.rem elapsed cycle *. fps))
-
-let anim ?fps t = Anim.v (fun ~elapsed -> at ?fps t ~elapsed)
+    invalid_arg "Console.Spinner.anim: fps must be positive";
+  let n = Array.length t in
+  let cycle = Float.of_int n /. fps in
+  Anim.v (fun ~elapsed ->
+      if not (Float.is_finite elapsed) then t.(0)
+      else t.(int_of_float (Float.rem elapsed cycle *. fps) mod n))

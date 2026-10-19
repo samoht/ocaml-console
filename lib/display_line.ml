@@ -14,7 +14,6 @@ type piece =
   | Text of string
   | Accent of string
   | Spacer
-  | Marker of (frame:int -> Span.t)
 
 type t = { pieces : piece list; color : Color.t }
 
@@ -32,7 +31,6 @@ let elapsed = Elapsed
 let text s = Text (Display_text.sanitize s)
 let accent s = Accent (Display_text.sanitize s)
 let spacer = Spacer
-let marker f = Marker f
 let is_label = function Label -> true | _ -> false
 let is_spacer = function Spacer -> true | _ -> false
 
@@ -57,7 +55,6 @@ let pp_piece ppf = function
   | Text s -> Fmt.pf ppf "text %S" s
   | Accent s -> Fmt.pf ppf "accent %S" s
   | Spacer -> Fmt.string ppf "spacer"
-  | Marker _ -> Fmt.string ppf "marker"
 
 let pp ppf t = Fmt.(Dump.list pp_piece) ppf t.pieces
 

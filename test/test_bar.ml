@@ -72,7 +72,8 @@ let test_style_resolution () =
 (* The indeterminate bar sweeps a triangle wave up and back over two seconds. At
    width 100 the blocky fill count equals the percentage. *)
 let test_at_triangle () =
-  let pct elapsed = full (Bar.at ~style:`Blocky ~width:100 ~elapsed ()) in
+  let bar = Bar.anim ~style:`Blocky ~width:100 () in
+  let pct elapsed = full (Anim.frame bar ~elapsed) in
   Alcotest.(check int) "t=0 empty" 0 (pct 0.);
   Alcotest.(check int) "t=0.5 half, rising" 50 (pct 0.5);
   Alcotest.(check int) "t=1 full at the peak" 100 (pct 1.0);
@@ -84,8 +85,8 @@ let test_invalid_width () =
     (Invalid_argument "Console.Bar.render: negative width") (fun () ->
       ignore (Bar.render ~width:(-1) ~pct:0 ()));
   Alcotest.check_raises "animation width"
-    (Invalid_argument "Console.Bar.at: negative width") (fun () ->
-      ignore (Bar.at ~width:(-1) ~elapsed:0. ()))
+    (Invalid_argument "Console.Bar.anim: negative width") (fun () ->
+      ignore (Bar.anim ~width:(-1) ()))
 
 (* {1 Bars as spans} *)
 

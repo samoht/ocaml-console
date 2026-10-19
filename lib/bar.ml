@@ -111,9 +111,10 @@ let render ?theme ?style ?color ?(styled = true) ~width ~pct () =
   let pct = max 0 (min 100 pct) in
   draw_style style ~styled ~color ~width ~pct
 
-let at ?theme ?style ?color ?(styled = true) ~width ~elapsed () =
-  if width < 0 then invalid_arg "Console.Bar.at: negative width";
+let anim ?theme ?style ?color ?(styled = true) ~width () =
+  if width < 0 then invalid_arg "Console.Bar.anim: negative width";
   let style, color = resolve ?theme ?style ?color () in
+  Anim.v @@ fun ~elapsed ->
   (* Sweep the fill up and back over a two-second period: a triangle wave on
      [elapsed] mapped to a percentage. *)
   let period = 2.0 in
@@ -123,9 +124,6 @@ let at ?theme ?style ?color ?(styled = true) ~width ~elapsed () =
   in
   let tri = if phase < 0.5 then phase *. 2. else (1. -. phase) *. 2. in
   draw_style style ~styled ~color ~width ~pct:(int_of_float (tri *. 100.))
-
-let anim ?theme ?style ?color ?styled ~width () =
-  Anim.v (fun ~elapsed -> at ?theme ?style ?color ?styled ~width ~elapsed ())
 
 (* {1 Bars as spans} *)
 

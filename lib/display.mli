@@ -71,12 +71,6 @@ module Line : sig
   (** [spacer] is flexible space that pushes the pieces after it to the right
       edge. *)
 
-  val marker : (frame:int -> Span.t) -> piece
-  (** [marker f] is an activity marker drawn as [f ~frame:n] at every paint,
-      where [n] is the display's {!val-frame}, so its glyphs and colours may
-      change from one frame to the next. Once the task finishes it is the
-      outcome marker {!spinner} draws. *)
-
   type t
   (** The type for task-line layouts and their accent colour. *)
 
@@ -229,7 +223,7 @@ end
 
     Every function below that takes a display or a task raises
     [Invalid_argument] once that display has closed, except {!pp}, {!history},
-    {!activity}, {!frame}, {!now}, {!wait} and {!tick}. *)
+    {!activity}, {!now}, {!wait} and {!tick}. *)
 
 type t
 (** The type for display sessions. Values are created only by {!run}. *)
@@ -430,12 +424,6 @@ val set_result :
     [`Ok] succeeds remaining work; [`Fail] cancels it. [detail], if given, is
     written dimmed above the verdict, one line per line of it. It is
     exactly-once; a later call is a harmless no-op. *)
-
-val frame : t -> int
-(** [frame display] is the number of times {!tick} has refreshed [display]'s
-    activity projection: the frame an animation draws. It moves with the
-    driver's ticks and not with the display's clock, so a display whose clock is
-    frozen still animates. *)
 
 val now : t -> float
 (** [now display] is the time on the clock of the context [display] was opened

@@ -74,7 +74,6 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     torn_down = false;
     claimed = false;
     suspended = 0;
-    frame = 0;
   }
 
 let release_claim t =
@@ -547,13 +546,7 @@ let set_result ?detail t result =
 
 (** {1 Frames and the clock} *)
 
-let tick t =
-  if not t.plain then begin
-    t.frame <- t.frame + 1;
-    Display_projection.paint t
-  end
-
-let frame t = t.frame
+let tick t = if not t.plain then Display_projection.paint t
 let now t = t.now ()
 let wait t = t.wait
 

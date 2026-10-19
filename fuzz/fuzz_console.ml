@@ -1069,34 +1069,20 @@ let test_spinner_roundtrip frames =
   in
   check empty_raised
 
-(* [frame] is total: every integer -- negative, zero, [min_int] -- names a frame
-   without raising, and the frame is always one of the spinner's glyphs. On a
-   clamped index (so [i +/- n] cannot overflow) it is cyclic with period [n] and
-   indexes the frames in order, with negative indices counting from the end. *)
-let test_spinner_frame frames i =
-  let t = Spinner.v frames in
-  let n = Array.length frames in
-  check (is_frame t (Spinner.frame t i));
-  let j = i mod 10000 in
-  check (Spinner.frame t (j + n) = Spinner.frame t j);
-  check (Spinner.frame t (j - n) = Spinner.frame t j);
-  let k = ((j mod n) + n) mod n in
-  check (Spinner.frame t j = frames.(k))
-
-(* [at] always shows one of the spinner's glyphs, for any timing. A non-positive
-   elapsed pins the first frame; a positive, finite elapsed shows the frame at
-   [floor (elapsed * fps)], so the animation advances at [fps]. *)
-let test_spinner_at frames elapsed fps =
+(* The animation always shows one of the spinner's glyphs, for any timing; a
+   non-positive elapsed pins the first frame. A non-positive or non-finite fps
+   is refused. *)
+let test_spinner_anim frames elapsed fps =
   let t = Spinner.v frames in
   if Float.is_finite fps && fps > 0. then begin
-    let f = Spinner.at ~fps t ~elapsed in
+    let f = Anim.frame (Spinner.anim ~fps t) ~elapsed in
     check (is_frame t f);
     if elapsed <= 0. then check (f = (Spinner.frames t).(0))
   end
   else
     check
       (try
-         ignore (Spinner.at ~fps t ~elapsed);
+         ignore (Spinner.anim ~fps t);
          false
        with Invalid_argument _ -> true)
 
@@ -1127,8 +1113,7 @@ let suite =
       test_case "duplicate result is harmless" [ bytes; bytes ]
         test_duplicate_result;
       test_case "spinner roundtrip" [ array1 bytes ] test_spinner_roundtrip;
-      test_case "spinner frame total" [ array1 bytes; int ] test_spinner_frame;
-      test_case "spinner at" [ array1 bytes; float; float ] test_spinner_at;
+      test_case "spinner anim" [ array1 bytes; float; float ] test_spinner_anim;
       test_case "table no overflow"
         [ list bytes; list bytes; int ]
         test_table_no_overflow;

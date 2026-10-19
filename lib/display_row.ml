@@ -23,10 +23,11 @@ let pct_of = function
 
 (* A row and the header use one marker vocabulary, so the same state never has
    two glyphs. *)
-let render_spinner t ~finished ~color ~frame row =
+let render_spinner t ~finished ~color ~time row =
   let theme = t.theme in
   if not finished then
-    styled t (color_code t color) (Spinner.frame (Theme.spinner theme) frame)
+    styled t (color_code t color)
+      (Anim.frame (Spinner.anim (Theme.spinner theme)) ~elapsed:time)
   else
     match row.routcome with
     | Some `Failed -> styled t (bold ^ color_code t (Theme.fail theme)) "[x]"
@@ -83,9 +84,9 @@ let render_rate t row ~finished =
 
 let span_line t span = Span.to_string ~styled:t.styling span
 
-let render_piece t row ~finished ~color ~frame (piece : Display_line.piece) =
+let render_piece t row ~finished ~color ~time (piece : Display_line.piece) =
   match piece with
-  | Spinner -> render_spinner t ~finished ~color ~frame row
+  | Spinner -> render_spinner t ~finished ~color ~time row
   | Label | Spacer -> ""
   | Bar n -> render_bar t row ~finished ~color ~width:n
   | Percent -> render_percent t row ~finished
@@ -95,18 +96,15 @@ let render_piece t row ~finished ~color ~frame (piece : Display_line.piece) =
       dim_cell t Display_text.elapsed_cell (Display_text.span (elapsed t row))
   | Text s -> s
   | Accent s -> styled t (bold ^ color_code t color) s
-  | Marker f ->
-      if finished then render_spinner t ~finished ~color ~frame row
-      else span_line t (f ~frame:t.frame)
 
 (* The label is the flexible content and a single [Spacer] absorbs the
    remaining slack, so later pieces sit at the right margin. *)
 let live t row =
   let finished = row.rfinish <> None in
   let { Display_line.pieces; color } = row.style in
-  let frame = int_of_float ((t.now () -. t.dstart) *. 10.) in
+  let time = t.now () -. t.dstart in
   let rendered =
-    List.map (fun p -> (p, render_piece t row ~finished ~color ~frame p)) pieces
+    List.map (fun p -> (p, render_piece t row ~finished ~color ~time p)) pieces
   in
   let indent_s = guide_prefix t row in
   let has_label =

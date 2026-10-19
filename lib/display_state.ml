@@ -53,7 +53,6 @@ type t = {
   mutable torn_down : bool;
   mutable claimed : bool;
   mutable suspended : int;
-  mutable frame : int;
 }
 
 and row_log = {

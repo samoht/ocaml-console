@@ -6,10 +6,10 @@
 (** Horizontal progress bars.
 
     A bar fills left to right to a percentage. {!render} draws a determinate bar
-    and {!at} a moving, indeterminate one -- the bar analogue of {!Spinner}. The
-    look (blocky, smooth or a rainbow gradient) and the fill colour come from a
-    {!Theme.t}, or are given explicitly. {!Console.Display} draws a row's bar
-    through this module.
+    and {!anim} a moving, indeterminate one -- the bar analogue of {!Spinner}.
+    The look (blocky, smooth or a rainbow gradient) and the fill colour come
+    from a {!Theme.t}, or are given explicitly. {!Console.Display} draws a row's
+    bar through this module.
 
     {!v}, {!spread} and {!stacked} draw a bar as a {!Span.t}, for a screen that
     lays bars out beside other spans: a fraction to the eighth of a cell, a
@@ -33,22 +33,6 @@ val render :
 
     @raise Invalid_argument if [width] is negative. *)
 
-val at :
-  ?theme:Theme.t ->
-  ?style:Theme.bar ->
-  ?color:Color.t ->
-  ?styled:bool ->
-  width:int ->
-  elapsed:float ->
-  unit ->
-  string
-(** [at ~width ~elapsed ()] is a moving, indeterminate bar [elapsed] seconds
-    into the animation: the fill sweeps up and back over a two-second period,
-    for work whose progress is unknown. Style, colour and [styled] resolve as in
-    {!render}. Non-finite or negative elapsed time renders the initial frame.
-
-    @raise Invalid_argument if [width] is negative. *)
-
 val anim :
   ?theme:Theme.t ->
   ?style:Theme.bar ->
@@ -57,9 +41,12 @@ val anim :
   width:int ->
   unit ->
   string Anim.t
-(** [anim ~width ()] is the moving bar as an {!Anim.t}: its frame at [elapsed]
-    is [at ~width ~elapsed ()]. Style, colour and [styled] resolve as in
-    {!render}. *)
+(** [anim ~width ()] is a moving, indeterminate bar as an {!Anim.t}: the fill
+    sweeps up and back over a two-second period, for work whose progress is
+    unknown. Style, colour and [styled] resolve as in {!render}. A time that is
+    not finite shows the first frame.
+
+    @raise Invalid_argument if [width] is negative. *)
 
 (** {1:spans Bars as spans}
 
