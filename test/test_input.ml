@@ -287,9 +287,20 @@ let test_echo_is_text () =
   no_escape "completion and prompt" (Input.feed t "\t");
   no_escape "history" (Input.feed t "\027[A")
 
+(* A typed character the terminal would act on, such as the one-byte CSI
+   U+009B, is echoed and kept as a space. *)
+let test_typed_c1 () =
+  let t = Input.v () in
+  let echo, submitted = Input.feed t "a\xc2\x9b2Jb\r" in
+  Alcotest.(check bool)
+    "no C1 control echoed" false
+    (Astring.String.is_infix ~affix:"\xc2\x9b" echo);
+  Alcotest.check lines "line" [ "a 2Jb" ] submitted
+
 let suite =
   ( "input",
     [
+      Alcotest.test_case "typed C1 control is a space" `Quick test_typed_c1;
       Alcotest.test_case "invalid UTF-8 is a replacement character" `Quick
         test_invalid_utf8;
       Alcotest.test_case "echo holds no escape from the caller" `Quick

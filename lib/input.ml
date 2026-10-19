@@ -220,7 +220,8 @@ let rec normal t echo lines ~after_cr c =
           Uchar.utf_decode_is_valid d
           && Uchar.utf_decode_length d = String.length t.partial
         in
-        insert t echo (if valid then t.partial else "\xef\xbf\xbd");
+        let c = clean (if valid then t.partial else "\xef\xbf\xbd") in
+        if c <> "" then insert t echo c;
         t.partial <- ""
       end
     end
