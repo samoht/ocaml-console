@@ -18,12 +18,17 @@ let rec update a f =
   let old = Atomic.get a in
   if not (Atomic.compare_and_set a old (f old)) then update a f
 
-let release () =
+(* Our handler gives way to the default disposition, and one the program
+   installed since stays. *)
+let rec release () =
   List.iter
-    (fun s -> Sys.set_signal s Sys.Signal_default)
+    (fun s ->
+      match Sys.signal s Sys.Signal_default with
+      | Sys.Signal_handle h when h == handle -> ()
+      | theirs -> Sys.set_signal s theirs)
     (Atomic.exchange caught [])
 
-let handle signo =
+and handle signo =
   List.iter
     (fun (_, f) -> try f () with _ -> ())
     (Atomic.exchange restores []);
