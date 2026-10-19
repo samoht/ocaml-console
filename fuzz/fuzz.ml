@@ -7,6 +7,7 @@ let () =
   Alcobar.run "console"
     [
       Fuzz_console.suite;
+      Fuzz_api_rule.suite;
       Fuzz_api_color.suite;
       Fuzz_api_bar.suite;
       Fuzz_api_span_bounds.suite;
