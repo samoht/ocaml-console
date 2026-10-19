@@ -92,17 +92,11 @@ val run_on :
     @raise Invalid_argument as {!run} does. *)
 
 val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
-(** [setup ~style_renderer ()] configures the process's terminal output once,
-    before anything is drawn:
-    - the style renderer of {!Fmt.stdout} and {!Fmt.stderr} is
-      {!Console.style_renderer} of [style_renderer] (the value of
-      [Fmt_cli.style_renderer]'s [--color] option), the environment and whether
-      that output is a terminal, so [--color], [NO_COLOR] and [TERM] are
-      honoured the same way by every command;
-    - the colours written to {!Fmt.stdout} and {!Fmt.stderr} are
-      {!Console.Color.downsample}d to {!Console.Color.depth_of_env} of the
-      environment, so a colour a terminal cannot show is drawn as its nearest
-      one. *)
+(** [setup ~style_renderer ()] sets the style renderer of {!Fmt.stdout} and
+    {!Fmt.stderr} to {!Console.style_renderer} of [style_renderer] (the value of
+    [Fmt_cli.style_renderer]'s [--color] option), the environment and whether
+    that output is a terminal, the rule {!run} follows for the formatter it
+    draws on. *)
 
 val auto : ?fd:Eio_unix.Fd.t -> Format.formatter -> [ `Activity | `History ]
 (** [auto ?fd ppf] is the display [`Auto] chooses on [ppf] under {!run}:

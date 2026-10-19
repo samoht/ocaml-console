@@ -425,9 +425,38 @@ let test_group_settles_with_its_last_row () =
       Alcotest.(check string) (lead ^ ": its cost") timer (trailing 6 row))
     expected committed
 
+(* A display draws its colours at the depth its context names: the amber of
+   [Theme.dos] is a 24-bit colour, drawn as its nearest palette entry. *)
+let test_colours_follow_the_depth () =
+  let drawn depth =
+    let buffer = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buffer in
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    let ctx =
+      Display.ctx ~depth ~ppf
+        ~now:(fun () -> 0.)
+        ~wait:ignore
+        ~dimensions:(fun () -> (40, 10))
+        ~is_tty:true ()
+    in
+    Display.run ~ctx ~theme:Theme.dos ~header:"Building" (fun display ->
+        ignore (Display.task display "compile");
+        Display.tick display);
+    Format.pp_print_flush ppf ();
+    Buffer.contents buffer
+  in
+  Alcotest.(check bool)
+    "24-bit colour as given" true
+    (contains "38;2;255;176;0" (drawn `True_color));
+  Alcotest.(check bool)
+    "a palette entry at 256 colours" false
+    (contains "38;2;" (drawn `Ansi_256))
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "colours follow the depth" `Quick
+        test_colours_follow_the_depth;
       Alcotest.test_case "a transient row leaves no line" `Quick
         test_transient_row_leaves_no_line;
       Alcotest.test_case "with_task owns outcome" `Quick

@@ -26,13 +26,15 @@ let pct_of = function
 let render_spinner t ~finished ~color ~frame row =
   let theme = t.theme in
   if not finished then
-    styled t (color_code color) (Spinner.frame (Theme.spinner theme) frame)
+    styled t (color_code t color) (Spinner.frame (Theme.spinner theme) frame)
   else
     match row.routcome with
-    | Some `Failed -> styled t (bold ^ color_code (Theme.fail theme)) "[x]"
-    | Some `Cancelled -> styled t (bold ^ color_code (Theme.warn theme)) "[~]"
+    | Some `Failed -> styled t (bold ^ color_code t (Theme.fail theme)) "[x]"
+    | Some `Cancelled -> styled t (bold ^ color_code t (Theme.warn theme)) "[~]"
     | Some `Succeeded | None ->
-        styled t (bold ^ color_code (Theme.ok theme)) (Theme.done_marker theme)
+        styled t
+          (bold ^ color_code t (Theme.ok theme))
+          (Theme.done_marker theme)
 
 let render_bar t row ~finished ~color ~width =
   (* Bare delimiters look like an empty input field, not progress, so no bar
@@ -46,7 +48,9 @@ let render_bar t row ~finished ~color ~width =
       | `Blocky | `Rainbow -> width
     in
     let minimum = if units = 0 then 0 else (100 + units - 1) / units in
-    Bar.render ~theme ~color ~styled:t.styling ~width ~pct:(max minimum p) ()
+    Bar.render ~theme
+      ~color:(Color.downsample t.depth color)
+      ~styled:t.styling ~width ~pct:(max minimum p) ()
   in
   if finished then ""
   else
@@ -90,7 +94,7 @@ let render_piece t row ~finished ~color ~frame (piece : Display_line.piece) =
   | Elapsed ->
       dim_cell t Display_text.elapsed_cell (Display_text.span (elapsed t row))
   | Text s -> s
-  | Accent s -> styled t (bold ^ color_code color) s
+  | Accent s -> styled t (bold ^ color_code t color) s
   | Marker f ->
       if finished then render_spinner t ~finished ~color ~frame row
       else span_line t (f ~frame:t.frame)
@@ -161,9 +165,9 @@ let committed_parts t row =
 
 let committed_marker_style t row =
   match row.routcome with
-  | Some `Succeeded -> bold ^ color_code (Theme.ok t.theme)
-  | Some `Failed -> bold ^ color_code (Theme.fail t.theme)
-  | Some `Cancelled -> bold ^ color_code (Theme.warn t.theme)
+  | Some `Succeeded -> bold ^ color_code t (Theme.ok t.theme)
+  | Some `Failed -> bold ^ color_code t (Theme.fail t.theme)
+  | Some `Cancelled -> bold ^ color_code t (Theme.warn t.theme)
   | None -> dim
 
 let appended t row =
@@ -224,12 +228,12 @@ let level_marker theme = function
   | `Warning -> Theme.warn_marker theme
   | `Error -> Theme.error_marker theme
 
-let level_style theme = function
+let level_style t = function
   | `Info -> dim
-  | `Warning -> bold ^ color_code (Theme.warn theme)
-  | `Error -> bold ^ color_code (Theme.fail theme)
+  | `Warning -> bold ^ color_code t (Theme.warn t.theme)
+  | `Error -> bold ^ color_code t (Theme.fail t.theme)
 
-let styled_level t level marker = styled t (level_style t.theme level) marker
+let styled_level t level marker = styled t (level_style t level) marker
 
 let styled_log t level marker message suffix =
   String.concat ""

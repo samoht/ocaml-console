@@ -9,8 +9,8 @@
     256-colour palette, or a 24-bit RGB colour.
 
     A colour is kept and written as given. A terminal that shows fewer colours
-    is served by {!downsample}, which [Console_eio.setup] applies to what is
-    written to standard output and standard error. *)
+    is served by {!downsample}: a live display applies it to what it draws, and
+    a caller printing widgets itself applies it to its own colours. *)
 
 (** {1:colours Colours} *)
 

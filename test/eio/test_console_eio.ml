@@ -292,7 +292,7 @@ let test_history_on_a_terminal_writes_only_its_output () =
     "only the output" ("plain\r\n" ^ end_mark) (Buffer.contents written)
 
 (* [setup] reads the environment once: NO_COLOR turns stdout's styling off
-   whatever it is, and TERM sets the depth colours are written at. *)
+   unless --color says otherwise. *)
 let test_setup_reads_the_environment () =
   let saved name = (name, Sys.getenv_opt name) in
   let env = List.map saved [ "NO_COLOR"; "TERM"; "COLORTERM" ] in
@@ -307,25 +307,10 @@ let test_setup_reads_the_environment () =
       Unix.putenv "NO_COLOR" "1";
       Unix.putenv "TERM" "xterm-256color";
       Unix.putenv "COLORTERM" "";
-      let written = Buffer.create 16 in
-      let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
-      Format.pp_set_formatter_out_functions Fmt.stdout
-        {
-          saved with
-          out_string = Buffer.add_substring written;
-          out_flush = ignore;
-        };
-      Fun.protect
-        ~finally:(fun () ->
-          Format.pp_set_formatter_out_functions Fmt.stdout saved)
-        (fun () ->
-          Console_eio.setup ~style_renderer:`Ansi_tty ();
-          Fmt.pr "\027[38;2;255;0;0mred\027[0m%!");
+      Console_eio.setup ~style_renderer:`Ansi_tty ();
       Alcotest.(check bool)
         "--color wins over NO_COLOR" true
         (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
-      Alcotest.(check string)
-        "depth from TERM" "\027[38;5;196mred\027[0m" (Buffer.contents written);
       Console_eio.setup ();
       Alcotest.(check bool)
         "NO_COLOR" true

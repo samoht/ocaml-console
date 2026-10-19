@@ -9,10 +9,11 @@ type t = {
   wait : float -> unit;
   dimensions : unit -> int * int;
   is_tty : bool;
+  depth : Color.depth;
 }
 
-let v ~ppf ~now ~wait ~dimensions ~is_tty () =
-  { ppf; now; wait; dimensions; is_tty }
+let v ?(depth = `True_color) ~ppf ~now ~wait ~dimensions ~is_tty () =
+  { ppf; now; wait; dimensions; is_tty; depth }
 
 let pp ppf t =
   let width, height = t.dimensions () in

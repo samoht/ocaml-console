@@ -39,10 +39,7 @@ let setup ?style_renderer () =
   in
   set Fmt.stdout Eio_unix.Fd.stdout;
   set Fmt.stderr Eio_unix.Fd.stderr;
-  Atomic.set configured [ Fmt.stdout; Fmt.stderr ];
-  let depth = Console.Color.depth_of_env Sys.getenv_opt in
-  Depth.install Fmt.stdout depth;
-  Depth.install Fmt.stderr depth
+  Atomic.set configured [ Fmt.stdout; Fmt.stderr ]
 
 (* The renderer [run] draws [ppf] with when nobody chose one: what {!setup}
    would choose for the terminal [tty]. [None] keeps the caller's. *)
@@ -95,8 +92,9 @@ let context ~clock ~ppf ~fd ~mode =
     | Some _ | None -> None
   in
   let ctx =
-    Console.Display.ctx ~ppf ~now:(display_clock clock)
-      ~wait:(Eio.Time.sleep clock)
+    Console.Display.ctx
+      ~depth:(Console.Color.depth_of_env Sys.getenv_opt)
+      ~ppf ~now:(display_clock clock) ~wait:(Eio.Time.sleep clock)
       ~dimensions:(fun () -> Terminal.dimensions tty)
       ~is_tty:(auto ?fd ppf = `Activity)
       ()

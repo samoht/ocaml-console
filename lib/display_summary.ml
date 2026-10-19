@@ -42,7 +42,7 @@ let header t ~fit =
       let line =
         String.concat ""
           [
-            code t (color_code color);
+            code t (color_code t color);
             marker;
             code t reset_code;
             " ";
@@ -58,9 +58,9 @@ let header t ~fit =
 let verdict t result =
   let marker, accent, msg =
     match result with
-    | `Ok msg -> (Theme.ok_marker t.theme, color_code (Theme.ok t.theme), msg)
+    | `Ok msg -> (Theme.ok_marker t.theme, color_code t (Theme.ok t.theme), msg)
     | `Fail msg ->
-        (Theme.fail_marker t.theme, color_code (Theme.fail t.theme), msg)
+        (Theme.fail_marker t.theme, color_code t (Theme.fail t.theme), msg)
   in
   if t.plain then styled t (dim ^ accent) marker ^ " " ^ styled t bold msg
   else begin

@@ -26,6 +26,7 @@ type t = {
   dppf : Format.formatter;
   plain : bool;
   styling : bool;
+  depth : Color.depth;
   now : unit -> float;
   wait : float -> unit;
   dimensions : unit -> int * int;
@@ -100,6 +101,7 @@ let pp ppf t =
 (* Every SGR the display adds passes through these, so one answer decides
    colour for the whole surface. They shadow the unconditional {!Ansi} forms on
    purpose: a call site that reaches past them is a second answer. *)
+let color_code t c = Ansi.color_code (Color.downsample t.depth c)
 let code t sequence = if t.styling then sequence else ""
 let styled t sequence s = if t.styling then Ansi.styled sequence s else s
 let dimmed t s = if t.styling then Ansi.dimmed s else s

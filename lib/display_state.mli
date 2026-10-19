@@ -31,6 +31,7 @@ type t = {
   styling : bool;
       (** Whether the output takes ANSI, read once when the display opens. A
           terminal whose reader turned colour off is still a live region. *)
+  depth : Color.depth;  (** The colours the terminal shows. *)
   now : unit -> float;
   wait : float -> unit;
   dimensions : unit -> int * int;
@@ -122,6 +123,10 @@ val pp : t Fmt.t
 
     The values of this section style only when the session's
     {{!type-t.field-styling}styling} is set. *)
+
+val color_code : t -> Color.t -> string
+(** [color_code t c] is the SGR sequence that sets the foreground to [c] as a
+    terminal of [t]'s colour depth shows it. *)
 
 val code : t -> string -> string
 (** [code t seq] is [seq], or [""] without styling. *)

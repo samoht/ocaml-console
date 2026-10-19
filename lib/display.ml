@@ -53,6 +53,7 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     dppf = ctx.ppf;
     plain;
     styling;
+    depth = ctx.depth;
     now = ctx.now;
     wait = ctx.wait;
     dimensions = ctx.dimensions;
