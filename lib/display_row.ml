@@ -35,25 +35,25 @@ let render_spinner t ~finished ~color ~frame row =
         styled t (bold ^ color_code (Theme.ok theme)) (Theme.done_marker theme)
 
 let render_bar t row ~finished ~color ~width =
+  (* Bare delimiters look like an empty input field, not progress, so no bar
+     is drawn before work advances. Once it has, the bar shows at least the
+     theme's smallest visible fill unit. *)
+  let draw p =
+    let theme = t.theme in
+    let units =
+      match Theme.bar theme with
+      | `Smooth -> width * 8
+      | `Blocky | `Rainbow -> width
+    in
+    let minimum = if units = 0 then 0 else (100 + units - 1) / units in
+    Bar.render ~theme ~color ~styled:t.styling ~width ~pct:(max minimum p) ()
+  in
   if finished then ""
   else
-    let theme = t.theme in
-    match (row.metric, pct_of row.metric) with
-    | (Count (0, _) | Bytes (0L, _)), Some _ -> ""
-    | (Count _ | Bytes _), Some p ->
-        (* Bare delimiters look like an empty input field, not progress. Once
-           work has advanced, guarantee at least the theme's smallest visible
-           fill unit. *)
-        let units =
-          match Theme.bar theme with
-          | `Smooth -> width * 8
-          | `Blocky | `Rainbow -> width
-        in
-        let minimum = if units = 0 then 0 else (100 + units - 1) / units in
-        Bar.render ~theme ~color ~styled:t.styling ~width ~pct:(max minimum p)
-          ()
-    | _, None -> ""
-    | Spin, Some _ -> assert false
+    match row.metric with
+    | Spin | Count (0, _) | Bytes (0L, _) -> ""
+    | Count (cur, total) -> draw (percent cur total)
+    | Bytes (cur, total) -> draw (percent64 cur total)
 
 let render_percent t row ~finished =
   if finished then ""
