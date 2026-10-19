@@ -12,12 +12,18 @@ type t = {
   lines : Span.t list;
 }
 
-let cells s = Width.string_width (Console_text.sanitize ~keep_newlines:false s)
+(* The cells of the frame's left and right columns, each as wide as its
+   widest glyph. *)
+let columns border =
+  let c = Border.chars border in
+  let widest = List.fold_left (fun n g -> max n (Widget.cells g)) 0 in
+  ( widest [ c.top_left; c.left; c.bottom_left ],
+    widest [ c.top_right; c.right; c.bottom_right ] )
 
 (* The cells the border and the padding take on a content line. *)
 let frame border padding =
-  let chars = Border.chars border in
-  cells chars.left + cells chars.right + (2 * padding)
+  let left, right = columns border in
+  left + right + (2 * padding)
 
 let v ?theme ?border ?title ?subtitle ?(padding = 1) ?width content =
   let border = Widget.border ?theme ?border ~default:Border.rounded () in
@@ -65,7 +71,7 @@ let pad = Widget.pad
 
 (* A top or bottom edge, [label] centred in it. *)
 let edge style ~left ~mid ~right inner label =
-  let draw n = Span.styled style (Widget.repeat n mid) in
+  let draw n = Span.styled style (Widget.fill n mid) in
   let middle =
     match label with
     | Some label when inner >= 3 ->
@@ -81,14 +87,16 @@ let edge style ~left ~mid ~right inner label =
 let lines ~margin panel =
   let chars = Border.chars panel.border in
   let style = Border.style panel.border in
+  let lw, rw = columns panel.border in
+  let l = Widget.pad_glyph lw and r = Widget.pad_glyph rw in
   let cw = content_width ~margin panel in
   let inner = cw + (2 * panel.padding) in
   let has_edge l m r label = label <> None || l ^ m ^ r <> "" in
   let top =
     if has_edge chars.top_left chars.top chars.top_right panel.title then
       [
-        edge style ~left:chars.top_left ~mid:chars.top ~right:chars.top_right
-          inner panel.title;
+        edge style ~left:(l chars.top_left) ~mid:chars.top
+          ~right:(r chars.top_right) inner panel.title;
       ]
     else []
   in
@@ -96,8 +104,8 @@ let lines ~margin panel =
     if has_edge chars.bottom_left chars.bottom chars.bottom_right panel.subtitle
     then
       [
-        edge style ~left:chars.bottom_left ~mid:chars.bottom
-          ~right:chars.bottom_right inner panel.subtitle;
+        edge style ~left:(l chars.bottom_left) ~mid:chars.bottom
+          ~right:(r chars.bottom_right) inner panel.subtitle;
       ]
     else []
   in
@@ -105,9 +113,10 @@ let lines ~margin panel =
     List.map
       (fun line ->
         Span.(
-          styled style chars.left ++ pad panel.padding ++ line
+          styled style (l chars.left)
+          ++ pad panel.padding ++ line
           ++ pad (cw - width line + panel.padding)
-          ++ styled style chars.right))
+          ++ styled style (r chars.right)))
       (fitted_lines panel cw)
   in
   (* A margin too narrow for the border itself still bounds every line. *)

@@ -13,8 +13,17 @@ val border :
 val one_line : Span.t -> Span.t
 (** [one_line s] is [s] with each line feed a space. *)
 
-val repeat : int -> string -> string
-(** [repeat n g] is [n] copies of [g], or [""] if [n] is not positive. *)
+val cells : string -> int
+(** [cells s] is the number of cells [s] takes on a terminal. *)
+
+val fill : int -> string -> string
+(** [fill n g] is [g] repeated over exactly [n] cells: the copies of [g] that
+    fit, then the characters of one more that fit, then spaces. It is [""] if
+    [n] is not positive, and [n] spaces if [g] takes no cell. *)
+
+val pad_glyph : int -> string -> string
+(** [pad_glyph n g] is [g] followed by the spaces that make it [n] cells wide.
+*)
 
 val pad : int -> Span.t
 (** [pad n] is [n] spaces, none if [n] is not positive. *)

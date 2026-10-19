@@ -21,7 +21,26 @@ type chars = {
 
 type t = chars Inked.t
 
-let v = Inked.v
+let clean = Console_text.sanitize ~keep_newlines:false
+
+let v ?style c =
+  Inked.v ?style
+    {
+      top_left = clean c.top_left;
+      top = clean c.top;
+      top_right = clean c.top_right;
+      left = clean c.left;
+      right = clean c.right;
+      bottom_left = clean c.bottom_left;
+      bottom = clean c.bottom;
+      bottom_right = clean c.bottom_right;
+      cross = clean c.cross;
+      top_cross = clean c.top_cross;
+      bottom_cross = clean c.bottom_cross;
+      left_cross = clean c.left_cross;
+      right_cross = clean c.right_cross;
+    }
+
 let chars = Inked.get
 let style = Inked.style
 

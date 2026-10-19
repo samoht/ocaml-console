@@ -9,11 +9,30 @@ let border ?theme ?border ~default () =
   | None -> Option.fold ~none:default ~some:Theme.border theme
 
 let one_line span = Span.concat ~sep:(Span.text " ") (Span.lines span)
+let cells = Width.string_width
 
-let repeat n glyph =
-  if n <= 0 || glyph = "" then ""
-  else String.concat "" (List.init n (Fun.const glyph))
+let fill n glyph =
+  if n <= 0 then ""
+  else
+    let gw = cells glyph in
+    if gw = 0 then String.make n ' '
+    else
+      let rest = n mod gw in
+      let part = Buffer.create rest and used = ref 0 and full = ref false in
+      Glyph.String.iter_graphemes
+        (fun ~offset ~len ->
+          let w = cells (String.sub glyph offset len) in
+          if (not !full) && !used + w <= rest then begin
+            Buffer.add_substring part glyph offset len;
+            used := !used + w
+          end
+          else full := true)
+        glyph;
+      String.concat "" (List.init (n / gw) (Fun.const glyph))
+      ^ Buffer.contents part
+      ^ String.make (rest - !used) ' '
 
+let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
 let pad n = Span.text (String.make (max 0 n) ' ')
 
 let pp lines ppf v =

@@ -16,9 +16,14 @@ type column = {
   style : Style.t;
 }
 
+(* The cells of the frame's three columns: its left edge, the rule between
+   two cells and its right edge, each as wide as its widest glyph. *)
+type frame = { left : int; mid : int; right : int }
+
 (* A cell is kept as its lines, split once. *)
 type t = {
   border : Border.t;
+  frame : frame;
   header_style : Style.t;
   columns : column array;
   headers : Span.t list array;
@@ -52,8 +57,17 @@ let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
       rows
   in
   let columns = Array.of_list columns in
+  let border = Widget.border ?theme ?border ~default:Border.single () in
+  let c = Border.chars border in
+  let widest = List.fold_left (fun n g -> max n (Widget.cells g)) 0 in
   {
-    border = Widget.border ?theme ?border ~default:Border.single ();
+    border;
+    frame =
+      {
+        left = widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
+        mid = widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
+        right = widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
+      };
     header_style;
     columns;
     headers = Array.map (fun c -> Span.lines c.header) columns;
@@ -62,21 +76,18 @@ let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
 
 (* {1 Column widths} *)
 
-let cells s = Span.width (Span.text s)
 let chars t = Border.chars t.border
 
 (* A border with no glyphs has no edge: no padding outside the first and the
    last cell, the last cell not padded out to its column, and a line ends at
    its last cell that is not empty. *)
 let edged t = (chars t).left <> ""
-let separator_width t = if edged t then 2 + cells (chars t).right else 2
+let separator_width t = if edged t then 2 + t.frame.mid else 2
 
 let overhead t count =
   if count = 0 then 0
   else if not (edged t) then (count - 1) * 2
-  else
-    (count * 2) + cells (chars t).left + cells (chars t).right
-    + ((count - 1) * cells (chars t).right)
+  else (count * 2) + t.frame.left + t.frame.right + ((count - 1) * t.frame.mid)
 
 (* Widths add up without overflow: a sum past [max_int] is [max_int]. *)
 let ( +| ) a b = if a > max_int - b then max_int else a + b
@@ -167,9 +178,12 @@ let rule t widths ~left ~mid ~right ~line =
       Array.to_list
         (Array.mapi
            (fun i w ->
-             Widget.repeat (w + 2) line ^ if i < last then mid else "")
+             Widget.fill (w + 2) line
+             ^ if i < last then Widget.pad_glyph t.frame.mid mid else "")
            widths)
     in
+    let left = Widget.pad_glyph t.frame.left left
+    and right = Widget.pad_glyph t.frame.right right in
     [ Span.styled style (String.concat "" ((left :: parts) @ [ right ])) ]
 
 let pad = Widget.pad
@@ -246,10 +260,15 @@ let row_lines ?max_width t widths style row =
                    ++ with_style (cell_style col)
                         (align_span ~pad_right:true col.align w (at ls k))
                    ++ text " "
-                   ++ if i < last then edge chars.right else empty))
+                   ++
+                   if i < last then
+                     edge (Widget.pad_glyph t.frame.mid chars.right)
+                   else empty))
                cells)
         in
-        Span.concat ((edge chars.left :: parts) @ [ edge chars.right ])
+        Span.concat
+          ((edge (Widget.pad_glyph t.frame.left chars.left) :: parts)
+          @ [ edge (Widget.pad_glyph t.frame.right chars.right) ])
       else
         (* A line ends at its last cell that is not empty, unpadded. *)
         let shown = ref 0 in

@@ -28,8 +28,10 @@ type chars = {
 }
 (** The type for the glyphs of a border, one per part of the box. It is plain
     data the program supplies: every field is needed to draw a box and none
-    constrains another. A glyph is empty or as wide as the others of its line; a
-    control character in it is drawn as a space. *)
+    constrains another. A glyph may take any number of cells: each vertical line
+    of the box is as wide as its widest glyph, a narrower one followed by
+    spaces, and a horizontal line repeats its glyph over its length, cut between
+    two characters and ended with spaces where a whole copy does not fit. *)
 
 type t
 (** The type for borders. *)
@@ -39,7 +41,7 @@ val v : ?style:Style.t -> chars -> t
     {!Style.none}). *)
 
 val chars : t -> chars
-(** [chars b] are the glyphs of [b]. *)
+(** [chars b] are the glyphs of [b], each control character in them a space. *)
 
 val style : t -> Style.t
 (** [style b] is the style [b]'s glyphs are drawn in. *)

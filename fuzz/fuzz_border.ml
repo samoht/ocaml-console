@@ -6,9 +6,10 @@
 open Alcobar
 open Console
 
-(* [chars] and [style] give back what [v] and [with_style] were given. *)
+(* [chars] and [style] give back what [v] and [with_style] were given, each
+   glyph as the text it prints. *)
 let test s =
-  let chars =
+  let glyphs s =
     {
       Border.top_left = s;
       top = s;
@@ -25,8 +26,9 @@ let test s =
       right_cross = s;
     }
   in
-  let b = Border.v ~style:Style.bold chars in
-  check (Border.chars b = chars && Style.equal (Border.style b) Style.bold);
+  let b = Border.v ~style:Style.bold (glyphs s) in
+  let printed = glyphs (Console_text.sanitize ~keep_newlines:false s) in
+  check (Border.chars b = printed && Style.equal (Border.style b) Style.bold);
   List.iter
     (fun b ->
       let styled = Border.with_style Style.italic b in
