@@ -139,9 +139,13 @@ let test_stacked_large_counts () =
     [ Span.styled red "█" ]
     (Bar.stacked ~width:1 [ (max_int, red); (max_int, green); (2, blue) ])
 
+let test_spread_zero () =
+  check_plain "zero cells requested" "" (Bar.spread ~width:0 ~scale:1. 0.5 1.)
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "spread respects zero width" `Quick test_spread_zero;
       Alcotest.test_case "stacked accepts large counts" `Quick
         test_stacked_large_counts;
       Alcotest.test_case "v eighths" `Quick test_v_eighths;
