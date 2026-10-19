@@ -58,24 +58,17 @@ let indent r = String.make (2 * depth r) ' '
 
 (* {1 Live rows} *)
 
-let percent = function
-  | Spin -> None
-  | Count (cur, total) ->
-      Some
-        (if total <= 0 then 0
-         else if cur >= total then 100
-         else 100 * cur / total)
-  | Bytes (cur, total) ->
-      Some
-        (if total <= 0L then 0
-         else if cur >= total then 100
-         else int_of_float (100. *. Int64.to_float cur /. Int64.to_float total))
-
 let fraction = function
   | Spin -> None
   | Count (cur, total) -> Some (float cur /. float (max 1 total))
   | Bytes (cur, total) ->
       Some (Int64.to_float cur /. Int64.to_float (Int64.max 1L total))
+
+(* In floats: [100 * cur] overflows an int long before [cur] does. *)
+let percent m =
+  Option.map
+    (fun f -> if f >= 1. then 100 else int_of_float (100. *. f))
+    (fraction m)
 
 (* No bar is drawn before work advances, since an empty track reads as an
    input field; once it has, the bar shows at least one eighth of a cell. *)

@@ -326,6 +326,20 @@ let test_counts () =
     [ "[+] count  12/12  0.0s"; "[+] bytes  1.00 MiB / 2.00 MiB  0.0s"; "" ]
     (String.split_on_char '\n' out)
 
+(* A count near [max_int] still shows its share. *)
+let test_large_counts () =
+  let layout = Display.Line.(v [ label; text " "; percent ]) in
+  let t = terminal ~theme ~layout ~width:30 () in
+  let task = Display.task t.display "big" in
+  Display.set_count task ~cur:(max_int / 2) ~total:max_int;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "half" true
+    (contains " 49%" (List.nth (screen t) 0)
+    || contains " 50%" (List.nth (screen t) 0));
+  Display.succeed task;
+  Display.close t.display
+
 let test_invalid () =
   let d =
     Display.v ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
@@ -384,6 +398,7 @@ let suite =
       Alcotest.test_case "nested" `Quick test_nested;
       Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;
       Alcotest.test_case "counts" `Quick test_counts;
+      Alcotest.test_case "large counts" `Quick test_large_counts;
       Alcotest.test_case "invalid" `Quick test_invalid;
       Alcotest.test_case "colours" `Quick test_colours;
     ] )
