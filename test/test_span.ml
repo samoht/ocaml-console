@@ -181,9 +181,16 @@ let test_multiline_resets () =
     "close before LF and reopen on the next line"
     "\027[1ma\027[0m\n\027[1mb\027[0m" output
 
+let test_zero_width_blank_lines () =
+  Alcotest.(check string)
+    "zero width returns empty even for blank lines" ""
+    (Span.to_string (Span.truncate 0 (Span.text "\n")))
+
 let suite =
   ( "span",
     [
+      Alcotest.test_case "zero-width truncation of blank lines is empty" `Quick
+        test_zero_width_blank_lines;
       Alcotest.test_case "multiline styles reset before LF" `Quick
         test_multiline_resets;
       Alcotest.test_case "text" `Quick test_text;

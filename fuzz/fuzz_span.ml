@@ -88,7 +88,8 @@ let test_truncate s n =
   let s = span (text s) and w = abs n mod 50 in
   let t = Span.truncate w s in
   check (Span.width t <= max 0 w);
-  if Span.width s <= w then check_eq ~pp:Fmt.Dump.string (plain s) (plain t);
+  if w > 0 && Span.width s <= w then
+    check_eq ~pp:Fmt.Dump.string (plain s) (plain t);
   let lines = String.split_on_char '\n' (plain s)
   and cut = String.split_on_char '\n' (plain t) in
   if w > 0 then
