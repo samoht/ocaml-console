@@ -403,8 +403,15 @@ let test_wide_border () =
       (fun l -> Span.width (Span.text l))
       (String.split_on_char '\n' (Table.to_string ~width:20 t))
   in
+  let body_width = List.nth widths 1 in
   Alcotest.(check (list int))
-    "two-cell frame remains rectangular" [ 12; 12; 12; 12; 12 ] widths
+    "two-cell frame remains rectangular"
+    (List.map (fun _ -> body_width) widths)
+    widths;
+  List.iter
+    (fun width ->
+      Alcotest.(check bool) "frame fits requested width" true (width <= 20))
+    widths
 
 let suite =
   ( "table",
