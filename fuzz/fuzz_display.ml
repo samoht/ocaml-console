@@ -372,9 +372,40 @@ let test_output_exception s cancel =
   check (Grid.get_fg_b grid index = Grid.get_fg_b plain first);
   check (Grid.get_bg_r grid index = Grid.get_bg_r plain first)
 
+let test_resize_erases_old_frame n =
+  let t = terminal ~width:80 ~height:12 ~styled:true in
+  let d = display t in
+  let a = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'x') in
+  let b = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'y') in
+  Display.redraw d;
+  let w = 12 + (n mod 40) in
+  t.size := (w, 8);
+  Vte.resize t.vte ~rows:8 ~cols:w;
+  Display.set_label a "new-a";
+  Display.set_label b "new-b";
+  Display.redraw d;
+  check_screen t;
+  let rows =
+    String.concat "\n" (Vte.scrollback_lines t.vte @ [ Vte.to_string t.vte ])
+  in
+  if has "OLD_SENTINEL" rows then failf "old frame survived shrink: %S" rows;
+  t.size := (80, 12);
+  Vte.resize t.vte ~rows:12 ~cols:80;
+  Display.redraw d;
+  let rows =
+    String.concat "\n" (Vte.scrollback_lines t.vte @ [ Vte.to_string t.vte ])
+  in
+  if has "OLD_SENTINEL" rows then
+    failf "old frame returned after growth: %S" rows;
+  check (has "new-a" rows && has "new-b" rows);
+  redraw_twice t;
+  Display.close d
+
 let suite =
   ( "display",
     [
+      test_case "resize erases every old live row" [ uint8 ]
+        test_resize_erases_old_frame;
       test_case "callback exceptions restore a usable terminal" [ bytes; bool ]
         test_output_exception;
       test_case "pipe logs retain order and task attribution" [ uint8 ]
