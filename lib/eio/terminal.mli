@@ -1,4 +1,7 @@
-(** Terminal geometry and tty detection over Unix. *)
+(** Terminal geometry, tty detection, cursor and signals.
+
+    Eio has no [isatty], termios or signal handling, so those are the smallest
+    wrappers over Unix and [Sys]; the window size is Eio's. *)
 
 val width : Eio_unix.Fd.t option -> int
 (** [width fd] returns the width in columns of the terminal behind [fd]: the
@@ -10,7 +13,7 @@ val height : Eio_unix.Fd.t option -> int
     [TIOCGWINSZ] ioctl on [fd], else [$LINES], else [24]. [None] asks no ioctl.
 *)
 
-val is_tty : Unix.file_descr -> bool
+val is_tty : Eio_unix.Fd.t -> bool
 (** [is_tty fd] is [true] iff [fd] is connected to a terminal. *)
 
 val dimensions : Eio_unix.Fd.t option -> int * int

@@ -12,7 +12,7 @@ module Prompt = Prompt
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
-  ?fd:Unix.file_descr ->
+  ?fd:Eio_unix.Fd.t ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?palette:Console.Color.t list ->
@@ -104,7 +104,7 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
       environment, so a colour a terminal cannot show is drawn as its nearest
       one. *)
 
-val auto : ?fd:Unix.file_descr -> Format.formatter -> [ `Activity | `History ]
+val auto : ?fd:Eio_unix.Fd.t -> Format.formatter -> [ `Activity | `History ]
 (** [auto ?fd ppf] is the display [`Auto] chooses on [ppf] under {!run}:
     [`Activity] iff the descriptor [ppf] writes to ([fd], as {!run} defaults it)
     is a terminal and [TERM] is not [dumb], a terminal with no cursor to move;

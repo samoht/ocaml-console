@@ -106,7 +106,7 @@ let with_env bindings f =
 let width () =
   Eio_main.run @@ fun env ->
   let ppf = Format.formatter_of_buffer (Buffer.create 16) in
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf ~fd:Unix.stdout
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf ~fd:Eio_unix.Fd.stdout
     ~mode:`History (fun display ->
       Console.Display.with_output display (fun ppf ->
           Format.pp_get_margin ppf ()))

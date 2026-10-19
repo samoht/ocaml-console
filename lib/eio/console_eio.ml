@@ -6,8 +6,8 @@ let descriptor ?fd ppf =
   match fd with
   | Some _ -> fd
   | None ->
-      if ppf == Fmt.stdout then Some Unix.stdout
-      else if ppf == Fmt.stderr then Some Unix.stderr
+      if ppf == Fmt.stdout then Some Eio_unix.Fd.stdout
+      else if ppf == Fmt.stderr then Some Eio_unix.Fd.stderr
       else None
 
 (* A region moves the cursor, which a terminal whose TERM is dumb has none of
@@ -35,10 +35,10 @@ let setup ?style_renderer () =
   let set ppf fd =
     Fmt.set_style_renderer ppf
       (Console.style_renderer ?renderer:style_renderer ~getenv:Sys.getenv_opt
-         ~is_tty:(Unix.isatty fd) ())
+         ~is_tty:(Terminal.is_tty fd) ())
   in
-  set Fmt.stdout Unix.stdout;
-  set Fmt.stderr Unix.stderr;
+  set Fmt.stdout Eio_unix.Fd.stdout;
+  set Fmt.stderr Eio_unix.Fd.stderr;
   Atomic.set configured [ Fmt.stdout; Fmt.stderr ];
   let depth = Console.Color.depth_of_env Sys.getenv_opt in
   Depth.install Fmt.stdout depth;
@@ -84,22 +84,20 @@ let display_clock clock =
 
 (* The context [run] builds for the descriptor [ppf] writes to, what gives a
    terminal there its cursor back when a signal ends the process under the
-   display, and the renderer it draws with. The geometry is that terminal's,
-   read for the span of [sw]. The wait is the clock's own sleep: under
-   CONSOLE_FROZEN_CLOCK the reading stops and the pace does not, so a refresh
-   still turns. *)
-let context ~sw ~clock ~ppf ~fd ~mode =
+   display, and the renderer it draws with. The geometry is that terminal's.
+   The wait is the clock's own sleep: under CONSOLE_FROZEN_CLOCK the reading
+   stops and the pace does not, so a refresh still turns. *)
+let context ~clock ~ppf ~fd ~mode =
   let ppf = Option.value ppf ~default:Fmt.stdout in
   let tty =
     match descriptor ?fd ppf with
     | Some fd when Terminal.is_tty fd -> Some fd
     | Some _ | None -> None
   in
-  let window = Option.map (Eio_unix.Fd.of_unix ~sw ~close_unix:false) tty in
   let ctx =
     Console.Display.ctx ~ppf ~now:(display_clock clock)
       ~wait:(Eio.Time.sleep clock)
-      ~dimensions:(fun () -> Terminal.dimensions window)
+      ~dimensions:(fun () -> Terminal.dimensions tty)
       ~is_tty:(auto ?fd ppf = `Activity)
       ()
   in
@@ -122,8 +120,7 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Eio.Fiber.get current with
   | Some display -> f display
   | None -> (
-      Eio.Switch.run @@ fun sw ->
-      let ctx, restore, renderer = context ~sw in
+      let ctx, restore, renderer = context () in
       let run () =
         with_renderer renderer @@ fun () ->
         Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
@@ -136,7 +133,7 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
 
 let run ~clock ?ppf ?fd ?mode ?theme ?palette ?bar ?width ?height ?header f =
   session
-    ~context:(fun ~sw -> context ~sw ~clock ~ppf ~fd ~mode)
+    ~context:(fun () -> context ~clock ~ppf ~fd ~mode)
     ?mode ?theme ?palette ?bar ?width ?height ?header f
 
 (* A caller that supplies its own context has answered the output, clock,
@@ -145,5 +142,5 @@ let run ~clock ?ppf ?fd ?mode ?theme ?palette ?bar ?width ?height ?header f =
    surface it was handed may not be one. *)
 let run_on ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   session
-    ~context:(fun ~sw:_ -> (ctx, None, None))
+    ~context:(fun () -> (ctx, None, None))
     ?mode ?theme ?palette ?bar ?width ?height ?header f

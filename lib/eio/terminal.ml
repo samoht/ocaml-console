@@ -39,7 +39,7 @@ let height fd =
   first ~default:24
     [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" usable_height) ]
 
-let is_tty fd = Unix.isatty fd
+let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)
 let show_cursor ppf = Fmt.pf ppf "\027[?25h%!"
 let hide_cursor ppf = Fmt.pf ppf "\027[?25l%!"

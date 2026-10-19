@@ -186,7 +186,8 @@ let test_a_formatter_of_ones_own_says_its_descriptor () =
     (Astring.String.is_infix ~affix:"\027[" unnamed);
   Alcotest.(check bool)
     "a live region with ~fd" true
-    (Astring.String.is_infix ~affix:hide_cursor (draw ~fd:Unix.stderr ()))
+    (Astring.String.is_infix ~affix:hide_cursor
+       (draw ~fd:Eio_unix.Fd.stderr ()))
 
 (* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
    cursor controls a region is made of are CSIs too, with other final bytes. *)
@@ -232,7 +233,7 @@ let test_run_styles_a_terminal () =
         with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
             let mock = Eio_mock.Clock.make () in
             let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
-            Console_eio.run ~clock ~ppf ~fd:Unix.stderr ~mode:`Auto
+            Console_eio.run ~clock ~ppf ~fd:Eio_unix.Fd.stderr ~mode:`Auto
               (fun display ->
                 Console.Display.succeed (Console.Display.task display "step"));
             mark Unix.stderr));
