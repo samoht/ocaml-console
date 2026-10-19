@@ -66,7 +66,7 @@ let () =
         Vhs.type' ("dune exec examples/themes/main.exe " ^ name ^ "\n");
         Vhs.wait ~timeout:(Ms 60_000) (Screen "unused variable");
         Vhs.sleep (Ms 300);
-        Vhs.raw (Fmt.str "Screenshot %S" ("examples/themes/" ^ name ^ ".png"));
+        Fmt.kstr Vhs.raw "Screenshot %S" ("examples/themes/" ^ name ^ ".png");
         Vhs.wait ~timeout:(Ms 60_000) Prompt;
       ]
   with
