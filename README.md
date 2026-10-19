@@ -191,9 +191,22 @@ let build display =
 ```
 
 The output here is not a terminal, so nothing is redrawn: these are the plain
-lines a pipe or a CI log gets. While a display runs, print through
-`Display.with_output`, which takes the rows off the screen for the time it
-prints, rather than with `Fmt.pr`, which would print in the middle of them.
+lines a pipe or a CI log gets. Each line starts with a mark that says what it
+is:
+
+- `=>`, `!!` and `--` start the line of a task that succeeded, failed or was
+  cancelled, followed by its count and the time it took;
+- `#`, `!` and `x` start a log line that informs, warns or reports an error;
+  the lines of a task are indented under it;
+- the header line starts with `[-]` while tasks run, then `[+]` when all
+  succeeded, `[x]` when one failed or `[~]` when one was cancelled, and ends
+  with the time so far and the tasks that ended out of those started, here
+  `(1/1)`. On a terminal it stays above the rows; in a pipe it is printed
+  last, as a summary.
+
+While a display runs, print through `Display.with_output`, which takes the
+rows off the screen for the time it prints, rather than with `Fmt.pr`, which
+would print in the middle of them.
 
 `Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
@@ -213,10 +226,10 @@ inside another `Console_eio.run` reuses the same display.
 
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
-Spinners and progress bars are
-animations: values of type `Anim.t` that change over time. `Anim.all` samples
-several of them at once, and `Layout.hcat` joins the frames side by side. To see them together,
-run the demo in [`examples/matrix`](examples/matrix):
+Spinners are animations: values of type `Anim.t` that change over time.
+`Anim.all` samples several of them at once, and `Layout.hcat` joins the frames
+side by side. To see a display in the `Theme.matrix` colours, run the demo in
+[`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->
 ```sh
