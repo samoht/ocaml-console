@@ -1,4 +1,3 @@
 (executable
  (name main)
- (modules main)
  (libraries console console-eio eio eio_main fmt))

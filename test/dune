@@ -1,29 +1,6 @@
 (test
  (name test)
  (package console)
- (modules
-  test
-  test_anim
-  test_bar
-  test_border
-  test_guide
-  test_color
-  test_gradient
-  test_canvas
-  test_panel
-  test_display
-  test_spinner
-  test_theme
-  test_span
-  test_style
-  test_table
-  test_console
-  test_tree
-  test_rule
-  test_layout
-  test_width
-  test_input
-  test_console_vte)
  (libraries
   console
   console.vte

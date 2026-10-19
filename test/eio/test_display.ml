@@ -260,10 +260,7 @@ module Report_domains = struct
     | exception e when e = closed -> ()
     | exception Eio.Exn.Multiple exns
       when List.for_all (fun (e, _) -> e = closed) exns ->
-        ()
-    | exception e ->
-        Alcotest.failf "external worker is released by closure: got %a" Fmt.exn
-          e);
+        ());
     Alcotest.(check bool)
       "consumer stopped before display teardown" false !in_output;
     Alcotest.(check int)
