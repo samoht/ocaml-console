@@ -145,8 +145,9 @@ let open_pty ~sw =
   | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
       Alcotest.skip ()
 
-(* What [teardown.exe how] writes on a terminal, and how it exits. *)
-let teardown how =
+(* What [teardown.exe how] writes on a terminal, how it exits, and whether
+   the terminal echoes what is typed once it has. *)
+let session how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
@@ -175,7 +176,12 @@ let teardown how =
     | exception (End_of_file | Eio.Io _) -> ()
   in
   Eio.Fiber.both (fun () -> status := Some (Eio.Process.await child)) drain;
-  (Option.get !status, Buffer.contents written)
+  let echo = Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr in
+  (Option.get !status, Buffer.contents written, echo.Unix.c_echo)
+
+let teardown how =
+  let status, out, _ = session how in
+  (status, out)
 
 let hide = "\027[?25l"
 
@@ -227,9 +233,18 @@ let test_sigint_teardown () =
   Alcotest.(check bool)
     "SIGINT restores the cursor" true (Vte.cursor_visible vte)
 
+let test_sigint_secret () =
+  let status, _, echo = session "secret" in
+  Alcotest.(check bool)
+    "SIGINT still ends the program" true
+    (match status with `Signaled s -> s = Sys.sigint | _ -> false);
+  Alcotest.(check bool) "SIGINT during a password restores echo" true echo
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "SIGINT during a password restores echo" `Quick
+        test_sigint_secret;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
       Alcotest.test_case "run returns" `Quick test_run_returns;
