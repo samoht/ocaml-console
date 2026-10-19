@@ -76,10 +76,11 @@ let test_teardown n no_color =
   check (Grid.get_fg_b g i = Grid.get_fg_b reference j);
   check (Grid.get_bg_r g i = Grid.get_bg_r reference j)
 
+let domain_source = Logs.Src.create "console.adversarial"
+
 let domain_records reporter prefix count =
-  let source = Logs.Src.create "console.adversarial" in
   for i = 0 to count - 1 do
-    reporter.Logs.report source Logs.Info
+    reporter.Logs.report domain_source Logs.Info
       ~over:(fun () -> ())
       (fun () -> ())
       (fun m -> m "%s%04d" prefix i)
