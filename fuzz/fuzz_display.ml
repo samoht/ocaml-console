@@ -401,9 +401,30 @@ let test_resize_erases_old_frame n =
   redraw_twice t;
   Display.close d
 
+let test_static_rows_and_idle n =
+  let t = terminal ~width:60 ~height:10 ~styled:true in
+  let d = display t in
+  let task = Display.task d "moving" in
+  Display.with_output d (fun ppf -> Fmt.pf ppf "STATIC_SENTINEL@.");
+  let before = screen t.vte in
+  let rec prefix = function
+    | [] -> fail "permanent output missing"
+    | l :: ls -> if has "STATIC_SENTINEL" l then [ l ] else l :: prefix ls
+  in
+  let permanent = prefix before in
+  for i = 0 to n do
+    t.time := Float.of_int i /. 5.;
+    Display.set_count task ~cur:i ~total:256;
+    redraw_twice t;
+    check_eq ~pp:Fmt.(Dump.list string) permanent (prefix (screen t.vte))
+  done;
+  Display.close d
+
 let suite =
   ( "display",
     [
+      test_case "only live rows change and idle frames write nothing" [ uint8 ]
+        test_static_rows_and_idle;
       test_case "resize erases every old live row" [ uint8 ]
         test_resize_erases_old_frame;
       test_case "callback exceptions restore a usable terminal" [ bytes; bool ]
