@@ -35,13 +35,6 @@ val v :
     @raise Invalid_argument
       if [padding] is negative or [width] cannot hold the border and padding. *)
 
-val content_width : ?margin:int -> t -> int
-(** [content_width ~margin panel] is the cells each content line of [panel] is
-    drawn in when the whole box may take at most [margin] cells (default
-    unbounded): the room of a fixed [width], else the widest line or edge label,
-    and never more than [margin] leaves inside the border and padding. A line
-    that fills it exactly is drawn in full. *)
-
 (** {1:converting Converting} *)
 
 val to_string : ?styled:bool -> t -> string
@@ -53,6 +46,6 @@ val to_string : ?styled:bool -> t -> string
 val pp : t Fmt.t
 (** [pp] formats a panel, following the formatter's style renderer. The
     formatter's margin caps the box. In a box sized to its content, a line wider
-    than {!content_width} wraps at its words ({!Span.wrap}), each continuation
-    hanging under the text after the line's first word; in a box of fixed
-    [width] it is truncated. Edge labels are truncated. *)
+    than the room inside the frame wraps at its words ({!Span.wrap}), each
+    continuation hanging under the text after the line's first word; in a box of
+    fixed [width] it is truncated. Edge labels are truncated. *)

@@ -20,7 +20,6 @@ let prompt ?interactive input =
 type 'a answer = Got of 'a | Refused
 
 let seen = function Ok v -> Got v | Error (`Msg _) -> Refused
-let error_message = function Ok _ -> "<ok>" | Error (`Msg m) -> m
 
 let answer t =
   let equal a b =
@@ -37,7 +36,6 @@ let answer t =
 
 let string_answer = answer Alcotest.string
 let bool_answer = answer Alcotest.bool
-let unit_answer = answer Alcotest.unit
 
 (* A string source is not a terminal, so the default is a prompt that refuses
    every question without writing a byte. *)
@@ -48,8 +46,6 @@ let test_a_string_source_is_not_a_terminal () =
   Alcotest.check string_answer "line" Refused (seen (Prompt.line t "name: "));
   Alcotest.check bool_answer "confirm" Refused
     (seen (Prompt.confirm t "delete?"));
-  Alcotest.check unit_answer "expect" Refused
-    (seen (Prompt.expect t "type it: " "vol"));
   Alcotest.(check string) "asked nothing" "" (Buffer.contents out)
 
 (* One [t] owns the read buffer, so the second question gets the second line
@@ -117,37 +113,12 @@ let test_confirm_at_end_of_input_is_refused () =
   Alcotest.check bool_answer "answer" Refused
     (seen (Prompt.confirm t "delete?"))
 
-let test_expect_opens_only_on_the_exact_word () =
-  run @@ fun () ->
-  let t, out = prompt ~interactive:true "backups\n" in
-  Alcotest.check unit_answer "answer" (Got ())
-    (seen (Prompt.expect t "type the volume name: " "backups"));
-  Alcotest.(check string)
-    "question" "type the volume name: " (Buffer.contents out)
-
-(* An operator who cannot name the volume must not be told its name by the
-   error that turns them away. *)
-let test_expect_refuses_without_naming_the_word () =
-  run @@ fun () ->
-  let t, _ = prompt ~interactive:true "backup\n" in
-  let result = Prompt.expect t "type the volume name: " "backups" in
-  Alcotest.check unit_answer "answer" Refused (seen result);
-  Alcotest.(check bool)
-    "the message never echoes the word" false
-    (Astring.String.is_infix ~affix:"backups" (error_message result))
-
 let test_secret_without_a_terminal_is_refused () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "abc\n" in
   Alcotest.check string_answer "answer" Refused
     (seen (Prompt.secret t "secret: "));
   Alcotest.(check string) "nothing asked" "" (Buffer.contents out)
-
-let test_expect_at_end_of_input_is_refused () =
-  run @@ fun () ->
-  let t, _ = prompt ~interactive:true "" in
-  Alcotest.check unit_answer "answer" Refused
-    (seen (Prompt.expect t "type the volume name: " "backups"))
 
 (* [f ()] with standard input on [stdin], given back as it was found. *)
 let with_stdin ~stdin f =
@@ -233,12 +204,6 @@ let suite =
         test_confirm_takes_everything_else_as_no;
       Alcotest.test_case "confirm at end of input is refused" `Quick
         test_confirm_at_end_of_input_is_refused;
-      Alcotest.test_case "expect opens only on the exact word" `Quick
-        test_expect_opens_only_on_the_exact_word;
-      Alcotest.test_case "expect refuses without naming the word" `Quick
-        test_expect_refuses_without_naming_the_word;
-      Alcotest.test_case "expect at end of input is refused" `Quick
-        test_expect_at_end_of_input_is_refused;
       Alcotest.test_case "secret without a terminal is refused" `Quick
         test_secret_without_a_terminal_is_refused;
       Alcotest.test_case "secret leaves the domain running" `Quick

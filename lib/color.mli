@@ -14,30 +14,8 @@
 
 (** {1:colours Colours} *)
 
-type ansi =
-  [ `Black
-  | `Red
-  | `Green
-  | `Yellow
-  | `Blue
-  | `Magenta
-  | `Cyan
-  | `White
-  | `Bright_black
-  | `Bright_red
-  | `Bright_green
-  | `Bright_yellow
-  | `Bright_blue
-  | `Bright_magenta
-  | `Bright_cyan
-  | `Bright_white ]
-(** The type for the 16 named ANSI colours. *)
-
 type t
 (** The type for terminal colours. *)
-
-val ansi : ansi -> t
-(** [ansi c] is the named 16-colour palette colour [c]. *)
 
 val rgb : int -> int -> int -> t
 (** [rgb r g b] is the 24-bit colour with red [r], green [g] and blue [b].

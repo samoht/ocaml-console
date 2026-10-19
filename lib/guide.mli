@@ -31,8 +31,7 @@ val space : t -> string
 (** [space t] is the continuation for a final ancestor. *)
 
 val style : t -> Style.t
-(** [style t] is the style [t]'s glyphs are drawn in. A gradient in it is laid
-    over the tree's own cells, row [0] being the root's. *)
+(** [style t] is the style [t]'s glyphs are drawn in. *)
 
 val with_style : Style.t -> t -> t
 (** [with_style s t] is [t] drawn in [s]. *)

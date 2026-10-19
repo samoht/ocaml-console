@@ -10,13 +10,6 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 
 | Public value | Property name(s) |
 | --- | --- |
-| `Anim.all` | api.anim / animation sampling laws |
-| `Anim.const` | api.anim / animation sampling laws |
-| `Anim.frame` | api.anim / animation sampling laws |
-| `Anim.map` | api.anim / animation sampling laws |
-| `Anim.v` | api.anim / animation sampling laws |
-| `Bar.spread` | api.bar / bar variants conserve width |
-| `Bar.stacked` | api.bar / bar variants conserve width |
 | `Bar.v` | api.bar / bar variants conserve width |
 | `Border.ascii` | api.border / border accessors and restyling |
 | `Border.chars` | api.border / border accessors and restyling |
@@ -30,7 +23,6 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 | `Border.style` | api.border / border accessors and restyling |
 | `Border.v` | api.border / border accessors and restyling |
 | `Border.with_style` | api.border / border accessors and restyling |
-| `Color.ansi` | api.color / colour constructors and laws |
 | `Color.black` | api.color / colour constructors and laws |
 | `Color.blend` | api.color / colour constructors and laws |
 | `Color.blue` | api.color / colour constructors and laws |
@@ -84,14 +76,6 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 | `Display.succeed` | api.display / display public operations on memory formatter |
 | `Display.task` | api.display / display public operations on memory formatter |
 | `Display.with_output` | api.display / display public operations on memory formatter |
-| `Gradient.at` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.cell` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.equal` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.map` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.pp` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.shift` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.stops` | api.gradient / gradient coordinate and mapping laws |
-| `Gradient.v` | api.gradient / gradient coordinate and mapping laws |
 | `Guide.ascii` | api.guide / guide accessors and restyling |
 | `Guide.branch` | api.guide / guide accessors and restyling |
 | `Guide.last` | api.guide / guide accessors and restyling |
@@ -102,14 +86,10 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 | `Guide.unicode` | api.guide / guide accessors and restyling |
 | `Guide.v` | api.guide / guide accessors and restyling |
 | `Guide.with_style` | api.guide / guide accessors and restyling |
-| `Input.crlf` | api.input / input chunking and masking laws |
 | `Input.feed` | api.input / input chunking and masking laws |
 | `Input.history` | api.input / input chunking and masking laws |
 | `Input.pending` | api.input / input chunking and masking laws |
 | `Input.v` | api.input / input chunking and masking laws |
-| `Layout.hcat` | api.layout / layout arbitrary blocks and gutters |
-| `Layout.vcat` | api.layout / layout arbitrary blocks and gutters |
-| `Panel.content_width` | api.panel / panel content room and rendering |
 | `Panel.pp` | api.panel / panel content room and rendering |
 | `Panel.to_string` | api.panel / panel content room and rendering |
 | `Panel.v` | api.panel / panel content room and rendering |
@@ -129,32 +109,24 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 | `Span.width` | api.span / span conversion and sanitation laws |
 | `Span.with_style` | api.span / span conversion and sanitation laws |
 | `Span.wrap` | api.span_bounds / wrapped spans fit width; console / Span.wrap accepts arbitrary bytes; console / wrapping preserves non-space text |
-| `Spinner.anim` | api.spinner / predefined spinner sampling |
 | `Spinner.ascii` | api.spinner / predefined spinner sampling |
 | `Spinner.braille` | api.spinner / predefined spinner sampling |
-| `Spinner.frames` | api.spinner / predefined spinner sampling |
 | `Spinner.pp` | api.spinner / predefined spinner sampling |
 | `Spinner.v` | api.spinner / predefined spinner sampling |
 | `Style.( + )` | api.style / style composition and cell laws |
-| `Style.at` | api.style / style composition and cell laws |
 | `Style.background` | api.style / style composition and cell laws |
 | `Style.bg` | api.style / style composition and cell laws |
-| `Style.bg_gradient` | api.style / style composition and cell laws |
 | `Style.blink` | api.style / style composition and cell laws |
 | `Style.bold` | api.style / style composition and cell laws |
 | `Style.equal` | api.style / style composition and cell laws |
 | `Style.faint` | api.style / style composition and cell laws |
 | `Style.fg` | api.style / style composition and cell laws |
-| `Style.fg_gradient` | api.style / style composition and cell laws |
 | `Style.foreground` | api.style / style composition and cell laws |
-| `Style.has_gradient` | api.style / style composition and cell laws |
 | `Style.is_none` | api.style / style composition and cell laws |
 | `Style.italic` | api.style / style composition and cell laws |
-| `Style.map_color` | api.style / style composition and cell laws |
 | `Style.none` | api.style / style composition and cell laws |
 | `Style.pp` | api.style / style composition and cell laws |
 | `Style.reverse` | api.style / style composition and cell laws |
-| `Style.shows_on_space` | api.style / style composition and cell laws |
 | `Style.strikethrough` | api.style / style composition and cell laws |
 | `Style.underline` | api.style / style composition and cell laws |
 | `Table.column` | api.table / table column and row contracts |
@@ -188,7 +160,6 @@ Generators retain arbitrary bytes, machine integers and floats. Dimensions that 
 | `Prompt.interactive` | bytewise CRLF and buffer reuse; nonterminal prompts never read |
 | `Prompt.line` | bytewise CRLF and buffer reuse; split UTF-8 and buffered second line; partial line at EOF is refused; read fault propagates after flush; answer limit |
 | `Prompt.confirm` | confirm and expect scripted answers; nonterminal prompts never read |
-| `Prompt.expect` | confirm and expect scripted answers; nonterminal prompts never read |
 | `Prompt.secret` | nonterminal prompts never read; existing secret leaves the domain running (real PTY) |
 
 All new Eio tests run under `Eio_mock.Backend.run`; input is scripted with `Eio_mock.Flow.on_read`. Timed runs use `Eio_mock.Clock`. A real PTY, in the existing test, is the smallest stand-in for password success: mock flows have no Unix descriptor or termios state. `setup` necessarily probes the real standard descriptors with isatty; its explicit-renderer branches work under the mock backend. The public API needs no process manager.
@@ -203,7 +174,6 @@ The previous pass accounts for all failures except these four new tests:
 
 | New failing test | Observation |
 | --- | --- |
-| `api.bar / bar variants conserve width` | `Bar.spread` emits one cell for width zero with a positive value. |
 | `api.color / colour constructors and laws` | `Color.scale` with a very large positive finite factor fails to saturate RGB components at 255. |
 | `api.rule / rule accepts arbitrary glyphs and labels` | A glyph measuring one cell but containing a control byte raises an undocumented `Invalid_argument`. |
 | `mock / partial line at EOF is refused` | An unterminated line is returned as `Ok` when input ends. |

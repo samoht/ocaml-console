@@ -27,7 +27,7 @@ let render_spinner t ~finished ~color ~time row =
   let theme = t.theme in
   if not finished then
     styled t (color_code t color)
-      (Anim.frame (Spinner.anim (Theme.spinner theme)) ~elapsed:time)
+      (Spinner.frame (Theme.spinner theme) ~elapsed:time)
   else
     match row.routcome with
     | Some `Failed -> styled t (bold ^ color_code t (Theme.fail theme)) "[x]"

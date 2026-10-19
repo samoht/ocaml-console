@@ -258,10 +258,6 @@ let test_complete_none () =
   Alcotest.(check string) "no candidates, tab echoes nothing" "" echo;
   Alcotest.(check string) "pending unchanged" "zz" (Input.pending t)
 
-let test_crlf () =
-  Alcotest.(check string) "LF becomes CRLF" "a\r\nb\r\n" (Input.crlf "a\nb\n");
-  Alcotest.(check string) "no LF unchanged" "abc" (Input.crlf "abc")
-
 let test_complete_utf8 () =
   let t = Input.v ~complete:(fun _ -> [ "é"; "ê" ]) () in
   ignore (Input.feed t "\t");
@@ -330,5 +326,4 @@ let suite =
         test_complete_lists_candidates;
       Alcotest.test_case "complete last word" `Quick test_complete_last_word;
       Alcotest.test_case "complete none" `Quick test_complete_none;
-      Alcotest.test_case "crlf output translation" `Quick test_crlf;
     ] )

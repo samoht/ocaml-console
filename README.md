@@ -144,25 +144,6 @@ default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
 - : unit = ()
 ```
 
-`Layout` places blocks of text next to each other or one above the other:
-
-```ocaml
-open Console
-
-let report =
-  Layout.hcat ~gutter:2
-    [ Fmt.const Panel.pp (Panel.v (Span.text "All green"));
-      Fmt.const Panel.pp (Panel.v (Span.text "No warnings")) ]
-```
-
-```ocaml
-# Fmt.pr "%a@." report ();;
-╭───────────╮  ╭─────────────╮
-│ All green │  │ No warnings │
-╰───────────╯  ╰─────────────╯
-- : unit = ()
-```
-
 ### Progress
 
 A `Display` shows one line per task that is still running, and updates
@@ -221,20 +202,6 @@ while a task is still running, the task is marked as done. If your function
 raises an exception, it is marked as cancelled. Calling `Console_eio.run`
 inside another `Console_eio.run` reuses the same display.
 
-### Animation
-
-![Matrix ASCII rain demo](examples/matrix/matrix.gif)
-
-Spinners are animations: values of type `Anim.t` that change over time.
-`Anim.all` samples several of them at once, and `Layout.hcat` joins the frames
-side by side. To see a display in the `Theme.matrix` colours, run the demo in
-[`examples/matrix`](examples/matrix):
-
-<!-- $MDX skip -->
-```sh
-$ dune exec examples/matrix/main.exe
-```
-
 ## API
 
 The `console` library:
@@ -243,7 +210,6 @@ The `console` library:
 |---|---|
 | `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
 | `Console.Style` | Bold, italic, underline and colours, combined with `+` |
-| `Console.Gradient` | Colours that change from one cell to the next |
 | `Console.Span` | Text in a style, with links, wrapping and truncation |
 | `Console.Border` | Frame styles for tables and panels |
 | `Console.Guide` | The lines that connect the branches of a tree |
@@ -252,10 +218,8 @@ The `console` library:
 | `Console.Tree` | Trees, drawn like the output of `tree` |
 | `Console.Panel` | Text in a frame, with an optional title |
 | `Console.Rule` | Horizontal lines with an optional title |
-| `Console.Layout` | Widgets side by side or one above the other |
 | `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Bar` | Horizontal bars, for progress and for figures |
-| `Console.Anim` | Values that change over time, for animations |
 | `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
 | `Console.Input` | Reading a line from the keyboard, with history and completion |
 

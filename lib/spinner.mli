@@ -6,8 +6,9 @@
 (** Animated spinners.
 
     A spinner is a short cyclic sequence of frames -- braille dots, a spinning
-    ASCII bar -- shown beside an indeterminate task. {!Console.Display} animates
-    one per running row, and a {!Theme.t} carries the one a display uses. *)
+    ASCII bar, shown beside a task of unknown length. {!Console.Display}
+    animates one per running row, and a {!Theme.t} carries the one a display
+    uses. *)
 
 (** {1:spinners Spinners} *)
 
@@ -19,9 +20,6 @@ val v : string array -> t
 
     @raise Invalid_argument if [frames] is empty. *)
 
-val frames : t -> string array
-(** [frames t] are [t]'s frames, in order. *)
-
 val braille : t
 (** [braille] cycles the ten braille dots [⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]. *)
 
@@ -29,11 +27,12 @@ val ascii : t
 (** [ascii] cycles the four frames [|], [/], [-] and a backslash, for terminals
     or fonts without braille. *)
 
-(** {1:anim Animation} *)
+(** {1:frames Frames} *)
 
-val anim : ?fps:float -> t -> string Anim.t
-(** [anim t] is [t] as an {!Anim.t}: its frames in turn, [fps] a second
-    (defaults to [10.]), starting from the first at [0.]. A time that is not
+val frame : ?fps:float -> t -> elapsed:float -> string
+(** [frame t ~elapsed] is the frame [t] shows [elapsed] seconds in, [fps] frames
+    a second (defaults to [10.]): frame [i] of [n] where [i] is the whole part
+    of [elapsed * fps] modulo [n]. An [elapsed] that is not positive or not
     finite shows the first frame.
 
     @raise Invalid_argument if [fps] is not finite and positive. *)

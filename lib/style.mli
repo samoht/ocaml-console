@@ -6,8 +6,7 @@
 (** Terminal text styles.
 
     A style is a set of attributes and colours, composed with {!( + )}:
-    [Style.(bold + fg Color.red + underline)]. A colour may be a {!Gradient.t},
-    laid over the cells the style draws. *)
+    [Style.(bold + fg Color.red + underline)]. *)
 
 (** {1:styles Styles} *)
 
@@ -44,21 +43,12 @@ val fg : Color.t -> t
 val bg : Color.t -> t
 (** [bg c] is the style with background colour [c]. *)
 
-val fg_gradient : Gradient.t -> t
-(** [fg_gradient g] is the style whose foreground is [g], laid over the cells it
-    styles: each cell takes the colour {!Gradient.cell} gives its row and
-    column. *)
-
-val bg_gradient : Gradient.t -> t
-(** [bg_gradient g] is like {!fg_gradient} for the background. *)
-
 val ( + ) : t -> t -> t
 (** [s0 + s1] is [s0] with the attributes of [s1] added and the colours of [s1]
     replacing those of [s0]. *)
 
 val foreground : t -> Color.t option
-(** [foreground s] is the foreground colour of [s], if it sets one. A gradient
-    foreground is its colour on row [0], column [0]. *)
+(** [foreground s] is the foreground colour of [s], if it sets one. *)
 
 val background : t -> Color.t option
 (** [background s] is like {!foreground} for the background. *)
@@ -68,28 +58,8 @@ val background : t -> Color.t option
 val is_none : t -> bool
 (** [is_none s] is [true] iff [s] sets nothing. *)
 
-val has_gradient : t -> bool
-(** [has_gradient s] is [true] iff the foreground or the background of [s] is a
-    gradient, so that {!val-at} gives different styles on different cells. *)
-
-val shows_on_space : t -> bool
-(** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
-    an unstyled one: [s] sets a background, reverse video, underline or
-    strikethrough. *)
-
 val equal : t -> t -> bool
 (** [equal s0 s1] is [true] iff [s0] and [s1] are the same style. *)
-
-(** {1:cells Colours on cells} *)
-
-val at : row:int -> column:int -> t -> t
-(** [at ~row ~column s] is [s] on the cell at [row] and [column]: each gradient
-    of [s] replaced by its colour on that cell, the rest of [s] unchanged. *)
-
-val map_color : ?fg:(Color.t -> Color.t) -> ?bg:(Color.t -> Color.t) -> t -> t
-(** [map_color ~fg ~bg s] is [s] with [fg] applied to its foreground colour and
-    [bg] to its background colour (each defaults to the identity), every stop of
-    a gradient included. *)
 
 (** {1:fmt Formatting} *)
 
@@ -97,6 +67,10 @@ val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)
 
 (**/**)
+
+val shows_on_space : t -> bool
+(** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
+    an unstyled one. *)
 
 val to_ansi : t -> string
 (** [to_ansi s] is the escape code that starts [s] on its first cell, or [""]

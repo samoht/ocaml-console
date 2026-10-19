@@ -46,7 +46,6 @@ let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
 let line t = String.concat "" (List.rev_append t.left t.right)
 let pending t = line t
 let history t = List.rev t.hist
-let crlf s = String.concat "\r\n" (String.split_on_char '\n' s)
 let add = Buffer.add_string
 
 let utf8_len c =

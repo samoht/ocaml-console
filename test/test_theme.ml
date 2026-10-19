@@ -11,18 +11,18 @@ let contains sub s = Re.execp Re.(compile (str sub)) s
    and tree guide. *)
 let test_dos () =
   let t = Theme.dos in
-  Alcotest.(check int)
-    "ascii spinner has four frames" 4
-    (Array.length (Spinner.frames (Theme.spinner t)));
+  Alcotest.(check string)
+    "ascii spinner" "/"
+    (Spinner.frame (Theme.spinner t) ~elapsed:0.1);
   Alcotest.(check string)
     "ascii guide branch" "+-- "
     (Guide.branch (Theme.guide t))
 
 let test_unicode () =
   let t = Theme.unicode in
-  Alcotest.(check int)
-    "braille spinner has ten frames" 10
-    (Array.length (Spinner.frames (Theme.spinner t)))
+  Alcotest.(check string)
+    "braille spinner" "⠙"
+    (Spinner.frame (Theme.spinner t) ~elapsed:0.1)
 
 let test_rainbow () =
   let t = Theme.rainbow in
@@ -40,9 +40,9 @@ let test_v_defaults () =
   Alcotest.(check bool)
     "palette is the accent" true
     (match Theme.palette t with [ c ] -> Color.equal c Color.red | _ -> false);
-  Alcotest.(check int)
-    "the spinner given" 4
-    (Array.length (Spinner.frames (Theme.spinner t)))
+  Alcotest.(check string)
+    "the spinner given" "/"
+    (Spinner.frame (Theme.spinner t) ~elapsed:0.1)
 
 let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in

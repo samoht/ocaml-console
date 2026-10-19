@@ -64,15 +64,6 @@ let confirm t question =
       | "y" | "yes" -> Ok true
       | _ -> Ok false)
 
-let expect t question word =
-  match line t question with
-  | Error (`Msg _ as e) -> Error e
-  | Ok answer ->
-      (* The refusal says that the answer was wrong and stops there: spelling
-         the word out would hand over the answer the gate exists to ask for. *)
-      if String.equal answer word then Ok ()
-      else Error (`Msg "the answer does not match what was asked for")
-
 (* Echo is the terminal's own line discipline, so masking what is typed means
    switching it off on the descriptor behind the input. Eio has no termios, so
    that part is Unix; reading and writing stay on the prompt's flows. *)

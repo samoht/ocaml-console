@@ -24,9 +24,7 @@ let test s =
   let masked = Input.v ~mask:"*" () in
   ignore (Input.feed masked s);
   ignore (Input.feed masked "\n");
-  check (Input.history masked = []);
-  let expected = String.concat "\r\n" (String.split_on_char '\n' s) in
-  check (Input.crlf s = expected)
+  check (Input.history masked = [])
 
 let suite =
   ("api.input", [ test_case "input chunking and masking laws" [ bytes ] test ])

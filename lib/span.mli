@@ -74,9 +74,7 @@ val wrap : int -> t -> t list
 
     Rendering follows the style renderer of the formatter,
     {!Fmt.style_renderer}, which [Console_eio.setup] sets from [--color],
-    [NO_COLOR] and [TERM] ({!Console.style_renderer}). A gradient
-    ({!Style.fg_gradient}) colours each cell by its column, column [0] being the
-    span's first cell. *)
+    [NO_COLOR] and [TERM] ({!Console.style_renderer}). *)
 
 val pp : t Fmt.t
 (** [pp] formats a span, with ANSI styling iff the formatter's style renderer is

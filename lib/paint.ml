@@ -28,24 +28,11 @@ let close p =
       Fmt.string p.ppf Style.reset;
       p.open_ <- None
 
-(* Two styles that differ only in their colours: the second's sequence sets
-   every colour the first set, so it follows without a reset. *)
-let recolours a b =
-  let flat =
-    Style.map_color ~fg:(Fun.const Color.black) ~bg:(Fun.const Color.black)
-  in
-  Style.equal (flat a) (flat b)
-
-let ink_cell p style glyph width =
-  let style = Style.at ~row:p.row ~column:p.column style in
-  let sgr = Style.to_ansi style in
+let ink_cell p style sgr glyph width =
   (match p.open_ with
   | _ when sgr = "" || (glyph = " " && not (Style.shows_on_space style)) ->
       close p
   | Some (_, open_sgr) when open_sgr = sgr -> ()
-  | Some (open_style, _) when recolours open_style style ->
-      Fmt.string p.ppf sgr;
-      p.open_ <- Some (style, sgr)
   | _ ->
       close p;
       Fmt.string p.ppf sgr;
@@ -60,7 +47,10 @@ let ink p style glyphs =
     p.column <- p.column + Width.string_width glyphs
   end
   else
-    List.iter (fun (g, width) -> ink_cell p style g width) (Width.atoms glyphs)
+    let sgr = Style.to_ansi style in
+    List.iter
+      (fun (g, width) -> ink_cell p style sgr g width)
+      (Width.atoms glyphs)
 
 let text p s =
   close p;

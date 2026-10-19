@@ -42,7 +42,7 @@ let natural_width panel =
 
 (* The cells a content line has: the fixed width's room, else the content's
    own, capped by what [margin] leaves beside the border and padding. *)
-let content_width ?(margin = max_int) panel =
+let content_width ~margin panel =
   let frame = 2 + (panel.padding * 2) in
   let room =
     match panel.width with

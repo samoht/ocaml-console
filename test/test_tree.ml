@@ -66,12 +66,10 @@ let test_margin_wraps () =
   str "to_string is natural"
     "root\n├── a\n│   └── leaf label that is long\n└── b" (Tree.to_string tree)
 
-(* A styled guide is drawn in its style, a gradient taken on the tree's own
-   rows. *)
+(* A styled guide is drawn in its style. *)
 let test_guide_style () =
-  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
-  let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
-  let guide = Guide.with_style (Style.fg_gradient down) Guide.unicode in
+  let blue = Color.rgb 0 0 255 in
+  let guide = Guide.with_style (Style.fg blue) Guide.unicode in
   let tree =
     Tree.v ~guide (Span.text "r")
       [ Tree.v (Span.text "a") []; Tree.v (Span.text "b") [] ]
@@ -79,12 +77,12 @@ let test_guide_style () =
   Alcotest.(check string)
     "rows"
     "r\n\
-     \027[38;2;127;0;128m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\n\
+     \027[38;2;0;0;255m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\n\
      \027[38;2;0;0;255m\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\027[0m b"
     (Tree.to_string ~styled:true tree);
   Alcotest.(check bool)
     "with_style" true
-    (Style.equal (Style.fg_gradient down) (Guide.style guide));
+    (Style.equal (Style.fg blue) (Guide.style guide));
   Alcotest.(check string)
     "plain"
     "r\n\

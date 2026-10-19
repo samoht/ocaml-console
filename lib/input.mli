@@ -18,8 +18,7 @@
     is inserted, backspace erases the character before the cursor, and the left
     and right arrows step over one character. A character's width in cells is
     measured as {!Span.width} measures it, so cursor motion is exact for wide
-    CJK and emoji. {!crlf} is the matching output-side translation a terminal
-    expects.
+    CJK and emoji.
 
     The key bindings and the history and completion model follow Daniel
     Buenzli's [down] toplevel line editor (ISC licensed). *)
@@ -71,12 +70,6 @@ val feed : t -> string -> string * string list
     / [ESC \[ B]) recall the previous and next history entries and ([ESC \[ C] /
     [ESC \[ D]) move the cursor right and left over one character. Any other
     byte is ignored. *)
-
-val crlf : string -> string
-(** [crlf s] is [s] with every line feed turned into a carriage-return line feed
-    -- the output-side companion to {!feed}, since a terminal in raw mode needs
-    ["\r\n"] line endings (the termios [ONLCR] translation). Output produced
-    with ['\n'] line endings passes through it on the way to the terminal. *)
 
 val pending : t -> string
 (** [pending t] is the current line, the bytes typed since the last submitted

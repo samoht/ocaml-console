@@ -12,7 +12,7 @@ let test s =
   check (Theme.palette t = [ Color.blue; Color.green ]);
   check (Border.chars (Theme.border t) = Border.chars Border.double);
   check (Guide.branch (Theme.guide t) = Guide.branch Guide.ascii);
-  check (Spinner.frames (Theme.spinner t) = [| s |]);
+  check (Spinner.frame (Theme.spinner t) ~elapsed:0. = s);
   check (Theme.palette (Theme.v ~accent:Color.red ()) = [ Color.red ]);
   List.iter
     (fun t ->

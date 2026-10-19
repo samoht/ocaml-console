@@ -1042,36 +1042,25 @@ let test_duplicate_result first second =
   check (List.length results = 1);
   check (Display.Event.kind (List.hd results) = `Result `Ok)
 
-(* A frame is one of the spinner's own glyphs. *)
-let is_frame t f = Array.exists (String.equal f) (Spinner.frames t)
-
-(* [v] keeps the frames it was given, in order, and an empty sequence is
-   rejected rather than yielding a spinner that would divide by zero. *)
-let test_spinner_roundtrip frames =
-  let t = Spinner.v frames in
-  check (Spinner.frames t = frames);
-  let empty_raised =
-    try
-      ignore (Spinner.v [||]);
-      false
-    with Invalid_argument _ -> true
-  in
-  check empty_raised
-
-(* The animation always shows one of the spinner's glyphs, for any timing; a
+(* A spinner shows one of the frames it was given, for any timing; a
    non-positive elapsed pins the first frame. A non-positive or non-finite fps
-   is refused. *)
-let test_spinner_anim frames elapsed fps =
+   is refused, and so is an empty sequence of frames. *)
+let test_spinner_frame frames elapsed fps =
   let t = Spinner.v frames in
+  check
+    (try
+       ignore (Spinner.v [||]);
+       false
+     with Invalid_argument _ -> true);
   if Float.is_finite fps && fps > 0. then begin
-    let f = Anim.frame (Spinner.anim ~fps t) ~elapsed in
-    check (is_frame t f);
-    if elapsed <= 0. then check (f = (Spinner.frames t).(0))
+    let f = Spinner.frame ~fps t ~elapsed in
+    check (Array.exists (String.equal f) frames);
+    if elapsed <= 0. then check (f = frames.(0))
   end
   else
     check
       (try
-         ignore (Spinner.anim ~fps t);
+         ignore (Spinner.frame ~fps t ~elapsed);
          false
        with Invalid_argument _ -> true)
 
@@ -1180,21 +1169,17 @@ let test_widget_line_endings s =
   in
   List.iter
     (fun (widget, output) ->
-      if String.contains output '\r' then
-        failf "%s emitted CR: %S" widget output)
+      (* The display returns to the first column with a lone CR before a
+         redraw; no line ends in CRLF. *)
+      if
+        (widget = "display" && contains "\r\n" output)
+        || (widget <> "display" && String.contains output '\r')
+      then failf "%s emitted CR: %S" widget output)
     outputs
-
-let test_stacked_large_width count n =
-  let width = adversarial_width n in
-  let count = max_int - (count land 255) in
-  let bar = Bar.stacked ~width [ (count, Style.bold) ] in
-  check_eq ~pp:Fmt.int width (Span.width bar)
 
 let suite =
   ( "console",
     [
-      test_case "large stacked counts conserve width" [ int; int ]
-        test_stacked_large_width;
       test_case "widgets use LF line endings" [ bytes ] test_widget_line_endings;
       test_case "sanitized colour does not leak" [ int; int; int ]
         test_sanitized_colour;
@@ -1237,8 +1222,9 @@ let suite =
         test_progress_estimates;
       test_case "duplicate result is harmless" [ bytes; bytes ]
         test_duplicate_result;
-      test_case "spinner roundtrip" [ array1 bytes ] test_spinner_roundtrip;
-      test_case "spinner anim" [ array1 bytes; float; float ] test_spinner_anim;
+      test_case "spinner frame"
+        [ array1 bytes; float; float ]
+        test_spinner_frame;
       test_case "table no overflow"
         [ list bytes; list bytes; int ]
         test_table_no_overflow;

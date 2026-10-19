@@ -23,8 +23,6 @@ type ansi =
 
 type t = Ansi of ansi | Rgb of int * int * int | Palette of int
 
-let ansi color = Ansi color
-
 let rgb r g b =
   if r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 then
     invalid_arg "Console.Color.rgb: component outside 0..255";

@@ -7,9 +7,9 @@
 
     A {!Span.t} is a piece of text in a {!Style.t}: colours, bold, italic and so
     on. The widgets, {!Table}, {!Tree}, {!Panel} and {!Rule}, lay out spans and
-    print with {!Format}; {!Layout} puts them side by side, and a {!Theme} gives
-    them one look. A {!Display} shows progress rows that are redrawn in place
-    while work runs; [Console_eio.run] starts one.
+    print with {!Format}, and a {!Theme} gives them one look. A {!Display} shows
+    progress rows that are redrawn in place while work runs; [Console_eio.run]
+    starts one.
 
     Widths are counted in terminal cells, as the terminal draws the text: a wide
     character, such as a Chinese one or an emoji, takes two cells and an accent
@@ -97,19 +97,7 @@
 
     run with [Console_eio.run ~clock ~header:"Building" build_step]. A library
     can call [Console_eio.run] itself: inside another one, it gets the same
-    display.
-
-    {2:animation Animation}
-
-    An {!Anim.t} is a value that changes with time, such as {!Spinner.anim}.
-
-    {[
-    open Console
-
-    let demo_anim () =
-      let spinner = Spinner.anim Spinner.braille in
-      Fmt.pr "%s@." (Anim.frame spinner ~elapsed:0.5)
-    ]} *)
+    display. *)
 
 (** {1:modules Modules} *)
 
@@ -119,9 +107,6 @@ module Color = Color
 module Style = Style
 (** Bold, italic, underline and colours, combined with [+]. *)
 
-module Gradient = Gradient
-(** Colours that change from one cell to the next. *)
-
 module Span = Span
 (** Text in a style. *)
 
@@ -130,9 +115,6 @@ module Border = Border
 
 module Guide = Guide
 (** The lines that connect the branches of a tree. *)
-
-module Anim = Anim
-(** Values that change with time. *)
 
 module Spinner = Spinner
 (** Spinners for work of unknown length. *)
@@ -154,9 +136,6 @@ module Tree = Tree
 
 module Rule = Rule
 (** Horizontal lines with an optional label. *)
-
-module Layout = Layout
-(** Printers side by side or one above the other. *)
 
 module Display = Display
 (** Progress rows that are redrawn in place while work runs. *)

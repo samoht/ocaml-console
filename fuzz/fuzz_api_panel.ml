@@ -7,11 +7,6 @@ let test s n =
     Panel.v ~title:(Span.text s) ~subtitle:(Span.text s) ~padding:1 ~width
       (Span.text s)
   in
-  check (Panel.content_width p = width - 4);
-  check (Panel.content_width ~margin:width p <= width - 4);
-  check
-    (Panel.content_width ~margin:(width - 1) p
-    <= Panel.content_width ~margin:width p);
   ignore (Panel.to_string ~styled:true p);
   ignore (Fmt.str "%a" Panel.pp p);
   check
@@ -26,5 +21,4 @@ let test s n =
      with Invalid_argument _ -> true)
 
 let suite =
-  ( "api.panel",
-    [ test_case "panel content room and rendering" [ bytes; int ] test ] )
+  ("api.panel", [ test_case "panel rendering and refusals" [ bytes; int ] test ])

@@ -40,15 +40,6 @@ val confirm : t -> string -> (bool, [ `Msg of string ]) result
     capital in [N] is the promise that only an explicit yes goes ahead. This is
     [Error] when [t] is not interactive or the input ends. *)
 
-val expect : t -> string -> string -> (unit, [ `Msg of string ]) result
-(** [expect t question word] asks [question] and is [Ok ()] iff the answer is
-    exactly [word], byte for byte. It is the gate that makes an operator type
-    the name of what is about to be destroyed, so a different answer is [Error]
-    saying the answer did not match, and the error never spells [word] out: a
-    message that repeats the word hands over the very answer the gate exists to
-    ask for. This is [Error] too when [t] is not interactive or the input ends.
-*)
-
 val secret : t -> string -> (string, [ `Msg of string ]) result
 (** [secret t question] is like {!line} but the answer is not shown: one [*] is
     written for each character typed instead, then a line feed when the answer

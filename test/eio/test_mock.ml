@@ -70,8 +70,7 @@ let test_read_failure () =
 let test_questions () =
   Eio_mock.Backend.run @@ fun () ->
   let t, out =
-    prompt ~interactive:true
-      (byte_reads " YES \nno\nsecret-word\nwrong\n" @ [ `Raise End_of_file ])
+    prompt ~interactive:true (byte_reads " YES \nno\n" @ [ `Raise End_of_file ])
   in
   Alcotest.(check (result bool string))
     "yes" (Ok true)
@@ -79,19 +78,9 @@ let test_questions () =
   Alcotest.(check (result bool string))
     "no" (Ok false)
     (Result.map_error (fun (`Msg s) -> s) (P.confirm t "go?"));
-  (match P.expect t "type: " "secret-word" with
-  | Ok () -> ()
-  | Error (`Msg s) -> Alcotest.fail s);
-  (match P.expect t "type: " "secret-word" with
-  | Ok () -> Alcotest.fail "mismatch accepted"
-  | Error (`Msg s) ->
-      Alcotest.(check bool)
-        "no word in error" false
-        (Astring.String.is_infix ~affix:"secret-word" s));
   Alcotest.(check string)
-    "question syntax" "go? [y/N] go? [y/N] type: type: " (Buffer.contents out);
-  refused (P.confirm t "end?");
-  refused (P.expect t "end?" "secret-word")
+    "question syntax" "go? [y/N] go? [y/N] " (Buffer.contents out);
+  refused (P.confirm t "end?")
 
 let test_nonterminal () =
   Eio_mock.Backend.run @@ fun () ->
@@ -101,7 +90,6 @@ let test_nonterminal () =
       Alcotest.(check bool) "mock has no terminal" false (P.interactive t);
       refused (P.line t "line");
       refused (P.confirm t "confirm");
-      refused (P.expect t "expect" "word");
       refused (P.secret t "secret");
       Alcotest.(check string) "no output" "" (Buffer.contents out))
     [ None; Some false ];
@@ -218,8 +206,7 @@ let suite =
         test_partial_eof;
       Alcotest.test_case "read fault propagates after flush" `Quick
         test_read_failure;
-      Alcotest.test_case "confirm and expect scripted answers" `Quick
-        test_questions;
+      Alcotest.test_case "confirm scripted answers" `Quick test_questions;
       Alcotest.test_case "nonterminal prompts never read" `Quick
         test_nonterminal;
       Alcotest.test_case "answer limit" `Quick test_limit;

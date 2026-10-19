@@ -19,29 +19,17 @@ let test_composition () =
 
 let red = Color.rgb 255 0 0
 let blue = Color.rgb 0 0 255
-let ramp = Gradient.v ~length:1 [ red; blue ]
 
-let test_gradient_style () =
-  let s = Style.(bold + fg_gradient ramp) in
-  Alcotest.(check bool) "has a gradient" true (Style.has_gradient s);
-  Alcotest.(check bool)
-    "a colour is no gradient" false
-    (Style.has_gradient Style.(bold + fg red + bg blue));
-  Alcotest.(check bool)
-    "background gradient" true
-    (Style.has_gradient (Style.bg_gradient ramp));
-  Alcotest.(check bool)
-    "resolved on a cell" true
-    (Style.equal Style.(bold + fg blue) (Style.at ~row:0 ~column:1 s));
+let test_colours () =
+  let s = Style.(bold + fg red + bg blue) in
   Alcotest.(check (option string))
-    "foreground at the origin" (Some "#ff0000")
+    "foreground" (Some "#ff0000")
     (Option.map (Fmt.str "%a" Color.pp) (Style.foreground s));
   Alcotest.(check string)
-    "to_ansi at the origin" "\027[1;38;2;255;0;0m" (Style.to_ansi s);
+    "to_ansi" "\027[1;38;2;255;0;0;48;2;0;0;255m" (Style.to_ansi s);
   Alcotest.(check bool)
-    "gradients compare by value" false
-    (Style.equal s
-       Style.(bold + fg_gradient (Gradient.v ~length:2 [ red; blue ])))
+    "the right colour wins" true
+    (Style.equal (Style.fg blue) Style.(fg red + fg blue))
 
 let test_shows_on_space () =
   let check label expected s =
@@ -49,29 +37,14 @@ let test_shows_on_space () =
   in
   check "foreground" false Style.(bold + faint + italic + blink + fg red);
   check "background" true (Style.bg red);
-  check "background gradient" true (Style.bg_gradient ramp);
   check "reverse" true Style.reverse;
   check "underline" true Style.underline;
   check "strikethrough" true Style.strikethrough
 
-let test_map_color () =
-  let s = Style.(fg red + bg_gradient ramp) in
-  let mapped = Style.map_color ~bg:(fun _ -> red) s in
-  Alcotest.(check bool)
-    "background stops mapped, foreground kept" true
-    (Style.equal mapped
-       Style.(fg red + bg_gradient (Gradient.v ~length:1 [ red; red ])));
-  Alcotest.(check bool)
-    "foreground mapped" true
-    (Style.equal
-       (Style.map_color ~fg:(fun _ -> blue) (Style.fg red))
-       (Style.fg blue))
-
 let suite =
   ( "style",
     [
-      Alcotest.test_case "gradient style" `Quick test_gradient_style;
-      Alcotest.test_case "map colour" `Quick test_map_color;
+      Alcotest.test_case "colours" `Quick test_colours;
       Alcotest.test_case "shows on space" `Quick test_shows_on_space;
       Alcotest.test_case "none" `Quick test_none;
       Alcotest.test_case "bold" `Quick test_bold;

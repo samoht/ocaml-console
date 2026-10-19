@@ -91,30 +91,6 @@ let test_wrap_hang () =
     [ "abcdef"; "   gh"; "   ij" ]
     (List.map Span.to_string (Span.wrap_hanging 7 (Span.text "abcdef gh ij")))
 
-(* A gradient colours each cell by its column; cells of one colour share one
-   sequence, and a change of attributes resets before the next. *)
-let test_gradient_span () =
-  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
-  let ramp = Gradient.v ~length:2 [ red; blue ] in
-  Alcotest.(check string)
-    "per column"
-    "\027[38;2;255;0;0ma\027[38;2;127;0;128mb\027[38;2;0;0;255mc\027[0m"
-    (Span.to_string ~styled:true (Span.styled (Style.fg_gradient ramp) "abc"));
-  let flat = Gradient.v ~length:2 [ red; red ] in
-  Alcotest.(check string)
-    "one colour, one sequence" "\027[38;2;255;0;0mabc\027[0m"
-    (Span.to_string ~styled:true (Span.styled (Style.fg_gradient flat) "abc"));
-  Alcotest.(check string)
-    "columns run across atoms"
-    "\027[1;38;2;255;0;0ma\027[0m\027[2;38;2;127;0;128mb\027[0m"
-    (Span.to_string ~styled:true
-       Span.(
-         styled Style.(bold + fg_gradient ramp) "a"
-         ++ styled Style.(faint + fg_gradient ramp) "b"));
-  Alcotest.(check string)
-    "plain" "abc"
-    (Span.to_string (Span.styled (Style.fg_gradient ramp) "abc"))
-
 let test_wrap_malformed () =
   Alcotest.(check (list string))
     "each byte sequence remains visible" [ "\u{FFFD}"; "a" ]
@@ -142,7 +118,6 @@ let suite =
         test_wrap_oversized;
       Alcotest.test_case "wrapping replaces malformed UTF-8" `Quick
         test_wrap_malformed;
-      Alcotest.test_case "gradient span" `Quick test_gradient_span;
       Alcotest.test_case "text" `Quick test_text;
       Alcotest.test_case "concat" `Quick test_concat;
       Alcotest.test_case "plain" `Quick test_plain;
