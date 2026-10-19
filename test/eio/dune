@@ -7,7 +7,7 @@
 (executable
  (name teardown)
  (modules teardown)
- (libraries console console-eio eio eio_main fmt))
+ (libraries console console-eio eio eio_main fmt unix))
 
 (test
  (name test)

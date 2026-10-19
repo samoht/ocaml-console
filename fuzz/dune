@@ -7,6 +7,12 @@
  (libraries
   console
   console.text
+  console-eio
+  eio
+  eio.unix
+  eio_main
+  cstruct
+  unix
   matrix.glyph
   matrix.grid
   matrix.vte
@@ -21,7 +27,7 @@
  (package console)
  (enabled_if
   (<> %{profile} afl))
- (deps fuzz.exe)
+ (deps fuzz.exe ../test/eio/teardown.exe)
  (action
   (run %{exe:fuzz.exe} --budget 0.3)))
 
@@ -30,7 +36,7 @@
  (package console)
  (enabled_if
   (= %{profile} afl))
- (deps fuzz.exe)
+ (deps fuzz.exe ../test/eio/teardown.exe)
  (action
   (progn
    (run %{exe:fuzz.exe} --gen-corpus corpus)

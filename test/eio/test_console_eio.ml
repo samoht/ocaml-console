@@ -218,9 +218,20 @@ let test_teardown () =
       ("cancel", `Exited 0);
     ]
 
+let test_sigint_teardown () =
+  let _, out = teardown "sigint" in
+  Alcotest.(check bool)
+    "SIGINT interrupted a live display" true (contains hide out);
+  let vte = Vte.create ~rows:24 ~cols:80 () in
+  Vte.feed_string vte out;
+  Alcotest.(check bool)
+    "SIGINT restores the cursor" true (Vte.cursor_visible vte)
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
+        test_sigint_teardown;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick

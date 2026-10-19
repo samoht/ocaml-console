@@ -17,6 +17,7 @@ let () =
         Fmt.pr "a line of output@.";
         Console.Display.redraw display;
         match Sys.argv with
+        | [| _; "sigint" |] -> Unix.kill (Unix.getpid ()) Sys.sigint
         | [| _; "exit" |] -> exit 3
         | [| _; "raise" |] -> failwith "push failed"
         | [| _; "cancel" |] -> Eio.Fiber.await_cancel ()
