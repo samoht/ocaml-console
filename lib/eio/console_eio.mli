@@ -32,7 +32,10 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
     contains [256color], and [`Ansi_16] otherwise, so that every widget and span
     printed on them uses colours the terminal has.
 
-    A program calls it once, first; {!run} calls it if it was not. *)
+    A program calls it once, first. {!run} calls it if it was not, but only for
+    the formatters on which the program chose nothing with [Fmt], such as with
+    {!Fmt.set_style_renderer} or [Fmt_tty.setup_std_outputs]: a choice the
+    program made is never overridden. *)
 
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->

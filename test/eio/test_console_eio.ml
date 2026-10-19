@@ -295,6 +295,12 @@ let test_ascii_locale () =
     "ASCII only" true
     (String.for_all (fun c -> Char.code c < 0x80) out)
 
+(* A program that chose its colours before [run] keeps them. *)
+let test_choice_kept () =
+  let _, out, _ = session "colourless" in
+  Alcotest.(check bool) "drew a region" true (contains hide out);
+  Alcotest.(check bool) "no colour" false (contains "\027[0m" out)
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -307,6 +313,8 @@ let suite =
     [
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
+      Alcotest.test_case "the program's colour choice is kept" `Quick
+        test_choice_kept;
       Alcotest.test_case "ASCII on a terminal that is not UTF-8" `Quick
         test_ascii_locale;
       Alcotest.test_case "SIGINT during a password restores echo" `Quick

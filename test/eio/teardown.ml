@@ -6,7 +6,7 @@
 (* A command that ends inside a live display the way its argument says: it
    returns, calls [exit] (a CLI's error path), raises to the toplevel, or has
    its fiber cancelled; or, with [secret], it is interrupted while it reads
-   a password. It also prints a line on standard output, which goes
+   a password; or, with [colourless], it chose no colour before the display. It also prints a line on standard output, which goes
    above the region. *)
 
 let secret env =
@@ -16,6 +16,14 @@ let secret env =
     (fun () ->
       Eio.Time.sleep (Eio.Stdenv.clock env) 0.2;
       Unix.kill (Unix.getpid ()) Sys.sigint)
+
+(* The program chose no colour itself, as a [--color=never] does, before
+   it runs a display. *)
+let colourless env =
+  Fmt.set_style_renderer Fmt.stdout `None;
+  Fmt.set_style_renderer Fmt.stderr `None;
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+      Console.Display.succeed (Console.Display.task display "plain"))
 
 let display env =
   let clock = Eio.Stdenv.clock env in
@@ -35,4 +43,7 @@ let display env =
 
 let () =
   Eio_main.run @@ fun env ->
-  match Sys.argv with [| _; "secret" |] -> secret env | _ -> display env
+  match Sys.argv with
+  | [| _; "secret" |] -> secret env
+  | [| _; "colourless" |] -> colourless env
+  | _ -> display env
