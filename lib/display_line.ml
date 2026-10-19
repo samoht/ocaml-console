@@ -33,16 +33,14 @@ let text s = Text (Display_text.sanitize s)
 let accent s = Accent (Display_text.sanitize s)
 let spacer = Spacer
 let marker f = Marker f
+let is_label = function Label -> true | _ -> false
+let is_spacer = function Spacer -> true | _ -> false
 
 let v ?(color = Color.cyan) pieces =
-  let count piece =
-    List.fold_left
-      (fun n candidate -> if candidate = piece then n + 1 else n)
-      0 pieces
-  in
-  if count Label > 1 then
+  let count is = List.length (List.filter is pieces) in
+  if count is_label > 1 then
     invalid_arg "Console.Display.Line.v: more than one label";
-  if count Spacer > 1 then
+  if count is_spacer > 1 then
     invalid_arg "Console.Display.Line.v: more than one spacer";
   { pieces; color }
 

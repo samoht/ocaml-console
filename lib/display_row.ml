@@ -106,9 +106,11 @@ let live t row =
     List.map (fun p -> (p, render_piece t row ~finished ~color ~frame p)) pieces
   in
   let indent_s = guide_prefix t row in
-  let has_label = List.exists (fun (p, _) -> p = Display_line.Label) rendered in
+  let has_label =
+    List.exists (fun (p, _) -> Display_line.is_label p) rendered
+  in
   let has_spacer =
-    List.exists (fun (p, _) -> p = Display_line.Spacer) rendered
+    List.exists (fun (p, _) -> Display_line.is_spacer p) rendered
   in
   let fixed_w =
     string_width t indent_s

@@ -26,6 +26,12 @@ type piece =
 type t = { pieces : piece list; color : Color.t }
 (** The type for layouts: pieces and an accent colour. *)
 
+val is_label : piece -> bool
+(** [is_label p] is [true] iff [p] is {!constructor-Label}. *)
+
+val is_spacer : piece -> bool
+(** [is_spacer p] is [true] iff [p] is {!constructor-Spacer}. *)
+
 val spinner : piece
 (** [spinner] is {!constructor-Spinner}. *)
 
