@@ -1,24 +1,27 @@
 # console
 
-Styled text, tables, trees and progress bars for OCaml command-line tools.
+Colours, tables, trees and progress bars for OCaml command-line tools.
 
-console prints into the normal scrollback, the way `make` or `ls` do. It
-never switches to the alternate screen and runs no event loop of its own, so
-for a full-screen program you want [notty](https://github.com/pqwy/notty) or
-[lambda-term](https://github.com/ocaml-community/lambda-term) instead. On a
-terminal, its progress rows are redrawn in place. When the output goes to a
-pipe or a file, the same program writes plain lines with no escape codes, so
-CI logs stay readable.
+console prints the way `make` or `ls` do: each line goes below the previous
+one, and everything is still there when the program exits. It is not meant
+for full-screen programs such as `vim` or `htop`; for those, use
+[notty](https://github.com/pqwy/notty) or
+[lambda-term](https://github.com/ocaml-community/lambda-term).
+
+Progress bars update in place while the work runs. When the output goes to a
+file or to another program, as in a CI log, console prints the same
+information as plain lines. No colour codes or progress-bar updates end up
+mixed into the text.
 
 It has:
 
-- styles that compose with `+`, over the 16 ANSI colours, the 256-colour
-  palette and RGB;
-- spans of styled text and OSC 8 hyperlinks, which keep their style when
-  wrapped or truncated;
-- tables, trees, panels and rules, with five border styles and shared themes;
-- live progress rows, spinners and bars;
-- widths counted in terminal cells, so CJK characters and emoji line up.
+- text styles (bold, underline, colours) that you combine with `+`, from the
+  standard terminal colours up to any RGB colour;
+- clickable links, in the terminals that support them;
+- tables, trees, framed panels and horizontal lines, in several frame styles;
+- progress bars and spinners that update in place;
+- correct alignment for wide characters, such as Chinese, Japanese, Korean
+  and emoji, which take two columns on screen.
 
 ## Installation
 
@@ -27,7 +30,7 @@ It has:
 $ opam install console
 ```
 
-Until console is in opam-repository, pin it from GitHub:
+Until console is in the opam repository, install it from GitHub:
 
 <!-- $MDX skip -->
 ```sh
@@ -36,7 +39,8 @@ $ opam pin add https://github.com/samoht/ocaml-console.git
 
 ## Usage
 
-Styles compose with `+` and apply through a `Fmt` combinator:
+Styles combine with `+` and are applied by a
+[`Fmt`](https://erratique.ch/software/fmt) printer:
 
 ```ocaml
 open Console
@@ -49,9 +53,10 @@ let () =
   Fmt.pr "%a@." (Style.styled error Fmt.string) "✗ Tests failed"
 ```
 
-Widgets take their text as a `Span.t`. `Span.pp` writes styles and links
-only when the formatter allows ANSI (see `Fmt.set_style_renderer`), and
-`Span.to_string` always returns plain text.
+Tables and other widgets take their text as a `Span.t`, a piece of text with
+its style and, optionally, a link. `Span.pp` prints the colours and links
+only when the output is a terminal that can show them, and
+`Span.to_string` always returns the plain text.
 
 ```ocaml
 open Console
@@ -64,8 +69,7 @@ let docs =
 let () = Fmt.pr "%a@." Span.pp docs
 ```
 
-Tables, trees and panels are `Fmt` printers. They take the width their
-content needs, or `~width` when you know the limit:
+A table is as wide as its content needs, unless you give it a `~width`:
 
 ```ocaml
 open Console
@@ -97,14 +101,14 @@ let main env =
 ╰───────────┴──────┴─────────────╯
 ```
 
-Every widget takes an optional `~theme`. A `Theme.t` sets the accent colour,
-the border, the tree guide, the spinner and the bar style in one place, and
-an explicit `~border` or `~guide` still overrides it. The presets are
-`Theme.unicode` (the default), `Theme.dos`, `Theme.matrix` and
-`Theme.rainbow`.
+Trees (`Tree.pp`) and framed panels (`Panel.pp`) print the same way. To give
+every widget the same look, pass them the same `~theme`. A theme sets the
+main colour, the frame style, the lines that connect tree branches, the
+spinner and the progress bar. The built-in themes are `Theme.unicode` (the
+default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
 
-`Rule` draws a horizontal line with an optional label, and `Layout` puts
-rendered strings side by side or one under the other:
+`Rule` draws a horizontal line with an optional title, and `Layout` places
+blocks of text next to each other or one above the other:
 
 ```ocaml
 open Console
@@ -119,10 +123,10 @@ let report =
 
 ### Progress
 
-A `Display` shows one row per running task. On a terminal, those rows are
-redrawn in place, and log lines and finished tasks go once into the
-scrollback. In a pipe or a log file, the same calls print one plain line per
-event.
+A `Display` shows one line per task that is still running, and updates
+those lines in place. Log messages and finished tasks are printed once, above
+them, and stay on screen. When the output is not a terminal, the same calls
+print one plain line per event instead.
 
 ```ocaml
 open Console
@@ -135,21 +139,20 @@ let build ~clock =
   Display.succeed step
 ```
 
-A task shows a spinner until it knows its total, then a bar with a count, a
-rate and the elapsed time. A task still running when the callback returns is
-marked as succeeded. If the callback raises, it is marked as cancelled. A
-nested `Console_eio.run` reuses the outer display, and a task created with
-`~id` is found again by that id, which helps when its events arrive twice or
-out of order. `Display.Line` builds other row layouts.
+A task shows a spinner until it knows how much work it has, then a progress
+bar with a count, a speed and the time spent so far. If your function returns
+while a task is still running, the task is marked as done. If your function
+raises an exception, it is marked as cancelled. Calling `Console_eio.run`
+inside another `Console_eio.run` reuses the same display.
 
 ### Animation
 
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
-An `Anim.t` is a value that changes over time. Spinners, bars and the Matrix
-rain of `Panel.rain` and `Table.rain` are all animations, and `Anim.map2`,
-`Anim.all`, `Layout.hcat_anim` and `Layout.vcat_anim` combine them. The demo
-in [`examples/matrix`](examples/matrix) runs with:
+Spinners, progress bars and the falling characters of `Theme.matrix` are
+animations: values of type `Anim.t` that change over time. `Anim.all` and
+`Layout.hcat_anim` combine several of them into one. To see them together,
+run the demo in [`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->
 ```sh
@@ -158,47 +161,45 @@ $ dune exec examples/matrix/main.exe
 
 ## API
 
-| Module | Description |
+| Module | What it does |
 |---|---|
-| `Console.Color` | ANSI, RGB, hex, and 256-palette colours |
-| `Console.Style` | Composable text styles |
-| `Console.Gradient` | Linear colour gradients laid over terminal cells |
-| `Console.Span` | Styled text, hyperlinks, wrapping and truncation |
-| `Console.Width` | Unicode-, CSI-, and OSC-aware cell measurement |
-| `Console.Border` | Custom and predefined box-drawing borders |
-| `Console.Guide` | Shared guide glyphs for nested views |
-| `Console.Theme` | One visual theme for every widget |
-| `Console.Table` | Styled tables with alignment and overflow policies |
-| `Console.Tree` | Tree rendering with shared guides |
-| `Console.Panel` | Bordered panels with edge labels |
-| `Console.Rule` | Fixed-width horizontal rules with styled labels |
-| `Console.Layout` | Horizontal and vertical static/animated composition |
-| `Console.Canvas` | Grids of styled cells, for pixel art and scenes |
-| `Console.Spinner` | Animated spinners for indeterminate work |
-| `Console.Bar` | Determinate and moving horizontal progress bars |
-| `Console.Anim` | Composable time-varying values |
-| `Console.Display` | Live nested progress rows with plain fallback |
-| `Console.Input` | Line editing with history and completion |
-| `Console_eio` | Eio driver: terminal detection, geometry, the refresh fiber |
-| `Console_eio.Prompt` | Questions over Eio flows, and a masked secret from the terminal |
-| `Console_text` | Sanitizing and stripping untrusted text, without the rest of `console` |
-| `Console_vte` | The screen a terminal recording put up, frame by frame |
+| `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
+| `Console.Style` | Bold, italic, underline and colours, combined with `+` |
+| `Console.Gradient` | Colour gradients across a line of text |
+| `Console.Span` | Styled text and links, with wrapping and truncation |
+| `Console.Width` | How many columns a string takes on screen |
+| `Console.Border` | Frame styles for tables and panels |
+| `Console.Guide` | The lines that connect the branches of a tree |
+| `Console.Theme` | One look for every widget |
+| `Console.Table` | Tables with headers and aligned columns |
+| `Console.Tree` | Trees, drawn like the output of `tree` |
+| `Console.Panel` | Text in a frame, with an optional title |
+| `Console.Rule` | Horizontal lines with an optional title |
+| `Console.Layout` | Blocks of text side by side or stacked |
+| `Console.Canvas` | Grids of coloured characters, for pictures |
+| `Console.Spinner` | Spinners for work of unknown length |
+| `Console.Bar` | Progress bars |
+| `Console.Anim` | Values that change over time, for animations |
+| `Console.Display` | Progress lines that update in place, or plain lines outside a terminal |
+| `Console.Input` | Reading a line from the keyboard, with history and completion |
+| `Console_eio` | Runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio): finds the terminal and its size, and redraws |
+| `Console_eio.Prompt` | Asking the user a question, or a password without echoing it |
+| `Console_text` | Removing colour codes and control characters from text you do not trust |
+| `Console_vte` | Replaying a recorded terminal session, to test what it showed |
 
 ## Related work
 
-- [Rich](https://github.com/Textualize/rich), the Python library console
-  is modelled on.
-- [lipgloss](https://github.com/charmbracelet/lipgloss), whose composable
-  styles gave the shape of `Style`.
-- [printbox](https://github.com/c-cube/printbox) prints nested boxes, tables
+- [Rich](https://github.com/Textualize/rich), the Python library console is
+  modelled on.
+- [lipgloss](https://github.com/charmbracelet/lipgloss), a Go library whose way
+  of combining styles `Style` follows.
+- [printbox](https://github.com/c-cube/printbox), which prints boxes, tables
   and trees in OCaml.
-- [progress](https://github.com/CraigFe/progress) draws progress bars in
-  OCaml.
-- [notty](https://github.com/pqwy/notty) does declarative terminal graphics
-  for full-screen OCaml programs.
-- [down](https://erratique.ch/software/down), Daniel Bünzli's toplevel line
-  editor, is the model for the key bindings, history and completion of
-  `Console.Input`.
+- [progress](https://github.com/CraigFe/progress), progress bars in OCaml.
+- [notty](https://github.com/pqwy/notty), for full-screen OCaml programs.
+- [down](https://erratique.ch/software/down), Daniel Bünzli's line editor
+  for the OCaml toplevel, which `Console.Input` follows for its keys, history
+  and completion.
 
 ## License
 
