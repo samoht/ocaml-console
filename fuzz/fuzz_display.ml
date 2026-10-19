@@ -499,9 +499,33 @@ let test_untrusted_arguments s =
       "\u{009b}2J\255\u{202e}spoof";
     ]
 
+let test_extreme_terminals n styled =
+  List.iter
+    (fun (width, height) ->
+      let t = terminal ~width ~height ~styled in
+      let d = display t in
+      for i = 0 to 20 + (n mod 20) do
+        let task =
+          Display.task ~log_lines:1 d
+            (string_of_int i ^ " \u{754c}\u{1f469}\u{200d}\u{1f4bb}")
+        in
+        Display.log ~keep:false task "\u{754c}\u{1f1eb}\u{1f1f7} tail";
+        Display.set_count task ~cur:i ~total:100
+      done;
+      redraw_twice t;
+      (* Nothing has completed or logged a permanent line. A region that fits
+       leaves its bottom row free and cannot have produced scrollback. *)
+      check_eq ~pp:Fmt.int 0 (Vte.scrollback_size t.vte);
+      Display.close d;
+      check (Vte.cursor_visible t.vte);
+      check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte)))
+    [ (1, 1); (2, 80); (300, 10) ]
+
 let suite =
   ( "display",
     [
+      test_case "extreme terminal sizes keep region width and height bounded"
+        [ uint8; bool ] test_extreme_terminals;
       test_case "untrusted display arguments behave like sanitized text"
         [ bytes ] test_untrusted_arguments;
       test_case "only live rows change and idle frames write nothing" [ uint8 ]
