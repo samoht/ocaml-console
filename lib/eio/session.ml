@@ -145,10 +145,16 @@ let reporter ~owner ~closed ~requests display =
           Eio.Promise.await closed;
           closed_reporter ())
   in
-  let report _src l ~over k msgf =
+  (* A message from a source of its own is prefixed with the source's name,
+     as the reporter of the Logs documentation does. *)
+  let report src l ~over k msgf =
     msgf (fun ?header:_ ?tags:_ fmt ->
         Fmt.kstr
           (fun message ->
+            let message =
+              if src == Logs.default || message = "" then message
+              else "[" ^ Logs.Src.name src ^ "] " ^ message
+            in
             if message <> "" then emit (level l) message;
             over ();
             k ())

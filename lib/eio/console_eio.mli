@@ -62,6 +62,11 @@ val run :
     signal ends the program as it would have. A signal the program handles or
     ignores is left to it.
 
+    While [f] runs, {!Logs} messages are printed by the display, at the level of
+    their mark, a message from a source other than {!Logs.default} after the
+    source's name in brackets, as in [[http] connected]. The reporter [f] found
+    is put back when [f] ends.
+
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
     whether its caller already did.

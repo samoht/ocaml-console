@@ -58,6 +58,8 @@ let test_run_raises () =
 
 (* Logs messages are routed into the same permanent semantic history while the
    driver owns the reporter. *)
+let named = Logs.Src.create "console.test"
+
 let test_reporter () =
   let out =
     capture (fun t ->
@@ -66,8 +68,10 @@ let test_reporter () =
         Logs.app (fun m -> m "application-line");
         Logs.app (fun m -> m "╭───╮\n│ x │\n╰───╯");
         Logs.warn (fun m -> m "warning-line");
+        Logs.info ~src:named (fun m -> m "named-line");
         D.succeed step)
   in
+  mem ~msg:"a named source says its name" "[console.test] named-line" out;
   mem ~msg:"application log" "application-line" out;
   mem ~msg:"multiline log keeps physical rows" "╭───╮\n│ x │\n╰───╯\n" out;
   mem ~msg:"warning log" "warning-line" out
@@ -142,14 +146,15 @@ module Report_domains = struct
         Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
             let reporter = Logs.reporter () in
             acknowledged sink over_count continued reporter "worker-first"
-              "worker-first\n";
+              "[console.worker] worker-first\n";
             acknowledged sink over_count continued reporter "worker-second"
-              "worker-first\nworker-second\n"));
+              "[console.worker] worker-first\n[console.worker] worker-second\n"));
     Format.pp_print_flush sink.ppf ();
     Alcotest.(check int)
       "zero foreign accesses to the owned formatter" 0 (Atomic.get sink.foreign);
     Alcotest.(check string)
-      "both complete records" "worker-first\nworker-second\n"
+      "both complete records"
+      "[console.worker] worker-first\n[console.worker] worker-second\n"
       (Buffer.contents sink.buffer);
     Alcotest.(check int) "each log completed once" 2 (Atomic.get over_count);
     Alcotest.(check int)
