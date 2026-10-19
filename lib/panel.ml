@@ -26,7 +26,7 @@ let frame border padding =
   left + right + (2 * padding)
 
 let v ?theme ?border ?title ?subtitle ?(padding = 1) ?width content =
-  let border = Widget.border ?theme ?border ~default:Border.rounded () in
+  let border = Widget.border ?theme ?border () in
   if padding < 0 then invalid_arg "Console.Panel.v: negative padding";
   (match width with
   | Some width when width < frame border padding ->

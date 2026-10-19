@@ -3,10 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let border ?theme ?border ~default () =
-  match border with
-  | Some border -> border
-  | None -> Option.fold ~none:default ~some:Theme.border theme
+let border ?(theme = Theme.unicode) ?border () =
+  match border with Some border -> border | None -> Theme.border theme
 
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)
 let cells = Width.string_width

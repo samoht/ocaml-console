@@ -57,7 +57,7 @@ let v ?theme ?border ?(header_style = Style.bold) columns rows =
       rows
   in
   let columns = Array.of_list columns in
-  let border = Widget.border ?theme ?border ~default:Border.single () in
+  let border = Widget.border ?theme ?border () in
   let c = Border.chars border in
   let widest = List.fold_left (fun n g -> max n (Widget.cells g)) 0 in
   {

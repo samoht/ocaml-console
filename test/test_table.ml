@@ -21,6 +21,16 @@ let test_basic () =
   Alcotest.(check bool) "contains A" true (contains "A" output);
   Alcotest.(check bool) "contains 1" true (contains "1" output)
 
+(* Without a border or a theme, a table is framed as a panel is. *)
+let test_default_border () =
+  let table = Table.(v [ column "A" ] [ [ Span.text "1" ] ]) in
+  let panel = Panel.v (Span.text "1") in
+  let first s = String.sub s 0 (String.index s '\n') in
+  Alcotest.(check string)
+    "top-left corner"
+    (Astring.String.with_range ~len:3 (first (Panel.to_string panel)))
+    (Astring.String.with_range ~len:3 (first (Table.to_string table)))
+
 let test_empty () =
   let table = Table.(v [ column "X" ] []) in
   let output = Table.to_string table in
@@ -424,6 +434,8 @@ let suite =
       Alcotest.test_case "huge minimum narrows to available width" `Quick
         test_huge_min_width;
       Alcotest.test_case "basic" `Quick test_basic;
+      Alcotest.test_case "default border is the panel's" `Quick
+        test_default_border;
       Alcotest.test_case "shrinkable protects column" `Quick
         test_shrinkable_protects_column;
       Alcotest.test_case "string conversion is plain" `Quick

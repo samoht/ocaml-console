@@ -5,10 +5,9 @@
 
 (** What the widgets share. *)
 
-val border :
-  ?theme:Theme.t -> ?border:Border.t -> default:Border.t -> unit -> Border.t
-(** [border] resolves an explicit border, then a theme border, then [default].
-*)
+val border : ?theme:Theme.t -> ?border:Border.t -> unit -> Border.t
+(** [border ~theme ~border ()] is [border] if given, else the border of [theme]
+    (defaults to {!Theme.unicode}). *)
 
 val one_line : Span.t -> Span.t
 (** [one_line s] is [s] with each line feed a space. *)
