@@ -365,15 +365,23 @@ let runs t =
   in
   go [] t
 
+(* Styles and links are closed before each line feed and opened again after
+   it, so that no line leaves them on for what the terminal prints next. *)
 let add_styled buf ~depth t =
   List.iter
     (fun { style; link; text } ->
       let sgr = Style.to_ansi ~depth style in
-      Option.iter (fun uri -> Buffer.add_string buf (osc8_open uri)) link;
-      Buffer.add_string buf sgr;
-      Buffer.add_string buf text;
-      if sgr <> "" then Buffer.add_string buf Style.reset;
-      Option.iter (fun _ -> Buffer.add_string buf osc8_close) link)
+      List.iteri
+        (fun i line ->
+          if i > 0 then Buffer.add_char buf '\n';
+          if line <> "" then begin
+            Option.iter (fun uri -> Buffer.add_string buf (osc8_open uri)) link;
+            Buffer.add_string buf sgr;
+            Buffer.add_string buf line;
+            if sgr <> "" then Buffer.add_string buf Style.reset;
+            Option.iter (fun _ -> Buffer.add_string buf osc8_close) link
+          end)
+        (String.split_on_char '\n' text))
     (runs t)
 
 let render ?depth t =
