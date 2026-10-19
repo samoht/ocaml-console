@@ -1134,9 +1134,16 @@ let test_wrap_preserves_text s n =
   check_eq ~pp:Fmt.Dump.string (without_spaces s)
     (without_spaces (String.concat "" (List.map Span.to_string lines)))
 
+let test_fold_preserves_text s n =
+  let s = adversarial_text s in
+  check_eq ~pp:Fmt.Dump.string (without_spaces s)
+    (without_spaces (String.concat "" (Width.fold (adversarial_width n) s)))
+
 let suite =
   ( "console",
     [
+      test_case "folding preserves non-space text" [ bytes; int ]
+        test_fold_preserves_text;
       test_case "wrapping preserves non-space text" [ bytes; int ]
         test_wrap_preserves_text;
       test_case "Span.wrap accepts arbitrary bytes" [ bytes; int ]
