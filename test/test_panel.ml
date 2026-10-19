@@ -168,9 +168,21 @@ let test_wide_border () =
   Alcotest.(check (list int))
     "all edges respect fixed width" [ 12; 12; 12 ] widths
 
+let test_to_string_width () =
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        ("within 12 cells: " ^ line)
+        true
+        (Span.width (Span.text line) <= 12))
+    (String.split_on_char '\n'
+       (Panel.to_string ~width:12
+          (Panel.v (Span.text "a line longer than twelve cells"))))
+
 let suite =
   ( "panel",
     [
+      Alcotest.test_case "to_string within a width" `Quick test_to_string_width;
       Alcotest.test_case "two-cell border respects fixed width" `Quick
         test_wide_border;
       Alcotest.test_case "styled border" `Quick test_styled_border;

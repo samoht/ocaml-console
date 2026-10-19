@@ -110,9 +110,22 @@ let test_wrap_hang () =
     "clamped" "abcdef\n   gh\n   ij"
     (at_margin 7 (Tree.v (Span.text "abcdef gh ij") []))
 
+let test_to_string_width () =
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        ("within 12 cells: " ^ line)
+        true
+        (Span.width (Span.text line) <= 12))
+    (String.split_on_char '\n'
+       (Tree.to_string ~width:12
+          (Tree.v (Span.text "root")
+             [ Tree.v (Span.text "a label longer than twelve") [] ])))
+
 let suite =
   ( "tree",
     [
+      Alcotest.test_case "to_string within a width" `Quick test_to_string_width;
       Alcotest.test_case "wrapped label hangs" `Quick test_wrap_hang;
       Alcotest.test_case "guide style" `Quick test_guide_style;
       Alcotest.test_case "guides" `Quick test_guides;

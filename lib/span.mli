@@ -83,7 +83,13 @@ val pp : t Fmt.t
 (** [pp] formats a span with its styles and links iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
     formatter's {!Color.val-depth} shows them. Each style that is turned on is
-    turned off after the text it covers. *)
+    turned off after the text it covers, and before each line feed.
+
+    The formatter's margin does not apply: each line is printed whole, and
+    {!truncate} or {!wrap} fit a span to a width first. A line feed is printed
+    as it is, not as a break of the enclosing box, so the box's indentation does
+    not apply to the next line; print a span of several lines on lines of its
+    own, as ["%a@."] does. *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string s] is [s] with its styles and links iff [styled] (defaults to

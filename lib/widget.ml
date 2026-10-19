@@ -36,5 +36,5 @@ let pad n = Span.text (String.make (max 0 n) ' ')
 let pp lines ppf v =
   Span_core.pp_lines ppf (lines ~margin:(Format.pp_get_margin ppf ()) v)
 
-let to_string lines ?styled v =
-  Span_core.string_of_lines ?styled (lines ~margin:max_int v)
+let to_string lines ?styled ?(width = max_int) v =
+  Span_core.string_of_lines ?styled (lines ~margin:width v)

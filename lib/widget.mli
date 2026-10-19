@@ -32,6 +32,11 @@ val pp : (margin:int -> 'a -> Span.t list) -> 'a Fmt.t
     per line, with no line end after the last. *)
 
 val to_string :
-  (margin:int -> 'a -> Span.t list) -> ?styled:bool -> 'a -> string
-(** [to_string lines v] is the [lines] of [v] at its natural width, joined by
-    line feeds, styled iff [styled] (defaults to [false]). *)
+  (margin:int -> 'a -> Span.t list) ->
+  ?styled:bool ->
+  ?width:int ->
+  'a ->
+  string
+(** [to_string lines v] is the [lines] of [v] at a margin of [width] (defaults
+    to [max_int]: its natural width), joined by line feeds, styled iff [styled]
+    (defaults to [false]). *)

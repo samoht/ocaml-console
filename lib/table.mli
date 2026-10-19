@@ -75,8 +75,9 @@ val v :
 (** {1:converting Converting} *)
 
 val to_string : ?styled:bool -> ?width:int -> t -> string
-(** [to_string table] is [table] at its natural width, or at most [width] cells
-    wide if given, with colours iff [styled] (defaults to [false]). *)
+(** [to_string table] is [table] as {!pp} formats it at a margin of [width], or
+    at its natural width without [width], with colours iff [styled] (defaults to
+    [false]). Its lines are joined by line feeds, with none after the last. *)
 
 (** {1:fmt Formatting} *)
 

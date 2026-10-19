@@ -36,9 +36,10 @@ val v :
 
 (** {1:converting Converting} *)
 
-val to_string : ?styled:bool -> t -> string
-(** [to_string panel] is [panel] rendered at its natural width, with ANSI
-    styling iff [styled] (defaults to [false]). *)
+val to_string : ?styled:bool -> ?width:int -> t -> string
+(** [to_string panel] is [panel] as {!pp} formats it at a margin of [width], or
+    at its natural width without [width], with colours iff [styled] (defaults to
+    [false]). Its lines are joined by line feeds, with none after the last. *)
 
 (** {1:fmt Formatting} *)
 

@@ -35,6 +35,7 @@ val pp : t Fmt.t
     than the formatter's margin: a label wider than the room the margin leaves
     it wraps, the rest under its text. *)
 
-val to_string : ?styled:bool -> t -> string
-(** [to_string t] is [t] formatted at its natural width, with colours iff
-    [styled] (defaults to [false]). *)
+val to_string : ?styled:bool -> ?width:int -> t -> string
+(** [to_string t] is [t] as {!pp} formats it at a margin of [width], or at its
+    natural width without [width], with colours iff [styled] (defaults to
+    [false]). Its lines are joined by line feeds, with none after the last. *)
