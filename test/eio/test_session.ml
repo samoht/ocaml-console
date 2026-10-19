@@ -205,10 +205,83 @@ let test_setup () =
         [ `None; `Ansi_tty ];
       Console_eio.setup ())
 
+(* Lines logged from nested runs in fibers and from other domains all reach
+   the output, each source's in the order it logged them. *)
+let source = Logs.Src.create "console.concurrent"
+
+let domain_records reporter prefix count =
+  for i = 0 to count - 1 do
+    reporter.Logs.report source Logs.Info
+      ~over:(fun () -> ())
+      (fun () -> ())
+      (fun m -> m "%s%04d" prefix i)
+  done
+
+let records output prefix =
+  List.filter_map
+    (fun line ->
+      Option.map
+        (fun i -> String.sub line i (String.length line - i))
+        (Astring.String.find_sub ~sub:prefix line))
+    (String.split_on_char '\n' output)
+
+let test_concurrent_order () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pool =
+    Eio.Executor_pool.create ~sw ~domain_count:2 (Eio.Stdenv.domain_mgr env)
+  in
+  let count = 20 in
+  let output = Buffer.create 1024 in
+  let ppf = Format.formatter_of_buffer output in
+  let clock = Eio.Stdenv.clock env in
+  Console_eio.run ~clock ~ppf (fun display ->
+      let reporter = Logs.reporter () in
+      let fibers =
+        List.init 2 (fun worker () ->
+            Console_eio.run ~clock (fun nested ->
+                Alcotest.(check bool) "same display" true (nested == display);
+                let task =
+                  Console.Display.task nested ("fiber" ^ string_of_int worker)
+                in
+                for i = 0 to count - 1 do
+                  Console.Display.log task (Fmt.str "event%04d" i);
+                  Eio.Fiber.yield ()
+                done;
+                Console.Display.succeed task))
+      in
+      let domains =
+        List.init 2 (fun worker () ->
+            Eio.Executor_pool.submit_exn pool ~weight:1. (fun () ->
+                domain_records reporter
+                  ("domain" ^ string_of_int worker ^ "_event")
+                  count))
+      in
+      Eio.Fiber.all (fibers @ domains));
+  Format.pp_print_flush ppf ();
+  let output = Buffer.contents output in
+  Alcotest.(check bool)
+    "plain UTF-8" true
+    (String.is_valid_utf_8 output && not (String.contains output '\027'));
+  for worker = 0 to 1 do
+    List.iter
+      (fun prefix ->
+        Alcotest.(check (list string))
+          prefix
+          (List.init count (fun i -> Fmt.str "%s%04d" prefix i))
+          (records output prefix))
+      [
+        "fiber" ^ string_of_int worker ^ ": event";
+        "domain" ^ string_of_int worker ^ "_event";
+      ]
+  done
+
 let suite =
   ( "session",
     [
       Alcotest.test_case "bytewise CRLF and buffer reuse" `Quick test_bytewise;
+      Alcotest.test_case "nested fibers and domains keep their order" `Quick
+        test_concurrent_order;
       Alcotest.test_case "split UTF-8 and buffered second line" `Quick
         test_utf8_split;
       Alcotest.test_case "partial line at EOF is refused" `Quick

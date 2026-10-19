@@ -147,7 +147,7 @@ let open_pty ~sw =
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
    the terminal echoes what is typed once it has. *)
-let session how =
+let session ?(no_color = false) how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
@@ -155,7 +155,10 @@ let session how =
   let child =
     Eio_unix.Process.spawn_unix ~sw
       (Eio.Stdenv.process_mgr env)
-      ~env:[| "TERM=xterm-256color" |]
+      ~env:
+        [|
+          "TERM=xterm-256color"; ("NO_COLOR=" ^ if no_color then "1" else "");
+        |]
       ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
       ~executable:"./teardown.exe" [ "teardown.exe"; how ]
   in
@@ -233,6 +236,42 @@ let test_sigint_teardown () =
   Alcotest.(check bool)
     "SIGINT restores the cursor" true (Vte.cursor_visible vte)
 
+(* However a session ends, text written after it is drawn as on a fresh
+   terminal: at the first column, in the terminal's own colours. *)
+let test_usable_after () =
+  List.iter
+    (fun (how, no_color) ->
+      let _, out, _ = session ~no_color how in
+      let name = Fmt.str "%s%s" how (if no_color then " (NO_COLOR)" else "") in
+      let vte = Vte.create ~rows:24 ~cols:80 () in
+      Vte.feed_string vte out;
+      Alcotest.(check bool)
+        (name ^ ": cursor shown") true (Vte.cursor_visible vte);
+      let y, x = Vte.cursor_pos vte in
+      Alcotest.(check int) (name ^ ": first column") 0 x;
+      Vte.feed_string vte "AFTER";
+      let plain = Vte.create ~rows:1 ~cols:80 () in
+      Vte.feed_string plain "AFTER";
+      let g = Vte.grid vte and reference = Vte.grid plain in
+      let i = Grid.idx g ~x:0 ~y and j = Grid.idx reference ~x:0 ~y:0 in
+      Alcotest.(check (list (float 0.)))
+        (name ^ ": default colours")
+        [
+          Grid.get_fg_r reference j;
+          Grid.get_fg_g reference j;
+          Grid.get_fg_b reference j;
+          Grid.get_bg_r reference j;
+        ]
+        [
+          Grid.get_fg_r g i;
+          Grid.get_fg_g g i;
+          Grid.get_fg_b g i;
+          Grid.get_bg_r g i;
+        ])
+    (List.concat_map
+       (fun how -> [ (how, false); (how, true) ])
+       [ "ok"; "raise"; "cancel"; "exit"; "sigint" ])
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -243,6 +282,8 @@ let test_sigint_secret () =
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "the terminal is usable after every ending" `Quick
+        test_usable_after;
       Alcotest.test_case "SIGINT during a password restores echo" `Quick
         test_sigint_secret;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick

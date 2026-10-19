@@ -22,6 +22,7 @@
   eio.unix
   eio.mock
   eio_main
+  matrix.grid
   matrix.vte
   alcotest
   astring
