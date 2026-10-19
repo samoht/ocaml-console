@@ -51,9 +51,24 @@ let test_predefined () =
     [ "|"; "/"; "-"; "\\"; "|" ]
     (cycle Spinner.ascii 5)
 
+let test_static () =
+  List.iter
+    (fun elapsed ->
+      Alcotest.(check string)
+        "one frame" "*"
+        (Spinner.frame Spinner.static ~elapsed))
+    [ 0.; 0.1; 0.25; 1.; 3600. ]
+
+let test_frames_print () =
+  Alcotest.(check string)
+    "control characters are spaces" "a b"
+    (Spinner.frame (Spinner.v [| "a\027b" |]) ~elapsed:0.)
+
 let suite =
   ( "spinner",
     [
+      Alcotest.test_case "static does not move" `Quick test_static;
+      Alcotest.test_case "frames print" `Quick test_frames_print;
       Alcotest.test_case "empty" `Quick test_empty;
       Alcotest.test_case "frames are copied" `Quick test_frames_are_copied;
       Alcotest.test_case "frame" `Quick test_frame;

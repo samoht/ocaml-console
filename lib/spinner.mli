@@ -5,10 +5,12 @@
 
 (** Animated spinners.
 
-    A spinner is a short cyclic sequence of frames -- braille dots, a spinning
-    ASCII bar, shown beside a task of unknown length. {!Console.Display}
-    animates one per running row, and a {!Theme.t} carries the one a display
-    uses. *)
+    A spinner is a short sequence of frames, such as braille dots or a turning
+    ASCII bar, shown beside a task of unknown length. {!Display} animates one
+    per running row, ten frames a second, and a {!Theme.t} carries the one a
+    display uses. A spinner of one frame, such as {!static}, does not move: a
+    program offers it to users who prefer no animation, through
+    [Theme.v ~spinner:Spinner.static ()]. *)
 
 (** {1:spinners Spinners} *)
 
@@ -16,7 +18,10 @@ type t
 (** The type for spinners: non-empty, cyclic sequences of frames. *)
 
 val v : string array -> t
-(** [v frames] is a spinner cycling [frames] left to right.
+(** [v frames] is a spinner that shows [frames] in order, from the first to the
+    last and then from the first again, one frame each [1 / fps] seconds of
+    {!frame}. A frame is drawn on one line: a control character in it is a
+    space. Changing [frames] after the call does not change the spinner.
 
     @raise Invalid_argument if [frames] is empty. *)
 
@@ -26,6 +31,9 @@ val braille : t
 val ascii : t
 (** [ascii] cycles the four frames [|], [/], [-] and a backslash, for terminals
     or fonts without braille. *)
+
+val static : t
+(** [static] is [v [| "*" |]]: a spinner that does not move. *)
 
 (** {1:frames Frames} *)
 

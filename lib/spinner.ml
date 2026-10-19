@@ -9,11 +9,12 @@ let pp ppf t = Fmt.pf ppf "spinner[%d frames]" (Array.length t)
 
 let v frames =
   if Array.length frames = 0 then invalid_arg "Console.Spinner.v: no frames";
-  Array.copy frames
+  Array.map (Console_text.sanitize ~keep_newlines:false) frames
 
 let braille = [| "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "⠏" |]
 
 let ascii = [| "|"; "/"; "-"; "\\" |]
+let static = [| "*" |]
 
 let frame ?(fps = 10.) t ~elapsed =
   if (not (Float.is_finite fps)) || fps <= 0. then

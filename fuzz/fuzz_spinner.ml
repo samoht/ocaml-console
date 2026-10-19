@@ -6,7 +6,7 @@
 open Alcobar
 open Console
 
-(* A spinner shows one of its frames at any time, the first one before time
+(* A spinner shows one of its frames, as the text it prints, at any time, the first one before time
    starts or when it is not finite; an empty spinner and a non-positive or
    non-finite rate are refused. *)
 let test_frame frames elapsed fps =
@@ -14,6 +14,7 @@ let test_frame frames elapsed fps =
   | _ -> fail "empty spinner accepted"
   | exception Invalid_argument _ -> ());
   let t = Spinner.v frames in
+  let frames = Array.map (Console_text.sanitize ~keep_newlines:false) frames in
   let fps_ok = Float.is_finite fps && fps > 0. in
   match Spinner.frame ~fps t ~elapsed with
   | f ->
