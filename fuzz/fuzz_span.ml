@@ -166,9 +166,51 @@ let test_multiline_resets s =
       check (String.ends_with ~suffix:"\027[0m" l))
     (String.split_on_char '\n' raw)
 
+let test_linked_unicode_cuts s n =
+  let line = Console_text.sanitize ~keep_newlines:false s in
+  let source =
+    Span.(
+      styled Style.bold "\u{754c}\u{1f1eb}\u{1f1f7}"
+      ++ link ~style:(Style.fg Color.red) ~uri:"https://example.invalid"
+           ("\u{1f469}\u{200d}\u{1f4bb}" ^ line)
+      ++ styled Style.underline "e\u{0301}\u{2764}\u{fe0f}")
+  in
+  let w = n mod 80 in
+  let fitted = Span.truncate w source in
+  let raw = Span.to_string ~styled:true fitted in
+  check (String.is_valid_utf_8 raw);
+  check (Span.width fitted <= w);
+  let escapes =
+    Re.compile
+      (Re.alt
+         [
+           Re.seq
+             [
+               Re.str "\027[";
+               Re.rep (Re.alt [ Re.rg '0' '9'; Re.char ';' ]);
+               Re.char 'm';
+             ];
+           Re.seq [ Re.str "\027]8;;"; Re.rep (Re.rg ' ' '~'); Re.str "\027\\" ];
+         ])
+  in
+  let stripped = Re.replace_string escapes ~by:"" raw in
+  check_eq ~pp:Fmt.Dump.string (Span.to_string fitted) stripped;
+  let occurrences needle =
+    let re = Re.compile (Re.str needle) in
+    List.length (Re.all re raw)
+  in
+  check_eq ~pp:Fmt.int
+    (occurrences "\027]8;;https://example.invalid\027\\")
+    (occurrences "\027]8;;\027\\");
+  let vte = Vte.create ~rows:1 ~cols:81 () in
+  Vte.feed_string vte raw;
+  check_eq ~pp:Fmt.int (Span.width fitted) (snd (Vte.cursor_pos vte))
+
 let suite =
   ( "span",
     [
+      test_case "linked Unicode cuts fit and keep complete escapes"
+        [ bytes; uint8 ] test_linked_unicode_cuts;
       test_case "multiline styles reset before LF" [ bytes ]
         test_multiline_resets;
       test_case "every span prints" [ bytes ] test_sanitized;
