@@ -1,21 +1,20 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
 (** Progress rows for work that takes time.
 
     A display shows one row for each task still running, with a spinner or a
-    progress bar, and redraws those rows in place. When a task ends, or logs a
-    line, that line is printed once above the rows and stays on the screen. When
-    the output is not a terminal, such as a pipe or a CI log, nothing is
-    redrawn: each of those lines is printed in turn, and the header line comes
-    last, as a summary.
+    progress bar, and redraws those rows in place: they are its {e live region},
+    at the bottom of the terminal's normal output. When a task ends, or logs a
+    line, that line is printed once above the region and stays in the
+    scrollback. When the output is not a terminal, such as a pipe or a CI log,
+    nothing is redrawn: each of those lines is printed in turn, and the header
+    comes last, as a summary.
 
-    [Console_eio.run] opens a display and passes it to a function; the display
-    closes when the function returns.
-    {b Output during a display goes through {!with_output}}, so that it is not
-    mixed with the rows being redrawn.
+    [Console_eio.run] opens a display, passes it to a function and closes it
+    when the function returns; most programs need nothing else.
 
     {[
     let build display =
@@ -25,13 +24,27 @@
       Console.Display.succeed step
     ]}
 
-    The lines a display prints start with a mark that says what they are:
+    The lines a display prints start with a mark ({!Theme.mark}) that says what
+    they are: how a task ended, the level of a log line, and in the header
+    whether work is still running and how it ended.
 
-    - [=>], [!!] and [--] for a task that succeeded, failed or was cancelled;
-    - [#], [!] and [x] for an information, a warning and an error line;
-    - in the header, [[-]] while tasks run, then [[+]], [[x]] or [[~]] when all
-      succeeded, one failed or one was cancelled, followed by the count of tasks
-      that ended out of those started, such as [(2/3)]. *)
+    {1:guarantees Guarantees}
+
+    On a terminal of [w] columns and [h] rows:
+    - no line the display draws in its region is wider than [w], so none wraps,
+      and the region is never taller than [h - 1] lines;
+    - each change is written in one piece: the region is never shown half erased
+      or half drawn, and only the region's rows change between two of its
+      frames;
+    - a redraw that would change nothing writes nothing;
+    - a label cut to fit is cut between two characters, never inside an escape
+      code, ends with an ellipsis and turns its style off;
+    - the counts, rates and timers of all rows sit in the same columns, whatever
+      the width of the labels;
+    - after a resize the old frame is erased, counting the rows a terminal that
+      reflows its lines gives it;
+    - the cursor is hidden while the display runs and shown again when it
+      closes, and every line the display prints ends with a line feed. *)
 
 (** {1:layout Row layout} *)
 
@@ -41,14 +54,14 @@ module Line : sig
   (** The type for the pieces of a row. *)
 
   val spinner : piece
-  (** [spinner] is the spinner, and the task's ending mark once it ends. *)
+  (** [spinner] is the spinner. *)
 
   val label : piece
   (** [label] is the task's label. It takes the room the other pieces leave, and
-      loses words from its end when there is not enough. *)
+      is cut to it with an ellipsis. *)
 
   val bar : int -> piece
-  (** [bar width] is a progress bar [width] cells wide.
+  (** [bar width] is a progress bar [width] cells wide, between brackets.
 
       @raise Invalid_argument if [width] is negative. *)
 
@@ -64,10 +77,10 @@ module Line : sig
 
   val elapsed : piece
   (** [elapsed] is the time since the task started, such as [6.4s], [1m05s] or
-      [1h02m]. *)
+      [1h02m], right-aligned in a column of its own. *)
 
   val text : string -> piece
-  (** [text s] is [s] as it is. *)
+  (** [text s] is [s] on one line. *)
 
   val accent : string -> piece
   (** [accent s] is [s] in the row's colour. *)
@@ -86,8 +99,8 @@ module Line : sig
         if [pieces] has more than one {!label} or {!spacer}. *)
 
   val default : t
-  (** [default] is a spinner, the label, a bar, the count, the rate and the
-      elapsed time. *)
+  (** [default] is a spinner, the label, a spacer, a bar, the count, the rate
+      and the elapsed time. *)
 end
 
 (** {1:displays Displays} *)
@@ -95,26 +108,62 @@ end
 type t
 (** The type for displays. *)
 
+val v :
+  ?theme:Theme.t ->
+  ?layout:Line.t ->
+  ?header:string ->
+  ?size:(unit -> int * int) ->
+  now:(unit -> float) ->
+  Format.formatter ->
+  t
+(** [v ~now ppf] is a display writing on [ppf] and timed by the clock [now], in
+    seconds.
+
+    - [size], if given, says that [ppf] is a terminal and gives its width and
+      height, read again before each redraw: the display hides the cursor and
+      redraws its rows in place. Without it the display prints lines in turn.
+    - [header], if given, names the work on a line above the rows.
+    - [theme] (defaults to {!Theme.unicode}) gives the colours and marks, and
+      [layout] (defaults to {!Line.default}) the pieces of each row.
+
+    The display is in colour iff [ppf]'s style renderer is [`Ansi_tty], at
+    [ppf]'s {!Color.depth}. *)
+
+val redraw : t -> unit
+(** [redraw display] draws the region again, so that the spinners turn and the
+    timers run. A driver calls it a few times a second; the display redraws
+    itself when its tasks change, at most ten times a second. *)
+
 val with_output : t -> (Format.formatter -> 'a) -> 'a
-(** [with_output display f] takes the rows off the screen, calls [f] with the
-    display's formatter, as wide as the terminal, and draws the rows again below
-    what [f] printed. Ask questions ([Console_eio.Prompt]) and print widgets
-    this way while the display runs. *)
+(** [with_output display f] takes the region off the screen, calls [f] with the
+    display's formatter, as wide as the terminal, and draws the region again
+    below what [f] printed, also when [f] raises. *)
+
+val message : ?level:[ `Info | `Warning | `Error ] -> t -> string -> unit
+(** [message display text] prints each line of [text] above the region, after
+    the mark of [level] unless [level] is [`Info] (the default). *)
 
 val set_result :
   ?detail:string -> t -> [ `Ok of string | `Fail of string ] -> unit
 (** [set_result display result] says how the work ended: when [display] closes,
     it prints [result]'s message after a success or failure mark, and [detail]
-    (if any) dim above it. With [`Ok] the tasks still running succeed, with
+    (if any) faint above it. With [`Ok] the tasks still running succeed, with
     [`Fail] they are cancelled. A second call does nothing. *)
+
+val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
+(** [close display] ends the tasks still running, as [running] says (defaults to
+    [`Succeed]), takes the region off the screen, shows the cursor and prints
+    the header, then the result of {!set_result}. Closing a closed display does
+    nothing. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
 
 (** {1:tasks Tasks}
 
-    Every function below raises [Invalid_argument] when the display has closed.
-*)
+    Every function below, and {!redraw}, {!with_output}, {!message} and
+    {!set_result}, raises [Invalid_argument] when the display has closed. A task
+    that ended ignores what it is told, but its {!log}. *)
 
 type task
 (** The type for tasks. *)
@@ -131,8 +180,8 @@ val task :
     space). It shows a spinner until {!set_count} or {!set_bytes} says how much
     work it has.
 
-    - [key], if given, names the task: a later call with the same [key] returns
-      the same task, wherever it is called from.
+    - [key], if given, names the task: while it runs, a later call with the same
+      [key] returns the same task, wherever it is called from.
     - [parent], if given, draws the task under [parent]. A task started under a
       parent that ended takes the parent's ending.
     - [log_lines] is how many of the task's latest {!log} lines are shown under
@@ -164,11 +213,12 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
 
 val log :
   ?level:[ `Info | `Warning | `Error ] -> ?keep:bool -> task -> string -> unit
-(** [log task text] prints each line of [text] as a line of [task], marked by
-    [level] (defaults to [`Info]). Its latest lines show under the task's row
-    while the task runs, and each one is printed above the rows once it leaves
-    them. A line that does not fit the terminal under the row loses words from
-    its end.
+(** [log task text] prints each line of [text] as a line of [task], after the
+    mark of [level] (defaults to [`Info]). Its latest lines show under the
+    task's row while the task runs, and each one is printed above the region
+    once it leaves it. Without a terminal, each line is printed at once, after
+    the label of its task. A line that does not fit the terminal under the row
+    is cut with an ellipsis.
 
     With [~keep:false] (defaults to [true]) a line only shows under the row and
     is never printed above it, for output that is only worth watching while it
@@ -186,142 +236,3 @@ val fail : ?message:string -> task -> unit
 
 val cancel : ?message:string -> task -> unit
 (** [cancel task] is like {!succeed} but ends [task] as cancelled. *)
-
-(**/**)
-
-type ctx
-(** The type for where a display draws. *)
-
-val ctx :
-  ?depth:Color.depth ->
-  ppf:Format.formatter ->
-  now:(unit -> float) ->
-  wait:(float -> unit) ->
-  dimensions:(unit -> int * int) ->
-  live:bool ->
-  unit ->
-  ctx
-(** [ctx ~ppf ~now ~wait ~dimensions ~live ()] is where a display draws: on
-    [ppf], with the clock [now] and [wait], in a terminal of [dimensions], with
-    rows redrawn in place iff [live], in colours of [depth] (defaults to
-    [`True_color]). A driver such as [Console_eio], and the tests, make it. *)
-
-val run :
-  ctx:ctx ->
-  ?theme:Theme.t ->
-  ?layout:Line.t ->
-  ?header:string ->
-  (t -> 'a) ->
-  'a
-(** [run ~ctx f] is [f display] for a display on [ctx]. When [f] returns, the
-    tasks still running succeed; when it raises, they are cancelled and the
-    exception is raised again.
-
-    @raise Invalid_argument if a display is already running. *)
-
-val event : ?level:[ `Info | `Warning | `Error ] -> t -> string -> unit
-(** [event display text] prints each line of [text] above the rows. *)
-
-val tick : t -> unit
-(** [tick display] redraws the rows. *)
-
-val now : t -> float
-(** [now display] is the time on [display]'s clock. *)
-
-val wait : t -> float -> unit
-(** [wait display s] returns once [display]'s clock has moved by [s]. *)
-
-val restore : unit -> unit
-(** [restore ()] shows the cursor again if a display hid it. *)
-
-module Event : sig
-  type level = [ `Info | `Warning | `Error ]
-  (** The type for levels. *)
-
-  type outcome = [ `Succeeded | `Failed | `Cancelled ]
-  (** The type for task endings. *)
-
-  type result = [ `Ok | `Fail ]
-  (** The type for results. *)
-
-  type kind =
-    [ `Message of level
-    | `Started
-    | `Log of level
-    | `Finished of outcome
-    | `Result of result ]
-  (** The type for what an event says. *)
-
-  type t
-  (** The type for events. *)
-
-  val elapsed : t -> float
-  (** [elapsed e] is the seconds from the display's start to [e]. *)
-
-  val task : t -> int option
-  (** [task e] is the number of the task of [e], if any. *)
-
-  val key : t -> string option
-  (** [key e] is the key of the task of [e], if any. *)
-
-  val path : t -> string list
-  (** [path e] are the labels of the task of [e] and of those above it. *)
-
-  val kind : t -> kind
-  (** [kind e] is what [e] says. *)
-
-  val message : t -> string
-  (** [message e] is the text of [e]. *)
-
-  val detail : t -> string option
-  (** [detail e] is the detail of a result, if any. *)
-
-  val pp : t Fmt.t
-  (** [pp] formats an event for diagnostics. *)
-end
-
-module Activity : sig
-  type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
-  (** The type for how far a task is. *)
-
-  type item
-  (** The type for running tasks. *)
-
-  val id : item -> int
-  (** [id i] is the number of [i]. *)
-
-  val key : item -> string option
-  (** [key i] is the key of [i], if any. *)
-
-  val parent : item -> int option
-  (** [parent i] is the number of the task above [i], if any. *)
-
-  val label : item -> string
-  (** [label i] is the label of [i]. *)
-
-  val progress : item -> progress
-  (** [progress i] is how far [i] is. *)
-
-  val elapsed : item -> float
-  (** [elapsed i] is the seconds since [i] started. *)
-
-  val logs : item -> Event.t list
-  (** [logs i] are the lines shown under [i], oldest first. *)
-
-  type t
-  (** The type for the running tasks of a display. *)
-
-  val items : t -> item list
-  (** [items a] are the tasks of [a], in the order they started. *)
-
-  val pp : t Fmt.t
-  (** [pp] formats running tasks for diagnostics. *)
-end
-
-val history : t -> Event.t list
-(** [history display] is every event of [display], oldest first. *)
-
-val activity : t -> Activity.t
-(** [activity display] is the tasks of [display] still running. *)
-
-(**/**)

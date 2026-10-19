@@ -57,7 +57,10 @@ let test_fixed_width_truncates () =
   let rendered = Panel.to_string panel |> String.split_on_char '\n' in
   Alcotest.(check int) "three lines" 3 (List.length rendered);
   List.iter
-    (fun line -> Alcotest.(check int) "fixed width" 8 (Width.string_width line))
+    (fun line ->
+      Alcotest.(check int)
+        "fixed width" 8
+        (Width.string_width (Console_text.strip line)))
     rendered;
   Alcotest.(check bool)
     "content was clipped" false

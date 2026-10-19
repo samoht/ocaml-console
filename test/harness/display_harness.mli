@@ -1,72 +1,61 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Sessions on a captured surface, for the {!Console.Display} tests. *)
+(** Displays on a captured surface, for the {!Console.Display} tests. *)
 
 open Console
 
 val contains : string -> string -> bool
 (** [contains affix s] is [true] iff [affix] occurs in [s]. *)
 
-val fake_clock : unit -> (unit -> float) * (float -> unit)
-(** [fake_clock ()] is a clock reading zero and a function that advances it. *)
+val clock : unit -> (unit -> float) * (float -> unit)
+(** [clock ()] is a clock reading zero and a function that advances it. *)
 
-val ctx :
-  ?live:bool ->
+val plain :
+  ?header:string ->
+  ?layout:Display.Line.t ->
+  ?theme:Theme.t ->
+  (Display.t -> (float -> unit) -> 'a) ->
+  'a * string
+(** [plain f] is the value of [f display advance] on a display that is not on a
+    terminal, and what it wrote once closed. *)
+
+type term = private {
+  vte : Vte.t;
+  display : Display.t;
+  advance : float -> unit;
+  size : (int * int) ref;
+  chunks : string list ref;  (** Newest first. *)
+}
+(** The type for displays on an emulated terminal: every write the display makes
+    is one chunk fed to [vte]. *)
+
+val terminal :
   ?width:int ->
   ?height:int ->
-  ppf:Format.formatter ->
-  now:(unit -> float) ->
+  ?header:string ->
+  ?layout:Display.Line.t ->
+  ?theme:Theme.t ->
+  ?styled:bool ->
   unit ->
-  Display.ctx
-(** [ctx ~live ~width ~height ~ppf ~now ()] is a context on [ppf] (defaults to
-    not a terminal, 80 by 24). *)
+  term
+(** [terminal ()] is a display on a terminal of [width] by [height] (defaults to
+    40 by 8), in colour iff [styled] (defaults to [false]). *)
 
-val capture :
-  ?header:string ->
-  ?layout:Display.Line.t ->
-  ?theme:Theme.t ->
-  (Display.t -> (float -> unit) -> 'a) ->
-  'a * string
-(** [capture f] is the value of [f] on an appending display over a fake clock,
-    and the output it wrote. *)
+val written : term -> string
+(** [written t] is every byte the display wrote, in order. *)
 
-val capture_live :
-  ?header:string ->
-  ?layout:Display.Line.t ->
-  ?theme:Theme.t ->
-  (Display.t -> (float -> unit) -> 'a) ->
-  'a * string
-(** [capture_live] is like {!capture} on a live display. *)
+val resize : term -> width:int -> height:int -> unit
+(** [resize t ~width ~height] resizes the terminal and its emulator. *)
+
+val screen : term -> string list
+(** [screen t] are the rows of the screen, trailing blanks removed. *)
+
+val lines : term -> string list
+(** [lines t] are the scrollback and screen rows, trailing blanks and blank rows
+    at the bottom removed. *)
 
 val check_invalid : string -> (unit -> unit) -> unit
 (** [check_invalid msg f] checks that [f ()] raises [Invalid_argument msg]. *)
-
-val mib : int -> int64
-(** [mib n] is [n] MiB in bytes. *)
-
-val gib : int -> int64
-(** [gib n] is [n] GiB in bytes. *)
-
-val terminal_run :
-  ?height:int ->
-  ?width:int ->
-  ?header:string ->
-  ?layout:Display.Line.t ->
-  (Display.t -> (float -> unit) -> (unit -> unit) -> Vte.t -> unit) ->
-  Vte.t
-(** [terminal_run f] runs [f display advance sync vte] on a live display
-    (defaults to 40 by 8) whose output feeds the emulator [vte], and is [vte]
-    after the session closed. [sync ()] ticks the display and feeds the
-    emulator. *)
-
-val terminal_rows : Vte.t -> string list
-(** [terminal_rows vte] are the scrollback and screen rows of [vte]. *)
-
-val trailing : int -> string -> string
-(** [trailing n row] are the last [n] bytes of [row]. *)
-
-val screen_rows : Vte.t -> string list
-(** [screen_rows vte] are the screen rows of [vte], trailing blanks removed. *)

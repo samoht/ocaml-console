@@ -70,7 +70,6 @@ let test_codes () =
   check "palette background" "48;5;42" (Color.to_bg_code (Color.palette 42))
 
 let color = Alcotest.testable Color.pp Color.equal
-let env pairs name = List.assoc_opt name pairs
 
 let depth =
   Alcotest.testable
@@ -82,19 +81,19 @@ let depth =
         | `True_color -> "true colour"))
     ( = )
 
-let test_depth_of_env () =
-  let check label expected pairs =
-    Alcotest.check depth label expected (Color.depth_of_env (env pairs))
-  in
-  check "COLORTERM truecolor" `True_color
-    [ ("COLORTERM", "truecolor"); ("TERM", "xterm") ];
-  check "COLORTERM 24bit" `True_color [ ("COLORTERM", "24bit") ];
-  check "TERM direct" `True_color [ ("TERM", "xterm-direct") ];
-  check "TERM 256color" `Ansi_256 [ ("TERM", "screen-256color") ];
-  check "other COLORTERM" `Ansi_256
-    [ ("COLORTERM", "yes"); ("TERM", "xterm-256color") ];
-  check "plain xterm" `Ansi_16 [ ("TERM", "xterm") ];
-  check "nothing" `Ansi_16 []
+(* A formatter keeps its own depth, true colour until it is set. *)
+let test_formatter_depth () =
+  let a = Format.formatter_of_buffer (Buffer.create 1) in
+  let b = Format.formatter_of_buffer (Buffer.create 1) in
+  Alcotest.check depth "default" `True_color (Color.depth a);
+  Color.set_depth a `Ansi_256;
+  Fmt.set_style_renderer a `Ansi_tty;
+  Alcotest.check depth "set" `Ansi_256 (Color.depth a);
+  Alcotest.check depth "kept across Fmt's own settings" `Ansi_256
+    (Color.depth a);
+  Color.set_depth a `Ansi_16;
+  Alcotest.check depth "set again" `Ansi_16 (Color.depth a);
+  Alcotest.check depth "another formatter" `True_color (Color.depth b)
 
 (* xterm-256 entries whose RGB values are the palette's own: the cube, the grey
    ramp, and a colour nearer a grey than any cube entry. *)
@@ -161,7 +160,7 @@ let suite =
       Alcotest.test_case "rgb range" `Quick test_rgb_range;
       Alcotest.test_case "invalid constructors" `Quick test_invalid_constructors;
       Alcotest.test_case "ANSI codes" `Quick test_codes;
-      Alcotest.test_case "depth of env" `Quick test_depth_of_env;
+      Alcotest.test_case "formatter depth" `Quick test_formatter_depth;
       Alcotest.test_case "downsample 256" `Quick test_downsample_256;
       Alcotest.test_case "downsample 16" `Quick test_downsample_16;
       Alcotest.test_case "rgb" `Quick test_rgb;

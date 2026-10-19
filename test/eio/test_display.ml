@@ -1,6 +1,5 @@
-(* Console_eio driver. Everything runs in [`History] mode onto a buffer, where
-   each task line, log line and the result banner is emitted as plain text, so
-   the output is deterministic and the escape-code redraw path stays out. *)
+(* Console_eio driver, on a buffer: no terminal, so each task line, log line
+   and the result is printed as plain text. *)
 
 module D = Console.Display
 
@@ -103,12 +102,8 @@ module Report_domains = struct
     Eio_main.run @@ fun env ->
     Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 3. (fun () -> f env)
 
-  let context env sink =
-    Console.Display.ctx ~ppf:sink.ppf
-      ~now:(fun () -> 0.)
-      ~wait:(Eio.Time.sleep (Eio.Stdenv.clock env))
-      ~dimensions:(fun () -> (80, 24))
-      ~live:false ()
+  let run env sink f =
+    Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf:sink.ppf f
 
   let pool env sw =
     Eio.Executor_pool.create ~sw ~domain_count:1 (Eio.Stdenv.domain_mgr env)
@@ -137,27 +132,20 @@ module Report_domains = struct
     let sink = sink ~on_write:Eio.Fiber.yield () in
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
-    let messages =
-      Console_eio.run_on ~ctx:(context env sink) @@ fun display ->
-      Eio.Switch.run @@ fun sw ->
-      Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
-          let reporter = Logs.reporter () in
-          acknowledged sink over_count continued reporter "worker-first"
-            "worker-first\n";
-          acknowledged sink over_count continued reporter "worker-second"
-            "worker-first\nworker-second\n");
-      Console.Display.history display |> List.map Console.Display.Event.message
-    in
+    run env sink (fun _ ->
+        Eio.Switch.run @@ fun sw ->
+        Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
+            let reporter = Logs.reporter () in
+            acknowledged sink over_count continued reporter "worker-first"
+              "worker-first\n";
+            acknowledged sink over_count continued reporter "worker-second"
+              "worker-first\nworker-second\n"));
     Format.pp_print_flush sink.ppf ();
     Alcotest.(check int)
       "zero foreign accesses to the owned formatter" 0 (Atomic.get sink.foreign);
     Alcotest.(check string)
       "both complete records" "worker-first\nworker-second\n"
       (Buffer.contents sink.buffer);
-    Alcotest.(check (list string))
-      "both semantic history records"
-      [ "worker-first"; "worker-second" ]
-      messages;
     Alcotest.(check int) "each log completed once" 2 (Atomic.get over_count);
     Alcotest.(check int)
       "each continuation acknowledged once" 2 (Atomic.get continued);
@@ -177,7 +165,7 @@ module Report_domains = struct
     in
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
-    Console_eio.run_on ~ctx:(context env sink) (fun _ ->
+    run env sink (fun _ ->
         Eio.Switch.run @@ fun sw ->
         Alcotest.check_raises "actual output refusal reaches the worker"
           (Failure "owner sink refused") (fun () ->
@@ -198,9 +186,7 @@ module Report_domains = struct
     with_runtime @@ fun env ->
     let sink = sink () in
     let previous = Logs.reporter () in
-    let reporter =
-      Console_eio.run_on ~ctx:(context env sink) (fun _ -> Logs.reporter ())
-    in
+    let reporter = run env sink (fun _ -> Logs.reporter ()) in
     Alcotest.check_raises "captured reporter names its closed scope"
       (Invalid_argument "Console_eio: the display reporter is closed")
       (fun () -> send reporter "late");
@@ -233,7 +219,7 @@ module Report_domains = struct
     let previous = Logs.reporter () in
     let worker = ref None and continued = Atomic.make 0 in
     let run () =
-      Console_eio.run_on ~ctx:(context env sink) (fun _ ->
+      run env sink (fun _ ->
           worker :=
             Some
               (Eio.Executor_pool.submit_fork ~sw:outer workers ~weight:1.

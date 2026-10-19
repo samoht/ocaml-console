@@ -1,100 +1,67 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+let contains affix s = Astring.String.is_infix ~affix s
 let with_clock f = Eio_main.run @@ fun env -> f (Eio.Stdenv.clock env)
 
-let test_run_returns_without_cursor_restore_on_non_tty () =
+let buffer () =
+  let buf = Buffer.create 64 in
+  (buf, Format.formatter_of_buffer buf)
+
+let test_run_returns () =
   with_clock (fun clock ->
-      let buf = Buffer.create 64 in
-      let ppf = Format.formatter_of_buffer buf in
+      let buf, ppf = buffer () in
       let result = Console_eio.run ~clock ~ppf (fun _display -> 42) in
       Format.pp_print_flush ppf ();
       Alcotest.(check int) "result" 42 result;
-      Alcotest.(check string) "no cursor restore" "" (Buffer.contents buf))
+      Alcotest.(check string) "nothing on a pipe" "" (Buffer.contents buf))
 
-let test_run_exception_without_cursor_restore_on_non_tty () =
+let test_run_raises () =
   with_clock (fun clock ->
-      let buf = Buffer.create 64 in
-      let ppf = Format.formatter_of_buffer buf in
+      let buf, ppf = buffer () in
       Alcotest.check_raises "propagates" (Failure "boom") (fun () ->
-          Console_eio.run ~clock ~ppf (fun _display -> failwith "boom"));
+          Console_eio.run ~clock ~ppf (fun display ->
+              ignore (Console.Display.task display "doomed");
+              failwith "boom"));
       Format.pp_print_flush ppf ();
-      Alcotest.(check string) "no cursor restore" "" (Buffer.contents buf))
+      Alcotest.(check bool)
+        "the running task is cancelled" true
+        (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
-let test_nested_run_reuses_the_existing_display () =
+let test_nested_run_reuses_the_display () =
   with_clock (fun clock ->
-      let buf = Buffer.create 128 in
-      let ppf = Format.formatter_of_buffer buf in
+      let buf, ppf = buffer () in
       Console_eio.run ~clock ~ppf (fun outer ->
           Console_eio.run ~clock (fun inner ->
               Alcotest.(check bool) "same display" true (outer == inner);
-              let task = Console.Display.task inner "nested work" in
-              Console.Display.succeed task));
+              Console.Display.succeed (Console.Display.task inner "nested work")));
       Format.pp_print_flush ppf ();
       Alcotest.(check bool)
-        "nested task uses outer output" true
-        (String.starts_with ~prefix:"=> nested work" (Buffer.contents buf)))
+        "nested task uses the outer output" true
+        (String.starts_with ~prefix:"\xe2\x9c\x93 nested work"
+           (Buffer.contents buf)))
 
-(* A caller that grades its own live region hands [run_on] the context
-   instead of letting [run] build one. What proves the handed context was
-   used, rather than rebuilt from stdout and the machine clock, is the elapsed
-   time: no real clock reads 1.3s over work that takes none, and no default
-   formatter puts the line in this buffer. *)
-let test_run_on_takes_the_callers_context () =
-  Eio_main.run @@ fun _env ->
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  let now = ref 0. in
-  let ctx =
-    Console.Display.ctx ~ppf
-      ~now:(fun () -> !now)
-      ~wait:(fun _ -> Eio.Fiber.await_cancel ())
-      ~dimensions:(fun () -> (24, 10))
-      ~live:false ()
-  in
-  Console_eio.run_on ~ctx (fun display ->
-      let task = Console.Display.task display "step" in
-      now := 1.3;
-      Console.Display.succeed task);
-  Format.pp_print_flush ppf ();
-  Alcotest.(check string)
-    "the caller's formatter and the caller's clock" "=> step  1.3s\n"
-    (Buffer.contents buf)
-
-(* The context's clock is the display's only one: the refresh waits through
-   the context, and what the display reads as now is that clock's reading. The
-   clock here advances only when it is waited on, so a refresh paced by any
-   other clock leaves it at zero and records no wait. *)
-let test_run_on_waits_on_the_contexts_clock () =
-  Eio_main.run @@ fun _env ->
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  let now = ref 0. in
-  let waits = ref [] in
-  let wait seconds =
-    waits := seconds :: !waits;
-    now := !now +. seconds;
-    Eio.Fiber.yield ()
-  in
-  let ctx =
-    Console.Display.ctx ~ppf
-      ~now:(fun () -> !now)
-      ~wait
-      ~dimensions:(fun () -> (24, 10))
-      ~live:false ()
-  in
-  let read =
-    Console_eio.run_on ~ctx (fun display ->
-        for _ = 1 to 3 do
-          Eio.Fiber.yield ()
-        done;
-        Console.Display.now display)
-  in
-  Alcotest.(check (list (float 0.)))
-    "the refresh waited on the context's clock, once before the body and once \
-     on each of its yields"
-    [ 0.12; 0.12; 0.12; 0.12 ] (List.rev !waits);
-  Alcotest.(check (float 0.))
-    "the display reads that clock"
-    (0.12 +. 0.12 +. 0.12 +. 0.12)
-    read
+(* A display that is not this fiber's is refused, and the one that runs is
+   not disturbed. *)
+let test_second_display_refused () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let started, start = Eio.Promise.create () in
+      let finish, finished = Eio.Promise.create () in
+      Eio.Fiber.both
+        (fun () ->
+          Console_eio.run ~clock ~ppf (fun _ ->
+              Eio.Promise.resolve start ();
+              Eio.Promise.await finish))
+        (fun () ->
+          Eio.Promise.await started;
+          Alcotest.check_raises "refused"
+            (Invalid_argument "Console_eio.run: a display is already running")
+            (fun () -> Console_eio.run ~clock ~ppf ignore);
+          Eio.Promise.resolve finished ());
+      Console_eio.run ~clock ~ppf ignore)
 
 let with_env bindings f =
   let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
@@ -102,146 +69,163 @@ let with_env bindings f =
   Fun.protect f ~finally:(fun () ->
       List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
-(* The width of a display on a descriptor with no terminal behind it. *)
-let width () =
-  Eio_main.run @@ fun env ->
-  let ppf = Format.formatter_of_buffer (Buffer.create 16) in
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf (fun display ->
-      Console.Display.with_output display (fun ppf ->
-          Format.pp_get_margin ppf ()))
-
 let test_dimensions_read_the_environment () =
-  if Unix.isatty Unix.stdout then Alcotest.skip ();
-  let check msg columns expected =
+  let check msg columns lines expected =
     with_env
-      [ ("COLUMNS", columns) ]
-      (fun () -> Alcotest.(check int) msg expected (width ()))
+      [ ("COLUMNS", columns); ("LINES", lines) ]
+      (fun () ->
+        Alcotest.(check (pair int int)) msg expected (Terminal.dimensions None))
   in
-  check "the exported width" "123" 123;
-  check "a narrow width taken" "10" 10;
-  check "zero is no answer" "0" 80;
-  check "nor is none" "" 80
+  check "the exported size" "123" "40" (123, 40);
+  check "a small size" "10" "2" (10, 2);
+  check "zero is no answer" "0" "0" (80, 24);
+  check "nor is none" "" "" (80, 24)
 
-(* Under a terminal [run] takes SIGINT, to give the cursor back before the
-   process dies of it, and on return gives back the handler it displaced. A
-   program whose Ctrl-C is its own affair installs its handler under [run]
-   and keeps it past [run]'s return, as a run that must answer a Ctrl-C after
-   its display has closed does: what [run] restores is the handler it found,
-   and only where its own still stands. The terminal is a pseudo-terminal put
-   on stdout for the span of the case. *)
-let handler_installed_under_run (_ : int) = ()
-let handler_installed_before_run (_ : int) = ()
-
-let is handler = function
-  | Sys.Signal_handle f -> f == handler
-  | Sys.Signal_default | Sys.Signal_ignore -> false
-
-let test_a_handler_installed_under_run_outlives_it () =
-  Eio_main.run @@ fun env ->
-  Eio.Switch.run @@ fun sw ->
-  let pty =
-    match Eio_unix.Pty.open_pty ~sw () with
-    | pty -> pty
-    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-        Alcotest.skip ()
+(* The rules of cmdliner and fmt, and the depth the environment announces. *)
+let test_colour_rules () =
+  let env pairs name = List.assoc_opt name pairs in
+  let renderer ~is_tty pairs =
+    match Colour.renderer ~getenv:(env pairs) ~is_tty with
+    | `Ansi_tty -> "ansi"
+    | `None -> "none"
   in
-  (* What the display draws is read and dropped, so no write to the terminal
-     blocks on a full buffer. *)
-  Eio.Fiber.fork_daemon ~sw (fun () ->
-      let buf = Cstruct.create 4096 in
-      let source = Eio_unix.Pty.source pty in
-      (try
-         while true do
-           ignore (Eio.Flow.single_read source buf : int)
-         done
-       with End_of_file | Eio.Io _ -> ());
-      `Stop_daemon);
-  let stdout = Unix.dup Unix.stdout in
-  let before = Sys.signal Sys.sigint Sys.Signal_default in
-  Sys.set_signal Sys.sigint before;
-  let before_term = Sys.signal Sys.sigterm Sys.Signal_default in
-  Sys.set_signal Sys.sigterm before_term;
-  Fun.protect ~finally:(fun () ->
-      Unix.dup2 stdout Unix.stdout;
-      Unix.close stdout;
-      Sys.set_signal Sys.sigint before;
-      Sys.set_signal Sys.sigterm before_term)
-  @@ fun () ->
-  Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
-      Unix.dup2 tty Unix.stdout);
-  let run f = Console_eio.run ~clock:(Eio.Stdenv.clock env) f in
-  (* The control: [run] takes the terminal, installs a handler of its own and,
-     where nothing replaced it, gives back the one it found. *)
-  Sys.set_signal Sys.sigint (Sys.Signal_handle handler_installed_before_run);
-  run (fun _display ->
-      match Sys.signal Sys.sigint Sys.Signal_default with
-      | Sys.Signal_handle h as own when h != handler_installed_before_run ->
-          Sys.set_signal Sys.sigint own
-      | Sys.Signal_handle _ | Sys.Signal_default | Sys.Signal_ignore ->
-          Alcotest.fail "run installed no handler: stdout is not a terminal");
-  (* A TERM, as [kill] and a supervisor send, ends the process as a Ctrl-C
-     does, and gives the cursor back first the same way. *)
-  run (fun _display ->
-      match Sys.signal Sys.sigterm Sys.Signal_default with
-      | Sys.Signal_handle _ as own -> Sys.set_signal Sys.sigterm own
-      | Sys.Signal_default | Sys.Signal_ignore ->
-          Alcotest.fail "run installed no SIGTERM handler");
-  Alcotest.(check bool)
-    "the TERM disposition run found is back once run returns" true
-    (match Sys.signal Sys.sigterm Sys.Signal_default with
-    | Sys.Signal_default -> true
-    | Sys.Signal_handle _ | Sys.Signal_ignore -> false);
-  Alcotest.(check bool)
-    "the handler run found is back once run returns" true
-    (is handler_installed_before_run (Sys.signal Sys.sigint Sys.Signal_default));
-  run (fun _display ->
-      Sys.set_signal Sys.sigint (Sys.Signal_handle handler_installed_under_run));
-  Alcotest.(check bool)
-    "the handler installed under run still stands after it" true
-    (is handler_installed_under_run (Sys.signal Sys.sigint Sys.Signal_default))
+  let term = ("TERM", "xterm-256color") in
+  let check label expected got = Alcotest.(check string) label expected got in
+  check "terminal" "ansi" (renderer ~is_tty:true [ term ]);
+  check "pipe" "none" (renderer ~is_tty:false [ term ]);
+  check "NO_COLOR" "none" (renderer ~is_tty:true [ term; ("NO_COLOR", "1") ]);
+  check "empty NO_COLOR" "ansi"
+    (renderer ~is_tty:true [ term; ("NO_COLOR", "") ]);
+  check "TERM dumb" "none" (renderer ~is_tty:true [ ("TERM", "dumb") ]);
+  check "TERM empty" "none" (renderer ~is_tty:true [ ("TERM", "") ]);
+  check "TERM unset" "none" (renderer ~is_tty:true []);
+  let depth pairs =
+    match Colour.depth ~getenv:(env pairs) with
+    | `True_color -> "24"
+    | `Ansi_256 -> "256"
+    | `Ansi_16 -> "16"
+  in
+  check "COLORTERM truecolor" "24"
+    (depth [ ("COLORTERM", "truecolor"); ("TERM", "xterm") ]);
+  check "COLORTERM 24bit" "24" (depth [ ("COLORTERM", "24bit") ]);
+  check "TERM direct" "24" (depth [ ("TERM", "xterm-direct") ]);
+  check "TERM 256color" "256" (depth [ ("TERM", "screen-256color") ]);
+  check "other COLORTERM" "256"
+    (depth [ ("COLORTERM", "yes"); ("TERM", "xterm-256color") ]);
+  check "plain xterm" "16" (depth [ ("TERM", "xterm") ]);
+  check "nothing" "16" (depth [])
 
-(* [setup] reads the environment once: NO_COLOR turns stdout's styling off
-   unless --color says otherwise. *)
-let test_setup_reads_the_environment () =
-  let saved name = (name, Sys.getenv_opt name) in
-  let env = List.map saved [ "NO_COLOR"; "TERM"; "COLORTERM" ] in
+(* [setup]'s override is the program's: it wins over the environment. *)
+let test_setup () =
   let restore () =
-    List.iter
-      (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
-      env;
     Fmt.set_style_renderer Fmt.stdout `None;
     Fmt.set_style_renderer Fmt.stderr `None
   in
   Fun.protect ~finally:restore (fun () ->
-      Unix.putenv "NO_COLOR" "1";
-      Unix.putenv "TERM" "xterm-256color";
-      Unix.putenv "COLORTERM" "";
-      Console_eio.setup ~style_renderer:`Ansi_tty ();
+      with_env
+        [ ("NO_COLOR", "1"); ("TERM", "xterm-256color"); ("COLORTERM", "") ]
+        (fun () ->
+          Console_eio.setup ~style_renderer:`Ansi_tty ();
+          Alcotest.(check bool)
+            "--color=always wins over NO_COLOR" true
+            (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
+          Alcotest.(check bool)
+            "the depth of TERM" true
+            (Console.Color.depth Fmt.stdout = `Ansi_256);
+          Console_eio.setup ();
+          Alcotest.(check bool)
+            "NO_COLOR" true
+            (Fmt.style_renderer Fmt.stdout = `None)))
+
+(* {1 On a terminal} *)
+
+let open_pty ~sw =
+  match Eio_unix.Pty.open_pty ~sw () with
+  | pty -> pty
+  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+      Alcotest.skip ()
+
+(* What [teardown.exe how] writes on a terminal, and how it exits. *)
+let teardown how =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  let tty = Eio_unix.Pty.tty pty in
+  let child =
+    Eio_unix.Process.spawn_unix ~sw
+      (Eio.Stdenv.process_mgr env)
+      ~env:[| "TERM=xterm-256color" |]
+      ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
+      ~executable:"./teardown.exe" [ "teardown.exe"; how ]
+  in
+  let clock = Eio.Stdenv.clock env in
+  let written = Buffer.create 256 and buf = Cstruct.create 4096 in
+  let source = Eio_unix.Pty.source pty in
+  let status = ref None in
+  (* Read until the child has exited and nothing more comes. *)
+  let rec drain () =
+    match
+      Eio.Time.with_timeout clock 0.5 (fun () ->
+          Ok (Eio.Flow.single_read source buf))
+    with
+    | Ok n ->
+        Buffer.add_string written (Cstruct.to_string ~len:n buf);
+        drain ()
+    | Error `Timeout -> if Option.is_none !status then drain ()
+    | exception (End_of_file | Eio.Io _) -> ()
+  in
+  Eio.Fiber.both (fun () -> status := Some (Eio.Process.await child)) drain;
+  (Option.get !status, Buffer.contents written)
+
+let hide = "\027[?25l"
+
+let last_cursor s =
+  let rec find i acc =
+    match Astring.String.find_sub ~start:i ~sub:"\027[?25" s with
+    | None -> acc
+    | Some j when j + 5 < String.length s -> find (j + 5) (Some s.[j + 5])
+    | Some _ -> acc
+  in
+  find 0 None
+
+let test_teardown () =
+  List.iter
+    (fun (how, expected) ->
+      let status, out = teardown how in
+      Alcotest.(check bool) (how ^ ": hid the cursor") true (contains hide out);
+      Alcotest.(check (option char))
+        (how ^ ": the cursor is shown last")
+        (Some 'h') (last_cursor out);
       Alcotest.(check bool)
-        "--color wins over NO_COLOR" true
-        (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
-      Console_eio.setup ();
-      Alcotest.(check bool)
-        "NO_COLOR" true
-        (Fmt.style_renderer Fmt.stdout = `None))
+        (how ^ ": printed above the region")
+        true
+        (contains "a line of output" out);
+      let vte = Vte.create ~rows:24 ~cols:80 () in
+      Vte.feed_string vte out;
+      Alcotest.(check int)
+        (how ^ ": the cursor is at the start of a line")
+        0
+        (snd (Vte.cursor_pos vte));
+      Alcotest.(check bool) (how ^ ": exit status") true (status = expected))
+    [
+      ("ok", `Exited 0);
+      ("exit", `Exited 3);
+      ("raise", `Exited 2);
+      ("cancel", `Exited 0);
+    ]
 
 let suite =
   ( "console_eio",
     [
-      Alcotest.test_case "setup reads the environment" `Quick
-        test_setup_reads_the_environment;
-      Alcotest.test_case "run returns without cursor restore on non-tty" `Quick
-        test_run_returns_without_cursor_restore_on_non_tty;
-      Alcotest.test_case "run exception without cursor restore on non-tty"
-        `Quick test_run_exception_without_cursor_restore_on_non_tty;
-      Alcotest.test_case "nested run reuses the existing display" `Quick
-        test_nested_run_reuses_the_existing_display;
-      Alcotest.test_case "run_on takes the caller's context" `Quick
-        test_run_on_takes_the_callers_context;
-      Alcotest.test_case "run_on waits on the context's clock" `Quick
-        test_run_on_waits_on_the_contexts_clock;
+      Alcotest.test_case "run returns" `Quick test_run_returns;
+      Alcotest.test_case "run raises" `Quick test_run_raises;
+      Alcotest.test_case "nested run reuses the display" `Quick
+        test_nested_run_reuses_the_display;
+      Alcotest.test_case "a second display is refused" `Quick
+        test_second_display_refused;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
-      Alcotest.test_case "a handler installed under run outlives it" `Quick
-        test_a_handler_installed_under_run_outlives_it;
+      Alcotest.test_case "colour rules" `Quick test_colour_rules;
+      Alcotest.test_case "setup" `Quick test_setup;
+      Alcotest.test_case "teardown on a terminal" `Quick test_teardown;
     ] )

@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 let usable_width w = if w > 0 then Some w else None
 
 let window_size = function
@@ -41,40 +46,3 @@ let height fd =
 
 let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)
-
-(* Run [f] with a SIGINT and a SIGTERM handler that call [cleanup] before the
-   process dies, so a CTRL-C or a [kill] during a cursor-hidden region still
-   restores the cursor. The handler reinstalls the default disposition and
-   re-raises the signal, so the program still terminates -- with that signal's
-   wait status -- as the user expects. When [f] returns or raises, each handler
-   installed here gives way to the one it replaced; a handler [f] installed in
-   its place is the program's own and stays, since the program that took the
-   signal under a display still answers it once the display is gone. The
-   current handler is read by installing the previous one, so the signals are
-   held for the span of the exchange and delivered to whichever handler stands
-   at its end. *)
-let signals = [ Sys.sigint; Sys.sigterm ]
-
-let on_interrupt cleanup f =
-  let interrupt signum =
-    cleanup ();
-    Sys.set_signal signum Sys.Signal_default;
-    Unix.kill (Unix.getpid ()) signum
-  in
-  let previous =
-    List.map (fun s -> (s, Sys.signal s (Sys.Signal_handle interrupt))) signals
-  in
-  let restore () =
-    let held = Unix.sigprocmask Unix.SIG_BLOCK signals in
-    Fun.protect
-      ~finally:(fun () ->
-        ignore (Unix.sigprocmask Unix.SIG_SETMASK held : int list))
-      (fun () ->
-        List.iter
-          (fun (s, previous) ->
-            match Sys.signal s previous with
-            | Sys.Signal_handle h when h == interrupt -> ()
-            | current -> Sys.set_signal s current)
-          previous)
-  in
-  Fun.protect ~finally:restore f

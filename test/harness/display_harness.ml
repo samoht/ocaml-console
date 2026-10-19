@@ -1,5 +1,5 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
@@ -7,79 +7,69 @@ open Console
 
 let contains affix s = Astring.String.is_infix ~affix s
 
-let fake_clock () =
+let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
-let ctx ?(live = false) ?(width = 80) ?(height = 24) ~ppf ~now () =
-  Display.ctx ~ppf ~now ~wait:ignore
-    ~dimensions:(fun () -> (width, height))
-    ~live ()
-
-let capture_on ~live ?header ?layout ?theme f =
+let plain ?header ?layout ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
-  let now, advance = fake_clock () in
-  let value =
-    Display.run ~ctx:(ctx ~live ~ppf ~now ()) ?header ?layout ?theme
-      (fun display -> f display advance)
-  in
+  let now, advance = clock () in
+  let d = Display.v ?header ?layout ?theme ~now ppf in
+  let v = f d advance in
+  Display.close d;
   Format.pp_print_flush ppf ();
-  (value, Buffer.contents buffer)
+  (v, Buffer.contents buffer)
 
-let capture ?header = capture_on ~live:false ?header
+type term = {
+  vte : Vte.t;
+  display : Display.t;
+  advance : float -> unit;
+  size : (int * int) ref;
+  chunks : string list ref;
+}
 
-(* The same session on a live display. [capture] is the appending writer a
-   pipe gets; a terminal gets the live one, which paints its rows and writes
-   what is permanent around them. A result that reaches one and not the
-   other is a result a developer does not get. *)
-let capture_live ?header = capture_on ~live:true ?header
+let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
+    ?(styled = false) () =
+  let buffer = Buffer.create 512 in
+  let vte = Vte.create ~rows:height ~cols:width () in
+  let chunks = ref [] and size = ref (width, height) in
+  let out_string s o l = Buffer.add_substring buffer s o l in
+  let out_flush () =
+    let s = Buffer.contents buffer in
+    Buffer.clear buffer;
+    if s <> "" then begin
+      chunks := s :: !chunks;
+      Vte.feed_string vte s
+    end
+  in
+  let ppf = Format.make_formatter out_string out_flush in
+  if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  let now, advance = clock () in
+  let display =
+    Display.v ?header ?layout ?theme ~size:(fun () -> !size) ~now ppf
+  in
+  { vte; display; advance; size; chunks }
+
+let written t = String.concat "" (List.rev !(t.chunks))
+
+let resize t ~width ~height =
+  t.size := (width, height);
+  Vte.resize t.vte ~rows:height ~cols:width
+
+let rstrip s =
+  let n = ref (String.length s) in
+  while !n > 0 && s.[!n - 1] = ' ' do
+    decr n
+  done;
+  String.sub s 0 !n
+
+let screen t = List.map rstrip (String.split_on_char '\n' (Vte.to_string t.vte))
+
+let lines t =
+  let rows = Vte.scrollback_lines t.vte @ screen t in
+  let rec drop_blank = function "" :: l -> drop_blank l | l -> l in
+  List.rev (drop_blank (List.rev (List.map rstrip rows)))
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
-
-let mib n = Int64.mul (Int64.of_int n) 1048576L
-let gib n = Int64.mul (Int64.of_int n) 1073741824L
-
-let terminal_run ?(height = 8) ?(width = 40) ?header ?layout f =
-  let buffer = Buffer.create 512 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now, advance = fake_clock () in
-  let vte = Vte.create ~rows:height ~cols:width () in
-  let feed () =
-    Format.pp_print_flush ppf ();
-    Vte.feed_string vte (Buffer.contents buffer);
-    Buffer.clear buffer
-  in
-  Display.run ~ctx:(ctx ~live:true ~width ~height ~ppf ~now ()) ?header ?layout
-    (fun display ->
-      (* What a reader sees: the driver's tick has painted the snapshot. *)
-      let sync () =
-        Display.tick display;
-        feed ()
-      in
-      f display advance sync vte;
-      sync ());
-  feed ();
-  vte
-
-let terminal_rows vte =
-  Vte.scrollback_lines vte @ String.split_on_char '\n' (Vte.to_string vte)
-
-(* The trailing cells of a row as the terminal received them: its last
-   [columns] columns, which are the count cell, two spaces and the elapsed
-   cell. Bytes are columns here -- a bar glyph or a wide label sits further
-   left, and a count pair and a span are ASCII. *)
-let trailing columns row =
-  let n = String.length row in
-  if n < columns then row else String.sub row (n - columns) columns
-
-(* The rows of a terminal as a reader sees them, blanks trimmed off the right. *)
-let screen_rows vte =
-  String.split_on_char '\n' (Vte.to_string vte)
-  |> List.map (fun row ->
-      let n = ref (String.length row) in
-      while !n > 0 && row.[!n - 1] = ' ' do
-        decr n
-      done;
-      String.sub row 0 !n)

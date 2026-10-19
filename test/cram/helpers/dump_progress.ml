@@ -4,19 +4,17 @@
 
 let () =
   let now = ref 0. in
-  let ctx =
-    Console.Display.ctx ~ppf:Format.std_formatter
+  let display =
+    Console.Display.v ~header:"Processing"
       ~now:(fun () -> !now)
-      ~wait:ignore
-      ~dimensions:(fun () -> (80, 24))
-      ~live:false ()
+      Format.std_formatter
   in
-  Console.Display.run ~ctx ~header:"Processing" (fun display ->
-      let step name =
-        let task = Console.Display.task display name in
-        now := !now +. 0.1;
-        Console.Display.succeed task
-      in
-      step "foo.ml";
-      step "bar.ml";
-      step "baz.ml")
+  let step name =
+    let task = Console.Display.task display name in
+    now := !now +. 0.1;
+    Console.Display.succeed task
+  in
+  step "foo.ml";
+  step "bar.ml";
+  step "baz.ml";
+  Console.Display.close display

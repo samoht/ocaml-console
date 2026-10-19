@@ -12,51 +12,51 @@ whatever else was running:
 
   $ COLUMNS=70 LINES=20 frames.exe
   --- tree with one node + a log ---
-  [-] Build 0.0s (0/1)
+  • Build 0.0s (0/1)
   ⠋ app                                                             0.0s
-    # planning
+    › planning
   --- two children, each streaming logs ---
-  [-] Build 0.0s (0/3)
+  • Build 0.0s (0/3)
   ⠋ app                                                             0.0s
-    # planning
+    › planning
     ├── ⠋ resolve                                                   0.0s
-    │   # fetch index
+    │   › fetch index
     └── ⠋ compile                                                   0.0s
-        # cc a.o
-        # cc b.o
+        › cc a.o
+        › cc b.o
   --- resolve finished (committed), siblings still live ---
-    │   # fetch index
-    => resolve                                                      0.0s
-  [-] Build 0.0s (1/3)
+      › fetch index
+    ✓ resolve                                                       0.0s
+  • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
-    # planning
+    › planning
     └── ⠋ compile                                                   0.0s
-        # cc a.o
-        # cc b.o
+        › cc a.o
+        › cc b.o
   --- more logs after the row closed ---
-    │   # fetch index
-    => resolve                                                      0.0s
-        # cc a.o
-  [-] Build 0.0s (1/3)
+      › fetch index
+    ✓ resolve                                                       0.0s
+      › cc a.o
+  • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
-    # planning
-    # still working
+    › planning
+    › still working
     └── ⠋ compile                                                   0.0s
-        # cc b.o
-        # cc c.o
-        # link
+        › cc b.o
+        › cc c.o
+        › link
   --- all finished ---
-    │   # fetch index
-    => resolve                                                      0.0s
-        # cc a.o
-        # cc b.o
-        # cc c.o
-        # link
-    => compile                                                      0.0s
-    # planning
-    # still working
-  => app                                                            0.0s
-  [+] Build 0.0s (3/3)
+      › fetch index
+    ✓ resolve                                                       0.0s
+      › cc a.o
+      › cc b.o
+      › cc c.o
+      › link
+    ✓ compile                                                       0.0s
+    › planning
+    › still working
+  ✓ app                                                             0.0s
+  ✓ Build 0.0s (3/3)
 
 On a short terminal the live region would not fit. Rather than let a redraw
 scroll a stale copy into the scrollback (which reads as a duplicated row), the
@@ -65,46 +65,46 @@ what was hidden:
 
   $ COLUMNS=70 LINES=8 frames.exe
   --- tree with one node + a log ---
-  [-] Build 0.0s (0/1)
+  • Build 0.0s (0/1)
   ⠋ app                                                             0.0s
-    # planning
+    › planning
   --- two children, each streaming logs ---
-  [-] Build 0.0s (0/3)
-    ... (2 more lines)
+  • Build 0.0s (0/3)
+    … 2 more lines
   ⠋ app                                                             0.0s
     ├── ⠋ resolve                                                   0.0s
     └── ⠋ compile                                                   0.0s
-        # cc a.o
-        # cc b.o
+        › cc a.o
+        › cc b.o
   --- resolve finished (committed), siblings still live ---
-    │   # fetch index
-    => resolve                                                      0.0s
-  [-] Build 0.0s (1/3)
+      › fetch index
+    ✓ resolve                                                       0.0s
+  • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
-    # planning
+    › planning
     └── ⠋ compile                                                   0.0s
-        # cc a.o
-        # cc b.o
+        › cc a.o
+        › cc b.o
   --- more logs after the row closed ---
-    │   # fetch index
-    => resolve                                                      0.0s
-        # cc a.o
-  [-] Build 0.0s (1/3)
-    ... (2 more lines)
+      › fetch index
+    ✓ resolve                                                       0.0s
+      › cc a.o
+  • Build 0.0s (1/3)
+    … 2 more lines
   ⠋ app                                                             0.0s
     └── ⠋ compile                                                   0.0s
-        # cc b.o
-        # cc c.o
-        # link
+        › cc b.o
+        › cc c.o
+        › link
   --- all finished ---
-    │   # fetch index
-    => resolve                                                      0.0s
-        # cc a.o
-        # cc b.o
-        # cc c.o
-        # link
-    => compile                                                      0.0s
-    # planning
-    # still working
-  => app                                                            0.0s
-  [+] Build 0.0s (3/3)
+      › fetch index
+    ✓ resolve                                                       0.0s
+      › cc a.o
+      › cc b.o
+      › cc c.o
+      › link
+    ✓ compile                                                       0.0s
+    › planning
+    › still working
+  ✓ app                                                             0.0s
+  ✓ Build 0.0s (3/3)

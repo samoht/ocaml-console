@@ -2,21 +2,13 @@
  (name console)
  (public_name console)
  (libraries console.text fmt matrix.glyph)
- ; Low-level ANSI, formatter conversion and widget resolution
- ; helpers, and the pieces of Display. None is part of the public API.
  (private_modules
-  ansi
   widget
   width
-  display_activity
-  display_ctx
-  display_event
   display_line
-  display_projection
+  display_region
   display_row
   display_state
-  display_summary
-  display_term
   display_text
   inked))
 

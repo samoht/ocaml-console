@@ -1,4 +1,4 @@
 (cram
  (applies_to :whole_subtree)
- (deps helpers/dump_progress.exe helpers/frames.exe helpers/teardown.exe)
+ (deps helpers/dump_progress.exe helpers/frames.exe)
  (setup_scripts helpers.sh))

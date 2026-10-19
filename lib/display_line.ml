@@ -1,5 +1,5 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
@@ -15,7 +15,7 @@ type piece =
   | Accent of string
   | Spacer
 
-type t = { pieces : piece list; color : Color.t }
+type t = piece list
 
 let spinner = Spinner
 let label = Label
@@ -28,21 +28,21 @@ let percent = Percent
 let count = Count
 let rate = Rate
 let elapsed = Elapsed
-let text s = Text (Display_text.sanitize s)
-let accent s = Accent (Display_text.sanitize s)
+let text s = Text (Display_text.clean s)
+let accent s = Accent (Display_text.clean s)
 let spacer = Spacer
 let is_label = function Label -> true | _ -> false
 let is_spacer = function Spacer -> true | _ -> false
 
 let v pieces =
+  (* A row has one flexible piece of each kind: the label that gives way and
+     the spacer that pushes what follows to the right edge. *)
   let count is = List.length (List.filter is pieces) in
   if count is_label > 1 then
     invalid_arg "Console.Display.Line.v: more than one label";
   if count is_spacer > 1 then
     invalid_arg "Console.Display.Line.v: more than one spacer";
-  { pieces; color = Color.cyan }
-
-let with_color color t = { t with color }
+  pieces
 
 let pp_piece ppf = function
   | Spinner -> Fmt.string ppf "spinner"
@@ -56,7 +56,7 @@ let pp_piece ppf = function
   | Accent s -> Fmt.pf ppf "accent %S" s
   | Spacer -> Fmt.string ppf "spacer"
 
-let pp ppf t = Fmt.(Dump.list pp_piece) ppf t.pieces
+let pp = Fmt.Dump.list pp_piece
 
 let default =
   v

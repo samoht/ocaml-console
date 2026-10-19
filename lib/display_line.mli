@@ -1,5 +1,5 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
@@ -16,13 +16,14 @@ type piece =
   | Percent  (** The completion percentage. *)
   | Count  (** The count pair, in the display's count cell. *)
   | Rate  (** The transfer rate of a byte-counting task. *)
-  | Elapsed  (** The timer, in its {!Display_text.elapsed_cell}. *)
+  | Elapsed  (** The timer, in its {!Display_text.duration_cells}. *)
   | Text of string  (** A sanitized literal. *)
   | Accent of string  (** A sanitized literal in the accent colour. *)
   | Spacer  (** Flexible space. *)
 
-type t = { pieces : piece list; color : Color.t }
-(** The type for layouts: pieces and an accent colour. *)
+type t = piece list
+(** The type for layouts, at most one {!constructor-Label} and one
+    {!constructor-Spacer}. *)
 
 val is_label : piece -> bool
 (** [is_label p] is [true] iff [p] is {!constructor-Label}. *)
@@ -54,23 +55,19 @@ val elapsed : piece
 (** [elapsed] is {!constructor-Elapsed}. *)
 
 val text : string -> piece
-(** [text s] is {!constructor-Text} of [s] {!Display_text.sanitize}d. *)
+(** [text s] is {!constructor-Text} of [s] {!Display_text.clean}d. *)
 
 val accent : string -> piece
-(** [accent s] is {!constructor-Accent} of [s] {!Display_text.sanitize}d. *)
+(** [accent s] is {!constructor-Accent} of [s] {!Display_text.clean}d. *)
 
 val spacer : piece
 (** [spacer] is {!constructor-Spacer}. *)
 
 val v : piece list -> t
-(** [v pieces] is the layout [pieces] with accent {!Color.cyan}, which a display
-    replaces with its theme's.
+(** [v pieces] is the layout [pieces].
 
     @raise Invalid_argument if [pieces] has more than one {!label} or {!spacer}.
 *)
-
-val with_color : Color.t -> t -> t
-(** [with_color c l] is [l] with accent [c]. *)
 
 val pp : t Fmt.t
 (** [pp] formats a layout for diagnostics, in an unspecified format. *)

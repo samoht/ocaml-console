@@ -1,9 +1,12 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
 type metric = Spin | Count of int * int | Bytes of int64 * int64
+type outcome = [ `Succeeded | `Failed | `Cancelled ]
+type level = [ `Info | `Warning | `Error ]
+type log = { gap : float; level : level; message : string; kept : bool }
 
 let count_text = function
   | Spin -> ""
@@ -23,130 +26,111 @@ let count_width metric =
   max (String.length (count_text metric)) (String.length (count_text full))
 
 type t = {
-  dppf : Format.formatter;
-  plain : bool;
-  styling : bool;
-  depth : Color.depth;
+  ppf : Format.formatter;
+  size : (unit -> int * int) option;
+  depth : Color.depth option;
   now : unit -> float;
-  wait : float -> unit;
-  dimensions : unit -> int * int;
   header : string option;
-  default_style : Display_line.t;
+  layout : Display_line.t;
   theme : Theme.t;
-  palette : Color.t list;
-  dstart : float;
+  palette : Color.t array;
+  start : float;
   mutable width : int;
   mutable height : int;
-  mutable rows : row list;
+  running : row Queue.t;
+  mutable stale : int;
   mutable count_cell : int;
   by_key : (string, row) Hashtbl.t;
-  mutable events_rev : Display_event.t list;
-  mutable next_task_id : int;
-  mutable pending :
-    ([ `Ok of string | `Fail of string ] * string option) option;
+  mutable next_id : int;
+  mutable started : int;
   mutable finished : int;
-  mutable live_height : int;
-  mutable last_lines : string list;
+  mutable failed : int;
+  mutable cancelled : int;
+  mutable result : ([ `Ok of string | `Fail of string ] * string list) option;
+  mutable frame : string array;
+  mutable frame_widths : int array;
   mutable painted_at : float;
-  mutable torn_down : bool;
-  mutable claimed : bool;
+  mutable closed : bool;
   mutable suspended : int;
 }
 
-and row_log = {
-  ltime : float;
-  lgap : float;
-  llevel : Display_event.level;
-  lmessage : string;
-  lkept : bool;
-}
-
 and row = {
-  rid : int;
-  rkey : string option;
+  id : int;
+  key : string option;
   disp : t;
   parent : row option;
-  style : Display_line.t;
+  color : Color.t;
   log_lines : int;
-  mutable logs : row_log list;
-  mutable log_prev_t : float;
-  mutable rlabel : string;
+  logs : log Queue.t;
+  mutable log_prev : float;
+  mutable label : string;
   mutable metric : metric;
   transient : bool;
-  mutable swept : bool;
-  rstart : float;
-  mutable rfinish : float option;
-  mutable rmessage : string option;
-  mutable routcome : Display_event.outcome option;
+  started_at : float;
+  mutable ended_at : float option;
+  mutable message : string option;
+  mutable outcome : outcome option;
+  mutable children : row list;
+  mutable child_limit : int;
   mutable last_cur : int64;
   mutable last_t : float;
   mutable rate : float;
 }
 
 let pp ppf t =
-  Fmt.pf ppf "<display %dx%d %d/%d rows%s>" t.width t.height t.finished
-    (List.length t.rows)
-    (if t.torn_down then " torn-down" else "")
+  Fmt.pf ppf "<display %dx%d %d/%d tasks%s>" t.width t.height t.finished
+    t.started
+    (if t.closed then " closed" else "")
 
-(* Every SGR the display adds passes through these, so one answer decides
-   colour for the whole surface. They shadow the unconditional {!Ansi} forms on
-   purpose: a call site that reaches past them is a second answer. *)
-let color_code t c = Ansi.color_code (Color.downsample t.depth c)
-let code t sequence = if t.styling then sequence else ""
-let styled t sequence s = if t.styling then Ansi.styled sequence s else s
-let dimmed t s = if t.styling then Ansi.dimmed s else s
+let is_live t = Option.is_some t.size
+let is_running r = r.ended_at = None
 
-let rec task_path r =
-  match r.parent with
-  | None -> [ r.rlabel ]
-  | Some parent -> task_path parent @ [ r.rlabel ]
+let elapsed r =
+  match r.ended_at with
+  | Some f -> f -. r.started_at
+  | None -> r.disp.now () -. r.started_at
 
-let elapsed t row =
-  match row.rfinish with
-  | Some f -> f -. row.rstart
-  | None -> t.now () -. row.rstart
+let rec depth r = match r.parent with None -> 0 | Some p -> 1 + depth p
 
-let rec depth = function None -> 0 | Some r -> 1 + depth r.parent
-let indent row = String.make (2 * depth row.parent) ' '
+(* Finished rows stay in [running] until they are as many as the running
+   ones, then all go at once: a row is taken out in amortised constant time,
+   and the queue holds at most twice the rows that run. *)
+let compact t =
+  if t.stale > Queue.length t.running / 2 then begin
+    let keep = Queue.create () in
+    Queue.iter (fun r -> if is_running r then Queue.add r keep) t.running;
+    Queue.clear t.running;
+    Queue.transfer keep t.running;
+    t.stale <- 0
+  end
 
-let siblings t row =
-  List.filter
+let running_rows t =
+  Queue.fold (fun acc r -> if is_running r then r :: acc else acc) [] t.running
+  |> List.rev
+
+let running_children r = List.filter is_running r.children
+
+(* For each running row, in order: whether it is the last running row under
+   its parent, and the same for each of its ancestors, innermost first. Rows
+   start after their parent, so one pass forward sees each parent first. *)
+let lasts rows =
+  let last = Hashtbl.create 16 in
+  let parent_id r = match r.parent with None -> -1 | Some p -> p.id in
+  List.iter
     (fun r ->
-      match (r.parent, row.parent) with
-      | Some a, Some b -> a == b
-      | None, None -> true
-      | _ -> false)
-    t.rows
-
-let is_last_child t row =
-  match List.rev (siblings t row) with last :: _ -> last == row | [] -> true
-
-let rec lasts_path t row =
-  let own = is_last_child t row in
-  match row.parent with None -> [ own ] | Some p -> lasts_path t p @ [ own ]
-
-let nested_lasts t row =
-  match lasts_path t row with _ :: rest -> rest | [] -> []
-
-let guide_prefix t row =
-  match row.parent with
-  | None -> ""
-  | Some _ ->
-      "  " ^ Tree.prefix ~guide:(Theme.guide t.theme) (nested_lasts t row)
-
-let continuation t row =
-  let g = Theme.guide t.theme in
-  "  "
-  ^ String.concat ""
-      (List.map
-         (fun is_last -> if is_last then Guide.space g else Guide.pipe g)
-         (nested_lasts t row))
-
-let children r =
-  List.filter
-    (fun child ->
-      match child.parent with Some parent -> parent == r | None -> false)
-    r.disp.rows
-
-let running_children r =
-  List.filter (fun child -> child.rfinish = None) (children r)
+      if not (Hashtbl.mem last (parent_id r)) then
+        Hashtbl.add last (parent_id r) r.id)
+    (List.rev rows);
+  let flags = Hashtbl.create 16 in
+  List.map
+    (fun r ->
+      let own = Hashtbl.find last (parent_id r) = r.id in
+      let above =
+        match r.parent with
+        | None -> []
+        | Some p -> Option.value (Hashtbl.find_opt flags p.id) ~default:[]
+      in
+      let l = own :: above in
+      Hashtbl.replace flags r.id l;
+      (r, l))
+    rows

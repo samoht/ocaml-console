@@ -1,7 +1,12 @@
-(** Terminal geometry, tty detection and signals.
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
 
-    Eio has no [isatty], termios or signal handling, so those are the smallest
-    wrappers over Unix and [Sys]; the window size is Eio's. *)
+(** Terminal geometry and tty detection.
+
+    Eio has no [isatty], so that is the smallest wrapper over Unix; the window
+    size is Eio's. *)
 
 val width : Eio_unix.Fd.t option -> int
 (** [width fd] is the width in columns of the terminal behind [fd]: the first
@@ -17,14 +22,3 @@ val is_tty : Eio_unix.Fd.t -> bool
 
 val dimensions : Eio_unix.Fd.t option -> int * int
 (** [dimensions fd] is [(width fd, height fd)]. *)
-
-val on_interrupt : (unit -> unit) -> (unit -> 'a) -> 'a
-(** [on_interrupt cleanup f] runs [f] with a SIGINT and a SIGTERM handler that
-    call [cleanup] and then re-raise the signal under the default handler, so a
-    CTRL-C or a [kill] still terminates the process but [cleanup] runs first --
-    the hook a cursor-hidden region uses to show the cursor again before
-    exiting, since the default handler terminates before any [Fun.protect]
-    finaliser would run. When [f] returns or raises, the handler installed here
-    gives way to the one it replaced, so nested calls each put back what they
-    found; a handler [f] installed in its place is the program's own and is left
-    standing. *)

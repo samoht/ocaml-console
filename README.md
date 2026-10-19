@@ -164,9 +164,9 @@ let build display =
 ```ocaml
 # Eio_main.run @@ fun env ->
   Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build;;
-  # compiled parser.ml
-=> compile  2/2  0.0s
-[+] Building 0.0s (1/1)
+  › compile: compiled parser.ml
+✓ compile  2/2  0.0s
+✓ Building 0.0s (1/1)
 - : unit = ()
 ```
 

@@ -21,7 +21,7 @@ let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
       if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
 
-let v ?interactive ?(ppf = Fmt.stdout) stdin =
+let v ?interactive ?(ppf = Fmt.stderr) stdin =
   let terminal = terminal stdin in
   let interactive =
     Option.value interactive ~default:(Option.is_some terminal)
@@ -37,7 +37,8 @@ let interactive t = t.interactive
 
 let line t question =
   if not t.interactive then Error (`Msg "no terminal to ask on")
-  else begin
+  else
+    Session.with_terminal @@ fun () ->
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
     Fmt.pf t.ppf "%s%!" question;
@@ -54,7 +55,6 @@ let line t question =
     | exception End_of_file -> Error (`Msg "no answer: the input ended")
     | exception Eio.Buf_read.Buffer_limit_exceeded ->
         Error (`Msg "no answer: the line is too long")
-  end
 
 let confirm t question =
   match line t (question ^ " [y/N] ") with
@@ -93,11 +93,11 @@ let secret t question =
   | Some _ when not t.interactive -> Error (`Msg "no terminal to ask on")
   | Some fd -> (
       try
+        Session.with_terminal @@ fun () ->
         Eio_unix.Fd.use_exn "secret" fd @@ fun fd ->
         let original = Unix.tcgetattr fd in
         let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
         Fmt.pf t.ppf "%s%!" question;
-        Terminal.on_interrupt restore @@ fun () ->
         Fun.protect ~finally:restore @@ fun () ->
         Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
         read_masked t (Console.Input.v ~mask:"*" ())

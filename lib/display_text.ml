@@ -1,33 +1,32 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+let units = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB" |]
+
 let bytes n =
-  let units = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB" |] in
   let rec pick i v =
-    if v < 1024. || i = Array.length units - 1 then (v, units.(i))
+    if v < 1024. || i = Array.length units - 1 then (v, i)
     else pick (i + 1) (v /. 1024.)
   in
-  let v, u = pick 0 (Int64.to_float n) in
-  if u = "B" then Fmt.str "%.0f %s" v u else Fmt.str "%.2f %s" v u
+  let v, i = pick 0 (Float.max 0. (Int64.to_float n)) in
+  if i = 0 then Fmt.str "%.0f B" v else Fmt.str "%.2f %s" v units.(i)
 
-let span secs =
-  if secs < 60. then Fmt.str "%.1fs" (Float.max 0. secs)
+let duration secs =
+  let secs = if Float.is_nan secs then 0. else Float.max 0. secs in
+  if secs < 60. then
+    Fmt.str "%.1fs" (Float.of_int (int_of_float (secs *. 10.)) /. 10.)
   else
-    let s = int_of_float secs in
+    let s = int_of_float (Float.min secs 1e15) in
     if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
     else Fmt.str "%dh%02dm" (s / 3600) (s / 60 mod 60)
 
-(* {!span} is six wide at its widest below a hundred hours ("59m59s",
+(* [duration] is six wide at its widest below a hundred hours ("59m59s",
    "23h59m"). A longer run takes the columns it needs rather than losing a
    digit. *)
-let elapsed_cell = 6
-
-(* Caller text is validated before it participates in width budgeting: a
-   malformed sequence occupies a replacement-glyph cell in real terminals and
-   controls could otherwise inject escapes or desynchronise redraw geometry. *)
-let sanitize = Console_text.sanitize ~keep_newlines:false
+let duration_cells = 6
+let clean = Console_text.sanitize ~keep_newlines:false
 
 let lines s =
   if s = "" then []
@@ -39,7 +38,7 @@ let lines s =
     List.map
       (fun line ->
         let n = String.length line in
-        if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1) else line)
+        clean
+          (if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1)
+           else line))
       lines
-
-let sanitize_multiline s = String.concat "\n" (List.map sanitize (lines s))

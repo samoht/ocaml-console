@@ -3,15 +3,6 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let style_renderer ?renderer ~getenv ~is_tty () =
-  match renderer with
-  | Some renderer -> renderer
-  | None -> (
-      match (getenv "NO_COLOR", getenv "TERM") with
-      | Some value, _ when value <> "" -> `None
-      | _, (None | Some ("" | "dumb")) -> `None
-      | _ -> if is_tty then `Ansi_tty else `None)
-
 module Color = Color
 module Style = Style
 module Span = Span

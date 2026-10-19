@@ -114,14 +114,6 @@ type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
 (** The type for the colours a terminal shows: the 16 named colours, the
     xterm-256 palette, or any 24-bit colour. *)
 
-val depth_of_env : (string -> string option) -> depth
-(** [depth_of_env getenv] is the colour depth the environment [getenv] reads
-    announces:
-    - [`True_color] if [COLORTERM] is [truecolor] or [24bit], or [TERM] ends in
-      [-direct] (the terminfo convention for direct colour);
-    - [`Ansi_256] if [TERM] contains [256color];
-    - [`Ansi_16] otherwise. *)
-
 val depth : Format.formatter -> depth
 (** [depth ppf] is the colour depth of [ppf]: the colours every printer of this
     library writes on [ppf] are {!downsample}d to it. If {!set_depth} has never

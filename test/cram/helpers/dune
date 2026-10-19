@@ -1,3 +1,3 @@
 (executables
- (names dump_progress frames teardown)
+ (names dump_progress frames)
  (libraries console console.vte fmt matrix.vte unix))

@@ -1,106 +1,74 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 module Prompt = Prompt
 
-(* The descriptor a formatter writes to, where the formatter says so by being
-   one of the two the standard library opens on them. *)
+let getenv = Sys.getenv_opt
+let decided = Atomic.make false
+
+let setup ?style_renderer () =
+  let set ppf fd =
+    let renderer =
+      match style_renderer with
+      | Some r -> r
+      | None -> Colour.renderer ~getenv ~is_tty:(Terminal.is_tty fd)
+    in
+    Fmt.set_style_renderer ppf renderer;
+    Console.Color.set_depth ppf (Colour.depth ~getenv)
+  in
+  set Fmt.stdout Eio_unix.Fd.stdout;
+  set Fmt.stderr Eio_unix.Fd.stderr;
+  Atomic.set decided true
+
+(* The descriptor a formatter writes to, when it is one of the two the
+   standard library opens on them. *)
 let descriptor ppf =
   if ppf == Fmt.stdout then Some Eio_unix.Fd.stdout
   else if ppf == Fmt.stderr then Some Eio_unix.Fd.stderr
   else None
 
-(* A region moves the cursor, which a terminal whose TERM is dumb has none of
-   to move. *)
-let region_on fd =
-  Terminal.is_tty fd
-  && not (Option.equal String.equal (Sys.getenv_opt "TERM") (Some "dumb"))
+let terminal ppf =
+  match descriptor ppf with
+  | Some fd when Terminal.is_tty fd && not (Colour.dumb ~getenv) -> Some fd
+  | _ -> None
 
-let live ppf =
-  match descriptor ppf with Some fd -> region_on fd | None -> false
-
-(* The formatters {!setup} configured: their renderer is the caller's answer,
-   even when it is [`None]. *)
-let configured : Format.formatter list Atomic.t = Atomic.make []
-
-let setup ?style_renderer () =
-  let set ppf fd =
-    Fmt.set_style_renderer ppf
-      (Console.style_renderer ?renderer:style_renderer ~getenv:Sys.getenv_opt
-         ~is_tty:(Terminal.is_tty fd) ())
+(* The display writes on a formatter of its own, to the same output as
+   [ppf] and in its colours, so that [ppf] itself can be routed above the
+   region. *)
+let own ppf =
+  let own =
+    Format.formatter_of_out_functions
+      (Format.pp_get_formatter_out_functions ppf ())
   in
-  set Fmt.stdout Eio_unix.Fd.stdout;
-  set Fmt.stderr Eio_unix.Fd.stderr;
-  Atomic.set configured [ Fmt.stdout; Fmt.stderr ]
+  Fmt.set_style_renderer own (Fmt.style_renderer ppf);
+  Console.Color.set_depth own (Console.Color.depth ppf);
+  own
 
-(* The renderer [run] draws [ppf] with when nobody chose one: what {!setup}
-   would choose for the terminal [tty]. [None] keeps the caller's. *)
-let renderer ppf ~tty =
-  if List.memq ppf (Atomic.get configured) || Fmt.style_renderer ppf = `Ansi_tty
-  then None
-  else
-    Some
-      (Console.style_renderer ~getenv:Sys.getenv_opt
-         ~is_tty:(Option.is_some tty) ())
-
-let with_renderer renderer f =
-  match renderer with
-  | None -> f ()
-  | Some (ppf, renderer) ->
-      let old = Fmt.style_renderer ppf in
-      Fmt.set_style_renderer ppf renderer;
-      Fun.protect ~finally:(fun () -> Fmt.set_style_renderer ppf old) f
-
-(* A library may itself be written as a complete Console application and then
-   be called by another Console application.  Re-entering [run] in that case
-   must not try to claim the terminal a second time: the current display is a
-   fiber-local capability, inherited by child fibers, so nested callers simply
-   contribute tasks and events to the outer session. *)
-let current : Console.Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
-
-(* The context [run] builds for the descriptor [ppf] writes to, what gives a
-   terminal there its cursor back when a signal ends the process under the
-   display, and the renderer it draws with. The geometry is that terminal's. *)
-let context ~clock ~ppf =
-  let ppf = Option.value ppf ~default:Fmt.stdout in
-  let tty =
-    match descriptor ppf with
-    | Some fd when Terminal.is_tty fd -> Some fd
-    | Some _ | None -> None
-  in
-  let ctx =
-    Console.Display.ctx
-      ~depth:(Console.Color.depth_of_env Sys.getenv_opt)
-      ~ppf
-      ~now:(fun () -> Eio.Time.now clock)
-      ~wait:(Eio.Time.sleep clock)
-      ~dimensions:(fun () -> Terminal.dimensions tty)
-      ~live:(live ppf) ()
-  in
-  let restore =
-    if Option.is_some tty then Some Console.Display.restore else None
-  in
-  (ctx, restore, Option.map (fun r -> (ppf, r)) (renderer ppf ~tty))
-
-(* Only the outermost call opens a display and asks for its context; a call
-   under it contributes to the display that stands. *)
-let session ~context ?theme ?layout ?header f =
-  match Eio.Fiber.get current with
+let run ~clock ?(ppf = Fmt.stderr) ?theme ?layout ?header f =
+  match Session.find () with
   | Some display -> f display
   | None -> (
-      let ctx, restore, renderer = context () in
-      let run () =
-        with_renderer renderer @@ fun () ->
-        Display.run ~ctx ?theme ?layout ?header (fun display ->
-            Eio.Fiber.with_binding current display (fun () -> f display))
-      in
-      match restore with
-      | None -> run ()
-      | Some restore -> Terminal.on_interrupt restore run)
-
-let run ~clock ?ppf ?theme ?layout ?header f =
-  session ~context:(fun () -> context ~clock ~ppf) ?theme ?layout ?header f
-
-(* A caller that supplies its own context has answered the output, clock,
-   geometry and terminal questions already, and with them the question of who
-   owns the terminal: [run_on] configures none and restores none, because the
-   surface it was handed may not be one. *)
-let run_on ~ctx ?theme ?layout ?header f =
-  session ~context:(fun () -> (ctx, None, None)) ?theme ?layout ?header f
+      if not (Atomic.get decided) then setup ();
+      Session.claim ();
+      let now () = Eio.Time.now clock in
+      match
+        match terminal ppf with
+        | None -> (Console.Display.v ?theme ?layout ?header ~now ppf, [])
+        | Some fd ->
+            let size () = Terminal.dimensions (Some fd) in
+            let display =
+              Console.Display.v ?theme ?layout ?header ~size ~now (own ppf)
+            in
+            let routed =
+              List.filter_map
+                (fun std -> Option.map (fun _ -> std) (terminal std))
+                [ Fmt.stdout; Fmt.stderr ]
+            in
+            (display, routed)
+      with
+      | display, intercept -> Session.run ~clock ~intercept display f
+      | exception e ->
+          Session.release ();
+          raise e)

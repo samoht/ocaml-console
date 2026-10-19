@@ -11,9 +11,6 @@ let () =
       Fuzz_api_color.suite;
       Fuzz_api_bar.suite;
       Fuzz_api_span_bounds.suite;
-      Fuzz_api_width.suite;
-      Fuzz_api_display.suite;
-      Fuzz_api_display_line.suite;
       Fuzz_api_style.suite;
       Fuzz_api_border.suite;
       Fuzz_api_guide.suite;

@@ -1,10 +1,19 @@
-; Exercise the private geometry provider, as the Width tests do.
+; Exercise the private geometry and colour rules, as the Width tests do.
 
 (copy_files ../../lib/eio/terminal.{ml,mli})
 
+(copy_files ../../lib/eio/colour.{ml,mli})
+
+(executable
+ (name teardown)
+ (modules teardown)
+ (libraries console console-eio eio eio_main fmt))
+
 (test
  (name test)
+ (modules :standard \ teardown)
  (package console-eio)
+ (deps teardown.exe)
  (libraries
   console
   console-eio
@@ -13,6 +22,7 @@
   eio.unix
   eio.mock
   eio_main
+  matrix.vte
   alcotest
   astring
   fmt

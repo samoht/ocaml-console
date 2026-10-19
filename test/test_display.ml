@@ -1,288 +1,377 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
 open Console
 open Display_harness
 
-(* A transient row is drawn while it runs and leaves no line when it ends;
-   the history keeps its start and its ending like any row's. *)
-let test_transient_row_leaves_no_line () =
-  let events, output =
-    capture ~header:"Building" (fun display advance ->
-        let live = Display.task ~transient:true display "image assembling" in
-        advance 1.3;
-        Display.set_label live "image assembling: 12 of 31 MB";
-        advance 1.;
-        Display.succeed live;
-        let kept = Display.task display "built" in
-        Display.succeed kept;
-        Display.history display)
+let strings = Alcotest.(list string)
+let check_lines msg expected actual = Alcotest.check strings msg expected actual
+let theme = Theme.dos
+
+(* {1 Without a terminal} *)
+
+let test_plain_lines () =
+  let (), out =
+    plain ~theme ~header:"Building" (fun d advance ->
+        let t = Display.task d "compile" in
+        Display.set_count t ~cur:2 ~total:2;
+        Display.log t "compiled parser.ml";
+        advance 1.5;
+        Display.log ~level:`Warning t "slow";
+        Display.succeed t;
+        Display.message d "done")
   in
-  Alcotest.(check string)
-    "the kept row alone reaches the output"
-    ("=> built  0.0s\n" ^ "[+] Building 2.3s (2/2)\n")
-    output;
-  Alcotest.(check bool)
-    "the history holds both rows' start and ending" true
-    (List.map Display.Event.kind events
-    = [ `Started; `Finished `Succeeded; `Started; `Finished `Succeeded ]);
-  let (), live_output =
-    capture_live ~header:"Building" (fun display advance ->
-        let live = Display.task ~transient:true display "image assembling" in
-        advance 1.3;
-        Display.succeed live)
+  check_lines "lines in turn, the header last"
+    [
+      "  # compile: compiled parser.ml";
+      "  ! compile: slow  +1.5s";
+      "[+] compile  2/2  1.5s";
+      "done";
+      "[+] Building 1.5s (1/1)";
+      "";
+    ]
+    (String.split_on_char '\n' out)
+
+let test_plain_attribution () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let a = Display.task d "a" and b = Display.task d "b" in
+        Display.log a "one";
+        Display.log b "two";
+        Display.log a "three";
+        Display.fail a;
+        Display.cancel b)
   in
-  Alcotest.(check bool)
-    "a terminal commits no line for it either" false
-    (contains "=> image assembling" live_output)
+  check_lines "each line says its task, in order"
+    [
+      "  # a: one";
+      "  # b: two";
+      "  # a: three";
+      "[x] a  0.0s";
+      "[~] b  0.0s";
+      "";
+    ]
+    (String.split_on_char '\n' out)
 
-let test_terminal_operations_are_idempotent () =
-  let events, _ =
-    capture (fun display _ ->
-        let task = Display.task display "once" in
-        Display.succeed task;
-        Display.succeed ~message:"duplicate" task;
-        Display.fail ~message:"too late" task;
-        Display.cancel task;
-        Display.history display)
+let test_plain_sanitizes () =
+  let (), out =
+    plain ~header:"Build\027[2J" (fun d _ ->
+        let task = Display.task d "a\tb" in
+        Display.log task "x\007y";
+        Display.succeed task)
   in
-  Alcotest.(check bool)
-    "first outcome wins" true
-    (List.map Display.Event.kind events = [ `Started; `Finished `Succeeded ]);
-  Alcotest.(check string)
-    "first message wins" "once"
-    (Display.Event.message (List.nth events 1))
+  Alcotest.(check bool) "no escape" false (String.contains out '\027');
+  Alcotest.(check bool) "log text" true (contains "x y" out)
 
-let test_parent_settles_children () =
-  let events, _ =
-    capture (fun display _ ->
-        let parent = Display.task display "parent" in
-        ignore (Display.task ~parent display "child");
-        Display.succeed parent;
-        Display.history display)
+let test_plain_result () =
+  let (), out =
+    plain ~theme ~header:"Work" (fun d _ ->
+        ignore (Display.task d "left running");
+        Display.set_result ~detail:"see the log" d (`Fail "it broke");
+        Display.set_result d (`Ok "changed my mind"))
   in
-  let finished =
-    List.filter_map
-      (fun event ->
-        match Display.Event.kind event with
-        | `Finished outcome -> Some (Display.Event.path event, outcome)
-        | _ -> None)
-      events
+  check_lines "running tasks cancelled, verdict last"
+    [
+      "[~] left running  0.0s";
+      "[x] Work 0.0s (1/1)";
+      "see the log";
+      "[x] it broke";
+      "";
+    ]
+    (String.split_on_char '\n' out)
+
+let test_empty_header_pending () =
+  let t = terminal ~header:"Building" () in
+  Alcotest.(check bool)
+    "pending before any task" true
+    (List.exists (contains "\xe2\x80\xa2 Building 0.0s (0/0)") (screen t));
+  Display.close t.display;
+  Alcotest.(check bool)
+    "succeeded once closed" true
+    (List.exists (contains "\xe2\x9c\x93 Building 0.0s (0/0)") (lines t))
+
+(* {1 On a terminal} *)
+
+let test_region () =
+  let t = terminal ~theme ~width:40 ~header:"Build" () in
+  let a = Display.task t.display "fetch" in
+  let b = Display.task t.display "compile" in
+  Display.set_count b ~cur:1 ~total:4;
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check bool) "header" true (contains "[-] Build" (List.nth rows 0));
+  Alcotest.(check bool) "first row" true (contains "fetch" (List.nth rows 1));
+  Alcotest.(check bool) "second row" true (contains "compile" (List.nth rows 2));
+  Alcotest.(check bool) "its count" true (contains "1/4" (List.nth rows 2));
+  Display.succeed a;
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check bool)
+    "the ended task is above the region" true
+    (String.starts_with ~prefix:"[+] fetch" (List.nth rows 0));
+  Alcotest.(check bool)
+    "header below it" true
+    (contains "[-] Build" (List.nth rows 1));
+  Display.succeed b;
+  Display.close t.display;
+  check_lines "final screen"
+    [
+      "[+] fetch                           0.0s";
+      "[+] compile                  1/4    0.0s";
+      "[+] Build 0.0s (2/2)";
+    ]
+    (lines t);
+  Alcotest.(check bool) "cursor shown" true (contains "\027[?25h" (written t));
+  Alcotest.(check bool) "no CRLF" false (contains "\r\n" (written t))
+
+let test_tail () =
+  let t = terminal ~theme ~width:30 ~height:10 () in
+  let a = Display.task ~log_lines:2 t.display "job" in
+  List.iter (Display.log a) [ "one"; "two"; "three" ];
+  Display.redraw t.display;
+  let rows = screen t in
+  check_lines "the oldest line left the tail, above" [ "  # one"; "job" ]
+    [ List.nth rows 0; String.trim (String.sub (List.nth rows 1) 2 4) ];
+  Alcotest.(check bool) "tail" true (contains "# two" (List.nth rows 2));
+  Alcotest.(check bool) "tail" true (contains "# three" (List.nth rows 3));
+  Display.log ~keep:false a "watch only";
+  Display.succeed a;
+  Display.close t.display;
+  check_lines "every kept line once, then the row"
+    [ "  # one"; "  # two"; "  # three"; "[+] job                   0.0s" ]
+    (lines t)
+
+let test_alignment () =
+  let t = terminal ~theme ~width:40 () in
+  let a = Display.task t.display "\xe7\x95\x8c\xe7\x95\x8c wide" in
+  let b =
+    Display.task t.display "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9 emoji"
   in
-  Alcotest.(check bool)
-    "children first" true
-    (List.equal
-       (fun (path_a, outcome_a) (path_b, outcome_b) ->
-         List.equal String.equal path_a path_b && outcome_a = outcome_b)
-       finished
-       [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ])
-
-let test_failed_parent_cancels_children () =
-  let events, _ =
-    capture (fun display _ ->
-        let parent = Display.task display "parent" in
-        ignore (Display.task ~parent display "child");
-        Display.fail parent;
-        Display.history display)
+  let c = Display.task t.display "plain" in
+  Display.set_count a ~cur:1 ~total:10;
+  Display.set_count b ~cur:10 ~total:100;
+  Display.set_count c ~cur:3 ~total:3;
+  List.iter Display.succeed [ a; b; c ];
+  Display.close t.display;
+  let rows = lines t in
+  let col needle row =
+    let rec find i =
+      if i + String.length needle > String.length row then -1
+      else if String.sub row i (String.length needle) = needle then i
+      else find (i + 1)
+    in
+    let byte = find 0 in
+    Span.width (Span.text (String.sub row 0 byte))
   in
-  let outcomes =
-    List.filter_map
-      (fun event ->
-        match Display.Event.kind event with
-        | `Finished outcome -> Some outcome
-        | _ -> None)
-      events
+  Alcotest.(check (list int))
+    "counts end in one column" [ 32; 32; 32 ]
+    (List.map2
+       (fun n r -> col n r + String.length n)
+       [ "1/10"; "10/100"; "3/3" ]
+       rows);
+  Alcotest.(check (list int))
+    "timers end at the edge" [ 40; 40; 40 ]
+    (List.map (fun r -> col "0.0s" r + 4) rows)
+
+let test_label_truncated () =
+  let t = terminal ~theme ~width:20 () in
+  ignore (Display.task t.display "a label much too long for the row");
+  Display.redraw t.display;
+  let row = List.nth (screen t) 0 in
+  Alcotest.(check bool) "ellipsis" true (contains "\xe2\x80\xa6" row);
+  Alcotest.(check bool) "fits" true (Span.width (Span.text row) <= 20)
+
+let test_capped () =
+  let t = terminal ~theme ~width:30 ~height:5 ~header:"H" () in
+  let tasks =
+    List.init 8 (fun i -> Display.task t.display (Fmt.str "task %d" i))
   in
+  Display.redraw t.display;
+  let rows = List.filter (( <> ) "") (screen t) in
+  Alcotest.(check int) "no taller than the screen less one" 4 (List.length rows);
+  Alcotest.(check bool) "header" true (contains "[-] H" (List.nth rows 0));
+  Alcotest.(check bool) "first task" true (contains "task 0" (List.nth rows 1));
+  Alcotest.(check bool) "marker" true (contains "more lines" (List.nth rows 2));
+  Alcotest.(check bool) "latest task" true (contains "task 7" (List.nth rows 3));
+  List.iter Display.cancel tasks;
+  Display.close t.display
+
+let test_with_output () =
+  let t = terminal ~theme ~width:30 () in
+  let a = Display.task t.display "job" in
+  Display.with_output t.display (fun ppf -> Fmt.pf ppf "hello@.");
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check string) "printed above" "hello" (List.nth rows 0);
+  Alcotest.(check bool) "region below" true (contains "job" (List.nth rows 1));
+  (match Display.with_output t.display (fun _ -> failwith "boom") with
+  | () -> Alcotest.fail "no exception"
+  | exception Failure _ -> ());
+  Display.redraw t.display;
   Alcotest.(check bool)
-    "child cancelled, parent failed" true
-    (outcomes = [ `Cancelled; `Failed ])
+    "region drawn again after a raise" true
+    (List.exists (contains "job") (screen t));
+  Display.succeed a;
+  Display.close t.display
 
-(* What a terminal holds once a row ends while the row under it is still
-   running, read off the emulator rather than off the byte stream: a live region
-   rewrites itself, so counting the writes counts redraws and only the screen
-   says what a reader was left with.
+let test_redraw_idle () =
+  let t = terminal ~theme () in
+  ignore (Display.task t.display "job");
+  Display.redraw t.display;
+  let before = List.length !(t.chunks) in
+  Display.redraw t.display;
+  Display.redraw t.display;
+  Alcotest.(check int) "nothing written" before (List.length !(t.chunks));
+  Display.close t.display
 
-   The screen keeps one line, the one naming the work that ended. The row under
-   it leaves with it and commits nothing, because it never reported an ending of
-   its own and the only sentence the display could write for it would be about
-   its own shape -- which row hung under which. A reader watching a command has
-   no rows and no children in front of them, only work. *)
-let test_a_swept_row_reaches_no_screen () =
-  let (), output =
-    capture_live (fun display _ ->
-        let parent = Display.task display "building partition disk images" in
-        ignore (Display.task ~parent display "no output yet");
-        Display.succeed parent)
+(* A terminal that narrows reflows the old frame onto more rows; the redraw
+   moves up over all of them. *)
+let test_narrowing () =
+  let t = terminal ~theme ~width:40 ~height:8 ~header:"Header" () in
+  ignore (Display.task t.display "job");
+  Display.redraw t.display;
+  t.chunks := [];
+  resize t ~width:20 ~height:8;
+  Display.redraw t.display;
+  (* Two lines of 40 cells take four rows at 20. *)
+  Alcotest.(check bool)
+    "moved up over the reflowed rows" true
+    (contains "\r\027[3A\027[J" (written t));
+  Display.close t.display
+
+let test_height_changes () =
+  let t = terminal ~theme ~width:30 ~height:4 () in
+  let tasks = List.init 5 (fun i -> Display.task t.display (Fmt.str "t%d" i)) in
+  Display.redraw t.display;
+  resize t ~width:30 ~height:10;
+  Display.redraw t.display;
+  resize t ~width:30 ~height:3;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "no line wider than the terminal" true
+    (List.for_all (fun r -> Span.width (Span.text r) <= 30) (screen t));
+  List.iter Display.succeed tasks;
+  Display.close t.display
+
+let test_nested () =
+  let t = terminal ~width:30 ~height:10 () in
+  let p = Display.task t.display "parent" in
+  let c1 = Display.task ~parent:p t.display "one" in
+  let _c2 = Display.task ~parent:p t.display "two" in
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check bool)
+    "branch" true
+    (contains "\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80" (List.nth rows 1));
+  Alcotest.(check bool)
+    "last" true
+    (contains "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80" (List.nth rows 2));
+  Display.succeed c1;
+  Display.fail p;
+  let late = Display.task ~parent:p t.display "late" in
+  Display.succeed late;
+  Display.close t.display;
+  let all = String.concat "\n" (lines t) in
+  Alcotest.(check bool)
+    "parent failed" true
+    (contains "\xe2\x9c\x97 parent" all);
+  Alcotest.(check bool)
+    "the children cancelled with it leave no line" false
+    (contains "two" all || contains "late" all)
+
+let test_keys_and_transient () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let a = Display.task ~key:"k" d "first" in
+        let b = Display.task ~key:"k" d "second" in
+        Alcotest.(check bool) "same task" true (a == b);
+        Display.succeed a;
+        let c = Display.task ~key:"k" d "third" in
+        Alcotest.(check bool) "a new task once it ended" false (a == c);
+        Display.succeed c;
+        Display.succeed (Display.task ~transient:true d "gone"))
   in
-  let vte = Vte.create ~rows:24 ~cols:80 () in
-  Vte.feed_string vte output;
-  let screen = Console_vte.screen ~scrollback:true vte in
-  let line = String.concat "\n" screen in
-  Alcotest.(check bool)
-    "it names the work that ended" true
-    (contains "building partition disk images" line);
-  Alcotest.(check bool)
-    "nothing about the display's own shape" false (contains "parent" line);
-  Alcotest.(check bool)
-    "the swept row wrote nothing" false
-    (contains "no output yet" line);
-  Alcotest.(check int) "one line on the screen" 1 (List.length screen)
+  check_lines "no line for a transient task"
+    [ "[+] first  0.0s"; "[+] third  0.0s"; "" ]
+    (String.split_on_char '\n' out)
 
-let test_task_ownership () =
-  let foreign = ref None in
-  let buffer = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now () = 0. in
-  Display.run ~ctx:(ctx ~ppf ~now ()) (fun first ->
-      let parent = Display.task first "first" in
-      foreign := Some parent;
-      Display.succeed parent);
-  Display.run ~ctx:(ctx ~ppf ~now ()) (fun second ->
-      match !foreign with
-      | None -> Alcotest.fail "foreign task missing"
-      | Some parent ->
-          check_invalid
-            "Console.Display.task: parent belongs to another display" (fun () ->
-              ignore (Display.task ~parent second "second")))
+let test_counts () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let t = Display.task d "count" in
+        Display.set_count t ~cur:5 ~total:10;
+        Display.set_count t ~cur:3 ~total:8;
+        Display.set_count t ~cur:12 ~total:10;
+        Display.succeed t;
+        let b = Display.task d "bytes" in
+        Display.set_bytes b ~cur:1048576L ~total:2097152L;
+        check_invalid "Console.Display.set_count: the task counts bytes"
+          (fun () -> Display.set_count b ~cur:1 ~total:1);
+        Display.succeed b)
+  in
+  check_lines "never back, total raised"
+    [ "[+] count  12/12  0.0s"; "[+] bytes  1.00 MiB / 2.00 MiB  0.0s"; "" ]
+    (String.split_on_char '\n' out)
 
-let test_closed_handles () =
-  let saved = ref None in
-  capture (fun display _ ->
-      let task = Display.task display "saved" in
-      saved := Some task;
-      Display.succeed task)
-  |> ignore;
-  match !saved with
-  | None -> Alcotest.fail "task was not saved"
-  | Some task ->
-      check_invalid "Console.Display.set_label: closed display" (fun () ->
-          Display.set_label task "late")
-
-let test_unfinished_is_succeeded () =
-  let saved = ref None in
-  let buffer = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now () = 0. in
-  Display.run ~ctx:(ctx ~ppf ~now ()) (fun display ->
-      saved := Some display;
-      ignore (Display.task display "forgotten"));
-  match !saved with
-  | None -> Alcotest.fail "display was not saved"
-  | Some display ->
-      let events = Display.history display in
-      Alcotest.(check int) "start and success recorded" 2 (List.length events);
-      Alcotest.(check bool)
-        "success outcome" true
-        (Display.Event.kind (List.hd (List.rev events)) = `Finished `Succeeded)
-
-let test_exception_cancels_and_propagates () =
-  let saved = ref None in
-  let buffer = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now () = 0. in
-  Alcotest.check_raises "original exception" (Failure "boom") (fun () ->
-      Display.run ~ctx:(ctx ~ppf ~now ()) (fun display ->
-          saved := Some display;
-          ignore (Display.task display "doomed");
-          failwith "boom"));
-  match !saved with
-  | None -> Alcotest.fail "display was not saved"
-  | Some display ->
-      Alcotest.(check bool)
-        "cancelled" true
-        (Display.history display
-        |> List.exists (fun event ->
-            Display.Event.kind event = `Finished `Cancelled))
-
-let test_validation () =
+let test_invalid () =
+  let d =
+    Display.v ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
+  in
+  let other =
+    Display.v ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
+  in
+  check_invalid "Console.Display.task: empty key" (fun () ->
+      ignore (Display.task ~key:"" d "x"));
+  check_invalid "Console.Display.task: negative log_lines" (fun () ->
+      ignore (Display.task ~log_lines:(-1) d "x"));
+  check_invalid "Console.Display.task: parent belongs to another display"
+    (fun () -> ignore (Display.task ~parent:(Display.task other "p") d "x"));
+  let t = Display.task d "t" in
+  check_invalid "Console.Display.set_count: negative progress" (fun () ->
+      Display.set_count t ~cur:(-1) ~total:1);
   check_invalid "Console.Display.Line.bar: negative width" (fun () ->
       ignore (Display.Line.bar (-1)));
   check_invalid "Console.Display.Line.v: more than one label" (fun () ->
       ignore Display.Line.(v [ label; label ]));
-  check_invalid "Console.Display.Line.v: more than one spacer" (fun () ->
-      ignore Display.Line.(v [ spacer; spacer ]));
-  capture (fun display _ ->
-      check_invalid "Console.Display.task: negative log_lines" (fun () ->
-          ignore (Display.task ~log_lines:(-1) display "bad"));
-      let task = Display.task display "bounded" in
-      check_invalid "Console.Display.set_count: expected non-negative progress"
-        (fun () -> Display.set_count task ~cur:(-1) ~total:1);
-      check_invalid "Console.Display.set_bytes: expected non-negative progress"
-        (fun () -> Display.set_bytes task ~cur:(-1L) ~total:1L);
-      Display.set_count task ~cur:1 ~total:2;
-      check_invalid "Console.Display.set_bytes: task already tracks count"
-        (fun () -> Display.set_bytes task ~cur:1L ~total:2L);
-      Display.set_result display (`Ok "settled"))
-  |> ignore
+  Display.close d;
+  Display.close d;
+  check_invalid "Console.Display.task: closed display" (fun () ->
+      ignore (Display.task d "late"));
+  check_invalid "Console.Display.log: closed display" (fun () ->
+      Display.log t "late")
 
-(* One display runs at a time: a second one, whatever its mode, is refused,
-   and the first one's ending frees the claim. *)
-let test_one_display_at_a_time () =
-  let buffer = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buffer in
-  let now () = 0. in
-  let c = ctx ~live:true ~ppf ~now () in
-  let refused live =
-    match Display.run ~ctx:(ctx ~live ~ppf ~now ()) ignore with
-    | () -> false
-    | exception Invalid_argument _ -> true
-  in
-  Display.run ~ctx:c (fun _ ->
-      Alcotest.(check bool) "a second live display" true (refused true);
-      Alcotest.(check bool) "a second appending display" true (refused false));
-  Alcotest.(check bool) "free once the first ends" false (refused false)
-
-(* A display draws its colours at the depth its context names: the amber of
-   [Theme.dos] is a 24-bit colour, drawn as its nearest palette entry. *)
-let test_colours_follow_the_depth () =
-  let drawn depth =
-    let buffer = Buffer.create 256 in
-    let ppf = Format.formatter_of_buffer buffer in
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    let ctx =
-      Display.ctx ~depth ~ppf
-        ~now:(fun () -> 0.)
-        ~wait:ignore
-        ~dimensions:(fun () -> (40, 10))
-        ~live:true ()
-    in
-    Display.run ~ctx ~theme:Theme.dos ~header:"Building" (fun display ->
-        ignore (Display.task display "compile");
-        Display.tick display);
-    Format.pp_print_flush ppf ();
-    Buffer.contents buffer
-  in
-  Alcotest.(check bool)
-    "24-bit colour as given" true
-    (contains "38;2;255;176;0" (drawn `True_color));
-  Alcotest.(check bool)
-    "a palette entry at 256 colours" false
-    (contains "38;2;" (drawn `Ansi_256))
+let test_colours () =
+  let t = terminal ~styled:true () in
+  let a = Display.task t.display "job" in
+  Display.fail a;
+  Display.close t.display;
+  let out = written t in
+  Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
+  Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
 let suite =
   ( "display",
     [
-      Alcotest.test_case "colours follow the depth" `Quick
-        test_colours_follow_the_depth;
-      Alcotest.test_case "a transient row leaves no line" `Quick
-        test_transient_row_leaves_no_line;
-      Alcotest.test_case "terminal operations are idempotent" `Quick
-        test_terminal_operations_are_idempotent;
-      Alcotest.test_case "parent settles children" `Quick
-        test_parent_settles_children;
-      Alcotest.test_case "failed parent cancels children" `Quick
-        test_failed_parent_cancels_children;
-      Alcotest.test_case "a swept row reaches no screen" `Quick
-        test_a_swept_row_reaches_no_screen;
-      Alcotest.test_case "task ownership" `Quick test_task_ownership;
-      Alcotest.test_case "closed handles" `Quick test_closed_handles;
-      Alcotest.test_case "unfinished auto-succeeded" `Quick
-        test_unfinished_is_succeeded;
-      Alcotest.test_case "exception cancellation" `Quick
-        test_exception_cancels_and_propagates;
-      Alcotest.test_case "validation" `Quick test_validation;
-      Alcotest.test_case "one display at a time" `Quick
-        test_one_display_at_a_time;
+      Alcotest.test_case "plain lines" `Quick test_plain_lines;
+      Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
+      Alcotest.test_case "plain sanitizes" `Quick test_plain_sanitizes;
+      Alcotest.test_case "plain result" `Quick test_plain_result;
+      Alcotest.test_case "empty live header remains pending" `Quick
+        test_empty_header_pending;
+      Alcotest.test_case "region" `Quick test_region;
+      Alcotest.test_case "tail" `Quick test_tail;
+      Alcotest.test_case "alignment" `Quick test_alignment;
+      Alcotest.test_case "label truncated" `Quick test_label_truncated;
+      Alcotest.test_case "capped" `Quick test_capped;
+      Alcotest.test_case "with_output" `Quick test_with_output;
+      Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
+      Alcotest.test_case "narrowing" `Quick test_narrowing;
+      Alcotest.test_case "height changes" `Quick test_height_changes;
+      Alcotest.test_case "nested" `Quick test_nested;
+      Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;
+      Alcotest.test_case "counts" `Quick test_counts;
+      Alcotest.test_case "invalid" `Quick test_invalid;
+      Alcotest.test_case "colours" `Quick test_colours;
     ] )

@@ -157,7 +157,8 @@ let test_run_failure () =
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "cancelled task" true
-    (Astring.String.is_infix ~affix:"-- interrupted" (Buffer.contents out))
+    (Astring.String.is_infix ~affix:"\xe2\x97\x8b abandoned"
+       (Buffer.contents out))
 
 let test_nested_fiber () =
   Eio_mock.Backend.run @@ fun () ->

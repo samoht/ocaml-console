@@ -120,35 +120,9 @@ let test_sanitize_styles_closes_what_it_opens () =
     "and sanitizing twice changes nothing the first pass did not" (styles s)
     (styles (styles s))
 
-(* no-color.org: a non-empty NO_COLOR turns colour off; an explicit --color
-   wins; TERM unset, empty or dumb is no colour; else a terminal is styled. *)
-let test_style_renderer () =
-  let decide ?renderer ~is_tty pairs =
-    match
-      Console.style_renderer ?renderer
-        ~getenv:(fun name -> List.assoc_opt name pairs)
-        ~is_tty ()
-    with
-    | `Ansi_tty -> "ansi"
-    | `None -> "none"
-  in
-  let term = ("TERM", "xterm-256color") in
-  let check label expected got = Alcotest.(check string) label expected got in
-  check "terminal" "ansi" (decide ~is_tty:true [ term ]);
-  check "pipe" "none" (decide ~is_tty:false [ term ]);
-  check "NO_COLOR" "none" (decide ~is_tty:true [ term; ("NO_COLOR", "1") ]);
-  check "empty NO_COLOR" "ansi" (decide ~is_tty:true [ term; ("NO_COLOR", "") ]);
-  check "TERM dumb" "none" (decide ~is_tty:true [ ("TERM", "dumb") ]);
-  check "TERM empty" "none" (decide ~is_tty:true [ ("TERM", "") ]);
-  check "TERM unset" "none" (decide ~is_tty:true []);
-  check "--color=always" "ansi"
-    (decide ~renderer:`Ansi_tty ~is_tty:false [ ("NO_COLOR", "1") ]);
-  check "--color=never" "none" (decide ~renderer:`None ~is_tty:true [ term ])
-
 let suite =
   ( "console",
     [
-      Alcotest.test_case "style renderer" `Quick test_style_renderer;
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "sanitize" `Quick test_sanitize;
       Alcotest.test_case "sanitize_styles passes SGR" `Quick

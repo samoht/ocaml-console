@@ -122,7 +122,7 @@ let test_auto_appends_on_a_pipe () =
   Alcotest.(check bool)
     "no escape" false
     (Astring.String.is_infix ~affix:"\027[" written);
-  Alcotest.(check string) "the task's line" "=> step  0.0s\n" written
+  Alcotest.(check string) "the task's line" "\xe2\x9c\x93 step  0.0s\n" written
 
 (* Both descriptors are the same terminal; under TERM=xterm-256color the
    region is drawn, under TERM=dumb the display appends. *)
@@ -147,7 +147,7 @@ let test_auto_appends_under_term_dumb () =
     (Astring.String.is_infix ~affix:"\027[" dumb);
   Alcotest.(check bool)
     "the task's line under dumb" true
-    (Astring.String.is_infix ~affix:"=> step  0.0s" dumb)
+    (Astring.String.is_infix ~affix:"\xe2\x9c\x93 step  0.0s" dumb)
 
 (* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
    cursor controls a region is made of are CSIs too, with other final bytes. *)

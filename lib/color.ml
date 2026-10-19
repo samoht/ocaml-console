@@ -129,22 +129,6 @@ let set_depth ppf d =
       in
       Format.pp_set_formatter_stag_functions ppf { funs with mark_open_stag }
 
-let contains ~sub s =
-  let n = String.length sub and m = String.length s in
-  let rec at i = i + n <= m && (String.sub s i n = sub || at (i + 1)) in
-  at 0
-
-let ends_with ~suffix s =
-  let n = String.length suffix and m = String.length s in
-  m >= n && String.sub s (m - n) n = suffix
-
-let depth_of_env getenv =
-  match (getenv "COLORTERM", getenv "TERM") with
-  | Some ("truecolor" | "24bit"), _ -> `True_color
-  | _, Some term when ends_with ~suffix:"-direct" term -> `True_color
-  | _, Some term when contains ~sub:"256color" term -> `Ansi_256
-  | _ -> `Ansi_16
-
 (* The xterm defaults of the 16 named colours, in palette order. *)
 let named =
   [|

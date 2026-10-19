@@ -142,17 +142,3 @@ module Display = Display
 
 module Input = Input
 (** A line editor, with history and completion. *)
-
-(**/**)
-
-val style_renderer :
-  ?renderer:Fmt.style_renderer ->
-  getenv:(string -> string option) ->
-  is_tty:bool ->
-  unit ->
-  Fmt.style_renderer
-(** [style_renderer ~renderer ~getenv ~is_tty ()] is whether an output is in
-    colour: [renderer] when given, else none when [NO_COLOR] is set and not
-    empty or when [TERM] is unset, empty or [dumb], else colour iff [is_tty]. *)
-
-(**/**)
