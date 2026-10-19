@@ -1144,9 +1144,29 @@ let test_joined_width left right =
   let combined = Span.(text left ++ styled Style.bold right) in
   check_eq ~pp:Fmt.int (Width.string_width (left ^ right)) (Span.width combined)
 
+(* Compare a following sentinel with one drawn in a fresh emulator. This does
+   not use Console_text.sgr, whose interpretation is under test. *)
+let test_sanitized_colour r g b =
+  let component n = n land 255 in
+  let sequence =
+    Fmt.str "\027[38;2;%d;%d;%dmX" (component r) (component g)
+      (if b land 1 = 0 then 0 else component b)
+  in
+  let actual = Vte.create ~rows:2 ~cols:4 () in
+  let reference = Vte.create ~rows:2 ~cols:4 () in
+  Vte.feed_string actual (Console_text.sanitize_styles sequence ^ "!");
+  Vte.feed_string reference "X!";
+  let a = Vte.grid actual and e = Vte.grid reference in
+  let ai = Grid.idx a ~x:1 ~y:0 and ei = Grid.idx e ~x:1 ~y:0 in
+  check (Grid.get_fg_r a ai = Grid.get_fg_r e ei);
+  check (Grid.get_fg_g a ai = Grid.get_fg_g e ei);
+  check (Grid.get_fg_b a ai = Grid.get_fg_b e ei)
+
 let suite =
   ( "console",
     [
+      test_case "sanitized colour does not leak" [ int; int; int ]
+        test_sanitized_colour;
       test_case "styled concatenation has joined width" [ bytes; bytes ]
         test_joined_width;
       test_case "folding preserves non-space text" [ bytes; int ]
