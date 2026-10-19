@@ -1,0 +1,10 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+(** Tests for the quantities and caller text a display draws, through
+    {!Console.Display}. *)
+
+val suite : string * unit Alcotest.test_case list
+(** [suite] is the Alcotest test suite for {!Test_display_text}. *)

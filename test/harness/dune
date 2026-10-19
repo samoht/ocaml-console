@@ -1,0 +1,3 @@
+(library
+ (name display_harness)
+ (libraries console matrix.vte alcotest astring fmt))

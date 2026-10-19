@@ -3,8 +3,24 @@
  (public_name console)
  (libraries console.text fmt logs matrix.glyph uucp uutf)
  ; Low-level ANSI, Matrix rain, formatter conversion and widget resolution
- ; helpers. None is part of the public API.
- (private_modules ansi paint rain render widget))
+ ; helpers, and the pieces of Display. None is part of the public API.
+ (private_modules
+  ansi
+  paint
+  rain
+  render
+  widget
+  display_activity
+  display_ctx
+  display_event
+  display_line
+  display_projection
+  display_reporter
+  display_row
+  display_state
+  display_summary
+  display_term
+  display_text))
 
 (mdx
  (package console)

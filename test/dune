@@ -4,6 +4,7 @@
  (libraries
   console
   console.vte
+  display_harness
   matrix.grid
   matrix.vte
   alcotest

@@ -1,0 +1,79 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+(** Task-line layouts.
+
+    A layout is a list of pieces a row renders left to right. This is the
+    representation behind {!Display.Line}. *)
+
+(** The type for layout pieces. *)
+type piece =
+  | Spinner  (** The activity marker, then the outcome marker. *)
+  | Label  (** The label, or the completion message. *)
+  | Bar of int  (** A progress bar that many cells wide. *)
+  | Percent  (** The completion percentage. *)
+  | Count  (** The count pair, in the display's count cell. *)
+  | Rate  (** The transfer rate of a byte-counting task. *)
+  | Elapsed  (** The timer, in its {!Display_text.elapsed_cell}. *)
+  | Text of string  (** A sanitized literal. *)
+  | Accent of string  (** A sanitized literal in the accent colour. *)
+  | Spacer  (** Flexible space. *)
+  | Marker of (frame:int -> Span.t)
+      (** An activity marker drawn anew each frame. *)
+
+type t = { pieces : piece list; color : Color.t }
+(** The type for layouts: pieces and an accent colour. *)
+
+val spinner : piece
+(** [spinner] is {!constructor-Spinner}. *)
+
+val label : piece
+(** [label] is {!constructor-Label}. *)
+
+val bar : int -> piece
+(** [bar n] is {!constructor-Bar} [n].
+
+    @raise Invalid_argument if [n] is negative. *)
+
+val percent : piece
+(** [percent] is {!constructor-Percent}. *)
+
+val count : piece
+(** [count] is {!constructor-Count}. *)
+
+val rate : piece
+(** [rate] is {!constructor-Rate}. *)
+
+val elapsed : piece
+(** [elapsed] is {!constructor-Elapsed}. *)
+
+val text : string -> piece
+(** [text s] is {!constructor-Text} of [s] {!Display_text.sanitize}d. *)
+
+val accent : string -> piece
+(** [accent s] is {!constructor-Accent} of [s] {!Display_text.sanitize}d. *)
+
+val spacer : piece
+(** [spacer] is {!constructor-Spacer}. *)
+
+val marker : (frame:int -> Span.t) -> piece
+(** [marker f] is {!constructor-Marker} [f]. *)
+
+val v : ?color:Color.t -> piece list -> t
+(** [v ~color pieces] is the layout [pieces] with accent [color] (defaults to
+    {!Color.cyan}).
+
+    @raise Invalid_argument if [pieces] has more than one {!label} or {!spacer}.
+*)
+
+val with_color : Color.t -> t -> t
+(** [with_color c l] is [l] with accent [c]. *)
+
+val pp : t Fmt.t
+(** [pp] formats a layout for diagnostics, in an unspecified format. *)
+
+val default : t
+(** [default] is a spinner, the label, a spacer, a ten-cell bar, the count, the
+    rate and the timer. *)

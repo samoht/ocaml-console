@@ -22,6 +22,16 @@ let () =
       Test_spinner.suite;
       Test_anim.suite;
       Test_display.suite;
+      Test_display_text.suite;
+      Test_display_line.suite;
+      Test_display_event.suite;
+      Test_display_ctx.suite;
+      Test_display_activity.suite;
+      Test_display_term.suite;
+      Test_display_reporter.suite;
+      Test_display_row.suite;
+      Test_display_summary.suite;
+      Test_display_projection.suite;
       Test_layout.suite;
       Test_width.suite;
       Test_input.suite;
