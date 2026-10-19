@@ -83,9 +83,38 @@ let test_refused n =
   | _ -> if n mod 3 < 0 || n mod 7 < 2 + (2 * (n mod 3)) then fail "accepted"
   | exception Invalid_argument _ -> ()
 
+let test_wide_border n =
+  let glyph = String.make (2 + (n mod 3)) '#' in
+  let border =
+    Border.v
+      Border.
+        {
+          top_left = glyph;
+          top = glyph;
+          top_right = glyph;
+          left = glyph;
+          right = glyph;
+          bottom_left = glyph;
+          bottom = glyph;
+          bottom_right = glyph;
+          cross = glyph;
+          top_cross = glyph;
+          bottom_cross = glyph;
+          left_cross = glyph;
+          right_cross = glyph;
+        }
+  in
+  let width = 20 in
+  let out = Panel.to_string (Panel.v ~border ~width (Span.text "x")) in
+  List.iter
+    (fun l -> check_eq ~pp:Fmt.int width (cells l))
+    (String.split_on_char '\n' out)
+
 let suite =
   ( "panel",
     [
+      test_case "multi-cell borders respect fixed width" [ uint8 ]
+        test_wide_border;
       test_case "fits the margin" [ bytes; int; int ] test_fits;
       test_case "refuses a box too small" [ int ] test_refused;
     ] )

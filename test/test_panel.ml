@@ -141,9 +141,38 @@ let test_styled_border () =
        ])
     (Panel.to_string ~styled:true panel)
 
+let test_wide_border () =
+  let border =
+    Border.v
+      Border.
+        {
+          top_left = "\u{754c}";
+          top = "\u{754c}";
+          top_right = "\u{754c}";
+          left = "\u{754c}";
+          right = "\u{754c}";
+          bottom_left = "\u{754c}";
+          bottom = "\u{754c}";
+          bottom_right = "\u{754c}";
+          cross = "\u{754c}";
+          top_cross = "\u{754c}";
+          bottom_cross = "\u{754c}";
+          left_cross = "\u{754c}";
+          right_cross = "\u{754c}";
+        }
+  in
+  let out = Panel.to_string (Panel.v ~border ~width:12 (Span.text "x")) in
+  let widths =
+    List.map (fun l -> Span.width (Span.text l)) (String.split_on_char '\n' out)
+  in
+  Alcotest.(check (list int))
+    "all edges respect fixed width" [ 12; 12; 12 ] widths
+
 let suite =
   ( "panel",
     [
+      Alcotest.test_case "two-cell border respects fixed width" `Quick
+        test_wide_border;
       Alcotest.test_case "styled border" `Quick test_styled_border;
       Alcotest.test_case "basic" `Quick test_basic;
       Alcotest.test_case "with title" `Quick test_with_title;
