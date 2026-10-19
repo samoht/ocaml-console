@@ -3,27 +3,21 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = {
-  branch : string;
-  last : string;
-  pipe : string;
-  space : string;
-  style : Style.t;
-}
+type glyphs = { branch : string; last : string; pipe : string; space : string }
+type t = glyphs Inked.t
 
-let v ~branch ~last ~pipe ~space =
-  { branch; last; pipe; space; style = Style.none }
-
-let branch t = t.branch
-let last t = t.last
-let pipe t = t.pipe
-let space t = t.space
-let style t = t.style
-let with_style style t = { t with style }
+let v ~branch ~last ~pipe ~space = Inked.v { branch; last; pipe; space }
+let branch t = (Inked.get t).branch
+let last t = (Inked.get t).last
+let pipe t = (Inked.get t).pipe
+let space t = (Inked.get t).space
+let style = Inked.style
+let with_style = Inked.with_style
 let ascii = v ~branch:"+-- " ~last:"+-- " ~pipe:"|   " ~space:"    "
 
 let unicode = v ~branch:"├── " ~last:"└── " ~pipe:"│   " ~space:"    "
 
 let pp ppf t =
+  let t = Inked.get t in
   Fmt.pf ppf "{ branch = %S; last = %S; pipe = %S; space = %S }" t.branch t.last
     t.pipe t.space

@@ -42,27 +42,19 @@ let update_width_state ~char_width ~width ~state ~zwj u =
       else width := !width + char_width u
   | current -> state := next_ansi_state current c
 
+(* [iter_uchars f s] is [f] on each code point of [s], a malformed sequence
+   read as U+FFFD. *)
+let iter_uchars f s =
+  Uutf.String.fold_utf_8
+    (fun () _ -> function `Uchar u -> f u | `Malformed _ -> f Uutf.u_rep)
+    () s
+
 let codepoint_string_width ~char_width str =
-  let len = String.length str in
   let width = ref 0 in
   let state = ref Normal in
   let zwj = ref false in
-  let decoder = Uutf.decoder ~encoding:`UTF_8 (`String str) in
-  let rec loop () =
-    match Uutf.decode decoder with
-    | `Uchar u ->
-        update_width_state ~char_width ~width ~state ~zwj u;
-        loop ()
-    | `End -> ()
-    | `Await -> assert false
-    | `Malformed _ ->
-        update_width_state ~char_width ~width ~state ~zwj Uutf.u_rep;
-        loop ()
-  in
-  if len = 0 then 0
-  else (
-    loop ();
-    !width)
+  iter_uchars (update_width_state ~char_width ~width ~state ~zwj) str;
+  !width
 
 let ansi_end str start =
   let len = String.length str in
@@ -193,19 +185,8 @@ let closing rendered =
 
 let normalize_utf8 str =
   let buffer = Buffer.create (String.length str) in
-  let decoder = Uutf.decoder ~encoding:`UTF_8 (`String str) in
-  let rec loop () =
-    match Uutf.decode decoder with
-    | `Uchar u ->
-        Uutf.Buffer.add_utf_8 buffer u;
-        loop ()
-    | `Malformed _ ->
-        Uutf.Buffer.add_utf_8 buffer Uutf.u_rep;
-        loop ()
-    | `End -> Buffer.contents buffer
-    | `Await -> assert false
-  in
-  loop ()
+  iter_uchars (Uutf.Buffer.add_utf_8 buffer) str;
+  Buffer.contents buffer
 
 (* Where the next escape sequence begins, so a run of drawable text can be
    segmented on its own. *)

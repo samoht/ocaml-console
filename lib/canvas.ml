@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type cell = { glyph : string; style : Style.t }
+type cell = string Inked.t
 
 let cell ?(style = Style.none) glyph =
   if
@@ -11,7 +11,7 @@ let cell ?(style = Style.none) glyph =
     || Render.sanitize ~keep_newlines:false glyph <> glyph
     || String.contains glyph '\027'
   then invalid_arg "Console.Canvas.cell: not one terminal cell";
-  { glyph; style }
+  Inked.v ~style glyph
 
 let replacement = "\xef\xbf\xbd"
 
@@ -26,15 +26,16 @@ let cells ?(style = Style.none) s =
       let g = String.sub s i len in
       let w = Width.default_char_width (Uchar.utf_decode_uchar d) in
       match (w, acc) with
-      | 0, c :: rest -> go (i + len) ({ c with glyph = c.glyph ^ g } :: rest)
+      | 0, c :: rest ->
+          go (i + len) (Inked.v ~style:(Inked.style c) (Inked.get c ^ g) :: rest)
       | 0, [] -> go (i + len) acc
-      | 1, _ -> go (i + len) ({ glyph = g; style } :: acc)
-      | _ -> go (i + len) ({ glyph = replacement; style } :: acc)
+      | 1, _ -> go (i + len) (Inked.v ~style g :: acc)
+      | _ -> go (i + len) (Inked.v ~style replacement :: acc)
   in
   go 0 []
 
-let glyph c = c.glyph
-let style c = c.style
+let glyph = Inked.get
+let style = Inked.style
 
 type t = { width : int; cells : cell array array }
 
@@ -76,13 +77,13 @@ let row_span row cells =
   let runs =
     Array.fold_left
       (fun (column, acc) cell ->
-        let style = Style.at ~row ~column cell.style in
+        let style = Style.at ~row ~column (Inked.style cell) in
         let sgr = Style.to_ansi style in
         let acc =
           match acc with
           | (text, style', sgr') :: rest when String.equal sgr sgr' ->
-              (text ^ cell.glyph, style', sgr') :: rest
-          | _ -> (cell.glyph, style, sgr) :: acc
+              (text ^ Inked.get cell, style', sgr') :: rest
+          | _ -> (Inked.get cell, style, sgr) :: acc
         in
         (column + 1, acc))
       (0, []) cells

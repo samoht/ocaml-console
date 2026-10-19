@@ -84,4 +84,4 @@ let pp ppf t =
   go [] t.tree;
   Paint.close p
 
-let to_string ?styled t = Render.to_string ?styled pp t
+let to_string = Render.to_string pp

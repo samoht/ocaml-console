@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let to_string ?(styled = false) pp v =
+let to_string pp ?(styled = false) v =
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
   (* A string has no terminal, so a widget that fits its formatter's margin

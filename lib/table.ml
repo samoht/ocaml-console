@@ -501,7 +501,7 @@ let pp ppf t =
   pp_with ~char_width:Width.default_char_width ~max_width ppf t
 
 let to_string ?styled ?width ?(char_width = Width.default_char_width) t =
-  Render.to_string ?styled (pp_with ~char_width ?max_width:width) t
+  Render.to_string (pp_with ~char_width ?max_width:width) ?styled t
 
 (* Frame the rendered table with a Matrix rain border. *)
 let rain ?width ?(char_width = Width.default_char_width) t =

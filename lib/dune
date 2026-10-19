@@ -19,7 +19,8 @@
   display_state
   display_summary
   display_term
-  display_text))
+  display_text
+  inked))
 
 (mdx
  (package console)

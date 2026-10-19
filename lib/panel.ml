@@ -143,7 +143,7 @@ let pp ppf panel =
   render_content_lines ppf p panel border_style chars cw pad;
   render_bottom_border ppf p panel border_style chars inner_width
 
-let to_string ?styled panel = Render.to_string ?styled pp panel
+let to_string = Render.to_string pp
 
 (* The rain frames the content lines (each padded to the inner width) with a
    Matrix border. The title and subtitle are not drawn in this mode. *)

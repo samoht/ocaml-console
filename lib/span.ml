@@ -95,7 +95,7 @@ let pp_with_style style ppf t =
   else List.iter (pp_atom style ppf) t
 
 let pp = pp_with_style Style.none
-let to_string ?styled t = Render.to_string ?styled pp t
+let to_string = Render.to_string pp
 
 let width ?(char_width = Width.default_char_width) t =
   List.fold_left

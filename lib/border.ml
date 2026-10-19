@@ -19,11 +19,11 @@ type chars = {
   right_cross : string;
 }
 
-type t = { chars : chars; style : Style.t }
+type t = chars Inked.t
 
-let v ?(style = Style.none) chars = { chars; style }
-let chars t = t.chars
-let style t = t.style
+let v = Inked.v
+let chars = Inked.get
+let style = Inked.style
 
 let none_chars =
   {
@@ -151,10 +151,10 @@ let double = v double_chars
 let rounded = v rounded_chars
 let heavy = v heavy_chars
 let hidden = v hidden_chars
-let with_style style border = { border with style }
+let with_style = Inked.with_style
 
 let pp ppf t =
-  let chars = t.chars in
+  let chars = Inked.get t in
   Fmt.pf ppf "%s%s%s@." chars.top_left chars.top chars.top_right;
   Fmt.pf ppf "%s %s@." chars.left chars.right;
   Fmt.pf ppf "%s%s%s" chars.bottom_left chars.bottom chars.bottom_right
