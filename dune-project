@@ -39,7 +39,7 @@
  (tags (command-line-utilities format eio))
  (description
   "Helpers that animate Console.Display bars from an Eio fiber. Split out
-   so the core tty library stays scheduler-agnostic.")
+   so the console library stays scheduler-agnostic.")
  (depends
   (ocaml (>= 5.4))
   console

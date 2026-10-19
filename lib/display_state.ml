@@ -94,7 +94,7 @@ and row = {
 }
 
 let pp ppf t =
-  Fmt.pf ppf "<tty-display %dx%d %d/%d rows%s>" t.width t.height t.finished
+  Fmt.pf ppf "<display %dx%d %d/%d rows%s>" t.width t.height t.finished
     (List.length t.rows)
     (if t.torn_down then " torn-down" else "")
 

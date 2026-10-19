@@ -70,7 +70,7 @@
              ( Span.text "src",
                [
                  Tree.Node
-                   (Span.text "lib", [ Tree.Node (Span.text "tty.ml", []) ]);
+                   (Span.text "lib", [ Tree.Node (Span.text "parser.ml", []) ]);
                  Tree.Node (Span.text "test", []);
                ] ))
       in
