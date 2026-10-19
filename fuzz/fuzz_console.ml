@@ -486,12 +486,7 @@ let test_bar cur total wbyte =
    same bytes. *)
 let printable_utf8 s =
   String.for_all (fun c -> Char.code c >= 0x20 && Char.code c <> 0x7f) s
-  &&
-  let ok = ref true in
-  Uutf.String.fold_utf_8
-    (fun () _ d -> match d with `Malformed _ -> ok := false | _ -> ())
-    () s;
-  !ok
+  && String.is_valid_utf_8 s
 
 let test_width_matches_terminal s =
   if (not (printable_utf8 s)) || Width.string_width s > 3000 then check true

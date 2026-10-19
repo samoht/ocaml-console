@@ -24,7 +24,6 @@
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
   matrix
-  (uutf (>= 1.0))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)

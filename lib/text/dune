@@ -1,8 +1,6 @@
-; The visible-text rules over a plain string, apart from the widgets so that a
-; library kept free of I/O (a model, a codec) can say outside text safely
-; without linking the display. Console re-exports both functions.
+; The visible-text rules over a plain string, apart from the widgets, so that a
+; library kept free of I/O can make outside text safe without linking the rest.
 
 (library
  (name console_text)
- (public_name console.text)
- (libraries uutf))
+ (public_name console.text))

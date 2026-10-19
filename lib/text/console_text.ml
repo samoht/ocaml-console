@@ -8,15 +8,21 @@
 let text buf ~keep_newlines u =
   let c = Uchar.to_int u in
   if (keep_newlines && c = 0x0a) || (c >= 0x20 && not (c >= 0x7f && c <= 0x9f))
-  then Uutf.Buffer.add_utf_8 buf u
+  then Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 
 let sanitize_into buf ~keep_newlines str =
-  Uutf.String.fold_utf_8
-    (fun () _ -> function
-      | `Uchar u -> text buf ~keep_newlines u
-      | `Malformed _ -> Uutf.Buffer.add_utf_8 buf Uutf.u_rep)
-    () str
+  let n = String.length str in
+  let rec go i =
+    if i < n then begin
+      let d = String.get_utf_8_uchar str i in
+      if Uchar.utf_decode_is_valid d then
+        text buf ~keep_newlines (Uchar.utf_decode_uchar d)
+      else Buffer.add_utf_8_uchar buf Uchar.rep;
+      go (i + Uchar.utf_decode_length d)
+    end
+  in
+  go 0
 
 let sanitize ?(keep_newlines = true) str =
   let buf = Buffer.create (String.length str) in

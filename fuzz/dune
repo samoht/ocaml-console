@@ -12,7 +12,6 @@
   matrix.vte
   fmt
   re
-  uutf
   alcobar))
 
 ; The default per-test budget (2s) makes this VT-emulator-heavy suite a ~20s
