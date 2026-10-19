@@ -443,16 +443,6 @@ let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
-let with_task ?key ?parent ?log_lines ?total ?transient t label f =
-  let task = task ?key ?parent ?log_lines ?total ?transient t label in
-  match f task with
-  | value ->
-      succeed task;
-      value
-  | exception exn ->
-      fail task;
-      raise exn
-
 let finish_running outcome ?message t =
   List.iter
     (fun task -> if task.rfinish = None then finish outcome ?message task)

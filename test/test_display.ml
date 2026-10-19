@@ -38,28 +38,6 @@ let test_transient_row_leaves_no_line () =
     "a terminal commits no line for it either" false
     (contains "=> image assembling" live_output)
 
-let test_with_task_owns_outcome () =
-  let events, _ =
-    capture (fun display _ ->
-        Display.with_task display "normal" ignore;
-        Display.with_task display "handled" (fun task -> Display.fail task);
-        (try Display.with_task display "raised" (fun _ -> failwith "boom") with
-        | Failure message when String.equal message "boom" -> ()
-        | exn -> raise exn);
-        Display.history display)
-  in
-  let outcomes =
-    List.filter_map
-      (fun event ->
-        match Display.Event.kind event with
-        | `Finished outcome -> Some outcome
-        | _ -> None)
-      events
-  in
-  Alcotest.(check bool)
-    "normal succeeds, explicit and raised failures win" true
-    (outcomes = [ `Succeeded; `Failed; `Failed ])
-
 let test_terminal_operations_are_idempotent () =
   let events, _ =
     capture (fun display _ ->
@@ -304,8 +282,6 @@ let suite =
         test_colours_follow_the_depth;
       Alcotest.test_case "a transient row leaves no line" `Quick
         test_transient_row_leaves_no_line;
-      Alcotest.test_case "with_task owns outcome" `Quick
-        test_with_task_owns_outcome;
       Alcotest.test_case "terminal operations are idempotent" `Quick
         test_terminal_operations_are_idempotent;
       Alcotest.test_case "parent settles children" `Quick

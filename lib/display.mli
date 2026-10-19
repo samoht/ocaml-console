@@ -243,9 +243,9 @@ val run :
     bounded to the terminal height and every rendered line is bounded to its
     width.
 
-    If [f] returns with running tasks, they are succeeded children-first. If [f]
-    raises, they are cancelled children-first and the original exception is
-    re-raised. The terminal is restored in both cases.
+    When [f] returns, every task still running succeeds; when [f] raises, every
+    task still running is cancelled and the exception is raised again. The
+    terminal is restored in both cases.
 
     One display runs at a time in a program.
 
@@ -377,21 +377,6 @@ val fail : ?message:string -> task -> unit
 val cancel : ?message:string -> task -> unit
 (** [cancel ~message task] is like {!succeed} but finishes [task] as cancelled.
 *)
-
-val with_task :
-  ?key:string ->
-  ?parent:task ->
-  ?log_lines:int ->
-  ?total:int ->
-  ?transient:bool ->
-  t ->
-  string ->
-  (task -> 'a) ->
-  'a
-(** [with_task display label f] starts a task, calls [f], and succeeds the task
-    when [f] returns. If [f] raises, the task fails and the exception is
-    re-raised. An explicit outcome inside [f] wins, so callers can record a
-    handled failure or cancellation without extra scope state. *)
 
 val history : t -> Event.t list
 (** [history display] is the permanent event history, oldest first. *)
