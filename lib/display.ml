@@ -386,7 +386,7 @@ let set_result ?detail t result =
 
 (* {1 Closing} *)
 
-let close ?(running = `Succeed) t =
+let close ?(running = `Cancel) t =
   if not t.closed then begin
     finish_running
       (match running with `Succeed -> `Succeeded | `Cancel -> `Cancelled)

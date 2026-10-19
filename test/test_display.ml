@@ -50,6 +50,21 @@ let test_plain_column () =
     [ "partial"; "next"; "again"; "[+] t  0.0s"; "after"; "" ]
     (String.split_on_char '\n' (Buffer.contents buffer))
 
+(* A task still running when the display closes did not finish: it is
+   cancelled, unless the program said the work succeeded. *)
+let test_plain_unfinished () =
+  let (), out = plain ~theme (fun d _ -> ignore (Display.task d "left")) in
+  check_lines "cancelled" [ "[~] left  0.0s"; "" ]
+    (String.split_on_char '\n' out);
+  let (), out =
+    plain ~theme (fun d _ ->
+        ignore (Display.task d "left");
+        Display.set_result d (`Ok "done"))
+  in
+  check_lines "succeeded with the work"
+    [ "[+] left  0.0s"; "[+] done"; "" ]
+    (String.split_on_char '\n' out)
+
 let test_plain_attribution () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -410,6 +425,7 @@ let suite =
     [
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
+      Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;
       Alcotest.test_case "plain lines start a line" `Quick test_plain_column;
       Alcotest.test_case "plain sanitizes" `Quick test_plain_sanitizes;
       Alcotest.test_case "plain result" `Quick test_plain_result;

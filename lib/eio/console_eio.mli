@@ -53,13 +53,14 @@ val run :
     and that output is a terminal whose [TERM] is set and not [dumb]; then what
     the program prints on {!Fmt.stdout} or {!Fmt.stderr} in the meantime, a
     whole line at a time, goes above the rows, and so do {!Logs} messages.
-    Otherwise each line is printed in turn. When [f] returns, the tasks still
-    running succeed; when it raises or its fiber is cancelled, they are
-    cancelled and the exception is raised again. Either way, and when the
-    program exits during [f], the display closes. So it does when SIGINT or
-    SIGTERM arrives during [f] and the program left that signal at its default
-    disposition: the display closes, then the signal ends the program as it
-    would have. A signal the program handles or ignores is left to it.
+    Otherwise each line is printed in turn. When [f] returns, raises or its
+    fiber is cancelled, the tasks still running are cancelled, unless [f] said
+    the work succeeded with {!Console.Display.set_result}; an exception is
+    raised again. Either way, and when the program exits during [f], the display
+    closes. So it does when SIGINT or SIGTERM arrives during [f] and the program
+    left that signal at its default disposition: the display closes, then the
+    signal ends the program as it would have. A signal the program handles or
+    ignores is left to it.
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing

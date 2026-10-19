@@ -155,9 +155,10 @@ val set_result :
 
 val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
 (** [close display] ends the tasks still running, as [running] says (defaults to
-    [`Succeed]), takes the region off the screen, shows the cursor and prints
-    the header, then the result of {!set_result}. Closing a closed display does
-    nothing. *)
+    [`Cancel]: a task nobody ended did not finish; {!set_result} with [`Ok] has
+    them succeed first), takes the region off the screen, shows the cursor and
+    prints the header, then the result of {!set_result}. Closing a closed
+    display does nothing. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
