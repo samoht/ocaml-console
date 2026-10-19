@@ -175,9 +175,17 @@ let test_depth () =
   Alcotest.(check string)
     "16 colours" "\027[91mx\027[0m" (render (Some `Ansi_16))
 
+let test_multiline_resets () =
+  let output = Span.to_string ~styled:true (Span.styled Style.bold "a\nb") in
+  Alcotest.(check string)
+    "close before LF and reopen on the next line"
+    "\027[1ma\027[0m\n\027[1mb\027[0m" output
+
 let suite =
   ( "span",
     [
+      Alcotest.test_case "multiline styles reset before LF" `Quick
+        test_multiline_resets;
       Alcotest.test_case "text" `Quick test_text;
       Alcotest.test_case "sanitized" `Quick test_sanitized;
       Alcotest.test_case "width is independent of styling boundaries" `Quick

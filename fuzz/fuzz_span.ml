@@ -154,9 +154,23 @@ let test_concat a b c =
     (String.concat "," (List.map plain parts))
     (plain (Span.concat ~sep:(Span.text ",") parts))
 
+(* Each line must release its attributes before another writer can print. *)
+let test_multiline_resets s =
+  let line = Console_text.sanitize ~keep_newlines:false s ^ "x" in
+  let raw =
+    Span.to_string ~styled:true (Span.styled Style.bold (line ^ "\n" ^ line))
+  in
+  List.iter
+    (fun l ->
+      check (String.starts_with ~prefix:"\027[1m" l);
+      check (String.ends_with ~suffix:"\027[0m" l))
+    (String.split_on_char '\n' raw)
+
 let suite =
   ( "span",
     [
+      test_case "multiline styles reset before LF" [ bytes ]
+        test_multiline_resets;
       test_case "every span prints" [ bytes ] test_sanitized;
       test_case "width is subadditive" [ bytes; bytes ] test_width_subadditive;
       test_case "styles add no cell" [ bytes ] test_width_styles;
