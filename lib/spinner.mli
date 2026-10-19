@@ -11,13 +11,10 @@
     animates one per running row, and a {!Theme.t} carries the one a display
     uses. *)
 
+(** {1:spinners Spinners} *)
+
 type t
 (** The type for spinners: non-empty, cyclic sequences of frames. *)
-
-val pp : Format.formatter -> t -> unit
-(** [pp] formats a spinner for diagnostics, in an unspecified format. *)
-
-(** {1:spinners Spinners} *)
 
 val v : string array -> t
 (** [v frames] is a spinner cycling [frames] left to right.
@@ -31,8 +28,8 @@ val braille : t
 (** [braille] cycles the ten braille dots [⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]. *)
 
 val ascii : t
-(** [ascii] cycles the four ASCII frames "|", "/", "-", and backslash, for
-    terminals or fonts without braille. *)
+(** [ascii] cycles the four frames [|], [/], [-] and [\\], for terminals or
+    fonts without braille. *)
 
 (** {1:frames Frames} *)
 
@@ -50,3 +47,8 @@ val at : ?fps:float -> t -> elapsed:float -> string
 val anim : ?fps:float -> t -> string Anim.t
 (** [anim t] is [t] as an {!Anim.t}: its frame at [elapsed] is
     [at ?fps t ~elapsed]. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a spinner for diagnostics, in an unspecified format. *)

@@ -21,7 +21,6 @@ let link ?(style = Style.none) ~uri str =
   [ atom ~link:uri style str ]
 
 let empty = []
-let concat spans = List.concat spans
 
 let with_style base t =
   List.map (fun atom -> { atom with style = Style.(base + atom.style) }) t
@@ -32,11 +31,9 @@ let sanitize ?(keep_newlines = true) t =
   let clean = Render.sanitize ~keep_newlines in
   List.map (fun atom -> { atom with text = clean atom.text }) t
 
-let concat_map ?(sep = empty) f xs =
-  match xs with
+let concat ?(sep = empty) = function
   | [] -> empty
-  | [ x ] -> f x
-  | x :: xs -> List.fold_left (fun acc x -> acc ++ sep ++ f x) (f x) xs
+  | x :: xs -> List.fold_left (fun acc x -> acc ++ sep ++ x) x xs
 
 let split_lines t =
   let lines = ref [] in

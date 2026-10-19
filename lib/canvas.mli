@@ -41,9 +41,6 @@ val glyph : cell -> string
 val style : cell -> Style.t
 (** [style c] is the style of [c]. *)
 
-val with_style : Style.t -> cell -> cell
-(** [with_style s c] is [c] drawn in [s]. *)
-
 (** {1:canvases Canvases} *)
 
 type t
@@ -69,7 +66,9 @@ val height : t -> int
 val get : t -> row:int -> column:int -> cell
 (** [get c ~row ~column] is the cell of [c] at [row] and [column].
 
-    @raise Invalid_argument if the position is outside [c]. *)
+    @raise Invalid_argument
+      if [row] is not in \[[0];[height c - 1]\] or [column] not in
+      \[[0];[width c - 1]\]. *)
 
 val map : (row:int -> column:int -> cell -> cell) -> t -> t
 (** [map f c] is [c] with [f ~row ~column] applied to each of its cells. *)

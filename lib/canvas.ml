@@ -35,7 +35,6 @@ let cells ?(style = Style.none) s =
 
 let glyph c = c.glyph
 let style c = c.style
-let with_style style c = { c with style }
 
 type t = { width : int; cells : cell array array }
 

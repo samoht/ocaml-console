@@ -23,6 +23,48 @@ type bar = [ `Blocky | `Smooth | `Rainbow ]
 type t
 (** The type for themes: every visual choice the widgets share. *)
 
+val v :
+  ?accent:Color.t ->
+  ?ok:Color.t ->
+  ?fail:Color.t ->
+  ?warn:Color.t ->
+  ?palette:Color.t list ->
+  ?border:Border.t ->
+  ?table_row_separators:bool ->
+  ?animated_border:bool ->
+  ?guide:Guide.t ->
+  ?bar:bar ->
+  ?note_marker:string ->
+  ?warn_marker:string ->
+  ?error_marker:string ->
+  ?committed_succeeded:string ->
+  ?committed_failed:string ->
+  ?committed_cancelled:string ->
+  spinner:Spinner.t ->
+  done_marker:string ->
+  unit ->
+  t
+(** [v ~spinner ~done_marker ()] is a custom theme; the other fields take modern
+    defaults. [ok], [fail] and [warn] default to {!Color.green}, {!Color.red}
+    and {!Color.yellow}, as in every preset theme. [table_row_separators]
+    defaults to [false], and the six log and committed markers to ["#"], ["!"],
+    ["x"], ["=>"], ["!!"] and ["--"]. *)
+
+val with_verdict :
+  ?ok:string ->
+  ?fail:string ->
+  ?committed_succeeded:string ->
+  ?committed_failed:string ->
+  ?committed_cancelled:string ->
+  t ->
+  t
+(** [with_verdict t] is [t] with the markers that say how something ended
+    replaced: [ok] and [fail] for the result banner, and the three [committed_]
+    fields for the permanent line a finished row leaves behind. An omitted field
+    keeps the marker [t] already carried. *)
+
+(** {1:accessors Accessors} *)
+
 val accent : t -> Color.t
 (** [accent t] is the default row, spinner, and bar colour. *)
 
@@ -87,48 +129,7 @@ val committed_marker : t -> [ `Succeeded | `Failed | `Cancelled ] -> string
     vocabulary from {!ok_marker} and {!fail_marker}, which the result banner
     draws once at the end of a session. *)
 
-val pp : t Fmt.t
-(** [pp] prints a short summary of a theme's markers, for diagnostics. *)
-
-val v :
-  ?accent:Color.t ->
-  ?ok:Color.t ->
-  ?fail:Color.t ->
-  ?warn:Color.t ->
-  ?palette:Color.t list ->
-  ?border:Border.t ->
-  ?table_row_separators:bool ->
-  ?animated_border:bool ->
-  ?guide:Guide.t ->
-  ?bar:bar ->
-  ?note_marker:string ->
-  ?warn_marker:string ->
-  ?error_marker:string ->
-  ?committed_succeeded:string ->
-  ?committed_failed:string ->
-  ?committed_cancelled:string ->
-  spinner:Spinner.t ->
-  done_marker:string ->
-  unit ->
-  t
-(** [v ~spinner ~done_marker ()] is a custom theme; the other fields take modern
-    defaults. [ok], [fail] and [warn] default to {!Color.green}, {!Color.red}
-    and {!Color.yellow}, as in every preset theme. [table_row_separators]
-    defaults to [false], and the six log and committed markers to ["#"], ["!"],
-    ["x"], ["=>"], ["!!"] and ["--"]. *)
-
-val with_verdict :
-  ?ok:string ->
-  ?fail:string ->
-  ?committed_succeeded:string ->
-  ?committed_failed:string ->
-  ?committed_cancelled:string ->
-  t ->
-  t
-(** [with_verdict t] is [t] with the markers that say how something ended
-    replaced: [ok] and [fail] for the result banner, and the three [committed_]
-    fields for the permanent line a finished row leaves behind. An omitted field
-    keeps the marker [t] already carried. *)
+(** {1:predefined Predefined themes} *)
 
 val dos : t
 (** [dos] is amber DOS satellite-workstation CRT: ASCII everything, a blocky
@@ -147,3 +148,8 @@ val matrix : t
 val rainbow : t
 (** [rainbow] cycles the rows and nodes through the spectrum and draws the bar
     as a colour gradient. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a short summary of a theme's markers, for diagnostics. *)

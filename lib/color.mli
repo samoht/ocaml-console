@@ -3,15 +3,16 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Terminal colors.
+(** Terminal colours.
 
-    Supports ANSI 16-color palette, 256-color palette, and true color (RGB/hex).
+    A colour is one of the 16 named ANSI colours, an entry of the xterm
+    256-colour palette, or a 24-bit RGB colour.
 
     A colour is kept and written as given. A terminal that shows fewer colours
     is served by {!downsample}, which [Console_eio.setup] applies to what is
     written to standard output and standard error. *)
 
-(** {1:color_types Color types} *)
+(** {1:colours Colours} *)
 
 type ansi =
   [ `Black
@@ -35,32 +36,30 @@ type ansi =
 type t
 (** The type for terminal colours. *)
 
-(** {1:constructors Constructors} *)
-
 val ansi : ansi -> t
 (** [ansi c] is the named 16-colour palette colour [c]. *)
 
 val rgb : int -> int -> int -> t
-(** [rgb r g b] is the 24-bit colour with the given components (each 0 to 255).
+(** [rgb r g b] is the 24-bit colour with red [r], green [g] and blue [b].
 
-    @raise Invalid_argument if a component is out of range. *)
+    @raise Invalid_argument if a component is not in \[[0];[255]\]. *)
 
 val of_hex : string -> (t, [ `Msg of string ]) result
 (** [of_hex s] is the colour written [s] in hexadecimal: ["RRGGBB"] or ["RGB"],
     optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled. *)
 
 val hex : string -> t
-(** [hex s] is like {!of_hex} but raises on a malformed [s]. Use {!of_hex} to
-    deal with untrusted input.
+(** [hex s] is like {!of_hex} but raises on a malformed [s].
 
-    @raise Invalid_argument if the string is malformed. *)
+    @raise Invalid_argument
+      if [s] is malformed. Use {!of_hex} to deal with untrusted input. *)
 
 val palette : int -> t
-(** [palette n] is the 256-colour palette entry [n].
+(** [palette n] is the entry [n] of the xterm 256-colour palette.
 
-    @raise Invalid_argument if [n] is not 0 to 255. *)
+    @raise Invalid_argument if [n] is not in \[[0];[255]\]. *)
 
-(** {1:predefined_colors Predefined colors} *)
+(** {1:predefined Predefined colours} *)
 
 val black : t
 (** [black] is black. *)
@@ -110,6 +109,26 @@ val bright_cyan : t
 val bright_white : t
 (** [bright_white] is bright white. *)
 
+(** {1:rgb RGB} *)
+
+val to_rgb : t -> int * int * int
+(** [to_rgb c] is the red, green and blue components of [c]. A named or palette
+    colour is taken at xterm's default value, which a terminal's own scheme may
+    redefine. *)
+
+val blend : t -> t -> float -> t
+(** [blend c0 c1 t] is the RGB colour [t] of the way from [c0] to [c1], [t]
+    clamped to 0 to 1: each component is [a + round (t * (b - a))]. *)
+
+val scale : float -> t -> t
+(** [scale f c] is the RGB colour whose components are those of [c] times [f],
+    rounded and clamped to 0 to 255: [scale 0.5] darkens by half. *)
+
+(** {1:preds Predicates and comparisons} *)
+
+val equal : t -> t -> bool
+(** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour. *)
+
 (** {1:depths Colour depth} *)
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
@@ -134,21 +153,6 @@ val downsample : depth -> t -> t
       (the distance in CIE L*a*b*, D65 white), against the xterm defaults of the
       16. *)
 
-(** {1:rgb RGB} *)
-
-val to_rgb : t -> int * int * int
-(** [to_rgb c] is the red, green and blue components of [c]. A named or palette
-    colour is taken at xterm's default value, which a terminal's own scheme may
-    redefine. *)
-
-val blend : t -> t -> float -> t
-(** [blend c0 c1 t] is the RGB colour [t] of the way from [c0] to [c1], [t]
-    clamped to 0 to 1: each component is [a + round (t * (b - a))]. *)
-
-val scale : float -> t -> t
-(** [scale f c] is the RGB colour whose components are those of [c] times [f],
-    rounded and clamped to 0 to 255: [scale 0.5] darkens by half. *)
-
 (** {1:ansi_codes ANSI codes} *)
 
 val to_fg_code : t -> string
@@ -158,10 +162,7 @@ val to_fg_code : t -> string
 val to_bg_code : t -> string
 (** [to_bg_code c] is like {!to_fg_code} for the background. *)
 
-(** {1:operations Operations} *)
-
-val equal : t -> t -> bool
-(** [equal a b] is [true] iff [a] and [b] are the same colour. *)
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
 (** [pp] formats a colour for diagnostics, in an unspecified format. *)

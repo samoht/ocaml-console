@@ -56,8 +56,6 @@ let ( + ) left right =
     bg = merge_opt left.bg right.bg;
   }
 
-let merge = List.fold_left ( + ) none
-
 (* Active boolean attributes paired with their ANSI code and human name.
    [bool_attrs] and [bool_attr_names] are filters over this list. *)
 let active_bool_attrs style =

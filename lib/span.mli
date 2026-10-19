@@ -3,101 +3,95 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Styled text spans.
+(** Styled text.
 
-    A span is a piece of text with associated styling. Spans can be
-    concatenated. *)
+    A span is a sequence of runs of text, each carrying a {!Style.t} and
+    optionally a hyperlink. It is the unit every widget lays out, measured in
+    terminal cells ({!Width}). *)
+
+(** {1:spans Spans} *)
 
 type t
-(** The type for styled text spans. *)
-
-(** {1:constructors Constructors} *)
-
-val text : string -> t
-(** [text str] is a plain, unstyled span of [str]. *)
-
-val styled : Style.t -> string -> t
-(** [styled style str] is a span of [str] carrying [style]. *)
-
-val link : ?style:Style.t -> uri:string -> string -> t
-(** [link ~uri label] is a terminal hyperlink. ANSI rendering emits an OSC 8
-    hyperlink while plain rendering emits only [label], so logs and redirected
-    output stay clean. [style] styles the visible label.
-
-    @raise Invalid_argument
-      if [uri] is empty or contains a space or control character. *)
+(** The type for spans. *)
 
 val empty : t
-(** [empty] is the empty span with no content. *)
+(** [empty] is the span with no text. *)
 
-(** {1:concatenation Concatenation} *)
+val text : string -> t
+(** [text s] is [s], unstyled. *)
 
-val concat : t list -> t
-(** [concat spans] concatenates a list of spans. *)
+val styled : Style.t -> string -> t
+(** [styled style s] is [s] drawn in [style]. *)
 
-val with_style : Style.t -> t -> t
-(** [with_style base span] is [span] with [base] composed underneath each of its
-    styles. *)
+val link : ?style:Style.t -> uri:string -> string -> t
+(** [link ~style ~uri label] is [label] drawn in [style] (defaults to
+    {!Style.none}) as a hyperlink to [uri]: an OSC 8 hyperlink when rendered
+    with ANSI, [label] alone when rendered plain.
+
+    @raise Invalid_argument
+      if [uri] is empty or holds a space or a control character. *)
 
 val ( ++ ) : t -> t -> t
-(** [a ++ b] concatenates two spans. *)
+(** [s0 ++ s1] is [s0] followed by [s1]. *)
 
-val concat_map : ?sep:t -> ('a -> t) -> 'a list -> t
-(** [concat_map ~sep f xs] maps [f] over [xs] and concatenates with [sep]. *)
+val concat : ?sep:t -> t list -> t
+(** [concat ~sep spans] is [spans] in order, [sep] (defaults to {!empty})
+    between each two. *)
+
+val with_style : Style.t -> t -> t
+(** [with_style base s] is [s] with [base] composed underneath each of its
+    styles: [Style.(base + style)] for each run's [style]. *)
 
 val sanitize : ?keep_newlines:bool -> t -> t
-(** [sanitize span] replaces terminal control characters in visible text with
-    spaces while preserving styles, hyperlinks, UTF-8, and line feeds.
-    [keep_newlines:false] replaces line feeds too. *)
+(** [sanitize s] is [s] with its text made {!Console.sanitize}d, its styles and
+    hyperlinks kept. Line feeds survive unless [keep_newlines] is [false]. *)
 
 val split_lines : t -> t list
-(** [split_lines span] splits [span] at line feeds without losing styles. The
-    result is non-empty; an empty span is one empty line. *)
+(** [split_lines s] are the lines of [s], split at line feeds, styles kept. The
+    list is never empty: {!empty} is one empty line. *)
 
-(** {1:rendering Rendering}
-
-    Rendering follows the style renderer of the target formatter,
-    [Fmt.style_renderer ppf], which [Console_eio.setup] sets from
-    [--color=auto|always|never], [NO_COLOR] and [TERM]
-    ({!Console.style_renderer}). There is no global colour switch. A style with
-    a gradient ({!Style.fg_gradient}) colours each cell by its column, column
-    [0] being the span's first cell. *)
-
-val pp : t Fmt.t
-(** [pp] pretty-prints the span with ANSI codes when the target formatter's
-    style renderer permits, otherwise plain. *)
-
-val to_string : ?styled:bool -> t -> string
-(** [to_string span] is [span] rendered with ANSI styling iff [styled] (defaults
-    to [false], the plain text of [span]). *)
-
-(** {1:measurements Measurements} *)
+(** {1:measuring Measuring and fitting} *)
 
 val width : ?char_width:(Uchar.t -> int) -> t -> int
-(** [width span] is the display width of [span] in terminal columns, excluding
-    ANSI escape sequences. *)
+(** [width s] is the number of terminal cells [s] takes ({!Width.string_width}).
+*)
 
 val truncate : ?char_width:(Uchar.t -> int) -> int -> t -> t
-(** [truncate width span] is the longest styled prefix that fits in [width]
-    terminal cells. Styles and hyperlinks are preserved. A non-positive width
-    gives {!empty}. *)
+(** [truncate w s] is the longest prefix of [s] that fits in [w] terminal cells,
+    styles and hyperlinks kept. It is {!empty} if [w] is not positive. *)
 
 val wrap : ?char_width:(Uchar.t -> int) -> ?hang:int -> int -> t -> t list
-(** [wrap width span] word-wraps a single-line span at spaces and path
-    separators, preserving styles and hyperlinks on every line. A token wider
-    than [width] is continued on the next line where the room ends, so every
-    character is printed and nothing is marked as cut. Every line after the
-    first starts with [hang] spaces (default [0]), clamped to half of [width].
+(** [wrap w s] is the single-line span [s] broken at spaces and path separators
+    into lines of at most [w] cells, styles and hyperlinks kept on every line. A
+    word wider than [w] is continued on the next line where the room ends, so
+    every character is printed. Every line after the first starts with [hang]
+    spaces (defaults to [0]), clamped to half of [w].
 
-    @raise Invalid_argument if [width] is not positive. *)
+    @raise Invalid_argument if [w] is not positive. *)
 
 val hanging : ?char_width:(Uchar.t -> int) -> t -> int
-(** [hanging span] is the column the text after [span]'s label starts at: its
-    leading spaces, its first word and the spaces after it. It is [0] when
-    [span] is one word. [wrap ~hang:(hanging span)] sets a continuation under
-    that text, as a label's value hangs beside it. *)
+(** [hanging s] is the column the text after the first word of [s] starts at:
+    its leading spaces, its first word and the spaces after it. It is [0] when
+    [s] is one word. [wrap ~hang:(hanging s)] sets each continuation under that
+    text, as a label's value hangs beside it. *)
+
+(** {1:fmt Formatting}
+
+    Rendering follows the style renderer of the formatter,
+    {!Fmt.style_renderer}, which [Console_eio.setup] sets from [--color],
+    [NO_COLOR] and [TERM] ({!Console.style_renderer}). A gradient
+    ({!Style.fg_gradient}) colours each cell by its column, column [0] being the
+    span's first cell. *)
+
+val pp : t Fmt.t
+(** [pp] formats a span, with ANSI styling iff the formatter's style renderer is
+    [`Ansi_tty]. *)
 
 val pp_wrapped : t Fmt.t
-(** [pp_wrapped] is {!pp} for a single-line span that fits its formatter's
-    margin: a span wider than the margin is wrapped to it ({!wrap}), each
-    continuation hanging under the text after its first word ({!hanging}). *)
+(** [pp_wrapped] is like {!pp} but a single-line span wider than the formatter's
+    margin is {!wrap}ped to it, each continuation hanging under the text after
+    its first word ({!hanging}). *)
+
+val to_string : ?styled:bool -> t -> string
+(** [to_string s] is [s] rendered with ANSI styling iff [styled] (defaults to
+    [false], the plain text of [s]). *)

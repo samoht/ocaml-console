@@ -5,14 +5,14 @@
 
 (** Terminal text styles.
 
-    Styles can be composed: [Style.(bold + fg Color.red + underline)]. *)
+    A style is a set of attributes and colours, composed with {!( + )}:
+    [Style.(bold + fg Color.red + underline)]. A colour may be a {!Gradient.t},
+    laid over the cells the style draws. *)
 
-(** {1:style_type Style type} *)
+(** {1:styles Styles} *)
 
 type t
-(** The type for composable styles. *)
-
-(** {1:constructors Constructors} *)
+(** The type for styles. *)
 
 val none : t
 (** [none] is the empty style. *)
@@ -52,20 +52,21 @@ val fg_gradient : Gradient.t -> t
 val bg_gradient : Gradient.t -> t
 (** [bg_gradient g] is like {!fg_gradient} for the background. *)
 
-(** {1:composition Composition} *)
-
 val ( + ) : t -> t -> t
-(** [s1 + s2] combines two styles. Later styles override earlier ones for
-    conflicting attributes. *)
+(** [s0 + s1] is [s0] with the attributes of [s1] added and the colours of [s1]
+    replacing those of [s0]. *)
 
-val merge : t list -> t
-(** [merge styles] merges a list of styles left to right. *)
+val foreground : t -> Color.t option
+(** [foreground s] is the foreground colour of [s], if it sets one. A gradient
+    foreground is its colour on row [0], column [0]. *)
 
-(** {1:colours Colours} *)
+val background : t -> Color.t option
+(** [background s] is like {!foreground} for the background. *)
 
-val at : row:int -> column:int -> t -> t
-(** [at ~row ~column s] is [s] on the cell at [row] and [column]: each gradient
-    of [s] replaced by its colour on that cell, the rest of [s] unchanged. *)
+(** {1:preds Predicates and comparisons} *)
+
+val is_none : t -> bool
+(** [is_none s] is [true] iff [s] sets nothing. *)
 
 val has_gradient : t -> bool
 (** [has_gradient s] is [true] iff the foreground or the background of [s] is a
@@ -76,42 +77,34 @@ val shows_on_space : t -> bool
     an unstyled one: [s] sets a background, reverse video, underline or
     strikethrough. *)
 
-val foreground : t -> Color.t option
-(** [foreground s] is the foreground colour of [s], if it sets one. A gradient
-    foreground is its colour on row [0], column [0]. *)
+val equal : t -> t -> bool
+(** [equal s0 s1] is [true] iff [s0] and [s1] are the same style. *)
 
-val background : t -> Color.t option
-(** [background s] is like {!foreground} for the background. *)
+(** {1:cells Colours on cells} *)
+
+val at : row:int -> column:int -> t -> t
+(** [at ~row ~column s] is [s] on the cell at [row] and [column]: each gradient
+    of [s] replaced by its colour on that cell, the rest of [s] unchanged. *)
 
 val map_color : ?fg:(Color.t -> Color.t) -> ?bg:(Color.t -> Color.t) -> t -> t
 (** [map_color ~fg ~bg s] is [s] with [fg] applied to its foreground colour and
     [bg] to its background colour (each defaults to the identity), every stop of
     a gradient included. *)
 
-(** {1:ansi_escape_codes ANSI escape codes} *)
+(** {1:ansi ANSI escapes} *)
 
 val to_ansi : t -> string
-(** [to_ansi s] is the ANSI escape sequence that enables
-    [at ~row:0 ~column:0 s], or the empty string for {!none}. *)
+(** [to_ansi s] is the SGR escape sequence that enables [at ~row:0 ~column:0 s],
+    or [""] for {!none}. *)
 
 val reset : string
-(** [reset] is the ANSI escape sequence to reset all styling. *)
+(** [reset] is the SGR escape sequence that resets every attribute. *)
 
-(** {1:fmt_integration Fmt integration} *)
+(** {1:fmt Formatting} *)
 
 val styled : t -> 'a Fmt.t -> 'a Fmt.t
-(** [styled style pp] applies [style] when the target formatter's style renderer
-    permits ANSI, and otherwise renders with [pp] unchanged.
-
-    Example: [Fmt.pr "%a" (Style.styled Style.bold Fmt.string) "hello"]. *)
-
-(** {1:operations Operations} *)
-
-val equal : t -> t -> bool
-(** [equal a b] is [true] if [a] and [b] are the same style. *)
+(** [styled s pp] is [pp] drawn in [s] when the formatter's
+    {!Fmt.style_renderer} is [`Ansi_tty], and [pp] otherwise. *)
 
 val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)
-
-val is_none : t -> bool
-(** [is_none s] is [true] if [s] has no styling. *)

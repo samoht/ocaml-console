@@ -19,6 +19,8 @@
     {!Span}, a {!Border} or a {!Guide} can carry one; each widget lays it over
     its own cells, row [0] and column [0] being its top-left cell. *)
 
+(** {1:gradients Gradients} *)
+
 type spread = [ `Pad | `Reflect | `Repeat ]
 (** The type for what a gradient does past its stretch (SVG's [spreadMethod]).
 *)
@@ -36,6 +38,8 @@ val v :
 
 val stops : t -> Color.t list
 (** [stops g] are the colour stops of [g], in order. *)
+
+(** {1:colours Colours} *)
 
 val at : t -> float -> Color.t
 (** [at g p] is the colour of [g] at position [p], clamped to 0 to 1: with [n]
@@ -65,9 +69,13 @@ val shift : row:int -> column:int -> t -> t
 val map : (Color.t -> Color.t) -> t -> t
 (** [map f g] is [g] with [f] applied to each of its stops. *)
 
+(** {1:preds Predicates and comparisons} *)
+
 val equal : t -> t -> bool
 (** [equal g0 g1] is [true] iff [g0] and [g1] have equal stops, direction,
     length, spread and {!shift}. *)
+
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
 (** [pp] formats a gradient for diagnostics, in an unspecified format. *)

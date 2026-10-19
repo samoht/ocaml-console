@@ -3,7 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Guide glyphs for nested terminal views. *)
+(** Guide glyphs for nested terminal views.
+
+    A guide is the four glyphs that draw one level of a {!Tree} or of nested
+    {!Display} rows, and the style they are drawn in. Its glyphs are written as
+    given. *)
+
+(** {1:guides Guides} *)
 
 type t
 (** The type for the four glyphs that draw one level of nesting. *)
@@ -31,11 +37,15 @@ val style : t -> Style.t
 val with_style : Style.t -> t -> t
 (** [with_style s t] is [t] drawn in [s]. *)
 
+(** {1:predefined Predefined guides} *)
+
 val ascii : t
-(** [ascii] uses portable ASCII glyphs. *)
+(** [ascii] is the guide drawn with [+--], [|] and spaces. *)
 
 val unicode : t
-(** [unicode] uses Unicode box-drawing glyphs. *)
+(** [unicode] is the guide drawn with Unicode light box-drawing lines. *)
+
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] prints the four glyphs for diagnostics. *)
+(** [pp] formats the four glyphs for diagnostics. *)
