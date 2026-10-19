@@ -238,13 +238,14 @@ $ dune exec examples/matrix/main.exe
 
 ## API
 
+The `console` library:
+
 | Module | What it does |
 |---|---|
 | `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
 | `Console.Style` | Bold, italic, underline and colours, combined with `+` |
-| `Console.Gradient` | Colour gradients across a line of text |
-| `Console.Span` | Styled text and links, with wrapping and truncation |
-| `Console.Width` | How many columns a string takes on screen |
+| `Console.Gradient` | Colours that change from one cell to the next |
+| `Console.Span` | Text in a style, with links, wrapping and truncation |
 | `Console.Border` | Frame styles for tables and panels |
 | `Console.Guide` | The lines that connect the branches of a tree |
 | `Console.Theme` | One look for every widget |
@@ -252,16 +253,26 @@ $ dune exec examples/matrix/main.exe
 | `Console.Tree` | Trees, drawn like the output of `tree` |
 | `Console.Panel` | Text in a frame, with an optional title |
 | `Console.Rule` | Horizontal lines with an optional title |
-| `Console.Layout` | Blocks of text side by side or stacked |
+| `Console.Layout` | Widgets side by side or one above the other |
 | `Console.Spinner` | Spinners for work of unknown length |
-| `Console.Bar` | Progress bars |
+| `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Anim` | Values that change over time, for animations |
-| `Console.Display` | Progress lines that update in place, or plain lines outside a terminal |
+| `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
 | `Console.Input` | Reading a line from the keyboard, with history and completion |
+
+The `console-eio` library:
+
+| Module | What it does |
+|---|---|
 | `Console_eio` | Runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio): finds the terminal and its size, and redraws |
-| `Console_eio.Prompt` | Asking the user a question, or a password without echoing it |
-| `Console_text` | Removing colour codes and control characters from text you do not trust |
-| `Console_vte` | Replaying a recorded terminal session, to test what it showed |
+| `Console_eio.Prompt` | Asking the user a question, or a password without showing it |
+
+Two small libraries that come with `console`:
+
+| Library | Module | What it does |
+|---|---|---|
+| `console.text` | `Console_text` | Removing colour codes and control characters from text you do not trust |
+| `console.vte` | `Console_vte` | Replaying a recorded terminal session, to test what it showed |
 
 ## Related work
 
