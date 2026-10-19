@@ -126,9 +126,18 @@ let test_wrap_oversized () =
     "retain the suffix" [ "a" ]
     (List.map Span.to_string (Span.wrap 1 (Span.text "界a")))
 
+let test_width_boundaries () =
+  let suffix = "\xea\xa8\xb4" in
+  let joined = Span.text ("x" ^ suffix) in
+  let split = Span.(text "x" ++ styled Style.bold suffix) in
+  Alcotest.(check int) "joined cluster occupies one cell" 1 (Span.width joined);
+  Alcotest.(check int) "style changes do not add cells" 1 (Span.width split)
+
 let suite =
   ( "span",
     [
+      Alcotest.test_case "width is independent of styling boundaries" `Quick
+        test_width_boundaries;
       Alcotest.test_case "wrapping retains text after an oversized glyph" `Quick
         test_wrap_oversized;
       Alcotest.test_case "wrapping replaces malformed UTF-8" `Quick
