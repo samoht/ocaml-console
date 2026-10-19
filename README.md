@@ -2,7 +2,7 @@
 
 Colours, tables, trees and progress bars for OCaml command-line tools.
 
-console prints the way `make` or `ls` do: each line goes below the previous
+console prints the way `make` or `ls` do. Each line goes below the previous
 one, and everything is still there when the program exits. It is not meant
 for full-screen programs such as `vim` or `htop`; for those, use
 [notty](https://github.com/pqwy/notty) or
