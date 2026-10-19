@@ -5,7 +5,7 @@ val run :
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?palette:Console.Color.t list ->
-  ?bar:Console.Display.Line.t ->
+  ?layout:Console.Display.Line.t ->
   ?width:int ->
   ?height:int ->
   ?header:string ->

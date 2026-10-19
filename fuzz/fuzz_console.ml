@@ -16,14 +16,14 @@ let of_string_rows ?theme ?border columns rows =
 let display_ctx ~ppf ~now ~width ~height =
   Display.ctx ~ppf ~now ~wait:ignore
     ~dimensions:(fun () -> (width, height))
-    ~is_tty:true ()
+    ~live:true ()
 
 let dumb () =
   Display.ctx ~ppf:Format.std_formatter
     ~now:(fun () -> 0.)
     ~wait:ignore
     ~dimensions:(fun () -> (80, 24))
-    ~is_tty:false ()
+    ~live:false ()
 
 (* Width is always non-negative *)
 let test_width_non_negative s =
@@ -313,7 +313,7 @@ let overflow_table ~width headers cells =
     List.mapi
       (fun i header ->
         Table.column ~shrinkable:(i <> 0)
-          ~overflow:(if i land 1 = 0 then `Wrap else `Truncate)
+          ~overflow:(if i land 1 = 0 then `Wrap else `Elide)
           header)
       headers
   in
@@ -468,10 +468,10 @@ let test_bar cur total wbyte =
   let ppf = Format.formatter_of_buffer buf in
   let now = ticking_clock () in
   let vte = Vte.create ~rows:4 ~cols:width () in
-  let bar = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
+  let layout = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
     ~mode:`Activity ~width ~height:4 (fun d ->
-      let task = Display.task ~bar d "[B]" in
+      let task = Display.task ~layout d "[B]" in
       Display.set_count task ~cur ~total;
       Display.tick d;
       Format.pp_print_flush ppf ();
@@ -610,7 +610,7 @@ let test_composed wbyte =
     String.concat "" (List.init 10 (fun i -> if i < full then "█" else "░"))
     ^ Fmt.str " %d%%" pct
   in
-  let col h = Table.column ~overflow:`Truncate ~max_width:16 h in
+  let col h = Table.column ~overflow:`Elide ~max_width:16 h in
   let table =
     of_string_rows
       [ col "step"; col "progress" ]
@@ -843,7 +843,7 @@ let key i = Fmt.str "task-%d" i
 (* Console owns the registry: asking for an ID again must hand back the very same
    task, never open a second lifecycle. *)
 let ensure model display i =
-  let task = Display.task ~id:(key i) display (Fmt.str "task %d" i) in
+  let task = Display.task ~key:(key i) display (Fmt.str "task %d" i) in
   (match model.handles.(i) with
   | None ->
       model.handles.(i) <- Some task;
@@ -947,7 +947,7 @@ let test_keyed_event_stream program =
     ~ctx:
       (Display.ctx ~ppf ~now ~wait:ignore
          ~dimensions:(fun () -> (80, 24))
-         ~is_tty:false ())
+         ~live:false ())
     ~mode:`History
     (fun display ->
       saved := Some display;
@@ -969,7 +969,7 @@ let test_dynamic_geometry program =
   let ctx =
     Display.ctx ~ppf ~now ~wait:ignore
       ~dimensions:(fun () -> (!width, !height))
-      ~is_tty:true ()
+      ~live:true ()
   in
   Display.run ~ctx ~mode:`Activity ~header:"resize" (fun display ->
       String.iteri
@@ -978,7 +978,7 @@ let test_dynamic_geometry program =
           width := (code land 15) - 7;
           height := ((code lsr 4) land 15) - 7;
           let task =
-            Display.task ~id:(Fmt.str "resize-%d" (i land 3)) display "x"
+            Display.task ~key:(Fmt.str "resize-%d" (i land 3)) display "x"
           in
           Display.set_count task ~cur:(code land 7) ~total:7;
           Display.tick display)

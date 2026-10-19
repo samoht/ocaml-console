@@ -9,7 +9,7 @@ let () =
       ~now:(fun () -> 0.)
       ~wait:ignore
       ~dimensions:(fun () -> (80, 24))
-      ~is_tty:true ()
+      ~live:true ()
   in
   Console.Display.run ~ctx ~mode:`Activity (fun display ->
       let task = Console.Display.task display "pushing" in

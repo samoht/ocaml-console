@@ -196,7 +196,7 @@ case here:
 ```ocaml
 # let ctx =
     Display.ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ~wait:ignore
-      ~dimensions:(fun () -> (80, 24)) ~is_tty:false ();;
+      ~dimensions:(fun () -> (80, 24)) ~live:false ();;
 val ctx : Display.ctx = <abstr>
 # Display.run ~ctx ~header:"Building" (fun display ->
     let step = Display.task display "compile" in

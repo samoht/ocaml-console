@@ -38,7 +38,7 @@ let validate_geometry ~width ~height =
       invalid_arg "Console.Display.run: height must be positive"
   | _ -> ()
 
-let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
+let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~layout ~width
     ~height ~header =
   let auto_width = width = None and auto_height = height = None in
   let term_w, term_h = ctx.dimensions () in
@@ -53,7 +53,7 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     wait = ctx.wait;
     dimensions = ctx.dimensions;
     header = Option.map sanitize header;
-    default_style = bar;
+    default_style = layout;
     theme;
     palette = Option.value palette ~default:(Theme.palette theme);
     dstart = ctx.now ();
@@ -96,19 +96,19 @@ let claim t =
         raise exn
 
 let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
-    ?(bar = Line.default) ?width ?height ?header () =
+    ?(layout = Line.default) ?width ?height ?header () =
   validate_geometry ~width ~height;
   let plain =
     match mode with
     | `History -> true
     | `Activity -> false
-    | `Auto -> not ctx.Display_ctx.is_tty
+    | `Auto -> not ctx.Display_ctx.live
   in
   (* Whether the surface takes ANSI is the formatter's own answer, read once
      here: a terminal whose reader turned colour off still gets the region. *)
   let styling = Ansi.should_style ctx.ppf in
   let t =
-    state ~ctx ~plain ~styling ~theme ~palette ~bar ~width ~height ~header
+    state ~ctx ~plain ~styling ~theme ~palette ~layout ~width ~height ~header
   in
   claim t;
   t
@@ -117,12 +117,12 @@ let touch r = Display_projection.paint_if_stale r.disp
 
 (* A row's accent: an explicit [color], else the next palette colour (fixed at
    creation, so it is stable across redraws), else the base style's own. *)
-let row_style t ~bar ~color =
-  let base = Option.value bar ~default:t.default_style in
+let row_style t ~layout ~color =
+  let base = Option.value layout ~default:t.default_style in
   match color with
   | Some c -> Line.with_color c base
   | None -> (
-      match (bar, t.palette) with
+      match (layout, t.palette) with
       | None, (_ :: _ as pal) ->
           Line.with_color
             (List.nth pal (List.length t.rows mod List.length pal))
@@ -191,15 +191,15 @@ let emit_history_line t ~plain ~styled =
 
 (** {1 Tasks} *)
 
-let validate_task ~id ~parent ~log_lines ~total t =
+let validate_task ~key ~parent ~log_lines ~total t =
   check_open "task" t;
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
   (match total with
   | Some total when total < 0 ->
       invalid_arg "Console.Display.task: negative total"
   | Some _ | None -> ());
-  (match id with
-  | Some "" -> invalid_arg "Console.Display.task: empty id"
+  (match key with
+  | Some "" -> invalid_arg "Console.Display.task: empty key"
   | Some _ | None -> ());
   match parent with
   | Some parent when parent.disp != t ->
@@ -210,10 +210,10 @@ let validate_task ~id ~parent ~log_lines ~total t =
    An event stream carries stable ids across whatever scopes the emitter is
    in, so a later parent describes where the work is now, and is ignored
    rather than fatal: a drawing surface does not get to abort its host. *)
-let existing_task ~id t = Option.bind id (Hashtbl.find_opt t.by_key)
+let existing_task ~key t = Option.bind key (Hashtbl.find_opt t.by_key)
 
-let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t label
-    =
+let add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
+    label =
   let now = t.now () in
   let rid = t.next_task_id in
   t.next_task_id <- rid + 1;
@@ -226,10 +226,10 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t label
   let r =
     {
       rid;
-      rkey = id;
+      rkey = key;
       disp = t;
       parent;
-      style = row_style t ~bar ~color;
+      style = row_style t ~layout ~color;
       log_lines;
       logs = [];
       log_prev_t = now;
@@ -252,7 +252,7 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t label
     }
   in
   t.rows <- t.rows @ [ r ];
-  Option.iter (fun id -> Hashtbl.add t.by_key id r) id;
+  Option.iter (fun key -> Hashtbl.add t.by_key key r) key;
   record ~task:r t `Started r.rlabel;
   Option.iter
     (fun outcome ->
@@ -262,13 +262,13 @@ let add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t label
   touch r;
   r
 
-let task ?id ?parent ?bar ?color ?(log_lines = 8) ?total ?(transient = false)
-    ?(group = false) t label =
-  validate_task ~id ~parent ~log_lines ~total t;
-  match existing_task ~id t with
+let task ?key ?parent ?layout ?color ?(log_lines = 8) ?total
+    ?(transient = false) ?(group = false) t label =
+  validate_task ~key ~parent ~log_lines ~total t;
+  match existing_task ~key t with
   | Some existing -> existing
   | None ->
-      add_task ~id ~parent ~bar ~color ~log_lines ~total ~transient ~group t
+      add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
         label
 
 let set_label r label =
@@ -505,10 +505,10 @@ let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
-let with_task ?id ?parent ?bar ?color ?log_lines ?total ?transient ?group t
+let with_task ?key ?parent ?layout ?color ?log_lines ?total ?transient ?group t
     label f =
   let task =
-    task ?id ?parent ?bar ?color ?log_lines ?total ?transient ?group t label
+    task ?key ?parent ?layout ?color ?log_lines ?total ?transient ?group t label
   in
   match f task with
   | value ->
@@ -616,8 +616,8 @@ let cleanup_after_exception t =
 
 let restore = Display_term.restore
 
-let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
-  let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
+let run ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header f =
+  let t = v ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header () in
   Fun.protect
     ~finally:(fun () -> release_claim t)
     (fun () ->

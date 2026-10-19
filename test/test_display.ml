@@ -259,7 +259,7 @@ let test_one_display_at_a_time () =
   let buffer = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
-  let c = ctx ~is_tty:true ~ppf ~now () in
+  let c = ctx ~live:true ~ppf ~now () in
   let refused mode =
     match Display.run ~ctx:c ~mode ignore with
     | () -> false
@@ -441,7 +441,7 @@ let test_colours_follow_the_depth () =
         ~now:(fun () -> 0.)
         ~wait:ignore
         ~dimensions:(fun () -> (40, 10))
-        ~is_tty:true ()
+        ~live:true ()
     in
     Display.run ~ctx ~theme:Theme.dos ~header:"Building" (fun display ->
         ignore (Display.task display "compile");

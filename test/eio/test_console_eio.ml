@@ -47,7 +47,7 @@ let test_run_on_takes_the_callers_context () =
       ~now:(fun () -> !now)
       ~wait:(fun _ -> Eio.Fiber.await_cancel ())
       ~dimensions:(fun () -> (24, 10))
-      ~is_tty:false ()
+      ~live:false ()
   in
   Console_eio.run_on ~ctx ~mode:`History (fun display ->
       let task = Console.Display.task display "step" in
@@ -78,7 +78,7 @@ let test_run_on_waits_on_the_contexts_clock () =
       ~now:(fun () -> !now)
       ~wait
       ~dimensions:(fun () -> (24, 10))
-      ~is_tty:false ()
+      ~live:false ()
   in
   let read =
     Console_eio.run_on ~ctx ~mode:`History (fun display ->

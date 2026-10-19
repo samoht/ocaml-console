@@ -63,7 +63,7 @@ let test_logs_are_not_activity () =
 let test_late_log_is_history () =
   let events, output =
     capture (fun display _ ->
-        let task = Display.task ~id:"worker" display "worker" in
+        let task = Display.task ~key:"worker" display "worker" in
         Display.succeed task;
         Display.log ~level:`Warning task "late diagnostic";
         Display.set_count task ~cur:1 ~total:1;

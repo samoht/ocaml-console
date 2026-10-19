@@ -9,7 +9,7 @@ let () =
       ~now:(fun () -> !now)
       ~wait:ignore
       ~dimensions:(fun () -> (80, 24))
-      ~is_tty:false ()
+      ~live:false ()
   in
   Console.Display.run ~ctx ~mode:`History ~header:"Processing" (fun display ->
       let step name =

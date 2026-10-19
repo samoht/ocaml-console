@@ -13,12 +13,9 @@
 type align = [ `Left | `Center | `Right ]
 (** The type for column alignments. *)
 
-type overflow = [ `Truncate | `Wrap | `Elide ]
+type overflow = [ `Wrap | `Elide ]
 (** The type for the handling of content wider than a column's [max_width].
 
-    - [`Truncate] keeps the leading words that fit on one line and drops the
-      rest; a value whose first word does not fit is printed whole, over several
-      lines, as with [`Wrap]. No word is ever cut.
     - [`Wrap] wraps to several lines.
     - [`Elide] keeps one line that says what it left out ({!Width.elide}), with
       the row's [see] after a cell it cut. *)

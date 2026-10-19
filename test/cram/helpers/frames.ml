@@ -25,7 +25,7 @@ let () =
       ~now:(fun () -> !now)
       ~wait:ignore
       ~dimensions:(fun () -> (width, height))
-      ~is_tty:true ()
+      ~live:true ()
   in
   let sync () =
     Format.pp_print_flush ppf ();

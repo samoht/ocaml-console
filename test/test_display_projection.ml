@@ -47,8 +47,7 @@ let test_reports_between_ticks_paint_at_the_eyes_pace () =
     Format.pp_print_flush ppf ();
     count_occurrences "disk image" (Buffer.contents buffer)
   in
-  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ()) ~mode:`Activity
-    (fun display ->
+  Display.run ~ctx:(ctx ~live:true ~ppf ~now ()) ~mode:`Activity (fun display ->
       let task = Display.task display "disk image" in
       let at_start = frames () in
       (* A report a millisecond for a second: the writer's cadence. *)

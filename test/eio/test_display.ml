@@ -108,7 +108,7 @@ module Report_domains = struct
       ~now:(fun () -> 0.)
       ~wait:(Eio.Time.sleep (Eio.Stdenv.clock env))
       ~dimensions:(fun () -> (80, 24))
-      ~is_tty:false ()
+      ~live:false ()
 
   let pool env sw =
     Eio.Executor_pool.create ~sw ~domain_count:1 (Eio.Stdenv.domain_mgr env)

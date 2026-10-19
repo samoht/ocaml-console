@@ -14,19 +14,19 @@ val fake_clock : unit -> (unit -> float) * (float -> unit)
 (** [fake_clock ()] is a clock reading zero and a function that advances it. *)
 
 val ctx :
-  ?is_tty:bool ->
+  ?live:bool ->
   ?width:int ->
   ?height:int ->
   ppf:Format.formatter ->
   now:(unit -> float) ->
   unit ->
   Display.ctx
-(** [ctx ~is_tty ~width ~height ~ppf ~now ()] is a context on [ppf] (defaults to
+(** [ctx ~live ~width ~height ~ppf ~now ()] is a context on [ppf] (defaults to
     not a terminal, 80 by 24). *)
 
 val capture :
   ?header:string ->
-  ?bar:Display.Line.t ->
+  ?layout:Display.Line.t ->
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string
@@ -35,7 +35,7 @@ val capture :
 
 val capture_live :
   ?header:string ->
-  ?bar:Display.Line.t ->
+  ?layout:Display.Line.t ->
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string

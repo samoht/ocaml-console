@@ -256,7 +256,7 @@ let test_default_visual_hierarchy_and_color_scope () =
   Fmt.set_style_renderer ppf `Ansi_tty;
   let now () = 0. in
   let vte = Vte.create ~rows:4 ~cols:width () in
-  Display.run ~ctx:(ctx ~is_tty:true ~width ~height:4 ~ppf ~now ())
+  Display.run ~ctx:(ctx ~live:true ~width ~height:4 ~ppf ~now ())
     ~mode:`Activity ~width ~height:4 (fun display ->
       let root = Display.task display "compile" in
       ignore (Display.task ~parent:root display "link");
@@ -483,8 +483,7 @@ let colour_session renderer =
   Fmt.set_style_renderer ppf renderer;
   let now () = 0. in
   Display.run
-    ~ctx:
-      (ctx ~is_tty:true ~width:colour_width ~height:colour_height ~ppf ~now ())
+    ~ctx:(ctx ~live:true ~width:colour_width ~height:colour_height ~ppf ~now ())
     ~mode:`Activity ~width:colour_width ~height:colour_height ~header:"Build"
     (fun display ->
       let task = Display.task display "app" in

@@ -43,8 +43,8 @@ let test_activity_snapshot () =
 let test_keyed_task () =
   let events, _ =
     capture (fun display _ ->
-        let first = Display.task ~id:"compile:foo" display "waiting" in
-        let second = Display.task ~id:"compile:foo" display "ignored" in
+        let first = Display.task ~key:"compile:foo" display "waiting" in
+        let second = Display.task ~key:"compile:foo" display "ignored" in
         Alcotest.(check bool) "stable handle" true (first == second);
         Display.set_label second "compile foo.ml";
         Display.set_count first ~cur:8 ~total:10;
@@ -105,8 +105,8 @@ let test_key_keeps_its_first_parent () =
     @@ capture (fun display _ ->
         let first = Display.task display "first" in
         let second = Display.task display "second" in
-        let child = Display.task ~id:"child" ~parent:first display "child" in
-        let again = Display.task ~id:"child" ~parent:second display "child" in
+        let child = Display.task ~key:"child" ~parent:first display "child" in
+        let again = Display.task ~key:"child" ~parent:second display "child" in
         Alcotest.(check bool)
           "the second offer returns the same task" true (again == child);
         List.map

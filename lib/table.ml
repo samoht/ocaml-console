@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 type align = [ `Left | `Center | `Right ]
-type overflow = [ `Truncate | `Wrap | `Elide ]
+type overflow = [ `Wrap | `Elide ]
 
 type column = {
   header : Span.t;
@@ -155,7 +155,7 @@ let shrink_widths_to_terminal ?max_width t unbroken_widths widths =
       let semantic_min i =
         let token =
           match cols.(i).overflow with
-          | `Truncate | `Elide -> 0
+          | `Elide -> 0
           | `Wrap -> unbroken_widths.(i)
         in
         min widths.(i) (max (min_of i) token)
@@ -299,16 +299,6 @@ let cell_lines ?see overflow width span =
     | Some width when width <= 0 -> [ Span.empty ]
     | Some width -> (
         match overflow with
-        | `Truncate -> (
-            let cell_width = Span.width line in
-            if cell_width <= width then [ line ]
-            else
-              (* Whole words from the start, never a word cut; a value whose
-                 first word does not fit is printed whole, over several
-                 lines. *)
-              match Width.shorten width (Span.to_string line) with
-              | "" -> Span.wrap width line
-              | kept -> [ Span.truncate (Width.string_width kept) line ])
         | `Wrap -> Span.wrap width line
         | `Elide -> [ elide_span ?see width line ])
   in

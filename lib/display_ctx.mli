@@ -14,7 +14,7 @@ type t = {
   now : unit -> float;  (** The clock, in seconds. *)
   wait : float -> unit;  (** Waits on {!field-now}. *)
   dimensions : unit -> int * int;  (** The terminal width and height. *)
-  is_tty : bool;  (** Whether a live region can be drawn. *)
+  live : bool;  (** Whether a live region can be drawn. *)
   depth : Color.depth;  (** The colours the terminal shows. *)
 }
 (** The type for contexts. *)
@@ -25,10 +25,10 @@ val v :
   now:(unit -> float) ->
   wait:(float -> unit) ->
   dimensions:(unit -> int * int) ->
-  is_tty:bool ->
+  live:bool ->
   unit ->
   t
-(** [v ~depth ~ppf ~now ~wait ~dimensions ~is_tty ()] is a context with those
+(** [v ~depth ~ppf ~now ~wait ~dimensions ~live ()] is a context with those
     fields. *)
 
 val pp : t Fmt.t

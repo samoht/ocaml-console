@@ -18,12 +18,11 @@ let test_failed_install_releases_owner () =
   Alcotest.check_raises "formatter error is preserved" Broken_formatter
     (fun () ->
       Display.run
-        ~ctx:(ctx ~is_tty:true ~ppf:broken ~now ())
+        ~ctx:(ctx ~live:true ~ppf:broken ~now ())
         ~mode:`Activity ignore);
   let buffer = Buffer.create 32 in
   let ppf = Format.formatter_of_buffer buffer in
-  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ()) ~mode:`Activity
-    (fun display ->
+  Display.run ~ctx:(ctx ~live:true ~ppf ~now ()) ~mode:`Activity (fun display ->
       let task = Display.task display "recovered" in
       Display.succeed task)
 
@@ -38,8 +37,8 @@ let test_close_ends_on_a_line_end () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
-  Display.run ~ctx:(ctx ~is_tty:true ~ppf ~now ())
-    ~mode:`Activity ~header:"land" (fun display ->
+  Display.run ~ctx:(ctx ~live:true ~ppf ~now ()) ~mode:`Activity ~header:"land"
+    (fun display ->
       let task = Display.task display "work" in
       Display.succeed task);
   Format.pp_print_flush ppf ();
@@ -55,7 +54,7 @@ let test_differential_redraw_and_right_edge () =
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
   let vte = Vte.create ~rows:height ~cols:width () in
-  Display.run ~ctx:(ctx ~is_tty:true ~width ~height ~ppf ~now ())
+  Display.run ~ctx:(ctx ~live:true ~width ~height ~ppf ~now ())
     ~mode:`Activity ~width ~height (fun display ->
       ignore (Display.task display "[R1] prepare");
       let changed = Display.task display "[R2] download" in

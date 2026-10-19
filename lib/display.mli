@@ -103,14 +103,13 @@ val ctx :
   now:(unit -> float) ->
   wait:(float -> unit) ->
   dimensions:(unit -> int * int) ->
-  is_tty:bool ->
+  live:bool ->
   unit ->
   ctx
-(** [ctx ~ppf ~now ~wait ~dimensions ~is_tty ()] is a display context on the
+(** [ctx ~ppf ~now ~wait ~dimensions ~live ()] is a display context on the
     output [ppf], the clock [now], the terminal geometry [dimensions] and the
-    terminal answer [is_tty]. Driver libraries normally build it. Every colour
-    the display draws is {!Color.downsample}d to [depth] (defaults to
-    [`True_color]).
+    answer [live]. Driver libraries normally build it. Every colour the display
+    draws is {!Color.downsample}d to [depth] (defaults to [`True_color]).
 
     [now ()] is the time the display reads, in seconds, and [wait s] returns
     once [now] has advanced by [s]: they are one clock, and whatever paces the
@@ -118,7 +117,7 @@ val ctx :
     clock of its own, so a context whose clock a test moves by hand moves every
     reader of it.
 
-    [is_tty] says whether a live region can be drawn at all; whether that region
+    [live] says whether a live region can be drawn at all; whether that region
     carries colour is [ppf]'s own answer, [Fmt.style_renderer], which is what
     {!Span.pp} and every other surface here renders by, and which
     [Console_eio.run] and [Console_eio.setup] set from [--color], [NO_COLOR] and
@@ -233,7 +232,7 @@ val run :
   ?mode:mode ->
   ?theme:Theme.t ->
   ?palette:Color.t list ->
-  ?bar:Line.t ->
+  ?layout:Line.t ->
   ?width:int ->
   ?height:int ->
   ?header:string ->
@@ -272,9 +271,9 @@ type task
 (** The type for running or completed units of work owned by one display. *)
 
 val task :
-  ?id:string ->
+  ?key:string ->
   ?parent:task ->
-  ?bar:Line.t ->
+  ?layout:Line.t ->
   ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
@@ -283,16 +282,16 @@ val task :
   t ->
   string ->
   task
-(** [task display label] starts a task. With [~id], repeated calls return the
-    same task, so event streams can use their native stable IDs without keeping
-    a registry. The first call fixes its parent and rendering options; use
+(** [task display label] starts a task. With [~key], repeated calls return the
+    same task, so event streams can use their own stable keys without keeping a
+    registry. The first call fixes its parent and rendering options; use
     {!set_label} when a later start event supplies a better label. [label] is
     sanitized: a newline or another control character becomes a space, so a task
     is always drawn on one row.
 
     {b The first parent wins.} A later call offering a different [parent] for a
-    known [id] returns the existing task where it already sits, and does not
-    move it: an event stream carries one id across whatever scopes its emitter
+    known [key] returns the existing task where it already sits, and does not
+    move it: an event stream carries one key across whatever scopes its emitter
     passes through, and the scope the work began in is the truthful answer.
     Offering a parent is therefore always safe, on every event, so a caller
     never has to track which of them is allowed to name one.
@@ -320,7 +319,7 @@ val task :
     last of those rows ends. A pipe writes every line as it comes.
 
     @raise Invalid_argument
-      if the display is closed, [id] is empty, [log_lines] or [total] is
+      if the display is closed, [key] is empty, [log_lines] or [total] is
       negative, or [parent] belongs to another display. *)
 
 val set_label : task -> string -> unit
@@ -394,9 +393,9 @@ val cancel : ?message:string -> task -> unit
 *)
 
 val with_task :
-  ?id:string ->
+  ?key:string ->
   ?parent:task ->
-  ?bar:Line.t ->
+  ?layout:Line.t ->
   ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
