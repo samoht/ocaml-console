@@ -80,5 +80,5 @@ A cut keeps the style of what it kept.
 # let bold = Table.of_rows ~border:Border.none [ reason ] [ [ Span.styled Style.bold changed ] ]
 val bold : Table.t = <abstr>
 # Table.to_string ~styled:true ~width:40 bold
-- : string = "\027[1mchanged paths: _build/p1\027[0m and 3999 more\n"
+- : string = "\027[1mchanged paths: _build/p1\027[0m and 3999 more"
 ```

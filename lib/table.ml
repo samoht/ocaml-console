@@ -424,8 +424,9 @@ let pp_with ?max_width ppf t =
   let styled = Fmt.style_renderer ppf = `Ansi_tty in
   let p = Paint.v ppf in
   let border = Border.style t.border in
-  List.iter
-    (fun line ->
+  List.iteri
+    (fun i line ->
+      if i > 0 then Paint.newline p;
       List.iter
         (function
           | Edge s -> Paint.ink p border s
@@ -435,8 +436,7 @@ let pp_with ?max_width ppf t =
                 (if styled then
                    Span.to_string ~styled (Span.with_style style span)
                  else Span.to_string span))
-        line;
-      Paint.newline p)
+        line)
     (render_lines ?max_width t);
   Paint.close p
 

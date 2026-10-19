@@ -74,6 +74,7 @@ let render renderer table =
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_style_renderer ppf renderer;
   Table.pp ppf table;
+  Format.pp_print_char ppf '\n';
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -120,6 +121,7 @@ let test_formatter_margin_never_wraps_border () =
   Format.pp_set_margin ppf width;
   Fmt.set_style_renderer ppf `Ansi_tty;
   Table.pp ppf table;
+  Format.pp_print_char ppf '\n';
   Format.pp_print_flush ppf ();
   let raw = Buffer.contents buffer in
   let logical_rows =
@@ -194,6 +196,7 @@ let test_every_margin_is_a_hard_limit () =
     Format.pp_set_margin ppf width;
     Fmt.set_style_renderer ppf `Ansi_tty;
     Table.pp ppf table;
+    Format.pp_print_char ppf '\n';
     Format.pp_print_flush ppf ();
     let raw = Buffer.contents buffer in
     let logical_rows =
@@ -316,8 +319,7 @@ let test_no_border_draws_no_edge () =
           [ [ "a"; "one\ntwo" ] ]));
   let col = Table.column "" in
   Alcotest.(check string)
-    "a line ends at its last cell that is not empty"
-    "fix   stuck  /pool\nmain\n"
+    "a line ends at its last cell that is not empty" "fix   stuck  /pool\nmain"
     (Table.to_string
        (of_string_rows ~border:Border.none [ col; col; col ]
           [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))

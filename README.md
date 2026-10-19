@@ -99,7 +99,6 @@ let print_files () =
 │ src/      │ 4.0K │ yesterday   │
 │ Makefile  │  892 │ 3 days ago  │
 ╰───────────┴──────┴─────────────╯
-
 - : unit = ()
 ```
 

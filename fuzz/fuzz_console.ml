@@ -374,7 +374,7 @@ let test_table_no_overflow headers cells wbyte =
   let logical_rows = nonblank (String.split_on_char '\n' raw) in
   check_table_raw_rows ~width logical_rows;
   let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
-  Vte.feed_string vte raw;
+  Vte.feed_string vte (raw ^ "\n");
   check_table_visual_rows ~width ~logical_rows vte
 
 (* The live region is bounded by the terminal height: when more rows are live
