@@ -339,9 +339,19 @@ let test_styled_border_runs () =
     "data row" "\027[31m\xe2\x94\x82\027[0m b \027[31m\xe2\x94\x82\027[0m"
     (List.nth lines 3)
 
+let test_pp_ending () =
+  let table =
+    of_string_rows ~border:Border.none [ Table.column "" ] [ [ "x" ] ]
+  in
+  Alcotest.(check string)
+    "caller supplies the line ending" "x!"
+    (Fmt.str "%a!" Table.pp table)
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "formatter composes without a trailing newline" `Quick
+        test_pp_ending;
       Alcotest.test_case "styled border runs" `Quick test_styled_border_runs;
       Alcotest.test_case "no border draws no edge" `Quick
         test_no_border_draws_no_edge;
