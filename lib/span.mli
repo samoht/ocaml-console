@@ -30,12 +30,6 @@ val link : ?style:Style.t -> uri:string -> string -> t
 val empty : t
 (** [empty] is the empty span with no content. *)
 
-val space : t
-(** [space] is a single space character span. *)
-
-val newline : t
-(** [newline] is a newline character span. *)
-
 (** {1:concatenation Concatenation} *)
 
 val concat : t list -> t
@@ -43,7 +37,7 @@ val concat : t list -> t
 
 val with_style : Style.t -> t -> t
 (** [with_style base span] is [span] with [base] composed underneath each of its
-    styles, as {!pp_with_style} prints it. *)
+    styles. *)
 
 val ( ++ ) : t -> t -> t
 (** [a ++ b] concatenates two spans. *)
@@ -73,20 +67,9 @@ val pp : t Fmt.t
 (** [pp] pretty-prints the span with ANSI codes when the target formatter's
     style renderer permits, otherwise plain. *)
 
-val pp_with_style : Style.t -> t Fmt.t
-(** [pp_with_style base] is {!pp} with [base] composed underneath each style in
-    the span. *)
-
-val pp_plain : Format.formatter -> t -> unit
-(** [pp_plain] renders the span without ANSI codes, no matter what the target
-    formatter is configured for. *)
-
-val to_string : t -> string
-(** [to_string span] is the plain text of [span]. *)
-
-val to_ansi_string : ?style:Style.t -> t -> string
-(** [to_ansi_string span] renders [span] with ANSI codes. [style] is composed
-    underneath each style in the span. *)
+val to_string : ?styled:bool -> t -> string
+(** [to_string span] is [span] rendered with ANSI styling iff [styled] (defaults
+    to [false], the plain text of [span]). *)
 
 (** {1:measurements Measurements} *)
 
@@ -118,10 +101,3 @@ val pp_wrapped : t Fmt.t
 (** [pp_wrapped] is {!pp} for a single-line span that fits its formatter's
     margin: a span wider than the margin is wrapped to it ({!wrap}), each
     continuation hanging under the text after its first word ({!hanging}). *)
-
-(** {1:animation Animation} *)
-
-val anim : t -> string Anim.t
-(** [anim span] is [span] as a still {!Anim.t}: every frame is
-    {!to_ansi_string}, so a static span drops into an animated {!Layout}
-    alongside moving widgets. *)

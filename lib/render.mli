@@ -5,7 +5,7 @@
 
 (** Internal conversion of formatter output to strings. *)
 
-val to_string : ?style_renderer:Fmt.style_renderer -> 'a Fmt.t -> 'a -> string
+val to_string : ?styled:bool -> 'a Fmt.t -> 'a -> string
 (** [to_string pp value] captures [pp value], optionally with ANSI styling, on a
     formatter with no margin, so a widget renders at its natural width. *)
 

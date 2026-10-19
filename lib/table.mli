@@ -54,18 +54,6 @@ val column :
     - [style] is applied to every cell in the column.
     - [header] is the column header text. *)
 
-val column_span :
-  ?align:align ->
-  ?min_width:int ->
-  ?max_width:int ->
-  ?overflow:overflow ->
-  ?shrinkable:bool ->
-  ?style:Style.t ->
-  Span.t ->
-  column
-(** [column_span] is like {!val-column} but takes a styled span for the header.
-*)
-
 (** {1:table_construction Table construction} *)
 
 val v :
@@ -94,9 +82,6 @@ val add_row : ?see:string -> Span.t list -> t -> t
     @raise Invalid_argument
       if [cells] is empty or has more cells than [table] has columns. *)
 
-val add_row_strings : string list -> t -> t
-(** [add_row_strings strings table] adds a row of plain strings. *)
-
 val of_rows :
   ?theme:Theme.t ->
   ?border:Border.t ->
@@ -108,15 +93,6 @@ val of_rows :
     {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds;
     they produce physical lines inside that logical row. *)
 
-val of_string_rows :
-  ?theme:Theme.t ->
-  ?border:Border.t ->
-  ?header_style:Style.t ->
-  column list ->
-  string list list ->
-  t
-(** [of_string_rows] is like {!of_rows} but takes plain strings. *)
-
 (** {1:rendering Rendering} *)
 
 val pp : t Fmt.t
@@ -126,13 +102,11 @@ val pp : t Fmt.t
     configured for the terminal. Use {!to_string} for a natural-width string or
     to supply an explicit maximum width. *)
 
-val to_string : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
-(** [to_string table] renders plain text to a string. [width], when supplied, is
-    a hard maximum for every physical row. *)
-
-val to_ansi_string : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
-(** [to_ansi_string table] renders with ANSI styling. [width], when supplied, is
-    a hard maximum for every physical row. *)
+val to_string :
+  ?styled:bool -> ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
+(** [to_string table] is [table] rendered with ANSI styling iff [styled]
+    (defaults to [false]). [width], when supplied, is a hard maximum for every
+    physical row. *)
 
 val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
 (** [lines table] is each physical row of [table] as a styled span, the lines
@@ -143,11 +117,7 @@ val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
 (** {1:animation Animation} *)
 
 val anim : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string Anim.t
-(** [anim table] is [table] as an {!Anim.t}. It is still ({!to_ansi_string} on
-    every frame) unless [table]'s theme set {!Theme.animated_border} -- as
-    {!Theme.matrix} does -- in which case it is {!rain}. *)
-
-val rain : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string Anim.t
-(** [rain table] frames the rendered table with a Matrix-style ASCII
-    digital-rain border (see {!Panel.rain}). Deterministic in the elapsed time.
-*)
+(** [anim table] is [table] as an {!Anim.t}: [to_string ~styled:true table] on
+    every frame, unless [table]'s theme sets {!Theme.animated_border}, as
+    {!Theme.matrix} does. Then the rendered table is framed by the digital rain
+    of {!Panel.anim}. *)

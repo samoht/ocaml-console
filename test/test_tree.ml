@@ -31,8 +31,7 @@ let test_prefix_ascii () =
 let test_render_exact () =
   let n label children = Tree.Node (Span.text label, children) in
   let tree =
-    Tree.of_tree
-      (n "root" [ n "a" [ n "a1" []; n "a2" [] ]; n "b" [ n "b1" [] ] ])
+    Tree.v (n "root" [ n "a" [ n "a1" []; n "a2" [] ]; n "b" [ n "b1" [] ] ])
   in
   let expected =
     String.concat "\n"
@@ -42,19 +41,9 @@ let test_render_exact () =
 
 let test_render_single () =
   let tree =
-    Tree.of_tree
-      (Tree.Node (Span.text "root", [ Tree.Node (Span.text "child", []) ]))
+    Tree.v (Tree.Node (Span.text "root", [ Tree.Node (Span.text "child", []) ]))
   in
   str "single child" "root\n└── child" (Tree.to_string tree)
-
-(* A tree animation is still: every frame is its rendered string. *)
-let test_anim_const () =
-  let t =
-    Tree.of_tree
-      (Tree.Node (Span.text "root", [ Tree.Node (Span.text "leaf", []) ]))
-  in
-  str "frame is terminal-ready" (Tree.to_ansi_string t)
-    (Anim.frame (Tree.anim t) ~elapsed:3.0)
 
 (* The formatter's margin is a ceiling on every row: a label wider than the
    room left by its guide wraps, hanging under the text after its first word,
@@ -62,8 +51,7 @@ let test_anim_const () =
 let test_margin_wraps () =
   let n label children = Tree.Node (Span.text label, children) in
   let tree =
-    Tree.of_tree
-      (n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ])
+    Tree.v (n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ])
   in
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
@@ -91,7 +79,7 @@ let test_guide_style () =
   let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
   let guide = Guide.with_style (Style.fg_gradient down) Guide.unicode in
   let tree =
-    Tree.of_tree ~guide
+    Tree.v ~guide
       (Tree.Node
          ( Span.text "r",
            [ Tree.Node (Span.text "a", []); Tree.Node (Span.text "b", []) ] ))
@@ -101,7 +89,7 @@ let test_guide_style () =
     "r\r\n\
      \027[38;2;127;0;128m\xe2\x94\x9c\xe2\x94\x80\xe2\x94\x80\027[0m a\r\n\
      \027[38;2;0;0;255m\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\027[0m b"
-    (Tree.to_ansi_string tree);
+    (Tree.to_string ~styled:true tree);
   Alcotest.(check bool)
     "with_style" true
     (Style.equal (Style.fg_gradient down) (Guide.style guide));
@@ -120,6 +108,5 @@ let suite =
       Alcotest.test_case "prefix ascii" `Quick test_prefix_ascii;
       Alcotest.test_case "render exact" `Quick test_render_exact;
       Alcotest.test_case "render single" `Quick test_render_single;
-      Alcotest.test_case "anim is still" `Quick test_anim_const;
       Alcotest.test_case "margin wraps" `Quick test_margin_wraps;
     ] )

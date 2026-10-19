@@ -65,7 +65,7 @@
 
     let demo_tree () =
       let tree =
-        Tree.of_tree
+        Tree.v
           (Tree.Node
              ( Span.text "src",
                [
@@ -118,8 +118,8 @@
 
     {2:animation Animation}
 
-    An {!Anim.t} is a value sampled at an elapsed time. {!Spinner}, {!Bar} and
-    {!Panel.rain} expose one.
+    An {!Anim.t} is a value sampled at an elapsed time. {!Spinner}, {!Bar},
+    {!Panel} and {!Table} expose one.
 
     {[
     open Console

@@ -6,6 +6,9 @@
 open Alcobar
 open Console
 
+let of_string_rows ?theme ?border columns rows =
+  Table.of_rows ?theme ?border columns (List.map (List.map Span.text) rows)
+
 (* Every property here checks the library against a real VT emulator, which
    places combining marks at zero cells and wide glyphs at two; Uucp-backed
    [Width.default_char_width] follows that same policy. *)
@@ -64,7 +67,7 @@ let test_table_render_no_crash headers row =
 
 (* Tree rendering doesn't crash *)
 let test_tree_render_no_crash label =
-  let tree = Tree.of_tree (Tree.Node (Span.text label, [])) in
+  let tree = Tree.v (Tree.Node (Span.text label, [])) in
   let _ = Tree.to_string tree in
   check true
 
@@ -328,7 +331,7 @@ let overflow_table ~width headers cells =
         ((first_cell ^ String.make (width * 2) 'W') :: row) :: rows
     | [] :: _ -> assert false
   in
-  Table.of_string_rows ~border:Border.rounded columns rows
+  of_string_rows ~border:Border.rounded columns rows
 
 (* The formatter emitted rows, and every one of them is exactly [width] cells. *)
 let check_table_raw_rows ~width logical_rows =
@@ -609,7 +612,7 @@ let test_composed wbyte =
   in
   let col h = Table.column ~overflow:`Truncate ~max_width:16 h in
   let table =
-    Table.of_string_rows
+    of_string_rows
       [ col "step"; col "progress" ]
       [ [ "build"; bar 30 ]; [ "test"; bar 70 ] ]
   in

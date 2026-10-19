@@ -77,8 +77,7 @@ let render_rate t row ~finished =
         dimmed t (Display_text.bytes (Int64.of_float row.rate) ^ "/s")
     | _ -> ""
 
-let span_line t span =
-  if t.styling then Span.to_ansi_string span else Span.to_string span
+let span_line t span = Span.to_string ~styled:t.styling span
 
 let render_piece t row ~finished ~color ~frame (piece : Display_line.piece) =
   match piece with

@@ -17,24 +17,11 @@ type t
 
 (** {1:construction Construction} *)
 
-val of_tree : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
-(** [of_tree tree] is a renderable tree from a tree of spans. The branch glyphs
-    come from the guide argument if given, else from {!Theme.guide}, else
-    {!Guide.unicode}. *)
+val v : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
+(** [v tree] is [tree] ready to render. The branch glyphs come from [guide] if
+    given, else from {!Theme.guide} of [theme], else {!Guide.unicode}.
 
-val v :
-  ?theme:Theme.t ->
-  ?guide:Guide.t ->
-  (('a -> Span.t node) -> 'a -> Span.t node) ->
-  'a ->
-  t
-(** [v f root] is a tree built by recursively applying [f]; the branch glyphs
-    are resolved as in {!of_tree}.
-
-    The function [f] receives a render function and the current node, and should
-    return a tree of spans.
-
-    Example:
+    A tree of a recursive value is built by recursion over it:
     {[
     type dir = { name : string; children : dir list }
 
@@ -48,12 +35,10 @@ val v :
           ];
       }
 
-    let tree =
-      Console.Tree.v ~guide:Console.Guide.ascii
-        (fun render (dir : dir) ->
-          Console.Tree.Node
-            (Console.Span.text dir.name, List.map render dir.children))
-        root_dir
+    let rec node dir =
+      Console.Tree.Node (Console.Span.text dir.name, List.map node dir.children)
+
+    let tree = Console.Tree.v ~guide:Console.Guide.ascii (node root_dir)
 
     let () =
       assert (
@@ -82,14 +67,6 @@ val pp : t Fmt.t
     the text after the label's first word ({!Span.hanging}) beside the guide of
     its level. *)
 
-val to_string : t -> string
-(** [to_string tree] renders as plain text at its natural width. *)
-
-val to_ansi_string : t -> string
-(** [to_ansi_string tree] renders with ANSI styling. *)
-
-(** {1:animation Animation} *)
-
-val anim : t -> string Anim.t
-(** [anim tree] is [tree] as a still {!Anim.t}: every frame is {!to_ansi_string}
-    [tree]. A tree has no border, so there is no rain variant. *)
+val to_string : ?styled:bool -> t -> string
+(** [to_string tree] is [tree] rendered at its natural width, with ANSI styling
+    iff [styled] (defaults to [false]). *)

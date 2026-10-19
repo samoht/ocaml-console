@@ -115,7 +115,8 @@ its last cell that is not empty.
 val col : Table.column = <abstr>
 # print_string
     (Table.to_string
-       (Table.of_string_rows ~border:Border.none [ col; col; col ]
+       (Table.of_rows ~border:Border.none [ col; col; col ]
+          @@ List.map (List.map Span.text)
           [
             [ "fix"; "stuck"; "/pool/fix.3" ];
             [ "staging"; "1 queued · overdue since 16:16" ];
@@ -172,6 +173,6 @@ A cut keeps the style of what it kept.
 ```ocaml
 # let bold = Table.v ~border:Border.none [ reason ] |> Table.add_row [ Span.styled Style.bold changed ]
 val bold : Table.t = <abstr>
-# List.map (Span.to_ansi_string) (Table.lines ~width:40 bold)
+# List.map (Span.to_string ~styled:true) (Table.lines ~width:40 bold)
 - : string list = ["\027[1mchanged paths: _build/p1\027[0m and 3999 more"]
 ```

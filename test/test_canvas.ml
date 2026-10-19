@@ -54,7 +54,7 @@ let test_shape () =
     "map" "3"
     (Canvas.glyph (Canvas.get flipped ~row:1 ~column:1))
 
-let ansi rows = List.map (fun s -> Span.to_ansi_string s) rows
+let ansi rows = List.map (fun s -> Span.to_string ~styled:true s) rows
 
 (* A run is cut where the drawn sequence changes: two cells of one red are one
    run. *)

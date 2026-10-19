@@ -90,7 +90,7 @@ let test_invalid_width () =
 (* {1 Bars as spans} *)
 
 let plain = Span.to_string
-let ansi = Span.to_ansi_string
+let ansi = Span.to_string ~styled:true
 let red = Style.fg Color.red
 let green = Style.fg Color.green
 let blue = Style.fg Color.blue

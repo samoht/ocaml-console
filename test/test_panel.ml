@@ -30,7 +30,7 @@ let test_multiline_preserves_styles () =
   let content =
     Span.(
       styled Style.(fg Color.red) "red"
-      ++ newline
+      ++ text "\n"
       ++ styled Style.(fg Color.blue) "blue")
   in
   let panel = Panel.v content in
@@ -68,10 +68,12 @@ let test_anim_const () =
   let p = Panel.v (Span.text "body") in
   let a = Panel.anim p in
   Alcotest.(check string)
-    "frame 0 is terminal-ready" (Panel.to_ansi_string p)
+    "frame 0 is terminal-ready"
+    (Panel.to_string ~styled:true p)
     (Anim.frame a ~elapsed:0.);
   Alcotest.(check string)
-    "frame 9 is terminal-ready too" (Panel.to_ansi_string p)
+    "frame 9 is terminal-ready too"
+    (Panel.to_string ~styled:true p)
     (Anim.frame a ~elapsed:9.)
 
 let lines s = String.split_on_char '\n' s
@@ -79,8 +81,8 @@ let lines s = String.split_on_char '\n' s
 (* The rain frame keeps the box rectangle (content height + 2 border rows), is
    coloured green, shows the content, and is deterministic in elapsed. *)
 let test_rain () =
-  let p = Panel.lines [ Span.text "neo"; Span.text "trinity" ] in
-  let a = Panel.rain p in
+  let p = Panel.v ~theme:Theme.matrix (Span.text "neo\ntrinity") in
+  let a = Panel.anim p in
   let f1 = Anim.frame a ~elapsed:0.4 in
   Alcotest.(check int)
     "content height + 2 border rows" 4
@@ -104,7 +106,8 @@ let test_anim_theme () =
     (contains "\027[32m" (Anim.frame (Panel.anim m) ~elapsed:0.4));
   let u = Panel.v ~theme:Theme.unicode (Span.text "neo") in
   Alcotest.(check string)
-    "non-matrix theme stays still" (Panel.to_ansi_string u)
+    "non-matrix theme stays still"
+    (Panel.to_string ~styled:true u)
     (Anim.frame (Panel.anim u) ~elapsed:0.4)
 
 let render_at margin panel =
@@ -120,12 +123,9 @@ let render_at margin panel =
    line's first word, and the box is exactly the margin wide. *)
 let test_margin_wraps () =
   let panel =
-    Panel.lines
-      [
-        Span.text
-          "REFUSED main has no baseline and the gate worktree does not exist";
-        Span.text "ok";
-      ]
+    Panel.v
+      (Span.text
+         "REFUSED main has no baseline and the gate worktree does not exist\nok")
   in
   Alcotest.(check string)
     "wrapped box"
@@ -188,7 +188,7 @@ let test_gradient_border () =
          "\xe2\x94\x80\xe2\x94\x98";
          reset;
        ])
-    (Panel.to_ansi_string (panel across));
+    (Panel.to_string ~styled:true (panel across));
   let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
   let p = "\027[38;2;127;0;128m" in
   Alcotest.(check string)
@@ -211,7 +211,7 @@ let test_gradient_border () =
          "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x98";
          reset;
        ])
-    (Panel.to_ansi_string (panel down))
+    (Panel.to_string ~styled:true (panel down))
 
 let suite =
   ( "panel",

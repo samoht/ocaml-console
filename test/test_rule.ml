@@ -7,19 +7,19 @@ open Console
 
 let test_plain () =
   let t = Rule.v ~glyph:"-" ~width:5 () in
-  Alcotest.(check string) "unlabelled" "-----" (Rule.to_string t)
+  Alcotest.(check string) "unlabelled" "-----" (Span.to_string t)
 
 let test_label () =
   let label = Span.styled Style.bold "Build" in
   Alcotest.(check string)
     "center" "-- Build --"
-    (Rule.to_string (Rule.v ~glyph:"-" ~label ~width:11 ()));
+    (Span.to_string (Rule.v ~glyph:"-" ~label ~width:11 ()));
   Alcotest.(check string)
     "left" "Build -----"
-    (Rule.to_string (Rule.v ~glyph:"-" ~align:`Left ~label ~width:11 ()));
+    (Span.to_string (Rule.v ~glyph:"-" ~align:`Left ~label ~width:11 ()));
   Alcotest.(check string)
     "right" "----- Build"
-    (Rule.to_string (Rule.v ~glyph:"-" ~align:`Right ~label ~width:11 ()))
+    (Span.to_string (Rule.v ~glyph:"-" ~align:`Right ~label ~width:11 ()))
 
 let test_invalid () =
   Alcotest.check_raises "negative width"

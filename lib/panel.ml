@@ -40,11 +40,6 @@ let v ?theme ?border ?title ?subtitle ?padding ?width ?char_width content =
   build ~fn:"Console.Panel.v" ?theme ?border ?title ?subtitle ?padding ?width
     ?char_width (Span.split_lines content)
 
-let lines ?theme ?border ?title ?subtitle ?(padding = 1) ?width
-    ?(char_width = Width.default_char_width) lines =
-  build ~fn:"Console.Panel.lines" ?theme ?border ?title ?subtitle ~padding
-    ?width ~char_width lines
-
 let render_horizontal p border_style count char =
   for _ = 1 to count do
     Paint.ink p border_style char
@@ -89,7 +84,7 @@ let render_span ppf ~char_width ~width span =
   let span = Span.sanitize ~keep_newlines:false span in
   let text =
     match Fmt.style_renderer ppf with
-    | `Ansi_tty -> Span.to_ansi_string span
+    | `Ansi_tty -> Span.to_string ~styled:true span
     | `None -> Span.to_string span
   in
   Width.truncate ~char_width width text
@@ -148,8 +143,7 @@ let pp ppf panel =
   render_content_lines ppf p panel border_style chars cw pad;
   render_bottom_border ppf p panel border_style chars inner_width
 
-let to_string panel = Render.to_string pp panel
-let to_ansi_string panel = Render.to_string ~style_renderer:`Ansi_tty pp panel
+let to_string ?styled panel = Render.to_string ?styled pp panel
 
 (* The rain frames the content lines (each padded to the inner width) with a
    Matrix border. The title and subtitle are not drawn in this mode. *)
@@ -160,7 +154,7 @@ let rain panel =
       let line l =
         let l =
           Span.sanitize ~keep_newlines:false l
-          |> Span.to_ansi_string
+          |> Span.to_string ~styled:true
           |> Width.truncate ~char_width:panel.char_width cw
         in
         pad ^ Width.pad_right ~char_width:panel.char_width cw l ^ pad
@@ -171,4 +165,5 @@ let rain panel =
 
 (* A still frame, unless the theme asked for an animated border. *)
 let anim panel =
-  if panel.animated then rain panel else Anim.const (to_ansi_string panel)
+  if panel.animated then rain panel
+  else Anim.const (to_string ~styled:true panel)

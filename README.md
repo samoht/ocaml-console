@@ -110,7 +110,7 @@ Trees and framed panels print the same way:
 # open Console;;
 # let file name = Tree.Node (Span.text name, []) in
   Fmt.pr "%a@." Tree.pp
-    (Tree.of_tree
+    (Tree.v
        (Node
           ( Span.text "src",
             [
@@ -148,7 +148,7 @@ let section =
 
 let report =
   Layout.vcat ~gutter:1
-    [ Rule.to_string section; Panel.to_string (Panel.v (Span.text "All green")) ]
+    [ Span.to_string section; Panel.to_string (Panel.v (Span.text "All green")) ]
 ```
 
 ```ocaml

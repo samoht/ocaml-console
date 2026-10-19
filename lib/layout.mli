@@ -32,8 +32,8 @@ val hcat_anim :
   string Anim.t
 (** [hcat_anim blocks] is {!hcat} lifted over animations: every frame samples
     each block in [blocks] at the current elapsed time (see {!Anim.all}) and
-    joins the results side by side. Build the blocks from {!Span.anim},
-    {!Panel.anim}, {!Tree.anim}, {!Bar.anim} or any [string Anim.t], then drive
+    joins the results side by side. Build the blocks from {!Anim.const},
+    {!Panel.anim}, {!Table.anim}, {!Bar.anim} or any [string Anim.t], then drive
     the joined row in a live {!Display} view. The column widths are recomputed
     each frame, so a block that changes width over time shifts its neighbours --
     fix a block's width (e.g. {!Panel.v}'s [?width]) to keep the columns steady.

@@ -21,8 +21,6 @@ let link ?(style = Style.none) ~uri str =
   [ atom ~link:uri style str ]
 
 let empty = []
-let space = text " "
-let newline = text "\n"
 let concat spans = List.concat spans
 
 let with_style base t =
@@ -100,10 +98,7 @@ let pp_with_style style ppf t =
   else List.iter (pp_atom style ppf) t
 
 let pp = pp_with_style Style.none
-let to_string t = Render.to_string pp t
-
-let to_ansi_string ?(style = Style.none) t =
-  Render.to_string ~style_renderer:`Ansi_tty (pp_with_style style) t
+let to_string ?styled t = Render.to_string ?styled pp t
 
 let width ?(char_width = Width.default_char_width) t =
   List.fold_left
@@ -230,5 +225,3 @@ let pp_wrapped ppf t =
       if i > 0 then Render.newline ppf;
       pp ppf line)
     lines
-
-let anim t = Anim.const (to_ansi_string t)

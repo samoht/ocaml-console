@@ -4,8 +4,8 @@
   ---------------------------------------------------------------------------*)
 
 type align = [ `Left | `Center | `Right ]
-type t = Span.t
 
+let space = Span.text " "
 let repeat glyph n = String.concat "" (List.init n (fun _ -> glyph))
 
 let v ?(char_width = Width.default_char_width) ?theme ?style ?(glyph = "─")
@@ -44,8 +44,3 @@ let v ?(char_width = Width.default_char_width) ?theme ?style ?(glyph = "─")
             let left = (available - 2) / 2 in
             let right = available - 2 - left in
             Span.(fill left ++ space ++ label ++ space ++ fill right))
-
-let pp = Span.pp
-let to_string = Span.to_string
-let to_ansi_string t = Span.to_ansi_string t
-let anim t = Anim.const (to_ansi_string t)

@@ -5,6 +5,9 @@
 
 open Console
 
+let of_string_rows ?theme ?border columns rows =
+  Table.of_rows ?theme ?border columns (List.map (List.map Span.text) rows)
+
 let contains pattern str = Re.execp (Re.compile (Re.str pattern)) str
 
 let test_basic () =
@@ -82,7 +85,7 @@ let test_theme_separates_multiline_rows () =
       ()
   in
   let table =
-    Table.of_string_rows ~theme
+    of_string_rows ~theme
       [ Table.column "A"; Table.column "B" ]
       [ [ "one"; "a\nb" ]; [ "two"; "c" ] ]
   in
@@ -104,7 +107,7 @@ let test_theme_separates_multiline_rows () =
 let test_wrap_preserves_unbroken_token () =
   let url = "https://rg.fr-par.scw.cloud/run-space" in
   let table =
-    Table.of_string_rows
+    of_string_rows
       [
         Table.column "Context"; Table.column "Service"; Table.column "Endpoint";
       ]
@@ -115,7 +118,7 @@ let test_wrap_preserves_unbroken_token () =
   Alcotest.(check bool) "URL remains contiguous" true (contains url output)
 
 let demo () =
-  Table.of_string_rows
+  of_string_rows
     [ Table.column "name"; Table.column "age" ]
     [ [ "Neo"; "30" ]; [ "Trinity"; "28" ] ]
 
@@ -130,7 +133,12 @@ let test_anim_const () =
 
 (* The rain frames the table green, keeps its content, and is deterministic. *)
 let test_rain () =
-  let a = Table.rain (demo ()) in
+  let a =
+    Table.anim
+      (of_string_rows ~theme:Theme.matrix
+         [ Table.column "name"; Table.column "age" ]
+         [ [ "Neo"; "30" ]; [ "Trinity"; "28" ] ])
+  in
   let f = Anim.frame a ~elapsed:0.4 in
   Alcotest.(check bool) "green frame" true (contains "\027[32m" f);
   Alcotest.(check bool) "content kept" true (contains "Trinity" f);
@@ -143,7 +151,7 @@ let test_rain () =
    detection, owns colour policy. *)
 let test_string_conversion_is_plain () =
   let t =
-    Table.of_string_rows [ Table.column "A"; Table.column "B" ] [ [ "1"; "2" ] ]
+    of_string_rows [ Table.column "A"; Table.column "B" ] [ [ "1"; "2" ] ]
   in
   let has_esc s = String.contains s '\027' in
   Alcotest.(check bool)
@@ -187,7 +195,7 @@ let test_link_cell () =
 let test_formatter_margin_never_wraps_border () =
   let width = 48 in
   let table =
-    Table.of_string_rows ~border:Border.rounded
+    of_string_rows ~border:Border.rounded
       [
         Table.column ~shrinkable:false "Package";
         Table.column ~overflow:`Wrap "Remote";
@@ -269,7 +277,7 @@ let test_every_margin_is_a_hard_limit () =
           header)
       hostile
   in
-  let table = Table.of_string_rows ~border:Border.rounded columns [ hostile ] in
+  let table = of_string_rows ~border:Border.rounded columns [ hostile ] in
   for width = 4 to 80 do
     let buffer = Buffer.create 1024 in
     let ppf = Format.formatter_of_buffer buffer in
@@ -382,21 +390,21 @@ let test_no_border_draws_no_edge () =
     "each row starts at its first cell and ends at its last"
     [ "NAME         SIZE"; "alpha        1"; "beta-longer  22" ]
     (lines
-       (Table.of_string_rows ~border:Border.none
+       (of_string_rows ~border:Border.none
           [ Table.column "NAME"; Table.column "SIZE" ]
           [ [ "alpha"; "1" ]; [ "beta-longer"; "22" ] ]));
   Alcotest.(check (list string))
     "a right-aligned last column is padded on its left"
     [ "NAME  SIZE"; "a        1"; "b       22" ]
     (lines
-       (Table.of_string_rows ~border:Border.none
+       (of_string_rows ~border:Border.none
           [ Table.column "NAME"; Table.column ~align:`Right "SIZE" ]
           [ [ "a"; "1" ]; [ "b"; "22" ] ]));
   Alcotest.(check (list string))
     "a cell of fewer lines than its row ends where its text ends"
     [ "NAME  NOTE"; "a     one"; "      two" ]
     (lines
-       (Table.of_string_rows ~border:Border.none
+       (of_string_rows ~border:Border.none
           [ Table.column "NAME"; Table.column "NOTE" ]
           [ [ "a"; "one\ntwo" ] ]));
   let col = Table.column "" in
@@ -404,7 +412,7 @@ let test_no_border_draws_no_edge () =
     "a line ends at its last cell that is not empty"
     "fix   stuck  /pool\nmain\n"
     (Table.to_string
-       (Table.of_string_rows ~border:Border.none [ col; col; col ]
+       (of_string_rows ~border:Border.none [ col; col; col ]
           [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))
 
 (* A border in one style is one sequence per run of border glyphs. *)
@@ -415,7 +423,7 @@ let test_styled_border_runs () =
       [ Table.column "a" ]
       [ [ Span.text "b" ] ]
   in
-  let lines = String.split_on_char '\n' (Table.to_ansi_string t) in
+  let lines = String.split_on_char '\n' (Table.to_string ~styled:true t) in
   Alcotest.(check string)
     "top"
     "\027[31m\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90\027[0m\r"

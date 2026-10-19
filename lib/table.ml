@@ -41,14 +41,11 @@ let check_widths min_width max_width =
       invalid_arg "Console.Table.column: min_width exceeds max_width"
   | _ -> ()
 
-let column_span ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
+let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
     ?(shrinkable = true) ?(style = Style.none) header =
   check_widths min_width max_width;
+  let header = Span.text header in
   { header; align; min_width; max_width; overflow; shrinkable; style }
-
-let column ?align ?min_width ?max_width ?overflow ?shrinkable ?style header =
-  column_span ?align ?min_width ?max_width ?overflow ?shrinkable ?style
-    (Span.text header)
 
 let v ?theme ?border ?(header_style = Style.bold) columns =
   {
@@ -68,15 +65,9 @@ let add_row ?see cells t =
       expected got;
   { t with rows = { cells; see } :: t.rows }
 
-let add_row_strings strings t = add_row (List.map Span.text strings) t
-
 let of_rows ?theme ?border ?header_style columns rows =
   let t = v ?theme ?border ?header_style columns in
   List.fold_left (fun t row -> add_row row t) t rows
-
-let of_string_rows ?theme ?border ?header_style columns rows =
-  of_rows ?theme ?border ?header_style columns
-    (List.map (List.map Span.text) rows)
 
 (* Calculate column widths. A logical cell may contain explicit line feeds;
    its natural width is its widest physical line, not the sum of all lines. *)
@@ -484,7 +475,8 @@ let pp_with ~char_width ?max_width ppf t =
           | Gap s -> Paint.text p s
           | Cell (style, span) ->
               Paint.text p
-                (if styled then Span.to_ansi_string ~style span
+                (if styled then
+                   Span.to_string ~styled (Span.with_style style span)
                  else Span.to_string span))
         line;
       Paint.newline p)
@@ -508,19 +500,14 @@ let pp ppf t =
   let max_width = Format.pp_get_margin ppf () in
   pp_with ~char_width:Width.default_char_width ~max_width ppf t
 
-let to_string ?width ?(char_width = Width.default_char_width) t =
-  Render.to_string (pp_with ~char_width ?max_width:width) t
-
-let to_ansi_string ?width ?(char_width = Width.default_char_width) t =
-  Render.to_string ~style_renderer:`Ansi_tty
-    (pp_with ~char_width ?max_width:width)
-    t
+let to_string ?styled ?width ?(char_width = Width.default_char_width) t =
+  Render.to_string ?styled (pp_with ~char_width ?max_width:width) t
 
 (* Frame the rendered table with a Matrix rain border. *)
 let rain ?width ?(char_width = Width.default_char_width) t =
   Anim.v (fun ~elapsed ->
       let body =
-        to_ansi_string ?width ~char_width t
+        to_string ~styled:true ?width ~char_width t
         |> String.split_on_char '\n'
         |> List.filter (fun l -> l <> "")
       in
@@ -529,4 +516,4 @@ let rain ?width ?(char_width = Width.default_char_width) t =
 (* A still frame, unless the theme asked for an animated border. *)
 let anim ?width ?char_width t =
   if t.animated then rain ?width ?char_width t
-  else Anim.const (to_ansi_string ?width ?char_width t)
+  else Anim.const (to_string ~styled:true ?width ?char_width t)

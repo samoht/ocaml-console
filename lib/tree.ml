@@ -17,12 +17,7 @@ let resolve_guide ?theme ?guide () =
   | None -> (
       match theme with Some t -> Theme.guide t | None -> Guide.unicode)
 
-let of_tree ?theme ?guide tree =
-  { guide = resolve_guide ?theme ?guide (); tree }
-
-let v ?theme ?guide f root =
-  let rec render_fn node = f render_fn node in
-  { guide = resolve_guide ?theme ?guide (); tree = render_fn root }
+let v ?theme ?guide tree = { guide = resolve_guide ?theme ?guide (); tree }
 
 (* The guide prefix for a node, given the is-last-among-siblings flag at each
    level from a top-level node down to and including this one. Each strict
@@ -89,6 +84,4 @@ let pp ppf t =
   go [] t.tree;
   Paint.close p
 
-let to_string = Render.to_string pp
-let to_ansi_string = Render.to_string ~style_renderer:`Ansi_tty pp
-let anim t = Anim.const (to_ansi_string t)
+let to_string ?styled t = Render.to_string ?styled pp t
