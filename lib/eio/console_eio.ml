@@ -84,7 +84,7 @@ let display_clock clock =
    display, and the renderer it draws with. The geometry is that terminal's.
    The wait is the clock's own sleep: under CONSOLE_FROZEN_CLOCK the reading
    stops and the pace does not, so a refresh still turns. *)
-let context ~clock ~ppf ~fd ~mode =
+let context ~clock ~ppf ~fd =
   let ppf = Option.value ppf ~default:Fmt.stdout in
   let tty =
     match descriptor ?fd ppf with
@@ -99,16 +99,8 @@ let context ~clock ~ppf ~fd ~mode =
       ~is_tty:(auto ?fd ppf = `Activity)
       ()
   in
-  let region =
-    match mode with
-    | Some `Activity -> true
-    | Some `History -> false
-    | Some `Auto | None -> auto ?fd ppf = `Activity
-  in
   let restore =
-    if Option.is_some tty then
-      Some (fun () -> if region then Terminal.show_cursor ppf)
-    else None
+    if Option.is_some tty then Some Console.Display.restore else None
   in
   (ctx, restore, Option.map (fun r -> (ppf, r)) (renderer ppf ~tty))
 
@@ -131,7 +123,7 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
 
 let run ~clock ?ppf ?fd ?mode ?theme ?palette ?bar ?width ?height ?header f =
   session
-    ~context:(fun () -> context ~clock ~ppf ~fd ~mode)
+    ~context:(fun () -> context ~clock ~ppf ~fd)
     ?mode ?theme ?palette ?bar ?width ?height ?header f
 
 (* A caller that supplies its own context has answered the output, clock,

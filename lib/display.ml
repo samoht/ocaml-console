@@ -650,6 +650,8 @@ let cleanup_after_exception t =
       release_activity t
     end
 
+let restore = Display_term.restore
+
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Domain.DLS.get current with
   | Some t -> f t

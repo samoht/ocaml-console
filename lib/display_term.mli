@@ -62,7 +62,10 @@ val claim : unit -> bool
 val release : unit -> unit
 (** [release ()] frees the activity claim. *)
 
+val restore : unit -> unit
+(** [restore ()] resets attributes, ends the line and shows the cursor on the
+    {!active} region's formatter, if there is one. *)
+
 val restore_at_exit : unit -> unit
-(** [restore_at_exit ()] registers, once per process, an [at_exit] handler that
-    resets attributes, ends the line and shows the cursor on the {!active}
-    region's formatter. *)
+(** [restore_at_exit ()] registers {!restore} with [at_exit], once per process.
+*)

@@ -82,14 +82,12 @@ let release () = Atomic.set activity_claimed false
 
 (* [exit] ends the process without unwinding, so a command that calls it inside
    a display skips the display's teardown; the exit handlers still run. *)
-let restore_at_exit =
-  lazy
-    (at_exit (fun () ->
-         match active () with
-         | None -> ()
-         | Some r ->
-             (try Format.pp_print_string r.ppf "\027[0m\r\n"
-              with Sys_error _ -> ());
-             show_cursor_on r.ppf))
+let restore () =
+  match active () with
+  | None -> ()
+  | Some r ->
+      (try Format.pp_print_string r.ppf "\027[0m\r\n" with Sys_error _ -> ());
+      show_cursor_on r.ppf
 
+let restore_at_exit = lazy (at_exit restore)
 let restore_at_exit () = Lazy.force restore_at_exit

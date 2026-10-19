@@ -494,3 +494,12 @@ val pp_span : float Fmt.t
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
+
+(**/**)
+
+val restore : unit -> unit
+(** [restore ()] gives the terminal back if a display is drawing on it: text
+    attributes reset and the cursor shown. A driver calls it when a signal ends
+    the program. *)
+
+(**/**)

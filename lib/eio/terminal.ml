@@ -41,8 +41,6 @@ let height fd =
 
 let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)
-let show_cursor ppf = Fmt.pf ppf "\027[?25h%!"
-let hide_cursor ppf = Fmt.pf ppf "\027[?25l%!"
 
 (* Run [f] with a SIGINT and a SIGTERM handler that call [cleanup] before the
    process dies, so a CTRL-C or a [kill] during a cursor-hidden region still
