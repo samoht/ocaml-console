@@ -16,11 +16,11 @@
     median and a 95th percentile on one bar, and the parts of a whole. *)
 
 type style = Theme.bar
-(** A bar's look: [`Blocky] (full blocks on a shaded track), [`Smooth]
+(** The type for bar looks: [`Blocky] (full blocks on a shaded track), [`Smooth]
     (fractional eighth-cell fills) or [`Rainbow] (a spectrum gradient). *)
 
 type color = Color.t
-(** The fill colour. *)
+(** The type for fill colours. *)
 
 val render :
   ?theme:Theme.t ->
@@ -36,8 +36,9 @@ val render :
     [theme]'s, else [`Smooth]; the fill from the color argument if given, else
     [theme]'s accent, else {!Color.cyan}. [styled] (default [true]) is whether
     the bar carries ANSI: [false] renders the same glyphs with no SGR at all,
-    for a target whose [Fmt.style_renderer] is [`None]. {b Raises.}
-    [Invalid_argument] if [width] is negative. *)
+    for a target whose [Fmt.style_renderer] is [`None].
+
+    @raise Invalid_argument if [width] is negative. *)
 
 val at :
   ?theme:Theme.t ->
@@ -52,7 +53,8 @@ val at :
     into the animation: the fill sweeps up and back over a two-second period,
     for work whose progress is unknown. Style, colour and [styled] resolve as in
     {!render}. Non-finite or negative elapsed time renders the initial frame.
-    {b Raises.} [Invalid_argument] if [width] is negative. *)
+
+    @raise Invalid_argument if [width] is negative. *)
 
 val anim :
   ?theme:Theme.t ->
@@ -85,7 +87,9 @@ val v :
     rounded to the nearest eighth of a cell: full cells ["█"], then the partial
     cell's eighth glyph (["▏"] for one eighth to ["▉"] for seven), in [style]
     (default [Style.fg Color.cyan]). [frac] is clamped to the range 0 to 1; NaN
-    is 0. {b Raises.} [Invalid_argument] if [width] is negative. *)
+    is 0.
+
+    @raise Invalid_argument if [width] is negative. *)
 
 val cells : width:int -> scale:float -> float -> int
 (** [cells ~width ~scale x] is the number of whole cells, out of [width], that
@@ -105,8 +109,9 @@ val spread :
 (** [spread ~width ~scale median p95] draws two levels on one bar of full length
     [scale]: solid ["█"] for {!cells} of [median], then shaded ["▒"] up to the
     cells of [p95], both in [style] (default [Style.fg Color.cyan]). A [p95]
-    below [median] adds no shaded cell. {b Raises.} [Invalid_argument] if
-    [width] is negative. *)
+    below [median] adds no shaded cell.
+
+    @raise Invalid_argument if [width] is negative. *)
 
 val stacked :
   ?track:Style.t ->
@@ -119,5 +124,6 @@ val stacked :
     the cells by the largest remainder method: the whole part of its exact
     share, then one more cell for each part with the largest fractional
     remainders, the earlier part first on a tie, until the cells add up to
-    [width]. Parts that sum to zero give an empty track. {b Raises.}
-    [Invalid_argument] if [width] or a count is negative. *)
+    [width]. Parts that sum to zero give an empty track.
+
+    @raise Invalid_argument if [width] or a count is negative. *)

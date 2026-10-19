@@ -27,7 +27,7 @@
     ]} *)
 
 type color = Color.t
-(** A foreground colour. *)
+(** The type for foreground colours. *)
 
 val bytes : int64 -> string
 (** [bytes n] is [n] bytes formatted in the largest suitable binary unit. *)
@@ -41,7 +41,7 @@ val span : float -> string
 
 module Line : sig
   type piece
-  (** One piece of a task's activity rendering. *)
+  (** The type for the pieces of a task line. *)
 
   val spinner : piece
   (** [spinner] is the animated activity marker, replaced by the outcome marker
@@ -89,13 +89,13 @@ module Line : sig
       outcome marker {!spinner} draws. *)
 
   type t
-  (** A task-line layout and accent colour. *)
+  (** The type for task-line layouts and their accent colour. *)
 
   val v : ?color:color -> piece list -> t
   (** [v pieces] is a layout assembled left to right.
 
-      {b Raises.} [Invalid_argument] if [pieces] contains more than one label or
-      spacer. *)
+      @raise Invalid_argument
+        if [pieces] contains more than one label or spacer. *)
 
   val with_color : color -> t -> t
   (** [with_color color line] changes [line]'s accent colour. *)
@@ -108,13 +108,14 @@ end
 (** {1:rendering_context Rendering context} *)
 
 type mode = [ `Auto | `Activity | `History ]
-(** [`Activity] renders permanent history plus a bounded projection of running
-    tasks. [`History] is strictly append-only. [`Auto] selects [`Activity] on a
-    terminal and [`History] otherwise. *)
+(** The type for display modes. [`Activity] renders permanent history plus a
+    bounded projection of running tasks. [`History] is strictly append-only.
+    [`Auto] selects [`Activity] on a terminal and [`History] otherwise. *)
 
 type ctx
-(** A display-start capability. It is deliberately not obtainable from an active
-    display; ordinary Eio applications let [Console_eio.run] construct it. *)
+(** The type for display contexts, the capability to start a display. It is
+    deliberately not obtainable from an active display; ordinary Eio
+    applications let [Console_eio.run] construct it. *)
 
 val ctx :
   ppf:Format.formatter ->
@@ -124,8 +125,9 @@ val ctx :
   is_tty:bool ->
   unit ->
   ctx
-(** [ctx] constructs a display context from explicit output, clock, geometry and
-    terminal detection functions. Driver libraries normally do this.
+(** [ctx ~ppf ~now ~wait ~dimensions ~is_tty ()] is a display context on the
+    output [ppf], the clock [now], the terminal geometry [dimensions] and the
+    terminal answer [is_tty]. Driver libraries normally build it.
 
     [now ()] is the time the display reads, in seconds, and [wait s] returns
     once [now] has advanced by [s]: they are one clock, and whatever paces the
@@ -164,20 +166,27 @@ val dumb : unit -> ctx
 
 module Event : sig
   type level = [ `Info | `Warning | `Error ]
+  (** The type for message severities. *)
+
   type outcome = [ `Succeeded | `Failed | `Cancelled ]
+  (** The type for task outcomes. *)
+
   type result = [ `Ok | `Fail ]
+  (** The type for session verdicts. *)
 
   type kind =
-    [ `Message of level
-    | `Started
-    | `Log of level
-    | `Finished of outcome
-    | `Result of result ]
+    [ `Message of level  (** A session message, {!event}. *)
+    | `Started  (** A task started. *)
+    | `Log of level  (** A task's log line, {!log}. *)
+    | `Finished of outcome  (** A task finished. *)
+    | `Result of result  (** The session's verdict, {!set_result}. *) ]
+  (** The type for event kinds. *)
 
   val equal_outcome : outcome -> outcome -> bool
-  (** [equal_outcome a b] is [true] when [a] and [b] are the same outcome. *)
+  (** [equal_outcome a b] is [true] iff [a] and [b] are the same outcome. *)
 
   type t
+  (** The type for events. *)
 
   val elapsed : t -> float
   (** [elapsed e] is the time of [e] in seconds since the session started. *)
@@ -203,19 +212,21 @@ module Event : sig
   (** [detail e] is the result detail given to {!set_result}, if any. *)
 
   val pp : t Fmt.t
-  (** [pp] formats a value for diagnostics, in an unspecified format. *)
+  (** [pp] formats an event for diagnostics, in an unspecified format. *)
 end
 
 (** {1:immutable_activity_projection Immutable activity projection} *)
 
 module Activity : sig
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
+  (** The type for task progress: indeterminate, an item count or a byte count,
+      each as done and total. *)
 
   val equal_progress : progress -> progress -> bool
-  (** [equal_progress a b] is [true] when [a] and [b] describe the same metric.
-  *)
+  (** [equal_progress a b] is [true] iff [a] and [b] are the same metric. *)
 
   type log
+  (** The type for the log lines of a task's tail. *)
 
   val log_elapsed : log -> float
   (** [log_elapsed l] is the time of [l] in seconds since the session started.
@@ -228,6 +239,7 @@ module Activity : sig
   (** [log_message l] is the sanitized message of [l]. *)
 
   type item
+  (** The type for running tasks. *)
 
   val id : item -> int
   (** [id i] is the numeric identity of the task of [i]. *)
@@ -251,18 +263,23 @@ module Activity : sig
   (** [logs i] are the latest log lines of the task, oldest first. *)
 
   type t
+  (** The type for activity snapshots. *)
 
   val items : t -> item list
   (** [items a] are the running tasks of [a] in display order. *)
 
   val pp : t Fmt.t
-  (** [pp] formats a value for diagnostics, in an unspecified format. *)
+  (** [pp] formats a snapshot for diagnostics, in an unspecified format. *)
 end
 
-(** {1:scoped_sessions Scoped sessions} *)
+(** {1:scoped_sessions Scoped sessions}
+
+    Every function below that takes a display or a task raises
+    [Invalid_argument] once that display has closed, except {!pp}, {!history},
+    {!activity}, {!frame}, {!on_frame}, {!now}, {!wait} and {!tick}. *)
 
 type t
-(** A display session. Values are created only by {!run}. *)
+(** The type for display sessions. Values are created only by {!run}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
@@ -291,7 +308,12 @@ val run :
     display, and only the outermost call applies configuration and teardown.
     Across domains an activity display remains exclusive. A history display may
     run concurrently only on a different formatter; sharing an owned formatter
-    is rejected before output can corrupt the activity region. *)
+    is rejected before output can corrupt the activity region.
+
+    @raise Invalid_argument
+      if [width] or [height] is not positive, if [mode] asks for an activity
+      display while another domain's is open, or for a history display on the
+      formatter an activity display owns. *)
 
 val restore_terminal : unit -> unit
 (** [restore_terminal ()] shows the cursor on the formatter of the open activity
@@ -309,10 +331,14 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
     {!event} or {!log}. Calls may be nested. History mode simply calls [f].
 
     Prefer {!event} for ordinary messages: it records their semantics as well as
-    printing them. The display must be open and must own the activity output. *)
+    printing them.
+
+    @raise Invalid_argument
+      if [display] is an activity display that does not own the terminal's
+      activity region. *)
 
 type task
-(** A running or completed unit of work owned by one display. *)
+(** The type for running or completed units of work owned by one display. *)
 
 val task :
   ?id:string ->
@@ -362,9 +388,9 @@ val task :
     that ending, and the group takes it, with its timer stopped then, when the
     last of those rows ends. A pipe writes every line as it comes.
 
-    {b Raises.} [Invalid_argument] if the display is closed, [id] is empty,
-    [log_lines] or [total] is negative, or [parent] belongs to another display.
-*)
+    @raise Invalid_argument
+      if the display is closed, [id] is empty, [log_lines] or [total] is
+      negative, or [parent] belongs to another display. *)
 
 val set_label : task -> string -> unit
 (** [set_label task label] atomically changes the live label of [task] to
@@ -372,14 +398,20 @@ val set_label : task -> string -> unit
 
 val set_count : task -> cur:int -> total:int -> unit
 (** [set_count task ~cur ~total] records monotonic count progress. Estimates
-    expand automatically when [cur] exceeds [total]. *)
+    expand automatically when [cur] exceeds [total].
+
+    @raise Invalid_argument
+      if [cur] or [total] is negative, or [task] counts bytes. *)
 
 val advance : ?by:int -> ?total:int -> ?label:string -> task -> unit
 (** [advance task] increments count progress by one. [by] selects another
     non-negative increment, [label] updates the activity label in the same
     repaint, and [total] supplies a new estimate. The known total expands
     automatically if progress passes it. An indeterminate task becomes a count
-    task on its first advance. *)
+    task on its first advance.
+
+    @raise Invalid_argument
+      if [by] or [total] is negative, or [task] counts bytes. *)
 
 val set_bytes : task -> cur:int64 -> total:int64 -> unit
 (** [set_bytes task ~cur ~total] is like {!set_count} for a task that counts
@@ -387,7 +419,10 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
     [total] raises the total to [cur]. Progress is monotonic: an older update
     cannot move a task backwards or reduce its known total. Updates after the
     task finished do nothing. A task cannot switch between counting items and
-    counting bytes. *)
+    counting bytes.
+
+    @raise Invalid_argument
+      if [cur] or [total] is negative, or [task] counts items. *)
 
 val log : ?level:Event.level -> ?keep:bool -> task -> string -> unit
 (** [log task text] appends each line permanently to {!history}; the latest

@@ -13,7 +13,8 @@
     no {!type-t}. *)
 
 type t
-(** A prompt: where questions go, and the buffered input answers come from. *)
+(** The type for prompts: where questions go, and the buffered input answers
+    come from. *)
 
 val v :
   ?interactive:bool ->

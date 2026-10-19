@@ -57,7 +57,11 @@ val run :
     would otherwise record how fast the machine that ran it was, and fail on a
     slower one. It replaces the reading [run] builds for itself and only that
     one: a context handed to {!run_on} has already said what time the display
-    reads. *)
+    reads.
+
+    @raise Invalid_argument
+      if a display opened by [run] or {!run_on} outside the current fiber tree
+      is still open. *)
 
 val run_on :
   ctx:Console.Display.ctx ->
@@ -79,7 +83,8 @@ val run_on :
     a clock the caller moves make the frames something a diff can hold --
     without going around the entry point it ships.
 
-    @raise Invalid_argument if [ctx] was built without [~wait]. *)
+    @raise Invalid_argument
+      if [ctx] was built without [~wait], or as {!run} does. *)
 
 val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 (** [setup ~style_renderer ()] configures the process's terminal output once,

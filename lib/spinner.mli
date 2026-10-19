@@ -12,10 +12,10 @@
     uses. *)
 
 type t
-(** A spinner: a non-empty, cyclic sequence of frames. *)
+(** The type for spinners: non-empty, cyclic sequences of frames. *)
 
 val pp : Format.formatter -> t -> unit
-(** [pp ppf t] writes a short representation of [t] to [ppf]. *)
+(** [pp] formats a spinner for diagnostics, in an unspecified format. *)
 
 val equal : t -> t -> bool
 (** [equal a b] is [true] when [a] and [b] have the same frames in order. *)
@@ -25,7 +25,7 @@ val equal : t -> t -> bool
 val v : string array -> t
 (** [v frames] is a spinner cycling [frames] left to right.
 
-    {b Raises.} [Invalid_argument] if [frames] is empty. *)
+    @raise Invalid_argument if [frames] is empty. *)
 
 val frames : t -> string array
 (** [frames t] are [t]'s frames, in order. *)
@@ -45,8 +45,10 @@ val frame : t -> int -> string
 
 val at : ?fps:float -> t -> elapsed:float -> string
 (** [at t ~elapsed] is the frame to show [elapsed] seconds into the animation,
-    advancing at [fps] frames per second (default [10.]). A non-positive
-    [elapsed] shows the first frame. *)
+    advancing at [fps] frames per second (defaults to [10.]). A non-positive
+    [elapsed] shows the first frame.
+
+    @raise Invalid_argument if [fps] is not finite and positive. *)
 
 val anim : ?fps:float -> t -> string Anim.t
 (** [anim t] is [t] as an {!Anim.t}: its frame at [elapsed] is

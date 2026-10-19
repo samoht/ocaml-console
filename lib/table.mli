@@ -11,10 +11,10 @@
 (** {1:types Types} *)
 
 type align = [ `Left | `Center | `Right ]
-(** Column alignment. *)
+(** The type for column alignments. *)
 
 type overflow = [ `Truncate | `Wrap | `Elide ]
-(** How to handle content that exceeds max_width.
+(** The type for the handling of content wider than a column's [max_width].
 
     - [`Truncate]: Keep the leading words that fit on one line and drop the
       rest; a value whose first word does not fit is printed whole, over several
@@ -24,10 +24,10 @@ type overflow = [ `Truncate | `Wrap | `Elide ]
       the row's [see] after a cell it cut. *)
 
 type column
-(** A column specification. *)
+(** The type for column specifications. *)
 
 type t
-(** A table. *)
+(** The type for tables. *)
 
 (** {1:column_construction Column construction} *)
 
@@ -89,8 +89,10 @@ val add_row : ?see:string -> Span.t list -> t -> t
     it starts in, and in a table without edges runs to the end of the line, the
     rendering width or unbounded. A one-cell row spans every column, as a line
     under a row does. In a table without edges a line ends at its last cell that
-    is not empty, unpadded. {b Raises.} [Invalid_argument] if [cells] is empty
-    or has more cells than [table] has columns. *)
+    is not empty, unpadded.
+
+    @raise Invalid_argument
+      if [cells] is empty or has more cells than [table] has columns. *)
 
 val add_row_strings : string list -> t -> t
 (** [add_row_strings strings table] adds a row of plain strings. *)

@@ -17,11 +17,11 @@
 (** {1:themes Themes} *)
 
 type bar = [ `Blocky | `Smooth | `Rainbow ]
-(** A bar's look: full blocks on a shaded track, fractional eighth-cell fills,
-    or a spectrum gradient. {!Bar} renders it. *)
+(** The type for bar looks: full blocks on a shaded track, fractional
+    eighth-cell fills, or a spectrum gradient. {!Bar} renders it. *)
 
 type t
-(** A theme: every visual choice the widgets share. *)
+(** The type for themes: every visual choice the widgets share. *)
 
 val accent : t -> Color.t
 (** [accent t] is the default row, spinner, and bar colour. *)

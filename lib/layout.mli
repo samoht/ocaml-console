@@ -42,7 +42,9 @@ val hcat_anim :
 val vcat : ?gutter:int -> string list -> string
 (** [vcat blocks] joins [blocks] from top to bottom. [gutter] is the number of
     blank lines inserted between adjacent blocks (default [0]). [vcat []] is
-    [""]. {b Raises.} [Invalid_argument] if [gutter] is negative. *)
+    [""].
+
+    @raise Invalid_argument if [gutter] is negative. *)
 
 val vcat_anim : ?gutter:int -> string Anim.t list -> string Anim.t
 (** [vcat_anim blocks] is {!vcat} lifted over animations, sampling every block

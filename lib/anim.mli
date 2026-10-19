@@ -14,7 +14,7 @@
 *)
 
 type 'a t
-(** A value that varies with elapsed time. *)
+(** The type for values that vary with elapsed time. *)
 
 val v : (elapsed:float -> 'a) -> 'a t
 (** [v f] is the animation whose frame at [elapsed] is [f ~elapsed]. *)

@@ -6,7 +6,7 @@
 (** Guide glyphs for nested terminal views. *)
 
 type t
-(** The four glyphs used to draw one level of nesting. *)
+(** The type for the four glyphs that draw one level of nesting. *)
 
 val v : branch:string -> last:string -> pipe:string -> space:string -> t
 (** [v ~branch ~last ~pipe ~space] is a guide with the given glyphs, drawn

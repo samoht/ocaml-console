@@ -10,7 +10,7 @@
 (** {1:style_type Style type} *)
 
 type t
-(** A composable style specification. *)
+(** The type for composable styles. *)
 
 (** {1:constructors Constructors} *)
 
@@ -112,7 +112,7 @@ val equal : t -> t -> bool
 (** [equal a b] is [true] if [a] and [b] are the same style. *)
 
 val pp : t Fmt.t
-(** [pp] pretty-prints [s]. *)
+(** [pp] formats a style for diagnostics, in an unspecified format. *)
 
 val is_none : t -> bool
 (** [is_none s] is [true] if [s] has no styling. *)

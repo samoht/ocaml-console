@@ -9,11 +9,11 @@
 
 (** {1:types Types} *)
 
-(** A generic tree node. *)
+(** The type for trees of ['a] nodes. *)
 type 'a node = Node of 'a * 'a node list
 
 type t
-(** A renderable tree of spans. *)
+(** The type for renderable trees of spans. *)
 
 (** {1:construction Construction} *)
 

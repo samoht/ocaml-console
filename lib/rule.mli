@@ -6,10 +6,10 @@
 (** Horizontal rules with optional styled labels. *)
 
 type align = [ `Left | `Center | `Right ]
-(** Label alignment within a rule. *)
+(** The type for label alignments within a rule. *)
 
 type t
-(** A rule with an exact terminal-cell width. *)
+(** The type for rules of an exact terminal-cell width. *)
 
 val v :
   ?char_width:(Uchar.t -> int) ->
@@ -27,8 +27,9 @@ val v :
     explicit [style] wins; otherwise a theme supplies its accent colour and an
     unthemed rule is dim.
 
-    {b Raises.} [Invalid_argument] if [width] is negative, [glyph] is not one
-    safe terminal cell, or [label] is wider than [width]. *)
+    @raise Invalid_argument
+      if [width] is negative, [glyph] is not one safe terminal cell, or [label]
+      is wider than [width]. *)
 
 val pp : t Fmt.t
 (** [pp] renders the rule, following the formatter's style renderer. *)

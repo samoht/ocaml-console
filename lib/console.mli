@@ -209,7 +209,8 @@ val style_renderer :
     - [`None] when [TERM] is unset, empty or [dumb];
     - [`Ansi_tty] iff [is_tty], the output being a terminal, otherwise.
 
-    [Console_eio.setup] sets stdout and stderr by it. *)
+    [Console_eio.setup] sets stdout and stderr by it, and [Console_eio.run] the
+    formatter it draws on when nobody else did. *)
 
 (** {1:modules Modules} *)
 

@@ -25,7 +25,8 @@
     Buenzli's [down] toplevel line editor (ISC licensed). *)
 
 type t
-(** A line editor holding the current line and the history of submitted ones. *)
+(** The type for line editors: the current line and the history of submitted
+    ones. *)
 
 val v :
   ?prompt:string ->

@@ -18,16 +18,16 @@ type chars = {
   bottom_left : string;
   bottom : string;
   bottom_right : string;
-  cross : string;  (** Intersection of horizontal and vertical lines *)
-  top_cross : string;  (** T pointing down (top edge intersection) *)
-  bottom_cross : string;  (** T pointing up (bottom edge intersection) *)
-  left_cross : string;  (** T pointing right (left edge intersection) *)
-  right_cross : string;  (** T pointing left (right edge intersection) *)
+  cross : string;  (** The crossing of a horizontal and a vertical line. *)
+  top_cross : string;  (** The tee on the top edge, pointing down. *)
+  bottom_cross : string;  (** The tee on the bottom edge, pointing up. *)
+  left_cross : string;  (** The tee on the left edge, pointing right. *)
+  right_cross : string;  (** The tee on the right edge, pointing left. *)
 }
-(** Box-drawing characters. *)
+(** The type for box-drawing characters. *)
 
 type t
-(** A border specification with characters and styling. *)
+(** The type for borders: box-drawing characters and a style. *)
 
 val v : ?style:Style.t -> chars -> t
 (** [v ?style chars] is a border with the given character set. *)

@@ -10,7 +10,7 @@
 (** {1:types Types} *)
 
 type t
-(** A panel. *)
+(** The type for panels. *)
 
 (** {1:construction Construction} *)
 
@@ -36,8 +36,8 @@ val v :
     - [char_width] measures terminal cells (default
       {!Width.default_char_width}).
 
-    {b Raises.} [Invalid_argument] if [padding] is negative or [width] cannot
-    hold the border and padding. *)
+    @raise Invalid_argument
+      if [padding] is negative or [width] cannot hold the border and padding. *)
 
 val lines :
   ?theme:Theme.t ->

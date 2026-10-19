@@ -32,8 +32,7 @@ val v :
     [direction] [(dx, dy)] (defaults to [(1, 0)], left to right), spread by
     [spread] (defaults to [`Pad]).
 
-    {b Raises.} [Invalid_argument] if [stops] is empty or [length] is not
-    positive. *)
+    @raise Invalid_argument if [stops] is empty or [length] is not positive. *)
 
 val stops : t -> Color.t list
 (** [stops g] are the colour stops of [g], in order. *)

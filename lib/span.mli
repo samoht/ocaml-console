@@ -9,7 +9,7 @@
     concatenated. *)
 
 type t
-(** A styled text span. *)
+(** The type for styled text spans. *)
 
 (** {1:constructors Constructors} *)
 
@@ -22,9 +22,10 @@ val styled : Style.t -> string -> t
 val link : ?style:Style.t -> uri:string -> string -> t
 (** [link ~uri label] is a terminal hyperlink. ANSI rendering emits an OSC 8
     hyperlink while plain rendering emits only [label], so logs and redirected
-    output stay clean. [style] styles the visible label. {b Raises.}
-    [Invalid_argument] if [uri] is empty or contains a space or control
-    character. *)
+    output stay clean. [style] styles the visible label.
+
+    @raise Invalid_argument
+      if [uri] is empty or contains a space or control character. *)
 
 val empty : t
 (** [empty] is the empty span with no content. *)
@@ -104,7 +105,8 @@ val wrap : ?char_width:(Uchar.t -> int) -> ?hang:int -> int -> t -> t list
     than [width] is continued on the next line where the room ends, so every
     character is printed and nothing is marked as cut. Every line after the
     first starts with [hang] spaces (default [0]), clamped to half of [width].
-    {b Raises.} [Invalid_argument] if [width] is not positive. *)
+
+    @raise Invalid_argument if [width] is not positive. *)
 
 val hanging : ?char_width:(Uchar.t -> int) -> t -> int
 (** [hanging span] is the column the text after [span]'s label starts at: its
