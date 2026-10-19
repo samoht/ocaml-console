@@ -134,9 +134,16 @@ let test_span_invalid () =
     (Invalid_argument "Console.Bar.stacked: negative count") (fun () ->
       ignore (Bar.stacked ~width:4 [ (2, red); (-1, green) ]))
 
+let test_stacked_large_counts () =
+  check_ansi "equal large counts tie in input order"
+    [ Span.styled red "█" ]
+    (Bar.stacked ~width:1 [ (max_int, red); (max_int, green); (2, blue) ])
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "stacked accepts large counts" `Quick
+        test_stacked_large_counts;
       Alcotest.test_case "v eighths" `Quick test_v_eighths;
       Alcotest.test_case "v rounding" `Quick test_v_rounding;
       Alcotest.test_case "v clamped" `Quick test_v_clamped;
