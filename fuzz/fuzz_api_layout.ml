@@ -21,7 +21,17 @@ let test s n =
       (fun align ->
         ignore (Fmt.str "%a" (Layout.hcat ~align ~gutter [ block; block ]) ()))
       [ `Top; `Bottom ];
-    ignore (Fmt.str "%a" (Layout.vcat ~gutter [ block; block ]) ())
+    ignore (Fmt.str "%a" (Layout.vcat ~gutter [ block; block ]) ());
+    let word =
+      "x" ^ String.map (fun c -> Char.chr (97 + (Char.code c mod 26))) s
+    in
+    let block = Fmt.const Fmt.string word in
+    check
+      (Fmt.str "%a" (Layout.hcat ~gutter [ block; block ]) ()
+      = word ^ String.make gutter ' ' ^ word);
+    check
+      (Fmt.str "%a" (Layout.vcat ~gutter [ block; block ]) ()
+      = word ^ String.make (gutter + 1) '\n' ^ word)
   end
 
 let suite =

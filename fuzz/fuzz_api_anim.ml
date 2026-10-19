@@ -14,7 +14,14 @@ let test s t =
     (Anim.frame
        (Anim.all [ Anim.const s; Anim.map Fun.id (Anim.const s) ])
        ~elapsed:t
-    = [ s; s ])
+    = [ s; s ]);
+  let animations = [ a; Anim.map (( +. ) 1.) a; Anim.const 42. ] in
+  let actual = Anim.frame (Anim.all animations) ~elapsed:t in
+  let expected = List.map (fun a -> Anim.frame a ~elapsed:t) animations in
+  check
+    (List.for_all2
+       (fun a b -> a = b || (Float.is_nan a && Float.is_nan b))
+       actual expected)
 
 let suite =
   ("api.anim", [ test_case "animation sampling laws" [ bytes; float ] test ])
