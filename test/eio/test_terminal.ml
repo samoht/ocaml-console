@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 (* [`Auto] draws a live region where one can be drawn, on the descriptor the
    display writes to: [Console_eio.run ~ppf:Fmt.stderr] asks standard error,
    whatever standard output is. A terminal whose [TERM] is [dumb] has no cursor

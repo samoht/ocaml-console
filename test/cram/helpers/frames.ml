@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 (** Render a {!Console.Display} TTY session (real control characters) through
     Matrix's terminal emulator and print the reconstructed screen after each
     frame, so a cram test can pin exactly what a terminal shows: nested rows

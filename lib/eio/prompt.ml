@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 (* A prompt reads its answers from an Eio flow, so that waiting for one
    suspends the fiber instead of parking the domain, and writes its questions
    on a formatter, as every other output of the library is written. *)

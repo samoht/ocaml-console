@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 (* What a terminal shows of a string: ECMA-48 (5th ed.) gives the grammar of
    everything else. Each case is [(what, raw, visible)]; a sequence a terminal
    consumes is gone whole, a malformed UTF-8 sequence is the replacement glyph

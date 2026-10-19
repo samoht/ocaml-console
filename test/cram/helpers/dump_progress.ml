@@ -1,3 +1,8 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
 (** Demonstrates Console.Display in plain mode: a 3-step job whose finished rows
     are committed as append-only lines, then a summary. A fixed clock keeps the
     timers deterministic so cram diffs are stable. *)
