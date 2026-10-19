@@ -98,8 +98,7 @@ let test_with_verdict () =
     "fail kept when omitted" "[FAIL]" (Theme.fail_marker t2)
 
 (* The display draws six markers besides the verdict pair, and every preset
-   draws the same six: they were hard-coded in the display until the theme took
-   them, so a preset that moved one would silently move what a shipped command
+   draws the same six, so a preset cannot silently move what a shipped command
    prints. *)
 let test_every_preset_draws_the_same_markers () =
   let markers name t =

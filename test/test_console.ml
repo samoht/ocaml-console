@@ -15,10 +15,7 @@ let test_public_surface () =
    a replacement glyph and that terminal controls in content cannot move the
    cursor. Every widget applies that to what it lays out. A caller printing a
    string of its own -- a subprocess's stderr, a peer's name off the network --
-   needs the same rule over a plain string, and the only way to reach it was to
-   wrap the string in a Span and unwrap the result, so callers write private
-   ANSI filters instead and each one draws its own line between a control
-   character and a printable one. *)
+   needs the same rule over a plain string, which [sanitize] is. *)
 let test_sanitize () =
   Alcotest.(check string)
     "a tab, a newline and an escape all become spaces" "a b c d"

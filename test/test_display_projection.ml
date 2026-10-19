@@ -36,10 +36,7 @@ let test_activity_does_not_leak_on_ticks () =
    kilobytes of a large file paints the terminal at most once per 100 ms
    between the driver's ticks, the cadence buildkit's and cargo's progress
    redraw at, and the tick that follows draws the frame the last report
-   left. On a pipe nothing between the reports is drawn at all.
-
-   MUTATION: a touch that paints on every report reds this on the count of
-   frames. *)
+   left. On a pipe nothing between the reports is drawn at all. *)
 let test_reports_between_ticks_paint_at_the_eyes_pace () =
   let buffer = Buffer.create 65536 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -119,13 +116,9 @@ let test_history_survives_activity () =
       (count_rows vte (Fmt.str "[D%d]" i))
   done
 
-(* A row is drawn once and so is its output. [log] commits a line permanently
-   above the activity region and also keeps it in the row's bounded live tail,
-   which the next paint draws under the spinner, so every log line an apply
-   emits is on screen twice at once, printed once in history and again below
-   the row it belongs to. The live tail is where a line lives while its row
-   runs; permanent history is where it goes when it ages out of that tail or
-   the row finishes. *)
+(* A log line is on the screen once: in the row's live tail while the row
+   runs, and in permanent history once it ages out of the tail or the row
+   finishes. *)
 let test_log_reaches_the_terminal_once () =
   ignore
     (terminal_run ~height:8 ~width:60 ~header:"[H]"

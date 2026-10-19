@@ -246,8 +246,7 @@ let test_formatter_margin_never_wraps_border () =
     (List.length logical_rows, 0)
     (Vte.cursor_pos vte)
 
-(* Exercise every practical narrow width, not just the width from the original
-   regression. Protected columns, preferred minima, wide glyphs, combining
+(* Every practical narrow width is a hard limit. Protected columns, preferred minima, wide glyphs, combining
    marks, control bytes and malformed UTF-8 are all incapable of overriding the
    terminal margin. This catches the whole right-border-wrap family, including
    one-cell errors at column-selection boundaries. *)

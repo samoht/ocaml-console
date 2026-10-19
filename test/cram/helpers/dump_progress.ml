@@ -1,7 +1,6 @@
 (** Demonstrates Console.Display in plain mode: a 3-step job whose finished rows
     are committed as append-only lines, then a summary. A fixed clock keeps the
-    timers deterministic so cram diffs are stable. Regressions in the plain
-    renderer will fail this cram test. *)
+    timers deterministic so cram diffs are stable. *)
 
 let () =
   let now = ref 0. in

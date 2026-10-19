@@ -283,12 +283,8 @@ let test_default_visual_hierarchy_and_color_scope () =
       Alcotest.(check int)
         "accent is scoped to the live status glyph" 1 accented)
 
-(* A cut reads as a wrap. Truncation adds no marker, so a row whose label does
-   not fit simply ends at the column the terminal ends at -- in the middle of a
-   hex digest, indistinguishable from a value continuing on the next line. The
-   cut is marked, and marked in the middle: the leading characters identify a
-   digest and the trailing ones name a file, so a cut that keeps only one end
-   throws away the half the reader needed. *)
+(* A digest cut at the terminal's last column reads as a value continuing on
+   the next line, so a digest is never cut. *)
 let digest_label =
   "sha256:a376ef543f48c9b17ed2b1cbe32b4d1e6a5f0c9d8e7b6a5948372615f0e1d2c3"
 
@@ -332,19 +328,11 @@ let test_row_keeps_a_digest_whole () =
     "the word that did not fit beside it folds under it" true
     (List.exists (fun row -> String.equal (String.trim row) "registry") rows)
 
-(* A row's label is the display's own naming of a value, and the cut above is
-   right for it. A log line is not: it is the caller's own text, printed by the
-   program the developer wrote, and a cut through its middle joins two ends that
-   were never next to each other. What comes out reads as a shorter sentence
-   rather than as a line that was shortened, which is what stops a reader
-   noticing that anything is gone.
-
-   The line below is a payload service's own output, taken from a run of the
-   three-service exemplar on a 100-column terminal. Its own docstring sends the
-   developer to watch the frames it drops and the cloud threshold it drops them
-   over, and a middle cut removes exactly that clause and leaves a sentence
-   behind. So a log line keeps its start and loses words from its end, whole:
-   no word is cut and no mark is drawn. *)
+(* A log line is the caller's own text, and a cut through its middle joins two
+   ends that were never next to each other into what reads as a shorter
+   sentence. So a log line keeps its start and loses words from its end, whole:
+   no word is cut and no mark is drawn. The line below is a service's output
+   whose last clause names the number its reader watches. *)
 let service_line =
   "[filter] kept 76 of 96 frames, 466944 bytes, dropped 20 over 0.35 cloud \
    (from the recorded pass in scene/, not from camera: services cannot send \

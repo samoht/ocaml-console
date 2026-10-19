@@ -26,9 +26,8 @@ let test_prefix_ascii () =
   str "ascii child of non-last" "|   +-- " (Tree.prefix ~guide [ false; false ]);
   str "ascii child of last" "    +-- " (Tree.prefix ~guide [ true; false ])
 
-(* A real multi-level tree renders one node per line with correct guides. This
-   is the exact rendering the previous implementation got wrong (everything on
-   one line, ancestor branches repeated). *)
+(* A multi-level tree renders one node per line, each ancestor's branch drawn
+   once. *)
 let test_render_exact () =
   let n label children = Tree.Node (Span.text label, children) in
   let tree =
