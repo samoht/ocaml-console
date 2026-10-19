@@ -10,8 +10,8 @@ license: "ISC"
 tags: [
   "org:blacksun" "command-line-utilities" "format" "eio" "area:10010862"
 ]
-homepage: "https://tangled.org/gazagnaire.org/ocaml-console"
-bug-reports: "https://tangled.org/gazagnaire.org/ocaml-console/issues"
+homepage: "https://github.com/samoht/ocaml-console"
+bug-reports: "https://github.com/samoht/ocaml-console/issues"
 depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "5.1"}
@@ -40,5 +40,5 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://tangled.org/gazagnaire.org/ocaml-console"
+dev-repo: "git+https://github.com/samoht/ocaml-console.git"
 x-maintenance-intent: ["(latest)"]
