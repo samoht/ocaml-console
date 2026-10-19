@@ -1087,9 +1087,35 @@ let test_strip_leaves_no_escape s =
   check (not (String.contains stripped '\027'));
   check (Width.string_width stripped >= 0)
 
+(* Positive, bounded widths exercise malformed input without allocating in
+   proportion to a generated machine integer. Exceptions must reach Alcobar. *)
+let adversarial_width n = 1 + (n land 31)
+
+let test_span_wrap_bytes s n =
+  ignore (Span.wrap (adversarial_width n) (Span.text s))
+
+let test_span_truncate_bytes s n =
+  ignore (Span.truncate (adversarial_width n) (Span.text s))
+
+let test_strip_bytes s = ignore (Console_text.strip s)
+let test_sanitize_styles_bytes s = ignore (Console_text.sanitize_styles s)
+
+let test_table_bytes s =
+  let table = Table.of_rows [ Table.column "value" ] [ [ Span.text s ] ] in
+  ignore (Table.to_string ~width:12 table)
+
 let suite =
   ( "console",
     [
+      test_case "Span.wrap accepts arbitrary bytes" [ bytes; int ]
+        test_span_wrap_bytes;
+      test_case "Span.truncate accepts arbitrary bytes" [ bytes; int ]
+        test_span_truncate_bytes;
+      test_case "strip accepts arbitrary bytes" [ bytes ] test_strip_bytes;
+      test_case "sanitize_styles accepts arbitrary bytes" [ bytes ]
+        test_sanitize_styles_bytes;
+      test_case "Table.of_rows accepts arbitrary cell bytes" [ bytes ]
+        test_table_bytes;
       test_case "strip leaves no escape" [ bytes ] test_strip_leaves_no_escape;
       test_case "width matches terminal" [ bytes ] test_width_matches_terminal;
       test_case "display invariants" [ bytes ] test_display_invariants;
