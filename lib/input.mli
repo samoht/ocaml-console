@@ -73,8 +73,9 @@ val feed : t -> string -> string * string list
     ['\n'] submit the line (a ['\n'] right after a ['\r'] is the trailing half
     of a CRLF and submits nothing); [\t] runs completion. The arrows ([ESC \[ A]
     / [ESC \[ B]) recall the previous and next history entries and ([ESC \[ C] /
-    [ESC \[ D]) move the cursor right and left over one character. Any other
-    byte is ignored.
+    [ESC \[ D]) move the cursor right and left over one character; so do
+    [ESC O A] to [ESC O D], which a terminal in application cursor mode sends.
+    Any other byte is ignored.
 
     Feeding [input] at once or in pieces gives the same echo and lines, and the
     echo holds no escape code: the cursor moves by backspaces. *)

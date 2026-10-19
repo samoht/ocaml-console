@@ -3,7 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type esc = Normal | Esc | Csi
+(* [Ss3] is after ESC O, which a terminal in application cursor mode sends
+   before an arrow's letter. *)
+type esc = Normal | Esc | Csi | Ss3
 
 (* The line is a zipper of whole UTF-8 characters split at the cursor: [left]
    holds the characters before the cursor nearest-first (reversed), [right]
@@ -246,15 +248,17 @@ let rec normal t echo lines ~after_cr c =
     | c when code >= 0x20 && code < 0x7f -> insert t echo (String.make 1 c)
     | _ -> ()
 
+let arrow t echo = function
+  | 'A' -> hist_prev t echo
+  | 'B' -> hist_next t echo
+  | 'C' -> cursor_right t echo
+  | 'D' -> cursor_left t echo
+  | _ -> ()
+
 let csi t echo c =
   let code = Char.code c in
   if code >= 0x40 && code <= 0x7e then begin
-    (match c with
-    | 'A' -> hist_prev t echo
-    | 'B' -> hist_next t echo
-    | 'C' -> cursor_right t echo
-    | 'D' -> cursor_left t echo
-    | _ -> ());
+    arrow t echo c;
     t.esc <- Normal
   end
   else if not (code >= 0x30 && code <= 0x3f) then t.esc <- Normal
@@ -267,8 +271,11 @@ let feed t input =
       let after_cr = t.after_cr in
       t.after_cr <- false;
       match t.esc with
-      | Esc -> t.esc <- (if Char.equal c '[' then Csi else Normal)
+      | Esc -> t.esc <- (match c with '[' -> Csi | 'O' -> Ss3 | _ -> Normal)
       | Csi -> csi t echo c
+      | Ss3 ->
+          arrow t echo c;
+          t.esc <- Normal
       | Normal -> normal t echo lines ~after_cr c)
     input;
   (Buffer.contents echo, List.rev !lines)
