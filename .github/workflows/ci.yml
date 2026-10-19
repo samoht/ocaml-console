@@ -16,11 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        ocaml-compiler: ['5.4', '5.3']
-        include:
-          - os: macos-latest
-            ocaml-compiler: '5.4'
+        os: [ubuntu-latest, macos-latest]
+        ocaml-compiler: ['5.4']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,8 +40,9 @@ jobs:
 
       - uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: '5.1'
+          ocaml-compiler: '5.4'
 
+      # matrix needs OCaml 5.4, so the compiler is not the bound under test here.
       # Resolve every dependency to the oldest version its lower bound allows,
       # so a call that only compiles against a newer API fails here rather than
       # in a downstream opam build.
