@@ -43,6 +43,14 @@ val run :
     a formatter-based widget as its margin. Cursor visibility is restored on
     return, exception and SIGINT.
 
+    The display is styled iff [ppf]'s {!Fmt.style_renderer} is [`Ansi_tty].
+    Unless [ppf] already renders ANSI or {!setup} configured it, [run] sets that
+    renderer for its span to {!Console.style_renderer} of the environment and of
+    whether [fd] is a terminal, so a terminal gets colour and [NO_COLOR] and
+    [TERM=dumb] are honoured with no setup. A renderer set to [`None] other than
+    by {!setup} cannot be told from no renderer at all: use {!setup} to turn
+    colour off.
+
     [CONSOLE_FROZEN_CLOCK], set in the environment to any non-empty value, stops
     the display clock's reading at zero, so every elapsed time renders as
     [0.0s]; the refresh still waits on [clock]. A test that captures this output

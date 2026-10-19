@@ -188,6 +188,67 @@ let test_a_formatter_of_ones_own_says_its_descriptor () =
     "a live region with ~fd" true
     (Astring.String.is_infix ~affix:hide_cursor (draw ~fd:Unix.stderr ()))
 
+(* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
+   cursor controls a region is made of are CSIs too, with other final bytes. *)
+let has_sgr s =
+  let n = String.length s in
+  let rec final j =
+    if j >= n then j
+    else
+      let c = Char.code s.[j] in
+      if c >= 0x40 && c <= 0x7e then j else final (j + 1)
+  in
+  let rec go i =
+    if i + 1 >= n then false
+    else if s.[i] = '\027' && s.[i + 1] = '[' then
+      let stop = final (i + 2) in
+      (stop < n && s.[stop] = 'm') || go (stop + 1)
+    else go (i + 1)
+  in
+  go 0
+
+let with_no_color value f =
+  let saved = Sys.getenv_opt "NO_COLOR" in
+  Fun.protect ~finally:(fun () ->
+      Unix.putenv "NO_COLOR" (Option.value saved ~default:""))
+  @@ fun () ->
+  Unix.putenv "NO_COLOR" value;
+  f ()
+
+(* [run] on a terminal draws in colour with no setup of the caller's, and draws
+   plain when [NO_COLOR] asks it to; the region is drawn in place either way.
+   The formatter is one of the case's own, so no earlier configuration of the
+   standard ones answers for it. *)
+let test_run_styles_a_terminal () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  let tty = tty pty in
+  Fun.protect ~finally:(fun () -> Unix.close tty) @@ fun () ->
+  with_null @@ fun null ->
+  let draw no_color =
+    let ppf = Format.formatter_of_out_channel Stdlib.stderr in
+    with_no_color no_color (fun () ->
+        with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
+            let mock = Eio_mock.Clock.make () in
+            let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+            Console_eio.run ~clock ~ppf ~fd:Unix.stderr ~mode:`Auto
+              (fun display ->
+                Console.Display.succeed (Console.Display.task display "step"));
+            mark Unix.stderr));
+    read_to_mark env pty
+  in
+  let coloured = draw "" in
+  Alcotest.(check bool)
+    "a live region" true
+    (Astring.String.is_infix ~affix:hide_cursor coloured);
+  Alcotest.(check bool) "in colour" true (has_sgr coloured);
+  let plain = draw "1" in
+  Alcotest.(check bool)
+    "a live region under NO_COLOR" true
+    (Astring.String.is_infix ~affix:hide_cursor plain);
+  Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
+
 let suite =
   ( "auto",
     [
@@ -199,4 +260,6 @@ let suite =
         test_auto_appends_under_term_dumb;
       Alcotest.test_case "a formatter of one's own says its descriptor" `Quick
         test_a_formatter_of_ones_own_says_its_descriptor;
+      Alcotest.test_case "run styles a terminal" `Quick
+        test_run_styles_a_terminal;
     ] )

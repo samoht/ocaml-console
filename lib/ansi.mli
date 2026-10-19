@@ -28,6 +28,7 @@ val dimmed : string -> string
 val should_style : Format.formatter -> bool
 (** [should_style ppf] is whether [ppf] takes ANSI: [Fmt.style_renderer ppf] is
     [`Ansi_tty]. It is the one answer every surface in this library renders by,
-    set by [Console_eio.setup] from [--color=auto|always|never], [NO_COLOR] and
-    [TERM] ({!Console.style_renderer}), so they are honoured wherever they are
-    read rather than once per surface. *)
+    set by [Console_eio.setup] and [Console_eio.run] from
+    [--color=auto|always|never], [NO_COLOR] and [TERM]
+    ({!Console.style_renderer}), so they are honoured wherever they are read
+    rather than once per surface. *)
