@@ -420,9 +420,52 @@ let test_static_rows_and_idle n =
   done;
   Display.close d
 
+let test_untrusted_arguments s =
+  let render input =
+    let out = Buffer.create 512 in
+    let ppf = Format.formatter_of_buffer out in
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    let theme =
+      Theme.v ~marks:(fun _ -> input) ~spinner:(Spinner.v [| input |]) ()
+    in
+    let layout =
+      Display.Line.(v [ text input; accent input; label; spacer; elapsed ])
+    in
+    let d =
+      Display.v ~theme ~layout ~header:input
+        ~size:(fun () -> (40, 8))
+        ~now:(fun () -> 0.)
+        ppf
+    in
+    let task = Display.task d input in
+    Display.set_label task input;
+    Display.log task input;
+    Display.message ~level:`Warning d input;
+    Display.redraw d;
+    Display.succeed ~message:input task;
+    Display.set_result ~detail:input d (`Ok input);
+    Display.close d;
+    Format.pp_print_flush ppf ();
+    Buffer.contents out
+  in
+  List.iter
+    (fun input ->
+      let raw = render input in
+      check (String.is_valid_utf_8 raw);
+      check_eq ~pp:Fmt.Dump.string (render (Console_text.sanitize input)) raw)
+    [
+      s;
+      "\027]52;c;Y2xpcGJvYXJk\007";
+      "\027]8;;https://evil.invalid\027\\click";
+      "\027[2J\027[?25l";
+      "\u{009b}2J\255\u{202e}spoof";
+    ]
+
 let suite =
   ( "display",
     [
+      test_case "untrusted display arguments behave like sanitized text"
+        [ bytes ] test_untrusted_arguments;
       test_case "only live rows change and idle frames write nothing" [ uint8 ]
         test_static_rows_and_idle;
       test_case "resize erases every old live row" [ uint8 ]
