@@ -16,13 +16,7 @@ val sanitize : ?keep_newlines:bool -> string -> string
     space. Newlines are retained unless [keep_newlines] is [false]. *)
 
 val sanitize_styles : ?keep_newlines:bool -> string -> string
-(** [sanitize_styles s] is {!sanitize} over [s] except that a strictly-parsed
-    SGR sequence survives, and the result is closed with an SGR reset when the
-    last one left a style open. *)
-
-val style_is_open : string -> bool
-(** [style_is_open s] is [true] iff the last SGR sequence in [s] leaves a style
-    on, so that what follows [s] would be drawn in it. *)
+(** [sanitize_styles s] is {!Console_text.sanitize_styles} [s]. *)
 
 val newline : Format.formatter -> unit
 (** [newline ppf] ends one output row on [ppf]. An ANSI formatter gets CRLF, so

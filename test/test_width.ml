@@ -250,9 +250,28 @@ let test_zwj_emoji_width () =
   Alcotest.(check int) "plain emoji is 2 wide" 2 (width "\xf0\x9f\x8e\x89");
   Alcotest.(check int) "combining mark adds nothing" 1 (width "e\xcc\x81")
 
+(* Width reads escape codes with the scanner {!Console_text.strip} uses, so a
+   code strip removes takes no column here either. *)
+let test_width_agrees_with_strip () =
+  List.iter
+    (fun s ->
+      Alcotest.(check int)
+        (String.escaped s)
+        (Width.string_width (Console_text.strip s))
+        (Width.string_width s))
+    [
+      "a\027Pq#0;2\027\\b";
+      "a\027]0;title\007b";
+      "a\027_apc\027\\b";
+      "a\u{009B}31mb";
+      "a\027(Bb";
+    ]
+
 let suite =
   ( "width",
     [
+      Alcotest.test_case "width agrees with strip" `Quick
+        test_width_agrees_with_strip;
       Alcotest.test_case "ASCII" `Quick test_ascii;
       Alcotest.test_case "zwj emoji width" `Quick test_zwj_emoji_width;
       Alcotest.test_case "empty" `Quick test_empty;

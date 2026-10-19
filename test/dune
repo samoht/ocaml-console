@@ -3,6 +3,7 @@
  (package console)
  (libraries
   console
+  console.text
   console.vte
   display_harness
   matrix.grid

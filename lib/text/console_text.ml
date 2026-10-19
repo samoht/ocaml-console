@@ -11,26 +11,16 @@ let text buf ~keep_newlines u =
   then Uutf.Buffer.add_utf_8 buf u
   else Buffer.add_char buf ' '
 
-let decode str f =
-  let decoder = Uutf.decoder ~encoding:`UTF_8 (`String str) in
-  let rec loop () =
-    match Uutf.decode decoder with
-    | `Uchar u ->
-        f (Some u);
-        loop ()
-    | `Malformed _ ->
-        f None;
-        loop ()
-    | `End -> ()
-    | `Await -> assert false
-  in
-  loop ()
+let sanitize_into buf ~keep_newlines str =
+  Uutf.String.fold_utf_8
+    (fun () _ -> function
+      | `Uchar u -> text buf ~keep_newlines u
+      | `Malformed _ -> Uutf.Buffer.add_utf_8 buf Uutf.u_rep)
+    () str
 
 let sanitize ?(keep_newlines = true) str =
   let buf = Buffer.create (String.length str) in
-  decode str (function
-    | Some u -> text buf ~keep_newlines u
-    | None -> Uutf.Buffer.add_utf_8 buf Uutf.u_rep);
+  sanitize_into buf ~keep_newlines str;
   Buffer.contents buf
 
 (* What the scan is inside of. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
@@ -50,37 +40,17 @@ let bel = 0x07
 let can = 0x18
 let sub = 0x1a
 let del = 0x7f
+let is_c1 c = c >= 0x80 && c <= 0x9f
 
 (* The state a C1 control [c] leads to: CSI opens a control sequence (8.3.16);
    OSC (8.3.89), DCS (8.3.27), SOS (8.3.128), PM (8.3.94) and APC (8.3.2) open
    a control string; every other one, ST (8.3.143) among them, is a control
-   function of its own and is gone. *)
+   function of its own. *)
 let c1 = function
   | 0x9b -> Sequence
   | 0x9d -> String { bel = true }
   | 0x90 | 0x98 | 0x9e | 0x9f -> String { bel = false }
   | _ -> Ground
-
-let ground buf ~keep_newlines u =
-  let c = Uchar.to_int u in
-  if c = esc then Escape
-  else if c >= 0x80 && c <= 0x9f then c1 c
-  else (
-    text buf ~keep_newlines u;
-    Ground)
-
-(* Inside an escape or a control sequence, the DEC parser xterm follows acts on
-   a C0 control and stays, ignores DEL, and lets ESC, CAN, SUB and a C1 control
-   end the sequence and act on their own. Any other character outside the
-   sequence's ranges ends it in error, and is text. *)
-let inside buf ~keep_newlines state ~continues u =
-  let c = Uchar.to_int u in
-  if c < 0x20 && c <> esc && c <> can && c <> sub then (
-    text buf ~keep_newlines u;
-    state)
-  else if c = del then state
-  else
-    match continues c with Some s -> s | None -> ground buf ~keep_newlines u
 
 (* ECMA-35 13.2: ESC, intermediate bytes 02/00-02/15, a final byte
    03/00-07/14; a final byte in 04/00-05/15 is ESC Fe, a C1 control. *)
@@ -102,35 +72,131 @@ let in_sequence c =
   else if c >= 0x40 && c <= 0x7e then Some Ground
   else None
 
-(* ST is ESC 05/12 or 09/12: an ESC ends the string and opens an escape, which
-   ST's second half closes; CAN and SUB cancel it, and a C1 control ends it and
-   acts. Everything else, whatever 5.6 allows the string to hold, is the
-   string's. *)
-let in_string buf ~keep_newlines ~bel:b state u =
-  let c = Uchar.to_int u in
-  if c = esc || c = can || c = sub || (c >= 0x80 && c <= 0x9f) then
-    ground buf ~keep_newlines u
-  else if b && c = bel then Ground
-  else state
+let continues = function
+  | Escape -> after_escape
+  | Escape_intermediate -> after_intermediate
+  | Ground | Sequence | String _ -> in_sequence
 
-let step buf ~keep_newlines state = function
-  | None -> (
+(* Inside an escape or a control sequence, the DEC parser xterm follows acts on
+   a C0 control and stays, ignores DEL, and lets ESC, CAN, SUB and a C1 control
+   end the sequence and act on their own; any other character outside the
+   sequence's ranges ends it in error, and is text. A control string ends at
+   ST, ESC 05/12 or 09/12, an OSC also at BEL; CAN, SUB, ESC and a C1 control
+   end it and act. *)
+let fold_tokens f acc str =
+  let n = String.length str in
+  let acc = ref acc in
+  let emit kind start stop =
+    if stop > start then acc := f !acc kind start (stop - start)
+  in
+  let rec go i state start =
+    if i >= n then emit (if state = Ground then `Text else `Escape) start n
+    else
+      let d = String.get_utf_8_uchar str i in
+      let len = Uchar.utf_decode_length d in
+      let valid = Uchar.utf_decode_is_valid d in
+      let c = Uchar.to_int (Uchar.utf_decode_uchar d) in
       match state with
-      | String _ -> state
-      | Ground | Escape | Escape_intermediate | Sequence ->
-          Uutf.Buffer.add_utf_8 buf Uutf.u_rep;
-          Ground)
-  | Some u -> (
-      match state with
-      | Ground -> ground buf ~keep_newlines u
-      | Escape -> inside buf ~keep_newlines state ~continues:after_escape u
-      | Escape_intermediate ->
-          inside buf ~keep_newlines state ~continues:after_intermediate u
-      | Sequence -> inside buf ~keep_newlines state ~continues:in_sequence u
-      | String { bel } -> in_string buf ~keep_newlines ~bel state u)
+      | Ground ->
+          if valid && (c = esc || is_c1 c) then begin
+            emit `Text start i;
+            match if c = esc then Escape else c1 c with
+            | Ground ->
+                emit `Escape i (i + len);
+                go (i + len) Ground (i + len)
+            | next -> go (i + len) next i
+          end
+          else go (i + len) Ground start
+      | String { bel = b } ->
+          if not valid then go (i + len) state start
+          else if c = esc && i + 1 < n && str.[i + 1] = '\\' then begin
+            emit `Escape start (i + 2);
+            go (i + 2) Ground (i + 2)
+          end
+          else if c = esc || c = can || c = sub || is_c1 c then begin
+            emit `Escape start i;
+            go i Ground i
+          end
+          else if b && c = bel then begin
+            emit `Escape start (i + len);
+            go (i + len) Ground (i + len)
+          end
+          else go (i + len) state start
+      | Escape | Escape_intermediate | Sequence -> (
+          if not valid then begin
+            emit `Escape start i;
+            go i Ground i
+          end
+          else if c < 0x20 && c <> esc && c <> can && c <> sub then begin
+            emit `Escape start i;
+            emit `Text i (i + len);
+            go (i + len) state (i + len)
+          end
+          else if c = del then go (i + len) state start
+          else
+            match continues state c with
+            | Some Ground ->
+                emit `Escape start (i + len);
+                go (i + len) Ground (i + len)
+            | Some next -> go (i + len) next start
+            | None ->
+                emit `Escape start i;
+                go i Ground i)
+  in
+  go 0 Ground 0;
+  !acc
+
+(* ECMA-48 8.3.117 SELECT GRAPHIC RENDITION: CSI, parameter bytes, final byte
+   'm'. The accepted parameter bytes are a strict subset of 5.4's -- the
+   digits and ';' -- and at most 64 of them, which no real SGR reaches. *)
+let sgr seq =
+  let n = String.length seq in
+  let params_ok =
+    n >= 3
+    && n - 3 <= 64
+    && seq.[0] = '\027'
+    && seq.[1] = '['
+    && seq.[n - 1] = 'm'
+    && String.for_all
+         (function '0' .. '9' | ';' -> true | _ -> false)
+         (String.sub seq 2 (n - 3))
+  in
+  if not params_ok then None
+  else
+    (* Parameters apply left to right and 0 turns every attribute off, so the
+       last one decides; an empty parameter is 0. *)
+    let params = String.sub seq 2 (n - 3) in
+    let last =
+      match String.rindex_opt params ';' with
+      | None -> params
+      | Some k -> String.sub params (k + 1) (String.length params - k - 1)
+    in
+    if last = "" || int_of_string_opt last = Some 0 then Some `Reset
+    else Some `Set
+
+let rewrite ~keep_newlines ~keep str =
+  let buf = Buffer.create (String.length str) in
+  let open_style =
+    fold_tokens
+      (fun open_style kind pos len ->
+        let token = String.sub str pos len in
+        match kind with
+        | `Text ->
+            sanitize_into buf ~keep_newlines token;
+            open_style
+        | `Escape -> (
+            match keep token with
+            | Some state ->
+                Buffer.add_string buf token;
+                state = `Set
+            | None -> open_style))
+      false str
+  in
+  if open_style then Buffer.add_string buf "\027[0m";
+  Buffer.contents buf
 
 let strip ?(keep_newlines = true) str =
-  let buf = Buffer.create (String.length str) in
-  let state = ref Ground in
-  decode str (fun d -> state := step buf ~keep_newlines !state d);
-  Buffer.contents buf
+  rewrite ~keep_newlines ~keep:(fun _ -> None) str
+
+let sanitize_styles ?(keep_newlines = true) str =
+  rewrite ~keep_newlines ~keep:sgr str

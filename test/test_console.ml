@@ -48,10 +48,10 @@ let test_sanitize () =
    are refused rather than forwarded on a guess. *)
 let styles s = Console.sanitize_styles s
 
-(* Everything that is not a strictly-parsed SGR is what {!Console.sanitize}
-   makes of it, and one function decides that for both. *)
+(* Everything that is not a strictly-parsed SGR is removed, as
+   {!Console_text.strip} removes it, and one scanner decides that for both. *)
 let neutralised what s =
-  Alcotest.(check string) what (Console.sanitize s) (styles s)
+  Alcotest.(check string) what (Console_text.strip s) (styles s)
 
 let test_sanitize_styles_passes_sgr () =
   Alcotest.(check string)

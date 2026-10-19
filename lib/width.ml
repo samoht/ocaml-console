@@ -10,32 +10,7 @@ let iter_uchars f s =
     (fun () _ -> function `Uchar u -> f u | `Malformed _ -> f Uutf.u_rep)
     () s
 
-let ansi_end str start =
-  let len = String.length str in
-  if start + 1 >= len then len
-  else
-    match str.[start + 1] with
-    | '[' ->
-        let rec csi i =
-          if i >= len then len
-          else
-            let c = Char.code str.[i] in
-            if c >= 0x40 && c <= 0x7e then i + 1 else csi (i + 1)
-        in
-        csi (start + 2)
-    | ']' ->
-        let rec osc i =
-          if i >= len then len
-          else if str.[i] = '\007' then i + 1
-          else if i + 1 < len && str.[i] = '\027' && str.[i + 1] = '\\' then
-            i + 2
-          else osc (i + 1)
-        in
-        osc (start + 2)
-    | next when Char.code next >= 0x80 ->
-        let decoded = String.get_utf_8_uchar str (start + 1) in
-        min len (start + 1 + Uchar.utf_decode_length decoded)
-    | _ -> min len (start + 2)
+let fold_tokens = Console_text.fold_tokens
 
 let string_width str =
   (* Styling controls do not break a terminal grapheme. Strip them before
@@ -43,151 +18,89 @@ let string_width str =
      has exactly the same width here as it does in the terminal. Measuring each
      visible run separately over-counts standalone combining marks. *)
   let visible = Buffer.create (String.length str) in
-  let rec copy i =
-    if i >= String.length str then ()
-    else if str.[i] = '\027' then copy (ansi_end str i)
-    else begin
-      Buffer.add_char visible str.[i];
-      copy (i + 1)
-    end
-  in
-  copy 0;
+  fold_tokens
+    (fun () kind pos len ->
+      match kind with
+      | `Text -> Buffer.add_substring visible str pos len
+      | `Escape -> ())
+    () str;
   Glyph.String.measure ~width_method:`Unicode ~tab_width:2
     (Buffer.contents visible)
 
-let starts_at str prefix at =
-  let plen = String.length prefix in
-  at + plen <= String.length str && String.sub str at plen = prefix
+let is_link e = String.starts_with ~prefix:"\027]8;" e
 
-let hyperlink_is_open str =
-  let prefix = "\027]8;;" and terminator = "\027\\" in
-  let rec find_terminator at =
-    if at + 1 >= String.length str then None
-    else if starts_at str terminator at then Some at
-    else find_terminator (at + 1)
-  in
-  let rec loop at open_ =
-    if at + String.length prefix > String.length str then open_
-    else if starts_at str prefix at then
-      let uri_start = at + String.length prefix in
-      match find_terminator uri_start with
-      | None -> true
-      | Some stop -> loop (stop + String.length terminator) (stop > uri_start)
-    else loop (at + 1) open_
-  in
-  loop 0 false
+let closes_link e =
+  String.equal e "\027]8;;\027\\" || String.equal e "\027]8;;\007"
 
-(* Whatever the cut left open, closed: a style the last SGR left on, and a
-   hyperlink whose closing OSC 8 the cut dropped. *)
+(* Whatever [rendered] leaves open, closed: a style the last SGR left on, and
+   a hyperlink whose closing OSC 8 is missing. *)
 let closing rendered =
-  let buffer = Buffer.create 8 in
-  if Render.style_is_open rendered then Buffer.add_string buffer "\027[0m";
-  if hyperlink_is_open rendered then Buffer.add_string buffer "\027]8;;\027\\";
-  Buffer.contents buffer
+  let style, link =
+    fold_tokens
+      (fun ((style, link) as state) kind pos len ->
+        match kind with
+        | `Text -> state
+        | `Escape -> (
+            let e = String.sub rendered pos len in
+            match Console_text.sgr e with
+            | Some `Set -> (true, link)
+            | Some `Reset -> (false, link)
+            | None when is_link e -> (style, not (closes_link e))
+            | None -> state))
+      (false, false) rendered
+  in
+  (if style then "\027[0m" else "") ^ if link then "\027]8;;\027\\" else ""
 
 let normalize_utf8 str =
   let buffer = Buffer.create (String.length str) in
   iter_uchars (Uutf.Buffer.add_utf_8 buffer) str;
   Buffer.contents buffer
 
-(* Where the next escape sequence begins, so a run of drawable text can be
-   segmented on its own. *)
-let visible_run_end str start =
-  let rec loop i =
-    if i >= String.length str || str.[i] = '\027' then i else loop (i + 1)
-  in
-  loop start
-
-let truncate_graphemes target_width str =
-  let str = normalize_utf8 str in
-  let buffer = Buffer.create (String.length str) in
-  let width = ref 0 and stopped = ref false in
-  let append_visible run =
-    Glyph.String.iter_graphemes
-      (fun ~offset ~len ->
-        if not !stopped then
-          let grapheme_width =
-            Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:2 run
-              ~pos:offset ~len
-          in
-          if !width + grapheme_width <= target_width then (
-            Buffer.add_substring buffer run offset len;
-            width := !width + grapheme_width)
-          else stopped := true)
-      run
-  in
-  let rec loop i =
-    if !stopped || i >= String.length str then ()
-    else if str.[i] = '\027' then (
-      let stop = ansi_end str i in
-      Buffer.add_substring buffer str i (stop - i);
-      loop stop)
-    else
-      let stop = visible_run_end str i in
-      append_visible (String.sub str i (stop - i));
-      loop stop
-  in
-  loop 0;
-  if !stopped then Buffer.add_string buffer (closing (Buffer.contents buffer));
-  Buffer.contents buffer
-
-let truncate target_width str =
-  if target_width <= 0 then "" else truncate_graphemes target_width str
-
-let ellipsis = "..."
-
 (* [str] as the pieces a terminal draws it in: an escape sequence, which takes
    no column and is never cut, or one grapheme cluster with the width it
-   occupies. Fitting a value by its middle has to take from both of its ends,
-   which neither direction of truncation on its own can do. *)
+   occupies. *)
 let atoms str =
   let str = normalize_utf8 str in
-  let pieces = ref [] in
-  let push piece width = pieces := (piece, width) :: !pieces in
-  let graphemes run =
-    Glyph.String.iter_graphemes
-      (fun ~offset ~len ->
-        push
-          (String.sub run offset len)
-          (Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:2 run
-             ~pos:offset ~len))
-      run
+  let pieces =
+    fold_tokens
+      (fun pieces kind pos len ->
+        match kind with
+        | `Escape -> (String.sub str pos len, 0) :: pieces
+        | `Text ->
+            let run = String.sub str pos len in
+            let pieces = ref pieces in
+            Glyph.String.iter_graphemes
+              (fun ~offset ~len ->
+                pieces :=
+                  ( String.sub run offset len,
+                    Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:2
+                      run ~pos:offset ~len )
+                  :: !pieces)
+              run;
+            !pieces)
+      [] str
   in
-  let rec loop i =
-    if i >= String.length str then ()
-    else if str.[i] = '\027' then begin
-      let stop = ansi_end str i in
-      push (String.sub str i (stop - i)) 0;
-      loop stop
-    end
-    else
-      let stop = visible_run_end str i in
-      let run = String.sub str i (stop - i) in
-      graphemes run;
-      loop stop
-  in
-  loop 0;
-  List.rev !pieces
+  List.rev pieces
 
 (* The pieces of [atoms], in the order they are given, that fit in [target]
    columns. Reversed atoms therefore yield the value's last [target] columns. *)
 let take target atoms =
-  let width = ref 0 and stopped = ref false in
-  let kept =
-    List.filter_map
-      (fun (piece, piece_width) ->
-        if !stopped then None
-        else if !width + piece_width <= target then begin
-          width := !width + piece_width;
-          Some piece
-        end
-        else begin
-          stopped := true;
-          None
-        end)
-      atoms
+  let rec go width acc = function
+    | (piece, w) :: rest when width + w <= target ->
+        go (width + w) (piece :: acc) rest
+    | _ -> List.rev acc
   in
-  kept
+  go 0 [] atoms
+
+let truncate target_width str =
+  if target_width <= 0 then ""
+  else
+    let atoms = atoms str in
+    let taken = take target_width atoms in
+    let kept = String.concat "" taken in
+    if List.compare_lengths taken atoms = 0 then kept else kept ^ closing kept
+
+let ellipsis = "..."
 
 let ellipsize ?(at = `Middle) target_width str =
   if target_width <= 0 then ""
@@ -399,14 +312,10 @@ let elide ?(see = "") target_width str =
 (* The escapes still in force after [piece]: a reset ends every style, a
    hyperlink's close ends the hyperlink, and anything else is added. *)
 let in_force active piece =
-  let sgr p = String.length p > 1 && p.[1] = '[' in
-  let link p = String.starts_with ~prefix:"\027]8;" p in
-  let closes_link p =
-    String.equal p "\027]8;;\027\\" || String.equal p "\027]8;;\007"
-  in
-  if String.equal piece "\027[0m" || String.equal piece "\027[m" then
+  let sgr p = Option.is_some (Console_text.sgr p) in
+  if Console_text.sgr piece = Some `Reset then
     List.filter (fun p -> not (sgr p)) active
-  else if closes_link piece then List.filter (fun p -> not (link p)) active
+  else if closes_link piece then List.filter (fun p -> not (is_link p)) active
   else active @ [ piece ]
 
 (* [atoms] as runs of words and runs of spaces, each with its width. *)

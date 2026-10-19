@@ -145,53 +145,10 @@ val sanitize : ?keep_newlines:bool -> string -> string
     the network, a filename -- outside any widget. *)
 
 val strip : ?keep_newlines:bool -> string -> string
-(** [strip s] is the text a terminal shows of [s]: each control sequence
-    (ECMA-48 5.4) and each control string (ECMA-48 5.6: OSC, DCS, SOS, PM and
-    APC) is removed whole, in its 7-bit form opened by ESC and in its 8-bit form
-    opened by a C1 control, and what is left is what {!sanitize} makes of it. A
-    hyperlink's target, a window title or a DCS payload is never read as text,
-    and the result holds no ESC and no C1 control.
-
-    A control string ends at ST (ECMA-48 8.3.143), an OSC also at BEL as xterm's
-    does, any of them at CAN, SUB, ESC or a C1 control, and at the end of [s]
-    when nothing ends it before. Inside a control sequence, as in the DEC parser
-    xterm follows, another C0 control is what {!sanitize} makes of it and the
-    sequence goes on, and a character outside the ranges of ECMA-48 5.4 ends the
-    sequence and is text. The other C1 controls and the escape sequences of
-    ECMA-35 (ESC, then intermediate bytes, then a final byte) are removed. [s]
-    is read as UTF-8, so the 8-bit form of CSI is U+009B and a lone byte 0x9B is
-    a malformed sequence, the replacement character. *)
+(** [strip] is {!Console_text.strip}. *)
 
 val sanitize_styles : ?keep_newlines:bool -> string -> string
-(** [sanitize_styles s] is {!sanitize} over [s] except that the styling [s]
-    already carries survives, for a caller relaying the output of a tool that
-    coloured it.
-
-    What survives is a strictly-parsed SGR sequence (ECMA-48 8.3.117): CSI, then
-    parameter bytes, then the final byte ['m']. The accepted parameter bytes are
-    the digits and [';'] and nothing else, a strict subset of the parameter
-    bytes ECMA-48 5.4 allows, so a private parameter byte and the [':']
-    sub-parameter of ITU-T T.416 are refused rather than forwarded on a guess;
-    the run is at most 64 bytes long, which no real SGR reaches and an
-    adversary's would; and a sequence the string ends in the middle of is
-    refused as well.
-
-    Everything else is exactly what {!sanitize} makes of it -- cursor movement
-    and erase, which share the grammar under a different final byte, OSC
-    including the OSC 8 hyperlink, DCS, and the C1 controls, the C1 introducer
-    among them, which open none of this. SGR cannot move the cursor, erase a
-    region or name a resource, which is what makes it the one sequence that can
-    travel and leave the geometry contract above intact.
-
-    The result cannot change the styling of what the caller prints next: the
-    last surviving sequence is followed by an SGR reset unless it is one
-    already, which SGR makes a question about its last parameter, 0 (or empty,
-    which reads as 0) leaving no attribute set. So text that closes its own
-    styling comes back byte for byte, and a second pass changes nothing the
-    first did not.
-
-    An SGR sequence is zero columns wide ({!Width.string_width}), so what this
-    returns measures and lays out as the visible text alone. *)
+(** [sanitize_styles] is {!Console_text.sanitize_styles}. *)
 
 (** {1:setup Colour on or off} *)
 
