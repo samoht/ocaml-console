@@ -63,13 +63,14 @@ val feed : t -> string -> string * string list
 
     A printable character -- ASCII [0x20..0x7e], or a multi-byte UTF-8 character
     whose lead and continuation bytes may span several [feed] calls -- is
-    inserted at the cursor and echoed. [\127] (DEL) and [\008] (BS) erase the
-    character before the cursor, echoing ["\b \b"] at end of line; ['\r'] and
-    ['\n'] submit the line (a ['\n'] right after a ['\r'] is the trailing half
-    of a CRLF and submits nothing); [\t] runs completion. The arrows ([ESC \[ A]
-    / [ESC \[ B]) recall the previous and next history entries and ([ESC \[ C] /
-    [ESC \[ D]) move the cursor right and left over one character. Any other
-    byte is ignored.
+    inserted at the cursor and echoed; a byte sequence that decodes to no
+    character is the replacement character U+FFFD. [\127] (DEL) and [\008] (BS)
+    erase the character before the cursor, echoing ["\b \b"] at end of line;
+    ['\r'] and ['\n'] submit the line (a ['\n'] right after a ['\r'] is the
+    trailing half of a CRLF and submits nothing); [\t] runs completion. The
+    arrows ([ESC \[ A] / [ESC \[ B]) recall the previous and next history
+    entries and ([ESC \[ C] / [ESC \[ D]) move the cursor right and left over
+    one character. Any other byte is ignored.
 
     Feeding [input] at once or in pieces gives the same echo and lines, and the
     echo holds no escape code: the cursor moves by backspaces. *)

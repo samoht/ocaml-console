@@ -263,6 +263,18 @@ let test_complete_utf8 () =
   ignore (Input.feed t "\t");
   Alcotest.(check string) "no complete character is shared" "" (Input.pending t)
 
+(* A byte sequence that is not a character is one replacement character, in
+   the line and on the screen, so the cursor stays where the terminal puts
+   it. *)
+let test_invalid_utf8 () =
+  List.iter
+    (fun bad ->
+      let t = Input.v () in
+      let echo, _ = Input.feed t bad in
+      Alcotest.(check string) (String.escaped bad) "\u{FFFD}" (Input.pending t);
+      Alcotest.(check string) "echo" "\u{FFFD}" echo)
+    [ "\xed\xa0\x80"; "\xc0\xaf"; "\xf4\x90\x80\x80" ]
+
 let test_echo_is_text () =
   let no_escape msg (echo, _) =
     Alcotest.(check bool) msg false (String.contains echo '\027')
@@ -278,6 +290,8 @@ let test_echo_is_text () =
 let suite =
   ( "input",
     [
+      Alcotest.test_case "invalid UTF-8 is a replacement character" `Quick
+        test_invalid_utf8;
       Alcotest.test_case "echo holds no escape from the caller" `Quick
         test_echo_is_text;
       Alcotest.test_case "completion inserts only complete UTF-8 characters"

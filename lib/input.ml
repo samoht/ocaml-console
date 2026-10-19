@@ -213,7 +213,14 @@ let rec normal t echo lines ~after_cr c =
       t.partial <- t.partial ^ String.make 1 c;
       t.need <- t.need - 1;
       if t.need = 0 then begin
-        insert t echo t.partial;
+        (* A surrogate, an overlong form or a code point past U+10FFFF is
+           no character: it is one replacement character. *)
+        let d = String.get_utf_8_uchar t.partial 0 in
+        let valid =
+          Uchar.utf_decode_is_valid d
+          && Uchar.utf_decode_length d = String.length t.partial
+        in
+        insert t echo (if valid then t.partial else "\xef\xbf\xbd");
         t.partial <- ""
       end
     end
