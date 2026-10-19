@@ -242,6 +242,8 @@ let state t : Theme.mark =
   else if t.cancelled > 0 then `Cancelled
   else `Succeeded
 
+(* On a terminal, the header's name gives way last: the time and the count
+   go first. *)
 let header t =
   Option.map
     (fun h ->
@@ -252,11 +254,10 @@ let header t =
              t.finished t.started)
       in
       let lead = Span.(mark t (state t) ++ text " ") in
-      let room = t.width - Span.width lead - Span.width meta in
       let h = Span.styled (Theme.header t.theme) h in
-      let h = if is_live t then Span.truncate room h else h in
-      let line = Span.(lead ++ h ++ meta) in
-      if is_live t then Span.truncate t.width line else line)
+      let full = Span.(lead ++ h ++ meta) in
+      if (not (is_live t)) || Span.width full <= t.width then full
+      else Span.truncate t.width Span.(lead ++ h))
     t.header
 
 let verdict t result =

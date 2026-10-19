@@ -14,12 +14,7 @@
   re
   alcobar))
 
-; The default per-test budget (2s) makes this VT-emulator-heavy suite a ~20s
-; inner-loop tax: ~9 properties render a Display, feed a real terminal emulator
-; and check invariants per iteration (~0.5-2ms each), so they never exhaust the
-; iteration cap and burn the whole budget. Keep the in-loop [runtest] a quick
-; smoke with a small budget; deep exploration is the [fuzz] alias below (AFL,
-; -V 60). The fast non-VT properties still run their full 5000 iterations.
+; The property run is a quick smoke; deep exploration is the fuzz alias.
 
 (rule
  (alias runtest)

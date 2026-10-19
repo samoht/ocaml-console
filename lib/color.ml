@@ -225,7 +225,7 @@ let downsample depth c =
   | `Ansi_16, c -> Ansi (nearest_named (to_rgb c))
 
 let blend c0 c1 t =
-  let t = Float.max 0. (Float.min 1. t) in
+  let t = if Float.is_nan t then 0. else Float.max 0. (Float.min 1. t) in
   let r, g, b = to_rgb c0 and r', g', b' = to_rgb c1 in
   let mix a a' = a + int_of_float (Float.round (t *. float_of_int (a' - a))) in
   Rgb (mix r r', mix g g', mix b b')

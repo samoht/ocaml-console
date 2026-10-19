@@ -96,7 +96,9 @@ val to_rgb : t -> int * int * int
 
 val blend : t -> t -> float -> t
 (** [blend c0 c1 t] is the RGB colour [t] of the way from [c0] to [c1], [t]
-    clamped to 0 to 1: each component is [a + round (t * (b - a))]. *)
+    clamped to 0 to 1 and NaN being 0: each component is
+    [a + round (t * (b - a))]. [blend c0 c1 0.] is [c0] and [blend c0 c1 1.] is
+    [c1], as RGB. *)
 
 val scale : float -> t -> t
 (** [scale f c] is the RGB colour whose components are those of [c] times [f],

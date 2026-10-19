@@ -1,0 +1,171 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+open Alcobar
+open Console
+
+(* Text whose clusters, cells and bytes do not line up: wide characters, a
+   spacing mark that joins the letter before it, an emoji sequence, spaces,
+   punctuation and slashes. *)
+let alphabet =
+  [|
+    "x";
+    "\xe7\x95\x8c";
+    "\xc3\xa9";
+    "\xea\xa8\xb4";
+    "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9";
+    " ";
+    "  ";
+    ",";
+    "/";
+    "\n";
+  |]
+
+let text s =
+  String.concat ""
+    (List.init (String.length s) (fun i ->
+         alphabet.(Char.code s.[i] mod Array.length alphabet)))
+
+(* A span in several styles, cut between characters where the generator
+   says. *)
+let span s =
+  let styles =
+    [| Style.none; Style.bold; Style.fg Color.red; Style.underline |]
+  in
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then acc
+    else
+      let rec char_end j k =
+        if j >= n || k = 0 then j
+        else
+          char_end
+            (j + Uchar.utf_decode_length (String.get_utf_8_uchar s j))
+            (k - 1)
+      in
+      let j = char_end i (1 + (Char.code s.[i] mod 3)) in
+      go j
+        Span.(
+          acc
+          ++ Span.styled styles.(Char.code s.[i] mod 4) (String.sub s i (j - i)))
+  in
+  go 0 Span.empty
+
+let width n = 1 + (abs n mod 40)
+let plain = Span.to_string
+
+let no_space s =
+  String.concat ""
+    (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s)))
+
+(* Every span prints, whatever its bytes: a control is a space and
+   malformed UTF-8 the replacement character. *)
+let test_sanitized s =
+  let p = plain (Span.text s) in
+  check (String.is_valid_utf_8 p);
+  String.iter
+    (fun c ->
+      let c = Char.code c in
+      if (c < 0x20 && c <> 0x0a) || c = 0x7f then failf "control %d in %S" c p)
+    p;
+  ignore (Span.to_string ~styled:true (Span.styled Style.bold s))
+
+(* [width (s0 ++ s1) <= width s0 + width s1]. *)
+let test_width_subadditive a b =
+  let a = span (text a) and b = span (text b) in
+  check (Span.width Span.(a ++ b) <= Span.width a + Span.width b)
+
+(* A style boundary adds no cell: the styled span is as wide as its text. *)
+let test_width_styles s =
+  let s = text s in
+  check_eq ~pp:Fmt.int (Span.width (Span.text s)) (Span.width (span s))
+
+(* [width (truncate w s) <= max 0 w], [truncate w s = s] when it fits, a cut
+   line ends with an ellipsis, and what is kept is a prefix of the line. *)
+let test_truncate s n =
+  let s = span (text s) and w = abs n mod 50 in
+  let t = Span.truncate w s in
+  check (Span.width t <= max 0 w);
+  if Span.width s <= w then check_eq ~pp:Fmt.Dump.string (plain s) (plain t);
+  let lines = String.split_on_char '\n' (plain s)
+  and cut = String.split_on_char '\n' (plain t) in
+  if w > 0 then
+    List.iter2
+      (fun l c ->
+        if not (String.equal l c) then begin
+          let e = "\xe2\x80\xa6" in
+          if not (String.ends_with ~suffix:e c) then failf "no ellipsis: %S" c;
+          let kept = String.sub c 0 (String.length c - String.length e) in
+          if not (String.starts_with ~prefix:kept l) then
+            failf "%S is not a prefix of %S" kept l
+        end)
+      lines cut;
+  check_eq ~pp:Fmt.Dump.string (plain t) (plain (Span.truncate w t))
+
+(* The styled form of a cut span turns every style off. *)
+let test_truncate_closes s n =
+  let t =
+    Span.to_string ~styled:true (Span.truncate (width n) (span (text s)))
+  in
+  (* The last escape code written is the reset. *)
+  match String.rindex_opt t '\027' with
+  | None -> ()
+  | Some i ->
+      let rest = String.sub t i (String.length t - i) in
+      if not (String.starts_with ~prefix:"\027[0m" rest) then
+        failf "a style left on: %S" t
+
+(* Every line fits, the result is never empty, and with room for any
+   character every non-space one is kept, in order. *)
+let test_wrap s n =
+  let s = span (text s) and w = width n in
+  let lines = Span.wrap w s in
+  check (lines <> []);
+  List.iter (fun l -> check (Span.width l <= w)) lines;
+  if w >= 2 then
+    check_eq ~pp:Fmt.Dump.string
+      (no_space (plain s))
+      (no_space (String.concat "" (List.map plain lines)))
+
+let test_wrap_bytes s n = ignore (Span.wrap (width n) (Span.text s))
+
+let test_wrap_refuses n =
+  let w = -abs n in
+  match Span.wrap w Span.empty with
+  | _ -> fail "a non-positive width is refused"
+  | exception Invalid_argument _ -> ()
+
+(* A link's label is all its plain form; a URI with a byte outside printable
+   ASCII, or an empty one, is refused. *)
+let test_link label uri =
+  let bad = uri = "" || String.exists (fun c -> c <= ' ' || c >= '\x7f') uri in
+  match Span.link ~uri label with
+  | l ->
+      if bad then fail "unsafe URI accepted";
+      check_eq ~pp:Fmt.Dump.string (plain (Span.text label)) (plain l)
+  | exception Invalid_argument _ -> if not bad then fail "safe URI refused"
+
+(* [concat ~sep] puts [sep] between each two. *)
+let test_concat a b c =
+  let parts = List.map Span.text [ a; b; c ] in
+  check_eq ~pp:Fmt.Dump.string
+    (String.concat "," (List.map plain parts))
+    (plain (Span.concat ~sep:(Span.text ",") parts))
+
+let suite =
+  ( "span",
+    [
+      test_case "every span prints" [ bytes ] test_sanitized;
+      test_case "width is subadditive" [ bytes; bytes ] test_width_subadditive;
+      test_case "styles add no cell" [ bytes ] test_width_styles;
+      test_case "truncate fits, keeps a prefix, ends with an ellipsis"
+        [ bytes; int ] test_truncate;
+      test_case "truncate turns styles off" [ bytes; int ] test_truncate_closes;
+      test_case "wrap fits and keeps the text" [ bytes; int ] test_wrap;
+      test_case "wrap takes any bytes" [ bytes; int ] test_wrap_bytes;
+      test_case "wrap refuses a non-positive width" [ int ] test_wrap_refuses;
+      test_case "link" [ bytes; bytes ] test_link;
+      test_case "concat" [ bytes; bytes; bytes ] test_concat;
+    ] )
