@@ -76,9 +76,75 @@ let test_teardown n no_color =
   check (Grid.get_fg_b g i = Grid.get_fg_b reference j);
   check (Grid.get_bg_r g i = Grid.get_bg_r reference j)
 
+let domain_records reporter prefix count =
+  let source = Logs.Src.create "console.adversarial" in
+  for i = 0 to count - 1 do
+    reporter.Logs.report source Logs.Info
+      ~over:(fun () -> ())
+      (fun () -> ())
+      (fun m -> m "%s%04d" prefix i)
+  done
+
+let check_records output prefix count =
+  let re = Re.compile (Re.str prefix) in
+  let records =
+    String.split_on_char '\n' output
+    |> List.filter_map (fun line ->
+        match Re.exec_opt re line with
+        | None -> None
+        | Some group ->
+            let i, _ = Re.Group.offset group 0 in
+            Some (String.sub line i (String.length line - i)))
+  in
+  let expected = List.init count (fun i -> Fmt.str "%s%04d" prefix i) in
+  check_eq ~pp:Fmt.(Dump.list string) expected records
+
+let test_concurrent_sessions n =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pool =
+    Eio.Executor_pool.create ~sw ~domain_count:2 (Eio.Stdenv.domain_mgr env)
+  in
+  let count = 1 + (n mod 20) in
+  let output = Buffer.create 1024 in
+  let ppf = Format.formatter_of_buffer output in
+  let clock = Eio.Stdenv.clock env in
+  Console_eio.run ~clock ~ppf (fun display ->
+      let reporter = Logs.reporter () in
+      let fibers =
+        List.init 2 (fun worker () ->
+            Console_eio.run ~clock (fun nested ->
+                check (nested == display);
+                let task =
+                  Console.Display.task nested ("fiber" ^ string_of_int worker)
+                in
+                for i = 0 to count - 1 do
+                  Console.Display.log task (Fmt.str "event%04d" i);
+                  Eio.Fiber.yield ()
+                done;
+                Console.Display.succeed task))
+      in
+      let domains =
+        List.init 2 (fun worker () ->
+            Eio.Executor_pool.submit_exn pool ~weight:1. (fun () ->
+                domain_records reporter
+                  ("domain" ^ string_of_int worker ^ "_event")
+                  count))
+      in
+      Eio.Fiber.all (fibers @ domains));
+  Format.pp_print_flush ppf ();
+  let output = Buffer.contents output in
+  check (String.is_valid_utf_8 output && not (String.contains output '\027'));
+  for worker = 0 to 1 do
+    check_records output ("fiber" ^ string_of_int worker ^ ": event") count;
+    check_records output ("domain" ^ string_of_int worker ^ "_event") count
+  done
+
 let suite =
   ( "session",
     [
+      test_case "nested fibers and domains retain every log in order" [ uint8 ]
+        test_concurrent_sessions;
       test_case "return exception cancellation and exit restore the terminal"
         [ uint8; bool ] test_teardown;
       test_case "SIGINT restores the cursor" [ bool ] test_sigint;

@@ -11,6 +11,7 @@
   eio
   eio.unix
   eio_main
+  logs
   cstruct
   unix
   matrix.glyph
