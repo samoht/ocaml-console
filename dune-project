@@ -46,9 +46,8 @@
   (eio (>= 1.4))
   fmt
   logs
-  cstruct
-  optint
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
+  (cstruct :with-test)
   (eio_main :with-test)))
