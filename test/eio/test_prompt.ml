@@ -160,9 +160,10 @@ let with_stdin ~stdin f =
   f ()
 
 (* [secret] waits for the terminal the way a fiber waits, so the rest of the
-   domain runs meanwhile: a ticking fiber has ticked by the time the answer,
-   typed from another domain a moment later, is read. A read that parks the
-   domain returns with the ticker never having run. *)
+   domain runs meanwhile: the answer is typed by another fiber of the same
+   domain, which only runs if the read let it. A watchdog domain types it
+   after a while so that a read that parks the domain fails the test rather
+   than hanging it. *)
 let test_secret_leaves_the_domain_running () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -176,14 +177,21 @@ let test_secret_leaves_the_domain_running () =
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
   Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
   @@ fun () ->
-  let typist =
-    Domain.spawn (fun () ->
-        Unix.sleepf 0.2;
-        ignore (Unix.write_substring master "abc\n" 0 4 : int))
+  let typed = Atomic.make false in
+  let type_answer () =
+    if Atomic.compare_and_set typed false true then
+      ignore (Unix.write_substring master "abc\n" 0 4 : int)
   in
-  let clock = Eio.Stdenv.clock env in
-  let ticks = ref 0 and answered = ref false in
-  let result = ref (Error (`Msg "unread")) and ticks_at_answer = ref 0 in
+  let watchdog =
+    Domain.spawn (fun () ->
+        let deadline = Unix.gettimeofday () +. 10. in
+        while (not (Atomic.get typed)) && Unix.gettimeofday () < deadline do
+          Unix.sleepf 0.01
+        done;
+        type_answer ())
+  in
+  let by_fiber = ref false in
+  let result = ref (Error (`Msg "unread")) in
   with_stdin ~stdin:tty (fun () ->
       Eio.Fiber.both
         (fun () ->
@@ -192,18 +200,17 @@ let test_secret_leaves_the_domain_running () =
               ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
               (Eio.Stdenv.stdin env)
           in
-          result := Prompt.secret t "secret: ";
-          ticks_at_answer := !ticks;
-          answered := true)
+          result := Prompt.secret t "secret: ")
         (fun () ->
-          while not !answered do
-            Eio.Time.sleep clock 0.01;
-            incr ticks
-          done));
-  Domain.join typist;
+          Eio.Fiber.yield ();
+          if not (Atomic.get typed) then begin
+            by_fiber := true;
+            type_answer ()
+          end));
+  Domain.join watchdog;
   Alcotest.check string_answer "the typed line" (Got "abc") (seen !result);
   Alcotest.(check bool)
-    "the domain ran while the terminal was awaited" true (!ticks_at_answer > 0)
+    "the domain ran while the terminal was awaited" true !by_fiber
 
 let suite =
   ( "prompt",
