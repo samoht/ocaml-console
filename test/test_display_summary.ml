@@ -73,9 +73,26 @@ let test_result_first_wins () =
     "ignored verdict" false
     (contains "changed my mind" output)
 
+let test_empty_header_pending () =
+  let initial = ref "" in
+  let buffer = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Display.run
+    ~ctx:(ctx ~live:true ~ppf ~now:(fun () -> 0.) ())
+    ~header:"Building"
+    (fun display ->
+      Display.tick display;
+      Format.pp_print_flush ppf ();
+      initial := Console_text.strip (Buffer.contents buffer));
+  Alcotest.(check bool)
+    "pending marker before any tasks" true
+    (contains "[-] Building 0.0s (0/0)" !initial)
+
 let suite =
   ( "display_summary",
     [
+      Alcotest.test_case "empty live header remains pending" `Quick
+        test_empty_header_pending;
       Alcotest.test_case "history output" `Quick test_history_output;
       Alcotest.test_case "result" `Quick test_result;
       Alcotest.test_case "result on a live display" `Quick test_result_live;
