@@ -65,14 +65,16 @@ val run :
     signal ends the program as it would have. A signal the program handles or
     ignores is left to it.
 
-    While [f] runs, {!Logs} messages are printed by the display, at the level of
-    their mark, a message from a source other than {!Logs.default} after the
-    source's name in brackets, as in [[http] connected]. The reporter [f] found
-    is put back when [f] ends.
+    While [f] runs, the display prints {!Logs} messages after the mark of their
+    level, a message from a source other than {!Logs.default} after the source's
+    name in brackets, as in [[http] connected]. The reporter installed before
+    [run] is put back when [f] ends.
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
-    whether its caller already did.
+    whether its caller already did. Its [ppf], [theme], [layout] and [header]
+    are ignored: the display keeps those of the outer [run], and closes when the
+    outer [f] ends, not the inner one.
 
     @raise Invalid_argument
       if a display opened elsewhere in the program is still running. *)
