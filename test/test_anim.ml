@@ -25,14 +25,10 @@ let test_map () =
   in
   Alcotest.(check int) "mapped frame" 20 (Anim.frame a ~elapsed:2.0)
 
-(* Spinner and Bar animate by elapsed time. *)
+(* A spinner animates by elapsed time. *)
 let test_component_anims () =
   let s = Spinner.anim Spinner.ascii in
-  Alcotest.(check string) "spinner at 0.3s" "\\" (Anim.frame s ~elapsed:0.3);
-  let b = Bar.anim ~style:`Blocky ~width:10 () in
-  Alcotest.(check bool)
-    "bar moves" false
-    (String.equal (Anim.frame b ~elapsed:0.) (Anim.frame b ~elapsed:0.5))
+  Alcotest.(check string) "spinner at 0.3s" "\\" (Anim.frame s ~elapsed:0.3)
 
 (* [all] samples every animation at the same elapsed time, in order. *)
 let test_all () =

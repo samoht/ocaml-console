@@ -121,8 +121,8 @@
     open Console
 
     let demo_anim () =
-      let bar = Bar.anim ~style:`Smooth ~width:20 () in
-      Fmt.pr "%s@." (Anim.frame bar ~elapsed:0.5)
+      let spinner = Spinner.anim Spinner.braille in
+      Fmt.pr "%s@." (Anim.frame spinner ~elapsed:0.5)
     ]} *)
 
 (** {1:setup Colour on or off} *)

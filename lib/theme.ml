@@ -3,15 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type bar = [ `Blocky | `Smooth | `Rainbow ]
-
 type t = {
   accent : Color.t;
   palette : Color.t list;
   border : Border.t;
   guide : Guide.t;
   spinner : Spinner.t;
-  bar : bar;
   done_marker : string;
   ok_marker : string;
   fail_marker : string;
@@ -26,7 +23,6 @@ let palette t = t.palette
 let border t = t.border
 let guide t = t.guide
 let spinner t = t.spinner
-let bar t = t.bar
 let ok _ = Color.green
 let fail _ = Color.red
 let warn _ = Color.yellow
@@ -49,17 +45,15 @@ let unicode =
     border = Border.rounded;
     guide = Guide.unicode;
     spinner = Spinner.braille;
-    bar = `Smooth;
     done_marker = "✓";
     ok_marker = "✓";
     fail_marker = "✗";
   }
 
 let v ?(accent = unicode.accent) ?palette ?(border = unicode.border)
-    ?(guide = unicode.guide) ?(spinner = unicode.spinner) ?(bar = unicode.bar)
-    () =
+    ?(guide = unicode.guide) ?(spinner = unicode.spinner) () =
   let palette = Option.value palette ~default:[ accent ] in
-  { unicode with accent; palette; border; guide; spinner; bar }
+  { unicode with accent; palette; border; guide; spinner }
 
 let amber = Color.rgb 0xff 0xb0 0x00
 
@@ -70,7 +64,6 @@ let dos =
     border = Border.ascii;
     guide = Guide.ascii;
     spinner = Spinner.ascii;
-    bar = `Blocky;
     done_marker = "[+]";
     ok_marker = "[OK]";
     fail_marker = "[FAIL]";
@@ -99,7 +92,6 @@ let rainbow =
         Color.blue;
         Color.magenta;
       ];
-    bar = `Rainbow;
     done_marker = "✔";
     ok_marker = "✔";
     fail_marker = "✘";

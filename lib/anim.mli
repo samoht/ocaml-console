@@ -6,12 +6,9 @@
 (** Time-varying values.
 
     An animation is a value sampled at an elapsed time: [frame a ~elapsed] is
-    what [a] looks like [elapsed] seconds in. It is the common shape every
-    animatable component shares -- {!Spinner.anim}, {!Bar.anim}, {!Panel.anim}
-    -- so a renderer (the live {!Display}, or [Console_eio]) can drive any of
-    them by sampling at the current time each tick. A still value is {!const};
-    {!all} samples several at once so a {!Layout} can join them into one frame.
-*)
+    what [a] looks like [elapsed] seconds in, as {!Spinner.anim} is. A still
+    value is {!const}; {!all} samples several at once so that {!Layout} can join
+    them into one frame. *)
 
 type 'a t
 (** The type for values that vary with elapsed time. *)

@@ -11,7 +11,6 @@ let contains sub s = Re.execp Re.(compile (str sub)) s
    and tree guide. *)
 let test_dos () =
   let t = Theme.dos in
-  Alcotest.(check bool) "blocky bar" true (Theme.bar t = `Blocky);
   Alcotest.(check int)
     "ascii spinner has four frames" 4
     (Array.length (Spinner.frames (Theme.spinner t)));
@@ -21,14 +20,12 @@ let test_dos () =
 
 let test_unicode () =
   let t = Theme.unicode in
-  Alcotest.(check bool) "smooth bar" true (Theme.bar t = `Smooth);
   Alcotest.(check int)
     "braille spinner has ten frames" 10
     (Array.length (Spinner.frames (Theme.spinner t)))
 
 let test_rainbow () =
   let t = Theme.rainbow in
-  Alcotest.(check bool) "rainbow bar" true (Theme.bar t = `Rainbow);
   Alcotest.(check int)
     "palette of six colours" 6
     (List.length (Theme.palette t))
@@ -37,7 +34,6 @@ let test_rainbow () =
    palette follows its accent. *)
 let test_v_defaults () =
   let t = Theme.v ~accent:Color.red ~spinner:Spinner.ascii () in
-  Alcotest.(check bool) "smooth bar" true (Theme.bar t = `Smooth);
   Alcotest.(check string)
     "default unicode guide" "├── "
     (Guide.branch (Theme.guide t));

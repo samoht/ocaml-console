@@ -3,58 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Horizontal progress bars.
+(** Horizontal bars, for progress and for figures.
 
-    A bar fills left to right to a percentage. {!render} draws a determinate bar
-    and {!anim} a moving, indeterminate one -- the bar analogue of {!Spinner}.
-    The look (blocky, smooth or a rainbow gradient) and the fill colour come
-    from a {!Theme.t}, or are given explicitly. {!Console.Display} draws a row's
-    bar through this module.
-
-    {!v}, {!spread} and {!stacked} draw a bar as a {!Span.t}, for a screen that
-    lays bars out beside other spans: a fraction to the eighth of a cell, a
-    median and a 95th percentile on one bar, and the parts of a whole. *)
-
-val render :
-  ?theme:Theme.t ->
-  ?style:Theme.bar ->
-  ?color:Color.t ->
-  ?styled:bool ->
-  width:int ->
-  pct:int ->
-  unit ->
-  string
-(** [render ~width ~pct ()] is a [width]-cell bar filled to [pct] (clamped to
-    the range 0 to 100). The look comes from the style argument if given, else
-    [theme]'s, else [`Smooth]; the fill from the color argument if given, else
-    [theme]'s accent, else {!Color.cyan}. [styled] (default [true]) is whether
-    the bar carries ANSI: [false] renders the same glyphs with no SGR at all,
-    for a target whose [Fmt.style_renderer] is [`None].
-
-    @raise Invalid_argument if [width] is negative. *)
-
-val anim :
-  ?theme:Theme.t ->
-  ?style:Theme.bar ->
-  ?color:Color.t ->
-  ?styled:bool ->
-  width:int ->
-  unit ->
-  string Anim.t
-(** [anim ~width ()] is a moving, indeterminate bar as an {!Anim.t}: the fill
-    sweeps up and back over a two-second period, for work whose progress is
-    unknown. Style, colour and [styled] resolve as in {!render}. A time that is
-    not finite shows the first frame.
-
-    @raise Invalid_argument if [width] is negative. *)
-
-(** {1:spans Bars as spans}
-
-    Each bar below is exactly [width] cells wide. Its empty cells are the track,
-    drawn ["░"] in the [track] style (default {!Style.faint}). [brackets]
-    (default [false]) adds a ["▕"] before the bar and a ["▏"] after it, in the
-    track style, which makes the bar two cells wider. A part of the bar that
-    takes no cell adds nothing to the span, no style either. *)
+    A bar is a {!Span.t} exactly [width] cells wide. Its empty cells are the
+    track, drawn ["░"] in the [track] style (defaults to {!Style.faint}).
+    [brackets] (defaults to [false]) adds a ["▕"] before the bar and a ["▏"]
+    after it, in the track style, which makes the bar two cells wider. *)
 
 val v :
   ?style:Style.t ->
@@ -71,12 +25,6 @@ val v :
 
     @raise Invalid_argument if [width] is negative. *)
 
-val cells : width:int -> scale:float -> float -> int
-(** [cells ~width ~scale x] is the number of whole cells, out of [width], that
-    [x] takes on a bar whose full length is [scale], to the nearest cell. It is
-    [0] when [x] or [scale] is not positive, and at least [1] otherwise, so a
-    small value stays visible; it is at most [width]. *)
-
 val spread :
   ?style:Style.t ->
   ?track:Style.t ->
@@ -87,8 +35,9 @@ val spread :
   float ->
   Span.t
 (** [spread ~width ~scale median p95] draws two levels on one bar of full length
-    [scale]: solid ["█"] for {!cells} of [median], then shaded ["▒"] up to the
-    cells of [p95], both in [style] (default [Style.fg Color.cyan]). A [p95]
+    [scale]: solid ["█"] for the cells of [median], then shaded ["▒"] up to the
+    cells of [p95], both in [style] (default [Style.fg Color.cyan]). A value
+    that is not positive takes no cell and a positive one at least one; a [p95]
     below [median] adds no shaded cell.
 
     @raise Invalid_argument if [width] is negative. *)

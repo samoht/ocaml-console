@@ -209,11 +209,11 @@ val ctx : Display.ctx = <abstr>
 - : unit = ()
 ```
 
-`Bar.render` draws a bar on its own, here 65% full and twenty columns wide:
+`Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
 ```ocaml
-# print_endline (Bar.render ~styled:false ~width:20 ~pct:65 ());;
-▕█████████████       ▏
+# print_endline (Span.to_string (Bar.v ~brackets:true ~width:20 0.65));;
+▕█████████████░░░░░░░▏
 - : unit = ()
 ```
 

@@ -6,14 +6,10 @@
 (** One look for every widget.
 
     A theme holds the choices the widgets share: the main colour, the frame of
-    tables and panels, the lines of a tree, and the spinner and progress bar of
-    a {!Display}. Give the same theme to each widget to make them match. *)
+    tables and panels, the lines of a tree, and the spinner of a {!Display}.
+    Give the same theme to each widget to make them match. *)
 
 (** {1:themes Themes} *)
-
-type bar = [ `Blocky | `Smooth | `Rainbow ]
-(** The type for progress bar looks: whole blocks, blocks filled to an eighth of
-    a cell, or blocks in the colours of the rainbow. *)
 
 type t
 (** The type for themes. *)
@@ -24,7 +20,6 @@ val v :
   ?border:Border.t ->
   ?guide:Guide.t ->
   ?spinner:Spinner.t ->
-  ?bar:bar ->
   unit ->
   t
 (** [v ()] is {!unicode} with the given parts replaced. [palette], the colours
@@ -45,24 +40,19 @@ val guide : t -> Guide.t
 val spinner : t -> Spinner.t
 (** [spinner t] is the spinner of a running task. *)
 
-val bar : t -> bar
-(** [bar t] is the look of a progress bar. *)
-
 (** {1:predefined Predefined themes} *)
 
 val unicode : t
-(** [unicode] is cyan, with rounded frames, a braille spinner and a smooth bar.
-*)
+(** [unicode] is cyan, with rounded frames and a braille spinner. *)
 
 val dos : t
-(** [dos] is amber and ASCII only, with a blocky bar. *)
+(** [dos] is amber, with ASCII frames, tree lines and spinner. *)
 
 val matrix : t
 (** [matrix] is bright green, with single-line frames. *)
 
 val rainbow : t
-(** [rainbow] gives successive rows the colours of the rainbow and draws the bar
-    in them. *)
+(** [rainbow] gives successive progress rows the colours of the rainbow. *)
 
 (** {1:fmt Formatting} *)
 

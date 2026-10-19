@@ -37,28 +37,23 @@ let render_spinner t ~finished ~color ~time row =
           (bold ^ color_code t (Theme.ok theme))
           (Theme.done_marker theme)
 
+(* No bar is drawn before work advances, since an empty track reads as an
+   input field; once it has, the bar shows at least one eighth of a cell. *)
 let render_bar t row ~finished ~color ~width =
-  (* Bare delimiters look like an empty input field, not progress, so no bar
-     is drawn before work advances. Once it has, the bar shows at least the
-     theme's smallest visible fill unit. *)
-  let draw p =
-    let theme = t.theme in
-    let units =
-      match Theme.bar theme with
-      | `Smooth -> width * 8
-      | `Blocky | `Rainbow -> width
-    in
-    let minimum = if units = 0 then 0 else (100 + units - 1) / units in
-    Bar.render ~theme
-      ~color:(Color.downsample t.depth color)
-      ~styled:t.styling ~width ~pct:(max minimum p) ()
+  let draw frac =
+    let frac = Float.max frac (1. /. float_of_int (max 1 (width * 8))) in
+    Span.to_string ~styled:t.styling
+      (Bar.v ~brackets:true
+         ~style:(Style.fg (Color.downsample t.depth color))
+         ~width frac)
   in
   if finished then ""
   else
     match row.metric with
     | Spin | Count (0, _) | Bytes (0L, _) -> ""
-    | Count (cur, total) -> draw (percent cur total)
-    | Bytes (cur, total) -> draw (percent64 cur total)
+    | Count (cur, total) -> draw (float_of_int cur /. float_of_int (max 1 total))
+    | Bytes (cur, total) ->
+        draw (Int64.to_float cur /. Int64.to_float (Int64.max 1L total))
 
 let render_percent t row ~finished =
   if finished then ""
