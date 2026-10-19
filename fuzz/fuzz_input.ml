@@ -16,7 +16,9 @@ let test_chunks s =
       ()
   in
   let a = make () and b = make () in
-  check (Input.history a = [ Console_text.sanitize ~keep_newlines:false s ]);
+  let strings = List.equal String.equal in
+  check
+    (strings (Input.history a) [ Console_text.sanitize ~keep_newlines:false s ]);
   let echo, lines = Input.feed a s in
   let echoes = Buffer.create 64 and completed = ref [] in
   String.iter
@@ -26,8 +28,10 @@ let test_chunks s =
       completed := !completed @ l)
     s;
   check_eq ~pp:Fmt.Dump.string echo (Buffer.contents echoes);
-  check (lines = !completed);
-  check (Input.pending a = Input.pending b && Input.history a = Input.history b);
+  check (strings lines !completed);
+  check
+    (String.equal (Input.pending a) (Input.pending b)
+    && strings (Input.history a) (Input.history b));
   check (not (String.contains echo '\027'));
   let masked = Input.v ~mask:"*" () in
   ignore (Input.feed masked s);

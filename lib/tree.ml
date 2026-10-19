@@ -65,4 +65,4 @@ let lines ~margin t =
   List.rev !acc
 
 let pp ppf t = Span.pp_lines ppf (lines ~margin:(Format.pp_get_margin ppf ()) t)
-let to_string ?styled t = Span.lines_to_string ?styled (lines ~margin:max_int t)
+let to_string ?styled t = Span.string_of_lines ?styled (lines ~margin:max_int t)

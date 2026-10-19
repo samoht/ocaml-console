@@ -121,4 +121,4 @@ let pp ppf panel =
   Span.pp_lines ppf (lines ~margin:(Format.pp_get_margin ppf ()) panel)
 
 let to_string ?styled panel =
-  Span.lines_to_string ?styled (lines ~margin:max_int panel)
+  Span.string_of_lines ?styled (lines ~margin:max_int panel)

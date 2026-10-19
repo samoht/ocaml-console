@@ -206,7 +206,11 @@ let test_teardown () =
         (how ^ ": the cursor is at the start of a line")
         0
         (snd (Vte.cursor_pos vte));
-      Alcotest.(check bool) (how ^ ": exit status") true (status = expected))
+      Alcotest.(check bool)
+        (how ^ ": exit status") true
+        (match (status, expected) with
+        | `Exited a, `Exited b -> Int.equal a b
+        | _ -> false))
     [
       ("ok", `Exited 0);
       ("exit", `Exited 3);

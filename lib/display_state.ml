@@ -10,7 +10,7 @@ type log = { gap : float; level : level; message : string; kept : bool }
 
 let count_text = function
   | Spin -> ""
-  | Count (c, tot) -> Printf.sprintf "%d/%d" c tot
+  | Count (c, tot) -> string_of_int c ^ "/" ^ string_of_int tot
   | Bytes (c, tot) -> Display_text.bytes c ^ " / " ^ Display_text.bytes tot
 
 (* The pair the metric ends on sizes the cell before the first update; the pair

@@ -25,7 +25,7 @@ let test_theme s n =
           let m = Theme.mark t m in
           check (not (String.exists (fun c -> c = '\n' || c = '\027') m)))
         marks;
-      ignore (Fmt.str "%a" Theme.pp t))
+      Fmt.kstr ignore "%a" Theme.pp t)
     [
       t;
       Theme.unicode;

@@ -109,108 +109,127 @@ let check_styles_closed chunk =
       | Some s -> failf "%S left on in %S" s l)
     (String.split_on_char '\n' chunk)
 
-let test ops w h styled =
-  let width = 8 + (w mod 72) and height = 3 + (h mod 20) in
-  let size = ref (width, height) in
-  let vte = Vte.create ~rows:height ~cols:width () in
-  let chunk = Buffer.create 256 in
-  let chunks = ref 0 and in_output = ref false in
-  let check_screen ~in_output =
-    let rows = screen vte in
-    let width, height = !size in
-    (* The header is on the screen exactly once: the region is never blank,
-       half drawn or drawn twice. *)
-    if not in_output then begin
-      let n = count (has header) rows in
-      if n <> 1 && height > 1 then
-        failf "the header is on the screen %d times:@.%a" n
-          Fmt.(list ~sep:cut string)
-          rows
-    end;
-    ignore width
+(* A display on an emulated terminal, and what the test knows of it. *)
+type term = {
+  vte : Vte.t;
+  size : (int * int) ref;
+  time : float ref;
+  chunks : int ref;
+  in_output : bool ref;
+  mutable display : Display.t option;
+  mutable tasks : Display.task array;
+}
+
+(* The header is on the screen exactly once: the region is never blank, half
+   drawn or drawn twice. *)
+let check_screen t =
+  let rows = screen t.vte in
+  let n = count (has header) rows in
+  if n <> 1 then
+    failf "the header is on the screen %d times:@.%a" n
+      Fmt.(list ~sep:cut string)
+      rows
+
+let terminal ~width ~height ~styled =
+  let t =
+    {
+      vte = Vte.create ~rows:height ~cols:width ();
+      size = ref (width, height);
+      time = ref 0.;
+      chunks = ref 0;
+      in_output = ref false;
+      display = None;
+      tasks = [||];
+    }
   in
+  let chunk = Buffer.create 256 in
   let out_flush () =
     let s = Buffer.contents chunk in
     Buffer.clear chunk;
     if s <> "" then begin
-      incr chunks;
-      let width, _ = !size in
+      incr t.chunks;
       (* What the program writes under [with_output] is its own. *)
-      if not !in_output then check_chunk_lines ~width s;
+      if not !(t.in_output) then check_chunk_lines ~width:(fst !(t.size)) s;
       if styled then check_styles_closed s;
-      Vte.feed_string vte s
+      Vte.feed_string t.vte s
     end
   in
   let ppf = Format.make_formatter (Buffer.add_substring chunk) out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
-  let time = ref 0. in
-  let d =
-    Display.v ~header ~size:(fun () -> !size) ~now:(fun () -> !time) ppf
-  in
-  let tasks = ref [||] in
-  let task i =
-    let n = Array.length !tasks in
-    if n = 0 then None else Some !tasks.(i mod n)
-  in
-  let label i = labels.(i mod Array.length labels) in
-  let apply = function
-    | Task (l, p) ->
-        let parent = Option.bind p task in
-        let t = Display.task ?parent ~log_lines:(l mod 4) d (label l) in
-        tasks := Array.append !tasks [| t |]
-    | Count (i, n) ->
-        Option.iter
-          (fun t ->
-            try Display.set_count t ~cur:(n / 2) ~total:n
-            with Invalid_argument _ -> ())
-          (task i)
-    | Bytes (i, n) ->
-        Option.iter
-          (fun t ->
-            try
-              Display.set_bytes t ~cur:(Int64.of_int (n * 1000)) ~total:256000L
-            with Invalid_argument _ -> ())
-          (task i)
-    | Log (i, l) -> Option.iter (fun t -> Display.log t (label l)) (task i)
-    | End (i, o) ->
-        Option.iter
-          (fun t ->
-            match o mod 3 with
-            | 0 -> Display.succeed t
-            | 1 -> Display.fail t
-            | _ -> Display.cancel t)
-          (task i)
-    | Message l -> Display.message d (label l)
-    | Advance n -> time := !time +. (Float.of_int n /. 100.)
-    | Resize (w, h) ->
-        let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
-        size := (w, h);
-        Vte.resize vte ~rows:h ~cols:w
-    | Redraw ->
-        Display.redraw d;
-        (* A second redraw at the same time changes nothing and writes
-           nothing. *)
-        let before = !chunks in
-        Display.redraw d;
-        if !chunks <> before then fail "an idle redraw wrote"
-    | Output l ->
-        Display.with_output d (fun ppf ->
-            in_output := true;
-            Fmt.pf ppf "%s@." (label l);
-            Format.pp_print_flush ppf ();
-            check_screen ~in_output:true;
-            in_output := false)
-  in
+  t.display <-
+    Some
+      (Display.v ~header
+         ~size:(fun () -> !(t.size))
+         ~now:(fun () -> !(t.time))
+         ppf);
+  t
+
+let display t = Option.get t.display
+let label i = labels.(i mod Array.length labels)
+
+let task t i =
+  let n = Array.length t.tasks in
+  if n = 0 then None else Some t.tasks.(i mod n)
+
+let progress t i f =
+  Option.iter
+    (fun task -> try f task with Invalid_argument _ -> ())
+    (task t i)
+
+let finish task o =
+  match o mod 3 with
+  | 0 -> Display.succeed task
+  | 1 -> Display.fail task
+  | _ -> Display.cancel task
+
+(* A second redraw at the same time changes nothing and writes nothing. *)
+let redraw_twice t =
+  Display.redraw (display t);
+  let before = !(t.chunks) in
+  Display.redraw (display t);
+  if !(t.chunks) <> before then fail "an idle redraw wrote"
+
+let output t l =
+  Display.with_output (display t) (fun ppf ->
+      t.in_output := true;
+      Fmt.pf ppf "%s@." (label l);
+      t.in_output := false)
+
+let apply t = function
+  | Task (l, p) ->
+      let parent = Option.bind p (task t) in
+      let task =
+        Display.task ?parent ~log_lines:(l mod 4) (display t) (label l)
+      in
+      t.tasks <- Array.append t.tasks [| task |]
+  | Count (i, n) ->
+      progress t i (fun task -> Display.set_count task ~cur:(n / 2) ~total:n)
+  | Bytes (i, n) ->
+      progress t i (fun task ->
+          Display.set_bytes task ~cur:(Int64.of_int (n * 1000)) ~total:256000L)
+  | Log (i, l) ->
+      Option.iter (fun task -> Display.log task (label l)) (task t i)
+  | End (i, o) -> Option.iter (fun task -> finish task o) (task t i)
+  | Message l -> Display.message (display t) (label l)
+  | Advance n -> t.time := !(t.time) +. (Float.of_int n /. 100.)
+  | Resize (w, h) ->
+      let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
+      t.size := (w, h);
+      Vte.resize t.vte ~rows:h ~cols:w
+  | Redraw -> redraw_twice t
+  | Output l -> output t l
+
+let test ops w h styled =
+  let t = terminal ~width:(8 + (w mod 72)) ~height:(3 + (h mod 20)) ~styled in
   List.iter
     (fun o ->
-      apply o;
-      Display.redraw d;
-      check_screen ~in_output:false)
+      apply t o;
+      Display.redraw (display t);
+      check_screen t)
     ops;
-  Display.close d;
-  Format.pp_print_flush ppf ();
-  if not (Vte.cursor_visible vte) then fail "the cursor is hidden after close";
-  if snd (Vte.cursor_pos vte) <> 0 then
+  Display.close (display t);
+  if not (Vte.cursor_visible t.vte) then fail "the cursor is hidden after close";
+  if snd (Vte.cursor_pos t.vte) <> 0 then
     fail "the cursor is not at the start of a line"
 
 (* Without a terminal, nothing moves the cursor: every line is printed once,

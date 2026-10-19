@@ -34,11 +34,12 @@ let test_laws a b c =
   check (Style.equal a Style.(a + none));
   check (Style.equal a Style.(none + a));
   check (Style.equal Style.(a + (b + c)) Style.(a + b + c));
+  let fg = Option.equal Color.equal in
   (match Style.foreground b with
-  | Some f -> check (Style.foreground Style.(a + b) = Some f)
-  | None -> check (Style.foreground Style.(a + b) = Style.foreground a));
-  check (Style.is_none a = Style.equal a Style.none);
-  ignore (Fmt.str "%a" Style.pp a)
+  | Some f -> check (fg (Style.foreground Style.(a + b)) (Some f))
+  | None -> check (fg (Style.foreground Style.(a + b)) (Style.foreground a)));
+  check (Bool.equal (Style.is_none a) (Style.equal a Style.none));
+  Fmt.kstr ignore "%a" Style.pp a
 
 let suite =
   ("style", [ test_case "composition laws" [ int; int; int ] test_laws ])

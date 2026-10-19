@@ -49,7 +49,7 @@ let null = Format.make_formatter (fun _ _ _ -> ()) ignore
 let table () =
   let rows =
     List.init 1000 (fun i ->
-        [ Span.text (Fmt.str "row %d" i); Span.text prose; Span.text "42" ])
+        [ Fmt.kstr Span.text "row %d" i; Span.text prose; Span.text "42" ])
   in
   let columns =
     Table.[ column "Name"; column "Text"; column ~align:`Right "N" ]
@@ -59,11 +59,11 @@ let table () =
       Table.pp null (Table.of_rows columns rows))
 
 let tree () =
-  let leaf i = Tree.v (Span.text (Fmt.str "leaf %d" i)) [] in
+  let leaf i = Tree.v (Fmt.kstr Span.text "leaf %d" i) [] in
   let tree =
     Tree.v (Span.text "root")
       (List.init 10 (fun i ->
-           Tree.v (Span.text (Fmt.str "dir %d" i)) (List.init 100 leaf)))
+           Tree.v (Fmt.kstr Span.text "dir %d" i) (List.init 100 leaf)))
   in
   run "tree 1k nodes" ~n:10 (fun () -> Tree.pp null tree)
 
@@ -76,7 +76,7 @@ let display ~live () =
   let size = if live then Some (fun () -> (80, 24)) else None in
   let d = Display.v ?size ~now ~header:"bench" null in
   for i = 1 to 10_000 do
-    let t = Display.task d (Fmt.str "task %d" i) in
+    let t = Fmt.kstr (Display.task d) "task %d" i in
     for j = 1 to 10 do
       tick ();
       Display.set_count t ~cur:j ~total:10;
@@ -91,7 +91,7 @@ let display ~live () =
 let idle () =
   let now () = 0. in
   let d = Display.v ~size:(fun () -> (80, 24)) ~now ~header:"bench" null in
-  let tasks = List.init 10 (fun i -> Display.task d (Fmt.str "task %d" i)) in
+  let tasks = List.init 10 (fun i -> Fmt.kstr (Display.task d) "task %d" i) in
   run "redraw with nothing changed" ~n:10_000 (fun () -> Display.redraw d);
   List.iter Display.succeed tasks;
   Display.close d

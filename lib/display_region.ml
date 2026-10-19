@@ -31,9 +31,8 @@ let capacity t = max 0 (t.height - 1)
 let marker t hidden =
   Span.truncate t.width
     (Span.styled Style.faint
-       (Printf.sprintf "  \xe2\x80\xa6 %d more lines" hidden))
+       ("  \xe2\x80\xa6 " ^ string_of_int hidden ^ " more lines"))
 
-let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
 let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
 
 (* The region: the header, then each running row and its log tail, within
@@ -89,7 +88,11 @@ let frame t =
 (* {1 Drawing} *)
 
 let add_up buf n =
-  if n > 0 then Buffer.add_string buf (Printf.sprintf "\027[%dA" n)
+  if n > 0 then begin
+    Buffer.add_string buf "\027[";
+    Buffer.add_string buf (string_of_int n);
+    Buffer.add_char buf 'A'
+  end
 
 (* The rows the frame on screen takes at [width]: a terminal that reflows
    its lines when it narrows has wrapped each old line onto more rows. *)

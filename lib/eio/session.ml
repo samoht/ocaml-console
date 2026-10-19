@@ -24,7 +24,8 @@ let at_exit =
   lazy
     (Stdlib.at_exit (fun () ->
          match Atomic.get running with
-         | Some d -> ( try Display.close ~running:`Cancel d with _ -> ())
+         | Some d -> (
+             try Display.close ~running:`Cancel d with Sys_error _ -> ())
          | None -> ()))
 
 let claim () =
@@ -92,7 +93,7 @@ let intercept display ppf =
 let restore () =
   List.iter
     (fun i ->
-      (try Format.pp_print_flush i.ppf () with _ -> ());
+      (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
       let rest = Buffer.contents i.pending in
       if rest <> "" then

@@ -16,7 +16,7 @@ let test a b c d =
     && Guide.space g = d);
   let styled = Guide.with_style Style.bold g in
   check (Style.equal (Guide.style styled) Style.bold && Guide.pipe styled = c);
-  ignore (Fmt.str "%a" Guide.pp g)
+  Fmt.kstr ignore "%a" Guide.pp g
 
 let suite =
   ("guide", [ test_case "accessors" [ bytes; bytes; bytes; bytes ] test ])

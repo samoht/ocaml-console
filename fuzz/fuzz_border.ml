@@ -32,7 +32,7 @@ let test s =
       let styled = Border.with_style Style.italic b in
       check (Border.chars styled = Border.chars b);
       check (Style.equal (Border.style styled) Style.italic);
-      ignore (Fmt.str "%a" Border.pp b))
+      Fmt.kstr ignore "%a" Border.pp b)
     [
       b;
       Border.none;

@@ -42,7 +42,7 @@ let test_hex s =
       7 )
   in
   let c = Color.rgb r g b in
-  match Color.of_hex (Fmt.str "%a" Color.pp c) with
+  match Fmt.kstr Color.of_hex "%a" Color.pp c with
   | Ok c' -> check (Color.equal c c')
   | Error _ -> fail "printed colour does not read back"
 

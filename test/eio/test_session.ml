@@ -182,6 +182,9 @@ let test_nested_fiber () =
               Alcotest.(check bool) "inherited display" true (d == nested)))
         Eio.Fiber.yield)
 
+let renderer_equal a b =
+  match (a, b) with `Ansi_tty, `Ansi_tty | `None, `None -> true | _ -> false
+
 let test_setup () =
   Eio_mock.Backend.run @@ fun () ->
   let a = Fmt.style_renderer Fmt.stdout and b = Fmt.style_renderer Fmt.stderr in
@@ -195,15 +198,15 @@ let test_setup () =
           Console_eio.setup ~style_renderer:renderer ();
           Alcotest.(check bool)
             "stdout" true
-            (Fmt.style_renderer Fmt.stdout = renderer);
+            (renderer_equal (Fmt.style_renderer Fmt.stdout) renderer);
           Alcotest.(check bool)
             "stderr" true
-            (Fmt.style_renderer Fmt.stderr = renderer))
+            (renderer_equal (Fmt.style_renderer Fmt.stderr) renderer))
         [ `None; `Ansi_tty ];
       Console_eio.setup ())
 
 let suite =
-  ( "mock",
+  ( "session",
     [
       Alcotest.test_case "bytewise CRLF and buffer reuse" `Quick test_bytewise;
       Alcotest.test_case "split UTF-8 and buffered second line" `Quick

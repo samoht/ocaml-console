@@ -299,4 +299,4 @@ let pp ppf t =
   Span.pp_lines ppf (lines ~max_width:(Format.pp_get_margin ppf ()) t)
 
 let to_string ?styled ?width t =
-  Span.lines_to_string ?styled (lines ?max_width:width t)
+  Span.string_of_lines ?styled (lines ?max_width:width t)

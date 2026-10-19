@@ -194,107 +194,118 @@ let truncate w t =
 
 (* {1 Wrapping} *)
 
-(* The line broken into lines of at most [w] cells, those after the first
-   [hang] cells in. A line is kept as the ranges of clusters it shows. *)
-let wrap_line ~hang w line =
-  let l = layout line in
-  let out = ref [] and cur = ref [] and cur_w = ref 0 and first = ref true in
-  let room () = if !first then w else w - hang in
-  let add i j wd =
-    (match !cur with
-    | (a, b) :: rest when b = i -> cur := (a, j) :: rest
-    | _ -> cur := (i, j) :: !cur);
-    cur_w := !cur_w + wd
+(* A line being broken into lines of at most [w] cells, those after the
+   first [hang] cells in: the lines done, newest first, and the ranges of
+   clusters of the line under way, newest first. *)
+type filler = {
+  l : layout;
+  w : int;
+  hang : int;
+  mutable out : t list;
+  mutable cur : (int * int) list;
+  mutable cur_w : int;
+  mutable first : bool;
+}
+
+let room f = if f.first then f.w else f.w - f.hang
+
+let range_width l i j =
+  let n = ref 0 in
+  for k = i to j - 1 do
+    n := !n + cell_width l k
+  done;
+  !n
+
+let add f i j =
+  (match f.cur with
+  | (a, b) :: rest when b = i -> f.cur <- (a, j) :: rest
+  | _ -> f.cur <- (i, j) :: f.cur);
+  f.cur_w <- f.cur_w + range_width f.l i j
+
+(* The spaces a break stands on are not drawn. *)
+let rec trim l = function
+  | (a, b) :: rest when b > a && is_space l (b - 1) ->
+      trim l (if b - 1 > a then (a, b - 1) :: rest else rest)
+  | r -> r
+
+let finish f =
+  let body =
+    List.concat_map (fun (a, b) -> sub f.l a b) (List.rev (trim f.l f.cur))
   in
-  let finish () =
-    (* The spaces a break stands on are not drawn. *)
-    let rec trim = function
-      | (a, b) :: rest when b > a && is_space l (b - 1) ->
-          trim (if b - 1 > a then (a, b - 1) :: rest else rest)
-      | r -> r
-    in
-    let body =
-      List.concat_map (fun (a, b) -> sub l a b) (List.rev (trim !cur))
-    in
-    let body =
-      if !first || hang = 0 then body
-      else
-        { style = Style.none; link = None; text = String.make hang ' ' } :: body
-    in
-    out := body :: !out;
-    cur := [];
-    cur_w := 0;
-    first := false
-  in
-  let range_width i j =
-    let n = ref 0 in
-    for k = i to j - 1 do
-      n := !n + cell_width l k
-    done;
-    !n
-  in
-  let has_text () =
-    List.exists
-      (fun (a, b) ->
-        let r = ref false in
-        for k = a to b - 1 do
-          if not (is_space l k) then r := true
-        done;
-        !r)
-      !cur
-  in
-  (* A word wider than the room goes on where the room ends; a cluster wider
-     than a whole line cannot be drawn and is left out. *)
-  let split i j =
-    for k = i to j - 1 do
-      let cw = cell_width l k in
-      if cw <= room () then begin
-        if !cur_w + cw > room () then finish ();
-        add k (k + 1) cw
-      end
-    done
-  in
-  let rec word i j =
-    let ww = range_width i j in
-    if !cur_w + ww <= room () then add i j ww
-    else if has_text () then begin
-      finish ();
-      word i j
-    end
-    else split i j
-  in
-  let spaces i j =
-    if !cur = [] && not !first then ()
+  let body =
+    if f.first || f.hang = 0 then body
     else
-      let sw = range_width i j in
-      if !cur_w + sw <= room () then add i j sw
-      else if !cur <> [] then finish ()
+      { style = Style.none; link = None; text = String.make f.hang ' ' } :: body
   in
-  (* Words end at a run of spaces, or after a slash. *)
-  let rec go i =
-    if i < l.n then
-      if is_space l i then begin
-        let j = ref i in
-        while !j < l.n && is_space l !j do
-          incr j
-        done;
-        spaces i !j;
-        go !j
-      end
-      else begin
-        let j = ref i and stop = ref false in
-        while (not !stop) && !j < l.n && not (is_space l !j) do
-          let slash = l.joined.[start l !j] = '/' in
-          incr j;
-          if slash then stop := true
-        done;
-        word i !j;
-        go !j
-      end
+  f.out <- body :: f.out;
+  f.cur <- [];
+  f.cur_w <- 0;
+  f.first <- false
+
+let has_text f =
+  List.exists
+    (fun (a, b) ->
+      let r = ref false in
+      for k = a to b - 1 do
+        if not (is_space f.l k) then r := true
+      done;
+      !r)
+    f.cur
+
+(* A word wider than the room goes on where the room ends; a cluster wider
+   than a whole line cannot be drawn and is left out. *)
+let split f i j =
+  for k = i to j - 1 do
+    let cw = cell_width f.l k in
+    if cw <= room f then begin
+      if f.cur_w + cw > room f then finish f;
+      add f k (k + 1)
+    end
+  done
+
+let rec word f i j =
+  if f.cur_w + range_width f.l i j <= room f then add f i j
+  else if has_text f then begin
+    finish f;
+    word f i j
+  end
+  else split f i j
+
+let spaces f i j =
+  if f.cur = [] && not f.first then ()
+  else if f.cur_w + range_width f.l i j <= room f then add f i j
+  else if f.cur <> [] then finish f
+
+(* Words end at a run of spaces, or after a slash. *)
+let rec fill f i =
+  let l = f.l in
+  if i < l.n then begin
+    let j = ref i in
+    if is_space l i then begin
+      while !j < l.n && is_space l !j do
+        incr j
+      done;
+      spaces f i !j
+    end
+    else begin
+      let stop = ref false in
+      while (not !stop) && !j < l.n && not (is_space l !j) do
+        let slash = l.joined.[start l !j] = '/' in
+        incr j;
+        if slash then stop := true
+      done;
+      word f i !j
+    end;
+    fill f !j
+  end
+
+let wrap_line ~hang w line =
+  let f =
+    { l = layout line; w; hang; out = []; cur = []; cur_w = 0; first = true }
   in
-  go 0;
-  if !cur <> [] || !out = [] then finish ();
-  List.rev !out
+  fill f 0;
+  if f.cur <> [] || f.out = [] then finish f;
+  List.rev f.out
 
 let widest_word t =
   List.fold_left
@@ -389,5 +400,5 @@ let pp_lines ppf lines =
       pp ppf line)
     lines
 
-let lines_to_string ?(styled = false) lines =
+let string_of_lines ?(styled = false) lines =
   String.concat "\n" (List.map (to_string ~styled) lines)
