@@ -5,23 +5,25 @@
 
 (** A line editor.
 
-    It accumulates printable input into a line, echoes what was typed, erases on
-    backspace, recalls earlier lines with the up and down arrows, completes the
-    current word on Tab, and moves a cursor within the line with the left and
-    right arrows. A line is submitted on carriage return or line feed. Pure and
-    transport-independent: a network channel, a serial console or stdin drives
-    it the same way, and the echo it returns is what to write back to the
-    terminal.
+    An editor turns the bytes a user types into what to echo and the lines
+    entered: it keeps the line being typed, inserts and erases at a cursor moved
+    with the left and right arrows, recalls earlier lines with the up and down
+    arrows and completes the current word on Tab. It reads and writes nothing
+    itself, so a network channel, a serial console or a terminal in raw mode
+    drives it alike: the program reads bytes, passes them to {!feed} and writes
+    the echo back. To ask a question on the program's own terminal, use
+    [Console_eio.Prompt], which reads the answer and uses an editor to hide a
+    password.
 
     Editing is by whole UTF-8 character at the cursor: a printable character (or
     a multi-byte one, even when its bytes arrive across separate {!feed} calls)
     is inserted, backspace erases the character before the cursor, and the left
     and right arrows step over one character. A character's width in cells is
     measured as {!Span.width} measures it, so cursor motion is exact for wide
-    CJK and emoji.
+    characters and emoji.
 
-    The key bindings and the history and completion model follow those of the
-    [down] toplevel line editor. *)
+    The keys, the history and the completion follow those of the [down] toplevel
+    line editor. *)
 
 type t
 (** The type for line editors: the current line and the history of submitted
