@@ -36,8 +36,10 @@
  (synopsis "Eio backend for console")
  (tags (command-line-utilities format eio))
  (description
-  "Helpers that animate Console.Display bars from an Eio fiber. Split out
-   so the console library stays scheduler-agnostic.")
+  "Runs a Console.Display on the terminal with Eio: finds whether the
+   output is a terminal and its size, redraws the progress rows, prints
+   Logs messages above them and gives the terminal back on exit. Also
+   asks questions on the terminal, passwords included.")
  (depends
   (ocaml (>= 5.4))
   console
