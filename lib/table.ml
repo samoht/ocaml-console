@@ -78,8 +78,11 @@ let overhead t count =
     (count * 2) + cells (chars t).left + cells (chars t).right
     + ((count - 1) * cells (chars t).right)
 
+(* Widths add up without overflow: a sum past [max_int] is [max_int]. *)
+let ( +| ) a b = if a > max_int - b then max_int else a + b
+
 let rendered_width t widths =
-  Array.fold_left ( + ) (overhead t (Array.length widths)) widths
+  Array.fold_left ( +| ) (overhead t (Array.length widths)) widths
 
 let lines_width = List.fold_left (fun n l -> max n (Span.width l)) 0
 
@@ -146,7 +149,9 @@ let widths ?max_width t =
   Array.iteri
     (fun i col ->
       Option.iter (fun m -> widths.(i) <- max widths.(i) m) col.min_width;
-      Option.iter (fun m -> widths.(i) <- min widths.(i) m) col.max_width)
+      Option.iter (fun m -> widths.(i) <- min widths.(i) m) col.max_width;
+      (* No column is wider than the whole table may be. *)
+      Option.iter (fun m -> widths.(i) <- min widths.(i) (max 0 m)) max_width)
     t.columns;
   Option.iter (fun max_width -> shrink ~max_width t words widths) max_width;
   widths
