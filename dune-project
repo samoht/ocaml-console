@@ -27,7 +27,7 @@
   matrix
   uucp
   (uutf (>= 1.0))
-  (alcotest :with-test)
+  (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
   (alcobar :with-test)
@@ -44,11 +44,11 @@
  (depends
   (ocaml (>= 5.4))
   console
-  (eio (>= 1.0))
+  (eio (>= 1.4))
   fmt
   logs
   cstruct
   optint
-  (alcotest :with-test)
+  (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (eio_main :with-test)))

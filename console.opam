@@ -19,7 +19,7 @@ depends: [
   "matrix"
   "uucp"
   "uutf" {>= "1.0"}
-  "alcotest" {with-test}
+  "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}
   "alcobar" {with-test}

@@ -46,7 +46,9 @@ jobs:
       # Resolve every dependency to the oldest version its lower bound allows,
       # so a call that only compiles against a newer API fails here rather than
       # in a downstream opam build.
-      - run: opam install . --deps-only --with-test --criteria="+count[version-lag,solution]"
+      - run: opam pin add -n vhs "$VHS_PIN"
+      - run: opam install . vhs --deps-only --with-test --criteria="+count[version-lag,solution]"
+      - run: opam install vhs
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 

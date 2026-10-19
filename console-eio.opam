@@ -16,12 +16,12 @@ depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "5.4"}
   "console"
-  "eio" {>= "1.0"}
+  "eio" {>= "1.4"}
   "fmt"
   "logs"
   "cstruct"
   "optint"
-  "alcotest" {with-test}
+  "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "eio_main" {with-test}
   "odoc" {with-doc}
