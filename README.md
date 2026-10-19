@@ -154,20 +154,16 @@ default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
 open Console
 
 let report =
-  Layout.vcat ~gutter:1
-    [ Panel.to_string (Panel.v (Span.text "All green"));
-      Panel.to_string (Panel.v (Span.text "No warnings")) ]
+  Layout.hcat ~gutter:2
+    [ Fmt.const Panel.pp (Panel.v (Span.text "All green"));
+      Fmt.const Panel.pp (Panel.v (Span.text "No warnings")) ]
 ```
 
 ```ocaml
-# print_endline report;;
-╭───────────╮
-│ All green │
-╰───────────╯
-
-╭─────────────╮
-│ No warnings │
-╰─────────────╯
+# Fmt.pr "%a@." report ();;
+╭───────────╮  ╭─────────────╮
+│ All green │  │ No warnings │
+╰───────────╯  ╰─────────────╯
 - : unit = ()
 ```
 
@@ -229,8 +225,7 @@ inside another `Console_eio.run` reuses the same display.
 
 Spinners and progress bars are
 animations: values of type `Anim.t` that change over time. `Anim.all` samples
-several of them at once, and `Anim.map Layout.hcat` joins the frames side by
-side. To see them together,
+several of them at once, and `Layout.hcat` joins the frames side by side. To see them together,
 run the demo in [`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->

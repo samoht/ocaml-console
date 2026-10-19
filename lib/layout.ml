@@ -23,8 +23,7 @@ let last_filled cells =
   Array.iteri (fun i c -> if String.length c > 0 then last := i) cells;
   !last
 
-let hcat ?(gutter = 1) ?(align = `Top) blocks =
-  if gutter < 0 then invalid_arg "Console.Layout.hcat: negative gutter";
+let join_h ~gutter ~align blocks =
   match blocks with
   | [] -> ""
   | _ ->
@@ -51,6 +50,17 @@ let hcat ?(gutter = 1) ?(align = `Top) blocks =
       in
       String.concat "\n" (List.init height row)
 
+(* Each block at its natural width, in the styling of [ppf]. *)
+let render ppf blocks =
+  let styled = Fmt.style_renderer ppf = `Ansi_tty in
+  List.map (fun pp -> Render.to_string pp ~styled ()) blocks
+
+let hcat ?(gutter = 1) ?(align = `Top) blocks =
+  if gutter < 0 then invalid_arg "Console.Layout.hcat: negative gutter";
+  fun ppf () -> Fmt.string ppf (join_h ~gutter ~align (render ppf blocks))
+
 let vcat ?(gutter = 0) blocks =
   if gutter < 0 then invalid_arg "Console.Layout.vcat: negative gutter";
-  String.concat (String.make (gutter + 1) '\n') blocks
+  fun ppf () ->
+    Fmt.string ppf
+      (String.concat (String.make (gutter + 1) '\n') (render ppf blocks))
