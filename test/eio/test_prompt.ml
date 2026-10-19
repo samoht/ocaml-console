@@ -118,6 +118,15 @@ let test_confirm_at_end_of_input_is_refused () =
   Alcotest.check bool_answer "answer" Refused
     (seen (Prompt.confirm t "delete?"))
 
+(* A question is text: an escape in it cannot clear the screen. *)
+let test_question_is_text () =
+  run @@ fun () ->
+  let t, out = prompt ~interactive:true "y\n" in
+  ignore (Prompt.confirm t "\027[2Jdelete?");
+  Alcotest.(check bool)
+    "no escape" false
+    (String.contains (Buffer.contents out) '\027')
+
 let test_secret_without_a_terminal_is_refused () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "abc\n" in
@@ -209,6 +218,7 @@ let suite =
         test_confirm_takes_everything_else_as_no;
       Alcotest.test_case "confirm at end of input is refused" `Quick
         test_confirm_at_end_of_input_is_refused;
+      Alcotest.test_case "a question is text" `Quick test_question_is_text;
       Alcotest.test_case "secret without a terminal is refused" `Quick
         test_secret_without_a_terminal_is_refused;
       Alcotest.test_case "secret leaves the domain running" `Quick

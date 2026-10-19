@@ -2,4 +2,4 @@
  (name console_eio)
  (public_name console-eio)
  (private_modules colour session terminal)
- (libraries console eio eio.unix fmt logs unix))
+ (libraries console console.text eio eio.unix fmt logs unix))

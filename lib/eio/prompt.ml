@@ -46,7 +46,7 @@ let line t question =
     Session.with_terminal @@ fun () ->
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
-    Fmt.pf t.ppf "%s%!" question;
+    Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
     (* [Buf_read.line] returns an unterminated last line as if it were one;
        an answer cut short by the end of the input is no answer. *)
     let read () =
@@ -102,7 +102,7 @@ let secret t question =
         Eio_unix.Fd.use_exn "secret" fd @@ fun fd ->
         let original = Unix.tcgetattr fd in
         let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
-        Fmt.pf t.ppf "%s%!" question;
+        Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
         Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
         read_masked t (Console.Input.v ~mask:"*" ())

@@ -10,16 +10,16 @@
     prompt with nobody to type an answer says so with an [Error] instead of
     waiting for ever.
 
-    While a {!Console.Display} runs, ask inside {!Console.Display.with_output},
-    which takes the progress rows off the screen for the time of the question.
-*)
+    While a display that [Console_eio.run] opened runs, a question takes its
+    progress rows off the screen for the time it is asked. *)
 
 type t
 (** The type for prompts. *)
 
 val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
 (** [v stdin] is a prompt reading answers from [stdin] and writing questions on
-    [ppf] (defaults to {!Fmt.stdout}).
+    [ppf] (defaults to {!Fmt.stderr}, so that standard output stays the
+    program's).
 
     [interactive] defaults to whether [stdin] is a terminal: an Eio flow backed
     by a Unix descriptor for which [isatty] holds. A prompt that is not
@@ -33,10 +33,11 @@ val interactive : t -> bool
 (** [interactive t] is [true] iff [t] has someone to ask. *)
 
 val line : t -> string -> (string, [ `Msg of string ]) result
-(** [line t question] writes [question] verbatim, flushed and with no newline
-    added, and is the next line of input without its terminator (LF or CRLF).
-    The answer is returned as typed, spaces included. This is [Error] when [t]
-    is not interactive or the input ends before a line feed. *)
+(** [line t question] writes [question], each control character but a line feed
+    as a space, flushed and with no newline added, and is the next line of input
+    without its terminator (LF or CRLF). The answer is returned as typed, spaces
+    included. This is [Error] when [t] is not interactive or the input ends
+    before a line feed. *)
 
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
