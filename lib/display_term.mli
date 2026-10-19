@@ -62,14 +62,6 @@ val claim : unit -> bool
 val release : unit -> unit
 (** [release ()] frees the activity claim. *)
 
-val suspend : (unit -> 'a) -> 'a
-(** [suspend f] is [f ()] with the {!active} region cleared before and redrawn
-    after, so that [f] can write above it. *)
-
-val restore_terminal : unit -> unit
-(** [restore_terminal ()] shows the cursor on the {!active} region's formatter,
-    if any. *)
-
 val restore_at_exit : unit -> unit
 (** [restore_at_exit ()] registers, once per process, an [at_exit] handler that
     resets attributes, ends the line and shows the cursor on the {!active}

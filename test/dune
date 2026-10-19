@@ -10,8 +10,7 @@
   alcotest
   astring
   re
-  fmt
-  logs))
+  fmt))
 
 (mdx
  (package console)

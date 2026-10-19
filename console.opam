@@ -15,7 +15,6 @@ depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "5.4"}
   "fmt" {>= "0.9"}
-  "logs"
   "matrix"
   "uucp"
   "uutf" {>= "1.0"}

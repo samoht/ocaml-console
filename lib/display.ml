@@ -5,10 +5,6 @@
 
 open Display_state
 
-let src = Logs.Src.create "console.display" ~doc:"Console activity display"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
 type color = Color.t
 
 let bytes = Display_text.bytes
@@ -42,7 +38,6 @@ type task = row
    prevents two domains from repainting the same terminal concurrently. *)
 let current = Domain.DLS.new_key (fun () -> None)
 let pp = Display_state.pp
-let restore_terminal = Display_term.restore_terminal
 
 let validate_geometry ~width ~height =
   (match width with
@@ -100,7 +95,6 @@ let release_activity t =
   if t.owns_activity then begin
     t.owns_activity <- false;
     Display_term.set_active None;
-    Display_reporter.uninstall ();
     Display_term.release ()
   end
 
@@ -663,19 +657,18 @@ let cancel_running t message =
     (List.rev t.rows)
 
 (* Runs while another exception unwinds: a write failure on the display's
-   channel is logged so that the original exception is the one that
+   channel is dropped so that the original exception is the one that
    propagates. *)
 let cleanup_after_exception t =
   try
     cancel_running t "interrupted";
     close t
-  with Sys_error _ as exn ->
+  with Sys_error _ ->
     t.torn_down <- true;
     if not t.plain then begin
       Display_term.show_cursor_on t.dppf;
       release_activity t
-    end;
-    Log.warn (fun m -> m "Console display cleanup failed: %a" Fmt.exn exn)
+    end
 
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   match Domain.DLS.get current with

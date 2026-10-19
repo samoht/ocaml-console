@@ -39,5 +39,4 @@ val release_frames : t -> unit
 
 val install : t -> unit
 (** [install t] makes [t] the {{!Display_term.active}active region}: it hides
-    the cursor, {{!Display_reporter.install}wraps} the Logs reporter and paints
-    the first frame. *)
+    the cursor and paints the first frame. *)

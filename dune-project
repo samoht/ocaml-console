@@ -23,7 +23,6 @@
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
-  logs
   matrix
   uucp
   (uutf (>= 1.0))

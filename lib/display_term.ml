@@ -72,23 +72,13 @@ type region = {
   redraw : unit -> unit;
 }
 
-(* Read by the [at_exit] handler and by Logs reports from any domain. *)
+(* Read by the [at_exit] handler. *)
 let active_region : region option Atomic.t = Atomic.make None
 let active () = Atomic.get active_region
 let set_active r = Atomic.set active_region r
 let activity_claimed = Atomic.make false
 let claim () = Atomic.compare_and_set activity_claimed false true
 let release () = Atomic.set activity_claimed false
-
-let suspend f =
-  match active () with
-  | None -> f ()
-  | Some r ->
-      r.clear ();
-      Fun.protect f ~finally:r.redraw
-
-let restore_terminal () =
-  match active () with Some r -> show_cursor_on r.ppf | None -> ()
 
 (* [exit] ends the process without unwinding, so a command that calls it inside
    a display skips the display's teardown; the exit handlers still run. *)
