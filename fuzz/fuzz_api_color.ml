@@ -77,7 +77,37 @@ let test s n f =
       check (Color.equal c' (Color.downsample d c')))
     [ `Ansi_16; `Ansi_256; `True_color ];
   check (Color.equal c (Color.downsample `True_color c));
-  ignore (Color.depth_of_env (fun _ -> Some s));
+  let contains needle haystack =
+    let rec scan i =
+      i + String.length needle <= String.length haystack
+      && (String.sub haystack i (String.length needle) = needle || scan (i + 1))
+    in
+    scan 0
+  in
+  List.iter
+    (fun (term, colorterm) ->
+      let expected =
+        if
+          colorterm = "truecolor" || colorterm = "24bit"
+          || String.ends_with ~suffix:"-direct" term
+        then `True_color
+        else if contains "256color" term then `Ansi_256
+        else `Ansi_16
+      in
+      check
+        (Color.depth_of_env (function
+           | "TERM" -> Some term
+           | "COLORTERM" -> Some colorterm
+           | _ -> None)
+        = expected))
+    [
+      (s, s);
+      (s, "truecolor");
+      (s, "24bit");
+      (s ^ "-direct", s);
+      ("xterm-256color", s);
+      ("dumb", "");
+    ];
   let range c =
     let r, g, b = Color.to_rgb c in
     check (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255)
