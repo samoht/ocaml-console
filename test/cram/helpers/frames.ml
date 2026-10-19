@@ -23,6 +23,7 @@ let () =
   let ctx =
     Console.Display.ctx ~ppf
       ~now:(fun () -> !now)
+      ~wait:ignore
       ~dimensions:(fun () -> (width, height))
       ~is_tty:true ()
   in

@@ -97,8 +97,7 @@ let test_parent_settles_children () =
     "children first" true
     (List.equal
        (fun (path_a, outcome_a) (path_b, outcome_b) ->
-         List.equal String.equal path_a path_b
-         && Display.Event.equal_outcome outcome_a outcome_b)
+         List.equal String.equal path_a path_b && outcome_a = outcome_b)
        finished
        [ ([ "parent"; "child" ], `Succeeded); ([ "parent" ], `Succeeded) ])
 
@@ -227,9 +226,13 @@ let test_validation () =
   check_invalid "Console.Display.Line.v: more than one spacer" (fun () ->
       ignore Display.Line.(v [ spacer; spacer ]));
   check_invalid "Console.Display.run: width must be positive" (fun () ->
-      Display.run ~ctx:(Display.dumb ()) ~width:0 ignore);
+      Display.run
+        ~ctx:(ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ())
+        ~width:0 ignore);
   check_invalid "Console.Display.run: height must be positive" (fun () ->
-      Display.run ~ctx:(Display.dumb ()) ~height:0 ignore);
+      Display.run
+        ~ctx:(ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ())
+        ~height:0 ignore);
   capture (fun display _ ->
       check_invalid "Console.Display.task: negative log_lines" (fun () ->
           ignore (Display.task ~log_lines:(-1) display "bad"));

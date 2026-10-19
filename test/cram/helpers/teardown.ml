@@ -7,6 +7,7 @@ let () =
   let ctx =
     Console.Display.ctx ~ppf:Format.std_formatter
       ~now:(fun () -> 0.)
+      ~wait:ignore
       ~dimensions:(fun () -> (80, 24))
       ~is_tty:true ()
   in

@@ -29,13 +29,14 @@
 type color = Color.t
 (** The type for foreground colours. *)
 
-val bytes : int64 -> string
-(** [bytes n] is [n] bytes formatted in the largest suitable binary unit. *)
+val pp_bytes : int64 Fmt.t
+(** [pp_bytes] formats a byte count as a row draws it, in the largest binary
+    unit that keeps it at least one: ["512 B"], ["1.50 KiB"], ["30.00 MiB"]. *)
 
-val span : float -> string
-(** [span seconds] is [seconds] as a row draws its elapsed time: tenths of a
+val pp_span : float Fmt.t
+(** [pp_span] formats seconds as a row draws its elapsed time: tenths of a
     second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
-    hours and minutes (["1h02m"]). A negative [seconds] is ["0.0s"]. *)
+    hours and minutes (["1h02m"]). A negative span is ["0.0s"]. *)
 
 (** {1:task_layout Task layout} *)
 
@@ -69,7 +70,7 @@ module Line : sig
 
   val elapsed : piece
   (** [elapsed] is the time since the task started, right-aligned in a cell wide
-      enough for the widest {!span} below a hundred hours, so nothing to its
+      enough for the widest {!pp_span} below a hundred hours, so nothing to its
       left moves when the timer crosses ten seconds, a minute or an hour. *)
 
   val text : string -> piece
@@ -118,23 +119,25 @@ type ctx
     applications let [Console_eio.run] construct it. *)
 
 val ctx :
+  ?char_width:(Uchar.t -> int) ->
   ppf:Format.formatter ->
   now:(unit -> float) ->
-  ?wait:(float -> unit) ->
+  wait:(float -> unit) ->
   dimensions:(unit -> int * int) ->
   is_tty:bool ->
   unit ->
   ctx
 (** [ctx ~ppf ~now ~wait ~dimensions ~is_tty ()] is a display context on the
     output [ppf], the clock [now], the terminal geometry [dimensions] and the
-    terminal answer [is_tty]. Driver libraries normally build it.
+    terminal answer [is_tty]. Driver libraries normally build it. [char_width]
+    measures terminal cells (defaults to Unicode grapheme measurement, see
+    {!Width}).
 
     [now ()] is the time the display reads, in seconds, and [wait s] returns
     once [now] has advanced by [s]: they are one clock, and whatever paces the
     display or the work drawn on it waits through {!val-wait} rather than on a
     clock of its own, so a context whose clock a test moves by hand moves every
-    reader of it. A context built without [wait] can be drawn on but not driven:
-    {!val-wait} refuses on it.
+    reader of it.
 
     [is_tty] says whether a live region can be drawn at all; whether that region
     carries colour is [ppf]'s own answer, [Fmt.style_renderer], which is what
@@ -144,23 +147,6 @@ val ctx :
     drawn in place and with no ANSI in it, and a formatter nobody configured
     draws plain the way an unconfigured [Fmt.styled] prints plain. It is read
     once, when the display opens. *)
-
-val ctx_ppf : ctx -> Format.formatter
-(** [ctx_ppf ctx] is the formatter [ctx] draws on. A wrapper that hands [ctx] to
-    {!run} and then writes to the same surface itself -- the newline that closes
-    a line the session left open, say -- reads it here rather than being told
-    twice, which is the arrangement in which the two answers can differ. *)
-
-val ctx_now : ctx -> float
-(** [ctx_now ctx] is the time on [ctx]'s clock, the one a display opened on it
-    reads ({!val-now}). A caller timing work that spans the display's opening
-    reads it here rather than keeping a clock of its own beside [ctx]. *)
-
-val with_char_width : ctx -> (Uchar.t -> int) -> ctx
-(** [with_char_width ctx width] overrides Unicode terminal-cell measurement. *)
-
-val dumb : unit -> ctx
-(** [dumb ()] is an append-only 80 by 24 context with a zero clock. *)
 
 (** {1:immutable_event_history Immutable event history} *)
 
@@ -181,9 +167,6 @@ module Event : sig
     | `Finished of outcome  (** A task finished. *)
     | `Result of result  (** The session's verdict, {!set_result}. *) ]
   (** The type for event kinds. *)
-
-  val equal_outcome : outcome -> outcome -> bool
-  (** [equal_outcome a b] is [true] iff [a] and [b] are the same outcome. *)
 
   type t
   (** The type for events. *)
@@ -222,22 +205,6 @@ module Activity : sig
   (** The type for task progress: indeterminate, an item count or a byte count,
       each as done and total. *)
 
-  val equal_progress : progress -> progress -> bool
-  (** [equal_progress a b] is [true] iff [a] and [b] are the same metric. *)
-
-  type log
-  (** The type for the log lines of a task's tail. *)
-
-  val log_elapsed : log -> float
-  (** [log_elapsed l] is the time of [l] in seconds since the session started.
-  *)
-
-  val log_level : log -> Event.level
-  (** [log_level l] is the severity of [l]. *)
-
-  val log_message : log -> string
-  (** [log_message l] is the sanitized message of [l]. *)
-
   type item
   (** The type for running tasks. *)
 
@@ -259,8 +226,9 @@ module Activity : sig
   val elapsed : item -> float
   (** [elapsed i] is the time in seconds since the task started. *)
 
-  val logs : item -> log list
-  (** [logs i] are the latest log lines of the task, oldest first. *)
+  val logs : item -> Event.t list
+  (** [logs i] are the [`Log] events of the latest log lines of the task, oldest
+      first, the window lines of [~keep:false] included. *)
 
   type t
   (** The type for activity snapshots. *)
@@ -519,11 +487,7 @@ val now : t -> float
 val wait : t -> float -> unit
 (** [wait display s] returns once the clock of the context [display] was opened
     with has advanced by [s] seconds. A driver's refresh and a renderer's
-    periodic work wait here, so the display has one clock.
-
-    @raise Invalid_argument
-      if that context was built without [~wait], on the partial application
-      [wait display] already. *)
+    periodic work wait here, so the display has one clock. *)
 
 val tick : t -> unit
 (** [tick display] refreshes an activity projection. Driver libraries call it

@@ -54,10 +54,10 @@ let renderer ppf ~tty =
       (Console.style_renderer ~getenv:Sys.getenv_opt
          ~is_tty:(Option.is_some tty) ())
 
-let with_renderer ppf renderer f =
+let with_renderer renderer f =
   match renderer with
   | None -> f ()
-  | Some renderer ->
+  | Some (ppf, renderer) ->
       let old = Fmt.style_renderer ppf in
       Fmt.set_style_renderer ppf renderer;
       Fun.protect ~finally:(fun () -> Fmt.set_style_renderer ppf old) f
@@ -114,7 +114,7 @@ let context ~sw ~clock ~ppf ~fd ~mode =
       Some (fun () -> if region then Terminal.show_cursor ppf)
     else None
   in
-  (ctx, restore, renderer ppf ~tty)
+  (ctx, restore, Option.map (fun r -> (ppf, r)) (renderer ppf ~tty))
 
 (* Only the outermost call opens a display and asks for its context; a call
    under it contributes to the display that stands. *)
@@ -125,7 +125,7 @@ let session ~context ?mode ?theme ?palette ?bar ?width ?height ?header f =
       Eio.Switch.run @@ fun sw ->
       let ctx, restore, renderer = context ~sw in
       let run () =
-        with_renderer (Console.Display.ctx_ppf ctx) renderer @@ fun () ->
+        with_renderer renderer @@ fun () ->
         Display.run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header
           (fun display ->
             Eio.Fiber.with_binding current display (fun () -> f display))

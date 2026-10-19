@@ -14,11 +14,6 @@ type kind =
   | `Finished of outcome
   | `Result of result ]
 
-let equal_outcome a b =
-  match (a, b) with
-  | `Succeeded, `Succeeded | `Failed, `Failed | `Cancelled, `Cancelled -> true
-  | _ -> false
-
 type t = {
   elapsed : float;
   task : int option;

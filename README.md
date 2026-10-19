@@ -179,11 +179,16 @@ let build ~clock =
   Display.succeed step
 ```
 
-When the output is not a terminal, the same calls print plain lines.
-`Display.dumb` stands in for that case here, with a clock that does not move:
+When the output is not a terminal, the same calls print plain lines. A
+context on standard output with a clock that does not move stands in for that
+case here:
 
 ```ocaml
-# Display.run ~ctx:(Display.dumb ()) ~header:"Building" (fun display ->
+# let ctx =
+    Display.ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ~wait:ignore
+      ~dimensions:(fun () -> (80, 24)) ~is_tty:false ();;
+val ctx : Display.ctx = <abstr>
+# Display.run ~ctx ~header:"Building" (fun display ->
     let step = Display.task display "compile" in
     Display.set_count step ~cur:2 ~total:2;
     Display.log step "compiled parser.ml";

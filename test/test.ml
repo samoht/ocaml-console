@@ -25,7 +25,6 @@ let () =
       Test_display_text.suite;
       Test_display_line.suite;
       Test_display_event.suite;
-      Test_display_ctx.suite;
       Test_display_activity.suite;
       Test_display_term.suite;
       Test_display_row.suite;

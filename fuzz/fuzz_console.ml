@@ -11,7 +11,16 @@ open Console
    [Width.default_char_width] follows that same policy. *)
 
 let display_ctx ~ppf ~now ~width ~height =
-  Display.ctx ~ppf ~now ~dimensions:(fun () -> (width, height)) ~is_tty:true ()
+  Display.ctx ~ppf ~now ~wait:ignore
+    ~dimensions:(fun () -> (width, height))
+    ~is_tty:true ()
+
+let dumb () =
+  Display.ctx ~ppf:Format.std_formatter
+    ~now:(fun () -> 0.)
+    ~wait:ignore
+    ~dimensions:(fun () -> (80, 24))
+    ~is_tty:false ()
 
 (* Width is always non-negative *)
 let test_width_non_negative s =
@@ -846,8 +855,7 @@ let check_progress display i expected =
     Display.Activity.items (Display.activity display)
     |> List.find (fun item -> Display.Activity.key item = Some (key i))
   in
-  check
-    (Display.Activity.equal_progress (Display.Activity.progress item) expected)
+  check (Display.Activity.progress item = expected)
 
 (* Interpret one program byte: its low three bits pick the ID, the next three the
    operation. Duplicate starts, contradictory outcomes, late logs and relabels
@@ -924,7 +932,7 @@ let check_one_lifecycle_per_key model events i =
         | Finished outcome -> outcome
         | Unseen -> assert false
       in
-      check (List.equal Display.Event.equal_outcome finishes [ expected ])
+      check (List.equal ( = ) finishes [ expected ])
 
 let test_keyed_event_stream program =
   let model = { states = Array.make 8 Unseen; handles = Array.make 8 None } in
@@ -934,7 +942,9 @@ let test_keyed_event_stream program =
   let now () = 0. in
   Display.run
     ~ctx:
-      (Display.ctx ~ppf ~now ~dimensions:(fun () -> (80, 24)) ~is_tty:false ())
+      (Display.ctx ~ppf ~now ~wait:ignore
+         ~dimensions:(fun () -> (80, 24))
+         ~is_tty:false ())
     ~mode:`History
     (fun display ->
       saved := Some display;
@@ -954,7 +964,7 @@ let test_dynamic_geometry program =
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0. in
   let ctx =
-    Display.ctx ~ppf ~now
+    Display.ctx ~ppf ~now ~wait:ignore
       ~dimensions:(fun () -> (!width, !height))
       ~is_tty:true ()
   in
@@ -975,7 +985,7 @@ let test_dynamic_geometry program =
    controls neutralised and exactly one semantic verdict. *)
 let test_result_sanitization message detail =
   let saved = ref None in
-  let ctx = Display.dumb () in
+  let ctx = dumb () in
   Display.run ~ctx ~mode:`History (fun display ->
       saved := Some display;
       Display.set_result display ~detail (`Ok message));
@@ -1002,7 +1012,7 @@ let test_progress_estimates cur total next next_total =
   let bound n = n land 0xffff in
   let cur = bound cur and total = bound total in
   let next = bound next and next_total = bound next_total in
-  Display.run ~ctx:(Display.dumb ()) ~mode:`History (fun display ->
+  Display.run ~ctx:(dumb ()) ~mode:`History (fun display ->
       let count = Display.task display "count" in
       Display.set_count count ~cur ~total;
       Display.set_count count ~cur:next ~total:next_total;
@@ -1019,18 +1029,16 @@ let test_progress_estimates cur total next next_total =
       in
       let current = max cur next in
       let known_total = max current (max total next_total) in
+      check (progress "count" = `Count (current, known_total));
       check
-        (Display.Activity.equal_progress (progress "count")
-           (`Count (current, known_total)));
-      check
-        (Display.Activity.equal_progress (progress "bytes")
-           (`Bytes (Int64.of_int current, Int64.of_int known_total))))
+        (progress "bytes"
+        = `Bytes (Int64.of_int current, Int64.of_int known_total)))
 
 (* Competing cleanup paths may both settle a session. The first semantic result
    wins and later attempts neither raise nor duplicate the verdict event. *)
 let test_duplicate_result first second =
   let saved = ref None in
-  Display.run ~ctx:(Display.dumb ()) ~mode:`History (fun display ->
+  Display.run ~ctx:(dumb ()) ~mode:`History (fun display ->
       saved := Some display;
       Display.set_result display (`Ok first);
       Display.set_result display (`Fail second));

@@ -72,7 +72,7 @@ let test_reports_between_ticks_paint_at_the_eyes_pace () =
       Display.set_bytes task ~cur:total ~total;
       Format.pp_print_flush ppf ();
       (* The current figure ahead of the total, which every frame names. *)
-      let last = Display.bytes total ^ " / " in
+      let last = Fmt.str "%a / " Display.pp_bytes total in
       Alcotest.(check bool)
         "a report inside the interval is not yet on screen" false
         (contains last (Buffer.contents buffer));

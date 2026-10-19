@@ -83,8 +83,7 @@ val run_on :
     a clock the caller moves make the frames something a diff can hold --
     without going around the entry point it ships.
 
-    @raise Invalid_argument
-      if [ctx] was built without [~wait], or as {!run} does. *)
+    @raise Invalid_argument as {!run} does. *)
 
 val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 (** [setup ~style_renderer ()] configures the process's terminal output once,

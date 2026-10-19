@@ -12,7 +12,9 @@ let fake_clock () =
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
 let ctx ?(is_tty = false) ?(width = 80) ?(height = 24) ~ppf ~now () =
-  Display.ctx ~ppf ~now ~dimensions:(fun () -> (width, height)) ~is_tty ()
+  Display.ctx ~ppf ~now ~wait:ignore
+    ~dimensions:(fun () -> (width, height))
+    ~is_tty ()
 
 let capture_on ~is_tty ~mode ?header ?bar ?theme f =
   let buffer = Buffer.create 256 in

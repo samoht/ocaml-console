@@ -5,19 +5,6 @@
 
 type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
 
-let equal_progress a b =
-  match (a, b) with
-  | `Spin, `Spin -> true
-  | `Count (ac, at), `Count (bc, bt) -> Int.equal ac bc && Int.equal at bt
-  | `Bytes (ac, at), `Bytes (bc, bt) -> Int64.equal ac bc && Int64.equal at bt
-  | _ -> false
-
-type log = { elapsed : float; level : Display_event.level; message : string }
-
-let log_elapsed t = t.elapsed
-let log_level t = t.level
-let log_message t = t.message
-
 type item = {
   id : int;
   key : string option;
@@ -25,7 +12,7 @@ type item = {
   label : string;
   progress : progress;
   elapsed : float;
-  logs : log list;
+  logs : Display_event.t list;
 }
 
 let id t = t.id
@@ -71,8 +58,16 @@ let item t (r : Display_state.row) =
     elapsed = Display_state.elapsed t r;
     logs =
       List.map
-        (fun (log : Display_state.row_log) ->
-          { elapsed = log.ltime; level = log.llevel; message = log.lmessage })
+        (fun (log : Display_state.row_log) : Display_event.t ->
+          {
+            elapsed = log.ltime;
+            task = Some r.rid;
+            key = r.rkey;
+            path = Display_state.task_path r;
+            kind = `Log log.llevel;
+            message = log.lmessage;
+            detail = None;
+          })
         r.logs;
   }
 

@@ -28,15 +28,13 @@ let test_activity_snapshot () =
   let logs = Display.Activity.logs child in
   Alcotest.(check (list string))
     "bounded tail" [ "two"; "three" ]
-    (List.map Display.Activity.log_message logs);
+    (List.map Display.Event.message logs);
   Alcotest.(check bool)
     "severity retained" true
-    (List.map Display.Activity.log_level logs = [ `Warning; `Info ]);
+    (List.map Display.Event.kind logs = [ `Log `Warning; `Log `Info ]);
   Alcotest.(check bool)
     "bytes" true
-    (Display.Activity.equal_progress
-       (Display.Activity.progress child)
-       (`Bytes (4L, 10L)));
+    (Display.Activity.progress child = `Bytes (4L, 10L));
   Alcotest.(check int) "finished child absent" 1 (List.length after);
   Alcotest.(check int)
     "nothing active after completion" 0
@@ -56,9 +54,7 @@ let test_keyed_task () =
         in
         Alcotest.(check bool)
           "monotonic progress" true
-          (Display.Activity.equal_progress
-             (Display.Activity.progress item)
-             (`Count (8, 10)));
+          (Display.Activity.progress item = `Count (8, 10));
         Alcotest.(check (option string))
           "semantic key" (Some "compile:foo")
           (Display.Activity.key item);
@@ -87,9 +83,7 @@ let test_progress_estimates_expand () =
     (Display.Activity.label item);
   Alcotest.(check bool)
     "estimate grew and incremented" true
-    (Display.Activity.equal_progress
-       (Display.Activity.progress item)
-       (`Count (24, 874)));
+    (Display.Activity.progress item = `Count (24, 874));
   let bytes_item, _ =
     capture (fun display _ ->
         Display.with_task display "download" (fun task ->
@@ -98,9 +92,7 @@ let test_progress_estimates_expand () =
   in
   Alcotest.(check bool)
     "byte estimate grew" true
-    (Display.Activity.equal_progress
-       (Display.Activity.progress bytes_item)
-       (`Bytes (22L, 22L)))
+    (Display.Activity.progress bytes_item = `Bytes (22L, 22L))
 
 (* An event stream carries one id across every scope its emitter passes
    through, so the same id arrives under a second parent as a matter of course.

@@ -24,9 +24,6 @@ type kind =
   | `Result of result ]
 (** The type for event kinds. *)
 
-val equal_outcome : outcome -> outcome -> bool
-(** [equal_outcome a b] is [true] iff [a] and [b] are the same outcome. *)
-
 type t = {
   elapsed : float;  (** Seconds since the session started. *)
   task : int option;  (** The task's numeric identity. *)

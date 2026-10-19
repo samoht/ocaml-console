@@ -56,10 +56,7 @@ let test_run_on_takes_the_callers_context () =
   Format.pp_print_flush ppf ();
   Alcotest.(check string)
     "the caller's formatter and the caller's clock" "=> step  1.3s\n"
-    (Buffer.contents buf);
-  Alcotest.(check (float 0.))
-    "the context reads the same clock" 1.3
-    (Console.Display.ctx_now ctx)
+    (Buffer.contents buf)
 
 (* The context's clock is the display's only one: the refresh waits through
    the context, and what the display reads as now is that clock's reading. The
@@ -98,25 +95,6 @@ let test_run_on_waits_on_the_contexts_clock () =
     "the display reads that clock"
     (0.12 +. 0.12 +. 0.12 +. 0.12)
     read
-
-(* A context built without [~wait] can be drawn on but not driven, and a driver
-   says so before it draws, rather than refreshing on a clock nobody named. *)
-let test_run_on_refuses_a_context_it_cannot_wait_on () =
-  Eio_main.run @@ fun _env ->
-  let buf = Buffer.create 16 in
-  let ppf = Format.formatter_of_buffer buf in
-  let ctx =
-    Console.Display.ctx ~ppf
-      ~now:(fun () -> 0.)
-      ~dimensions:(fun () -> (24, 10))
-      ~is_tty:false ()
-  in
-  Alcotest.check_raises "refused"
-    (Invalid_argument
-       "Console.Display.wait: the context was built without ~wait, so its \
-        clock cannot be waited on") (fun () ->
-      Console_eio.run_on ~ctx ~mode:`History (fun _display ->
-          Alcotest.fail "the body ran under a display with no clock to wait on"))
 
 let with_env bindings f =
   let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
@@ -368,8 +346,6 @@ let suite =
         test_run_on_takes_the_callers_context;
       Alcotest.test_case "run_on waits on the context's clock" `Quick
         test_run_on_waits_on_the_contexts_clock;
-      Alcotest.test_case "run_on refuses a context it cannot wait on" `Quick
-        test_run_on_refuses_a_context_it_cannot_wait_on;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
       Alcotest.test_case "frozen clock pins every elapsed" `Quick
@@ -393,13 +369,13 @@ module Frame = struct
 
   (* A context on [buf] whose clock reads zero for ever; [wait] is how the
      driver of [Console_eio.run_on] paces its refresh. *)
-  let context ?wait buf =
+  let context ?(wait = ignore) buf =
     let ppf = Format.formatter_of_buffer buf in
     Fmt.set_style_renderer ppf `None;
     ( ppf,
       D.ctx ~ppf
         ~now:(fun () -> 0.)
-        ?wait
+        ~wait
         ~dimensions:(fun () -> (40, 10))
         ~is_tty:true () )
 

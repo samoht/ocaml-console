@@ -7,8 +7,8 @@ open Display_state
 
 type color = Color.t
 
-let bytes = Display_text.bytes
-let span = Display_text.span
+let pp_bytes ppf n = Fmt.string ppf (Display_text.bytes n)
+let pp_span ppf s = Fmt.string ppf (Display_text.span s)
 let sanitize = Display_text.sanitize
 
 module Line = Display_line
@@ -19,10 +19,6 @@ type mode = [ `Auto | `Activity | `History ]
 type ctx = Display_ctx.t
 
 let ctx = Display_ctx.v
-let ctx_ppf = Display_ctx.ppf
-let ctx_now = Display_ctx.now
-let with_char_width = Display_ctx.with_char_width
-let dumb = Display_ctx.dumb
 
 module Event = Display_event
 module Activity = Display_activity
@@ -190,11 +186,6 @@ let with_output t f =
         invalid_arg "Console.Display.with_output: display does not own output"
 
 (** {1 History} *)
-
-let rec task_path r =
-  match r.parent with
-  | None -> [ r.rlabel ]
-  | Some parent -> task_path parent @ [ r.rlabel ]
 
 let record ?task ?detail t kind message =
   let event : Event.t =
@@ -592,16 +583,7 @@ let set_scene t scene =
   Display_projection.paint_if_stale t
 
 let now t = t.now ()
-
-(* The refusal is taken on [wait display], before any second is asked for, so
-   a driver that reads the wait before forking refuses at once. *)
-let wait t =
-  match t.wait with
-  | Some wait -> wait
-  | None ->
-      invalid_arg
-        "Console.Display.wait: the context was built without ~wait, so its \
-         clock cannot be waited on"
+let wait t = t.wait
 
 (** {1 Teardown} *)
 

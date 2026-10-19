@@ -27,7 +27,7 @@ type t = {
   plain : bool;
   styling : bool;
   now : unit -> float;
-  wait : (float -> unit) option;
+  wait : float -> unit;
   dimensions : unit -> int * int;
   char_width : (Uchar.t -> int) option;
   header : string option;
@@ -109,6 +109,11 @@ let truncate t = Width.truncate ?char_width:t.char_width
 let shorten t = Width.shorten ?char_width:t.char_width
 let fold t = Width.fold ?char_width:t.char_width
 let pad_left t = Width.pad_left ?char_width:t.char_width
+
+let rec task_path r =
+  match r.parent with
+  | None -> [ r.rlabel ]
+  | Some parent -> task_path parent @ [ r.rlabel ]
 
 let elapsed t row =
   match row.rfinish with

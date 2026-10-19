@@ -32,7 +32,7 @@ type t = {
       (** Whether the output takes ANSI, read once when the display opens. A
           terminal whose reader turned colour off is still a live region. *)
   now : unit -> float;
-  wait : (float -> unit) option;
+  wait : float -> unit;
   dimensions : unit -> int * int;
       (** The terminal width and height, re-read each paint. *)
   char_width : (Uchar.t -> int) option;
@@ -150,6 +150,9 @@ val pad_left : t -> int -> string -> string
 (** [pad_left t w s] is {!Width.pad_left} [w s]. *)
 
 (** {1:rows Rows} *)
+
+val task_path : row -> string list
+(** [task_path r] are the labels of the rows from the root down to [r]. *)
 
 val elapsed : t -> row -> float
 (** [elapsed t r] is the seconds [r] ran for, or has run for so far. *)
