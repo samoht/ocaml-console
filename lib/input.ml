@@ -162,18 +162,17 @@ let hist_next t echo =
       t.pos <- Some (i - 1);
       recall t echo (List.nth t.hist (i - 1))
 
+(* The longest run of whole characters every candidate starts with. *)
 let common_prefix = function
   | [] -> ""
   | first :: rest ->
-      List.fold_left
-        (fun p s ->
-          let n = min (String.length p) (String.length s) in
-          let i = ref 0 in
-          while !i < n && Char.equal p.[!i] s.[!i] do
-            incr i
-          done;
-          String.sub p 0 !i)
-        first rest
+      let rec common acc a b =
+        match (a, b) with
+        | x :: a, y :: b when String.equal x y -> common (x :: acc) a b
+        | _ -> List.rev acc
+      in
+      String.concat ""
+        (List.fold_left (fun p s -> common [] p (chars s)) (chars first) rest)
 
 (* The word completion acts on is the run after the last space before the
    cursor. *)
@@ -187,7 +186,8 @@ let complete t echo =
   else
     let before = String.concat "" (List.rev t.left) in
     let word = last_word before in
-    match List.filter (String.starts_with ~prefix:word) (t.complete word) with
+    let candidates = t.complete word in
+    match List.filter (String.starts_with ~prefix:word) candidates with
     | [] -> ()
     | candidates ->
         let lcp = common_prefix candidates in
