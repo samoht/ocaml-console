@@ -4,7 +4,6 @@
   ---------------------------------------------------------------------------*)
 
 type style = Theme.bar
-type color = Color.t
 
 (* Eighth-of-a-cell glyphs for the smooth bar. *)
 let eighths = [| " "; "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
@@ -85,7 +84,7 @@ let rainbow ~styled ~color:_ ~width ~pct =
   Buffer.contents buf
 
 let draw_style :
-    style -> styled:bool -> color:color -> width:int -> pct:int -> string =
+    style -> styled:bool -> color:Color.t -> width:int -> pct:int -> string =
   function
   | `Blocky -> blocky
   | `Smooth -> smooth

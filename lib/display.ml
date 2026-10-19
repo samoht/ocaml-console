@@ -5,8 +5,6 @@
 
 open Display_state
 
-type color = Color.t
-
 let pp_bytes ppf n = Fmt.string ppf (Display_text.bytes n)
 let pp_span ppf s = Fmt.string ppf (Display_text.span s)
 let sanitize = Display_text.sanitize

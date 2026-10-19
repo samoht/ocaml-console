@@ -29,10 +29,6 @@ val frame : 'a t -> elapsed:float -> 'a
 val map : ('a -> 'b) -> 'a t -> 'b t
 (** [map f a] applies [f] to every frame of [a]. *)
 
-val map2 : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
-(** [map2 f a b] samples [a] and [b] at the same elapsed time and combines their
-    frames with [f]. *)
-
 val all : 'a t list -> 'a list t
 (** [all xs] samples every animation in [xs] at the same elapsed time:
     [frame (all xs) ~elapsed] is [List.map (fun a -> frame a ~elapsed) xs]. It

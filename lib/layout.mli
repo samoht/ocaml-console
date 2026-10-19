@@ -3,12 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Horizontal layout of rendered text blocks.
+(** Layout of rendered text blocks.
 
-    A block is a multi-line string -- typically the output of
-    {!Panel.to_string}, {!Table.to_string} or {!Tree.pp}. {!hcat} places several
-    blocks side by side, padding each to its own width so the columns stay
-    aligned even when lines carry ANSI colour codes or wide (CJK) glyphs. *)
+    A block is a multi-line string, typically the output of {!Panel.to_string},
+    {!Table.to_string} or {!Tree.to_string}. {!hcat} places blocks side by side,
+    padding each to its own width so the columns stay aligned even when lines
+    carry ANSI escapes or wide glyphs; {!vcat} stacks them.
+
+    Animated blocks are joined frame by frame:
+    [Anim.map (Layout.hcat ~gutter:2) (Anim.all blocks)] samples every block at
+    the same elapsed time ({!Anim.all}). The column widths are recomputed each
+    frame, so a block that changes width shifts its neighbours; a block of fixed
+    width ({!Panel.v}'s [width]) keeps the columns steady. *)
 
 val hcat : ?gutter:int -> ?align:[ `Top | `Bottom ] -> string list -> string
 (** [hcat blocks] joins [blocks] side by side into one multi-line string.
@@ -25,27 +31,9 @@ val hcat : ?gutter:int -> ?align:[ `Top | `Bottom ] -> string list -> string
     rows carry no trailing whitespace. [hcat []] is [""]; [hcat [b]] is [b]
     unchanged. *)
 
-val hcat_anim :
-  ?gutter:int ->
-  ?align:[ `Top | `Bottom ] ->
-  string Anim.t list ->
-  string Anim.t
-(** [hcat_anim blocks] is {!hcat} lifted over animations: every frame samples
-    each block in [blocks] at the current elapsed time (see {!Anim.all}) and
-    joins the results side by side. Build the blocks from {!Anim.const},
-    {!Panel.anim}, {!Table.anim}, {!Bar.anim} or any [string Anim.t], then drive
-    the joined row in a live {!Display} view. The column widths are recomputed
-    each frame, so a block that changes width over time shifts its neighbours --
-    fix a block's width (e.g. {!Panel.v}'s [?width]) to keep the columns steady.
-*)
-
 val vcat : ?gutter:int -> string list -> string
 (** [vcat blocks] joins [blocks] from top to bottom. [gutter] is the number of
     blank lines inserted between adjacent blocks (default [0]). [vcat []] is
     [""].
 
     @raise Invalid_argument if [gutter] is negative. *)
-
-val vcat_anim : ?gutter:int -> string Anim.t list -> string Anim.t
-(** [vcat_anim blocks] is {!vcat} lifted over animations, sampling every block
-    at the same elapsed time. *)

@@ -218,8 +218,9 @@ inside another `Console_eio.run` reuses the same display.
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
 Spinners, progress bars and the falling characters of `Theme.matrix` are
-animations: values of type `Anim.t` that change over time. `Anim.all` and
-`Layout.hcat_anim` combine several of them into one. To see them together,
+animations: values of type `Anim.t` that change over time. `Anim.all` samples
+several of them at once, and `Anim.map Layout.hcat` joins the frames side by
+side. To see them together,
 run the demo in [`examples/matrix`](examples/matrix):
 
 <!-- $MDX skip -->

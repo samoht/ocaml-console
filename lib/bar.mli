@@ -15,17 +15,10 @@
     lays bars out beside other spans: a fraction to the eighth of a cell, a
     median and a 95th percentile on one bar, and the parts of a whole. *)
 
-type style = Theme.bar
-(** The type for bar looks: [`Blocky] (full blocks on a shaded track), [`Smooth]
-    (fractional eighth-cell fills) or [`Rainbow] (a spectrum gradient). *)
-
-type color = Color.t
-(** The type for fill colours. *)
-
 val render :
   ?theme:Theme.t ->
-  ?style:style ->
-  ?color:color ->
+  ?style:Theme.bar ->
+  ?color:Color.t ->
   ?styled:bool ->
   width:int ->
   pct:int ->
@@ -42,8 +35,8 @@ val render :
 
 val at :
   ?theme:Theme.t ->
-  ?style:style ->
-  ?color:color ->
+  ?style:Theme.bar ->
+  ?color:Color.t ->
   ?styled:bool ->
   width:int ->
   elapsed:float ->
@@ -58,8 +51,8 @@ val at :
 
 val anim :
   ?theme:Theme.t ->
-  ?style:style ->
-  ?color:color ->
+  ?style:Theme.bar ->
+  ?color:Color.t ->
   ?styled:bool ->
   width:int ->
   unit ->

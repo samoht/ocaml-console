@@ -26,9 +26,6 @@
       Console.Display.succeed resolve
     ]} *)
 
-type color = Color.t
-(** The type for foreground colours. *)
-
 val pp_bytes : int64 Fmt.t
 (** [pp_bytes] formats a byte count as a row draws it, in the largest binary
     unit that keeps it at least one: ["512 B"], ["1.50 KiB"], ["30.00 MiB"]. *)
@@ -92,14 +89,11 @@ module Line : sig
   type t
   (** The type for task-line layouts and their accent colour. *)
 
-  val v : ?color:color -> piece list -> t
+  val v : ?color:Color.t -> piece list -> t
   (** [v pieces] is a layout assembled left to right.
 
       @raise Invalid_argument
         if [pieces] contains more than one label or spacer. *)
-
-  val with_color : color -> t -> t
-  (** [with_color color line] changes [line]'s accent colour. *)
 
   val default : t
   (** [default] is the layout of a label, a bar, a count, a rate and the
@@ -249,14 +243,11 @@ end
 type t
 (** The type for display sessions. Values are created only by {!run}. *)
 
-val pp : t Fmt.t
-(** [pp] formats a display for diagnostics, in an unspecified format. *)
-
 val run :
   ctx:ctx ->
   ?mode:mode ->
   ?theme:Theme.t ->
-  ?palette:color list ->
+  ?palette:Color.t list ->
   ?bar:Line.t ->
   ?width:int ->
   ?height:int ->
@@ -304,7 +295,7 @@ val task :
   ?id:string ->
   ?parent:task ->
   ?bar:Line.t ->
-  ?color:color ->
+  ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
@@ -426,7 +417,7 @@ val with_task :
   ?id:string ->
   ?parent:task ->
   ?bar:Line.t ->
-  ?color:color ->
+  ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
@@ -498,3 +489,8 @@ val tick : t -> unit
     next update past that age or to [tick], so a producer reporting every few
     kilobytes writes the terminal at the eye's pace and not its own. Permanent
     events paint at once. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a display for diagnostics, in an unspecified format. *)

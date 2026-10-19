@@ -1,7 +1,13 @@
-(** Eio integration for terminal-aware Console rendering. *)
+(** The Eio driver of Console.
+
+    [Console_eio] owns the terminal for {!Console.Display}: it builds the
+    display's context from the terminal behind a formatter, drives its refresh
+    from an Eio clock, routes {!Logs} into its history and gives the terminal
+    back on exit and on a signal. *)
 
 module Prompt = Prompt
-(** Interactive prompts over Eio flows: a yes/no, a line, or a typed word. *)
+(** Interactive prompts over Eio flows: a line, a yes or no, a typed word or a
+    secret. *)
 
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->

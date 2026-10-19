@@ -3,19 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tree rendering with customizable guides.
+(** Trees drawn with guide lines.
 
-    Renders tree structures with ASCII or Unicode guide lines. *)
+    A tree is a root span and its children, each drawn on its own row behind the
+    {!Guide} glyphs that connect it to its parent. *)
 
-(** {1:types Types} *)
+(** {1:trees Trees} *)
 
 (** The type for trees of ['a] nodes. *)
 type 'a node = Node of 'a * 'a node list
 
 type t
 (** The type for renderable trees of spans. *)
-
-(** {1:construction Construction} *)
 
 val v : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
 (** [v tree] is [tree] ready to render. The branch glyphs come from [guide] if
@@ -58,14 +57,13 @@ val prefix : ?guide:Guide.t -> bool list -> string
     ["│   ├── "]. A live renderer that draws its own rows (a progress tree)
     shares the guide drawing through it. *)
 
-(** {1:rendering Rendering} *)
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] pretty-prints the tree, one node per line, with guide lines. The
-    formatter's margin caps every row: a label wider than the room its guide
-    leaves wraps at its words ({!Span.wrap}), each continuation hanging under
-    the text after the label's first word ({!Span.hanging}) beside the guide of
-    its level. *)
+(** [pp] formats a tree, one node per row behind its guide. The formatter's
+    margin caps every row: a label wider than the room its guide leaves wraps at
+    its words ({!Span.wrap}), each continuation hanging under the text after the
+    label's first word ({!Span.hanging}) beside the guide of its level. *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string tree] is [tree] rendered at its natural width, with ANSI styling

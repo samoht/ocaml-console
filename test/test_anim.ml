@@ -25,12 +25,6 @@ let test_map () =
   in
   Alcotest.(check int) "mapped frame" 20 (Anim.frame a ~elapsed:2.0)
 
-let test_map2 () =
-  let left = Anim.v (fun ~elapsed -> int_of_float elapsed) in
-  let right = Anim.v (fun ~elapsed -> int_of_float (elapsed *. 10.)) in
-  let sum = Anim.map2 ( + ) left right in
-  Alcotest.(check int) "same sample time" 22 (Anim.frame sum ~elapsed:2.)
-
 (* Spinner and Bar expose their [at] shape as an animation. *)
 let test_component_anims () =
   let s = Spinner.anim Spinner.ascii in
@@ -63,7 +57,6 @@ let suite =
       Alcotest.test_case "const" `Quick test_const;
       Alcotest.test_case "v and frame" `Quick test_v_frame;
       Alcotest.test_case "map" `Quick test_map;
-      Alcotest.test_case "map2" `Quick test_map2;
       Alcotest.test_case "all" `Quick test_all;
       Alcotest.test_case "component anims" `Quick test_component_anims;
     ] )

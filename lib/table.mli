@@ -3,12 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tables with headers, alignment, and borders.
+(** Tables with headers, alignment and borders.
 
-    Tables display data in aligned columns with optional headers and
-    customizable borders. *)
+    A table is a list of {!type-column}s and rows of styled cells, drawn in a
+    {!Border} and fitted to the width it is given. *)
 
-(** {1:types Types} *)
+(** {1:columns Columns} *)
 
 type align = [ `Left | `Center | `Right ]
 (** The type for column alignments. *)
@@ -16,11 +16,11 @@ type align = [ `Left | `Center | `Right ]
 type overflow = [ `Truncate | `Wrap | `Elide ]
 (** The type for the handling of content wider than a column's [max_width].
 
-    - [`Truncate]: Keep the leading words that fit on one line and drop the
+    - [`Truncate] keeps the leading words that fit on one line and drops the
       rest; a value whose first word does not fit is printed whole, over several
       lines, as with [`Wrap]. No word is ever cut.
-    - [`Wrap]: Wrap to multiple lines (default)
-    - [`Elide]: Keep one line that says what it left out ({!Width.elide}), with
+    - [`Wrap] wraps to several lines.
+    - [`Elide] keeps one line that says what it left out ({!Width.elide}), with
       the row's [see] after a cell it cut. *)
 
 type column
@@ -28,8 +28,6 @@ type column
 
 type t
 (** The type for tables. *)
-
-(** {1:column_construction Column construction} *)
 
 val column :
   ?align:align ->
@@ -54,7 +52,7 @@ val column :
     - [style] is applied to every cell in the column.
     - [header] is the column header text. *)
 
-(** {1:table_construction Table construction} *)
+(** {1:tables Tables} *)
 
 val v :
   ?theme:Theme.t ->
@@ -93,20 +91,7 @@ val of_rows :
     {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds;
     they produce physical lines inside that logical row. *)
 
-(** {1:rendering Rendering} *)
-
-val pp : t Fmt.t
-(** [pp table] follows the formatter's style renderer and fits the table to its
-    margin. No physical row exceeds that margin; fitting preferences never
-    override it. This makes [Fmt.pr "%a" pp table] adapt to a formatter
-    configured for the terminal. Use {!to_string} for a natural-width string or
-    to supply an explicit maximum width. *)
-
-val to_string :
-  ?styled:bool -> ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
-(** [to_string table] is [table] rendered with ANSI styling iff [styled]
-    (defaults to [false]). [width], when supplied, is a hard maximum for every
-    physical row. *)
+(** {1:converting Converting} *)
 
 val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
 (** [lines table] is each physical row of [table] as a styled span, the lines
@@ -114,10 +99,21 @@ val lines : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> Span.t list
     a hard maximum for every one. A border's gradient is taken along each line.
 *)
 
-(** {1:animation Animation} *)
+val to_string :
+  ?styled:bool -> ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string
+(** [to_string table] is [table] rendered with ANSI styling iff [styled]
+    (defaults to [false]). [width], when supplied, is a hard maximum for every
+    physical row. *)
 
 val anim : ?width:int -> ?char_width:(Uchar.t -> int) -> t -> string Anim.t
 (** [anim table] is [table] as an {!Anim.t}: [to_string ~styled:true table] on
     every frame, unless [table]'s theme sets {!Theme.animated_border}, as
     {!Theme.matrix} does. Then the rendered table is framed by the digital rain
     of {!Panel.anim}. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a table fitted to the formatter's margin, following its style
+    renderer. No physical row exceeds the margin; fitting preferences never
+    override it. *)

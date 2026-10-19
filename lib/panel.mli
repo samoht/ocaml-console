@@ -5,14 +5,13 @@
 
 (** Bordered panels with optional titles.
 
-    A panel is a box with a border that can contain styled text. *)
+    A panel is lines of styled text in a {!Border}, with a title on its top edge
+    and a subtitle on its bottom one. *)
 
-(** {1:types Types} *)
+(** {1:panels Panels} *)
 
 type t
 (** The type for panels. *)
-
-(** {1:construction Construction} *)
 
 val v :
   ?theme:Theme.t ->
@@ -39,8 +38,6 @@ val v :
     @raise Invalid_argument
       if [padding] is negative or [width] cannot hold the border and padding. *)
 
-(** {1:rendering Rendering} *)
-
 val content_width : ?margin:int -> t -> int
 (** [content_width ~margin panel] is the cells each content line of [panel] is
     drawn in when the whole box may take at most [margin] cells (default
@@ -48,18 +45,11 @@ val content_width : ?margin:int -> t -> int
     and never more than [margin] leaves inside the border and padding. A line
     that fills it exactly is drawn in full. *)
 
-val pp : t Fmt.t
-(** [pp] renders the panel, following the formatter's style renderer. The
-    formatter's margin caps the box. In a box sized to its content, a line wider
-    than {!content_width} wraps at its words ({!Span.wrap}), each continuation
-    hanging under the text after the line's first word ({!Span.hanging}); in a
-    box of fixed [width] it is truncated. Edge labels are truncated. *)
+(** {1:converting Converting} *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string panel] is [panel] rendered at its natural width, with ANSI
     styling iff [styled] (defaults to [false]). *)
-
-(** {1:animation Animation} *)
 
 val anim : t -> string Anim.t
 (** [anim panel] is [panel] as an {!Anim.t}: [to_string ~styled:true panel] on
@@ -68,3 +58,12 @@ val anim : t -> string Anim.t
     bold green head sweeps clockwise round it, trailing dimmer green, and every
     cell flickers through an ASCII glyph, deterministically in the elapsed time.
     The title and subtitle are not drawn in this mode. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a panel, following the formatter's style renderer. The
+    formatter's margin caps the box. In a box sized to its content, a line wider
+    than {!content_width} wraps at its words ({!Span.wrap}), each continuation
+    hanging under the text after the line's first word ({!Span.hanging}); in a
+    box of fixed [width] it is truncated. Edge labels are truncated. *)

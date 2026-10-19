@@ -61,13 +61,13 @@ let test_ragged_width () =
   check "narrow rows padded out to the block width" expected
     (Layout.hcat [ "wide line here\nx"; "A\nB" ])
 
-(* hcat_anim samples each animated block at the current time and joins the
+(* Joining animated blocks samples each at the current time and joins the
    frames, so the joined row changes as its inputs do. Here the left block
    widens from "a" to "bb" at t=1, and the static right block stays put. *)
 let test_hcat_anim () =
   let left = Anim.v (fun ~elapsed -> if elapsed < 1. then "a" else "bb") in
   let right = Anim.const "Z" in
-  let a = Layout.hcat_anim [ left; right ] in
+  let a = Anim.map Layout.hcat (Anim.all [ left; right ]) in
   check "frame before the change" "a Z" (Anim.frame a ~elapsed:0.5);
   check "frame after the change" "bb Z" (Anim.frame a ~elapsed:1.5)
 
@@ -80,7 +80,7 @@ let test_vcat () =
 
 let test_vcat_anim () =
   let top = Anim.v (fun ~elapsed -> if elapsed < 1. then "a" else "A") in
-  let a = Layout.vcat_anim [ top; Anim.const "b" ] in
+  let a = Anim.map Layout.vcat (Anim.all [ top; Anim.const "b" ]) in
   check "first frame" "a\nb" (Anim.frame a ~elapsed:0.);
   check "later frame" "A\nb" (Anim.frame a ~elapsed:2.)
 
