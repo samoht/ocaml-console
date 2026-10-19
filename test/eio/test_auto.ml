@@ -85,8 +85,8 @@ let test_auto_asks_the_formatters_own_descriptor () =
   let err_tty, out_tty, auto =
     with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
         let asked =
-          ( Console_eio.is_tty Unix.stderr,
-            Console_eio.is_tty Unix.stdout,
+          ( Unix.isatty Unix.stderr,
+            Unix.isatty Unix.stdout,
             Console_eio.auto Fmt.stderr )
         in
         draw_a_task ();

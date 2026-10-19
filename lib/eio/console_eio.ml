@@ -1,12 +1,5 @@
 module Prompt = Prompt
 
-(* What a terminal is and how big it is are the same questions [run] asks to
-   build its own context, so a caller choosing a layout for itself asks them
-   here rather than reaching for Unix. Terminal stays private: the rest of it
-   -- the cursor escapes, the interrupt handler -- is the driver's business. *)
-let is_tty = Terminal.is_tty
-let dimensions () = Terminal.dimensions (Some Eio_unix.Fd.stdout)
-
 (* The descriptor a formatter writes to, where the formatter says so by being
    one of the two the standard library opens on them. *)
 let descriptor ?fd ppf =
@@ -20,7 +13,7 @@ let descriptor ?fd ppf =
 (* A region moves the cursor, which a terminal whose TERM is dumb has none of
    to move. *)
 let region_on fd =
-  is_tty fd
+  Terminal.is_tty fd
   && not (Option.equal String.equal (Sys.getenv_opt "TERM") (Some "dumb"))
 
 let auto ?fd ppf =
@@ -99,7 +92,7 @@ let context ~sw ~clock ~ppf ~fd ~mode =
   let ppf = Option.value ppf ~default:Fmt.stdout in
   let tty =
     match descriptor ?fd ppf with
-    | Some fd when is_tty fd -> Some fd
+    | Some fd when Terminal.is_tty fd -> Some fd
     | Some _ | None -> None
   in
   let window = Option.map (Eio_unix.Fd.of_unix ~sw ~close_unix:false) tty in

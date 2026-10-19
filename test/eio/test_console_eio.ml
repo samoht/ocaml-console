@@ -118,47 +118,32 @@ let test_run_on_refuses_a_context_it_cannot_wait_on () =
       Console_eio.run_on ~ctx ~mode:`History (fun _display ->
           Alcotest.fail "the body ran under a display with no clock to wait on"))
 
-(* The terminal question, asked of the library rather than of Unix. Under
-   [dune test] stdout is a pipe or a file, so the answer is [false]; a runner
-   that attached a terminal leaves the case nothing to pin. *)
-let test_is_tty_is_false_without_a_terminal () =
-  if Unix.isatty Unix.stdout then Alcotest.skip ();
-  Alcotest.(check bool)
-    "stdout is not a terminal" false
-    (Console_eio.is_tty Unix.stdout)
-
-(* Dimensions always answer, whatever the environment: the ioctl, else
-   $COLUMNS/$LINES, else the 80x24 default. Ten columns or two rows is no
-   answer, and the next source is asked. Under [dune test] stdout is no
-   terminal, so the ioctl has nothing to say and the environment decides. *)
 let with_env bindings f =
   let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
   List.iter (fun (k, v) -> Unix.putenv k v) bindings;
   Fun.protect f ~finally:(fun () ->
       List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
+(* The width of a display on a descriptor with no terminal behind it. *)
+let width () =
+  Eio_main.run @@ fun env ->
+  let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf ~fd:Unix.stdout
+    ~mode:`History (fun display ->
+      Console.Display.with_output display (fun ppf ->
+          Format.pp_get_margin ppf ()))
+
 let test_dimensions_read_the_environment () =
   if Unix.isatty Unix.stdout then Alcotest.skip ();
-  let dims = Alcotest.(pair int int) in
-  with_env
-    [ ("COLUMNS", "123"); ("LINES", "45") ]
-    (fun () ->
-      Alcotest.check dims "the exported size" (123, 45)
-        (Console_eio.dimensions ()));
-  with_env
-    [ ("COLUMNS", "11"); ("LINES", "3") ]
-    (fun () ->
-      Alcotest.check dims "the smallest size taken" (11, 3)
-        (Console_eio.dimensions ()));
-  with_env
-    [ ("COLUMNS", "10"); ("LINES", "2") ]
-    (fun () ->
-      Alcotest.check dims "a smaller one is no answer" (80, 24)
-        (Console_eio.dimensions ()));
-  with_env
-    [ ("COLUMNS", ""); ("LINES", "") ]
-    (fun () ->
-      Alcotest.check dims "nor is none" (80, 24) (Console_eio.dimensions ()))
+  let check msg columns expected =
+    with_env
+      [ ("COLUMNS", columns) ]
+      (fun () -> Alcotest.(check int) msg expected (width ()))
+  in
+  check "the exported width" "123" 123;
+  check "the smallest width taken" "11" 11;
+  check "a smaller one is no answer" "10" 80;
+  check "nor is none" "" 80
 
 (* An elapsed time comes from the machine, not from the program, so a test that
    captures a display's output cannot assert one. CONSOLE_FROZEN_CLOCK is the
@@ -385,8 +370,6 @@ let suite =
         test_run_on_waits_on_the_contexts_clock;
       Alcotest.test_case "run_on refuses a context it cannot wait on" `Quick
         test_run_on_refuses_a_context_it_cannot_wait_on;
-      Alcotest.test_case "is_tty is false without a terminal" `Quick
-        test_is_tty_is_false_without_a_terminal;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
       Alcotest.test_case "frozen clock pins every elapsed" `Quick

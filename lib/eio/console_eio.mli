@@ -99,14 +99,6 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
       environment, so a colour a terminal cannot show is drawn as its nearest
       one. *)
 
-val is_tty : Unix.file_descr -> bool
-(** [is_tty fd] is [true] iff [fd] is connected to a terminal. It is the
-    terminal question answered once for every CLI that renders through this
-    library: a command choosing a table over a stream of plain records asks
-    [is_tty Unix.stdout], and one asking whether a person typed it asks
-    [is_tty Unix.stdin], of the console it already draws on rather than of Unix
-    itself. *)
-
 val auto : ?fd:Unix.file_descr -> Format.formatter -> [ `Activity | `History ]
 (** [auto ?fd ppf] is the display [`Auto] chooses on [ppf] under {!run}:
     [`Activity] iff the descriptor [ppf] writes to ([fd], as {!run} defaults it)
@@ -120,9 +112,3 @@ val frame_drawn : Console.Display.t -> int -> unit Eio.Promise.t
     fiber that needs a frame on screen before it goes on awaits it rather than a
     span of time. It is resolved at once when that frame is already drawn and
     when [display] draws no frames, and is resolved when [display] closes. *)
-
-val dimensions : unit -> int * int
-(** [dimensions ()] is the size of the terminal on standard output as
-    [(columns, rows)]: the [TIOCGWINSZ] ioctl, else [$COLUMNS] and [$LINES],
-    else 80 by 24. A width of ten columns or less and a height of two rows or
-    less are not taken from either source, so the answer is at least 11 by 3. *)
