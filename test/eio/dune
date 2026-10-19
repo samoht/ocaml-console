@@ -1,3 +1,6 @@
+; Exercise the private geometry provider, as the Width tests do.
+(copy_files ../../lib/eio/terminal.{ml,mli})
+
 (test
  (name test)
  (package console-eio)

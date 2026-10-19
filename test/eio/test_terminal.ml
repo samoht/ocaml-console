@@ -208,9 +208,23 @@ let test_run_styles_a_terminal () =
     (Astring.String.is_infix ~affix:hide_cursor plain);
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
+let test_small_dimensions () =
+  let columns = Sys.getenv_opt "COLUMNS" and lines = Sys.getenv_opt "LINES" in
+  Fun.protect
+    ~finally:(fun () ->
+      Unix.putenv "COLUMNS" (Option.value columns ~default:"");
+      Unix.putenv "LINES" (Option.value lines ~default:""))
+    (fun () ->
+      Unix.putenv "COLUMNS" "10";
+      Unix.putenv "LINES" "2";
+      Alcotest.(check (pair int int))
+        "valid small geometry" (10, 2) (Terminal.dimensions None))
+
 let suite =
   ( "terminal",
     [
+      Alcotest.test_case "small positive terminal dimensions are preserved"
+        `Quick test_small_dimensions;
       Alcotest.test_case "auto asks the formatter's own descriptor" `Quick
         test_auto_asks_the_formatters_own_descriptor;
       Alcotest.test_case "auto appends on a pipe" `Quick
