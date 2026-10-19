@@ -132,12 +132,15 @@ val downsample : depth -> t -> t
       whichever is nearer in RGB, as tmux's [colour_find_rgb] chooses;
     - at [`Ansi_16], the named colour nearest by the CIE 1976 colour difference
       (the distance in CIE L*a*b*, D65 white), against the xterm defaults of the
-      16. *)
+      16.
+
+    It is idempotent: [downsample d (downsample d c)] is [downsample d c]. *)
 
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a colour for diagnostics, in an unspecified format. *)
+(** [pp] formats an RGB colour as [#rrggbb], which {!of_hex} reads back, and a
+    named or palette colour by its name or number. *)
 
 (**/**)
 

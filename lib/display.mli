@@ -24,8 +24,8 @@
       Console.Display.succeed step
     ]}
 
-    The lines a display prints start with a mark ({!Theme.mark}) that says what
-    they are: how a task ended, the level of a log line, and in the header
+    The lines a display prints start with a mark ({!Theme.val-mark}) that says
+    what they are: how a task ended, the level of a log line, and in the header
     whether work is still running and how it ended.
 
     {1:guarantees Guarantees}
@@ -127,7 +127,7 @@ val v :
       [layout] (defaults to {!Line.default}) the pieces of each row.
 
     The display is in colour iff [ppf]'s style renderer is [`Ansi_tty], at
-    [ppf]'s {!Color.depth}. *)
+    [ppf]'s {!Color.val-depth}. *)
 
 val redraw : t -> unit
 (** [redraw display] draws the region again, so that the spinners turn and the

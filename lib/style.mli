@@ -44,8 +44,10 @@ val bg : Color.t -> t
 (** [bg c] is the style with background colour [c]. *)
 
 val ( + ) : t -> t -> t
-(** [s0 + s1] is [s0] with the attributes of [s1] added and the colours of [s1]
-    replacing those of [s0]. *)
+(** [s0 + s1] is [s0] with the attributes of [s1] added and the colours that
+    [s1] sets replacing those of [s0]. {!none} is its unit and it is
+    associative: [s + none], [none + s] and [s] are equal, and so are
+    [s0 + (s1 + s2)] and [(s0 + s1) + s2]. *)
 
 val foreground : t -> Color.t option
 (** [foreground s] is the foreground colour of [s], if it sets one. *)
@@ -67,10 +69,6 @@ val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)
 
 (**/**)
-
-val shows_on_space : t -> bool
-(** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
-    an unstyled one. *)
 
 val to_ansi : ?depth:Color.depth -> t -> string
 (** [to_ansi ~depth s] is the escape code that starts [s], its colours as a

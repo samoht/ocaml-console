@@ -3,6 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+(* The escape scanner follows the DEC parser of Paul Williams's state diagram
+   (vt100.net/emu/dec_ansi_parser) over ECMA-48 and ECMA-35. *)
+
 (* [text buf ~keep_newlines u] adds what [sanitize] makes of the character
    [u]: itself, or a space for a control. *)
 let text buf ~keep_newlines u =

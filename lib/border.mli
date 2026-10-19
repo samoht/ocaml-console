@@ -28,8 +28,8 @@ type chars = {
 }
 (** The type for the glyphs of a border, one per part of the box. It is plain
     data the program supplies: every field is needed to draw a box and none
-    constrains another. Each glyph is written as given, so it is empty or as
-    wide as the others of its line, and holds no terminal control. *)
+    constrains another. A glyph is empty or as wide as the others of its line; a
+    control character in it is drawn as a space. *)
 
 type t
 (** The type for borders. *)

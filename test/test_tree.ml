@@ -7,24 +7,26 @@ open Console
 
 let str = Alcotest.(check string)
 
-(* The guide prefix is the standard tree drawing: each strict ancestor is a
-   vertical bar (if it has a following sibling) or blank (if last), then the
-   node's own connector. *)
-let test_prefix_unicode () =
-  str "root" "" (Tree.prefix []);
-  str "only/first top-level" "├── " (Tree.prefix [ false ]);
-  str "last top-level" "└── " (Tree.prefix [ true ]);
-  str "child of non-last parent" "│   ├── " (Tree.prefix [ false; false ]);
-  str "last child of non-last parent" "│   └── " (Tree.prefix [ false; true ]);
-  str "child of last parent" "    ├── " (Tree.prefix [ true; false ]);
-  str "last child of last parent" "    └── " (Tree.prefix [ true; true ]);
-  str "three levels, mixed" "│       ├── " (Tree.prefix [ false; true; false ])
-
-let test_prefix_ascii () =
-  let guide = Guide.ascii in
-  str "ascii last top-level" "+-- " (Tree.prefix ~guide [ true ]);
-  str "ascii child of non-last" "|   +-- " (Tree.prefix ~guide [ false; false ]);
-  str "ascii child of last" "    +-- " (Tree.prefix ~guide [ true; false ])
+(* Each strict ancestor is a vertical line if siblings follow it and spaces
+   if not, and the node is a branch or the last one. *)
+let test_guides () =
+  let leaf s = Tree.v (Span.text s) [] in
+  let tree =
+    Tree.v (Span.text "r")
+      [
+        Tree.v (Span.text "a")
+          [ leaf "a1"; Tree.v (Span.text "a2") [ leaf "x" ] ];
+        Tree.v (Span.text "b") [ leaf "b1" ];
+      ]
+  in
+  str "unicode"
+    "r\n├── a\n│   ├── a1\n│   └── a2\n│       └── x\n└── b\n    └── b1"
+    (Tree.to_string tree);
+  let tree =
+    Tree.v ~guide:Guide.ascii (Span.text "r")
+      [ Tree.v (Span.text "a") [ leaf "a1" ]; leaf "b" ]
+  in
+  str "ascii" "r\n+-- a\n|   +-- a1\n+-- b" (Tree.to_string tree)
 
 (* A multi-level tree renders one node per line, each ancestor's branch drawn
    once. *)
@@ -94,8 +96,7 @@ let suite =
   ( "tree",
     [
       Alcotest.test_case "guide style" `Quick test_guide_style;
-      Alcotest.test_case "prefix unicode" `Quick test_prefix_unicode;
-      Alcotest.test_case "prefix ascii" `Quick test_prefix_ascii;
+      Alcotest.test_case "guides" `Quick test_guides;
       Alcotest.test_case "render exact" `Quick test_render_exact;
       Alcotest.test_case "render single" `Quick test_render_single;
       Alcotest.test_case "margin wraps" `Quick test_margin_wraps;

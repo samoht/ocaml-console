@@ -5,21 +5,30 @@
 
 (** Colours, tables, trees and progress rows for command-line tools.
 
-    A {!Span.t} is a piece of text in a {!Style.t}: colours, bold, italic and so
-    on. The widgets, {!Table}, {!Tree}, {!Panel} and {!Rule}, lay out spans and
-    print with {!Format}, and a {!Theme} gives them one look. A {!Display} shows
-    progress rows that are redrawn in place while work runs; [Console_eio.run]
-    starts one.
+    [Console] prints into the terminal's normal scrollback, as [make] or [ls]
+    do, and redraws only the rows of a {!Display} while work runs; a program
+    that takes over the whole screen is better served by a full-screen library.
+    Windows consoles are not supported.
 
-    Widths are counted in terminal cells, as the terminal draws the text: a wide
-    character, such as a Chinese one or an emoji, takes two cells and an accent
-    added to a letter takes none. A widget printed on a formatter is no wider
-    than the formatter's margin. A control character in a span, which could move
-    the cursor or change the colours, is printed as a space.
+    A {!Span.t} is text in a {!Style.t}: colours, bold, italic and so on. The
+    widgets, {!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}, lay out spans and
+    print with {!Format}, and a {!Theme} gives them one look. [Console_eio.run]
+    runs a {!Display}.
+
+    {b Guarantees.} Widths are counted in terminal cells, as the terminal draws
+    the text: a wide character, such as a Chinese one or an emoji, takes two
+    cells and an accent added to a letter takes none. A widget is no wider than
+    its formatter's margin and ends without a line end, so ["%a@."] prints it on
+    its own lines. A span holds only text that prints: a control character in it
+    is a space, so caller text cannot move the cursor or change colours. Every
+    style a printer turns on, it turns off before the line ends. Text cut to fit
+    is cut between two characters and ends with an ellipsis. The guarantees of a
+    live region are those of {!Display}.
 
     Text is in colour when its formatter is set to colour
-    ({!Fmt.set_style_renderer}); [Console_eio.setup] sets standard output and
-    standard error as the terminal and the environment say.
+    ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows;
+    [Console_eio.setup] sets both for standard output and standard error, as the
+    terminal and the environment say.
 
     {1:quickstart Quick start}
 

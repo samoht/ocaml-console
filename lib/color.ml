@@ -173,7 +173,7 @@ let nearest_level v =
 let distance (r, g, b) (r', g', b') =
   ((r - r') * (r - r')) + ((g - g') * (g - g')) + ((b - b') * (b - b'))
 
-(* tmux's colour_find_rgb: the nearest cube entry or grey, whichever is
+(* After tmux's colour_find_rgb: the nearest cube entry or grey, whichever is
    nearer. *)
 let xterm_256 (r, g, b) =
   let ri = nearest_level r and gi = nearest_level g and bi = nearest_level b in

@@ -23,8 +23,8 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
     instead, as [Fmt_tty.setup] takes it: a [--color] option made with
     [Fmt_cli.style_renderer] is passed here as it is.
 
-    It also sets their {!Console.Color.depth}: [`True_color] if [COLORTERM] is
-    [truecolor] or [24bit] or [TERM] ends in [-direct], [`Ansi_256] if [TERM]
+    It also sets their {!Console.Color.val-depth}: [`True_color] if [COLORTERM]
+    is [truecolor] or [24bit] or [TERM] ends in [-direct], [`Ansi_256] if [TERM]
     contains [256color], and [`Ansi_16] otherwise, so that every widget and span
     printed on them uses colours the terminal has.
 

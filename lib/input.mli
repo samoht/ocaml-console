@@ -20,8 +20,8 @@
     measured as {!Span.width} measures it, so cursor motion is exact for wide
     CJK and emoji.
 
-    The key bindings and the history and completion model follow Daniel
-    Buenzli's [down] toplevel line editor (ISC licensed). *)
+    The key bindings and the history and completion model follow those of the
+    [down] toplevel line editor. *)
 
 type t
 (** The type for line editors: the current line and the history of submitted
@@ -69,7 +69,10 @@ val feed : t -> string -> string * string list
     of a CRLF and submits nothing); [\t] runs completion. The arrows ([ESC \[ A]
     / [ESC \[ B]) recall the previous and next history entries and ([ESC \[ C] /
     [ESC \[ D]) move the cursor right and left over one character. Any other
-    byte is ignored. *)
+    byte is ignored.
+
+    Feeding [input] at once or in pieces gives the same echo and lines, and the
+    echo holds no escape code: the cursor moves by backspaces. *)
 
 val pending : t -> string
 (** [pending t] is the current line, the bytes typed since the last submitted

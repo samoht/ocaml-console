@@ -19,15 +19,15 @@ val v :
   ?label:Span.t ->
   unit ->
   t
-(** [v ()] is a horizontal line drawn with [glyph] (defaults to ["─"]) in
-    [style] (defaults to the accent colour of [theme], or faint without one).
-    [label], if given, sits in the line at [align] (defaults to [`Center]), with
-    a space on each side.
+(** [v ()] is a horizontal line drawn with [glyph] (defaults to a light
+    horizontal line, U+2500) in [style] (defaults to the accent colour of
+    [theme], or faint without one). [label], if given, sits in the line at
+    [align] (defaults to [`Center]), with a space on each side.
 
     @raise Invalid_argument
       if [glyph], with each control character a space, is not one terminal cell
       wide. *)
 
 val pp : t Fmt.t
-(** [pp] formats a line as wide as the formatter's margin. A label wider than
-    that is cut to fit. *)
+(** [pp] formats a line exactly as wide as the formatter's margin. A label wider
+    than that is cut with an ellipsis. *)

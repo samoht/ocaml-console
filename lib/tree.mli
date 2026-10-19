@@ -31,18 +31,10 @@ val v : ?guide:Guide.t -> Span.t -> t list -> t
     takes the lines of the one above it. *)
 
 val pp : t Fmt.t
-(** [pp] formats a tree. A label wider than the formatter's margin leaves it
-    wraps, the rest under its text. *)
+(** [pp] formats a tree, with no line end after its last line. No line is wider
+    than the formatter's margin: a label wider than the room the margin leaves
+    it wraps, the rest under its text. *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string t] is [t] formatted at its natural width, with colours iff
     [styled] (defaults to [false]). *)
-
-(**/**)
-
-val prefix : ?guide:Guide.t -> bool list -> string
-(** [prefix lasts] is the guide drawn before a node whose ancestors, from the
-    top down to the node itself, are or are not the last of their siblings as
-    [lasts] says. *)
-
-(**/**)

@@ -7,7 +7,8 @@
 
     A table is a list of {!type-column}s and rows of cells, drawn in a
     {!Border}. A table wider than the room it is given narrows its columns until
-    it fits. *)
+    it fits; when even the narrowest columns and the frame do not fit, each line
+    is cut with an ellipsis rather than a column left out. *)
 
 (** {1:columns Columns} *)
 
@@ -79,4 +80,7 @@ val to_string : ?styled:bool -> ?width:int -> t -> string
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a table no wider than the formatter's margin. *)
+(** [pp] formats a table, with no line end after its last line. No line is wider
+    than the formatter's margin; the lines of a framed table that fits are all
+    as wide as one another; and the cells of a right-aligned column end in the
+    same column. *)

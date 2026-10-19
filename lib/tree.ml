@@ -16,11 +16,6 @@ let node_prefix ~guide lasts own =
        lasts
     @ [ (if own then Guide.last guide else Guide.branch guide) ])
 
-let prefix ?(guide = Guide.unicode) lasts =
-  match List.rev lasts with
-  | [] -> ""
-  | own :: ancestors -> node_prefix ~guide ancestors own
-
 let beside ~guide lasts =
   String.concat ""
     (List.rev_map

@@ -31,21 +31,10 @@ let test_colours () =
     "the right colour wins" true
     (Style.equal (Style.fg blue) Style.(fg red + fg blue))
 
-let test_shows_on_space () =
-  let check label expected s =
-    Alcotest.(check bool) label expected (Style.shows_on_space s)
-  in
-  check "foreground" false Style.(bold + faint + italic + blink + fg red);
-  check "background" true (Style.bg red);
-  check "reverse" true Style.reverse;
-  check "underline" true Style.underline;
-  check "strikethrough" true Style.strikethrough
-
 let suite =
   ( "style",
     [
       Alcotest.test_case "colours" `Quick test_colours;
-      Alcotest.test_case "shows on space" `Quick test_shows_on_space;
       Alcotest.test_case "none" `Quick test_none;
       Alcotest.test_case "bold" `Quick test_bold;
       Alcotest.test_case "composition" `Quick test_composition;

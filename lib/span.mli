@@ -82,7 +82,7 @@ val wrap : int -> t -> t list
 val pp : t Fmt.t
 (** [pp] formats a span with its styles and links iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
-    formatter's {!Color.depth} shows them. Each style that is turned on is
+    formatter's {!Color.val-depth} shows them. Each style that is turned on is
     turned off after the text it covers. *)
 
 val to_string : ?styled:bool -> t -> string

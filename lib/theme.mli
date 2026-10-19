@@ -11,7 +11,7 @@
     {!Display}. Give the same theme to each widget to make them match.
 
     Colours are given as the scheme defines them; a terminal that shows fewer
-    colours gets the nearest ones it has ({!Color.depth}). *)
+    colours gets the nearest ones it has ({!Color.val-depth}). *)
 
 (** {1:themes Themes} *)
 

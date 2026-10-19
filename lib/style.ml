@@ -69,10 +69,6 @@ let active_bool_attrs style =
     ]
 
 let bool_attrs style = List.map fst (active_bool_attrs style)
-
-let shows_on_space style =
-  style.bg <> None || style.reverse || style.underline || style.strikethrough
-
 let foreground style = style.fg
 let background style = style.bg
 
