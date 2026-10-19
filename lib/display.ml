@@ -43,6 +43,8 @@ let v ?(theme = Theme.unicode) ?(layout = Line.default) ?header ?size ~now ppf =
       frame = [||];
       frame_widths = [||];
       painted_at = neg_infinity;
+      changes = 0;
+      painted = (-1, -1, -1, -1);
       closed = false;
       suspended = 0;
     }
@@ -61,7 +63,9 @@ let redraw t =
   check_open "redraw" t;
   Display_region.paint t
 
-let touch t = if is_live t then Display_region.paint_if_stale t
+let touch t =
+  t.changes <- t.changes + 1;
+  if is_live t then Display_region.paint_if_stale t
 
 let with_output t f =
   check_open "with_output" t;
@@ -308,7 +312,8 @@ let set_result ?detail t result =
     let detail =
       match detail with None -> [] | Some d -> Display_text.lines d
     in
-    t.result <- Some (result, detail)
+    t.result <- Some (result, detail);
+    touch t
   end
 
 (* {1 Closing} *)

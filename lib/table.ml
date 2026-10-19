@@ -86,13 +86,7 @@ let lines_width = List.fold_left (fun n l -> max n (Span.width l)) 0
 (* The widest word of a cell: the width a column keeps while another column
    can still give room, so that an identifier stays whole. *)
 let word_width lines =
-  List.fold_left
-    (fun n line ->
-      List.fold_left
-        (fun n w -> max n (cells w))
-        n
-        (String.split_on_char ' ' (Span.to_string line)))
-    0 lines
+  List.fold_left (fun n line -> max n (Span.widest_word line)) 0 lines
 
 (* A short row's last cell spans the columns it leaves and is measured
    against none of them. *)

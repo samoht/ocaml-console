@@ -24,10 +24,14 @@ let sanitize_into buf ~keep_newlines str =
   in
   go 0
 
+let printable c = Char.code c >= 0x20 && Char.code c < 0x7f
+
 let sanitize ?(keep_newlines = true) str =
-  let buf = Buffer.create (String.length str) in
-  sanitize_into buf ~keep_newlines str;
-  Buffer.contents buf
+  if String.for_all printable str then str
+  else
+    let buf = Buffer.create (String.length str) in
+    sanitize_into buf ~keep_newlines str;
+    Buffer.contents buf
 
 (* What the scan is inside of. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
    in a 7-bit code, Fe in 04/00 to 05/15, and 08/00 to 09/15 in an 8-bit code,

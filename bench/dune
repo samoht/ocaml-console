@@ -3,7 +3,7 @@
 
 (executable
  (name bench)
- (libraries console fmt unix))
+ (libraries console fmt))
 
 (rule
  (alias bench)

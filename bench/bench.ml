@@ -5,8 +5,9 @@
 
 open Console
 
-(* [run name ~n f] runs [f] [n] times and prints the time and the words
-   allocated per run. *)
+(* [run name ~n f] runs [f] [n] times and prints the processor time and the
+   words allocated per run. Processor time, not wall-clock time, so that a
+   busy machine does not count against the code. *)
 let run name ~n f =
   f ();
   Gc.full_major ();
@@ -14,11 +15,11 @@ let run name ~n f =
     let minor, promoted, major = Gc.counters () in
     minor +. major -. promoted
   in
-  let w0 = words () and t0 = Unix.gettimeofday () in
+  let w0 = words () and t0 = Sys.time () in
   for _ = 1 to n do
     f ()
   done;
-  let t1 = Unix.gettimeofday () and w1 = words () in
+  let t1 = Sys.time () and w1 = words () in
   Fmt.pr "%-34s %12.0f ns/op %14.0f words/op@." name
     ((t1 -. t0) *. 1e9 /. float n)
     ((w1 -. w0) /. float n)

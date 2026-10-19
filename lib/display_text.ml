@@ -11,16 +11,17 @@ let bytes n =
     else pick (i + 1) (v /. 1024.)
   in
   let v, i = pick 0 (Float.max 0. (Int64.to_float n)) in
-  if i = 0 then Fmt.str "%.0f B" v else Fmt.str "%.2f %s" v units.(i)
+  if i = 0 then Printf.sprintf "%.0f B" v
+  else Printf.sprintf "%.2f %s" v units.(i)
 
 let duration secs =
   let secs = if Float.is_nan secs then 0. else Float.max 0. secs in
   if secs < 60. then
-    Fmt.str "%.1fs" (Float.of_int (int_of_float (secs *. 10.)) /. 10.)
+    Printf.sprintf "%.1fs" (Float.of_int (int_of_float (secs *. 10.)) /. 10.)
   else
     let s = int_of_float (Float.min secs 1e15) in
-    if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
-    else Fmt.str "%dh%02dm" (s / 3600) (s / 60 mod 60)
+    if s < 3600 then Printf.sprintf "%dm%02ds" (s / 60) (s mod 60)
+    else Printf.sprintf "%dh%02dm" (s / 3600) (s / 60 mod 60)
 
 (* [duration] is six wide at its widest below a hundred hours ("59m59s",
    "23h59m"). A longer run takes the columns it needs rather than losing a

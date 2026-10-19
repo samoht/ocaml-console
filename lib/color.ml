@@ -244,8 +244,8 @@ let to_code ~normal ~bright ~extended c =
   | Ansi color ->
       string_of_int
         ((if is_bright color then bright else normal) + ansi_position color)
-  | Rgb (r, g, b) -> Fmt.str "%d;2;%d;%d;%d" extended r g b
-  | Palette index -> Fmt.str "%d;5;%d" extended index
+  | Rgb (r, g, b) -> Printf.sprintf "%d;2;%d;%d;%d" extended r g b
+  | Palette index -> Printf.sprintf "%d;5;%d" extended index
 
 let to_fg_code = to_code ~normal:30 ~bright:90 ~extended:38
 let to_bg_code = to_code ~normal:40 ~bright:100 ~extended:48

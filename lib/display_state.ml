@@ -10,7 +10,7 @@ type log = { gap : float; level : level; message : string; kept : bool }
 
 let count_text = function
   | Spin -> ""
-  | Count (c, tot) -> Fmt.str "%d/%d" c tot
+  | Count (c, tot) -> Printf.sprintf "%d/%d" c tot
   | Bytes (c, tot) -> Display_text.bytes c ^ " / " ^ Display_text.bytes tot
 
 (* The pair the metric ends on sizes the cell before the first update; the pair
@@ -50,6 +50,8 @@ type t = {
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;
+  mutable changes : int;
+  mutable painted : int * int * int * int;
   mutable closed : bool;
   mutable suspended : int;
 }

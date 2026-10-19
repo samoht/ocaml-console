@@ -40,101 +40,135 @@ let with_style base t =
 (* {1 Lines} *)
 
 let lines t =
-  let rec go lines line = function
-    | [] -> List.rev (List.rev line :: lines)
-    | a :: rest -> (
-        match String.index_opt a.text '\n' with
-        | None -> go lines (a :: line) rest
-        | Some i ->
-            let before = String.sub a.text 0 i in
-            let after =
-              String.sub a.text (i + 1) (String.length a.text - i - 1)
-            in
-            let line =
-              if before = "" then line else { a with text = before } :: line
-            in
-            let rest =
-              if after = "" then rest else { a with text = after } :: rest
-            in
-            go (List.rev line :: lines) [] rest)
-  in
-  go [] [] t
+  if not (List.exists (fun a -> String.contains a.text '\n') t) then [ t ]
+  else
+    let rec go lines line = function
+      | [] -> List.rev (List.rev line :: lines)
+      | a :: rest -> (
+          match String.index_opt a.text '\n' with
+          | None -> go lines (a :: line) rest
+          | Some i ->
+              let before = String.sub a.text 0 i in
+              let after =
+                String.sub a.text (i + 1) (String.length a.text - i - 1)
+              in
+              let line =
+                if before = "" then line else { a with text = before } :: line
+              in
+              let rest =
+                if after = "" then rest else { a with text = after } :: rest
+              in
+              go (List.rev line :: lines) [] rest)
+    in
+    go [] [] t
 
 let unlines = function
   | [] -> empty
   | l :: ls -> List.concat (l :: List.map (fun l -> text "\n" @ l) ls)
 
-(* {1 Cells}
+(* {1 Layout}
 
    A line is laid out as the grapheme clusters a terminal draws, each with its
-   width and the style and link of the atom it starts in. Clusters are found
-   over the line's whole text, so a mark that combines with the letter before
-   it joins that letter even across a change of style. *)
+   width. Clusters are found over the line's whole text, so a mark that
+   combines with the letter before it joins that letter even across a change
+   of style; a cluster takes the style and link of the atom it starts in. A
+   layout keeps offsets into the joined text rather than a value per
+   cluster. *)
 
-type cell = { g : string; w : int; s : Style.t; l : string option }
+type layout = {
+  joined : string;  (** The line's text. *)
+  parts : atom array;
+  part_starts : int array;  (** Where each atom starts in [text]. *)
+  n : int;  (** The number of clusters. *)
+  starts : int array;  (** Where each cluster starts; [[||]] when ASCII. *)
+  widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
+}
 
 let is_ascii_text s =
   String.for_all (fun c -> Char.code c >= 0x20 && Char.code c < 0x7f) s
 
-let cells line =
-  if List.for_all (fun a -> is_ascii_text a.text) line then
-    List.concat_map
-      (fun a ->
-        List.init (String.length a.text) (fun i ->
-            { g = String.make 1 a.text.[i]; w = 1; s = a.style; l = a.link }))
-      line
-  else
-    let joined = String.concat "" (List.map (fun a -> a.text) line) in
-    let owners = Array.make (String.length joined) (Style.none, None) in
-    ignore
-      (List.fold_left
-         (fun off a ->
-           String.iteri
-             (fun i _ -> owners.(off + i) <- (a.style, a.link))
-             a.text;
-           off + String.length a.text)
-         0 line);
-    let acc = ref [] in
+let ascii line = List.for_all (fun a -> is_ascii_text a.text) line
+
+let layout line =
+  let parts = Array.of_list line in
+  let part_starts = Array.make (Array.length parts) 0 in
+  let total =
+    Array.fold_left
+      (fun (i, off) a ->
+        part_starts.(i) <- off;
+        (i + 1, off + String.length a.text))
+      (0, 0) parts
+    |> snd
+  in
+  let text = String.concat "" (List.map (fun a -> a.text) line) in
+  if ascii line then
+    {
+      joined = text;
+      parts;
+      part_starts;
+      n = total;
+      starts = [||];
+      widths = [||];
+    }
+  else begin
+    let starts = ref [] and widths = ref [] and n = ref 0 in
     Glyph.String.iter_graphemes
       (fun ~offset ~len ->
-        let s, l = owners.(offset) in
-        let w =
-          Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 joined
+        starts := offset :: !starts;
+        widths :=
+          Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 text
             ~pos:offset ~len
-        in
-        acc := { g = String.sub joined offset len; w; s; l } :: !acc)
-      joined;
+          :: !widths;
+        incr n)
+      text;
+    let starts = Array.of_list (List.rev !starts) in
+    let widths = Array.of_list (List.rev !widths) in
+    { joined = text; parts; part_starts; n = !n; starts; widths }
+  end
+
+let start l i =
+  if l.starts = [||] then i
+  else if i >= l.n then String.length l.joined
+  else l.starts.(i)
+
+let cell_width l i = if l.widths = [||] then 1 else l.widths.(i)
+let is_space l i = l.joined.[start l i] = ' ' && start l (i + 1) = start l i + 1
+
+(* The atom cluster [i] starts in. *)
+let owner l i =
+  let off = start l i in
+  let k = ref (Array.length l.parts - 1) in
+  while !k > 0 && l.part_starts.(!k) > off do
+    decr k
+  done;
+  l.parts.(!k)
+
+(* The atoms of clusters [i] to [j - 1]. *)
+let sub l i j =
+  if i >= j then []
+  else
+    let a = start l i and b = start l j in
+    let acc = ref [] in
+    Array.iteri
+      (fun k p ->
+        let ps = l.part_starts.(k) in
+        let pe = ps + String.length p.text in
+        let s = max a ps and e = min b pe in
+        if s < e then
+          acc := { p with text = String.sub l.joined s (e - s) } :: !acc)
+      l.parts;
     List.rev !acc
 
-(* The atoms of [cells], neighbours of one style and link merged. *)
-let of_cells cells =
-  let flush acc = function
-    | [] -> acc
-    | c :: _ as run ->
-        {
-          style = c.s;
-          link = c.l;
-          text = String.concat "" (List.rev_map (fun c -> c.g) run);
-        }
-        :: acc
-  in
-  let rec go acc run = function
-    | [] -> List.rev (flush acc run)
-    | c :: rest -> (
-        match run with
-        | r :: _ when Style.equal r.s c.s && Option.equal String.equal r.l c.l
-          ->
-            go acc (c :: run) rest
-        | _ -> go (flush acc run) [ c ] rest)
-  in
-  go [] [] cells
+let measure = Glyph.String.measure ~width_method:`Unicode ~tab_width:1
 
-let cells_width = List.fold_left (fun n c -> n + c.w) 0
-
-let line_width line =
-  if List.for_all (fun a -> is_ascii_text a.text) line then
-    List.fold_left (fun n a -> n + String.length a.text) 0 line
-  else cells_width (cells line)
+let line_width = function
+  | [] -> 0
+  | [ a ] ->
+      if is_ascii_text a.text then String.length a.text else measure a.text
+  | line ->
+      if ascii line then
+        List.fold_left (fun n a -> n + String.length a.text) 0 line
+      else measure (String.concat "" (List.map (fun a -> a.text) line))
 
 let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
 
@@ -145,104 +179,153 @@ let ellipsis = "\xe2\x80\xa6"
 let truncate_line w line =
   if line_width line <= w then line
   else
-    let rec take room acc = function
-      | c :: rest when c.w <= room -> take (room - c.w) (c :: acc) rest
-      | rest ->
-          let s = match rest with c :: _ -> c.s | [] -> Style.none in
-          List.rev ({ g = ellipsis; w = 1; s; l = None } :: acc)
+    let l = layout line in
+    let rec take i room =
+      if i < l.n && cell_width l i <= room then
+        take (i + 1) (room - cell_width l i)
+      else i
     in
-    of_cells (take (w - 1) [] (cells line))
+    let k = take 0 (w - 1) in
+    let style = if k < l.n then (owner l k).style else Style.none in
+    sub l 0 k @ [ { style; link = None; text = ellipsis } ]
 
 let truncate w t =
   if w <= 0 then empty else unlines (List.map (truncate_line w) (lines t))
 
 (* {1 Wrapping} *)
 
-let is_space c = c.g = " "
-
-(* The line's cells as words and runs of spaces, a word also ending after a
-   slash so that a path can break between its segments. *)
-let tokens cells =
-  let rec go acc word = function
-    | [] -> List.rev (if word = [] then acc else `Word (List.rev word) :: acc)
-    | c :: _ as l when is_space c ->
-        let rec spaces run = function
-          | c :: rest when is_space c -> spaces (c :: run) rest
-          | rest -> (List.rev run, rest)
-        in
-        let run, rest = spaces [] l in
-        let acc = if word = [] then acc else `Word (List.rev word) :: acc in
-        go (`Space run :: acc) [] rest
-    | c :: rest when c.g = "/" ->
-        go (`Word (List.rev (c :: word)) :: acc) [] rest
-    | c :: rest -> go acc (c :: word) rest
-  in
-  go [] [] cells
-
+(* The line broken into lines of at most [w] cells, those after the first
+   [hang] cells in. A line is kept as the ranges of clusters it shows. *)
 let wrap_line ~hang w line =
-  let indent =
-    List.init hang (fun _ -> { g = " "; w = 1; s = Style.none; l = None })
-  in
-  let lines = ref [] and cur = ref [] and cur_w = ref 0 and first = ref true in
+  let l = layout line in
+  let out = ref [] and cur = ref [] and cur_w = ref 0 and first = ref true in
   let room () = if !first then w else w - hang in
+  let add i j wd =
+    (match !cur with
+    | (a, b) :: rest when b = i -> cur := (a, j) :: rest
+    | _ -> cur := (i, j) :: !cur);
+    cur_w := !cur_w + wd
+  in
   let finish () =
-    let rec trim = function c :: rest when is_space c -> trim rest | l -> l in
-    let body = List.rev (trim !cur) in
-    let body = if !first then body else indent @ body in
-    lines := of_cells body :: !lines;
+    (* The spaces a break stands on are not drawn. *)
+    let rec trim = function
+      | (a, b) :: rest when b > a && is_space l (b - 1) ->
+          trim (if b - 1 > a then (a, b - 1) :: rest else rest)
+      | r -> r
+    in
+    let body =
+      List.concat_map (fun (a, b) -> sub l a b) (List.rev (trim !cur))
+    in
+    let body =
+      if !first || hang = 0 then body
+      else
+        { style = Style.none; link = None; text = String.make hang ' ' } :: body
+    in
+    out := body :: !out;
     cur := [];
     cur_w := 0;
     first := false
   in
-  let add c =
-    cur := c :: !cur;
-    cur_w := !cur_w + c.w
+  let range_width i j =
+    let n = ref 0 in
+    for k = i to j - 1 do
+      n := !n + cell_width l k
+    done;
+    !n
   in
-  let has_text () = List.exists (fun c -> not (is_space c)) !cur in
+  let has_text () =
+    List.exists
+      (fun (a, b) ->
+        let r = ref false in
+        for k = a to b - 1 do
+          if not (is_space l k) then r := true
+        done;
+        !r)
+      !cur
+  in
   (* A word wider than the room goes on where the room ends; a cluster wider
      than a whole line cannot be drawn and is left out. *)
-  let split word =
-    List.iter
-      (fun c ->
-        if c.w <= room () then begin
-          if !cur_w + c.w > room () then finish ();
-          add c
-        end)
-      word
+  let split i j =
+    for k = i to j - 1 do
+      let cw = cell_width l k in
+      if cw <= room () then begin
+        if !cur_w + cw > room () then finish ();
+        add k (k + 1) cw
+      end
+    done
   in
-  let rec place = function
-    | `Space run ->
-        if !cur = [] && not !first then ()
-        else if !cur_w + cells_width run <= room () then List.iter add run
-        else if !cur <> [] then finish ()
-    | `Word word ->
-        if !cur_w + cells_width word <= room () then List.iter add word
-        else if has_text () then begin
-          finish ();
-          place (`Word word)
+  let rec word i j =
+    let ww = range_width i j in
+    if !cur_w + ww <= room () then add i j ww
+    else if has_text () then begin
+      finish ();
+      word i j
+    end
+    else split i j
+  in
+  let spaces i j =
+    if !cur = [] && not !first then ()
+    else
+      let sw = range_width i j in
+      if !cur_w + sw <= room () then add i j sw
+      else if !cur <> [] then finish ()
+  in
+  (* Words end at a run of spaces, or after a slash. *)
+  let rec go i =
+    if i < l.n then
+      if is_space l i then begin
+        let j = ref i in
+        while !j < l.n && is_space l !j do
+          incr j
+        done;
+        spaces i !j;
+        go !j
+      end
+      else begin
+        let j = ref i and stop = ref false in
+        while (not !stop) && !j < l.n && not (is_space l !j) do
+          let slash = l.joined.[start l !j] = '/' in
+          incr j;
+          if slash then stop := true
+        done;
+        word i !j;
+        go !j
+      end
+  in
+  go 0;
+  if !cur <> [] || !out = [] then finish ();
+  List.rev !out
+
+let widest_word t =
+  List.fold_left
+    (fun acc line ->
+      let l = layout line in
+      let best = ref acc and run = ref 0 in
+      for i = 0 to l.n - 1 do
+        if is_space l i then run := 0
+        else begin
+          run := !run + cell_width l i;
+          best := max !best !run
         end
-        else split word
-  in
-  List.iter place (tokens (cells line));
-  if !cur <> [] || !lines = [] then finish ();
-  List.rev !lines
+      done;
+      !best)
+    0 (lines t)
 
 (* The cells a line's continuation hangs under: its leading spaces, its first
    word and the spaces after it, when more text follows. *)
 let hanging line =
-  let rec go n seen_word = function
-    | c :: rest when is_space c -> go (n + c.w) seen_word rest
-    | _ :: _ as l when not seen_word ->
-        let rec word n = function
-          | c :: rest when not (is_space c) -> word (n + c.w) rest
-          | rest -> (n, rest)
-        in
-        let n, rest = word n l in
-        go n true rest
-    | _ :: _ -> n
-    | [] -> 0
+  let l = layout line in
+  let i = ref 0 and w = ref 0 in
+  let skip p =
+    while !i < l.n && p !i do
+      w := !w + cell_width l !i;
+      incr i
+    done
   in
-  go 0 false (cells line)
+  skip (is_space l);
+  skip (fun k -> not (is_space l k));
+  skip (is_space l);
+  if !i >= l.n then 0 else !w
 
 let wrap_with ~hanging:h w t =
   if w <= 0 then invalid_arg "Console.Span.wrap: non-positive width";

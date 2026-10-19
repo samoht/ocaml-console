@@ -29,7 +29,7 @@ let render t span = Span.render ?depth:t.depth span
 let capacity t = max 0 (t.height - 1)
 
 let marker hidden =
-  Span.styled Style.faint (Fmt.str "  \xe2\x80\xa6 %d more lines" hidden)
+  Span.styled Style.faint (Printf.sprintf "  \xe2\x80\xa6 %d more lines" hidden)
 
 let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
 let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
@@ -86,7 +86,8 @@ let frame t =
 
 (* {1 Drawing} *)
 
-let add_up buf n = if n > 0 then Buffer.add_string buf (Fmt.str "\027[%dA" n)
+let add_up buf n =
+  if n > 0 then Buffer.add_string buf (Printf.sprintf "\027[%dA" n)
 
 (* The rows the frame on screen takes at [width]: a terminal that reflows
    its lines when it narrows has wrapped each old line onto more rows. *)
@@ -151,17 +152,26 @@ let draw buf t ~resized =
     t.frame_widths <- Array.of_list (List.map Span.width spans)
   end
 
+(* What a frame depends on: what the tasks were told, the tenth of a second
+   the timers and spinners show, and the terminal's size. A redraw with all
+   of them as they were draws nothing and computes nothing. *)
+let stamp t =
+  (t.changes, int_of_float ((t.now () -. t.start) *. 10.), t.width, t.height)
+
 let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
-    t.painted_at <- t.now ();
-    (* A narrower terminal has reflowed the old frame: it is cleared with
-       the old frame's rows counted at the new width. *)
-    let old = Array.length t.frame_widths in
     let resized = refresh_size t in
-    let buf = Buffer.create 256 in
-    if resized && old > 0 then clear buf t;
-    draw buf t ~resized;
-    write t (Buffer.contents buf)
+    let stamp = stamp t in
+    if resized || stamp <> t.painted || t.frame = [||] then begin
+      t.painted <- stamp;
+      t.painted_at <- t.now ();
+      (* A narrower terminal has reflowed the old frame: it is cleared with
+       the old frame's rows counted at the new width. *)
+      let buf = Buffer.create 256 in
+      if resized then clear buf t;
+      draw buf t ~resized;
+      write t (Buffer.contents buf)
+    end
   end
 
 (* A producer that reports often repaints at the eye's pace. *)
@@ -169,6 +179,7 @@ let paint_if_stale t = if t.now () -. t.painted_at >= 0.1 then paint t
 
 (* Lines printed once, above the region, which is drawn again below them. *)
 let commit t lines =
+  t.changes <- t.changes + 1;
   if is_live t then begin
     ignore (refresh_size t);
     let buf = Buffer.create 256 in

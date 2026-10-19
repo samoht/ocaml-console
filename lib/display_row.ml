@@ -100,7 +100,7 @@ let piece t r ~time (p : Display_line.piece) =
   | Bar n -> bar r n
   | Percent -> (
       match percent r.metric with
-      | Some p -> faint (Fmt.str "%3d%%" p)
+      | Some p -> faint (Printf.sprintf "%3d%%" p)
       | None -> Span.empty)
   | Count -> count_cell t r
   | Rate -> (
@@ -247,7 +247,7 @@ let header t =
     (fun h ->
       let meta =
         faint
-          (Fmt.str " %s (%d/%d)"
+          (Printf.sprintf " %s (%d/%d)"
              (Display_text.duration (t.now () -. t.start))
              t.finished t.started)
       in

@@ -93,6 +93,7 @@ val to_string : ?styled:bool -> t -> string
 
 val lines : t -> t list
 val wrap_hanging : int -> t -> t list
+val widest_word : t -> int
 val render : ?depth:Color.depth -> t -> string
 val pp_lines : t list Fmt.t
 val lines_to_string : ?styled:bool -> t list -> string
