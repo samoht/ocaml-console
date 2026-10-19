@@ -161,9 +161,88 @@ let test_wide_border n =
   let widths = List.map cells lines in
   List.iter (fun w -> check_eq ~pp:Fmt.int (List.hd widths) w) widths
 
+let themes =
+  Theme.
+    [
+      unicode;
+      dos;
+      matrix;
+      rainbow;
+      dracula;
+      nord;
+      solarized_dark;
+      solarized_light;
+      gruvbox_dark;
+      gruvbox_light;
+      catppuccin_latte;
+      catppuccin_mocha;
+      tokyo_night;
+      one_dark;
+      monokai;
+      github_dark;
+      github_light;
+    ]
+
+let check_marker_columns mixed s =
+  (* A marker in the next column gives an observable column boundary. *)
+  let t =
+    Table.of_rows ~border:Border.none
+      [ Table.column ~align:`Right ""; Table.column "|" ]
+      (List.map
+         (fun cell -> [ cell; Span.text "|" ])
+         [
+           mixed;
+           Span.text (Console_text.sanitize ~keep_newlines:false s);
+           Span.empty;
+         ])
+  in
+  let lines = String.split_on_char '\n' (Table.to_string t) in
+  let positions =
+    List.map
+      (fun line ->
+        let i = String.rindex line '|' in
+        cells (String.sub line 0 i))
+      lines
+  in
+  List.iter (fun p -> check_eq ~pp:Fmt.int (List.hd positions) p) positions
+
+let test_mixed_script_themes s n =
+  let mixed =
+    Span.(
+      styled Style.bold "\u{754c}e"
+      ++ styled (Style.fg Color.red) "\u{0301}\u{1f469}\u{200d}\u{1f4bb}"
+      ++ text " \u{0645}\u{0631}\u{062d}\u{0628}\u{0627} \u{1f1eb}\u{1f1f7}")
+  in
+  let rows =
+    [
+      [ mixed; Span.text "1" ];
+      [ Span.text s; Span.text "999" ];
+      [ Span.empty; Span.text "42" ];
+      [ Span.text "\n\n"; Span.empty ];
+    ]
+  in
+  let margin = 12 + (n mod 69) in
+  List.iter
+    (fun theme ->
+      let t =
+        Table.of_rows ~theme
+          [ Table.column "name"; Table.column ~align:`Right "size" ]
+          rows
+      in
+      let raw, lines = render Table.pp margin t in
+      check (String.is_valid_utf_8 raw);
+      check_fits margin lines;
+      check_closed raw;
+      let widths = List.map cells lines in
+      List.iter (fun w -> check_eq ~pp:Fmt.int (List.hd widths) w) widths)
+    themes;
+  check_marker_columns mixed s
+
 let suite =
   ( "table",
     [
+      test_case "mixed-script columns align in every theme" [ bytes; uint8 ]
+        test_mixed_script_themes;
       test_case "multi-cell borders stay rectangular" [ uint8 ] test_wide_border;
       test_case "huge minimum narrows to available width" [ uint8 ]
         test_huge_min_width;
