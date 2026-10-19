@@ -55,8 +55,7 @@ let table () =
     Table.[ column "Name"; column "Text"; column ~align:`Right "N" ]
   in
   Format.pp_set_margin null 120;
-  run "table 1k rows" ~n:10 (fun () ->
-      Table.pp null (Table.of_rows columns rows))
+  run "table 1k rows" ~n:10 (fun () -> Table.pp null (Table.v columns rows))
 
 let tree () =
   let leaf i = Tree.v (Fmt.kstr Span.text "leaf %d" i) [] in

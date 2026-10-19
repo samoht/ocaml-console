@@ -44,15 +44,15 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
   let header = Span.text header in
   { header; align; min_width; max_width; overflow; shrinkable; style }
 
-let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
+let v ?theme ?border ?(header_style = Style.bold) columns rows =
   let expected = List.length columns in
   let rows =
     List.map
       (fun cells ->
         let got = List.length cells in
         if got > expected || (got = 0 && expected > 0) then
-          Fmt.invalid_arg
-            "Console.Table.of_rows: expected 1 to %d cells, got %d" expected got;
+          Fmt.invalid_arg "Console.Table.v: expected 1 to %d cells, got %d"
+            expected got;
         Array.of_list (List.map Span_core.lines cells))
       rows
   in

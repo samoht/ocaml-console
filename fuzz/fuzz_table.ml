@@ -74,7 +74,7 @@ let table s =
     List.init 3 (fun r ->
         List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))
   in
-  (ncol, Table.of_rows ~border:Border.rounded columns rows)
+  (ncol, Table.v ~border:Border.rounded columns rows)
 
 (* No line is wider than the margin, every style is turned off, and a framed
    table that fits has all its lines as wide as one another. *)
@@ -95,7 +95,7 @@ let test_right_aligned s =
   let cells_of i = Span.text (pick s i) in
   let rows = List.init 4 (fun i -> [ cells_of i; Span.text "|" ]) in
   let t =
-    Table.of_rows ~border:Border.none
+    Table.v ~border:Border.none
       [ Table.column ~align:`Right "a"; Table.column "b" ]
       rows
   in
@@ -116,14 +116,14 @@ let test_right_aligned s =
 let test_shape s n =
   let k = abs n mod 4 in
   let rows = [ List.init k (fun i -> Span.text (pick s i)) ] in
-  match Table.of_rows [ Table.column "a"; Table.column "b" ] rows with
+  match Table.v [ Table.column "a"; Table.column "b" ] rows with
   | _ -> if k = 0 || k > 2 then fail "bad row accepted"
   | exception Invalid_argument _ -> if k >= 1 && k <= 2 then fail "row refused"
 
 let test_huge_min_width n =
   let minimum = max_int - (n mod 1024) in
   let t =
-    Table.of_rows
+    Table.v
       [ Table.column ~min_width:minimum "A"; Table.column "B" ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
@@ -152,7 +152,7 @@ let test_wide_border n =
         }
   in
   let t =
-    Table.of_rows ~border
+    Table.v ~border
       [ Table.column "A"; Table.column "B" ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
@@ -186,7 +186,7 @@ let themes =
 let check_marker_columns mixed s =
   (* A marker in the next column gives an observable column boundary. *)
   let t =
-    Table.of_rows ~border:Border.none
+    Table.v ~border:Border.none
       [ Table.column ~align:`Right ""; Table.column "|" ]
       (List.map
          (fun cell -> [ cell; Span.text "|" ])
@@ -225,7 +225,7 @@ let test_mixed_script_themes s n =
   List.iter
     (fun theme ->
       let t =
-        Table.of_rows ~theme
+        Table.v ~theme
           [ Table.column "name"; Table.column ~align:`Right "size" ]
           rows
       in

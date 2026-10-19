@@ -6,14 +6,14 @@
 open Console
 
 let of_string_rows ?theme ?border columns rows =
-  Table.of_rows ?theme ?border columns (List.map (List.map Span.text) rows)
+  Table.v ?theme ?border columns (List.map (List.map Span.text) rows)
 
 let contains pattern str = Re.execp (Re.compile (Re.str pattern)) str
 
 let test_basic () =
   let table =
     Table.(
-      of_rows
+      v
         [ column "A"; column "B" ]
         [ [ Span.text "1"; Span.text "2" ]; [ Span.text "3"; Span.text "4" ] ])
   in
@@ -22,14 +22,14 @@ let test_basic () =
   Alcotest.(check bool) "contains 1" true (contains "1" output)
 
 let test_empty () =
-  let table = Table.(of_rows [ column "X" ] []) in
+  let table = Table.(v [ column "X" ] []) in
   let output = Table.to_string table in
   Alcotest.(check bool) "contains X" true (contains "X" output)
 
 let test_wrap () =
   let table =
     Table.(
-      of_rows
+      v
         [ column ~max_width:10 ~overflow:`Wrap "Header" ]
         [ [ Span.text "hello world this wraps" ] ])
   in
@@ -80,9 +80,7 @@ let render renderer table =
 
 let test_formatter_gates_cell_styles () =
   let table =
-    Table.of_rows
-      [ Table.column "A" ]
-      [ [ Span.styled Style.(fg Color.red) "red" ] ]
+    Table.v [ Table.column "A" ] [ [ Span.styled Style.(fg Color.red) "red" ] ]
   in
   Alcotest.(check bool)
     "plain formatter has no escapes" false
@@ -93,7 +91,7 @@ let test_formatter_gates_cell_styles () =
 
 let test_link_cell () =
   let table =
-    Table.of_rows
+    Table.v
       [ Table.column "A" ]
       [ [ Span.link ~uri:"https://example.com" "docs" ] ]
   in
@@ -264,12 +262,12 @@ let test_invalid_shape () =
     (fun () -> ignore (Table.column ~min_width:3 ~max_width:2 "A"));
   let columns = [ Table.column "A"; Table.column "B" ] in
   Alcotest.check_raises "too many cells"
-    (Invalid_argument "Console.Table.of_rows: expected 1 to 2 cells, got 3")
+    (Invalid_argument "Console.Table.v: expected 1 to 2 cells, got 3")
     (fun () ->
-      ignore (Table.of_rows columns [ List.map Span.text [ "a"; "b"; "c" ] ]));
+      ignore (Table.v columns [ List.map Span.text [ "a"; "b"; "c" ] ]));
   Alcotest.check_raises "no cell"
-    (Invalid_argument "Console.Table.of_rows: expected 1 to 2 cells, got 0")
-    (fun () -> ignore (Table.of_rows columns [ [] ]))
+    (Invalid_argument "Console.Table.v: expected 1 to 2 cells, got 0")
+    (fun () -> ignore (Table.v columns [ [] ]))
 
 (* A [~shrinkable:false] column keeps its full width when the table is fitted to
    a narrow terminal; a shrinkable neighbour gives way instead. *)
@@ -278,7 +276,7 @@ let test_shrinkable_protects_column () =
   let detail = "1234567890" in
   let protected =
     Table.(
-      of_rows
+      v
         [
           column ~shrinkable:false "Package";
           column ~overflow:`Truncate "Detail";
@@ -290,7 +288,7 @@ let test_shrinkable_protects_column () =
     (contains long_name (Table.to_string ~width:35 protected));
   let shrinkable =
     Table.(
-      of_rows
+      v
         [ column ~overflow:`Truncate "Package"; column "Detail" ]
         [ [ Span.text long_name; Span.text detail ] ])
   in
@@ -337,7 +335,7 @@ let test_no_border_draws_no_edge () =
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
   let t =
-    Table.of_rows
+    Table.v
       ~border:(Border.with_style Style.(fg Color.red) Border.single)
       [ Table.column "a" ]
       [ [ Span.text "b" ] ]
@@ -361,7 +359,7 @@ let test_pp_ending () =
 
 let test_huge_min_width () =
   let t =
-    Table.of_rows
+    Table.v
       [ Table.column ~min_width:max_int "A"; Table.column "B" ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
@@ -394,7 +392,7 @@ let test_wide_border () =
         }
   in
   let t =
-    Table.of_rows ~border
+    Table.v ~border
       [ Table.column "A"; Table.column "B" ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in

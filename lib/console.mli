@@ -50,7 +50,7 @@
     let demo_table () =
       let table =
         Table.(
-          of_rows ~border:Border.rounded
+          v ~border:Border.rounded
             [ column "Name"; column ~align:`Right "Age" ]
             [
               [ Span.text "Alice"; Span.text "30" ];

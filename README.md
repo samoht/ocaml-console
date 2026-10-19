@@ -146,7 +146,7 @@ open Console
 
 let print_files () =
   let table = Table.(
-    of_rows ~border:Border.rounded
+    v ~border:Border.rounded
       [ column "Name"; column ~align:`Right "Size"; column "Modified" ]
       [
         [ Span.text "README.md"; Span.text "2.4K"; Span.text "2 hours ago" ];

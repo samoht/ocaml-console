@@ -52,14 +52,14 @@ val column :
 
 (** {1:tables Tables} *)
 
-val of_rows :
+val v :
   ?theme:Theme.t ->
   ?border:Border.t ->
   ?header_style:Style.t ->
   column list ->
   Span.t list list ->
   t
-(** [of_rows columns rows] is the table of [rows] under [columns]. The frame is
+(** [v columns rows] is the table of [rows] under [columns]. The frame is
     [border] if given, else [theme]'s, else {!Border.single}; the headers are in
     [header_style] (defaults to {!Style.bold}). A cell may hold line feeds,
     which start new lines inside its row.

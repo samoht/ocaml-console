@@ -32,7 +32,7 @@ let themes =
 let widgets theme =
   let accent = Style.(bold + fg (Theme.accent theme)) in
   let table =
-    Table.of_rows ~theme
+    Table.v ~theme
       [ Table.column "Package"; Table.column ~align:`Right "Size" ]
       [
         [ Span.styled accent "console"; Span.text "42 KiB" ];
