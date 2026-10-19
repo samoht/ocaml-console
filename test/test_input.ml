@@ -262,9 +262,16 @@ let test_crlf () =
   Alcotest.(check string) "LF becomes CRLF" "a\r\nb\r\n" (Input.crlf "a\nb\n");
   Alcotest.(check string) "no LF unchanged" "abc" (Input.crlf "abc")
 
+let test_complete_utf8 () =
+  let t = Input.v ~complete:(fun _ -> [ "é"; "ê" ]) () in
+  ignore (Input.feed t "\t");
+  Alcotest.(check string) "no complete character is shared" "" (Input.pending t)
+
 let suite =
   ( "input",
     [
+      Alcotest.test_case "completion inserts only complete UTF-8 characters"
+        `Quick test_complete_utf8;
       Alcotest.test_case "printable" `Quick test_printable;
       Alcotest.test_case "submit on CR" `Quick test_submit_cr;
       Alcotest.test_case "submit on LF" `Quick test_submit_lf;
