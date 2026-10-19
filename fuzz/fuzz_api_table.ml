@@ -12,7 +12,7 @@ let test s n =
        with Invalid_argument _ -> true)
   else begin
     let col =
-      Table.column ~min_width:lo ~max_width:hi ~align:`Right ~overflow:`Elide
+      Table.column ~min_width:lo ~max_width:hi ~align:`Right ~overflow:`Truncate
         ~style:Style.bold s
     in
     let t = Table.of_rows [ col ] [ [ Span.text s ] ] in

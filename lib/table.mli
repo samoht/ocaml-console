@@ -14,10 +14,10 @@
 type align = [ `Left | `Center | `Right ]
 (** The type for column alignments. *)
 
-type overflow = [ `Wrap | `Elide ]
+type overflow = [ `Wrap | `Truncate ]
 (** The type for what a cell wider than its column does: [`Wrap] goes on over
-    several lines, and [`Elide] keeps one line and says what it left out, such
-    as [a, b and 3 more]. *)
+    several lines ({!Span.wrap}), and [`Truncate] keeps one line ended with an
+    ellipsis ({!Span.truncate}). *)
 
 type column
 (** The type for column specifications. *)

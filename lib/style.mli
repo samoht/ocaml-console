@@ -72,9 +72,10 @@ val shows_on_space : t -> bool
 (** [shows_on_space s] is [true] iff a space drawn in [s] looks different from
     an unstyled one. *)
 
-val to_ansi : t -> string
-(** [to_ansi s] is the escape code that starts [s] on its first cell, or [""]
-    for {!none}. *)
+val to_ansi : ?depth:Color.depth -> t -> string
+(** [to_ansi ~depth s] is the escape code that starts [s], its colours as a
+    terminal of [depth] shows them (defaults to [`True_color]), or [""] for
+    {!none}. *)
 
 val reset : string
 (** [reset] is the escape code that turns every attribute off. *)

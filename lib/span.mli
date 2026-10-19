@@ -1,13 +1,23 @@
 (*---------------------------------------------------------------------------
-  Copyright (c) 2025 Thomas Gazagnaire. All rights reserved.
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
 (** Styled text.
 
-    A span is a sequence of runs of text, each carrying a {!Style.t} and
-    optionally a hyperlink. It is the unit every widget lays out, measured in
-    terminal cells. *)
+    A span is text in one or more {!Style.t}s, parts of it possibly a link. It
+    is the text every widget lays out.
+
+    A span only holds text that prints: the constructors replace each control
+    character but the line feed with a space and each malformed UTF-8 sequence
+    with U+FFFD, so no span can move the cursor or change the colours of what
+    follows it. A line feed starts a new line, and the functions below work line
+    by line.
+
+    Widths are counted in terminal cells, as a terminal draws the text: a wide
+    character, such as a Chinese one or an emoji, takes two cells and an accent
+    added to a letter takes none, even when the accent is in another style than
+    the letter. *)
 
 (** {1:spans Spans} *)
 
@@ -29,7 +39,7 @@ val link : ?style:Style.t -> uri:string -> string -> t
     opens on a click. Printed without colours, it is [label] alone.
 
     @raise Invalid_argument
-      if [uri] is empty or holds a space or a control character. *)
+      if [uri] is empty or holds a byte outside the printable ASCII range. *)
 
 val ( ++ ) : t -> t -> t
 (** [s0 ++ s1] is [s0] followed by [s1]. *)
@@ -39,55 +49,52 @@ val concat : ?sep:t -> t list -> t
     between each two. *)
 
 val with_style : Style.t -> t -> t
-(** [with_style base s] is [s] with [base] composed underneath each of its
-    styles: [Style.(base + style)] for each run's [style]. *)
-
-val sanitize : ?keep_newlines:bool -> t -> t
-(** [sanitize s] is [s] with its text made {!Console_text.sanitize}d, its styles
-    and hyperlinks kept. Line feeds survive unless [keep_newlines] is [false].
-*)
-
-val split_lines : t -> t list
-(** [split_lines s] are the lines of [s], split at line feeds, styles kept. The
-    list is never empty: {!empty} is one empty line. *)
+(** [with_style base s] is [s] with [base] under each of its styles: each part
+    of [s] in [style] is in [Style.(base + style)]. *)
 
 (** {1:measuring Measuring and fitting} *)
 
 val width : t -> int
-(** [width s] is the number of terminal cells [s] takes: a wide character, such
-    as a Chinese one or an emoji, takes two, and an accent added to a letter
-    none. *)
+(** [width s] is the number of cells the widest line of [s] takes. The invariant
+    [width (s0 ++ s1) <= width s0 + width s1] holds. *)
 
 val truncate : int -> t -> t
-(** [truncate w s] is the longest prefix of [s] that fits in [w] terminal cells,
-    styles and hyperlinks kept. It is {!empty} if [w] is not positive. *)
+(** [truncate w s] is [s] with each line wider than [w] cells cut between two
+    characters and ended with an ellipsis ["…"], within [w] cells. Lines that
+    fit are kept as they are, and so are the styles and links of what is kept.
+    It is {!empty} if [w] is not positive. The invariants
+    [width (truncate w s) <= max 0 w] and [truncate w s = s] when [width s <= w]
+    hold. *)
 
 val wrap : int -> t -> t list
-(** [wrap w s] is the single-line span [s] broken at spaces and path separators
-    into lines of at most [w] cells, styles and hyperlinks kept on every line. A
-    word wider than [w] is continued on the next line where the room ends, so
-    every character is printed.
+(** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.
+    A line breaks at a run of spaces, which the break removes, or after a slash;
+    the spaces inside a line and its leading ones are kept. A word wider than
+    [w] goes on over the next lines, broken where the room ends. A character
+    wider than [w] (a wide one when [w] is [1]) cannot be drawn and is left out.
+    The result is never empty, and every other non-space character of [s] is in
+    it, in order, styles and links kept.
 
     @raise Invalid_argument if [w] is not positive. *)
 
-(** {1:fmt Formatting}
-
-    Rendering follows the style renderer of the formatter,
-    {!Fmt.style_renderer}, which [Console_eio.setup] sets from [--color],
-    [NO_COLOR] and [TERM] ({!Console.style_renderer}). *)
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a span, with ANSI styling iff the formatter's style renderer is
-    [`Ansi_tty]. *)
+(** [pp] formats a span with its styles and links iff the formatter's style
+    renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
+    formatter's {!Color.depth} shows them. Each style that is turned on is
+    turned off after the text it covers. *)
 
 val to_string : ?styled:bool -> t -> string
-(** [to_string s] is [s] rendered with ANSI styling iff [styled] (defaults to
-    [false], the plain text of [s]). *)
+(** [to_string s] is [s] with its styles and links iff [styled] (defaults to
+    [false]), in 24-bit colour. *)
 
 (**/**)
 
+val lines : t -> t list
 val wrap_hanging : int -> t -> t list
-(** [wrap_hanging w s] is like {!wrap} but each line after the first starts
-    under the text after the first word of [s]. *)
+val render : ?depth:Color.depth -> t -> string
+val pp_lines : t list Fmt.t
+val lines_to_string : ?styled:bool -> t list -> string
 
 (**/**)

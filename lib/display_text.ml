@@ -27,7 +27,7 @@ let elapsed_cell = 6
 (* Caller text is validated before it participates in width budgeting: a
    malformed sequence occupies a replacement-glyph cell in real terminals and
    controls could otherwise inject escapes or desynchronise redraw geometry. *)
-let sanitize = Render.sanitize ~keep_newlines:false
+let sanitize = Console_text.sanitize ~keep_newlines:false
 
 let lines s =
   if s = "" then []

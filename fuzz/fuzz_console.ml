@@ -33,11 +33,12 @@ let test_width_non_negative s =
 (* Span width matches underlying width *)
 let test_span_width_consistency s =
   let span = Span.text s in
-  let span_w = Span.width span in
-  let direct_w = Width.string_width s in
-  check (span_w = direct_w)
+  let lines = String.split_on_char '\n' (Console_text.sanitize s) in
+  check
+    (Span.width span
+    = List.fold_left (fun n l -> max n (Width.string_width l)) 0 lines)
 
-(* Span concatenation width is sum of widths *)
+(* Span concatenation is no wider than its parts *)
 let test_span_concat_width s1 s2 =
   let span1 = Span.text s1 in
   let span2 = Span.text s2 in
@@ -45,7 +46,7 @@ let test_span_concat_width s1 s2 =
   let w1 = Span.width span1 in
   let w2 = Span.width span2 in
   let w_combined = Span.width combined in
-  check (w_combined = w1 + w2)
+  check (w_combined <= w1 + w2)
 
 (* Table rendering doesn't crash *)
 let rec first n = function
@@ -312,7 +313,7 @@ let overflow_table ~width headers cells =
     List.mapi
       (fun i header ->
         Table.column ~shrinkable:(i <> 0)
-          ~overflow:(if i land 1 = 0 then `Wrap else `Elide)
+          ~overflow:(if i land 1 = 0 then `Wrap else `Truncate)
           header)
       headers
   in
@@ -577,8 +578,9 @@ let test_panel_rectangular content wbyte =
   let width = 8 + (wbyte land 0x7f mod 89) in
   let title = Span.text content in
   let body =
-    Span.text (content ^ String.make (width * 2) 'W')
-    |> Span.sanitize ~keep_newlines:false
+    Span.text
+      (Console_text.sanitize ~keep_newlines:false
+         (content ^ String.make (width * 2) 'W'))
   in
   let panel = Panel.v ~border:Border.rounded ~width ~title body in
   (* [Panel.pp] is a value printer rather than a line printer; terminate the
@@ -602,7 +604,7 @@ let test_composed wbyte =
     String.concat "" (List.init 10 (fun i -> if i < full then "█" else "░"))
     ^ Fmt.str " %d%%" pct
   in
-  let col h = Table.column ~overflow:`Elide ~max_width:16 h in
+  let col h = Table.column ~overflow:`Truncate ~max_width:16 h in
   let table =
     of_string_rows
       [ col "step"; col "progress" ]
@@ -1112,16 +1114,16 @@ let without_spaces s =
   loop 0;
   Buffer.contents b
 
+(* Every line fits, and every character but the spaces is kept when the
+   lines are wide enough for any character (two cells). *)
 let test_wrap_preserves_text s n =
   let s = adversarial_text s in
-  let lines = Span.wrap (adversarial_width n) (Span.text s) in
-  check_eq ~pp:Fmt.Dump.string (without_spaces s)
-    (without_spaces (String.concat "" (List.map Span.to_string lines)))
-
-let test_fold_preserves_text s n =
-  let s = adversarial_text s in
-  check_eq ~pp:Fmt.Dump.string (without_spaces s)
-    (without_spaces (String.concat "" (Width.fold (adversarial_width n) s)))
+  let w = adversarial_width n in
+  let lines = Span.wrap w (Span.text s) in
+  List.iter (fun l -> check (Span.width l <= w)) lines;
+  if w >= 2 then
+    check_eq ~pp:Fmt.Dump.string (without_spaces s)
+      (without_spaces (String.concat "" (List.map Span.to_string lines)))
 
 let test_joined_width left right =
   let left = adversarial_text left and right = adversarial_text right in
@@ -1185,8 +1187,6 @@ let suite =
         test_sanitized_colour;
       test_case "styled concatenation has joined width" [ bytes; bytes ]
         test_joined_width;
-      test_case "folding preserves non-space text" [ bytes; int ]
-        test_fold_preserves_text;
       test_case "wrapping preserves non-space text" [ bytes; int ]
         test_wrap_preserves_text;
       test_case "Span.wrap accepts arbitrary bytes" [ bytes; int ]

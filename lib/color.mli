@@ -122,6 +122,14 @@ val depth_of_env : (string -> string option) -> depth
     - [`Ansi_256] if [TERM] contains [256color];
     - [`Ansi_16] otherwise. *)
 
+val depth : Format.formatter -> depth
+(** [depth ppf] is the colour depth of [ppf]: the colours every printer of this
+    library writes on [ppf] are {!downsample}d to it. If {!set_depth} has never
+    been called on [ppf] this is [`True_color]. *)
+
+val set_depth : Format.formatter -> depth -> unit
+(** [set_depth ppf d] sets the colour depth of [ppf] to [d]. *)
+
 val downsample : depth -> t -> t
 (** [downsample d c] is [c] as a terminal of depth [d] shows it:
     - [c] itself at [`True_color], and for a colour already in the palette of

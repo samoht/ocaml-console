@@ -166,7 +166,7 @@ let test_formatter_margin_never_wraps_border () =
     (List.length logical_rows, 0)
     (Vte.cursor_pos vte)
 
-(* Every practical narrow width is a hard limit. Protected columns, preferred minima, wide glyphs, combining
+(* Every narrow width is a hard limit. Protected columns, preferred minima, wide glyphs, combining
    marks, control bytes and malformed UTF-8 are all incapable of overriding the
    terminal margin. This catches the whole right-border-wrap family, including
    one-cell errors at column-selection boundaries. *)
@@ -185,7 +185,7 @@ let test_every_margin_is_a_hard_limit () =
       (fun i header ->
         Table.column ~min_width:12
           ~shrinkable:(i mod 2 = 0)
-          ~overflow:(if i mod 2 = 0 then `Wrap else `Elide)
+          ~overflow:(if i mod 2 = 0 then `Wrap else `Truncate)
           header)
       hostile
   in
@@ -232,12 +232,15 @@ let test_every_margin_is_a_hard_limit () =
           (List.exists
              (fun edge -> String.starts_with ~prefix:edge row)
              [ "╭"; "│"; "├"; "╰" ]);
+        (* Five columns and their borders take 16 cells at the least;
+           below that, every line is cut where it reaches the margin and
+           says so, rather than a column being left out. *)
         Alcotest.(check bool)
-          (Fmt.str "right border at width %d" width)
+          (Fmt.str "right border or a cut at width %d" width)
           true
           (List.exists
              (fun edge -> String.ends_with ~suffix:edge row)
-             [ "╮"; "│"; "┤"; "╯" ]);
+             (if width >= 16 then [ "╮"; "│"; "┤"; "╯" ] else [ "…" ]));
         Alcotest.(check int)
           (Fmt.str "visual row at width %d" width)
           width (Width.string_width row))
@@ -272,7 +275,10 @@ let test_shrinkable_protects_column () =
   let protected =
     Table.(
       of_rows
-        [ column ~shrinkable:false "Package"; column ~overflow:`Elide "Detail" ]
+        [
+          column ~shrinkable:false "Package";
+          column ~overflow:`Truncate "Detail";
+        ]
         [ [ Span.text long_name; Span.text detail ] ])
   in
   Alcotest.(check bool)
@@ -281,7 +287,7 @@ let test_shrinkable_protects_column () =
   let shrinkable =
     Table.(
       of_rows
-        [ column ~overflow:`Elide "Package"; column "Detail" ]
+        [ column ~overflow:`Truncate "Package"; column "Detail" ]
         [ [ Span.text long_name; Span.text detail ] ])
   in
   Alcotest.(check bool)

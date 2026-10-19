@@ -31,7 +31,7 @@ let test_label () =
 (* A label wider than the line is cut to it, not refused. *)
 let test_long_label_is_cut () =
   Alcotest.(check string)
-    "cut to the margin" "lon"
+    "cut to the margin" "lo…"
     (at 3 (Rule.v ~label:(Span.text "long") ()))
 
 let test_invalid () =

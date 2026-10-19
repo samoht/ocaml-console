@@ -9,3 +9,6 @@ val border :
   ?theme:Theme.t -> ?border:Border.t -> default:Border.t -> unit -> Border.t
 (** [border] resolves an explicit border, then a theme border, then [default].
 *)
+
+val one_line : Span.t -> Span.t
+(** [one_line s] is [s] with each line feed a space. *)

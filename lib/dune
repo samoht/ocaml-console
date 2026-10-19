@@ -6,8 +6,6 @@
  ; helpers, and the pieces of Display. None is part of the public API.
  (private_modules
   ansi
-  paint
-  render
   widget
   width
   display_activity

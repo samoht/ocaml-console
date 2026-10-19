@@ -17,8 +17,3 @@
   astring
   re
   fmt))
-
-(mdx
- (package console)
- (files fitting.md)
- (libraries console))

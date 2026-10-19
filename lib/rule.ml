@@ -16,7 +16,7 @@ let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?(label = Span.empty) ()
     | None, Some theme -> Style.fg (Theme.accent theme)
     | None, None -> Style.faint
   in
-  { style; glyph; align; label = Span.sanitize ~keep_newlines:false label }
+  { style; glyph; align; label = Widget.one_line label }
 
 let space = Span.text " "
 

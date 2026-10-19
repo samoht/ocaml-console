@@ -76,21 +76,16 @@ let shows_on_space style =
 let foreground style = style.fg
 let background style = style.bg
 
-let to_ansi style =
-  let codes = bool_attrs style in
+let to_ansi ?(depth = `True_color) style =
+  let colour code c = code (Color.downsample depth c) in
   let codes =
-    match foreground style with
-    | Some c -> codes @ [ Color.to_fg_code c ]
-    | None -> codes
-  in
-  let codes =
-    match background style with
-    | Some c -> codes @ [ Color.to_bg_code c ]
-    | None -> codes
+    bool_attrs style
+    @ Option.to_list (Option.map (colour Color.to_fg_code) style.fg)
+    @ Option.to_list (Option.map (colour Color.to_bg_code) style.bg)
   in
   match codes with
   | [] -> ""
-  | _ -> Fmt.str "\027[%sm" (String.concat ";" codes)
+  | _ -> String.concat "" [ "\027["; String.concat ";" codes; "m" ]
 
 let reset = "\027[0m"
 
