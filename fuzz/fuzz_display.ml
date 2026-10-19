@@ -335,9 +335,48 @@ let test_pipe_attribution n =
   let nonempty = List.filter (( <> ) "") (String.split_on_char '\n' out) in
   check (has "SUMMARY" (List.hd (List.rev nonempty)))
 
+let test_output_exception s cancel =
+  let t = terminal ~width:40 ~height:8 ~styled:true in
+  let d = display t in
+  ignore (Display.task d "interrupted");
+  Display.redraw d;
+  let partial = Console_text.sanitize ~keep_newlines:false s in
+  let partial = Span.to_string (Span.truncate 30 (Span.text partial)) in
+  (match
+     Display.with_output d (fun ppf ->
+         t.in_output := true;
+         Fun.protect
+           (fun () ->
+             Fmt.pf ppf "%s" partial;
+             raise Exit)
+           ~finally:(fun () -> t.in_output := false))
+   with
+  | _ -> fail "callback exception swallowed"
+  | exception Exit -> ());
+  Display.redraw d;
+  check_screen t;
+  Display.close ~running:(if cancel then `Cancel else `Succeed) d;
+  check (Vte.cursor_visible t.vte);
+  check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte));
+  let y, _ = Vte.cursor_pos t.vte in
+  Vte.feed_string t.vte "AFTER";
+  check (has "AFTER" (List.nth (screen t.vte) y));
+  let grid = Vte.grid t.vte in
+  let index = Grid.idx grid ~x:0 ~y in
+  let reference = Vte.create ~rows:8 ~cols:40 () in
+  Vte.feed_string reference "AFTER";
+  let plain = Vte.grid reference in
+  let first = Grid.idx plain ~x:0 ~y:0 in
+  check (Grid.get_fg_r grid index = Grid.get_fg_r plain first);
+  check (Grid.get_fg_g grid index = Grid.get_fg_g plain first);
+  check (Grid.get_fg_b grid index = Grid.get_fg_b plain first);
+  check (Grid.get_bg_r grid index = Grid.get_bg_r plain first)
+
 let suite =
   ( "display",
     [
+      test_case "callback exceptions restore a usable terminal" [ bytes; bool ]
+        test_output_exception;
       test_case "pipe logs retain order and task attribution" [ uint8 ]
         test_pipe_attribution;
       test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
