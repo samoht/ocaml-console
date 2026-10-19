@@ -91,16 +91,18 @@ val map_color : ?fg:(Color.t -> Color.t) -> ?bg:(Color.t -> Color.t) -> t -> t
     [bg] to its background colour (each defaults to the identity), every stop of
     a gradient included. *)
 
-(** {1:ansi ANSI escapes} *)
-
-val to_ansi : t -> string
-(** [to_ansi s] is the SGR escape sequence that enables [at ~row:0 ~column:0 s],
-    or [""] for {!none}. *)
-
-val reset : string
-(** [reset] is the SGR escape sequence that resets every attribute. *)
-
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)
+
+(**/**)
+
+val to_ansi : t -> string
+(** [to_ansi s] is the escape code that starts [s] on its first cell, or [""]
+    for {!none}. *)
+
+val reset : string
+(** [reset] is the escape code that turns every attribute off. *)
+
+(**/**)

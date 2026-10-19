@@ -440,19 +440,6 @@ let pp_with ?max_width ppf t =
     (render_lines ?max_width t);
   Paint.close p
 
-let lines ?width t =
-  let border = Border.style t.border in
-  List.map
-    (fun line ->
-      Span.concat
-        (List.map
-           (function
-             | Edge s -> Span.styled border s
-             | Gap s -> Span.text s
-             | Cell (style, span) -> Span.with_style style span)
-           line))
-    (render_lines ?max_width:width t)
-
 let pp ppf t =
   let max_width = Format.pp_get_margin ppf () in
   pp_with ~max_width ppf t

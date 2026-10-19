@@ -7,8 +7,5 @@ val run :
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a
-(** [run ~sw ~ctx f] is the only Eio-specific display operation. It scopes
-    terminal ownership, drives refreshes by waiting on [ctx]'s own clock
-    ({!Console.Display.wait}), and routes {!Logs} messages into permanent
-    session history. The callback receives the ordinary {!Console.Display.t};
-    all task and semantic operations remain in {!Console.Display}. *)
+(** [run ~ctx f] is {!Console.Display.run} [~ctx f] with the rows redrawn on
+    [ctx]'s clock and {!Logs} messages printed above them. *)

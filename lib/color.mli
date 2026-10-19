@@ -153,16 +153,18 @@ val downsample : depth -> t -> t
       (the distance in CIE L*a*b*, D65 white), against the xterm defaults of the
       16. *)
 
-(** {1:ansi_codes ANSI codes} *)
-
-val to_fg_code : t -> string
-(** [to_fg_code c] is the SGR parameters that set the foreground to [c], without
-    the leading [ESC\[] and the final [m]. *)
-
-val to_bg_code : t -> string
-(** [to_bg_code c] is like {!to_fg_code} for the background. *)
-
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
 (** [pp] formats a colour for diagnostics, in an unspecified format. *)
+
+(**/**)
+
+val to_fg_code : t -> string
+(** [to_fg_code c] is the parameters of the escape code that sets the text
+    colour to [c]. *)
+
+val to_bg_code : t -> string
+(** [to_bg_code c] is like {!to_fg_code} for the background. *)
+
+(**/**)

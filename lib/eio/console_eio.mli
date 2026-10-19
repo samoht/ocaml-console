@@ -40,10 +40,10 @@ val run :
 
 val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 (** [setup ~style_renderer ()] turns colour on for {!Fmt.stdout} and
-    {!Fmt.stderr} where they are terminals, as {!Console.style_renderer} of
-    [style_renderer] (the value of a [--color] option) and the environment
-    decide. A program that prints widgets without a display calls it once,
-    first. *)
+    {!Fmt.stderr} where they are terminals, unless [NO_COLOR] is set or [TERM]
+    is unset or [dumb]. [style_renderer], the value of a [--color] option,
+    decides instead when given. A program that prints widgets without a display
+    calls it once, first. *)
 
 (**/**)
 

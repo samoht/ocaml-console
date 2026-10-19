@@ -74,20 +74,11 @@ staging  1 queued and 2 more
 - : unit = ()
 ```
 
-`Table.lines` is the same lines as styled spans, for a live screen to draw.
-
-```ocaml
-# List.map Span.to_string (Table.lines ~width:70 table)
-- : string list =
-["fix      stuck  changed paths: _build/p1 and 3999 more     /pool/fix.3";
- "staging  1 queued and 2 more"; "  14:05 queued fix for staging"]
-```
-
 A cut keeps the style of what it kept.
 
 ```ocaml
 # let bold = Table.of_rows ~border:Border.none [ reason ] [ [ Span.styled Style.bold changed ] ]
 val bold : Table.t = <abstr>
-# List.map (Span.to_string ~styled:true) (Table.lines ~width:40 bold)
-- : string list = ["\027[1mchanged paths: _build/p1\027[0m and 3999 more"]
+# Table.to_string ~styled:true ~width:40 bold
+- : string = "\027[1mchanged paths: _build/p1\027[0m and 3999 more\n"
 ```

@@ -25,8 +25,8 @@ val styled : Style.t -> string -> t
 
 val link : ?style:Style.t -> uri:string -> string -> t
 (** [link ~style ~uri label] is [label] drawn in [style] (defaults to
-    {!Style.none}) as a hyperlink to [uri]: an OSC 8 hyperlink when rendered
-    with ANSI, [label] alone when rendered plain.
+    {!Style.none}) as a link to [uri], which a terminal that supports links
+    opens on a click. Printed without colours, it is [label] alone.
 
     @raise Invalid_argument
       if [uri] is empty or holds a space or a control character. *)

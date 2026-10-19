@@ -5,23 +5,16 @@
 
 (** What a terminal recording put on the screen.
 
-    A capture of a command that draws a live region is a byte stream, and a byte
-    stream is not what its reader saw: the region moves the cursor up and
-    rewrites, so counting the lines in a capture counts redraws rather than
-    rows, and the stream has no clock, so a screen that sat still for a minute
-    reads the same as one that never stopped. Only a terminal emulator says what
-    the screen held, and only the record boundaries say when.
-
-    Both are here so that a command line grading its own live region reads it
-    off the same instrument this library grades its own frames with, rather than
-    writing a second one. *)
+    A recording of a program that redraws lines in place holds every redraw, so
+    reading it as text does not say what the screen showed. These functions
+    replay a recording into a terminal emulator and read the screen after each
+    write, with the time of the write. This library is [console.vte]. *)
 
 val screen : ?scrollback:bool -> Vte.t -> string list
 (** [screen vte] is the emulator's visible screen: one string per row, trailing
     blanks removed, and the blank rows at the bottom dropped. [scrollback]
     (default [false]) puts the lines that have already scrolled off the top in
-    front of it, which a session's permanent history needs and a bounded live
-    region does not. *)
+    front of it. *)
 
 val records : string -> (float * string) list
 (** [records recording] is what the recorded program wrote and when, oldest

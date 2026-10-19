@@ -3,10 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tables with headers, alignment and borders.
+(** Tables with headers and aligned columns.
 
-    A table is a list of {!type-column}s and rows of styled cells, drawn in a
-    {!Border} and fitted to the width it is given. *)
+    A table is a list of {!type-column}s and rows of cells, drawn in a
+    {!Border}. A table wider than the room it is given narrows its columns until
+    it fits. *)
 
 (** {1:columns Columns} *)
 
@@ -14,10 +15,9 @@ type align = [ `Left | `Center | `Right ]
 (** The type for column alignments. *)
 
 type overflow = [ `Wrap | `Elide ]
-(** The type for the handling of content wider than a column's [max_width].
-
-    - [`Wrap] wraps to several lines.
-    - [`Elide] keeps one line that says what it left out. *)
+(** The type for what a cell wider than its column does: [`Wrap] goes on over
+    several lines, and [`Elide] keeps one line and says what it left out, such
+    as [a, b and 3 more]. *)
 
 type column
 (** The type for column specifications. *)
@@ -34,19 +34,20 @@ val column :
   ?style:Style.t ->
   string ->
   column
-(** [column ?align ?min_width ?max_width ?overflow ?shrinkable ?style header] is
-    a column specification.
+(** [column header] is a column headed [header], such that:
 
-    - [align] is the text alignment (default [`Left]).
-    - [min_width] is the preferred minimum column width. Terminal fitting may
-      reduce it as a last resort rather than overflow.
-    - [max_width] is the maximum column width.
-    - [overflow] is how content beyond [max_width] is handled (default [`Wrap]).
-    - [shrinkable] (default [true]) sets fitting priority. A [false] column is
-      protected until shrinkable columns have yielded, but may still be reduced
-      rather than violate the output width.
-    - [style] is applied to every cell in the column.
-    - [header] is the column header text. *)
+    - [align] places the cells in the column (defaults to [`Left]);
+    - [min_width] and [max_width] bound its width, in cells; the table goes
+      below [min_width] only when nothing else fits;
+    - [overflow] is what a cell wider than the column does (defaults to
+      [`Wrap]);
+    - [shrinkable] (defaults to [true]) at [false] makes the column the last to
+      narrow;
+    - [style] is the style of its cells (defaults to {!Style.none}).
+
+    @raise Invalid_argument
+      if [min_width] or [max_width] is negative, or [min_width] is above
+      [max_width]. *)
 
 (** {1:tables Tables} *)
 
@@ -71,20 +72,11 @@ val of_rows :
 
 (** {1:converting Converting} *)
 
-val lines : ?width:int -> t -> Span.t list
-(** [lines table] is each physical row of [table] as a styled span, the lines
-    {!to_string} renders, for a live screen to draw. [width], when supplied, is
-    a hard maximum for every one. A border's gradient is taken along each line.
-*)
-
 val to_string : ?styled:bool -> ?width:int -> t -> string
-(** [to_string table] is [table] rendered with ANSI styling iff [styled]
-    (defaults to [false]). [width], when supplied, is a hard maximum for every
-    physical row. *)
+(** [to_string table] is [table] at its natural width, or at most [width] cells
+    wide if given, with colours iff [styled] (defaults to [false]). *)
 
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a table fitted to the formatter's margin, following its style
-    renderer. No physical row exceeds the margin; fitting preferences never
-    override it. *)
+(** [pp] formats a table no wider than the formatter's margin. *)

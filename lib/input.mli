@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Cooked terminal input: a line editor.
+(** A line editor.
 
     It accumulates printable input into a line, echoes what was typed, erases on
     backspace, recalls earlier lines with the up and down arrows, completes the
