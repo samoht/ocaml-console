@@ -246,8 +246,7 @@ let test_display_invariants s =
     List.iter (fun k -> check (count_in rows k <= 1)) !all;
     List.iter (fun r -> check (List.length (Re.all task_re r) <= 1)) rows
   in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-    ~mode:`Activity ~width ~height ~header (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) ~header (fun d ->
       invariant ();
       String.iter
         (fun c ->
@@ -393,8 +392,8 @@ let test_collapse n =
   let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   let screen =
-    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) ~header:"[H]"
+      (fun d ->
         let tasks =
           List.init n (fun i ->
               let i = i + 1 in
@@ -427,8 +426,7 @@ let test_nesting depth =
   let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
   let rows =
-    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-      ~mode:`Activity ~width ~height (fun d ->
+    Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) (fun d ->
         let rec build parent tasks i =
           if i > depth then tasks
           else
@@ -469,8 +467,7 @@ let test_bar cur total wbyte =
   let now = ticking_clock () in
   let vte = Vte.create ~rows:4 ~cols:width () in
   let layout = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
-    ~mode:`Activity ~width ~height:4 ~layout (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4) ~layout (fun d ->
       let task = Display.task d "[B]" in
       Display.set_count task ~cur ~total;
       Display.tick d;
@@ -623,8 +620,8 @@ let test_composed wbyte =
   let ppf = Format.formatter_of_buffer buf in
   let now = ticking_clock () in
   let vte = Vte.create ~rows:12 ~cols:width () in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:12)
-    ~mode:`Activity ~width ~height:12 ~header:"[H]" (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:12) ~header:"[H]"
+    (fun d ->
       let task = Display.task ~log_lines:8 d "[T] task" in
       List.iter (Display.log task) (String.split_on_char '\n' block);
       Display.tick d;
@@ -653,8 +650,8 @@ let test_scrollback_no_dup s =
   let ppf = Format.formatter_of_buffer buf in
   let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) ~header:"[H]"
+    (fun d ->
       for i = 1 to n do
         let suffix = pick_weird (Char.chr (byte (i + 2))) in
         let task = Fmt.kstr (Display.task d) "[D%d] %s" i suffix in
@@ -689,8 +686,8 @@ let test_scrollback_collapse_commits s =
   let ppf = Format.formatter_of_buffer buf in
   let now = ticking_clock () in
   let vte = Vte.create ~rows:height ~cols:width () in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) ~header:"[H]"
+    (fun d ->
       let tasks =
         Array.init n (fun i -> Fmt.kstr (Display.task d) "[D%d] ." (i + 1))
       in
@@ -723,8 +720,8 @@ let test_minimal_redraw s =
     incr counter;
     Fmt.str "[R%d] %s" !counter (pick_weird c)
   in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-    ~mode:`Activity ~width ~height ~header:"[H]" (fun d ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) ~header:"[H]"
+    (fun d ->
       String.iter (fun c -> step_display_op d live fresh c) s;
       Display.tick d;
       Format.pp_print_flush ppf ();
@@ -745,8 +742,7 @@ let test_differential_redraw label wbyte =
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0. in
   let vte = Vte.create ~rows:height ~cols:width () in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height)
-    ~mode:`Activity ~width ~height (fun display ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height) (fun display ->
       ignore (Display.task display "[R1] prepare");
       let changed = Display.task display ("[R2] " ^ label) in
       ignore (Display.task display "[R3] verify");
@@ -799,8 +795,7 @@ let test_committed_right_edge label wbyte =
   let ppf = Format.formatter_of_buffer buf in
   let now () = 0. in
   let vte = Vte.create ~rows:1024 ~cols:width () in
-  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
-    ~mode:`Activity ~width ~height:4 (fun display ->
+  Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4) (fun display ->
       let task = Display.task display label in
       let cur = wbyte land 0xffff in
       Display.set_count task ~cur ~total:(cur + 1);
@@ -948,7 +943,6 @@ let test_keyed_event_stream program =
       (Display.ctx ~ppf ~now ~wait:ignore
          ~dimensions:(fun () -> (80, 24))
          ~live:false ())
-    ~mode:`History
     (fun display ->
       saved := Some display;
       String.iter (apply_op model display) program);
@@ -971,7 +965,7 @@ let test_dynamic_geometry program =
       ~dimensions:(fun () -> (!width, !height))
       ~live:true ()
   in
-  Display.run ~ctx ~mode:`Activity ~header:"resize" (fun display ->
+  Display.run ~ctx ~header:"resize" (fun display ->
       String.iteri
         (fun i byte ->
           let code = Char.code byte in
@@ -989,7 +983,7 @@ let test_dynamic_geometry program =
 let test_result_sanitization message detail =
   let saved = ref None in
   let ctx = dumb () in
-  Display.run ~ctx ~mode:`History (fun display ->
+  Display.run ~ctx (fun display ->
       saved := Some display;
       Display.set_result display ~detail (`Ok message));
   let result =
@@ -1015,7 +1009,7 @@ let test_progress_estimates cur total next next_total =
   let bound n = n land 0xffff in
   let cur = bound cur and total = bound total in
   let next = bound next and next_total = bound next_total in
-  Display.run ~ctx:(dumb ()) ~mode:`History (fun display ->
+  Display.run ~ctx:(dumb ()) (fun display ->
       let count = Display.task display "count" in
       Display.set_count count ~cur ~total;
       Display.set_count count ~cur:next ~total:next_total;
@@ -1041,7 +1035,7 @@ let test_progress_estimates cur total next next_total =
    wins and later attempts neither raise nor duplicate the verdict event. *)
 let test_duplicate_result first second =
   let saved = ref None in
-  Display.run ~ctx:(dumb ()) ~mode:`History (fun display ->
+  Display.run ~ctx:(dumb ()) (fun display ->
       saved := Some display;
       Display.set_result display (`Ok first);
       Display.set_result display (`Fail second));

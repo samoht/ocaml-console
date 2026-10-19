@@ -2,11 +2,8 @@
 
 val run :
   ctx:Console.Display.ctx ->
-  ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
   ?layout:Console.Display.Line.t ->
-  ?width:int ->
-  ?height:int ->
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a

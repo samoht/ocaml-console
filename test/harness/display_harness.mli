@@ -30,7 +30,7 @@ val capture :
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string
-(** [capture f] is the value of [f] on a [`History] display over a fake clock,
+(** [capture f] is the value of [f] on an appending display over a fake clock,
     and the output it wrote. *)
 
 val capture_live :
@@ -39,8 +39,7 @@ val capture_live :
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string
-(** [capture_live] is like {!capture} on an [`Activity] display on a terminal.
-*)
+(** [capture_live] is like {!capture} on a live display. *)
 
 val check_invalid : string -> (unit -> unit) -> unit
 (** [check_invalid msg f] checks that [f ()] raises [Invalid_argument msg]. *)
@@ -58,7 +57,7 @@ val terminal_run :
   ?layout:Display.Line.t ->
   (Display.t -> (float -> unit) -> (unit -> unit) -> Vte.t -> unit) ->
   Vte.t
-(** [terminal_run f] runs [f display advance sync vte] on an [`Activity] display
+(** [terminal_run f] runs [f display advance sync vte] on a live display
     (defaults to 40 by 8) whose output feeds the emulator [vte], and is [vte]
     after the session closed. [sync ()] ticks the display and feeds the
     emulator. *)

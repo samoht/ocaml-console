@@ -229,7 +229,7 @@ let test_default_visual_hierarchy_and_color_scope () =
   let now () = 0. in
   let vte = Vte.create ~rows:4 ~cols:width () in
   Display.run ~ctx:(ctx ~live:true ~width ~height:4 ~ppf ~now ())
-    ~mode:`Activity ~width ~height:4 (fun display ->
+    (fun display ->
       let root = Display.task display "compile" in
       ignore (Display.task ~parent:root display "link");
       Display.tick display;
@@ -456,8 +456,7 @@ let colour_session renderer =
   let now () = 0. in
   Display.run
     ~ctx:(ctx ~live:true ~width:colour_width ~height:colour_height ~ppf ~now ())
-    ~mode:`Activity ~width:colour_width ~height:colour_height ~header:"Build"
-    (fun display ->
+    ~header:"Build" (fun display ->
       let task = Display.task display "app" in
       Display.log task "planning";
       Display.succeed task;
@@ -559,8 +558,7 @@ let history_colour_session ?theme ?(ending = Display.succeed ?message:None)
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_style_renderer ppf renderer;
   let now, advance = fake_clock () in
-  Display.run ~ctx:(ctx ~ppf ~now ()) ?theme ~mode:`History ~header:"Build"
-    (fun display ->
+  Display.run ~ctx:(ctx ~ppf ~now ()) ?theme ~header:"Build" (fun display ->
       let task = Display.task display "app" in
       advance 1.3;
       ending task);

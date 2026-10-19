@@ -83,10 +83,10 @@ let lines t =
    stale width lets a line wrap and a stale height mis-sizes the cap. *)
 let refresh_size t =
   let old_width = t.width and old_height = t.height in
-  if t.auto_width || t.auto_height then begin
+  if not t.plain then begin
     let width, height = t.dimensions () in
-    if t.auto_width then t.width <- max 1 width;
-    if t.auto_height then t.height <- max 1 height
+    t.width <- max 1 width;
+    t.height <- max 1 height
   end;
   t.width <> old_width || t.height <> old_height
 

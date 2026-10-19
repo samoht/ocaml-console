@@ -47,7 +47,7 @@ let test_reports_between_ticks_paint_at_the_eyes_pace () =
     Format.pp_print_flush ppf ();
     count_occurrences "disk image" (Buffer.contents buffer)
   in
-  Display.run ~ctx:(ctx ~live:true ~ppf ~now ()) ~mode:`Activity (fun display ->
+  Display.run ~ctx:(ctx ~live:true ~ppf ~now ()) (fun display ->
       let task = Display.task display "disk image" in
       let at_start = frames () in
       (* A report a millisecond for a second: the writer's cadence. *)
@@ -71,7 +71,7 @@ let test_reports_between_ticks_paint_at_the_eyes_pace () =
       Display.set_bytes task ~cur:total ~total;
       Format.pp_print_flush ppf ();
       (* The current figure ahead of the total, which every frame names. *)
-      let last = Fmt.str "%a / " Display.pp_bytes total in
+      let last = "1001.00 MiB / " in
       Alcotest.(check bool)
         "a report inside the interval is not yet on screen" false
         (contains last (Buffer.contents buffer));

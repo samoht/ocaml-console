@@ -5,15 +5,12 @@
 
 open Display_state
 
-let pp_bytes ppf n = Fmt.string ppf (Display_text.bytes n)
-let pp_span ppf s = Fmt.string ppf (Display_text.span s)
 let sanitize = Display_text.sanitize
 
 module Line = Display_line
 
 (** {1 Contexts} *)
 
-type mode = [ `Auto | `Activity | `History ]
 type ctx = Display_ctx.t
 
 let ctx = Display_ctx.v
@@ -28,22 +25,9 @@ type task = row
 
 let pp = Display_state.pp
 
-let validate_geometry ~width ~height =
-  (match width with
-  | Some width when width <= 0 ->
-      invalid_arg "Console.Display.run: width must be positive"
-  | _ -> ());
-  match height with
-  | Some height when height <= 0 ->
-      invalid_arg "Console.Display.run: height must be positive"
-  | _ -> ()
-
-let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~layout ~width ~height
-    ~header =
-  let auto_width = width = None and auto_height = height = None in
-  let term_w, term_h = ctx.dimensions () in
-  let width = match width with Some w -> w | None -> max 1 term_w in
-  let height = match height with Some h -> h | None -> max 1 term_h in
+let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~layout ~header =
+  let width, height = ctx.dimensions () in
+  let width = max 1 width and height = max 1 height in
   {
     dppf = ctx.ppf;
     plain;
@@ -59,8 +43,6 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~layout ~width ~height
     dstart = ctx.now ();
     width;
     height;
-    auto_width = auto_width && not plain;
-    auto_height = auto_height && not plain;
     rows = [];
     count_cell = 0;
     by_key = Hashtbl.create 16;
@@ -95,19 +77,12 @@ let claim t =
         Display_term.show_cursor_on t.dppf;
         raise exn
 
-let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?(layout = Line.default)
-    ?width ?height ?header () =
-  validate_geometry ~width ~height;
-  let plain =
-    match mode with
-    | `History -> true
-    | `Activity -> false
-    | `Auto -> not ctx.Display_ctx.live
-  in
+let v ~ctx ?(theme = Theme.unicode) ?(layout = Line.default) ?header () =
+  let plain = not ctx.Display_ctx.live in
   (* Whether the surface takes ANSI is the formatter's own answer, read once
      here: a terminal whose reader turned colour off still gets the region. *)
   let styling = Ansi.should_style ctx.ppf in
-  let t = state ~ctx ~plain ~styling ~theme ~layout ~width ~height ~header in
+  let t = state ~ctx ~plain ~styling ~theme ~layout ~header in
   claim t;
   t
 
@@ -515,8 +490,8 @@ let cleanup_after_exception t =
 
 let restore = Display_term.restore
 
-let run ~ctx ?mode ?theme ?layout ?width ?height ?header f =
-  let t = v ~ctx ?mode ?theme ?layout ?width ?height ?header () in
+let run ~ctx ?theme ?layout ?header f =
+  let t = v ~ctx ?theme ?layout ?header () in
   Fun.protect
     ~finally:(fun () -> release_claim t)
     (fun () ->

@@ -22,7 +22,7 @@ let test_nested_run_reuses_the_existing_display () =
   with_clock (fun clock ->
       let buf = Buffer.create 128 in
       let ppf = Format.formatter_of_buffer buf in
-      Console_eio.run ~clock ~ppf ~mode:`History (fun outer ->
+      Console_eio.run ~clock ~ppf (fun outer ->
           Console_eio.run ~clock (fun inner ->
               Alcotest.(check bool) "same display" true (outer == inner);
               let task = Console.Display.task inner "nested work" in
@@ -49,7 +49,7 @@ let test_run_on_takes_the_callers_context () =
       ~dimensions:(fun () -> (24, 10))
       ~live:false ()
   in
-  Console_eio.run_on ~ctx ~mode:`History (fun display ->
+  Console_eio.run_on ~ctx (fun display ->
       let task = Console.Display.task display "step" in
       now := 1.3;
       Console.Display.succeed task);
@@ -81,7 +81,7 @@ let test_run_on_waits_on_the_contexts_clock () =
       ~live:false ()
   in
   let read =
-    Console_eio.run_on ~ctx ~mode:`History (fun display ->
+    Console_eio.run_on ~ctx (fun display ->
         for _ = 1 to 3 do
           Eio.Fiber.yield ()
         done;
@@ -106,8 +106,7 @@ let with_env bindings f =
 let width () =
   Eio_main.run @@ fun env ->
   let ppf = Format.formatter_of_buffer (Buffer.create 16) in
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf ~fd:Eio_unix.Fd.stdout
-    ~mode:`History (fun display ->
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf (fun display ->
       Console.Display.with_output display (fun ppf ->
           Format.pp_get_margin ppf ()))
 
@@ -170,7 +169,7 @@ let test_a_handler_installed_under_run_outlives_it () =
   @@ fun () ->
   Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
       Unix.dup2 tty Unix.stdout);
-  let run f = Console_eio.run ~clock:(Eio.Stdenv.clock env) ~mode:`History f in
+  let run f = Console_eio.run ~clock:(Eio.Stdenv.clock env) f in
   (* The control: [run] takes the terminal, installs a handler of its own and,
      where nothing replaced it, gives back the one it found. *)
   Sys.set_signal Sys.sigint (Sys.Signal_handle handler_installed_before_run);
@@ -200,56 +199,6 @@ let test_a_handler_installed_under_run_outlives_it () =
   Alcotest.(check bool)
     "the handler installed under run still stands after it" true
     (is handler_installed_under_run (Sys.signal Sys.sigint Sys.Signal_default))
-
-(* A mark no display writes, so a reader of the terminal knows it has read
-   everything written before it. *)
-let end_mark = "<end of the case's output>"
-let ends_with_mark s = String.ends_with ~suffix:end_mark s
-
-(* A history display on a terminal hides no cursor, so it writes nothing to
-   show one: what reaches the terminal is what the caller printed, the bytes a
-   pipe would get apart from the terminal's own CR before each LF. *)
-let test_history_on_a_terminal_writes_only_its_output () =
-  Eio_main.run @@ fun env ->
-  Eio.Switch.run @@ fun sw ->
-  let pty =
-    match Eio_unix.Pty.open_pty ~sw () with
-    | pty -> pty
-    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-        Alcotest.skip ()
-  in
-  let stdout = Unix.dup Unix.stdout in
-  ( Fun.protect ~finally:(fun () ->
-        Unix.dup2 stdout Unix.stdout;
-        Unix.close stdout)
-  @@ fun () ->
-    Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) (fun tty ->
-        Unix.dup2 tty Unix.stdout);
-    Console_eio.run ~clock:(Eio.Stdenv.clock env) ~mode:`History (fun display ->
-        Console.Display.with_output display (fun ppf -> Fmt.pf ppf "plain@."));
-    (* The end of the display's output is a mark written after it returns, on
-       the same terminal: the pseudoterminal end reads in order, so everything
-       before the mark is what the display wrote, with no window of silence to
-       wait out. Closing the terminal end instead loses its unread output on
-       macOS. *)
-    ignore
-      (Unix.write_substring Unix.stdout end_mark 0 (String.length end_mark)) );
-  let written = Buffer.create 64 and buf = Cstruct.create 4096 in
-  let source = Eio_unix.Pty.source pty in
-  let rec read_to_mark () =
-    if not (ends_with_mark (Buffer.contents written)) then (
-      let n = Eio.Flow.single_read source buf in
-      Buffer.add_string written (Cstruct.to_string ~len:n buf);
-      read_to_mark ())
-  in
-  (match
-     Eio.Time.with_timeout (Eio.Stdenv.clock env) 10. (fun () ->
-         Ok (read_to_mark ()))
-   with
-  | Ok () -> ()
-  | Error `Timeout -> Alcotest.fail "the end mark was not read in 10 s");
-  Alcotest.(check string)
-    "only the output" ("plain\r\n" ^ end_mark) (Buffer.contents written)
 
 (* [setup] reads the environment once: NO_COLOR turns stdout's styling off
    unless --color says otherwise. *)
@@ -295,6 +244,4 @@ let suite =
         test_dimensions_read_the_environment;
       Alcotest.test_case "a handler installed under run outlives it" `Quick
         test_a_handler_installed_under_run_outlives_it;
-      Alcotest.test_case "history on a terminal writes only its output" `Quick
-        test_history_on_a_terminal_writes_only_its_output;
     ] )

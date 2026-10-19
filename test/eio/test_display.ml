@@ -11,7 +11,7 @@ let capture ?header f =
   let clock = Eio.Stdenv.clock env in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  Console_eio.run ~clock ~ppf ~mode:`History ?header f;
+  Console_eio.run ~clock ~ppf ?header f;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -138,8 +138,7 @@ module Report_domains = struct
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
     let messages =
-      Console_eio.run_on ~ctx:(context env sink) ~mode:`History
-      @@ fun display ->
+      Console_eio.run_on ~ctx:(context env sink) @@ fun display ->
       Eio.Switch.run @@ fun sw ->
       Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
           let reporter = Logs.reporter () in
@@ -178,7 +177,7 @@ module Report_domains = struct
     in
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
-    Console_eio.run_on ~ctx:(context env sink) ~mode:`History (fun _ ->
+    Console_eio.run_on ~ctx:(context env sink) (fun _ ->
         Eio.Switch.run @@ fun sw ->
         Alcotest.check_raises "actual output refusal reaches the worker"
           (Failure "owner sink refused") (fun () ->
@@ -200,8 +199,7 @@ module Report_domains = struct
     let sink = sink () in
     let previous = Logs.reporter () in
     let reporter =
-      Console_eio.run_on ~ctx:(context env sink) ~mode:`History (fun _ ->
-          Logs.reporter ())
+      Console_eio.run_on ~ctx:(context env sink) (fun _ -> Logs.reporter ())
     in
     Alcotest.check_raises "captured reporter names its closed scope"
       (Invalid_argument "Console_eio: the display reporter is closed")
@@ -235,7 +233,7 @@ module Report_domains = struct
     let previous = Logs.reporter () in
     let worker = ref None and continued = Atomic.make 0 in
     let run () =
-      Console_eio.run_on ~ctx:(context env sink) ~mode:`History (fun _ ->
+      Console_eio.run_on ~ctx:(context env sink) (fun _ ->
           worker :=
             Some
               (Eio.Executor_pool.submit_fork ~sw:outer workers ~weight:1.

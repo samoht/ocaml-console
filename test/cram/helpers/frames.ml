@@ -44,7 +44,7 @@ let () =
       (Console_vte.screen ~scrollback:true vte)
   in
   let module P = Console.Display in
-  P.run ~ctx ~mode:`Activity ~height ~header:"Build" (fun display ->
+  P.run ~ctx ~header:"Build" (fun display ->
       let frame title = frame ~display title in
       (* A tree: app -> {resolve, compile}, each with a small log window. *)
       let app = P.task ~log_lines:2 display "app" in

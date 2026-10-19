@@ -11,7 +11,7 @@ let () =
       ~dimensions:(fun () -> (80, 24))
       ~live:true ()
   in
-  Console.Display.run ~ctx ~mode:`Activity (fun display ->
+  Console.Display.run ~ctx (fun display ->
       let task = Console.Display.task display "pushing" in
       Console.Display.tick display;
       match Sys.argv with

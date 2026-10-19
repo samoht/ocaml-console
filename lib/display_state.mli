@@ -27,7 +27,7 @@ type t = {
   dppf : Format.formatter;  (** The output. *)
   plain : bool;
       (** Append-only lines instead of a live region: a surface with no terminal
-          behind it, or a caller that asked for [`History]. *)
+          behind it. *)
   styling : bool;
       (** Whether the output takes ANSI, read once when the display opens. A
           terminal whose reader turned colour off is still a live region. *)
@@ -47,8 +47,6 @@ type t = {
   mutable height : int;
       (** Caps the live region, so a redraw never scrolls a stale copy into
           unreachable scrollback. *)
-  auto_width : bool;  (** The width is re-read each paint. *)
-  auto_height : bool;  (** The height is re-read each paint. *)
   mutable rows : row list;  (** In insertion order. *)
   mutable count_cell : int;
       (** The columns every row lays its count pair in: the widest any row has

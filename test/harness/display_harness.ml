@@ -16,24 +16,24 @@ let ctx ?(live = false) ?(width = 80) ?(height = 24) ~ppf ~now () =
     ~dimensions:(fun () -> (width, height))
     ~live ()
 
-let capture_on ~live ~mode ?header ?layout ?theme f =
+let capture_on ~live ?header ?layout ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let now, advance = fake_clock () in
   let value =
-    Display.run ~ctx:(ctx ~live ~ppf ~now ()) ~mode ?header ?layout ?theme
+    Display.run ~ctx:(ctx ~live ~ppf ~now ()) ?header ?layout ?theme
       (fun display -> f display advance)
   in
   Format.pp_print_flush ppf ();
   (value, Buffer.contents buffer)
 
-let capture ?header = capture_on ~live:false ~mode:`History ?header
+let capture ?header = capture_on ~live:false ?header
 
-(* The same session on a live display. [capture] pins [`History], which is the
-   appending writer; a terminal gets [`Activity], which paints a region and
-   writes what is permanent around it. A result that reaches one and not the
+(* The same session on a live display. [capture] is the appending writer a
+   pipe gets; a terminal gets the live one, which paints its rows and writes
+   what is permanent around them. A result that reaches one and not the
    other is a result a developer does not get. *)
-let capture_live ?header = capture_on ~live:true ~mode:`Activity ?header
+let capture_live ?header = capture_on ~live:true ?header
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
@@ -51,8 +51,8 @@ let terminal_run ?(height = 8) ?(width = 40) ?header ?layout f =
     Vte.feed_string vte (Buffer.contents buffer);
     Buffer.clear buffer
   in
-  Display.run ~ctx:(ctx ~live:true ~width ~height ~ppf ~now ())
-    ~mode:`Activity ~width ~height ?header ?layout (fun display ->
+  Display.run ~ctx:(ctx ~live:true ~width ~height ~ppf ~now ()) ?header ?layout
+    (fun display ->
       (* What a reader sees: the driver's tick has painted the snapshot. *)
       let sync () =
         Display.tick display;

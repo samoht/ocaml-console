@@ -11,7 +11,7 @@ let () =
       ~dimensions:(fun () -> (80, 24))
       ~live:false ()
   in
-  Console.Display.run ~ctx ~mode:`History ~header:"Processing" (fun display ->
+  Console.Display.run ~ctx ~header:"Processing" (fun display ->
       let step name =
         let task = Console.Display.task display name in
         now := !now +. 0.1;

@@ -135,11 +135,11 @@ let test_task_ownership () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
-  Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History (fun first ->
+  Display.run ~ctx:(ctx ~ppf ~now ()) (fun first ->
       let parent = Display.task first "first" in
       foreign := Some parent;
       Display.succeed parent);
-  Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History (fun second ->
+  Display.run ~ctx:(ctx ~ppf ~now ()) (fun second ->
       match !foreign with
       | None -> Alcotest.fail "foreign task missing"
       | Some parent ->
@@ -165,7 +165,7 @@ let test_unfinished_is_succeeded () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
-  Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History (fun display ->
+  Display.run ~ctx:(ctx ~ppf ~now ()) (fun display ->
       saved := Some display;
       ignore (Display.task display "forgotten"));
   match !saved with
@@ -183,7 +183,7 @@ let test_exception_cancels_and_propagates () =
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
   Alcotest.check_raises "original exception" (Failure "boom") (fun () ->
-      Display.run ~ctx:(ctx ~ppf ~now ()) ~mode:`History (fun display ->
+      Display.run ~ctx:(ctx ~ppf ~now ()) (fun display ->
           saved := Some display;
           ignore (Display.task display "doomed");
           failwith "boom"));
@@ -203,14 +203,6 @@ let test_validation () =
       ignore Display.Line.(v [ label; label ]));
   check_invalid "Console.Display.Line.v: more than one spacer" (fun () ->
       ignore Display.Line.(v [ spacer; spacer ]));
-  check_invalid "Console.Display.run: width must be positive" (fun () ->
-      Display.run
-        ~ctx:(ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ())
-        ~width:0 ignore);
-  check_invalid "Console.Display.run: height must be positive" (fun () ->
-      Display.run
-        ~ctx:(ctx ~ppf:Format.std_formatter ~now:(fun () -> 0.) ())
-        ~height:0 ignore);
   capture (fun display _ ->
       check_invalid "Console.Display.task: negative log_lines" (fun () ->
           ignore (Display.task ~log_lines:(-1) display "bad"));
@@ -232,15 +224,15 @@ let test_one_display_at_a_time () =
   let ppf = Format.formatter_of_buffer buffer in
   let now () = 0. in
   let c = ctx ~live:true ~ppf ~now () in
-  let refused mode =
-    match Display.run ~ctx:c ~mode ignore with
+  let refused live =
+    match Display.run ~ctx:(ctx ~live ~ppf ~now ()) ignore with
     | () -> false
     | exception Invalid_argument _ -> true
   in
-  Display.run ~ctx:c ~mode:`Activity (fun _ ->
-      Alcotest.(check bool) "a second live display" true (refused `Activity);
-      Alcotest.(check bool) "a second appending display" true (refused `History));
-  Alcotest.(check bool) "free once the first ends" false (refused `History)
+  Display.run ~ctx:c (fun _ ->
+      Alcotest.(check bool) "a second live display" true (refused true);
+      Alcotest.(check bool) "a second appending display" true (refused false));
+  Alcotest.(check bool) "free once the first ends" false (refused false)
 
 (* A display draws its colours at the depth its context names: the amber of
    [Theme.dos] is a 24-bit colour, drawn as its nearest palette entry. *)

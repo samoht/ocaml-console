@@ -76,9 +76,8 @@ let receive ~sw ~closed requests display =
   in
   loop ()
 
-let run ~ctx ?mode ?theme ?layout ?width ?height ?header f =
-  Console.Display.run ~ctx ?mode ?theme ?layout ?width ?height ?header
-    (fun display ->
+let run ~ctx ?theme ?layout ?header f =
+  Console.Display.run ~ctx ?theme ?layout ?header (fun display ->
       Eio.Switch.run @@ fun sw ->
       let owner = Domain.self () in
       let requests = Eio.Stream.create 1 in

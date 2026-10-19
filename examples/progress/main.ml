@@ -4,11 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (* A step that counts its files, with a layer under it that counts bytes.
-   [main.exe plain] forces the appending display a pipe gets. *)
-
-let mode =
-  if Array.length Sys.argv > 1 && Sys.argv.(1) = "plain" then `History
-  else `Auto
+   [main.exe | cat] shows the plain lines a pipe gets. *)
 
 let build clock display =
   let step = Console.Display.task ~log_lines:4 display "RUN make" in
@@ -31,4 +27,4 @@ let build clock display =
 let () =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.clock env in
-  Console_eio.run ~clock ~mode ~header:"Building" (build clock)
+  Console_eio.run ~clock ~header:"Building" (build clock)

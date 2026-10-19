@@ -37,8 +37,6 @@ type t = {
   dstart : float;
   mutable width : int;
   mutable height : int;
-  auto_width : bool;
-  auto_height : bool;
   mutable rows : row list;
   mutable count_cell : int;
   by_key : (string, row) Hashtbl.t;
