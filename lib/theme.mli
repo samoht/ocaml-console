@@ -94,7 +94,10 @@ val mark : t -> mark -> string
 (** [mark t m] is the mark of [m], on one line: a control character in it is a
     space. *)
 
-(** {1:predefined Predefined themes} *)
+(** {1:predefined Predefined themes}
+
+    The themes after {!rainbow} take their colours from a colour scheme, as its
+    authors define them; their {!background} is the scheme's. *)
 
 val unicode : t
 (** [unicode] is cyan, with rounded frames, a braille spinner and, for the
@@ -110,6 +113,58 @@ val matrix : t
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow. *)
+
+val dracula : t
+(** [dracula] is Dracula's purple, green, yellow and red, for its background
+    [#282a36]. *)
+
+val nord : t
+(** [nord] is Nord's frost cyan, green, yellow and red, for its background
+    [#2e3440]. *)
+
+val solarized_dark : t
+(** [solarized_dark] is Solarized's blue, green, yellow and red, for its dark
+    background [#002b36]. *)
+
+val solarized_light : t
+(** [solarized_light] is like {!solarized_dark} for Solarized's light background
+    [#fdf6e3]. *)
+
+val gruvbox_dark : t
+(** [gruvbox_dark] is gruvbox's orange and its bright green, yellow and red, for
+    its dark background [#282828]. *)
+
+val gruvbox_light : t
+(** [gruvbox_light] is gruvbox's faded orange, green, yellow and red, for its
+    light background [#fbf1c7]. *)
+
+val catppuccin_latte : t
+(** [catppuccin_latte] is Catppuccin Latte's mauve, green, yellow and red, for
+    its background [#eff1f5]. *)
+
+val catppuccin_mocha : t
+(** [catppuccin_mocha] is Catppuccin Mocha's mauve, green, yellow and red, for
+    its background [#1e1e2e]. *)
+
+val tokyo_night : t
+(** [tokyo_night] is Tokyo Night's blue, green, yellow and red, for its
+    background [#1a1b26]. *)
+
+val one_dark : t
+(** [one_dark] is One Dark's accent blue, green, yellow and red, for its
+    background [#282c34]. *)
+
+val monokai : t
+(** [monokai] is Monokai's cyan, green, yellow and pink, for its background
+    [#272822]. *)
+
+val github_dark : t
+(** [github_dark] is GitHub Dark's accent blue, green, yellow and red, for its
+    background [#0d1117]. *)
+
+val github_light : t
+(** [github_light] is GitHub Light's accent blue, green, yellow and red, for its
+    background [#ffffff]. *)
 
 (** {1:fmt Formatting} *)
 

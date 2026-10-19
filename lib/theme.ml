@@ -114,6 +114,78 @@ let rainbow =
       ]
     ()
 
+(* The colours of each scheme are taken from its upstream source, named
+   beside it, and degrade to 256 or 16 colours as a terminal's depth asks. *)
+
+let scheme ~accent ~ok ~warn ~fail ~background =
+  v ~accent:(Color.hex accent) ~ok:(Color.hex ok) ~warn:(Color.hex warn)
+    ~fail:(Color.hex fail) ~background:(Color.hex background) ()
+
+(* Dracula, by Zeno Rocha (MIT): draculatheme.com/spec. *)
+let dracula =
+  scheme ~accent:"#bd93f9" ~ok:"#50fa7b" ~warn:"#f1fa8c" ~fail:"#ff5555"
+    ~background:"#282a36"
+
+(* Nord, by Sven Greb (MIT): nordtheme/nord src/nord.css. *)
+let nord =
+  scheme ~accent:"#88c0d0" ~ok:"#a3be8c" ~warn:"#ebcb8b" ~fail:"#bf616a"
+    ~background:"#2e3440"
+
+(* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
+let solarized_dark =
+  scheme ~accent:"#268bd2" ~ok:"#859900" ~warn:"#b58900" ~fail:"#dc322f"
+    ~background:"#002b36"
+
+(* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
+let solarized_light =
+  scheme ~accent:"#268bd2" ~ok:"#859900" ~warn:"#b58900" ~fail:"#dc322f"
+    ~background:"#fdf6e3"
+
+(* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
+let gruvbox_dark =
+  scheme ~accent:"#fe8019" ~ok:"#b8bb26" ~warn:"#fabd2f" ~fail:"#fb4934"
+    ~background:"#282828"
+
+(* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
+let gruvbox_light =
+  scheme ~accent:"#af3a03" ~ok:"#79740e" ~warn:"#b57614" ~fail:"#9d0006"
+    ~background:"#fbf1c7"
+
+(* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette palette.json 1.8.0. *)
+let catppuccin_latte =
+  scheme ~accent:"#8839ef" ~ok:"#40a02b" ~warn:"#df8e1d" ~fail:"#d20f39"
+    ~background:"#eff1f5"
+
+(* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette palette.json 1.8.0. *)
+let catppuccin_mocha =
+  scheme ~accent:"#cba6f7" ~ok:"#a6e3a1" ~warn:"#f9e2af" ~fail:"#f38ba8"
+    ~background:"#1e1e2e"
+
+(* Tokyo Night, by enkia (MIT), night palette of folke/tokyonight.nvim (Apache-2.0). *)
+let tokyo_night =
+  scheme ~accent:"#7aa2f7" ~ok:"#9ece6a" ~warn:"#e0af68" ~fail:"#f7768e"
+    ~background:"#1a1b26"
+
+(* One Dark, by GitHub (MIT): atom/atom packages/one-dark-syntax. *)
+let one_dark =
+  scheme ~accent:"#528bff" ~ok:"#98c379" ~warn:"#e5c07b" ~fail:"#e06c75"
+    ~background:"#282c34"
+
+(* Monokai, by Wimer Hazenberg (no licence stated): the 2007 Monokai.tmTheme. *)
+let monokai =
+  scheme ~accent:"#66d9ef" ~ok:"#a6e22e" ~warn:"#e6db74" ~fail:"#f92672"
+    ~background:"#272822"
+
+(* GitHub Dark, by GitHub (MIT): primer/github-vscode-theme. *)
+let github_dark =
+  scheme ~accent:"#2f81f7" ~ok:"#3fb950" ~warn:"#d29922" ~fail:"#ff7b72"
+    ~background:"#0d1117"
+
+(* GitHub Light, by GitHub (MIT): primer/github-vscode-theme. *)
+let github_light =
+  scheme ~accent:"#0969da" ~ok:"#116329" ~warn:"#4d2d00" ~fail:"#cf222e"
+    ~background:"#ffffff"
+
 let pp ppf t =
   Fmt.pf ppf "@[<1>(theme@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%s)@]"
     Color.pp t.accent Color.pp t.ok Color.pp t.warn Color.pp t.fail

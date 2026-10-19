@@ -26,6 +26,25 @@ let test_theme s n =
           check (not (String.exists (fun c -> c = '\n' || c = '\027') m)))
         marks;
       ignore (Fmt.str "%a" Theme.pp t))
-    [ t; Theme.unicode; Theme.dos; Theme.matrix; Theme.rainbow ]
+    [
+      t;
+      Theme.unicode;
+      Theme.dos;
+      Theme.matrix;
+      Theme.rainbow;
+      Theme.dracula;
+      Theme.nord;
+      Theme.solarized_dark;
+      Theme.solarized_light;
+      Theme.gruvbox_dark;
+      Theme.gruvbox_light;
+      Theme.catppuccin_latte;
+      Theme.catppuccin_mocha;
+      Theme.tokyo_night;
+      Theme.one_dark;
+      Theme.monokai;
+      Theme.github_dark;
+      Theme.github_light;
+    ]
 
 let suite = ("theme", [ test_case "parts and marks" [ bytes; int ] test_theme ])
