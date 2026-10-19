@@ -16,7 +16,7 @@ type column = {
   style : Style.t;
 }
 
-type row = { cells : Span.t list; see : string option }
+type row = Span.t list
 
 type t = {
   border : Border.t;
@@ -45,24 +45,21 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
   let header = Span.text header in
   { header; align; min_width; max_width; overflow; shrinkable; style }
 
-let v ?theme ?border ?(header_style = Style.bold) columns =
+let of_rows ?theme ?border ?(header_style = Style.bold) columns rows =
+  let expected = List.length columns in
+  List.iter
+    (fun cells ->
+      let got = List.length cells in
+      if got > expected || (got = 0 && expected > 0) then
+        Fmt.invalid_arg "Console.Table.of_rows: expected 1 to %d cells, got %d"
+          expected got)
+    rows;
   {
     border = Widget.border ?theme ?border ~default:Border.single ();
     header_style;
     columns;
-    rows = [];
+    rows;
   }
-
-let add_row ?see cells t =
-  let expected = List.length t.columns and got = List.length cells in
-  if got > expected || (got = 0 && expected > 0) then
-    Fmt.invalid_arg "Console.Table.add_row: expected 1 to %d cells, got %d"
-      expected got;
-  { t with rows = { cells; see } :: t.rows }
-
-let of_rows ?theme ?border ?header_style columns rows =
-  let t = v ?theme ?border ?header_style columns in
-  List.fold_left (fun t row -> add_row row t) t rows
 
 (* Calculate column widths. A logical cell may contain explicit line feeds;
    its natural width is its widest physical line, not the sum of all lines. *)
@@ -76,9 +73,8 @@ let span_width span =
 (* The cells of [row] its columns are measured by: a short row's last cell
    spans the columns it leaves and is measured against none of them. *)
 let measured num_cols row =
-  let n = List.length row.cells in
-  if n >= num_cols then row.cells
-  else List.filteri (fun i _ -> i < n - 1) row.cells
+  let n = List.length row in
+  if n >= num_cols then row else List.filteri (fun i _ -> i < n - 1) row
 
 (* [widen measure t widths] raises each column's entry in [widths] to the
    [measure] of its header and of each of its measured cells. *)
@@ -215,10 +211,7 @@ let fit_columns max_width t =
       columns = take count t.columns;
       rows =
         List.filter_map
-          (fun r ->
-            match take count r.cells with
-            | [] -> None
-            | cells -> Some { r with cells })
+          (fun r -> match take count r with [] -> None | cells -> Some cells)
           t.rows;
     }
 
@@ -270,11 +263,11 @@ let align_span ~pad_right align target span =
 
 (* [span] cut by [Width.elide] to [width], the style of what it keeps kept:
    what [elide] keeps is a prefix of the text, and what follows it is plain. *)
-let elide_span ?see width span =
+let elide_span width span =
   if Span.width span <= width then span
   else
     let s = Span.to_string span in
-    let e = Width.elide ?see width s in
+    let e = Width.elide width s in
     let n = min (String.length s) (String.length e) in
     let rec common i = if i < n && s.[i] = e.[i] then common (i + 1) else i in
     let rec boundary i =
@@ -289,7 +282,7 @@ let elide_span ?see width span =
 
 (* The physical lines of a cell in [width] columns, not padded; [None] is a
    cell nothing bounds, the last of a line without edges and no width. *)
-let cell_lines ?see overflow width span =
+let cell_lines overflow width span =
   let fit line =
     match width with
     | None -> [ line ]
@@ -297,7 +290,7 @@ let cell_lines ?see overflow width span =
     | Some width -> (
         match overflow with
         | `Wrap -> Span.wrap width line
-        | `Elide -> [ elide_span ?see width line ])
+        | `Elide -> [ elide_span width line ])
   in
   span_lines span |> List.concat_map fit
 
@@ -385,8 +378,8 @@ let row_lines ?max_width t widths style row =
   let cells =
     List.map
       (fun (col, width, cell) ->
-        (col, width, cell_lines ?see:row.see col.overflow width cell))
-      (slots ?max_width t widths row.cells)
+        (col, width, cell_lines col.overflow width cell))
+      (slots ?max_width t widths row)
   in
   let height =
     List.fold_left
@@ -414,11 +407,11 @@ let render_lines ?max_width t =
     let row style r = row_lines ?max_width t widths style r in
     let headers = List.map (fun col -> col.header) t.columns in
     let has_headers = List.exists (fun h -> Span.to_string h <> "") headers in
-    let rows = List.rev t.rows in
+    let rows = t.rows in
     let body = List.concat_map (row Style.none) rows in
     rule chars.top_left chars.top_cross chars.top_right chars.top
     @ (if has_headers then
-         row t.header_style { cells = headers; see = None }
+         row t.header_style headers
          @
          if rows <> [] then
            rule chars.left_cross chars.cross chars.right_cross chars.top

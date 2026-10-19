@@ -214,15 +214,9 @@ let test_validation () =
   capture (fun display _ ->
       check_invalid "Console.Display.task: negative log_lines" (fun () ->
           ignore (Display.task ~log_lines:(-1) display "bad"));
-      check_invalid "Console.Display.task: negative total" (fun () ->
-          ignore (Display.task ~total:(-1) display "bad"));
       let task = Display.task display "bounded" in
       check_invalid "Console.Display.set_count: expected non-negative progress"
         (fun () -> Display.set_count task ~cur:(-1) ~total:1);
-      check_invalid "Console.Display.advance: negative increment" (fun () ->
-          Display.advance ~by:(-1) task);
-      check_invalid "Console.Display.advance: negative total" (fun () ->
-          Display.advance ~total:(-1) task);
       check_invalid "Console.Display.set_bytes: expected non-negative progress"
         (fun () -> Display.set_bytes task ~cur:(-1L) ~total:1L);
       Display.set_count task ~cur:1 ~total:2;

@@ -120,14 +120,6 @@ let to_ansi style =
 
 let reset = "\027[0m"
 
-let styled style pp ppf value =
-  let ansi = to_ansi style in
-  if ansi = "" || Fmt.style_renderer ppf = `None then pp ppf value
-  else (
-    Fmt.pf ppf "%s" ansi;
-    pp ppf value;
-    Fmt.pf ppf "%s" reset)
-
 let is_none style =
   (not style.bold) && (not style.faint) && (not style.italic)
   && (not style.underline) && (not style.blink) && (not style.reverse)

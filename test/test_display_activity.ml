@@ -72,18 +72,14 @@ let test_keyed_task () =
 let test_progress_estimates_expand () =
   let item, _ =
     capture (fun display _ ->
-        let task = Display.task ~total:8 display "split" in
+        let task = Display.task display "split" in
         Display.set_count task ~cur:22 ~total:8;
         Display.set_count task ~cur:23 ~total:874;
-        Display.advance ~label:"writing objects" task;
         List.hd (Display.Activity.items (Display.activity display)))
   in
-  Alcotest.(check string)
-    "label updated atomically" "writing objects"
-    (Display.Activity.label item);
   Alcotest.(check bool)
-    "estimate grew and incremented" true
-    (Display.Activity.progress item = `Count (24, 874));
+    "estimate grew" true
+    (Display.Activity.progress item = `Count (23, 874));
   let bytes_item, _ =
     capture (fun display _ ->
         let task = Display.task display "download" in

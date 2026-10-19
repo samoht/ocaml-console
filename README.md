@@ -49,8 +49,8 @@ let success = Style.(bold + fg Color.green)
 let error = Style.(bold + fg Color.red)
 
 let () =
-  Fmt.pr "%a@." (Style.styled success Fmt.string) "✓ Build passed";
-  Fmt.pr "%a@." (Style.styled error Fmt.string) "✗ Tests failed"
+  Fmt.pr "%a@." Span.pp (Span.styled success "✓ Build passed");
+  Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
 ```
 
 Tables and other widgets take their text as a `Span.t`, a piece of text with

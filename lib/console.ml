@@ -3,10 +3,6 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let sanitize = Render.sanitize
-let sanitize_styles = Render.sanitize_styles
-let strip = Console_text.strip
-
 let style_renderer ?renderer ~getenv ~is_tty () =
   match renderer with
   | Some renderer -> renderer

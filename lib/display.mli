@@ -274,7 +274,6 @@ val task :
   ?key:string ->
   ?parent:task ->
   ?log_lines:int ->
-  ?total:int ->
   ?transient:bool ->
   t ->
   string ->
@@ -293,12 +292,11 @@ val task :
     Offering a parent is therefore always safe, on every event, so a caller
     never has to track which of them is allowed to name one.
 
-    [total] starts determinate count progress at zero; without it, the task
-    starts with an indeterminate spinner. [parent] must belong to [display]. A
-    task first observed after its parent finished inherits success, or
-    cancellation when the parent failed or was cancelled. [log_lines] defaults
-    to eight and controls only the bounded activity tail; every log is still
-    permanent.
+    A task starts with a spinner, until {!set_count} or {!set_bytes} says how
+    much work it has. [parent] must belong to [display]. A task first observed
+    after its parent finished inherits success, or cancellation when the parent
+    failed or was cancelled. [log_lines] defaults to eight and controls only the
+    bounded activity tail; every log is still permanent.
 
     [transient] (defaults to [false]) makes a task that is drawn while it runs
     and leaves no line when it ends: the screen keeps what happened, not how the
@@ -306,8 +304,8 @@ val task :
     any task's, and a pipe, which draws nothing that runs, never sees it.
 
     @raise Invalid_argument
-      if the display is closed, [key] is empty, [log_lines] or [total] is
-      negative, or [parent] belongs to another display. *)
+      if the display is closed, [key] is empty, [log_lines] is negative, or
+      [parent] belongs to another display. *)
 
 val set_label : task -> string -> unit
 (** [set_label task label] atomically changes the live label of [task] to
@@ -319,16 +317,6 @@ val set_count : task -> cur:int -> total:int -> unit
 
     @raise Invalid_argument
       if [cur] or [total] is negative, or [task] counts bytes. *)
-
-val advance : ?by:int -> ?total:int -> ?label:string -> task -> unit
-(** [advance task] increments count progress by one. [by] selects another
-    non-negative increment, [label] updates the activity label in the same
-    repaint, and [total] supplies a new estimate. The known total expands
-    automatically if progress passes it. An indeterminate task becomes a count
-    task on its first advance.
-
-    @raise Invalid_argument
-      if [by] or [total] is negative, or [task] counts bytes. *)
 
 val set_bytes : task -> cur:int64 -> total:int64 -> unit
 (** [set_bytes task ~cur ~total] is like {!set_count} for a task that counts
@@ -358,11 +346,6 @@ val log : ?level:Event.level -> ?keep:bool -> task -> string -> unit
     A tail line that does not fit the terminal loses words from its end, and one
     whose first word does not fit folds under it, whole; the tail is [log_lines]
     lines high on screen whatever its lines fold into. *)
-
-val event : ?level:Event.level -> t -> string -> unit
-(** [event display text] appends permanent session-level messages, one per input
-    line. Physical line breaks are preserved. Use this instead of writing
-    directly while an activity projection owns the output. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed ~message task] finishes [task] successfully, recording [message] in
@@ -426,6 +409,11 @@ val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
 
 (**/**)
+
+val event : ?level:Event.level -> t -> string -> unit
+(** [event display text] appends permanent session-level messages, one per input
+    line. Physical line breaks are preserved. Use this instead of writing
+    directly while an activity projection owns the output. *)
 
 val restore : unit -> unit
 (** [restore ()] gives the terminal back if a display is drawing on it: text

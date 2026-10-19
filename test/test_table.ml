@@ -22,7 +22,7 @@ let test_basic () =
   Alcotest.(check bool) "contains 1" true (contains "1" output)
 
 let test_empty () =
-  let table = Table.(v [ column "X" ]) in
+  let table = Table.(of_rows [ column "X" ] []) in
   let output = Table.to_string table in
   Alcotest.(check bool) "contains X" true (contains "X" output)
 
@@ -252,14 +252,14 @@ let test_invalid_shape () =
   Alcotest.check_raises "minimum exceeds maximum"
     (Invalid_argument "Console.Table.column: min_width exceeds max_width")
     (fun () -> ignore (Table.column ~min_width:3 ~max_width:2 "A"));
-  let table = Table.v [ Table.column "A"; Table.column "B" ] in
-  Alcotest.check_raises "more cells than columns"
-    (Invalid_argument "Console.Table.add_row: expected 1 to 2 cells, got 3")
+  let columns = [ Table.column "A"; Table.column "B" ] in
+  Alcotest.check_raises "too many cells"
+    (Invalid_argument "Console.Table.of_rows: expected 1 to 2 cells, got 3")
     (fun () ->
-      ignore (Table.add_row (List.map Span.text [ "a"; "b"; "c" ]) table));
+      ignore (Table.of_rows columns [ List.map Span.text [ "a"; "b"; "c" ] ]));
   Alcotest.check_raises "no cell"
-    (Invalid_argument "Console.Table.add_row: expected 1 to 2 cells, got 0")
-    (fun () -> ignore (Table.add_row [] table))
+    (Invalid_argument "Console.Table.of_rows: expected 1 to 2 cells, got 0")
+    (fun () -> ignore (Table.of_rows columns [ [] ]))
 
 (* A [~shrinkable:false] column keeps its full width when the table is fitted to
    a narrow terminal; a shrinkable neighbour gives way instead. *)

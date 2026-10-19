@@ -15,4 +15,3 @@ let to_string pp ?(styled = false) v =
   Buffer.contents buf
 
 let sanitize = Console_text.sanitize
-let sanitize_styles = Console_text.sanitize_styles

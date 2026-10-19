@@ -102,9 +102,5 @@ val reset : string
 
 (** {1:fmt Formatting} *)
 
-val styled : t -> 'a Fmt.t -> 'a Fmt.t
-(** [styled s pp] is [pp] drawn in [s] when the formatter's
-    {!Fmt.style_renderer} is [`Ansi_tty], and [pp] otherwise. *)
-
 val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)

@@ -14,6 +14,3 @@ val sanitize : ?keep_newlines:bool -> string -> string
 (** [sanitize s] validates UTF-8, replaces malformed sequences with the Unicode
     replacement character, and replaces terminal control characters with a
     space. Newlines are retained unless [keep_newlines] is [false]. *)
-
-val sanitize_styles : ?keep_newlines:bool -> string -> string
-(** [sanitize_styles s] is {!Console_text.sanitize_styles} [s]. *)

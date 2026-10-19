@@ -130,8 +130,7 @@ main
 - : unit = ()
 ```
 
-An `` `Elide `` column fits its cells with `Width.elide`, the row's `see`
-after a cell it cut. A spanning cell takes the overflow of the column it
+An `` `Elide `` column fits its cells with `Width.elide`. A spanning cell takes the overflow of the column it
 starts in. A column that is not shrinkable keeps its width while another
 yields.
 
@@ -141,19 +140,20 @@ val fixed : Table.column = <abstr>
 # let reason = Table.column ~overflow:`Elide ""
 val reason : Table.column = <abstr>
 # let table =
-    Table.v ~border:Border.none [ fixed; fixed; reason; fixed ]
-    |> Table.add_row ~see:" (mq status fix)"
-         (List.map Span.text [ "fix"; "stuck"; changed; "/pool/fix.3" ])
-    |> Table.add_row (List.map Span.text [ "staging"; queue ])
-    |> Table.add_row [ Span.text "  14:05 queued fix for staging" ]
+    Table.of_rows ~border:Border.none [ fixed; fixed; reason; fixed ]
+      [
+        List.map Span.text [ "fix"; "stuck"; changed; "/pool/fix.3" ];
+        List.map Span.text [ "staging"; queue ];
+        [ Span.text "  14:05 queued fix for staging" ];
+      ]
 val table : Table.t = <abstr>
 # print_string (Table.to_string ~width:70 table)
-fix      stuck  changed... and 3999 more (mq status fix)   /pool/fix.3
+fix      stuck  changed paths: _build/p1 and 3999 more     /pool/fix.3
 staging  1 queued and 2 more
   14:05 queued fix for staging
 - : unit = ()
 # print_string (Table.to_string ~width:60 table)
-fix      stuck  (mq status fix)                  /pool/fix.3
+fix      stuck  changed paths... and 3999 more   /pool/fix.3
 staging  1 queued and 2 more
   14:05 queued fix for staging
 - : unit = ()
@@ -164,14 +164,14 @@ staging  1 queued and 2 more
 ```ocaml
 # List.map Span.to_string (Table.lines ~width:70 table)
 - : string list =
-["fix      stuck  changed... and 3999 more (mq status fix)   /pool/fix.3";
+["fix      stuck  changed paths: _build/p1 and 3999 more     /pool/fix.3";
  "staging  1 queued and 2 more"; "  14:05 queued fix for staging"]
 ```
 
 A cut keeps the style of what it kept.
 
 ```ocaml
-# let bold = Table.v ~border:Border.none [ reason ] |> Table.add_row [ Span.styled Style.bold changed ]
+# let bold = Table.of_rows ~border:Border.none [ reason ] [ [ Span.styled Style.bold changed ] ]
 val bold : Table.t = <abstr>
 # List.map (Span.to_string ~styled:true) (Table.lines ~width:40 bold)
 - : string list = ["\027[1mchanged paths: _build/p1\027[0m and 3999 more"]

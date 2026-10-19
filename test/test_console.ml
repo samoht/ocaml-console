@@ -19,34 +19,34 @@ let test_public_surface () =
 let test_sanitize () =
   Alcotest.(check string)
     "a tab, a newline and an escape all become spaces" "a b c d"
-    (Console.sanitize ~keep_newlines:false "a\tb\nc\027d");
+    (Console_text.sanitize ~keep_newlines:false "a\tb\nc\027d");
   Alcotest.(check string)
     "a newline is a row boundary, so it is kept by default" "a b\nc d"
-    (Console.sanitize "a\tb\nc\027d");
+    (Console_text.sanitize "a\tb\nc\027d");
   Alcotest.(check string)
     "a malformed sequence becomes the replacement glyph" "a\u{FFFD}b"
-    (Console.sanitize "a\255b");
+    (Console_text.sanitize "a\255b");
   Alcotest.(check string)
     "a C1 control, which UTF-8 hides behind two bytes, becomes a space" "a b"
-    (Console.sanitize "a\u{009B}b");
+    (Console_text.sanitize "a\u{009B}b");
   Alcotest.(check string)
     "DEL becomes a space" "a b"
-    (Console.sanitize "a\127b");
+    (Console_text.sanitize "a\127b");
   Alcotest.(check string)
     "well-formed text, wide glyphs included, is returned unchanged"
     "\u{4E16}\u{754C} ok"
-    (Console.sanitize "\u{4E16}\u{754C} ok")
+    (Console_text.sanitize "\u{4E16}\u{754C} ok")
 
 (* A caller that pages a subprocess's output wants the colours it already
    carries and none of the rest of ANSI. ECMA-48 8.3.117 SELECT GRAPHIC
    RENDITION is the only control sequence that cannot move the cursor, erase a
    region or name a resource, so it is the only one a sanitizer may forward and
-   still promise what {!Console.sanitize} promises. Recognising it means parsing
+   still promise what {!Console_text.sanitize} promises. Recognising it means parsing
    it: CSI, parameter bytes, final byte 'm', and this library accepts a strict
    subset of the parameter bytes ECMA-48 5.4 allows -- the digits and ';' -- so
    the private forms reserved there and the ':' sub-parameter of ITU-T T.416
    are refused rather than forwarded on a guess. *)
-let styles s = Console.sanitize_styles s
+let styles s = Console_text.sanitize_styles s
 
 (* Everything that is not a strictly-parsed SGR is removed, as
    {!Console_text.strip} removes it, and one scanner decides that for both. *)
@@ -69,7 +69,7 @@ let test_sanitize_styles_passes_sgr () =
     (styles "\027[31ma\tb\027[0m");
   Alcotest.(check string)
     "and a newline still goes when it is not wanted" "\027[31ma b\027[0m"
-    (Console.sanitize_styles ~keep_newlines:false "\027[31ma\nb\027[0m")
+    (Console_text.sanitize_styles ~keep_newlines:false "\027[31ma\nb\027[0m")
 
 (* The parameter run is bounded, because an unbounded scan over untrusted bytes
    is a scan whoever wrote the bytes sizes. *)
@@ -99,7 +99,7 @@ let test_sanitize_styles_neutralises_the_rest () =
   neutralised "the C1 introducer does not open an SGR" "\u{009B}31mred"
 
 (* The sanitized text cannot change the styling of what a caller prints after
-   it, which is the half of {!Console.sanitize}'s promise a styled variant can
+   it, which is the half of {!Console_text.sanitize}'s promise a styled variant can
    still keep. SGR parameters apply left to right and 0 turns every attribute
    off, so a last parameter of 0 -- or an empty one, which SGR reads as 0 --
    already leaves the terminal in its default state and nothing is appended. *)

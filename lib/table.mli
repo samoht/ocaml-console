@@ -17,8 +17,7 @@ type overflow = [ `Wrap | `Elide ]
 (** The type for the handling of content wider than a column's [max_width].
 
     - [`Wrap] wraps to several lines.
-    - [`Elide] keeps one line that says what it left out ({!Width.elide}), with
-      the row's [see] after a cell it cut. *)
+    - [`Elide] keeps one line that says what it left out. *)
 
 type column
 (** The type for column specifications. *)
@@ -51,30 +50,6 @@ val column :
 
 (** {1:tables Tables} *)
 
-val v :
-  ?theme:Theme.t ->
-  ?border:Border.t ->
-  ?header_style:Style.t ->
-  column list ->
-  t
-(** [v columns] is an empty table. The border is [border] if given, else
-    [theme]'s border, else {!Border.single}; the header row defaults to bold. *)
-
-val add_row : ?see:string -> Span.t list -> t -> t
-(** [add_row ?see cells table] adds a row of styled cells. [see] follows a cell
-    of the row an [`Elide] column cuts ({!Width.elide}).
-
-    A row with fewer cells than [table] has columns ends in a cell that spans
-    the columns left, the separators between them included: it is measured
-    against none of them, takes the overflow, alignment and style of the column
-    it starts in, and in a table without edges runs to the end of the line, the
-    rendering width or unbounded. A one-cell row spans every column, as a line
-    under a row does. In a table without edges a line ends at its last cell that
-    is not empty, unpadded.
-
-    @raise Invalid_argument
-      if [cells] is empty or has more cells than [table] has columns. *)
-
 val of_rows :
   ?theme:Theme.t ->
   ?border:Border.t ->
@@ -82,9 +57,17 @@ val of_rows :
   column list ->
   Span.t list list ->
   t
-(** [of_rows columns rows] is a table with all its data at once, each row as
-    {!add_row} adds it; styling is as in {!v}. A cell may contain line feeds;
-    they produce physical lines inside that logical row. *)
+(** [of_rows columns rows] is the table of [rows] under [columns]. The frame is
+    [border] if given, else [theme]'s, else {!Border.single}; the headers are in
+    [header_style] (defaults to {!Style.bold}). A cell may hold line feeds,
+    which start new lines inside its row.
+
+    A row with fewer cells than there are columns ends in a cell that spans the
+    columns left. In a table without a frame ({!Border.none}) a line ends at its
+    last cell that is not empty.
+
+    @raise Invalid_argument
+      if a row is empty or has more cells than there are columns. *)
 
 (** {1:converting Converting} *)
 

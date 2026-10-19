@@ -185,13 +185,9 @@ let emit_history_line t ~plain ~styled =
 
 (** {1 Tasks} *)
 
-let validate_task ~key ~parent ~log_lines ~total t =
+let validate_task ~key ~parent ~log_lines t =
   check_open "task" t;
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
-  (match total with
-  | Some total when total < 0 ->
-      invalid_arg "Console.Display.task: negative total"
-  | Some _ | None -> ());
   (match key with
   | Some "" -> invalid_arg "Console.Display.task: empty key"
   | Some _ | None -> ());
@@ -206,7 +202,7 @@ let validate_task ~key ~parent ~log_lines ~total t =
    rather than fatal: a drawing surface does not get to abort its host. *)
 let existing_task ~key t = Option.bind key (Hashtbl.find_opt t.by_key)
 
-let add_task ~key ~parent ~log_lines ~total ~transient t label =
+let add_task ~key ~parent ~log_lines ~transient t label =
   let now = t.now () in
   let rid = t.next_task_id in
   t.next_task_id <- rid + 1;
@@ -227,8 +223,7 @@ let add_task ~key ~parent ~log_lines ~total ~transient t label =
       logs = [];
       log_prev_t = now;
       rlabel = sanitize label;
-      metric =
-        (match total with Some total -> Count (0, total) | None -> Spin);
+      metric = Spin;
       transient;
       swept = false;
       rstart = now;
@@ -251,11 +246,11 @@ let add_task ~key ~parent ~log_lines ~total ~transient t label =
   touch r;
   r
 
-let task ?key ?parent ?(log_lines = 8) ?total ?(transient = false) t label =
-  validate_task ~key ~parent ~log_lines ~total t;
+let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
+  validate_task ~key ~parent ~log_lines t;
   match existing_task ~key t with
   | Some existing -> existing
-  | None -> add_task ~key ~parent ~log_lines ~total ~transient t label
+  | None -> add_task ~key ~parent ~log_lines ~transient t label
 
 let set_label r label =
   check_open "set_label" r.disp;
@@ -351,27 +346,6 @@ let set_count r ~cur ~total =
           invalid_arg "Console.Display.set_count: task already tracks bytes"
     in
     set_metric r (Count (cur, total))
-  end
-
-let advance ?(by = 1) ?total ?label r =
-  check_open "advance" r.disp;
-  if by < 0 then invalid_arg "Console.Display.advance: negative increment";
-  (match total with
-  | Some total when total < 0 ->
-      invalid_arg "Console.Display.advance: negative total"
-  | Some _ | None -> ());
-  if r.rfinish = None then begin
-    Option.iter (fun label -> r.rlabel <- sanitize label) label;
-    match r.metric with
-    | Spin ->
-        let total = max by (Option.value total ~default:by) in
-        set_count r ~cur:by ~total
-    | Count (cur, known_total) ->
-        let cur = if by > max_int - cur then max_int else cur + by in
-        let total = max cur (max known_total (Option.value total ~default:0)) in
-        set_count r ~cur ~total
-    | Bytes _ ->
-        invalid_arg "Console.Display.advance: task already tracks bytes"
   end
 
 let set_bytes r ~cur ~total =

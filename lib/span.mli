@@ -43,8 +43,9 @@ val with_style : Style.t -> t -> t
     styles: [Style.(base + style)] for each run's [style]. *)
 
 val sanitize : ?keep_newlines:bool -> t -> t
-(** [sanitize s] is [s] with its text made {!Console.sanitize}d, its styles and
-    hyperlinks kept. Line feeds survive unless [keep_newlines] is [false]. *)
+(** [sanitize s] is [s] with its text made {!Console_text.sanitize}d, its styles
+    and hyperlinks kept. Line feeds survive unless [keep_newlines] is [false].
+*)
 
 val split_lines : t -> t list
 (** [split_lines s] are the lines of [s], split at line feeds, styles kept. The
