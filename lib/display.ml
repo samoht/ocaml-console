@@ -67,16 +67,47 @@ let touch t =
   t.changes <- t.changes + 1;
   if is_live t then Display_region.paint_if_stale t
 
+(* What [f] writes is watched for its last byte: output that does not end
+   its line is ended, so the region starts on a line of its own. *)
 let with_output t f =
   check_open "with_output" t;
   let call () =
     Format.pp_print_flush t.ppf ();
     let margin = Format.pp_get_margin t.ppf () in
+    let out = Format.pp_get_formatter_out_functions t.ppf () in
+    let last = ref '\n' in
+    let out_string s o l =
+      if l > 0 then last := s.[o + l - 1];
+      out.out_string s o l
+    in
+    let out_newline () =
+      last := '\n';
+      out.out_newline ()
+    in
+    let blank write n =
+      if n > 0 then last := ' ';
+      write n
+    in
+    Format.pp_set_formatter_out_functions t.ppf
+      {
+        out with
+        out_string;
+        out_newline;
+        out_spaces = blank out.out_spaces;
+        out_indent = blank out.out_indent;
+      };
     Format.pp_set_margin t.ppf t.width;
     Fun.protect
       (fun () -> f t.ppf)
       ~finally:(fun () ->
-        (try Format.pp_print_flush t.ppf () with Sys_error _ -> ());
+        (try
+           Format.pp_print_flush t.ppf ();
+           if !last <> '\n' then begin
+             out.out_string "\n" 0 1;
+             out.out_flush ()
+           end
+         with Sys_error _ -> ());
+        Format.pp_set_formatter_out_functions t.ppf out;
         Format.pp_set_margin t.ppf margin)
   in
   if (not (is_live t)) || t.suspended > 0 then call ()

@@ -227,6 +227,18 @@ let test_with_output () =
   Display.succeed a;
   Display.close t.display
 
+(* Output without a line end is ended before the region is drawn again. *)
+let test_with_output_partial () =
+  let t = terminal ~theme ~width:30 () in
+  let a = Display.task t.display "job" in
+  Display.with_output t.display (fun ppf -> Fmt.pf ppf "partial");
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check string) "its own line" "partial" (List.nth rows 0);
+  Alcotest.(check bool) "region below" true (contains "job" (List.nth rows 1));
+  Display.succeed a;
+  Display.close t.display
+
 let test_redraw_idle () =
   let t = terminal ~theme () in
   ignore (Display.task t.display "job");
@@ -392,6 +404,8 @@ let suite =
       Alcotest.test_case "capped" `Quick test_capped;
       Alcotest.test_case "the marker fits" `Quick test_marker_fits;
       Alcotest.test_case "with_output" `Quick test_with_output;
+      Alcotest.test_case "with_output without a line end" `Quick
+        test_with_output_partial;
       Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
       Alcotest.test_case "narrowing" `Quick test_narrowing;
       Alcotest.test_case "height changes" `Quick test_height_changes;

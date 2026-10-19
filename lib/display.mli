@@ -137,7 +137,8 @@ val redraw : t -> unit
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] takes the region off the screen, calls [f] with the
     display's formatter, as wide as the terminal, and draws the region again
-    below what [f] printed, also when [f] raises. *)
+    below what [f] printed, also when [f] raises. Output that [f] does not end
+    with a line feed is ended. *)
 
 val message : ?level:[ `Info | `Warning | `Error ] -> t -> string -> unit
 (** [message display text] prints each line of [text] above the region, after
