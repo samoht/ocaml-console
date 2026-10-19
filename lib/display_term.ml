@@ -31,10 +31,7 @@ let pp_block ppf lines =
     | [ last ] -> Format.pp_print_string ppf last
     | line :: rest ->
         Format.pp_print_string ppf line;
-        (* A row may occupy the terminal's final column.  An explicit carriage
-           return cancels VT pending-wrap before the line feed, independently
-           of whether the host tty has ONLCR enabled. *)
-        Format.pp_print_string ppf "\r\n";
+        Format.pp_print_char ppf '\n';
         write rest
   in
   write lines
@@ -56,7 +53,7 @@ let pp_update ppf ~old_lines ~new_lines =
         Format.pp_print_string ppf new_lines.(i);
         Format.pp_print_string ppf "\027[K"
       end;
-      if i < n - 1 then Format.pp_print_string ppf "\r\n"
+      if i < n - 1 then Format.pp_print_char ppf '\n'
     done
   end
 

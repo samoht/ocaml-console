@@ -208,7 +208,7 @@ let committed t row =
     else Width.truncate width (left ^ dimmed t metadata)
   in
   let under = String.make fixed_width ' ' in
-  String.concat "\r\n" (head :: List.map (fun line -> under ^ line) rest)
+  String.concat "\n" (head :: List.map (fun line -> under ^ line) rest)
 
 (* A gap of a second or more since the previous line stands out. *)
 let log_gap_threshold = 1.0

@@ -447,7 +447,7 @@ let close t =
     else
       let line s =
         Format.pp_print_string t.dppf s;
-        Format.pp_print_string t.dppf "\r\n"
+        Format.pp_print_char t.dppf '\n'
       in
       (* The cursor is shown before the closing lines, so the last byte the
          display writes ends a line and what the program writes next starts

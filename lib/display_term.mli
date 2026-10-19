@@ -27,8 +27,9 @@ val pp_clear : Format.formatter -> int -> unit
     not positive. *)
 
 val pp_block : Format.formatter -> string list -> unit
-(** [pp_block ppf lines] writes [lines] separated by ["\r\n"], with no line end
-    after the last. *)
+(** [pp_block ppf lines] writes [lines] separated by line feeds, with no line
+    end after the last. The terminal's [ONLCR] translation returns the cursor to
+    the first column. *)
 
 val pp_update :
   Format.formatter -> old_lines:string list -> new_lines:string list -> unit

@@ -24,7 +24,7 @@ val live : t -> row -> string
 val committed : t -> row -> string
 (** [committed t r] is [r]'s permanent line on a terminal: its outcome marker
     and label, then its count and timer cells against the right edge. A label
-    that does not fit folds onto further lines, joined by ["\r\n"]. *)
+    that does not fit folds onto further lines, joined by line feeds. *)
 
 val appended : t -> row -> string
 (** [appended t r] is [r]'s permanent line on an appending surface: its outcome

@@ -42,7 +42,7 @@ let test_close_ends_on_a_line_end () =
   Alcotest.(check bool) "the cursor came back" true (contains show bytes);
   Alcotest.(check bool)
     "the last byte the display wrote ends a line" true
-    (String.ends_with ~suffix:"\r\n" bytes)
+    (String.ends_with ~suffix:"\n" bytes)
 
 let test_differential_redraw_and_right_edge () =
   let width = 48 and height = 8 in
@@ -95,9 +95,12 @@ let test_live_lf () =
   Alcotest.(check bool)
     "line feeds are emitted" true
     (String.contains output '\n');
+  (* A carriage return alone moves the cursor to the first column before a
+     row is redrawn; a line ending is a line feed, which the terminal's ONLCR
+     translation completes. *)
   Alcotest.(check bool)
     "ONLCR supplies carriage returns" false
-    (String.contains output '\r')
+    (Display_harness.contains "\r\n" output)
 
 let suite =
   ( "display_term",

@@ -130,7 +130,7 @@ let commit t s =
   Display_term.with_unlimited_margin t.dppf (fun () ->
       Display_term.pp_clear t.dppf t.live_height;
       Format.pp_print_string t.dppf s;
-      Format.pp_print_string t.dppf "\r\n";
+      Format.pp_print_char t.dppf '\n';
       Format.pp_print_flush t.dppf ());
   t.live_height <- 0;
   paint t
