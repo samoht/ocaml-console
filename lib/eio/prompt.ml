@@ -5,6 +5,7 @@
 
 type t = {
   interactive : bool;
+  terminal : Eio_unix.Fd.t option;
   input : Eio.Buf_read.t;
   output : Eio.Flow.sink_ty Eio.Resource.t;
 }
@@ -17,17 +18,18 @@ let max_answer = 4096
 (* The one genuine Unix boundary: whether there is a terminal on the other end
    of the input is a property of its descriptor, and a flow with no descriptor
    -- a string source, a pipe from a mock -- has nobody to ask. *)
-let is_a_terminal stdin =
-  match Eio_unix.Resource.fd_opt stdin with
-  | None -> false
-  | Some fd -> Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
+let terminal stdin =
+  Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
+      if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
 
 let v ?interactive ~stdin ~stdout () =
+  let terminal = terminal stdin in
   let interactive =
-    match interactive with Some i -> i | None -> is_a_terminal stdin
+    Option.value interactive ~default:(Option.is_some terminal)
   in
   {
     interactive;
+    terminal;
     input = Eio.Buf_read.of_flow ~max_size:max_answer stdin;
     output = (stdout :> Eio.Flow.sink_ty Eio.Resource.t);
   }
@@ -64,21 +66,9 @@ let expect t question word =
       if String.equal answer word then Ok ()
       else Error (`Msg "the answer does not match what was asked for")
 
-(* Reading a secret is the one question that does not go through the flows a
-   [t] was handed. Echo is the terminal's own line discipline, so masking what
-   is typed means taking that terminal over with termios; that is a local
-   terminal and a Unix descriptor, which is why it lives here in the driver
-   rather than in the freestanding half of the library. *)
-
-let rec write_all fd s off =
-  if off < String.length s then
-    match Unix.write_substring fd s off (String.length s - off) with
-    | 0 -> raise End_of_file
-    | n -> write_all fd s (off + n)
-    | exception Unix.Unix_error (Unix.EINTR, _, _) -> write_all fd s off
-
-let write fd s = write_all fd s 0
-
+(* Echo is the terminal's own line discipline, so masking what is typed means
+   switching it off on the descriptor behind the input. Eio has no termios, so
+   that part is Unix; reading and writing stay on the prompt's flows. *)
 let masked_attributes attr =
   {
     attr with
@@ -91,36 +81,27 @@ let masked_attributes attr =
     c_vtime = 0;
   }
 
-let secret ?(prompt = "") () =
-  if not (Unix.isatty Unix.stdin) then
-    Error (`Msg "cannot prompt for a secret because stdin is not a terminal")
-  else
-    try
-      let original = Unix.tcgetattr Unix.stdin in
-      let restore () = Unix.tcsetattr Unix.stdin Unix.TCSANOW original in
-      write Unix.stderr prompt;
-      Terminal.on_interrupt restore (fun () ->
-          Fun.protect ~finally:restore (fun () ->
-              Unix.tcsetattr Unix.stdin Unix.TCSANOW
-                (masked_attributes original);
-              let input = Console.Input.v ~mask:"*" () in
-              let buf = Bytes.create 64 in
-              (* The fiber waits for the terminal, not the domain: the read
-                 that follows has a byte to return. *)
-              let rec loop () =
-                Eio_unix.await_readable Unix.stdin;
-                match Unix.read Unix.stdin buf 0 (Bytes.length buf) with
-                | 0 -> Error (`Msg "terminal reached end of input")
-                | n -> (
-                    let echo, lines =
-                      Console.Input.feed input (Bytes.sub_string buf 0 n)
-                    in
-                    write Unix.stderr echo;
-                    match lines with line :: _ -> Ok line | [] -> loop ())
-                | exception Unix.Unix_error (Unix.EINTR, _, _) -> loop ()
-              in
-              loop ()))
-    with
-    | Unix.Unix_error (e, fn, arg) ->
-        Fmt.error_msg "%s(%s): %s" fn arg (Unix.error_message e)
-    | End_of_file -> Error (`Msg "terminal output closed while prompting")
+let rec read_masked t input =
+  match Eio.Buf_read.any_char t.input with
+  | exception End_of_file -> Error (`Msg "no answer: the input ended")
+  | c -> (
+      let echo, lines = Console.Input.feed input (String.make 1 c) in
+      Eio.Flow.copy_string echo t.output;
+      match lines with line :: _ -> Ok line | [] -> read_masked t input)
+
+let secret t question =
+  match t.terminal with
+  | None -> Error (`Msg "no terminal to mask the answer on")
+  | Some _ when not t.interactive -> Error (`Msg "no terminal to ask on")
+  | Some fd -> (
+      try
+        Eio_unix.Fd.use_exn "secret" fd @@ fun fd ->
+        let original = Unix.tcgetattr fd in
+        let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
+        Eio.Flow.copy_string question t.output;
+        Terminal.on_interrupt restore @@ fun () ->
+        Fun.protect ~finally:restore @@ fun () ->
+        Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
+        read_masked t (Console.Input.v ~mask:"*" ())
+      with Unix.Unix_error (e, fn, _) ->
+        Fmt.error_msg "%s: %s" fn (Unix.error_message e))

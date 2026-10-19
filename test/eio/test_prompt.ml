@@ -136,24 +136,27 @@ let test_expect_refuses_without_naming_the_word () =
     "the message never echoes the word" false
     (Astring.String.is_infix ~affix:"backups" (error_message result))
 
+let test_secret_without_a_terminal_is_refused () =
+  run @@ fun () ->
+  let t, out = prompt ~interactive:true "abc\n" in
+  Alcotest.check string_answer "answer" Refused
+    (seen (Prompt.secret t "secret: "));
+  Alcotest.(check string) "nothing asked" "" (Buffer.contents out)
+
 let test_expect_at_end_of_input_is_refused () =
   run @@ fun () ->
   let t, _ = prompt ~interactive:true "" in
   Alcotest.check unit_answer "answer" Refused
     (seen (Prompt.expect t "type the volume name: " "backups"))
 
-(* [f ()] with standard input on [stdin] and standard error on [stderr], each
-   given back as it was found. *)
-let with_stdin_stderr ~stdin ~stderr f =
-  let saved_in = Unix.dup Unix.stdin and saved_err = Unix.dup Unix.stderr in
+(* [f ()] with standard input on [stdin], given back as it was found. *)
+let with_stdin ~stdin f =
+  let saved = Unix.dup Unix.stdin in
   Fun.protect ~finally:(fun () ->
-      Unix.dup2 saved_in Unix.stdin;
-      Unix.dup2 saved_err Unix.stderr;
-      Unix.close saved_in;
-      Unix.close saved_err)
+      Unix.dup2 saved Unix.stdin;
+      Unix.close saved)
   @@ fun () ->
   Unix.dup2 stdin Unix.stdin;
-  Unix.dup2 stderr Unix.stderr;
   f ()
 
 (* [secret] waits for the terminal the way a fiber waits, so the rest of the
@@ -171,8 +174,7 @@ let test_secret_leaves_the_domain_running () =
   in
   let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
-  let null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0 in
-  Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master; null ])
+  Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
   @@ fun () ->
   let typist =
     Domain.spawn (fun () ->
@@ -182,10 +184,15 @@ let test_secret_leaves_the_domain_running () =
   let clock = Eio.Stdenv.clock env in
   let ticks = ref 0 and answered = ref false in
   let result = ref (Error (`Msg "unread")) and ticks_at_answer = ref 0 in
-  with_stdin_stderr ~stdin:tty ~stderr:null (fun () ->
+  with_stdin ~stdin:tty (fun () ->
       Eio.Fiber.both
         (fun () ->
-          result := Prompt.secret ();
+          let t =
+            Prompt.v ~stdin:(Eio.Stdenv.stdin env)
+              ~stdout:(Eio.Flow.buffer_sink (Buffer.create 16))
+              ()
+          in
+          result := Prompt.secret t "secret: ";
           ticks_at_answer := !ticks;
           answered := true)
         (fun () ->
@@ -225,6 +232,8 @@ let suite =
         test_expect_refuses_without_naming_the_word;
       Alcotest.test_case "expect at end of input is refused" `Quick
         test_expect_at_end_of_input_is_refused;
+      Alcotest.test_case "secret without a terminal is refused" `Quick
+        test_secret_without_a_terminal_is_refused;
       Alcotest.test_case "secret leaves the domain running" `Quick
         test_secret_leaves_the_domain_running;
     ] )

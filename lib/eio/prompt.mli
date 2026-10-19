@@ -5,12 +5,7 @@
     an answer suspends instead of parking the whole domain in a blocking read,
     and a test drives the very same code from a string source. Every question is
     result-typed: a prompt with nobody at the other end refuses rather than
-    waiting for input that will never be typed.
-
-    One question does not fit that shape. {!secret} reads the local terminal
-    through Unix termios, because echo is that terminal's own line discipline
-    and masking what is typed means taking it over. It is host-only, and takes
-    no {!type-t}. *)
+    waiting for input that will never be typed. *)
 
 type t
 (** The type for prompts: where questions go, and the buffered input answers
@@ -58,15 +53,10 @@ val expect : t -> string -> string -> (unit, [ `Msg of string ]) result
     ask for. This is [Error] too when [t] is not interactive or the input ends.
 *)
 
-val secret : ?prompt:string -> unit -> (string, [ `Msg of string ]) result
-(** [secret ?prompt ()] reads one line from the local terminal with echo
-    disabled and writes one [*] for every entered character. It reads that
-    terminal through Unix termios rather than through the flows a {!type-t} was
-    given: echo is the terminal's own line discipline, so masking what is typed
-    means taking the terminal over. The returned secret is never written or
-    retained in input history. Terminal attributes are restored on success,
-    error, exception, and SIGINT. It awaits input as an Eio fiber does, so the
-    rest of the domain runs meanwhile; it must be called from a fiber.
-
-    The prompt and masks use stderr so stdout remains available for command
-    output. Returns [Error] when stdin is not a terminal or reaches EOF. *)
+val secret : t -> string -> (string, [ `Msg of string ]) result
+(** [secret t question] is like {!line} but the answer is not echoed: one [*] is
+    written for each character typed instead, and the answer is never retained.
+    Masking switches echo off on the terminal behind [t]'s input, so this is
+    [Error] when that input is not a terminal, and when [t] is not interactive
+    or the input ends. The terminal is given back as it was found on return, on
+    an exception and on SIGINT or SIGTERM. *)
