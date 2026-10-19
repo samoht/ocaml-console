@@ -87,6 +87,10 @@ let v ?(accent = unicode.accent) ?palette ?(ok = unicode.ok)
     marks;
   }
 
+let ascii =
+  v ~border:Border.ascii ~guide:Guide.ascii ~spinner:Spinner.ascii
+    ~marks:ascii_marks ()
+
 let amber = Color.rgb 0xff 0xb0 0x00
 
 let dos =

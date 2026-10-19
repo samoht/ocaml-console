@@ -16,6 +16,7 @@ let setup ?style_renderer () =
       | None -> Colour.renderer ~getenv ~is_tty:(Terminal.is_tty fd)
     in
     Fmt.set_style_renderer ppf renderer;
+    Fmt.set_utf_8 ppf (Colour.utf_8 ~getenv);
     Console.Color.set_depth ppf (Colour.depth ~getenv)
   in
   set Fmt.stdout Eio_unix.Fd.stdout;
@@ -58,6 +59,11 @@ let run ~clock ?(ppf = Fmt.stderr) ?theme ?layout ?header f =
         | None -> (Console.Display.v ?theme ?layout ?header ~now ppf, [])
         | Some fd ->
             let size () = Terminal.dimensions (Some fd) in
+            let theme =
+              match theme with
+              | None when not (Fmt.utf_8 ppf) -> Some Console.Theme.ascii
+              | theme -> theme
+            in
             let display =
               Console.Display.v ?theme ?layout ?header ~size ~now (own ppf)
             in

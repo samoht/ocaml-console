@@ -24,6 +24,9 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
     instead, as [Fmt_tty.setup] takes it: a [--color] option made with
     [Fmt_cli.style_renderer] is passed here as it is.
 
+    It sets {!Fmt.utf_8} on both iff the locale's character set is UTF-8: that
+    of the first of [LC_ALL], [LC_CTYPE] and [LANG] that is set and not empty.
+
     It also sets their {!Console.Color.val-depth}: [`True_color] if [COLORTERM]
     is [truecolor] or [24bit] or [TERM] ends in [-direct], [`Ansi_256] if [TERM]
     contains [256color], and [`Ansi_16] otherwise, so that every widget and span
@@ -41,7 +44,10 @@ val run :
   'a
 (** [run ~clock f] is [f display] for a display on [ppf] (defaults to
     {!Fmt.stderr}, so that standard output stays the program's), timed by
-    [clock]. [header], [theme] and [layout] are those of {!Console.Display.v}.
+    [clock]. [header], [theme] and [layout] are those of {!Console.Display.v},
+    but for the default theme on a terminal whose formatter is not {!Fmt.utf_8}
+    ({!setup} decides it): it is {!Console.Theme.ascii}, so that no character
+    the terminal cannot show is drawn.
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
     and that output is a terminal whose [TERM] is set and not [dumb]; then what

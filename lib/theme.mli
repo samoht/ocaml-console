@@ -104,6 +104,11 @@ val unicode : t
     states of {!type-mark} in order, a bullet, a check mark, a cross, a circle,
     a single right-pointing angle quotation mark, [!] and a cross. *)
 
+val ascii : t
+(** [ascii] is {!unicode} drawn with ASCII characters only: ASCII frames, tree
+    lines and spinner, and the marks of {!dos}. It is the look for a terminal
+    whose character set is not UTF-8. *)
+
 val dos : t
 (** [dos] is amber on black, with ASCII frames, tree lines and spinner and the
     marks [[-]], [[+]], [[x]], [[~]], [#], [!] and [x]. *)

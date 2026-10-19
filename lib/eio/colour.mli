@@ -20,3 +20,8 @@ val depth : getenv:(string -> string option) -> Console.Color.depth
       [-direct];
     - [`Ansi_256] if [TERM] contains [256color];
     - [`Ansi_16] otherwise. *)
+
+val utf_8 : getenv:(string -> string option) -> bool
+(** [utf_8 ~getenv] is [true] iff the locale's character set is UTF-8: that of
+    the first of [LC_ALL], [LC_CTYPE] and [LANG] that is set and not empty. An
+    unset locale is not UTF-8. *)

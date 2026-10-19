@@ -113,6 +113,18 @@ let test_colour_rules () =
   check "other COLORTERM" "256"
     (depth [ ("COLORTERM", "yes"); ("TERM", "xterm-256color") ]);
   check "plain xterm" "16" (depth [ ("TERM", "xterm") ]);
+  let utf_8 pairs = Colour.utf_8 ~getenv:(env pairs) in
+  let check_utf_8 label expected pairs =
+    Alcotest.(check bool) label expected (utf_8 pairs)
+  in
+  check_utf_8 "LANG" true [ ("LANG", "en_US.UTF-8") ];
+  check_utf_8 "lower case" true [ ("LANG", "fr_FR.utf8") ];
+  check_utf_8 "C" false [ ("LANG", "C") ];
+  check_utf_8 "unset" false [];
+  check_utf_8 "LC_ALL first" false
+    [ ("LC_ALL", "POSIX"); ("LANG", "en_US.UTF-8") ];
+  check_utf_8 "empty LC_ALL skipped" true
+    [ ("LC_ALL", ""); ("LC_CTYPE", "C.UTF-8") ];
   check "nothing" "16" (depth [])
 
 (* [setup]'s override is the program's: it wins over the environment. *)
@@ -147,7 +159,7 @@ let open_pty ~sw =
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
    the terminal echoes what is typed once it has. *)
-let session ?(no_color = false) how =
+let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
@@ -157,7 +169,9 @@ let session ?(no_color = false) how =
       (Eio.Stdenv.process_mgr env)
       ~env:
         [|
-          "TERM=xterm-256color"; ("NO_COLOR=" ^ if no_color then "1" else "");
+          "TERM=xterm-256color";
+          ("NO_COLOR=" ^ if no_color then "1" else "");
+          "LANG=" ^ lang;
         |]
       ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
       ~executable:"./teardown.exe" [ "teardown.exe"; how ]
@@ -272,6 +286,15 @@ let test_usable_after () =
        (fun how -> [ (how, false); (how, true) ])
        [ "ok"; "raise"; "cancel"; "exit"; "sigint" ])
 
+(* A terminal whose locale is not UTF-8 shows other characters as garbage:
+   the default look is then drawn with ASCII alone. *)
+let test_ascii_locale () =
+  let _, out, _ = session ~lang:"C" "ok" in
+  Alcotest.(check bool) "drew a region" true (contains hide out);
+  Alcotest.(check bool)
+    "ASCII only" true
+    (String.for_all (fun c -> Char.code c < 0x80) out)
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -284,6 +307,8 @@ let suite =
     [
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
+      Alcotest.test_case "ASCII on a terminal that is not UTF-8" `Quick
+        test_ascii_locale;
       Alcotest.test_case "SIGINT during a password restores echo" `Quick
         test_sigint_secret;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
