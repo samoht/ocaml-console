@@ -14,7 +14,6 @@ let style n =
       Style.faint;
       Style.italic;
       Style.underline;
-      Style.blink;
       Style.reverse;
       Style.strikethrough;
       Style.fg c;

@@ -28,9 +28,6 @@ val italic : t
 val underline : t
 (** [underline] is the style of underlined text. *)
 
-val blink : t
-(** [blink] is the style of blinking text. *)
-
 val reverse : t
 (** [reverse] is the style of reverse video text. *)
 
