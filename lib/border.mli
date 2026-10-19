@@ -73,9 +73,5 @@ val with_style : Style.t -> t -> t
 
 (** {1:operations Operations} *)
 
-val equal : t -> t -> bool
-(** [equal a b] is [true] when [a] and [b] have the same characters and style.
-*)
-
 val pp : t Fmt.t
 (** [pp ppf border] renders the border character set for diagnostics. *)

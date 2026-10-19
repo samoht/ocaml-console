@@ -55,12 +55,6 @@ let test_animated_border () =
     "rainbow still" false
     (Theme.animated_border Theme.rainbow)
 
-(* [default] is the restrained Unicode preset. *)
-let test_default () =
-  Alcotest.(check bool)
-    "default is unicode" true
-    (Theme.equal Theme.default Theme.unicode)
-
 (* [v] keeps the given fields and fills the rest with modern defaults: a cyan
    accent, a smooth bar, the unicode guide and [OK]/[FAIL] markers. *)
 let test_v_defaults () =
@@ -76,13 +70,6 @@ let test_v_defaults () =
   Alcotest.(check bool)
     "row separators are opt-in" false
     (Theme.table_row_separators t);
-  let separated =
-    Theme.v ~table_row_separators:true ~spinner:Spinner.ascii ~done_marker:"x"
-      ()
-  in
-  Alcotest.(check bool)
-    "row separators participate in theme identity" false
-    (Theme.equal t separated);
   Alcotest.(check string) "default ok marker" "[OK]" (Theme.ok_marker t);
   Alcotest.(check string) "default fail marker" "[FAIL]" (Theme.fail_marker t)
 
@@ -116,28 +103,6 @@ let test_every_preset_draws_the_same_markers () =
   markers "rainbow" Theme.rainbow;
   markers "v" (Theme.v ~spinner:Spinner.ascii ~done_marker:"x" ())
 
-(* A marker is part of what a theme is: two themes that draw a warning or a
-   committed failure differently are two themes, whatever else they share. *)
-let test_markers_participate_in_identity () =
-  let t = Theme.v ~spinner:Spinner.ascii ~done_marker:"x" () in
-  Alcotest.(check bool)
-    "a log marker distinguishes" false
-    (Theme.equal t
-       (Theme.v ~warn_marker:"W" ~spinner:Spinner.ascii ~done_marker:"x" ()));
-  Alcotest.(check bool)
-    "a committed marker distinguishes" false
-    (Theme.equal t (Theme.with_verdict ~committed_failed:"F" t));
-  Alcotest.(check string)
-    "and the replacement is what it says" "F"
-    (Theme.committed_marker
-       (Theme.with_verdict ~committed_failed:"F" t)
-       `Failed);
-  Alcotest.(check string)
-    "while its siblings are left alone" "--"
-    (Theme.committed_marker
-       (Theme.with_verdict ~committed_failed:"F" t)
-       `Cancelled)
-
 (* [pp] summarises the markers; the rendered text mentions each. *)
 let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in
@@ -155,12 +120,9 @@ let suite =
       Alcotest.test_case "unicode preset" `Quick test_unicode;
       Alcotest.test_case "rainbow preset" `Quick test_rainbow;
       Alcotest.test_case "animated border" `Quick test_animated_border;
-      Alcotest.test_case "default" `Quick test_default;
       Alcotest.test_case "v defaults" `Quick test_v_defaults;
       Alcotest.test_case "with_verdict" `Quick test_with_verdict;
       Alcotest.test_case "every preset draws the same markers" `Quick
         test_every_preset_draws_the_same_markers;
-      Alcotest.test_case "markers participate in identity" `Quick
-        test_markers_participate_in_identity;
       Alcotest.test_case "pp" `Quick test_pp;
     ] )

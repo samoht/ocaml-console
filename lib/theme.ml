@@ -38,27 +38,6 @@ type t = {
   committed_cancelled : string;
 }
 
-let equal a b =
-  Color.equal a.accent b.accent
-  && Color.equal a.ok b.ok && Color.equal a.fail b.fail
-  && Color.equal a.warn b.warn
-  && List.equal Color.equal a.palette b.palette
-  && Border.equal a.border b.border
-  && Bool.equal a.table_row_separators b.table_row_separators
-  && Bool.equal a.animated_border b.animated_border
-  && Guide.equal a.guide b.guide
-  && Spinner.equal a.spinner b.spinner
-  && a.bar = b.bar
-  && String.equal a.done_marker b.done_marker
-  && String.equal a.ok_marker b.ok_marker
-  && String.equal a.fail_marker b.fail_marker
-  && String.equal a.note_marker b.note_marker
-  && String.equal a.warn_marker b.warn_marker
-  && String.equal a.error_marker b.error_marker
-  && String.equal a.committed_succeeded b.committed_succeeded
-  && String.equal a.committed_failed b.committed_failed
-  && String.equal a.committed_cancelled b.committed_cancelled
-
 let pp ppf t =
   Fmt.pf ppf
     "{ done = %s; ok = %s; fail = %s; note = %s; warn = %s; error = %s; \
@@ -244,5 +223,3 @@ let rainbow =
     committed_failed = "!!";
     committed_cancelled = "--";
   }
-
-let default = unicode

@@ -37,8 +37,5 @@ val ascii : t
 val unicode : t
 (** [unicode] uses Unicode box-drawing glyphs. *)
 
-val equal : t -> t -> bool
-(** [equal a b] is [true] if every glyph and the style are equal. *)
-
 val pp : t Fmt.t
 (** [pp] prints the four glyphs for diagnostics. *)

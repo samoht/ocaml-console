@@ -87,10 +87,6 @@ val committed_marker : t -> [ `Succeeded | `Failed | `Cancelled ] -> string
     vocabulary from {!ok_marker} and {!fail_marker}, which the result banner
     draws once at the end of a session. *)
 
-val equal : t -> t -> bool
-(** [equal a b] is [true] when [a] and [b] make the same visual choices in every
-    field. *)
-
 val pp : t Fmt.t
 (** [pp] prints a short summary of a theme's markers, for diagnostics. *)
 
@@ -151,6 +147,3 @@ val matrix : t
 val rainbow : t
 (** [rainbow] cycles the rows and nodes through the spectrum and draws the bar
     as a colour gradient. *)
-
-val default : t
-(** [default] is {!unicode}. *)

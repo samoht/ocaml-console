@@ -153,23 +153,6 @@ let heavy = v heavy_chars
 let hidden = v hidden_chars
 let with_style style border = { border with style }
 
-let equal_chars a b =
-  String.equal a.top_left b.top_left
-  && String.equal a.top b.top
-  && String.equal a.top_right b.top_right
-  && String.equal a.left b.left
-  && String.equal a.right b.right
-  && String.equal a.bottom_left b.bottom_left
-  && String.equal a.bottom b.bottom
-  && String.equal a.bottom_right b.bottom_right
-  && String.equal a.cross b.cross
-  && String.equal a.top_cross b.top_cross
-  && String.equal a.bottom_cross b.bottom_cross
-  && String.equal a.left_cross b.left_cross
-  && String.equal a.right_cross b.right_cross
-
-let equal a b = equal_chars a.chars b.chars && Style.equal a.style b.style
-
 let pp ppf t =
   let chars = t.chars in
   Fmt.pf ppf "%s%s%s@." chars.top_left chars.top chars.top_right;

@@ -17,9 +17,6 @@ type t
 val pp : Format.formatter -> t -> unit
 (** [pp] formats a spinner for diagnostics, in an unspecified format. *)
 
-val equal : t -> t -> bool
-(** [equal a b] is [true] when [a] and [b] have the same frames in order. *)
-
 (** {1:spinners Spinners} *)
 
 val v : string array -> t

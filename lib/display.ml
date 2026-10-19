@@ -107,7 +107,7 @@ let take_activity t =
         raise exn
   end
 
-let v ~ctx ?(mode = `Auto) ?(theme = Theme.default) ?palette
+let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
     ?(bar = Line.default) ?width ?height ?header () =
   validate_geometry ~width ~height;
   let plain =
