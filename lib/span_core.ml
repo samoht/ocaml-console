@@ -11,23 +11,22 @@ type t = atom list
 
 let clean = Console_text.sanitize ~keep_newlines:true
 
+(* Every linked atom is built here, so no link escapes the check: a target
+   is printable ASCII without a space, which cannot end the OSC 8 sequence it
+   is written in. *)
 let atom ?link style text =
+  Option.iter
+    (fun uri ->
+      if uri = "" then invalid_arg "Console.Span.link: empty URI";
+      if String.exists (fun ch -> ch <= ' ' || ch >= '\x7f') uri then
+        invalid_arg "Console.Span.link: unsafe URI character")
+    link;
   match clean text with "" -> [] | text -> [ { style; link; text } ]
 
 let empty = []
 let text s = atom Style.none s
 let styled style s = atom style s
-
-let link ?(style = Style.none) ~uri s =
-  if uri = "" then invalid_arg "Console.Span.link: empty URI";
-  String.iter
-    (fun ch ->
-      let code = Char.code ch in
-      if code <= 0x20 || code >= 0x7f then
-        invalid_arg "Console.Span.link: unsafe URI character")
-    uri;
-  atom ~link:uri style s
-
+let link ?(style = Style.none) ~uri s = atom ~link:uri style s
 let ( ++ ) = ( @ )
 
 let concat ?(sep = empty) = function
