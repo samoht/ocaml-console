@@ -46,6 +46,15 @@ let test_utf8_split () =
   got s (P.line t "utf8: ");
   got "next" (P.line t "next: ")
 
+let test_partial_eof () =
+  Eio_mock.Backend.run @@ fun () ->
+  let t, _ =
+    prompt ~interactive:true [ `Return "unfinished"; `Raise End_of_file ]
+  in
+  (* Buf_read.line permits an unterminated final line; the prompt documents
+     an Error when input ends. A partial answer must not open a typed gate. *)
+  refused (P.line t "line: ")
+
 exception Read_failure
 
 let test_read_failure () =
@@ -205,6 +214,8 @@ let suite =
       Alcotest.test_case "bytewise CRLF and buffer reuse" `Quick test_bytewise;
       Alcotest.test_case "split UTF-8 and buffered second line" `Quick
         test_utf8_split;
+      Alcotest.test_case "partial line at EOF is refused" `Quick
+        test_partial_eof;
       Alcotest.test_case "read fault propagates after flush" `Quick
         test_read_failure;
       Alcotest.test_case "confirm and expect scripted answers" `Quick
