@@ -6,9 +6,11 @@
 (executable
  (name tape)
  (modules tape)
+ (optional)
  (libraries vhs fmt))
 
 (rule
+ (enabled_if %{lib-available:vhs})
  (target matrix.generated.tape)
  (action
   (with-stdout-to
@@ -17,5 +19,6 @@
 
 (rule
  (alias runtest)
+ (enabled_if %{lib-available:vhs})
  (action
   (diff matrix.tape matrix.generated.tape)))

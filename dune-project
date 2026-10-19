@@ -21,7 +21,6 @@
    (tables, trees, panels) for OCaml CLI applications. Inspired by
    Python's Rich and Go's Charm/lipgloss.")
  (depends
-  ascii
   (ocaml (>= 5.1))
   (fmt (>= 0.9))
   logs

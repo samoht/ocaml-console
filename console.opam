@@ -13,7 +13,6 @@ homepage: "https://tangled.org/gazagnaire.org/ocaml-console"
 bug-reports: "https://tangled.org/gazagnaire.org/ocaml-console/issues"
 depends: [
   "dune" {>= "3.21"}
-  "ascii"
   "ocaml" {>= "5.1"}
   "fmt" {>= "0.9"}
   "logs"

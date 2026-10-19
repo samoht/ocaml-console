@@ -37,10 +37,11 @@ let hex str =
     else str
   in
   let len = String.length str in
-  let hex_digit ch =
-    match Ascii.hex_value_int ch with
-    | -1 -> invalid_arg "Console.Color.hex: invalid hex character"
-    | v -> v
+  let hex_digit = function
+    | '0' .. '9' as c -> Char.code c - Char.code '0'
+    | 'a' .. 'f' as c -> Char.code c - Char.code 'a' + 10
+    | 'A' .. 'F' as c -> Char.code c - Char.code 'A' + 10
+    | _ -> invalid_arg "Console.Color.hex: invalid hex character"
   in
   let parse_hex2 i =
     let hi = str.[i] and lo = str.[i + 1] in
