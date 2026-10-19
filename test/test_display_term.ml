@@ -87,9 +87,22 @@ let test_differential_redraw_and_right_edge () =
       Alcotest.(check (pair int int))
         "cursor rests on the final activity row" (2, 0) (Vte.cursor_pos vte))
 
+let test_live_lf () =
+  let (), output =
+    capture_live ~header:"Build" (fun display _ ->
+        Display.succeed (Display.task display "work"))
+  in
+  Alcotest.(check bool)
+    "line feeds are emitted" true
+    (String.contains output '\n');
+  Alcotest.(check bool)
+    "ONLCR supplies carriage returns" false
+    (String.contains output '\r')
+
 let suite =
   ( "display_term",
     [
+      Alcotest.test_case "live rows use LF line endings" `Quick test_live_lf;
       Alcotest.test_case "failed install releases owner" `Quick
         test_failed_install_releases_owner;
       Alcotest.test_case "close ends on a line end" `Quick
