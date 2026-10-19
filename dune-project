@@ -15,7 +15,7 @@
 (package
  (name console)
  (synopsis "Terminal styling and layout widgets")
- (tags (org:blacksun command-line-utilities format area:10010862))
+ (tags (command-line-utilities format))
  (description
   "Type-safe terminal styling (colors, bold, italic) and layout widgets
    (tables, trees, panels) for OCaml CLI applications. Inspired by
@@ -36,7 +36,7 @@
 (package
  (name console-eio)
  (synopsis "Eio backend for console")
- (tags (org:blacksun command-line-utilities format eio area:10010862))
+ (tags (command-line-utilities format eio))
  (description
   "Helpers that animate Console.Display bars from an Eio fiber. Split out
    so the core tty library stays scheduler-agnostic.")
