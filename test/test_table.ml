@@ -117,36 +117,6 @@ let test_wrap_preserves_unbroken_token () =
   let output = Table.to_string ~width:(natural_width - 1) table in
   Alcotest.(check bool) "URL remains contiguous" true (contains url output)
 
-let demo () =
-  of_string_rows
-    [ Table.column "name"; Table.column "age" ]
-    [ [ "Neo"; "30" ]; [ "Trinity"; "28" ] ]
-
-(* A still table animation is terminal-ready: content is stable and styling is
-   embedded for the animation runner. *)
-let test_anim_const () =
-  let t = demo () in
-  let a = Table.anim t in
-  let frame = Anim.frame a ~elapsed:2.5 in
-  Alcotest.(check bool) "keeps content" true (contains "Trinity" frame);
-  Alcotest.(check bool) "embeds styling" true (String.contains frame '\027')
-
-(* The rain frames the table green, keeps its content, and is deterministic. *)
-let test_rain () =
-  let a =
-    Table.anim
-      (of_string_rows ~theme:Theme.matrix
-         [ Table.column "name"; Table.column "age" ]
-         [ [ "Neo"; "30" ]; [ "Trinity"; "28" ] ])
-  in
-  let f = Anim.frame a ~elapsed:0.4 in
-  Alcotest.(check bool) "green frame" true (contains "\027[32m" f);
-  Alcotest.(check bool) "content kept" true (contains "Trinity" f);
-  Alcotest.(check string) "deterministic" f (Anim.frame a ~elapsed:0.4);
-  Alcotest.(check bool)
-    "advances over time" true
-    (f <> Anim.frame a ~elapsed:1.9)
-
 (* String conversion is plain. The formatter passed to [pp], not terminal
    detection, owns colour policy. *)
 let test_string_conversion_is_plain () =
@@ -458,6 +428,4 @@ let suite =
         test_theme_separates_multiline_rows;
       Alcotest.test_case "wrap preserves an unbroken token" `Quick
         test_wrap_preserves_unbroken_token;
-      Alcotest.test_case "anim is still" `Quick test_anim_const;
-      Alcotest.test_case "matrix rain" `Quick test_rain;
     ] )

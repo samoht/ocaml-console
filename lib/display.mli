@@ -229,7 +229,7 @@ end
 
     Every function below that takes a display or a task raises
     [Invalid_argument] once that display has closed, except {!pp}, {!history},
-    {!activity}, {!frame}, {!on_frame}, {!now}, {!wait} and {!tick}. *)
+    {!activity}, {!frame}, {!now}, {!wait} and {!tick}. *)
 
 type t
 (** The type for display sessions. Values are created only by {!run}. *)
@@ -436,26 +436,6 @@ val frame : t -> int
     activity projection: the frame an animation draws. It moves with the
     driver's ticks and not with the display's clock, so a display whose clock is
     frozen still animates. *)
-
-val on_frame : t -> int -> (unit -> unit) -> unit
-(** [on_frame display n k] calls [k ()] once, when the terminal holds frame [n]
-    of [display] ({!val-frame}): from the paint that puts it there, which is the
-    {!tick} that reaches [n] unless the region is lent out by {!with_output},
-    and then the paint that gives it back. It calls [k] at once when that frame
-    or a later one is already drawn, and when [display] draws no frames: an
-    appending display, or one that has closed. A frame still to come when
-    [display] closes calls [k] as it closes. [k] runs inside the paint, so it
-    resolves or signals and returns; a driver such as [Console_eio] turns it
-    into a promise a fiber awaits. *)
-
-val set_scene : t -> (frame:int -> width:int -> Span.t list) -> unit
-(** [set_scene display scene] draws [scene ~frame ~width] above the header of
-    [display]'s activity projection at every paint, the frame being {!val-frame}
-    and [width] the terminal's width, and replaces any scene set before. Each
-    line is cut to the width. The scene is left out of a paint whose terminal is
-    too short to hold it with the header and every running row, and an appending
-    display never draws it, so it holds nothing that is not also said elsewhere.
-*)
 
 val now : t -> float
 (** [now display] is the time on the clock of the context [display] was opened

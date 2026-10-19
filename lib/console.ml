@@ -32,6 +32,5 @@ module Table = Table
 module Tree = Tree
 module Rule = Rule
 module Layout = Layout
-module Canvas = Canvas
 module Display = Display
 module Input = Input

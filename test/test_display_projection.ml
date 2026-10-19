@@ -219,75 +219,6 @@ let test_tiny_activity_is_bounded () =
   in
   Alcotest.(check bool) "activity never scrolled" false !did_scroll
 
-let scene_screens ?(height = 8) ?(width = 30) ?(rows = [ "compile" ]) scene =
-  let screens = ref [] in
-  let _vte =
-    terminal_run ~height ~width ~header:"BUILD"
-      (fun display _advance sync vte ->
-        Display.set_scene display scene;
-        List.iter (fun row -> ignore (Display.task display row)) rows;
-        sync ();
-        screens := screen_rows vte :: !screens;
-        sync ();
-        screens := screen_rows vte :: !screens)
-  in
-  List.rev !screens
-
-let first_rows n rows = List.filteri (fun i _ -> i < n) rows
-
-(* The clock of [terminal_run] never moves, so a scene that changes between two
-   ticks is sampled at the frame the ticks advance, not at the time. *)
-let test_a_scene_moves_with_the_ticks () =
-  let scene ~frame ~width =
-    [ Fmt.kstr Span.text "scene %d of %d" frame width ]
-  in
-  match scene_screens scene with
-  | [ first; second ] ->
-      Alcotest.(check (list string))
-        "the first tick draws frame 1 above the header"
-        [ "scene 1 of 30"; "[-] BUILD 0.0s (0/1)" ]
-        (first_rows 2 first);
-      Alcotest.(check (list string))
-        "the second tick draws frame 2"
-        [ "scene 2 of 30"; "[-] BUILD 0.0s (0/1)" ]
-        (first_rows 2 second)
-  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
-
-let test_a_scene_is_cut_to_the_width () =
-  let scene ~frame:_ ~width:_ = [ Span.text (String.make 50 'x') ] in
-  match scene_screens scene with
-  | [ _; screen ] ->
-      Alcotest.(check (list string))
-        "the scene line stops at the right edge and wraps onto nothing"
-        [ String.make 30 'x'; "[-] BUILD 0.0s (0/1)" ]
-        (first_rows 2 screen)
-  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
-
-(* Four rows hold the header and two running rows and the cursor's row, and
-   nothing more: the scene gives way before any row does. *)
-let test_a_scene_gives_way_on_a_short_terminal () =
-  let scene ~frame:_ ~width:_ = [ Span.text "scene" ] in
-  match scene_screens ~height:4 ~rows:[ "compile"; "link" ] scene with
-  | [ _; screen ] ->
-      let shows word = List.exists (contains word) screen in
-      Alcotest.(check (list bool))
-        "the header and both rows, no scene"
-        [ true; true; true; false ]
-        [ shows "BUILD"; shows "compile"; shows "link"; shows "scene" ]
-  | screens -> Alcotest.failf "%d screens, expected 2" (List.length screens)
-
-let test_an_appending_display_draws_no_scene () =
-  let (), out =
-    capture ~header:"BUILD" (fun display _advance ->
-        Display.set_scene display (fun ~frame:_ ~width:_ ->
-            [ Span.text "scene" ]);
-        let task = Display.task display "compile" in
-        Display.tick display;
-        Display.tick display;
-        Display.succeed task)
-  in
-  Alcotest.(check bool) "no scene in the history" false (contains "scene" out)
-
 let suite =
   ( "display_projection",
     [
@@ -308,12 +239,4 @@ let suite =
         test_activity_lines_are_bounded;
       Alcotest.test_case "tiny activity bounded" `Quick
         test_tiny_activity_is_bounded;
-      Alcotest.test_case "a scene moves with the ticks" `Quick
-        test_a_scene_moves_with_the_ticks;
-      Alcotest.test_case "a scene is cut to the width" `Quick
-        test_a_scene_is_cut_to_the_width;
-      Alcotest.test_case "a scene gives way on a short terminal" `Quick
-        test_a_scene_gives_way_on_a_short_terminal;
-      Alcotest.test_case "an appending display draws no scene" `Quick
-        test_an_appending_display_draws_no_scene;
     ] )

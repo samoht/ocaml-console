@@ -104,12 +104,6 @@ val to_string : ?styled:bool -> ?width:int -> t -> string
     (defaults to [false]). [width], when supplied, is a hard maximum for every
     physical row. *)
 
-val anim : ?width:int -> t -> string Anim.t
-(** [anim table] is [table] as an {!Anim.t}: [to_string ~styled:true table] on
-    every frame, unless [table]'s theme sets {!Theme.animated_border}, as
-    {!Theme.matrix} does. Then the rendered table is framed by the digital rain
-    of {!Panel.anim}. *)
-
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t

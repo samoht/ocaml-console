@@ -31,7 +31,6 @@ val v :
   ?palette:Color.t list ->
   ?border:Border.t ->
   ?table_row_separators:bool ->
-  ?animated_border:bool ->
   ?guide:Guide.t ->
   ?bar:bar ->
   ?note_marker:string ->
@@ -90,9 +89,6 @@ val table_row_separators : t -> bool
 (** [table_row_separators t] is [true] when a table draws a horizontal rule
     between logical data rows. A cell may itself span several physical lines;
     those lines remain inside one row. *)
-
-val animated_border : t -> bool
-(** [animated_border t] is [true] when panels and tables use rain animation. *)
 
 val guide : t -> Guide.t
 (** [guide t] is the guide for trees and nested display rows. *)

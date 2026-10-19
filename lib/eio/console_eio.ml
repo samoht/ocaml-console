@@ -21,12 +21,6 @@ let auto ?fd ppf =
   | Some fd when region_on fd -> `Activity
   | Some _ | None -> `History
 
-let frame_drawn display n =
-  let promise, resolver = Eio.Promise.create () in
-  Console.Display.on_frame display n (fun () ->
-      ignore (Eio.Promise.try_resolve resolver () : bool));
-  promise
-
 (* The formatters {!setup} configured: their renderer is the caller's answer,
    even when it is [`None]. *)
 let configured : Format.formatter list Atomic.t = Atomic.make []

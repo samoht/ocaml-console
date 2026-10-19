@@ -42,19 +42,6 @@ let test_rainbow () =
     "palette of six colours" 6
     (List.length (Theme.palette t))
 
-(* Only the matrix preset asks for an animated (rain) border. *)
-let test_animated_border () =
-  Alcotest.(check bool)
-    "matrix animates" true
-    (Theme.animated_border Theme.matrix);
-  Alcotest.(check bool) "dos still" false (Theme.animated_border Theme.dos);
-  Alcotest.(check bool)
-    "unicode still" false
-    (Theme.animated_border Theme.unicode);
-  Alcotest.(check bool)
-    "rainbow still" false
-    (Theme.animated_border Theme.rainbow)
-
 (* [v] keeps the given fields and fills the rest with modern defaults: a cyan
    accent, a smooth bar, the unicode guide and [OK]/[FAIL] markers. *)
 let test_v_defaults () =
@@ -119,7 +106,6 @@ let suite =
       Alcotest.test_case "dos preset" `Quick test_dos;
       Alcotest.test_case "unicode preset" `Quick test_unicode;
       Alcotest.test_case "rainbow preset" `Quick test_rainbow;
-      Alcotest.test_case "animated border" `Quick test_animated_border;
       Alcotest.test_case "v defaults" `Quick test_v_defaults;
       Alcotest.test_case "with_verdict" `Quick test_with_verdict;
       Alcotest.test_case "every preset draws the same markers" `Quick

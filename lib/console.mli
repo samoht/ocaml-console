@@ -217,9 +217,6 @@ module Rule = Rule
 module Layout = Layout
 (** Joining rendered text blocks side by side into aligned columns. *)
 
-module Canvas = Canvas
-(** Grids of styled cells, for pixel art and scenes. *)
-
 module Display = Display
 (** A live progress display that redraws rows in place. *)
 

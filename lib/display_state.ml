@@ -54,9 +54,6 @@ type t = {
   mutable claimed : bool;
   mutable suspended : int;
   mutable frame : int;
-  mutable drawn : int;
-  mutable frame_waiters : (int * (unit -> unit)) list;
-  mutable scene : (frame:int -> width:int -> Span.t list) option;
 }
 
 and row_log = {

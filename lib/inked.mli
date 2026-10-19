@@ -5,7 +5,7 @@
 
 (** Values drawn in a style.
 
-    The representation shared by {!Border.t}, {!Guide.t} and {!Canvas.cell}. *)
+    The representation shared by {!Border.t} and {!Guide.t}. *)
 
 type 'a t
 (** The type for values of type ['a] drawn in a {!Style.t}. *)

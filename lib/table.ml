@@ -21,7 +21,6 @@ type row = { cells : Span.t list; see : string option }
 type t = {
   border : Border.t;
   row_separators : bool;
-  animated : bool;
   header_style : Style.t;
   columns : column list;
   rows : row list;
@@ -52,7 +51,6 @@ let v ?theme ?border ?(header_style = Style.bold) columns =
     border = Widget.border ?theme ?border ~default:Border.single ();
     row_separators =
       Option.fold ~none:false ~some:Theme.table_row_separators theme;
-    animated = Widget.animated theme;
     header_style;
     columns;
     rows = [];
@@ -490,18 +488,3 @@ let pp ppf t =
 
 let to_string ?styled ?width t =
   Render.to_string (pp_with ?max_width:width) ?styled t
-
-(* Frame the rendered table with a Matrix rain border. *)
-let rain ?width t =
-  Anim.v (fun ~elapsed ->
-      let body =
-        to_string ~styled:true ?width t
-        |> String.split_on_char '\n'
-        |> List.filter (fun l -> l <> "")
-      in
-      Rain.frame body ~elapsed)
-
-(* A still frame, unless the theme asked for an animated border. *)
-let anim ?width t =
-  if t.animated then rain ?width t
-  else Anim.const (to_string ~styled:true ?width t)

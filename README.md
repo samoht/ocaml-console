@@ -217,7 +217,7 @@ inside another `Console_eio.run` reuses the same display.
 
 ![Matrix ASCII rain demo](examples/matrix/matrix.gif)
 
-Spinners, progress bars and the falling characters of `Theme.matrix` are
+Spinners and progress bars are
 animations: values of type `Anim.t` that change over time. `Anim.all` samples
 several of them at once, and `Anim.map Layout.hcat` joins the frames side by
 side. To see them together,
@@ -245,7 +245,6 @@ $ dune exec examples/matrix/main.exe
 | `Console.Panel` | Text in a frame, with an optional title |
 | `Console.Rule` | Horizontal lines with an optional title |
 | `Console.Layout` | Blocks of text side by side or stacked |
-| `Console.Canvas` | Grids of coloured characters, for pictures |
 | `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Bar` | Progress bars |
 | `Console.Anim` | Values that change over time, for animations |

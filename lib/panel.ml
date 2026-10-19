@@ -5,7 +5,6 @@
 
 type t = {
   border : Border.t;
-  animated : bool;
   title : Span.t option;
   subtitle : Span.t option;
   padding : int;
@@ -23,15 +22,7 @@ let check_geometry fn padding width =
 let build ~fn ?theme ?border ?title ?subtitle ?(padding = 1) ?width lines =
   check_geometry fn padding width;
   let border = Widget.border ?theme ?border ~default:Border.rounded () in
-  {
-    border;
-    animated = Widget.animated theme;
-    title;
-    subtitle;
-    padding;
-    width;
-    lines;
-  }
+  { border; title; subtitle; padding; width; lines }
 
 let v ?theme ?border ?title ?subtitle ?padding ?width content =
   build ~fn:"Console.Panel.v" ?theme ?border ?title ?subtitle ?padding ?width
@@ -135,24 +126,3 @@ let pp ppf panel =
   render_bottom_border ppf p panel border_style chars inner_width
 
 let to_string = Render.to_string pp
-
-(* The rain frames the content lines (each padded to the inner width) with a
-   Matrix border. The title and subtitle are not drawn in this mode. *)
-let rain panel =
-  Anim.v (fun ~elapsed ->
-      let cw = content_width panel in
-      let pad = String.make panel.padding ' ' in
-      let line l =
-        let l =
-          Span.sanitize ~keep_newlines:false l
-          |> Span.to_string ~styled:true
-          |> Width.truncate cw
-        in
-        pad ^ Width.pad_right cw l ^ pad
-      in
-      Rain.frame (List.map line panel.lines) ~elapsed)
-
-(* A still frame, unless the theme asked for an animated border. *)
-let anim panel =
-  if panel.animated then rain panel
-  else Anim.const (to_string ~styled:true panel)

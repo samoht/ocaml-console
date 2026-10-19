@@ -63,52 +63,7 @@ let test_fixed_width_truncates () =
     "content was clipped" false
     (contains "abcdefgh" (String.concat "\n" rendered))
 
-(* A still panel animation is just its rendered string at every frame. *)
-let test_anim_const () =
-  let p = Panel.v (Span.text "body") in
-  let a = Panel.anim p in
-  Alcotest.(check string)
-    "frame 0 is terminal-ready"
-    (Panel.to_string ~styled:true p)
-    (Anim.frame a ~elapsed:0.);
-  Alcotest.(check string)
-    "frame 9 is terminal-ready too"
-    (Panel.to_string ~styled:true p)
-    (Anim.frame a ~elapsed:9.)
-
 let lines s = String.split_on_char '\n' s
-
-(* The rain frame keeps the box rectangle (content height + 2 border rows), is
-   coloured green, shows the content, and is deterministic in elapsed. *)
-let test_rain () =
-  let p = Panel.v ~theme:Theme.matrix (Span.text "neo\ntrinity") in
-  let a = Panel.anim p in
-  let f1 = Anim.frame a ~elapsed:0.4 in
-  Alcotest.(check int)
-    "content height + 2 border rows" 4
-    (List.length (lines f1));
-  Alcotest.(check bool) "green frame" true (contains "\027[32m" f1);
-  Alcotest.(check bool) "content kept" true (contains "trinity" f1);
-  (* deterministic: the same instant renders byte-identically *)
-  Alcotest.(check string)
-    "stable at a given elapsed" f1
-    (Anim.frame a ~elapsed:0.4);
-  (* the rain advances: a later frame differs *)
-  Alcotest.(check bool)
-    "frame advances over time" true
-    (f1 <> Anim.frame a ~elapsed:1.7)
-
-(* anim honours the theme: a matrix-themed panel rains, others stay still. *)
-let test_anim_theme () =
-  let m = Panel.v ~theme:Theme.matrix (Span.text "neo") in
-  Alcotest.(check bool)
-    "matrix theme rains" true
-    (contains "\027[32m" (Anim.frame (Panel.anim m) ~elapsed:0.4));
-  let u = Panel.v ~theme:Theme.unicode (Span.text "neo") in
-  Alcotest.(check string)
-    "non-matrix theme stays still"
-    (Panel.to_string ~styled:true u)
-    (Anim.frame (Panel.anim u) ~elapsed:0.4)
 
 let render_at margin panel =
   let buf = Buffer.create 128 in
@@ -224,9 +179,6 @@ let suite =
       Alcotest.test_case "invalid geometry" `Quick test_invalid_geometry;
       Alcotest.test_case "fixed width truncates" `Quick
         test_fixed_width_truncates;
-      Alcotest.test_case "anim is still" `Quick test_anim_const;
-      Alcotest.test_case "matrix rain" `Quick test_rain;
-      Alcotest.test_case "anim honours theme" `Quick test_anim_theme;
       Alcotest.test_case "margin wraps" `Quick test_margin_wraps;
       Alcotest.test_case "margin natural" `Quick test_margin_natural;
     ] )

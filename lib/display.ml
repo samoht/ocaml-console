@@ -75,9 +75,6 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~bar ~width
     claimed = false;
     suspended = 0;
     frame = 0;
-    drawn = -1;
-    frame_waiters = [];
-    scene = None;
   }
 
 let release_claim t =
@@ -557,16 +554,6 @@ let tick t =
   end
 
 let frame t = t.frame
-
-let on_frame t n k =
-  if t.plain || t.torn_down || t.drawn >= n then k ()
-  else t.frame_waiters <- (n, k) :: t.frame_waiters
-
-let set_scene t scene =
-  check_open "set_scene" t;
-  t.scene <- Some scene;
-  Display_projection.paint_if_stale t
-
 let now t = t.now ()
 let wait t = t.wait
 
@@ -639,9 +626,7 @@ let restore = Display_term.restore
 let run ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header f =
   let t = v ~ctx ?mode ?theme ?palette ?bar ?width ?height ?header () in
   Fun.protect
-    ~finally:(fun () ->
-      release_claim t;
-      Display_projection.release_frames t)
+    ~finally:(fun () -> release_claim t)
     (fun () ->
       match f t with
       | value ->

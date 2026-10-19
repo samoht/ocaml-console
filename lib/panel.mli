@@ -48,14 +48,6 @@ val to_string : ?styled:bool -> t -> string
 (** [to_string panel] is [panel] rendered at its natural width, with ANSI
     styling iff [styled] (defaults to [false]). *)
 
-val anim : t -> string Anim.t
-(** [anim panel] is [panel] as an {!Anim.t}: [to_string ~styled:true panel] on
-    every frame, unless [panel]'s theme sets {!Theme.animated_border}, as
-    {!Theme.matrix} does. Then the border is Matrix-style ASCII digital rain: a
-    bold green head sweeps clockwise round it, trailing dimmer green, and every
-    cell flickers through an ASCII glyph, deterministically in the elapsed time.
-    The title and subtitle are not drawn in this mode. *)
-
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t

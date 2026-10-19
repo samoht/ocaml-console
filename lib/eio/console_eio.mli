@@ -96,10 +96,3 @@ val auto : ?fd:Eio_unix.Fd.t -> Format.formatter -> [ `Activity | `History ]
     is a terminal and [TERM] is not [dumb], a terminal with no cursor to move;
     [`History] otherwise. A command that draws something else when no live
     region can be drawn asks here, so it and {!run} give one answer. *)
-
-val frame_drawn : Console.Display.t -> int -> unit Eio.Promise.t
-(** [frame_drawn display n] is resolved when the terminal holds frame [n] of
-    [display] ({!Console.Display.on_frame}): by the refresh that draws it, so a
-    fiber that needs a frame on screen before it goes on awaits it rather than a
-    span of time. It is resolved at once when that frame is already drawn and
-    when [display] draws no frames, and is resolved when [display] closes. *)

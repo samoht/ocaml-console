@@ -68,24 +68,6 @@ let rec row_live row =
   || (waits_for_group row && not (row.swept || row.transient)))
   && match row.parent with None -> true | Some parent -> row_live parent
 
-(* The scene repeats what the rows say, so it is the first thing to give
-   way. *)
-let scene_lines t ~header ~blocks =
-  match t.scene with
-  | None -> []
-  | Some scene ->
-      let width = t.width in
-      let lines =
-        List.map
-          (fun span -> Display_row.span_line t (Span.truncate width span))
-          (scene ~frame:t.frame ~width)
-      in
-      if
-        List.length lines + List.length header + List.length blocks
-        <= capacity t
-      then lines
-      else []
-
 let lines t =
   let header =
     match Display_summary.header t ~fit:true with Some s -> [ s ] | None -> []
@@ -96,7 +78,6 @@ let lines t =
       (fun row -> (Display_row.live t row, Display_row.tail t row))
       active
   in
-  let header = scene_lines t ~header ~blocks @ header in
   cap_region t ~header ~blocks
 
 (* A resize between frames is picked up before the next clear and redraw: a
@@ -109,18 +90,6 @@ let refresh_size t =
     if t.auto_height then t.height <- max 1 height
   end;
   t.width <> old_width || t.height <> old_height
-
-let wake_frames t =
-  let ready, waiting =
-    List.partition (fun (n, _) -> n <= t.drawn) t.frame_waiters
-  in
-  t.frame_waiters <- waiting;
-  List.iter (fun (_, k) -> k ()) (List.rev ready)
-
-let release_frames t =
-  let all = t.frame_waiters in
-  t.frame_waiters <- [];
-  List.iter (fun (_, k) -> k ()) (List.rev all)
 
 let paint t =
   if (not t.plain) && (not t.torn_down) && t.suspended = 0 then begin
@@ -146,9 +115,7 @@ let paint t =
          region up every paint and strand the header in scrollback. *)
       t.live_height <- List.length lines;
       t.last_lines <- lines
-    end;
-    t.drawn <- t.frame;
-    wake_frames t
+    end
   end
 
 let clear t =

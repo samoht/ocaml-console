@@ -67,10 +67,6 @@ type t = {
   mutable claimed : bool;
   mutable suspended : int;  (** Nesting of [with_output]. *)
   mutable frame : int;  (** The ticks that refreshed the projection. *)
-  mutable drawn : int;  (** The frame last painted, or [-1]. *)
-  mutable frame_waiters : (int * (unit -> unit)) list;
-      (** The callers whose frame is not drawn yet. *)
-  mutable scene : (frame:int -> width:int -> Span.t list) option;
 }
 (** The type for display sessions. *)
 

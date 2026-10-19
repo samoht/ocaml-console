@@ -23,7 +23,6 @@ type t = {
   palette : Color.t list;
   border : Border.t;
   table_row_separators : bool;
-  animated_border : bool;
   guide : Guide.t;
   spinner : Spinner.t;
   bar : bar;
@@ -53,7 +52,6 @@ let warn t = t.warn
 let palette t = t.palette
 let border t = t.border
 let table_row_separators t = t.table_row_separators
-let animated_border t = t.animated_border
 let guide t = t.guide
 let spinner t = t.spinner
 let bar t = t.bar
@@ -71,11 +69,10 @@ let committed_marker t = function
 
 let v ?(accent = Color.cyan) ?(ok = Color.green) ?(fail = Color.red)
     ?(warn = Color.yellow) ?(palette = []) ?(border = Border.rounded)
-    ?(table_row_separators = false) ?(animated_border = false)
-    ?(guide = Guide.unicode) ?(bar = `Smooth) ?(note_marker = "#")
-    ?(warn_marker = "!") ?(error_marker = "x") ?(committed_succeeded = "=>")
-    ?(committed_failed = "!!") ?(committed_cancelled = "--") ~spinner
-    ~done_marker () =
+    ?(table_row_separators = false) ?(guide = Guide.unicode) ?(bar = `Smooth)
+    ?(note_marker = "#") ?(warn_marker = "!") ?(error_marker = "x")
+    ?(committed_succeeded = "=>") ?(committed_failed = "!!")
+    ?(committed_cancelled = "--") ~spinner ~done_marker () =
   {
     accent;
     ok;
@@ -84,7 +81,6 @@ let v ?(accent = Color.cyan) ?(ok = Color.green) ?(fail = Color.red)
     palette;
     border;
     table_row_separators;
-    animated_border;
     guide;
     spinner;
     bar;
@@ -123,7 +119,6 @@ let dos =
     palette = [ amber ];
     border = Border.ascii;
     table_row_separators = false;
-    animated_border = false;
     guide = Guide.ascii;
     spinner = Spinner.ascii;
     bar = `Blocky;
@@ -150,7 +145,6 @@ let unicode =
     palette = [ Color.cyan ];
     border = Border.rounded;
     table_row_separators = false;
-    animated_border = false;
     guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Smooth;
@@ -176,7 +170,6 @@ let matrix =
     palette = [ matrix_green ];
     border = Border.single;
     table_row_separators = false;
-    animated_border = true;
     guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Smooth;
@@ -209,7 +202,6 @@ let rainbow =
       ];
     border = Border.rounded;
     table_row_separators = false;
-    animated_border = false;
     guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Rainbow;
