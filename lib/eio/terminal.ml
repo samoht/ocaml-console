@@ -1,4 +1,4 @@
-let usable_width w = if w > 10 then Some w else None
+let usable_width w = if w > 0 then Some w else None
 
 let window_size = function
   | None -> None
@@ -30,7 +30,7 @@ let width fd =
   first ~default:80
     [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" usable_width) ]
 
-let usable_height h = if h > 2 then Some h else None
+let usable_height h = if h > 0 then Some h else None
 
 let height_of_ioctl fd () =
   Option.bind (window_size fd) (fun w -> usable_height w.rows)

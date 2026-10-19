@@ -118,8 +118,8 @@ let test_dimensions_read_the_environment () =
       (fun () -> Alcotest.(check int) msg expected (width ()))
   in
   check "the exported width" "123" 123;
-  check "the smallest width taken" "11" 11;
-  check "a smaller one is no answer" "10" 80;
+  check "a narrow width taken" "10" 10;
+  check "zero is no answer" "0" 80;
   check "nor is none" "" 80
 
 (* Under a terminal [run] takes SIGINT, to give the cursor back before the

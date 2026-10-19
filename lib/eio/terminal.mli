@@ -4,14 +4,13 @@
     wrappers over Unix and [Sys]; the window size is Eio's. *)
 
 val width : Eio_unix.Fd.t option -> int
-(** [width fd] returns the width in columns of the terminal behind [fd]: the
-    [TIOCGWINSZ] ioctl on [fd], else [$COLUMNS], else [80]. [None] asks no
-    ioctl. *)
+(** [width fd] is the width in columns of the terminal behind [fd]: the first
+    positive one of the [TIOCGWINSZ] ioctl on [fd] and [$COLUMNS], else [80].
+    [None] asks no ioctl. *)
 
 val height : Eio_unix.Fd.t option -> int
-(** [height fd] returns the height in rows of the terminal behind [fd]: the
-    [TIOCGWINSZ] ioctl on [fd], else [$LINES], else [24]. [None] asks no ioctl.
-*)
+(** [height fd] is like {!width} for the height in rows, from [$LINES], else
+    [24]. *)
 
 val is_tty : Eio_unix.Fd.t -> bool
 (** [is_tty fd] is [true] iff [fd] is connected to a terminal. *)
