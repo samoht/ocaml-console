@@ -91,7 +91,8 @@ let main env =
   print_files ()
 ```
 
-```
+```ocaml
+# print_files ();;
 ╭───────────┬──────┬─────────────╮
 │ Name      │ Size │ Modified    │
 ├───────────┼──────┼─────────────┤
@@ -99,10 +100,39 @@ let main env =
 │ src/      │ 4.0K │ yesterday   │
 │ Makefile  │  892 │ 3 days ago  │
 ╰───────────┴──────┴─────────────╯
+
+- : unit = ()
 ```
 
-Trees (`Tree.pp`) and framed panels (`Panel.pp`) print the same way. To give
-every widget the same look, pass them the same `~theme`. A theme sets the
+Trees and framed panels print the same way:
+
+```ocaml
+# open Console;;
+# let file name = Tree.Node (Span.text name, []) in
+  Fmt.pr "%a@." Tree.pp
+    (Tree.of_tree
+       (Node
+          ( Span.text "src",
+            [
+              Node (Span.text "lib", [ file "console.ml"; file "table.ml" ]);
+              Node (Span.text "test", [ file "test.ml" ]);
+            ] )));;
+src
+├── lib
+│   ├── console.ml
+│   └── table.ml
+└── test
+    └── test.ml
+- : unit = ()
+# Fmt.pr "%a@." Panel.pp
+    (Panel.v ~title:(Span.text "Status") (Span.text "All tests passed"));;
+╭───── Status ─────╮
+│ All tests passed │
+╰──────────────────╯
+- : unit = ()
+```
+
+To give every widget the same look, pass them the same `~theme`. A theme sets the
 main colour, the frame style, the lines that connect tree branches, the
 spinner and the progress bar. The built-in themes are `Theme.unicode` (the
 default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
@@ -121,6 +151,16 @@ let report =
     [ Rule.to_string section; Panel.to_string (Panel.v (Span.text "All green")) ]
 ```
 
+```ocaml
+# print_endline report;;
+─────────────── Results ────────────────
+
+╭───────────╮
+│ All green │
+╰───────────╯
+- : unit = ()
+```
+
 ### Progress
 
 A `Display` shows one line per task that is still running, and updates
@@ -137,6 +177,29 @@ let build ~clock =
   Display.set_count step ~cur:2 ~total:2;
   Display.log step "compiled parser.ml";
   Display.succeed step
+```
+
+When the output is not a terminal, the same calls print plain lines.
+`Display.dumb` stands in for that case here, with a clock that does not move:
+
+```ocaml
+# Display.run ~ctx:(Display.dumb ()) ~header:"Building" (fun display ->
+    let step = Display.task display "compile" in
+    Display.set_count step ~cur:2 ~total:2;
+    Display.log step "compiled parser.ml";
+    Display.succeed step);;
+  # compiled parser.ml
+=> compile  2/2  0.0s
+[+] Building 0.0s (1/1)
+- : unit = ()
+```
+
+`Bar.render` draws a bar on its own, here 65% full and twenty columns wide:
+
+```ocaml
+# print_endline (Bar.render ~styled:false ~width:20 ~pct:65 ());;
+▕█████████████       ▏
+- : unit = ()
 ```
 
 A task shows a spinner until it knows how much work it has, then a progress
