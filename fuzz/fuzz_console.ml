@@ -1139,9 +1139,16 @@ let test_fold_preserves_text s n =
   check_eq ~pp:Fmt.Dump.string (without_spaces s)
     (without_spaces (String.concat "" (Width.fold (adversarial_width n) s)))
 
+let test_joined_width left right =
+  let left = adversarial_text left and right = adversarial_text right in
+  let combined = Span.(text left ++ styled Style.bold right) in
+  check_eq ~pp:Fmt.int (Width.string_width (left ^ right)) (Span.width combined)
+
 let suite =
   ( "console",
     [
+      test_case "styled concatenation has joined width" [ bytes; bytes ]
+        test_joined_width;
       test_case "folding preserves non-space text" [ bytes; int ]
         test_fold_preserves_text;
       test_case "wrapping preserves non-space text" [ bytes; int ]
