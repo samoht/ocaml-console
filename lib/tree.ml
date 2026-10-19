@@ -3,21 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type 'a node = Node of 'a * 'a node list
+type t = { guide : Guide.t; label : Span.t; children : t list }
 
-(* Internal record; exposed as abstract [t] in the interface *)
-type view = { guide : Guide.t; tree : Span.t node }
-type t = view
-
-(* The guide a render uses: an explicit [guide] wins, else the [theme]'s guide,
-   else the unicode default. *)
-let resolve_guide ?theme ?guide () =
-  match guide with
-  | Some g -> g
-  | None -> (
-      match theme with Some t -> Theme.guide t | None -> Guide.unicode)
-
-let v ?theme ?guide tree = { guide = resolve_guide ?theme ?guide (); tree }
+let v ?(guide = Guide.unicode) label children = { guide; label; children }
 
 (* The guide prefix for a node, given the is-last-among-siblings flag at each
    level from a top-level node down to and including this one. Each strict
@@ -48,15 +36,16 @@ let continuation ~guide lasts =
        lasts)
 
 let pp ppf t =
+  let guide = t.guide in
   let margin = Format.pp_get_margin ppf () in
   let p = Paint.v ppf in
-  let style = Guide.style t.guide in
+  let style = Guide.style guide in
   (* [lasts] is the is-last flag at each level from the top down to this node;
      the root carries the empty list and prints with no prefix. A literal
      newline separates nodes: a [Fmt.cut] break hint collapses with no
      enclosing box. *)
-  let rec go lasts (Node (label, children)) =
-    let prefix = prefix ~guide:t.guide lasts in
+  let rec go lasts { label; children; _ } =
+    let prefix = prefix ~guide lasts in
     if lasts <> [] then (
       Paint.newline p;
       Paint.ink p style prefix);
@@ -70,7 +59,7 @@ let pp ppf t =
     | first :: rest ->
         Paint.close p;
         Span.pp ppf first;
-        let beside = continuation ~guide:t.guide lasts in
+        let beside = continuation ~guide lasts in
         List.iter
           (fun line ->
             Paint.newline p;
@@ -81,7 +70,7 @@ let pp ppf t =
     let n = List.length children in
     List.iteri (fun i child -> go (lasts @ [ i = n - 1 ]) child) children
   in
-  go [] t.tree;
+  go [] t;
   Paint.close p
 
 let to_string = Render.to_string pp

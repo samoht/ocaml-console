@@ -108,15 +108,13 @@ Trees and framed panels print the same way:
 
 ```ocaml
 # open Console;;
-# let file name = Tree.Node (Span.text name, []) in
+# let file name = Tree.v (Span.text name) [] in
   Fmt.pr "%a@." Tree.pp
-    (Tree.v
-       (Node
-          ( Span.text "src",
-            [
-              Node (Span.text "lib", [ file "console.ml"; file "table.ml" ]);
-              Node (Span.text "test", [ file "test.ml" ]);
-            ] )));;
+    (Tree.v (Span.text "src")
+       [
+         Tree.v (Span.text "lib") [ file "console.ml"; file "table.ml" ];
+         Tree.v (Span.text "test") [ file "test.ml" ];
+       ]);;
 src
 ├── lib
 │   ├── console.ml

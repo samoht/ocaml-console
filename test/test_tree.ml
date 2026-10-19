@@ -29,10 +29,8 @@ let test_prefix_ascii () =
 (* A multi-level tree renders one node per line, each ancestor's branch drawn
    once. *)
 let test_render_exact () =
-  let n label children = Tree.Node (Span.text label, children) in
-  let tree =
-    Tree.v (n "root" [ n "a" [ n "a1" []; n "a2" [] ]; n "b" [ n "b1" [] ] ])
-  in
+  let n label children = Tree.v (Span.text label) children in
+  let tree = n "root" [ n "a" [ n "a1" []; n "a2" [] ]; n "b" [ n "b1" [] ] ] in
   let expected =
     String.concat "\n"
       [ "root"; "├── a"; "│   ├── a1"; "│   └── a2"; "└── b"; "    └── b1" ]
@@ -40,19 +38,15 @@ let test_render_exact () =
   str "exact tree" expected (Tree.to_string tree)
 
 let test_render_single () =
-  let tree =
-    Tree.v (Tree.Node (Span.text "root", [ Tree.Node (Span.text "child", []) ]))
-  in
+  let tree = Tree.v (Span.text "root") [ Tree.v (Span.text "child") [] ] in
   str "single child" "root\n└── child" (Tree.to_string tree)
 
 (* The formatter's margin is a ceiling on every row: a label wider than the
    room left by its guide wraps, hanging under the text after its first word,
    and the guide of its level runs on beside the continuation. *)
 let test_margin_wraps () =
-  let n label children = Tree.Node (Span.text label, children) in
-  let tree =
-    Tree.v (n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ])
-  in
+  let n label children = Tree.v (Span.text label) children in
+  let tree = n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ] in
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
   Format.pp_set_margin ppf 20;
@@ -79,10 +73,8 @@ let test_guide_style () =
   let down = Gradient.v ~direction:(0, 1) ~length:2 [ red; blue ] in
   let guide = Guide.with_style (Style.fg_gradient down) Guide.unicode in
   let tree =
-    Tree.v ~guide
-      (Tree.Node
-         ( Span.text "r",
-           [ Tree.Node (Span.text "a", []); Tree.Node (Span.text "b", []) ] ))
+    Tree.v ~guide (Span.text "r")
+      [ Tree.v (Span.text "a") []; Tree.v (Span.text "b") [] ]
   in
   Alcotest.(check string)
     "rows"

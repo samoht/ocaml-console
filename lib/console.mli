@@ -61,14 +61,11 @@
 
     let demo_tree () =
       let tree =
-        Tree.v
-          (Tree.Node
-             ( Span.text "src",
-               [
-                 Tree.Node
-                   (Span.text "lib", [ Tree.Node (Span.text "parser.ml", []) ]);
-                 Tree.Node (Span.text "test", []);
-               ] ))
+        Tree.v (Span.text "src")
+          [
+            Tree.v (Span.text "lib") [ Tree.v (Span.text "parser.ml") [] ];
+            Tree.v (Span.text "test") [];
+          ]
       in
       Fmt.pr "%a@." Tree.pp tree
     ]}

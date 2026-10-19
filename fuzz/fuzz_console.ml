@@ -67,7 +67,7 @@ let test_table_render_no_crash headers row =
 
 (* Tree rendering doesn't crash *)
 let test_tree_render_no_crash label =
-  let tree = Tree.v (Tree.Node (Span.text label, [])) in
+  let tree = Tree.v (Span.text label) [] in
   let _ = Tree.to_string tree in
   check true
 

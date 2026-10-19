@@ -3,68 +3,46 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Trees drawn with guide lines.
+(** Trees, drawn like the output of [tree].
 
-    A tree is a root span and its children, each drawn on its own row behind the
-    {!Guide} glyphs that connect it to its parent. *)
+    Each node is on its own row, behind the {!Guide} lines that connect it to
+    its parent.
 
-(** {1:trees Trees} *)
-
-(** The type for trees of ['a] nodes. *)
-type 'a node = Node of 'a * 'a node list
-
-type t
-(** The type for renderable trees of spans. *)
-
-val v : ?theme:Theme.t -> ?guide:Guide.t -> Span.t node -> t
-(** [v tree] is [tree] ready to render. The branch glyphs come from [guide] if
-    given, else from {!Theme.guide} of [theme], else {!Guide.unicode}.
-
-    A tree of a recursive value is built by recursion over it:
     {[
-    type dir = { name : string; children : dir list }
-
-    let root_dir =
-      {
-        name = "root";
-        children =
+    let tree =
+      Console.(
+        Tree.v ~guide:Guide.ascii (Span.text "root")
           [
-            { name = "bin"; children = [] };
-            { name = "etc"; children = [ { name = "hosts"; children = [] } ] };
-          ];
-      }
-
-    let rec node dir =
-      Console.Tree.Node (Console.Span.text dir.name, List.map node dir.children)
-
-    let tree = Console.Tree.v ~guide:Console.Guide.ascii (node root_dir)
+            Tree.v (Span.text "bin") [];
+            Tree.v (Span.text "etc") [ Tree.v (Span.text "hosts") [] ];
+          ])
 
     let () =
       assert (
         Console.Tree.to_string tree = "root\n+-- bin\n+-- etc\n    +-- hosts")
     ]} *)
 
-(** {1:guides Guides} *)
+type t
+(** The type for trees. *)
 
-val prefix : ?guide:Guide.t -> bool list -> string
-(** [prefix ?guide lasts] is the guide prefix drawn before a node, where [lasts]
-    is the is-last-among-siblings flag at each level from a top-level node down
-    to and including this one. Each strict ancestor adds a vertical continuation
-    ({!Guide.pipe}) or blank ({!Guide.space}) depending on whether it was the
-    last of its siblings, then the node itself adds the {!Guide.branch} or
-    {!Guide.last} connector. The empty list is the root and has no prefix. So
-    under {!Guide.unicode} the first child of a non-last parent gives
-    ["│   ├── "]. A live renderer that draws its own rows (a progress tree)
-    shares the guide drawing through it. *)
-
-(** {1:fmt Formatting} *)
+val v : ?guide:Guide.t -> Span.t -> t list -> t
+(** [v label children] is the tree of [label] above [children]. Its lines are
+    those of [guide] (defaults to {!Guide.unicode}); a tree drawn under another
+    takes the lines of the one above it. *)
 
 val pp : t Fmt.t
-(** [pp] formats a tree, one node per row behind its guide. The formatter's
-    margin caps every row: a label wider than the room its guide leaves wraps at
-    its words ({!Span.wrap}), each continuation hanging under the text after the
-    label's first word beside the guide of its level. *)
+(** [pp] formats a tree. A label wider than the formatter's margin leaves it
+    wraps, the rest under its text. *)
 
 val to_string : ?styled:bool -> t -> string
-(** [to_string tree] is [tree] rendered at its natural width, with ANSI styling
-    iff [styled] (defaults to [false]). *)
+(** [to_string t] is [t] formatted at its natural width, with colours iff
+    [styled] (defaults to [false]). *)
+
+(**/**)
+
+val prefix : ?guide:Guide.t -> bool list -> string
+(** [prefix lasts] is the guide drawn before a node whose ancestors, from the
+    top down to the node itself, are or are not the last of their siblings as
+    [lasts] says. *)
+
+(**/**)
