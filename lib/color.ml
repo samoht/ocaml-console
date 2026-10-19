@@ -114,10 +114,6 @@ let depth_of_env getenv =
   | _, Some term when contains ~sub:"256color" term -> `Ansi_256
   | _ -> `Ansi_16
 
-let current_depth : depth Atomic.t = Atomic.make `True_color
-let depth () = Atomic.get current_depth
-let set_depth d = Atomic.set current_depth d
-
 (* The xterm defaults of the 16 named colours, in palette order. *)
 let named =
   [|
@@ -227,7 +223,7 @@ let scale f c =
   Rgb (s r, s g, s b)
 
 let to_code ~normal ~bright ~extended c =
-  match downsample (depth ()) c with
+  match c with
   | Ansi color ->
       string_of_int
         ((if is_bright color then bright else normal) + ansi_position color)

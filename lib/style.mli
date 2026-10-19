@@ -92,8 +92,7 @@ val map_color : ?fg:(Color.t -> Color.t) -> ?bg:(Color.t -> Color.t) -> t -> t
 
 val to_ansi : t -> string
 (** [to_ansi s] is the ANSI escape sequence that enables
-    [at ~row:0 ~column:0 s], or the empty string for {!none}. Its colours are
-    written at {!Color.val-depth}. *)
+    [at ~row:0 ~column:0 s], or the empty string for {!none}. *)
 
 val reset : string
 (** [reset] is the ANSI escape sequence to reset all styling. *)

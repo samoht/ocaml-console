@@ -8,10 +8,6 @@ open Console
 let red = Color.rgb 255 0 0
 let blue = Color.rgb 0 0 255
 
-let with_depth depth f =
-  Color.set_depth depth;
-  Fun.protect ~finally:(fun () -> Color.set_depth `True_color) f
-
 let test_cell () =
   let refused g =
     Alcotest.check_raises g
@@ -60,28 +56,21 @@ let test_shape () =
 
 let ansi rows = List.map (fun s -> Span.to_ansi_string s) rows
 
-(* A run is cut where the drawn sequence changes, not where the style value
-   does: two reds the xterm-256 palette cannot tell apart are one run. *)
+(* A run is cut where the drawn sequence changes: two cells of one red are one
+   run. *)
 let test_runs () =
   let row =
     [
       Canvas.cell ~style:(Style.fg red) "a";
-      Canvas.cell ~style:(Style.fg (Color.rgb 250 0 0)) "b";
+      Canvas.cell ~style:Style.(fg red + none) "b";
       Canvas.cell "c";
       Canvas.cell ~style:(Style.bg blue) "d";
     ]
   in
   let c = Canvas.of_rows [ row ] in
-  with_depth `Ansi_256 (fun () ->
-      Alcotest.(check (list string))
-        "256"
-        [ "\027[38;5;196mab\027[0mc\027[48;5;21md\027[0m" ]
-        (ansi (Canvas.rows c)));
   Alcotest.(check (list string))
     "true colour"
-    [
-      "\027[38;2;255;0;0ma\027[0m\027[38;2;250;0;0mb\027[0mc\027[48;2;0;0;255md\027[0m";
-    ]
+    [ "\027[38;2;255;0;0mab\027[0mc\027[48;2;0;0;255md\027[0m" ]
     (ansi (Canvas.rows c))
 
 (* A gradient takes its colour on the canvas cell, row and column. *)

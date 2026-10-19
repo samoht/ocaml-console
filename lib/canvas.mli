@@ -78,8 +78,8 @@ val map : (row:int -> column:int -> cell -> cell) -> t -> t
 
 val rows : t -> Span.t list
 (** [rows c] is [c] as one span per row. Adjacent cells whose styles draw the
-    same SGR sequence (at {!Color.val-depth}, a gradient taken on each cell) are
-    one styled run, so a row writes a sequence only where its look changes. *)
+    same SGR sequence (a gradient taken on each cell) are one styled run, so a
+    row writes a sequence only where its look changes. *)
 
 val pp : t Fmt.t
 (** [pp] formats [c] one row per line, each row cut to the formatter's margin,

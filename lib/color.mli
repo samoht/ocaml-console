@@ -7,10 +7,9 @@
 
     Supports ANSI 16-color palette, 256-color palette, and true color (RGB/hex).
 
-    A colour is kept as given and degraded only where it is drawn: {!to_fg_code}
-    and {!to_bg_code} write it at the process's {{!depths}colour depth}, the
-    nearest entry of the terminal's palette standing for a colour it cannot
-    show. *)
+    A colour is kept and written as given. A terminal that shows fewer colours
+    is served by {!downsample}, which [Console_eio.setup] applies to what is
+    written to standard output and standard error. *)
 
 (** {1:color_types Color types} *)
 
@@ -125,15 +124,6 @@ val depth_of_env : (string -> string option) -> depth
     - [`Ansi_256] if [TERM] contains [256color];
     - [`Ansi_16] otherwise. *)
 
-val depth : unit -> depth
-(** [depth ()] is the depth {!to_fg_code} and {!to_bg_code} write at (defaults
-    to [`True_color], which writes every colour as given). *)
-
-val set_depth : depth -> unit
-(** [set_depth d] sets {!val-depth} to [d]. The terminal a process draws on is
-    one for the whole process, so this is set once, by the application, usually
-    through [Console_eio.setup]. *)
-
 val downsample : depth -> t -> t
 (** [downsample d c] is [c] as a terminal of depth [d] shows it:
     - [c] itself at [`True_color], and for a colour already in the palette of
@@ -162,12 +152,11 @@ val scale : float -> t -> t
 (** {1:ansi_codes ANSI codes} *)
 
 val to_fg_code : t -> string
-(** [to_fg_code c] is the ANSI escape sequence that sets the foreground to
-    [downsample (depth ()) c] (without the leading [ESC\[]). *)
+(** [to_fg_code c] is the SGR parameters that set the foreground to [c], without
+    the leading [ESC\[] and the final [m]. *)
 
 val to_bg_code : t -> string
-(** [to_bg_code c] is the ANSI escape sequence that sets the background to
-    [downsample (depth ()) c] (without the leading [ESC\[]). *)
+(** [to_bg_code c] is like {!to_fg_code} for the background. *)
 
 (** {1:operations Operations} *)
 

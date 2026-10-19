@@ -47,7 +47,9 @@ let setup ?style_renderer () =
   set Fmt.stdout Unix.stdout;
   set Fmt.stderr Unix.stderr;
   Atomic.set configured [ Fmt.stdout; Fmt.stderr ];
-  Console.Color.set_depth (Console.Color.depth_of_env Sys.getenv_opt)
+  let depth = Console.Color.depth_of_env Sys.getenv_opt in
+  Depth.install Fmt.stdout depth;
+  Depth.install Fmt.stderr depth
 
 (* The renderer [run] draws [ppf] with when nobody chose one: what {!setup}
    would choose for the terminal [tty]. [None] keeps the caller's. *)

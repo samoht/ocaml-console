@@ -138,18 +138,17 @@ let test_rgb () =
   Alcotest.check color "scale clamps" (Color.rgb 255 255 255)
     (Color.scale 3. (Color.rgb 100 100 100))
 
-(* A colour is written at the process's depth. *)
 let test_codes_at_depth () =
-  Color.set_depth `Ansi_256;
-  Fun.protect
-    ~finally:(fun () -> Color.set_depth `True_color)
-    (fun () ->
-      Alcotest.(check string)
-        "foreground" "38;5;196"
-        (Color.to_fg_code (Color.rgb 255 0 0));
-      Alcotest.(check string)
-        "background" "48;5;21"
-        (Color.to_bg_code (Color.rgb 0 0 255)))
+  let at d c = Color.downsample d c in
+  Alcotest.(check string)
+    "foreground" "38;5;196"
+    (Color.to_fg_code (at `Ansi_256 (Color.rgb 255 0 0)));
+  Alcotest.(check string)
+    "background" "48;5;21"
+    (Color.to_bg_code (at `Ansi_256 (Color.rgb 0 0 255)));
+  Alcotest.(check string)
+    "as given" "38;2;255;0;0"
+    (Color.to_fg_code (Color.rgb 255 0 0))
 
 let suite =
   ( "color",

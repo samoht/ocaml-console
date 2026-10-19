@@ -94,7 +94,8 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
       [Fmt_cli.style_renderer]'s [--color] option), the environment and whether
       that output is a terminal, so [--color], [NO_COLOR] and [TERM] are
       honoured the same way by every command;
-    - {!Console.Color.val-depth} is {!Console.Color.depth_of_env} of the
+    - the colours written to {!Fmt.stdout} and {!Fmt.stderr} are
+      {!Console.Color.downsample}d to {!Console.Color.depth_of_env} of the
       environment, so a colour a terminal cannot show is drawn as its nearest
       one. *)
 
