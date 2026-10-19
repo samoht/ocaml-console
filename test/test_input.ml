@@ -297,10 +297,21 @@ let test_typed_c1 () =
     (Astring.String.is_infix ~affix:"\xc2\x9b" echo);
   Alcotest.check lines "line" [ "a 2Jb" ] submitted
 
+(* A terminal in application cursor mode sends the arrows as ESC O A to
+   ESC O D; they move as ESC [ A to ESC [ D do and insert nothing. *)
+let test_application_arrows () =
+  let t = Input.v ~history:[ "old" ] () in
+  let _, submitted = Input.feed t "ab\027ODX\r" in
+  Alcotest.check lines "left arrow" [ "aXb" ] submitted;
+  let _, submitted = Input.feed t "\027OA\r" in
+  Alcotest.check lines "up arrow" [ "aXb" ] submitted
+
 let suite =
   ( "input",
     [
       Alcotest.test_case "typed C1 control is a space" `Quick test_typed_c1;
+      Alcotest.test_case "application mode arrows" `Quick
+        test_application_arrows;
       Alcotest.test_case "invalid UTF-8 is a replacement character" `Quick
         test_invalid_utf8;
       Alcotest.test_case "echo holds no escape from the caller" `Quick
