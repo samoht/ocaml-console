@@ -91,16 +91,7 @@ and row = {
   mutable rlabel : string;
   mutable metric : metric;
   transient : bool;  (** Drawn while it runs; its ending commits no line. *)
-  group : bool;
-      (** Its rows' permanent lines wait for it, and it settles with its last
-          row. *)
-  mutable requested : (Display_event.outcome * string option) option;
-      (** The first ending asked of a group while rows under it were open. *)
   mutable swept : bool;  (** Settled because the row above it did. *)
-  mutable waiting : bool;
-      (** Settled under a group that has not, so its line is not written yet. *)
-  mutable spilled : row_log list;
-      (** Kept log lines that left the row while it waited for its group. *)
   rstart : float;
   mutable rfinish : float option;
   mutable rmessage : string option;
@@ -157,7 +148,3 @@ val children : row -> row list
 
 val running_children : row -> row list
 (** [running_children r] are the {!children} of [r] that have not finished. *)
-
-val waits_for_group : row -> bool
-(** [waits_for_group r] is [true] iff [r] is on a live region under a group that
-    has not finished, so its permanent lines wait for the group's. *)

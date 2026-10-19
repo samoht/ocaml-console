@@ -58,9 +58,7 @@ val v :
   column list ->
   t
 (** [v columns] is an empty table. The border is [border] if given, else
-    [theme]'s border, else {!Border.single}; the header row defaults to bold. A
-    theme with {!Theme.table_row_separators} enabled draws rules between logical
-    data rows. *)
+    [theme]'s border, else {!Border.single}; the header row defaults to bold. *)
 
 val add_row : ?see:string -> Span.t list -> t -> t
 (** [add_row ?see cells table] adds a row of styled cells. [see] follows a cell

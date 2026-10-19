@@ -64,8 +64,7 @@ let cap_region t ~header ~blocks =
   else cap_logs t ~header ~budget ~total blocks
 
 let rec row_live row =
-  (row.rfinish = None
-  || (waits_for_group row && not (row.swept || row.transient)))
+  row.rfinish = None
   && match row.parent with None -> true | Some parent -> row_live parent
 
 let lines t =

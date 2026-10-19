@@ -13,13 +13,13 @@ let test_large_percentage_does_not_overflow () =
       v [ label; spacer; percent; text " "; count; text " "; elapsed ])
   in
   let _vte =
-    terminal_run ~height:5 ~width:72 (fun display _ sync vte ->
-        let count = Display.task ~layout display "count" in
+    terminal_run ~height:5 ~width:72 ~layout (fun display _ sync vte ->
+        let count = Display.task display "count" in
         Display.set_count count ~cur:max_int ~total:max_int;
         sync ();
         count_ok := contains "100%" (Vte.to_string vte);
         Display.succeed count;
-        let bytes = Display.task ~layout display "bytes" in
+        let bytes = Display.task display "bytes" in
         Display.set_bytes bytes ~cur:Int64.max_int ~total:Int64.max_int;
         sync ();
         bytes_ok := contains "100%" (Vte.to_string vte);

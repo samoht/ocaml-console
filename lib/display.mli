@@ -72,10 +72,11 @@ module Line : sig
       edge. *)
 
   type t
-  (** The type for task-line layouts and their accent colour. *)
+  (** The type for task-line layouts. *)
 
-  val v : ?color:Color.t -> piece list -> t
-  (** [v pieces] is a layout assembled left to right.
+  val v : piece list -> t
+  (** [v pieces] is a layout assembled left to right, in the colours of the
+      display's theme.
 
       @raise Invalid_argument
         if [pieces] contains more than one label or spacer. *)
@@ -231,7 +232,6 @@ val run :
   ctx:ctx ->
   ?mode:mode ->
   ?theme:Theme.t ->
-  ?palette:Color.t list ->
   ?layout:Line.t ->
   ?width:int ->
   ?height:int ->
@@ -273,21 +273,18 @@ type task
 val task :
   ?key:string ->
   ?parent:task ->
-  ?layout:Line.t ->
-  ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
-  ?group:bool ->
   t ->
   string ->
   task
 (** [task display label] starts a task. With [~key], repeated calls return the
     same task, so event streams can use their own stable keys without keeping a
-    registry. The first call fixes its parent and rendering options; use
-    {!set_label} when a later start event supplies a better label. [label] is
-    sanitized: a newline or another control character becomes a space, so a task
-    is always drawn on one row.
+    registry. The first call fixes its parent and options; use {!set_label} when
+    a later start event supplies a better label. [label] is sanitized: a newline
+    or another control character becomes a space, so a task is always drawn on
+    one row.
 
     {b The first parent wins.} A later call offering a different [parent] for a
     known [key] returns the existing task where it already sits, and does not
@@ -307,16 +304,6 @@ val task :
     and leaves no line when it ends: the screen keeps what happened, not how the
     work got there. Its start, its ending and its logs are in {!history} like
     any task's, and a pipe, which draws nothing that runs, never sees it.
-
-    [group] (defaults to [false]) makes a group row, the way a build draws one
-    row per service with its steps beneath it. A row under an open group that
-    ends stays drawn beneath the group, with its outcome and its frozen timer,
-    and its permanent line waits for the group's: when the group settles, its
-    line and then its rows' lines, each with its kept log lines, are written as
-    one block, on the block's grid. A group settles when its last row does:
-    {!succeed}, {!fail} or {!cancel} on a group with rows still open records
-    that ending, and the group takes it, with its timer stopped then, when the
-    last of those rows ends. A pipe writes every line as it comes.
 
     @raise Invalid_argument
       if the display is closed, [key] is empty, [log_lines] or [total] is
@@ -382,8 +369,7 @@ val succeed : ?message:string -> task -> unit
     place of its label if given. A task finishes once: the first of {!succeed},
     {!fail} and {!cancel} wins and later calls do nothing. Its unfinished
     descendants finish first, children before parents: they succeed when [task]
-    succeeds and are cancelled when it fails or is cancelled. A group with rows
-    still open finishes when the last of them does instead (see {!task}). *)
+    succeeds and are cancelled when it fails or is cancelled. *)
 
 val fail : ?message:string -> task -> unit
 (** [fail ~message task] is like {!succeed} but finishes [task] as failed. *)
@@ -395,12 +381,9 @@ val cancel : ?message:string -> task -> unit
 val with_task :
   ?key:string ->
   ?parent:task ->
-  ?layout:Line.t ->
-  ?color:Color.t ->
   ?log_lines:int ->
   ?total:int ->
   ?transient:bool ->
-  ?group:bool ->
   t ->
   string ->
   (task -> 'a) ->

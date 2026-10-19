@@ -38,8 +38,8 @@ let validate_geometry ~width ~height =
       invalid_arg "Console.Display.run: height must be positive"
   | _ -> ()
 
-let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~layout ~width
-    ~height ~header =
+let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~layout ~width ~height
+    ~header =
   let auto_width = width = None and auto_height = height = None in
   let term_w, term_h = ctx.dimensions () in
   let width = match width with Some w -> w | None -> max 1 term_w in
@@ -53,9 +53,9 @@ let state ~(ctx : Display_ctx.t) ~plain ~styling ~theme ~palette ~layout ~width
     wait = ctx.wait;
     dimensions = ctx.dimensions;
     header = Option.map sanitize header;
-    default_style = layout;
+    default_style = Line.with_color (Theme.accent theme) layout;
     theme;
-    palette = Option.value palette ~default:(Theme.palette theme);
+    palette = Theme.palette theme;
     dstart = ctx.now ();
     width;
     height;
@@ -95,8 +95,8 @@ let claim t =
         Display_term.show_cursor_on t.dppf;
         raise exn
 
-let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
-    ?(layout = Line.default) ?width ?height ?header () =
+let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?(layout = Line.default)
+    ?width ?height ?header () =
   validate_geometry ~width ~height;
   let plain =
     match mode with
@@ -107,27 +107,21 @@ let v ~ctx ?(mode = `Auto) ?(theme = Theme.unicode) ?palette
   (* Whether the surface takes ANSI is the formatter's own answer, read once
      here: a terminal whose reader turned colour off still gets the region. *)
   let styling = Ansi.should_style ctx.ppf in
-  let t =
-    state ~ctx ~plain ~styling ~theme ~palette ~layout ~width ~height ~header
-  in
+  let t = state ~ctx ~plain ~styling ~theme ~layout ~width ~height ~header in
   claim t;
   t
 
 let touch r = Display_projection.paint_if_stale r.disp
 
-(* A row's accent: an explicit [color], else the next palette colour (fixed at
-   creation, so it is stable across redraws), else the base style's own. *)
-let row_style t ~layout ~color =
-  let base = Option.value layout ~default:t.default_style in
-  match color with
-  | Some c -> Line.with_color c base
-  | None -> (
-      match (layout, t.palette) with
-      | None, (_ :: _ as pal) ->
-          Line.with_color
-            (List.nth pal (List.length t.rows mod List.length pal))
-            base
-      | _ -> base)
+(* A row's accent is the next palette colour, fixed at creation so it is
+   stable across redraws. *)
+let row_style t =
+  match t.palette with
+  | [] -> t.default_style
+  | pal ->
+      Line.with_color
+        (List.nth pal (List.length t.rows mod List.length pal))
+        t.default_style
 
 let check_open fn t =
   if t.torn_down then invalid_arg ("Console.Display." ^ fn ^ ": closed display")
@@ -212,8 +206,7 @@ let validate_task ~key ~parent ~log_lines ~total t =
    rather than fatal: a drawing surface does not get to abort its host. *)
 let existing_task ~key t = Option.bind key (Hashtbl.find_opt t.by_key)
 
-let add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
-    label =
+let add_task ~key ~parent ~log_lines ~total ~transient t label =
   let now = t.now () in
   let rid = t.next_task_id in
   t.next_task_id <- rid + 1;
@@ -229,7 +222,7 @@ let add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
       rkey = key;
       disp = t;
       parent;
-      style = row_style t ~layout ~color;
+      style = row_style t;
       log_lines;
       logs = [];
       log_prev_t = now;
@@ -237,11 +230,7 @@ let add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
       metric =
         (match total with Some total -> Count (0, total) | None -> Spin);
       transient;
-      group;
-      requested = None;
       swept = false;
-      waiting = false;
-      spilled = [];
       rstart = now;
       rfinish = Option.map (Fun.const now) inherited;
       rmessage = None;
@@ -262,14 +251,11 @@ let add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
   touch r;
   r
 
-let task ?key ?parent ?layout ?color ?(log_lines = 8) ?total
-    ?(transient = false) ?(group = false) t label =
+let task ?key ?parent ?(log_lines = 8) ?total ?(transient = false) t label =
   validate_task ~key ~parent ~log_lines ~total t;
   match existing_task ~key t with
   | Some existing -> existing
-  | None ->
-      add_task ~key ~parent ~layout ~color ~log_lines ~total ~transient ~group t
-        label
+  | None -> add_task ~key ~parent ~log_lines ~total ~transient t label
 
 let set_label r label =
   check_open "set_label" r.disp;
@@ -279,14 +265,11 @@ let set_label r label =
   end
 
 (* One log line, written where history goes: above the activity region on a
-   terminal, straight to the output without one, or held with its row while
-   the row waits for its group. *)
+   terminal, or straight to the output without one. *)
 let commit_log t r entry =
-  if waits_for_group r then r.spilled <- r.spilled @ [ entry ]
-  else
-    emit_history_line t
-      ~plain:(Display_row.appended_log t r entry)
-      ~styled:(Display_row.committed_log t r entry)
+  emit_history_line t
+    ~plain:(Display_row.appended_log t r entry)
+    ~styled:(Display_row.committed_log t r entry)
 
 (* A line is on screen once. While the row's tail holds a line, history does
    not; history takes it when it ages out of the tail or the row finishes. A
@@ -422,94 +405,46 @@ let set_bytes r ~cur ~total =
 
 (** {1 Endings} *)
 
-(* The lines that waited for [r], depth first in the order the rows started:
-   each row's kept log lines, then the row's own line, then the rows under it.
-   A row that waited for an inner group is still waiting when that group
-   settles under an outer one, and is written here with the rest. *)
-let rec waited_lines t r =
-  List.concat_map
-    (fun child ->
-      let logs = List.map (Display_row.committed_log t child) child.spilled in
-      child.spilled <- [];
-      let own =
-        if child.waiting then begin
-          child.waiting <- false;
-          [ Display_row.committed t child ]
-        end
-        else []
-      in
-      logs @ own @ waited_lines t child)
-    (children r)
-
-(* A group asked to end while rows under it are open keeps the first ending it
-   was asked for and settles with it when its last open row settles, so its
-   cost runs to that moment. Any other row settles at once, its open
-   descendants first.
-
-   A [swept] row never reported an ending of its own: the row it hung under
+(* A [swept] row never reported an ending of its own: the row it hung under
    ended while it was still running. It commits no permanent line, since the
    only sentence the display could write for it would be about its own shape;
    the event stream still carries its ending. *)
 let rec finish ?(swept = false) outcome ?message r =
   check_open "finish" r.disp;
-  if r.rfinish = None then
-    if (not swept) && r.group && running_children r <> [] then
-      r.requested <- Some (Option.value r.requested ~default:(outcome, message))
-    else settle ~swept outcome ?message r
-
-and settle ~swept outcome ?message r =
-  let child_outcome =
-    match outcome with
-    | `Succeeded -> `Succeeded
-    | `Failed | `Cancelled -> `Cancelled
-  in
-  List.iter
-    (fun child -> finish ~swept:true child_outcome child)
-    (running_children r);
-  let t = r.disp in
-  (* The row is about to leave the live region, so history takes its tail
-     before the line that closes the row. *)
-  if not t.plain then begin
-    List.iter (fun log -> if log.lkept then commit_log t r log) r.logs;
-    r.logs <- []
-  end;
-  r.rfinish <- Some (t.now ());
-  r.rmessage <- Option.map sanitize message;
-  r.routcome <- Some outcome;
-  r.swept <- swept;
-  t.finished <- t.finished + 1;
-  let message = Option.value r.rmessage ~default:r.rlabel in
-  record ~task:r t (`Finished outcome) message;
-  let own = not (swept || r.transient) in
-  (if waits_for_group r then r.waiting <- own
-   else if t.plain then (
-     if own then Fmt.pf t.dppf "%s@." (Display_row.appended t r))
-   else
-     match
-       (if own then [ Display_row.committed t r ] else []) @ waited_lines t r
-     with
-     | [] -> ()
-     | lines -> Display_projection.commit t (String.concat "\r\n" lines));
-  match r.parent with
-  | Some parent when not swept -> settle_requested parent
-  | Some _ | None -> ()
-
-and settle_requested group =
-  match group.requested with
-  | Some (outcome, message)
-    when group.rfinish = None && running_children group = [] ->
-      settle ~swept:false outcome ?message group
-  | Some _ | None -> ()
+  if r.rfinish = None then begin
+    let child_outcome =
+      match outcome with
+      | `Succeeded -> `Succeeded
+      | `Failed | `Cancelled -> `Cancelled
+    in
+    List.iter
+      (fun child -> finish ~swept:true child_outcome child)
+      (running_children r);
+    let t = r.disp in
+    (* The row is about to leave the live region, so history takes its tail
+       before the line that closes the row. *)
+    if not t.plain then begin
+      List.iter (fun log -> if log.lkept then commit_log t r log) r.logs;
+      r.logs <- []
+    end;
+    r.rfinish <- Some (t.now ());
+    r.rmessage <- Option.map sanitize message;
+    r.routcome <- Some outcome;
+    r.swept <- swept;
+    t.finished <- t.finished + 1;
+    let message = Option.value r.rmessage ~default:r.rlabel in
+    record ~task:r t (`Finished outcome) message;
+    if not (swept || r.transient) then
+      if t.plain then Fmt.pf t.dppf "%s@." (Display_row.appended t r)
+      else Display_projection.commit t (Display_row.committed t r)
+  end
 
 let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
-let with_task ?key ?parent ?layout ?color ?log_lines ?total ?transient ?group t
-    label f =
-  let task =
-    task ?key ?parent ?layout ?color ?log_lines ?total ?transient ?group t label
-  in
+let with_task ?key ?parent ?log_lines ?total ?transient t label f =
+  let task = task ?key ?parent ?log_lines ?total ?transient t label in
   match f task with
   | value ->
       succeed task;
@@ -616,8 +551,8 @@ let cleanup_after_exception t =
 
 let restore = Display_term.restore
 
-let run ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header f =
-  let t = v ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header () in
+let run ~ctx ?mode ?theme ?layout ?width ?height ?header f =
+  let t = v ~ctx ?mode ?theme ?layout ?width ?height ?header () in
   Fun.protect
     ~finally:(fun () -> release_claim t)
     (fun () ->

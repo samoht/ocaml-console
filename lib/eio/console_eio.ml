@@ -87,14 +87,14 @@ let context ~clock ~ppf ~fd =
 
 (* Only the outermost call opens a display and asks for its context; a call
    under it contributes to the display that stands. *)
-let session ~context ?mode ?theme ?palette ?layout ?width ?height ?header f =
+let session ~context ?mode ?theme ?layout ?width ?height ?header f =
   match Eio.Fiber.get current with
   | Some display -> f display
   | None -> (
       let ctx, restore, renderer = context () in
       let run () =
         with_renderer renderer @@ fun () ->
-        Display.run ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header
+        Display.run ~ctx ?mode ?theme ?layout ?width ?height ?header
           (fun display ->
             Eio.Fiber.with_binding current display (fun () -> f display))
       in
@@ -102,16 +102,16 @@ let session ~context ?mode ?theme ?palette ?layout ?width ?height ?header f =
       | None -> run ()
       | Some restore -> Terminal.on_interrupt restore run)
 
-let run ~clock ?ppf ?fd ?mode ?theme ?palette ?layout ?width ?height ?header f =
+let run ~clock ?ppf ?fd ?mode ?theme ?layout ?width ?height ?header f =
   session
     ~context:(fun () -> context ~clock ~ppf ~fd)
-    ?mode ?theme ?palette ?layout ?width ?height ?header f
+    ?mode ?theme ?layout ?width ?height ?header f
 
 (* A caller that supplies its own context has answered the output, clock,
    geometry and terminal questions already, and with them the question of who
    owns the terminal: [run_on] configures none and restores none, because the
    surface it was handed may not be one. *)
-let run_on ~ctx ?mode ?theme ?palette ?layout ?width ?height ?header f =
+let run_on ~ctx ?mode ?theme ?layout ?width ?height ?header f =
   session
     ~context:(fun () -> (ctx, None, None))
-    ?mode ?theme ?palette ?layout ?width ?height ?header f
+    ?mode ?theme ?layout ?width ?height ?header f

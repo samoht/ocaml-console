@@ -41,7 +41,7 @@ let check_invalid message f =
 let mib n = Int64.mul (Int64.of_int n) 1048576L
 let gib n = Int64.mul (Int64.of_int n) 1073741824L
 
-let terminal_run ?(height = 8) ?(width = 40) ?header f =
+let terminal_run ?(height = 8) ?(width = 40) ?header ?layout f =
   let buffer = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer buffer in
   let now, advance = fake_clock () in
@@ -52,7 +52,7 @@ let terminal_run ?(height = 8) ?(width = 40) ?header f =
     Buffer.clear buffer
   in
   Display.run ~ctx:(ctx ~live:true ~width ~height ~ppf ~now ())
-    ~mode:`Activity ~width ~height ?header (fun display ->
+    ~mode:`Activity ~width ~height ?header ?layout (fun display ->
       (* What a reader sees: the driver's tick has painted the snapshot. *)
       let sync () =
         Display.tick display;

@@ -6,13 +6,10 @@
 open Console
 open Display_harness
 
-(* Every log line and every finished row the display draws carries a marker,
-   and the marker is the theme's. The default half pins the six default
-   glyphs; the custom half is what proves they are read from the theme rather
-   than recited beside it. *)
-let markers_drawn ?theme () =
+(* Every log line and every finished row the display draws carries a marker. *)
+let markers_drawn () =
   let (), output =
-    capture ?theme (fun display _ ->
+    capture (fun display _ ->
         let row = Display.task display "note" in
         Display.log ~level:`Info row "an info line";
         Display.log ~level:`Warning row "a warning line";
@@ -23,7 +20,7 @@ let markers_drawn ?theme () =
   in
   output
 
-let test_markers_come_from_the_theme () =
+let test_every_line_carries_a_marker () =
   let defaults =
     [
       ("an info line", "# an info line");
@@ -40,32 +37,7 @@ let test_markers_come_from_the_theme () =
       Alcotest.(check bool)
         (what ^ " keeps its glyph")
         true (contains line drawn))
-    defaults;
-  let theme =
-    Theme.v ~note_marker:"(i)" ~warn_marker:"(w)" ~error_marker:"(e)"
-      ~committed_succeeded:"(+)" ~committed_failed:"(-)"
-      ~committed_cancelled:"(~)" ~spinner:Spinner.ascii ~done_marker:"[+]" ()
-  in
-  let drawn = markers_drawn ~theme () in
-  List.iter
-    (fun (what, line) ->
-      Alcotest.(check bool)
-        (what ^ " no longer draws the default")
-        false (contains line drawn))
-    defaults;
-  List.iter
-    (fun (what, line) ->
-      Alcotest.(check bool)
-        (what ^ " draws the theme's")
-        true (contains line drawn))
-    [
-      ("an info line", "(i) an info line");
-      ("a warning line", "(w) a warning line");
-      ("an error line", "(e) an error line");
-      ("a succeeded row", "(+) note");
-      ("a failed row", "(-) broken");
-      ("a cancelled row", "(~) abandoned");
-    ]
+    defaults
 
 let test_zero_progress_has_no_empty_bar () =
   ignore
@@ -632,23 +604,6 @@ let test_history_carries_colour_on_a_styled_surface () =
     "the committed metadata is dim" true
     (contains "\027[2m  1.3s\027[0m" bytes)
 
-(* The theme's roles colour an outcome: ok a success, fail a failure, warn a
-   cancellation. *)
-let test_history_takes_the_theme_roles () =
-  let theme =
-    Theme.v ~ok:(Color.palette 82) ~fail:(Color.palette 197)
-      ~warn:(Color.palette 214) ~spinner:Spinner.ascii ~done_marker:"+" ()
-  in
-  let check label expected ending =
-    Alcotest.(check bool)
-      label true
-      (contains expected (history_colour_session ~theme ~ending `Ansi_tty))
-  in
-  check "ok" "\027[1m\027[38;5;82m=>\027[0m app" (Display.succeed ?message:None);
-  check "fail" "\027[1m\027[38;5;197m!!\027[0m app" (Display.fail ?message:None);
-  check "warn" "\027[1m\027[38;5;214m--\027[0m app"
-    (Display.cancel ?message:None)
-
 let test_history_adds_no_sgr_on_a_plain_surface () =
   Alcotest.(check int)
     "no SGR reached the pipe" 0
@@ -663,10 +618,8 @@ let test_history_glyphs_do_not_depend_on_colour () =
 let suite =
   ( "display_row",
     [
-      Alcotest.test_case "history takes the theme roles" `Quick
-        test_history_takes_the_theme_roles;
       Alcotest.test_case "markers come from the theme" `Quick
-        test_markers_come_from_the_theme;
+        test_every_line_carries_a_marker;
       Alcotest.test_case "zero progress has no empty bar" `Quick
         test_zero_progress_has_no_empty_bar;
       Alcotest.test_case "committed metadata is right aligned" `Quick

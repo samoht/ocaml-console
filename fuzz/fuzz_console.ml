@@ -470,8 +470,8 @@ let test_bar cur total wbyte =
   let vte = Vte.create ~rows:4 ~cols:width () in
   let layout = Display.Line.(v [ label; text " "; percent; text " "; count ]) in
   Display.run ~ctx:(display_ctx ~ppf ~now ~width ~height:4)
-    ~mode:`Activity ~width ~height:4 (fun d ->
-      let task = Display.task ~layout d "[B]" in
+    ~mode:`Activity ~width ~height:4 ~layout (fun d ->
+      let task = Display.task d "[B]" in
       Display.set_count task ~cur ~total;
       Display.tick d;
       Format.pp_print_flush ppf ();

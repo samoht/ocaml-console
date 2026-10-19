@@ -34,13 +34,13 @@ let spacer = Spacer
 let is_label = function Label -> true | _ -> false
 let is_spacer = function Spacer -> true | _ -> false
 
-let v ?(color = Color.cyan) pieces =
+let v pieces =
   let count is = List.length (List.filter is pieces) in
   if count is_label > 1 then
     invalid_arg "Console.Display.Line.v: more than one label";
   if count is_spacer > 1 then
     invalid_arg "Console.Display.Line.v: more than one spacer";
-  { pieces; color }
+  { pieces; color = Color.cyan }
 
 let with_color color t = { t with color }
 

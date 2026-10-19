@@ -55,6 +55,7 @@ val terminal_run :
   ?height:int ->
   ?width:int ->
   ?header:string ->
+  ?layout:Display.Line.t ->
   (Display.t -> (float -> unit) -> (unit -> unit) -> Vte.t -> unit) ->
   Vte.t
 (** [terminal_run f] runs [f display advance sync vte] on an [`Activity] display

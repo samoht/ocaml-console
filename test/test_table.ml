@@ -41,31 +41,6 @@ let test_wrap () =
   (* Should NOT contain ellipsis since we're wrapping, not truncating *)
   Alcotest.(check bool) "no ellipsis" false (contains "…" output)
 
-(* A logical row may contain several physical lines. Separators belong between
-   logical rows, never between the lines inside one cell: that distinction is
-   what lets a table show a group without leaving its start and end implicit. *)
-let test_theme_separates_multiline_rows () =
-  let theme =
-    Theme.v ~table_row_separators:true ~spinner:Spinner.braille ~done_marker:"✓"
-      ()
-  in
-  let table =
-    of_string_rows ~theme
-      [ Table.column "A"; Table.column "B" ]
-      [ [ "one"; "a\nb" ]; [ "two"; "c" ] ]
-  in
-  Alcotest.(check string)
-    "one separator between logical rows"
-    "╭─────┬───╮\n\
-     │ A   │ B │\n\
-     ├─────┼───┤\n\
-     │ one │ a │\n\
-     │     │ b │\n\
-     ├─────┼───┤\n\
-     │ two │ c │\n\
-     ╰─────┴───╯\n"
-    (Table.to_string table)
-
 (* A URL is one selectable terminal token. When another column can wrap at
    whitespace, fitting gives that slack up before splitting the URL at a slash.
    The hard terminal-width bound still wins when no such slack remains. *)
@@ -385,8 +360,6 @@ let suite =
       Alcotest.test_case "invalid shape" `Quick test_invalid_shape;
       Alcotest.test_case "empty" `Quick test_empty;
       Alcotest.test_case "wrap" `Quick test_wrap;
-      Alcotest.test_case "theme separates multiline logical rows" `Quick
-        test_theme_separates_multiline_rows;
       Alcotest.test_case "wrap preserves an unbroken token" `Quick
         test_wrap_preserves_unbroken_token;
     ] )

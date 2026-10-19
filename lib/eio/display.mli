@@ -4,7 +4,6 @@ val run :
   ctx:Console.Display.ctx ->
   ?mode:Console.Display.mode ->
   ?theme:Console.Theme.t ->
-  ?palette:Console.Color.t list ->
   ?layout:Console.Display.Line.t ->
   ?width:int ->
   ?height:int ->

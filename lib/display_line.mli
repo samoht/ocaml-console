@@ -62,9 +62,9 @@ val accent : string -> piece
 val spacer : piece
 (** [spacer] is {!constructor-Spacer}. *)
 
-val v : ?color:Color.t -> piece list -> t
-(** [v ~color pieces] is the layout [pieces] with accent [color] (defaults to
-    {!Color.cyan}).
+val v : piece list -> t
+(** [v pieces] is the layout [pieces] with accent {!Color.cyan}, which a display
+    replaces with its theme's.
 
     @raise Invalid_argument if [pieces] has more than one {!label} or {!spacer}.
 *)

@@ -20,7 +20,6 @@ type row = { cells : Span.t list; see : string option }
 
 type t = {
   border : Border.t;
-  row_separators : bool;
   header_style : Style.t;
   columns : column list;
   rows : row list;
@@ -49,8 +48,6 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
 let v ?theme ?border ?(header_style = Style.bold) columns =
   {
     border = Widget.border ?theme ?border ~default:Border.single ();
-    row_separators =
-      Option.fold ~none:false ~some:Theme.table_row_separators theme;
     header_style;
     columns;
     rows = [];
@@ -418,16 +415,7 @@ let render_lines ?max_width t =
     let headers = List.map (fun col -> col.header) t.columns in
     let has_headers = List.exists (fun h -> Span.to_string h <> "") headers in
     let rows = List.rev t.rows in
-    let body =
-      List.concat
-        (List.mapi
-           (fun i r ->
-             (if i > 0 && t.row_separators then
-                rule chars.left_cross chars.cross chars.right_cross chars.top
-              else [])
-             @ row Style.none r)
-           rows)
-    in
+    let body = List.concat_map (row Style.none) rows in
     rule chars.top_left chars.top_cross chars.top_right chars.top
     @ (if has_headers then
          row t.header_style { cells = headers; see = None }

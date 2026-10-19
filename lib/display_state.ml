@@ -75,11 +75,7 @@ and row = {
   mutable rlabel : string;
   mutable metric : metric;
   transient : bool;
-  group : bool;
-  mutable requested : (Display_event.outcome * string option) option;
   mutable swept : bool;
-  mutable waiting : bool;
-  mutable spilled : row_log list;
   rstart : float;
   mutable rfinish : float option;
   mutable rmessage : string option;
@@ -156,10 +152,3 @@ let children r =
 
 let running_children r =
   List.filter (fun child -> child.rfinish = None) (children r)
-
-let rec under_open_group r =
-  match r.parent with
-  | None -> false
-  | Some p -> (p.group && p.rfinish = None) || under_open_group p
-
-let waits_for_group r = (not r.disp.plain) && under_open_group r
