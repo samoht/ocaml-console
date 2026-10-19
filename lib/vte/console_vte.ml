@@ -36,7 +36,7 @@ let records recording =
     if off + header_size > n then List.rev acc
     else
       let len = u64 recording off in
-      if len < 0 || off + header_size + len > n then List.rev acc
+      if len < 0 || len > n - off - header_size then List.rev acc
       else
         let seconds =
           float_of_int (u64 recording (off + 8))

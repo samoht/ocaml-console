@@ -80,6 +80,17 @@ let test_a_partial_record_ends_the_stream () =
        (Console_vte.frames ~rows:6 ~cols:20
           (record ~kind:'s' ~sec:1 ~usec:0 "\n")))
 
+(* A header whose length is near [max_int] promises more than the stream
+   holds; the bound is checked without overflowing, so the stream ends. *)
+let test_a_huge_length_ends_the_stream () =
+  let huge =
+    let header = record ~kind:'o' ~sec:1 ~usec:0 "" in
+    let b = Bytes.of_string header in
+    Bytes.set_int64_le b 0 (Int64.of_int max_int);
+    Bytes.to_string b ^ "payload"
+  in
+  Alcotest.(check int) "no record" 0 (List.length (Console_vte.records huge))
+
 (* The timestamp is seconds from the first record, which is what makes two
    captures of one command comparable; [records] carries the epoch seconds the
    capture stamped, which is what makes it a faithful read of the file. *)
@@ -109,6 +120,8 @@ let suite =
         test_frames_keep_the_screen_between_writes;
       Alcotest.test_case "a partial record ends the stream" `Quick
         test_a_partial_record_ends_the_stream;
+      Alcotest.test_case "a huge length ends the stream" `Quick
+        test_a_huge_length_ends_the_stream;
       Alcotest.test_case "records carry the wall clock" `Quick
         test_records_carry_the_wall_clock;
       Alcotest.test_case "screen trims what no reader sees" `Quick
