@@ -198,6 +198,17 @@ let test_capped () =
   List.iter Display.cancel tasks;
   Display.close t.display
 
+let test_marker_fits () =
+  let t = terminal ~theme ~width:12 ~height:4 () in
+  let tasks = List.init 6 (fun i -> Display.task t.display (Fmt.str "t%d" i)) in
+  Display.redraw t.display;
+  (* A row wider than the terminal would wrap onto a fourth. *)
+  Alcotest.(check int)
+    "three rows" 3
+    (List.length (List.filter (( <> ) "") (screen t)));
+  List.iter Display.cancel tasks;
+  Display.close t.display
+
 let test_with_output () =
   let t = terminal ~theme ~width:30 () in
   let a = Display.task t.display "job" in
@@ -365,6 +376,7 @@ let suite =
       Alcotest.test_case "alignment" `Quick test_alignment;
       Alcotest.test_case "label truncated" `Quick test_label_truncated;
       Alcotest.test_case "capped" `Quick test_capped;
+      Alcotest.test_case "the marker fits" `Quick test_marker_fits;
       Alcotest.test_case "with_output" `Quick test_with_output;
       Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
       Alcotest.test_case "narrowing" `Quick test_narrowing;

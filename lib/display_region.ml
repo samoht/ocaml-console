@@ -28,8 +28,10 @@ let render t span = Span.render ?depth:t.depth span
    scroll its first line out of reach of the cursor moves that erase it. *)
 let capacity t = max 0 (t.height - 1)
 
-let marker hidden =
-  Span.styled Style.faint (Printf.sprintf "  \xe2\x80\xa6 %d more lines" hidden)
+let marker t hidden =
+  Span.truncate t.width
+    (Span.styled Style.faint
+       (Printf.sprintf "  \xe2\x80\xa6 %d more lines" hidden))
 
 let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
 let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
@@ -68,7 +70,7 @@ let frame t =
             live row :: drop k tail)
           rows
       in
-      header @ (marker hidden :: body)
+      header @ (marker t hidden :: body)
     end
     else
       match rows with
@@ -81,7 +83,7 @@ let frame t =
             let shown = drop (n - (budget - 2)) rows in
             header
             @ live first
-              :: marker (total - 1 - List.length shown)
+              :: marker t (total - 1 - List.length shown)
               :: List.map live shown
 
 (* {1 Drawing} *)
