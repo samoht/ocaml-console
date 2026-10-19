@@ -12,10 +12,15 @@
     rest of [console], so code that must stay small can use it alone. *)
 
 val sanitize : ?keep_newlines:bool -> string -> string
-(** [sanitize s] is [s] with each control character a space and each invalid
-    UTF-8 byte the replacement character U+FFFD. Line feeds are kept unless
-    [keep_newlines] is [false]. An escape code in [s] stays visible as text. The
-    result is valid UTF-8 without a control character but line feeds, and
+(** [sanitize s] is [s] with each control character (C0, DEL and C1) a space,
+    each invalid UTF-8 byte the replacement character U+FFFD, and without the
+    characters that reorder or hide the text around them: the bidirectional
+    marks U+061C, U+200E and U+200F, embeddings and overrides U+202A to U+202E
+    and isolates U+2066 to U+2069, and the interlinear annotation characters
+    U+FFF9 to U+FFFB. The joiners U+200C and U+200D, which some scripts and
+    emoji need, are kept. Line feeds are kept unless [keep_newlines] is [false].
+    An escape code in [s] stays visible as text. The result is valid UTF-8
+    without a control character but line feeds, and
     [sanitize (sanitize s) = sanitize s]. *)
 
 val strip : ?keep_newlines:bool -> string -> string

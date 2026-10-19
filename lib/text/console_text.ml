@@ -6,11 +6,23 @@
 (* The escape scanner follows the DEC parser of Paul Williams's state diagram
    (vt100.net/emu/dec_ansi_parser) over ECMA-48 and ECMA-35. *)
 
+(* Format characters that reorder the text around them or hide it: the
+   bidirectional marks (U+061C, U+200E, U+200F), embeddings and overrides
+   (U+202A to U+202E) and isolates (U+2066 to U+2069) of Unicode UAX #9, and
+   the interlinear annotation characters (U+FFF9 to U+FFFB). *)
+let reorders c =
+  c = 0x061c || c = 0x200e || c = 0x200f
+  || (c >= 0x202a && c <= 0x202e)
+  || (c >= 0x2066 && c <= 0x2069)
+  || (c >= 0xfff9 && c <= 0xfffb)
+
 (* [text buf ~keep_newlines u] adds what [sanitize] makes of the character
-   [u]: itself, or a space for a control. *)
+   [u]: itself, nothing if it {!reorders}, or a space for a control. *)
 let text buf ~keep_newlines u =
   let c = Uchar.to_int u in
-  if (keep_newlines && c = 0x0a) || (c >= 0x20 && not (c >= 0x7f && c <= 0x9f))
+  if reorders c then ()
+  else if
+    (keep_newlines && c = 0x0a) || (c >= 0x20 && not (c >= 0x7f && c <= 0x9f))
   then Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 

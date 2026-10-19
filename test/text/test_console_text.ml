@@ -113,9 +113,48 @@ let test_truecolour_reset () =
     "red must not leak into subsequent output" (input ^ "\027[0m")
     (Console_text.sanitize_styles input)
 
+(* Characters that reorder or hide the text around them are removed: the
+   bidirectional embeddings, overrides, isolates and marks, and the
+   interlinear annotation characters. *)
+let test_reordering () =
+  let hidden =
+    [
+      "\u{061C}";
+      "\u{200E}";
+      "\u{200F}";
+      "\u{202A}";
+      "\u{202B}";
+      "\u{202C}";
+      "\u{202D}";
+      "\u{202E}";
+      "\u{2066}";
+      "\u{2067}";
+      "\u{2068}";
+      "\u{2069}";
+      "\u{FFF9}";
+      "\u{FFFA}";
+      "\u{FFFB}";
+    ]
+  in
+  List.iter
+    (fun c ->
+      Alcotest.(check string)
+        (Printf.sprintf "%S removed" c)
+        "ab"
+        (Console_text.sanitize ("a" ^ c ^ "b"));
+      Alcotest.(check string)
+        (Printf.sprintf "%S removed by strip" c)
+        "ab"
+        (Console_text.strip ("a" ^ c ^ "b")))
+    hidden;
+  Alcotest.(check string)
+    "joiners kept" "\u{1F468}\u{200D}\u{1F469} \u{200C}"
+    (Console_text.sanitize "\u{1F468}\u{200D}\u{1F469} \u{200C}")
+
 let suite =
   ( "console_text",
     [
+      Alcotest.test_case "reordering characters" `Quick test_reordering;
       Alcotest.test_case "truecolour is reset after text" `Quick
         test_truecolour_reset;
       Alcotest.test_case "strip" `Quick test_strip;
