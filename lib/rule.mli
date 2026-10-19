@@ -3,12 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Horizontal rules with optional styled labels.
-
-    A rule is a {!Span.t}, so it renders and lays out as any span does. *)
+(** Horizontal lines with an optional label. *)
 
 type align = [ `Left | `Center | `Right ]
-(** The type for label alignments within a rule. *)
+(** The type for label alignments within a line. *)
+
+type t
+(** The type for horizontal lines. *)
 
 val v :
   ?theme:Theme.t ->
@@ -16,15 +17,15 @@ val v :
   ?glyph:string ->
   ?align:align ->
   ?label:Span.t ->
-  width:int ->
   unit ->
-  Span.t
-(** [v ~width ()] is a [width]-cell horizontal rule. [glyph] defaults to U+2500
-    (box drawings light horizontal), and must occupy exactly one terminal cell.
-    A [label] is separated from the rule by spaces and aligned as requested. An
-    explicit [style] wins; otherwise a theme supplies its accent colour and an
-    unthemed rule is dim.
+  t
+(** [v ()] is a horizontal line drawn with [glyph] (defaults to ["─"]) in
+    [style] (defaults to the accent colour of [theme], or faint without one).
+    [label], if given, sits in the line at [align] (defaults to [`Center]), with
+    a space on each side.
 
-    @raise Invalid_argument
-      if [width] is negative, [glyph] is not one safe terminal cell, or [label]
-      is wider than [width]. *)
+    @raise Invalid_argument if [glyph] is not one terminal cell wide. *)
+
+val pp : t Fmt.t
+(** [pp] formats a line as wide as the formatter's margin. A label wider than
+    that is cut to fit. *)

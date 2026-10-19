@@ -4,12 +4,9 @@
   ---------------------------------------------------------------------------*)
 
 type align = [ `Left | `Center | `Right ]
+type t = { style : Style.t; glyph : string; align : align; label : Span.t }
 
-let space = Span.text " "
-let repeat glyph n = String.concat "" (List.init n (fun _ -> glyph))
-
-let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?label ~width () =
-  if width < 0 then invalid_arg "Console.Rule.v: negative width";
+let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?(label = Span.empty) () =
   String.iter
     (fun ch ->
       let code = Char.code ch in
@@ -24,22 +21,26 @@ let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?label ~width () =
     | None, Some theme -> Style.fg (Theme.accent theme)
     | None, None -> Style.faint
   in
-  let fill n = Span.styled style (repeat glyph n) in
-  match label with
-  | None -> fill width
-  | Some label -> (
-      let label = Span.sanitize ~keep_newlines:false label in
-      let label_width = Span.width label in
-      if label_width > width then
-        invalid_arg "Console.Rule.v: label wider than rule";
-      let available = width - label_width in
-      if available = 0 then label
-      else
-        match align with
-        | `Left -> Span.(label ++ space ++ fill (available - 1))
-        | `Right -> Span.(fill (available - 1) ++ space ++ label)
-        | `Center when available = 1 -> Span.(label ++ space)
-        | `Center ->
-            let left = (available - 2) / 2 in
-            let right = available - 2 - left in
-            Span.(fill left ++ space ++ label ++ space ++ fill right))
+  { style; glyph; align; label = Span.sanitize ~keep_newlines:false label }
+
+let space = Span.text " "
+
+let line t width =
+  let fill n =
+    Span.styled t.style (String.concat "" (List.init n (Fun.const t.glyph)))
+  in
+  let label = Span.truncate width t.label in
+  let available = width - Span.width label in
+  if Span.width label = 0 then fill width
+  else if available = 0 then label
+  else
+    match t.align with
+    | `Left -> Span.(label ++ space ++ fill (available - 1))
+    | `Right -> Span.(fill (available - 1) ++ space ++ label)
+    | `Center when available = 1 -> Span.(label ++ space)
+    | `Center ->
+        let left = (available - 2) / 2 in
+        let right = available - 2 - left in
+        Span.(fill left ++ space ++ label ++ space ++ fill right)
+
+let pp ppf t = Span.pp ppf (line t (max 0 (Format.pp_get_margin ppf ())))

@@ -137,27 +137,37 @@ main colour, the frame style, the lines that connect tree branches, the
 spinner and the progress bar. The built-in themes are `Theme.unicode` (the
 default), `Theme.dos`, `Theme.matrix` and `Theme.rainbow`.
 
-`Rule` draws a horizontal line with an optional title, and `Layout` places
-blocks of text next to each other or one above the other:
+`Rule` draws a horizontal line as wide as the output, with an optional title:
+
+```ocaml
+# Format.set_margin 40;;
+- : unit = ()
+# Fmt.pr "%a@." Console.Rule.pp
+    (Console.Rule.v ~label:(Console.Span.text "Results") ());;
+─────────────── Results ────────────────
+- : unit = ()
+```
+
+`Layout` places blocks of text next to each other or one above the other:
 
 ```ocaml
 open Console
 
-let section =
-  Rule.v ~theme:Theme.unicode ~label:(Span.text "Results") ~width:40 ()
-
 let report =
   Layout.vcat ~gutter:1
-    [ Span.to_string section; Panel.to_string (Panel.v (Span.text "All green")) ]
+    [ Panel.to_string (Panel.v (Span.text "All green"));
+      Panel.to_string (Panel.v (Span.text "No warnings")) ]
 ```
 
 ```ocaml
 # print_endline report;;
-─────────────── Results ────────────────
-
 ╭───────────╮
 │ All green │
 ╰───────────╯
+
+╭─────────────╮
+│ No warnings │
+╰─────────────╯
 - : unit = ()
 ```
 

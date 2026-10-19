@@ -5,40 +5,48 @@
 
 open Console
 
+let at width rule =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf width;
+  Rule.pp ppf rule;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
 let test_plain () =
-  let t = Rule.v ~glyph:"-" ~width:5 () in
-  Alcotest.(check string) "unlabelled" "-----" (Span.to_string t)
+  Alcotest.(check string) "unlabelled" "-----" (at 5 (Rule.v ~glyph:"-" ()))
 
 let test_label () =
   let label = Span.styled Style.bold "Build" in
   Alcotest.(check string)
     "center" "-- Build --"
-    (Span.to_string (Rule.v ~glyph:"-" ~label ~width:11 ()));
+    (at 11 (Rule.v ~glyph:"-" ~label ()));
   Alcotest.(check string)
     "left" "Build -----"
-    (Span.to_string (Rule.v ~glyph:"-" ~align:`Left ~label ~width:11 ()));
+    (at 11 (Rule.v ~glyph:"-" ~align:`Left ~label ()));
   Alcotest.(check string)
     "right" "----- Build"
-    (Span.to_string (Rule.v ~glyph:"-" ~align:`Right ~label ~width:11 ()))
+    (at 11 (Rule.v ~glyph:"-" ~align:`Right ~label ()))
+
+(* A label wider than the line is cut to it, not refused. *)
+let test_long_label_is_cut () =
+  Alcotest.(check string)
+    "cut to the margin" "lon"
+    (at 3 (Rule.v ~label:(Span.text "long") ()))
 
 let test_invalid () =
-  Alcotest.check_raises "negative width"
-    (Invalid_argument "Console.Rule.v: negative width") (fun () ->
-      ignore (Rule.v ~width:(-1) ()));
   Alcotest.check_raises "wide glyph"
     (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
-      ignore (Rule.v ~glyph:"--" ~width:10 ()));
+      ignore (Rule.v ~glyph:"--" ()));
   Alcotest.check_raises "unsafe glyph"
     (Invalid_argument "Console.Rule.v: control character in glyph") (fun () ->
-      ignore (Rule.v ~glyph:"\027" ~width:10 ()));
-  Alcotest.check_raises "long label"
-    (Invalid_argument "Console.Rule.v: label wider than rule") (fun () ->
-      ignore (Rule.v ~label:(Span.text "long") ~width:3 ()))
+      ignore (Rule.v ~glyph:"\027" ()))
 
 let suite =
   ( "rule",
     [
       Alcotest.test_case "plain" `Quick test_plain;
       Alcotest.test_case "label" `Quick test_label;
+      Alcotest.test_case "long label is cut" `Quick test_long_label_is_cut;
       Alcotest.test_case "invalid" `Quick test_invalid;
     ] )
