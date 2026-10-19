@@ -39,8 +39,10 @@ $ opam pin add https://github.com/samoht/ocaml-console.git
 
 ## Usage
 
-Styles combine with `+` and are applied by a
-[`Fmt`](https://erratique.ch/software/fmt) printer:
+Styles combine with `+`, and text in a style is a `Span.t`, printed by a
+[`Fmt`](https://erratique.ch/software/fmt) printer. `Console_eio.setup`
+turns colour on when the output is a terminal; without it, everything prints
+plain:
 
 ```ocaml
 open Console
@@ -49,14 +51,15 @@ let success = Style.(bold + fg Color.green)
 let error = Style.(bold + fg Color.red)
 
 let () =
+  Console_eio.setup ();
   Fmt.pr "%a@." Span.pp (Span.styled success "✓ Build passed");
   Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
 ```
 
 Tables and other widgets take their text as a `Span.t`, a piece of text with
 its style and, optionally, a link. `Span.pp` prints the colours and links
-only when the output is a terminal that can show them, and
-`Span.to_string` always returns the plain text.
+when its formatter is set to colour, as `Console_eio.setup` sets standard
+output on a terminal, and `Span.to_string` returns the plain text.
 
 ```ocaml
 open Console
