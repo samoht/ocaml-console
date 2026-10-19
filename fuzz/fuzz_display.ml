@@ -270,9 +270,35 @@ let test_plain ops =
       if not (has header last) then failf "the header is not last: %S" last
   | [] -> fail "no header"
 
+(* The sink and the caller retain neither completed tasks nor old log text.
+   After warmup, live heap measures retention rather than allocation volume. *)
+let test_retained_heap n =
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
+  let d = Display.v ~size:(fun () -> (80, 10)) ~now:(fun () -> 0.) ppf in
+  let task = Display.task ~log_lines:2 d "long running" in
+  let batch () =
+    for i = 1 to 1000 + n do
+      Display.succeed (Display.task ~transient:true d "short lived");
+      Display.log ~keep:false task (string_of_int i ^ String.make 512 'x')
+    done;
+    Display.redraw d;
+    Gc.full_major ();
+    (Gc.stat ()).live_words
+  in
+  Fun.protect
+    (fun () ->
+      let warm = batch () in
+      for _ = 1 to 3 do
+        let retained = batch () in
+        if retained > warm + 4096 then
+          failf "retained heap grew from %d to %d words" warm retained
+      done)
+    ~finally:(fun () -> Display.close d)
+
 let suite =
   ( "display",
     [
+      test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
       test_case "screen guarantees" [ list op; uint8; uint8; bool ] test;
       test_case "plain output" [ list op ] test_plain;
     ] )
