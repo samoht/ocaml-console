@@ -196,9 +196,16 @@ let test_width_agrees_with_strip () =
       "a\027(Bb";
     ]
 
+let test_fold_punctuation () =
+  Alcotest.(check (list string))
+    "comma belongs to the preceding word" [ "abc,"; "def" ]
+    (Width.fold 4 "abc, def")
+
 let suite =
   ( "width",
     [
+      Alcotest.test_case "fold keeps punctuation at line breaks" `Quick
+        test_fold_punctuation;
       Alcotest.test_case "width agrees with strip" `Quick
         test_width_agrees_with_strip;
       Alcotest.test_case "ASCII" `Quick test_ascii;
