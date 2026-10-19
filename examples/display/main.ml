@@ -3,40 +3,53 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A durable transfer history with a bounded semantic activity view. Finished
-   tasks and every log line stay in scrollback; only the two running transfers
-   are redrawn in place. *)
+(* A build in the terminal's scrollback: steps that end are printed once and
+   stay; only the steps still running are redrawn in place. Pipe it through
+   [cat] to see the lines a CI log gets. *)
 
-let duration = 6.0
-let actions = [| "GET"; "HEAD"; "fetch"; "verify"; "extract" |]
+let fetch clock display =
+  let t = Console.Display.task ~log_lines:2 display "fetch dependencies" in
+  let total = Int64.mul 48L 1048576L in
+  for i = 0 to 12 do
+    Console.Display.set_bytes t
+      ~cur:(Int64.div (Int64.mul total (Int64.of_int i)) 12L)
+      ~total;
+    if i mod 4 = 0 then Fmt.kstr (Console.Display.log t) "GET pkg-%d.tar.gz" i;
+    Eio.Time.sleep clock 0.15
+  done;
+  Console.Display.succeed t
 
-let log_line () =
-  Fmt.str "%-7s sha256:%06x  layer %d/8  %4d KiB"
-    actions.(Random.int (Array.length actions))
-    (Random.int 0x1000000)
-    (1 + Random.int 8)
-    (Random.int 4096)
+let compile clock display =
+  let t = Console.Display.task ~log_lines:3 display "compile" in
+  let files = [| "lexer.ml"; "parser.ml"; "types.ml"; "eval.ml"; "main.ml" |] in
+  Array.iteri
+    (fun i f ->
+      Console.Display.set_count t ~cur:i ~total:(Array.length files);
+      Fmt.kstr (Console.Display.log t) "ocamlopt %s" f;
+      Eio.Time.sleep clock 0.35)
+    files;
+  Console.Display.set_count t ~cur:(Array.length files)
+    ~total:(Array.length files);
+  Console.Display.log ~level:`Warning t "eval.ml: unused variable x";
+  Console.Display.succeed t
+
+let test clock display =
+  let t = Console.Display.task display "test" in
+  let unit = Console.Display.task ~parent:t display "unit" in
+  let fuzz = Console.Display.task ~parent:t display "properties" in
+  for i = 0 to 10 do
+    Console.Display.set_count unit ~cur:(i * 12) ~total:120;
+    Console.Display.set_count fuzz ~cur:i ~total:10;
+    Eio.Time.sleep clock 0.2
+  done;
+  Console.Display.succeed t
 
 let () =
-  Random.self_init ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.clock env in
-  Console_eio.run ~clock ~header:"Transfers" (fun display ->
-      let total = Int64.mul 64L (Int64.mul 1024L 1024L) in
-      let download = Console.Display.task ~log_lines:3 display "download" in
-      let verify = Console.Display.task ~log_lines:2 display "verify" in
-      for step = 0 to 20 do
-        let fraction = float step /. 20. in
-        let downloaded = Int64.of_float (fraction *. Int64.to_float total) in
-        let verified =
-          Int64.of_float (Float.min 1. (fraction *. 0.7) *. Int64.to_float total)
-        in
-        Console.Display.set_bytes download ~cur:downloaded ~total;
-        Console.Display.set_bytes verify ~cur:verified ~total;
-        Console.Display.log download (log_line ());
-        Eio.Time.sleep clock (duration /. 20.)
-      done;
-      Console.Display.set_bytes verify ~cur:total ~total;
-      Console.Display.succeed download;
-      Console.Display.succeed verify;
-      Console.Display.set_result display (`Ok "transfers complete"))
+  Console_eio.run ~clock ~header:"Building" (fun display ->
+      Eio.Fiber.both
+        (fun () -> fetch clock display)
+        (fun () -> compile clock display);
+      test clock display;
+      Console.Display.set_result display (`Ok "build complete"))

@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (* A step that counts its files, with a layer under it that counts bytes.
-   [main.exe | cat] shows the plain lines a pipe gets. *)
+   [main.exe 2>&1 | cat] shows the plain lines a pipe gets. *)
 
 let build clock display =
   let step = Console.Display.task ~log_lines:4 display "RUN make" in

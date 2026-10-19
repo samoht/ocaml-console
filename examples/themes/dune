@@ -1,0 +1,248 @@
+(executable
+ (name main)
+ (modules main)
+ (libraries console console-eio eio eio_main fmt))
+
+(executable
+ (name tape)
+ (modules tape)
+ (optional)
+ (libraries vhs fmt))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target unicode.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe unicode))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff unicode.tape unicode.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target dos.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe dos))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff dos.tape dos.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target matrix.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe matrix))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff matrix.tape matrix.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target rainbow.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe rainbow))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff rainbow.tape rainbow.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target dracula.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe dracula))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff dracula.tape dracula.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target nord.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe nord))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff nord.tape nord.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target solarized-dark.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe solarized-dark))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff solarized-dark.tape solarized-dark.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target solarized-light.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe solarized-light))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff solarized-light.tape solarized-light.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target gruvbox-dark.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe gruvbox-dark))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff gruvbox-dark.tape gruvbox-dark.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target gruvbox-light.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe gruvbox-light))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff gruvbox-light.tape gruvbox-light.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target catppuccin-latte.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe catppuccin-latte))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff catppuccin-latte.tape catppuccin-latte.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target catppuccin-mocha.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe catppuccin-mocha))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff catppuccin-mocha.tape catppuccin-mocha.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target tokyo-night.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe tokyo-night))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff tokyo-night.tape tokyo-night.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target one-dark.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe one-dark))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff one-dark.tape one-dark.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target monokai.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe monokai))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff monokai.tape monokai.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target github-dark.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe github-dark))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff github-dark.tape github-dark.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target github-light.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe github-light))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff github-light.tape github-light.generated.tape)))

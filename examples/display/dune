@@ -11,7 +11,7 @@
 
 (rule
  (enabled_if %{lib-available:vhs})
- (target layout.generated.tape)
+ (target display.generated.tape)
  (action
   (with-stdout-to
    %{target}
@@ -21,4 +21,4 @@
  (alias runtest)
  (enabled_if %{lib-available:vhs})
  (action
-  (diff layout.tape layout.generated.tape)))
+  (diff display.tape display.generated.tape)))
