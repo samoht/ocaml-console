@@ -142,6 +142,62 @@ let test_expect_at_end_of_input_is_refused () =
   Alcotest.check unit_answer "answer" Refused
     (seen (Prompt.expect t "type the volume name: " "backups"))
 
+(* [f ()] with standard input on [stdin] and standard error on [stderr], each
+   given back as it was found. *)
+let with_stdin_stderr ~stdin ~stderr f =
+  let saved_in = Unix.dup Unix.stdin and saved_err = Unix.dup Unix.stderr in
+  Fun.protect ~finally:(fun () ->
+      Unix.dup2 saved_in Unix.stdin;
+      Unix.dup2 saved_err Unix.stderr;
+      Unix.close saved_in;
+      Unix.close saved_err)
+  @@ fun () ->
+  Unix.dup2 stdin Unix.stdin;
+  Unix.dup2 stderr Unix.stderr;
+  f ()
+
+(* [secret] waits for the terminal the way a fiber waits, so the rest of the
+   domain runs meanwhile: a ticking fiber has ticked by the time the answer,
+   typed from another domain a moment later, is read. A read that parks the
+   domain returns with the ticker never having run. *)
+let test_secret_leaves_the_domain_running () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty =
+    match Eio_unix.Pty.open_pty ~sw () with
+    | pty -> pty
+    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+        Alcotest.skip ()
+  in
+  let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
+  let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
+  let null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0 in
+  Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master; null ])
+  @@ fun () ->
+  let typist =
+    Domain.spawn (fun () ->
+        Unix.sleepf 0.2;
+        ignore (Unix.write_substring master "abc\n" 0 4 : int))
+  in
+  let clock = Eio.Stdenv.clock env in
+  let ticks = ref 0 and answered = ref false in
+  let result = ref (Error (`Msg "unread")) and ticks_at_answer = ref 0 in
+  with_stdin_stderr ~stdin:tty ~stderr:null (fun () ->
+      Eio.Fiber.both
+        (fun () ->
+          result := Prompt.secret ();
+          ticks_at_answer := !ticks;
+          answered := true)
+        (fun () ->
+          while not !answered do
+            Eio.Time.sleep clock 0.01;
+            incr ticks
+          done));
+  Domain.join typist;
+  Alcotest.check string_answer "the typed line" (Got "abc") (seen !result);
+  Alcotest.(check bool)
+    "the domain ran while the terminal was awaited" true (!ticks_at_answer > 0)
+
 let suite =
   ( "prompt",
     [
@@ -169,4 +225,6 @@ let suite =
         test_expect_refuses_without_naming_the_word;
       Alcotest.test_case "expect at end of input is refused" `Quick
         test_expect_at_end_of_input_is_refused;
+      Alcotest.test_case "secret leaves the domain running" `Quick
+        test_secret_leaves_the_domain_running;
     ] )

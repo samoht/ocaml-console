@@ -64,7 +64,8 @@ val secret : ?prompt:string -> unit -> (string, [ `Msg of string ]) result
     given: echo is the terminal's own line discipline, so masking what is typed
     means taking the terminal over. The returned secret is never written or
     retained in input history. Terminal attributes are restored on success,
-    error, exception, and SIGINT.
+    error, exception, and SIGINT. It awaits input as an Eio fiber does, so the
+    rest of the domain runs meanwhile; it must be called from a fiber.
 
     The prompt and masks use stderr so stdout remains available for command
     output. Returns [Error] when stdin is not a terminal or reaches EOF. *)

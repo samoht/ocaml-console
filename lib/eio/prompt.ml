@@ -105,7 +105,10 @@ let secret ?(prompt = "") () =
                 (masked_attributes original);
               let input = Console.Input.v ~mask:"*" () in
               let buf = Bytes.create 64 in
+              (* The fiber waits for the terminal, not the domain: the read
+                 that follows has a byte to return. *)
               let rec loop () =
+                Eio_unix.await_readable Unix.stdin;
                 match Unix.read Unix.stdin buf 0 (Bytes.length buf) with
                 | 0 -> Error (`Msg "terminal reached end of input")
                 | n -> (
