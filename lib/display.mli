@@ -190,6 +190,7 @@ val cancel : ?message:string -> task -> unit
 (**/**)
 
 type ctx
+(** The type for where a display draws. *)
 
 val ctx :
   ?depth:Color.depth ->
@@ -235,8 +236,13 @@ val restore : unit -> unit
 
 module Event : sig
   type level = [ `Info | `Warning | `Error ]
+  (** The type for levels. *)
+
   type outcome = [ `Succeeded | `Failed | `Cancelled ]
+  (** The type for task endings. *)
+
   type result = [ `Ok | `Fail ]
+  (** The type for results. *)
 
   type kind =
     [ `Message of level
@@ -244,35 +250,72 @@ module Event : sig
     | `Log of level
     | `Finished of outcome
     | `Result of result ]
+  (** The type for what an event says. *)
 
   type t
+  (** The type for events. *)
 
   val elapsed : t -> float
+  (** [elapsed e] is the seconds from the display's start to [e]. *)
+
   val task : t -> int option
+  (** [task e] is the number of the task of [e], if any. *)
+
   val key : t -> string option
+  (** [key e] is the key of the task of [e], if any. *)
+
   val path : t -> string list
+  (** [path e] are the labels of the task of [e] and of those above it. *)
+
   val kind : t -> kind
+  (** [kind e] is what [e] says. *)
+
   val message : t -> string
+  (** [message e] is the text of [e]. *)
+
   val detail : t -> string option
+  (** [detail e] is the detail of a result, if any. *)
+
   val pp : t Fmt.t
+  (** [pp] formats an event for diagnostics. *)
 end
 
 module Activity : sig
   type progress = [ `Spin | `Count of int * int | `Bytes of int64 * int64 ]
+  (** The type for how far a task is. *)
+
   type item
+  (** The type for running tasks. *)
 
   val id : item -> int
+  (** [id i] is the number of [i]. *)
+
   val key : item -> string option
+  (** [key i] is the key of [i], if any. *)
+
   val parent : item -> int option
+  (** [parent i] is the number of the task above [i], if any. *)
+
   val label : item -> string
+  (** [label i] is the label of [i]. *)
+
   val progress : item -> progress
+  (** [progress i] is how far [i] is. *)
+
   val elapsed : item -> float
+  (** [elapsed i] is the seconds since [i] started. *)
+
   val logs : item -> Event.t list
+  (** [logs i] are the lines shown under [i], oldest first. *)
 
   type t
+  (** The type for the running tasks of a display. *)
 
   val items : t -> item list
+  (** [items a] are the tasks of [a], in the order they started. *)
+
   val pp : t Fmt.t
+  (** [pp] formats running tasks for diagnostics. *)
 end
 
 val history : t -> Event.t list

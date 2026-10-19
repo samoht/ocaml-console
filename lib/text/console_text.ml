@@ -83,68 +83,75 @@ let continues = function
    sequence's ranges ends it in error, and is text. A control string ends at
    ST, ESC 05/12 or 09/12, an OSC also at BEL; CAN, SUB, ESC and a C1 control
    end it and act. *)
+(* What the character at [i], [len] bytes long, does from [state] in a token
+   that began at [start]: the tokens it ends, and where the scan goes on. *)
+type move = {
+  ends : ([ `Text | `Escape ] * int * int) list;
+  next : state;
+  at : int;
+  from : int;
+}
+
+let move ?(ends = []) next at from = { ends; next; at; from }
+
+let in_ground ~valid ~c ~i ~len ~start =
+  if valid && (c = esc || is_c1 c) then
+    match if c = esc then Escape else c1 c with
+    | Ground ->
+        move
+          ~ends:[ (`Text, start, i); (`Escape, i, i + len) ]
+          Ground (i + len) (i + len)
+    | next -> move ~ends:[ (`Text, start, i) ] next (i + len) i
+  else move Ground (i + len) start
+
+let in_string str ~bel:b state ~valid ~c ~i ~len ~start =
+  let n = String.length str in
+  if not valid then move state (i + len) start
+  else if c = esc && i + 1 < n && str.[i + 1] = '\\' then
+    move ~ends:[ (`Escape, start, i + 2) ] Ground (i + 2) (i + 2)
+  else if c = esc || c = can || c = sub || is_c1 c then
+    move ~ends:[ (`Escape, start, i) ] Ground i i
+  else if b && c = bel then
+    move ~ends:[ (`Escape, start, i + len) ] Ground (i + len) (i + len)
+  else move state (i + len) start
+
+let in_sequence_or_escape state ~valid ~c ~i ~len ~start =
+  if not valid then move ~ends:[ (`Escape, start, i) ] Ground i i
+  else if c < 0x20 && c <> esc && c <> can && c <> sub then
+    move
+      ~ends:[ (`Escape, start, i); (`Text, i, i + len) ]
+      state (i + len) (i + len)
+  else if c = del then move state (i + len) start
+  else
+    match continues state c with
+    | Some Ground ->
+        move ~ends:[ (`Escape, start, i + len) ] Ground (i + len) (i + len)
+    | Some next -> move next (i + len) start
+    | None -> move ~ends:[ (`Escape, start, i) ] Ground i i
+
 let fold_tokens f acc str =
   let n = String.length str in
-  let acc = ref acc in
-  let emit kind start stop =
-    if stop > start then acc := f !acc kind start (stop - start)
+  let emit acc (kind, start, stop) =
+    if stop > start then f acc kind start (stop - start) else acc
   in
-  let rec go i state start =
-    if i >= n then emit (if state = Ground then `Text else `Escape) start n
+  let rec go acc i state start =
+    if i >= n then
+      emit acc ((if state = Ground then `Text else `Escape), start, n)
     else
       let d = String.get_utf_8_uchar str i in
       let len = Uchar.utf_decode_length d in
       let valid = Uchar.utf_decode_is_valid d in
       let c = Uchar.to_int (Uchar.utf_decode_uchar d) in
-      match state with
-      | Ground ->
-          if valid && (c = esc || is_c1 c) then begin
-            emit `Text start i;
-            match if c = esc then Escape else c1 c with
-            | Ground ->
-                emit `Escape i (i + len);
-                go (i + len) Ground (i + len)
-            | next -> go (i + len) next i
-          end
-          else go (i + len) Ground start
-      | String { bel = b } ->
-          if not valid then go (i + len) state start
-          else if c = esc && i + 1 < n && str.[i + 1] = '\\' then begin
-            emit `Escape start (i + 2);
-            go (i + 2) Ground (i + 2)
-          end
-          else if c = esc || c = can || c = sub || is_c1 c then begin
-            emit `Escape start i;
-            go i Ground i
-          end
-          else if b && c = bel then begin
-            emit `Escape start (i + len);
-            go (i + len) Ground (i + len)
-          end
-          else go (i + len) state start
-      | Escape | Escape_intermediate | Sequence -> (
-          if not valid then begin
-            emit `Escape start i;
-            go i Ground i
-          end
-          else if c < 0x20 && c <> esc && c <> can && c <> sub then begin
-            emit `Escape start i;
-            emit `Text i (i + len);
-            go (i + len) state (i + len)
-          end
-          else if c = del then go (i + len) state start
-          else
-            match continues state c with
-            | Some Ground ->
-                emit `Escape start (i + len);
-                go (i + len) Ground (i + len)
-            | Some next -> go (i + len) next start
-            | None ->
-                emit `Escape start i;
-                go i Ground i)
+      let m =
+        match state with
+        | Ground -> in_ground ~valid ~c ~i ~len ~start
+        | String { bel } -> in_string str ~bel state ~valid ~c ~i ~len ~start
+        | Escape | Escape_intermediate | Sequence ->
+            in_sequence_or_escape state ~valid ~c ~i ~len ~start
+      in
+      go (List.fold_left emit acc m.ends) m.at m.next m.from
   in
-  go 0 Ground 0;
-  !acc
+  go acc 0 Ground 0
 
 (* ECMA-48 8.3.117 SELECT GRAPHIC RENDITION: CSI, parameter bytes, final byte
    'm'. The accepted parameter bytes are a strict subset of 5.4's -- the

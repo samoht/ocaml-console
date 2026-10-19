@@ -1,6 +1,6 @@
 ; Width is private to the library; the properties compile it in.
 
-(copy_files# ../lib/width.{ml,mli})
+(copy_files ../lib/width.{ml,mli})
 
 (executable
  (name fuzz)

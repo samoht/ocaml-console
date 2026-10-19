@@ -1,6 +1,6 @@
 ; Width is private to the library; its tests compile it in.
 
-(copy_files# ../lib/width.{ml,mli})
+(copy_files ../lib/width.{ml,mli})
 
 (test
  (name test)
@@ -10,7 +10,6 @@
   console.text
   console.vte
   matrix.glyph
-  uutf
   display_harness
   matrix.grid
   matrix.vte

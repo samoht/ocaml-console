@@ -209,7 +209,7 @@ let test_run_styles_a_terminal () =
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
 let suite =
-  ( "auto",
+  ( "terminal",
     [
       Alcotest.test_case "auto asks the formatter's own descriptor" `Quick
         test_auto_asks_the_formatters_own_descriptor;

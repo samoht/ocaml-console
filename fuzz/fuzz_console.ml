@@ -1080,9 +1080,17 @@ let test_spinner_anim frames elapsed fps =
          false
        with Invalid_argument _ -> true)
 
+(* What [Console_text.strip] leaves holds no escape, and takes as many cells
+   as the text it measures. *)
+let test_strip_leaves_no_escape s =
+  let stripped = Console_text.strip ~keep_newlines:false s in
+  check (not (String.contains stripped '\027'));
+  check (Width.string_width stripped >= 0)
+
 let suite =
   ( "console",
     [
+      test_case "strip leaves no escape" [ bytes ] test_strip_leaves_no_escape;
       test_case "width matches terminal" [ bytes ] test_width_matches_terminal;
       test_case "display invariants" [ bytes ] test_display_invariants;
       test_case "collapse keeps height" [ int ] test_collapse;

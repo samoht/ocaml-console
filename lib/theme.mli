@@ -62,14 +62,33 @@ val pp : t Fmt.t
 (**/**)
 
 val ok : t -> Color.t
+(** [ok t] is the colour of a success. *)
+
 val fail : t -> Color.t
+(** [fail t] is the colour of a failure. *)
+
 val warn : t -> Color.t
+(** [warn t] is the colour of a warning or a cancellation. *)
+
 val done_marker : t -> string
+(** [done_marker t] is the mark of a task that ended, in its row. *)
+
 val ok_marker : t -> string
+(** [ok_marker t] is the mark of a successful result. *)
+
 val fail_marker : t -> string
+(** [fail_marker t] is the mark of a failed result. *)
+
 val note_marker : t -> string
+(** [note_marker t] is the mark of an information line. *)
+
 val warn_marker : t -> string
+(** [warn_marker t] is the mark of a warning line. *)
+
 val error_marker : t -> string
+(** [error_marker t] is the mark of an error line. *)
+
 val committed_marker : t -> [ `Succeeded | `Failed | `Cancelled ] -> string
+(** [committed_marker t outcome] is the mark of a task's ending line. *)
 
 (**/**)

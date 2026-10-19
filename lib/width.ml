@@ -3,13 +3,6 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [iter_uchars f s] is [f] on each code point of [s], a malformed sequence
-   read as U+FFFD. *)
-let iter_uchars f s =
-  Uutf.String.fold_utf_8
-    (fun () _ -> function `Uchar u -> f u | `Malformed _ -> f Uutf.u_rep)
-    () s
-
 let fold_tokens = Console_text.fold_tokens
 
 let string_width str =
@@ -51,9 +44,20 @@ let closing rendered =
   in
   (if style then "\027[0m" else "") ^ if link then "\027]8;;\027\\" else ""
 
+(* [str] with each malformed UTF-8 sequence U+FFFD. *)
 let normalize_utf8 str =
-  let buffer = Buffer.create (String.length str) in
-  iter_uchars (Uutf.Buffer.add_utf_8 buffer) str;
+  let n = String.length str in
+  let buffer = Buffer.create n in
+  let rec go i =
+    if i < n then begin
+      let d = String.get_utf_8_uchar str i in
+      Buffer.add_utf_8_uchar buffer
+        (if Uchar.utf_decode_is_valid d then Uchar.utf_decode_uchar d
+         else Uchar.rep);
+      go (i + Uchar.utf_decode_length d)
+    end
+  in
+  go 0;
   Buffer.contents buffer
 
 (* [str] as the pieces a terminal draws it in: an escape sequence, which takes

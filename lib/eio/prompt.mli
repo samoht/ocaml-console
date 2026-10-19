@@ -6,15 +6,11 @@
     waiting for ever.
 
     While a {!Console.Display} runs, ask inside {!Console.Display.with_output},
-    which takes the progress rows off the screen for the time of the question:
-    {[
-    Console.Display.with_output display (fun _ ->
-        Console_eio.Prompt.confirm prompt "Delete the volume?")
-    ]} *)
+    which takes the progress rows off the screen for the time of the question.
+*)
 
 type t
-(** The type for prompts: where questions go, and the buffered input answers
-    come from. *)
+(** The type for prompts. *)
 
 val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
 (** [v stdin] is a prompt reading answers from [stdin] and writing questions on
