@@ -295,9 +295,51 @@ let test_retained_heap n =
       done)
     ~finally:(fun () -> Display.close d)
 
+(* Each call has a unique token, so duplicates, reorderings and misattribution
+   are detectable even when several tasks have the same display label. *)
+let test_pipe_attribution n =
+  let b = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer b in
+  let d = Display.v ~header:"SUMMARY" ~now:(fun () -> 0.) ppf in
+  let tasks =
+    Array.init 4 (fun i -> Display.task d ("task" ^ string_of_int i))
+  in
+  let expected =
+    List.init (1 + n) (fun i ->
+        let task = i mod 4 in
+        let token = "record_" ^ string_of_int i ^ "_end" in
+        Display.log tasks.(task) (token ^ "\n" ^ token ^ "_second");
+        Display.log ~keep:false tasks.(task) "PRIVATE";
+        [
+          "task" ^ string_of_int task ^ ": " ^ token;
+          "task" ^ string_of_int task ^ ": " ^ token ^ "_second";
+        ])
+    |> List.concat
+  in
+  Array.iter Display.succeed tasks;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents b in
+  check (String.is_valid_utf_8 out);
+  check (not (String.contains out '\027'));
+  check (not (has "PRIVATE" out));
+  let records =
+    String.split_on_char '\n' out
+    |> List.filter (has ": record_")
+    |> List.map (fun line ->
+        match String.index_opt line 't' with
+        | Some i -> String.sub line i (String.length line - i)
+        | None -> fail "missing task label")
+  in
+  check_eq ~pp:Fmt.(Dump.list string) expected records;
+  let nonempty = List.filter (( <> ) "") (String.split_on_char '\n' out) in
+  check (has "SUMMARY" (List.hd (List.rev nonempty)))
+
 let suite =
   ( "display",
     [
+      test_case "pipe logs retain order and task attribution" [ uint8 ]
+        test_pipe_attribution;
       test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
       test_case "screen guarantees" [ list op; uint8; uint8; bool ] test;
       test_case "plain output" [ list op ] test_plain;
