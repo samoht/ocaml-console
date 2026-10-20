@@ -193,8 +193,8 @@ let github_light =
     ~background:"#ffffff"
 
 let pp ppf t =
-  Fmt.pf ppf "@[<1>(theme@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%s)@]"
+  Fmt.pf ppf "@[<1>(theme@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%a)@]"
     Color.pp t.accent Color.pp t.ok Color.pp t.warn Color.pp t.fail
-    (String.concat " "
-       (List.map (mark t)
-          [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error ]))
+    Fmt.(list ~sep:(any " ") string)
+    (List.map (mark t)
+       [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error ])

@@ -44,17 +44,6 @@ let ( + ) left right =
 let foreground style = style.fg
 let background style = style.bg
 
-let is_none style =
-  (not style.bold) && (not style.faint) && (not style.italic)
-  && (not style.underline) && (not style.reverse) && (not style.strikethrough)
-  && style.fg = None && style.bg = None
-
-let opt_equal eq left right =
-  match (left, right) with
-  | None, None -> true
-  | Some l, Some r -> eq l r
-  | _ -> false
-
 let equal left right =
   Bool.equal left.bold right.bold
   && Bool.equal left.faint right.faint
@@ -62,8 +51,10 @@ let equal left right =
   && Bool.equal left.underline right.underline
   && Bool.equal left.reverse right.reverse
   && Bool.equal left.strikethrough right.strikethrough
-  && opt_equal Color.equal left.fg right.fg
-  && opt_equal Color.equal left.bg right.bg
+  && Option.equal Color.equal left.fg right.fg
+  && Option.equal Color.equal left.bg right.bg
+
+let is_none style = equal style none
 
 let sgr depth style =
   let down = Option.map (fun c -> Color.to_sgr (Color.downsample depth c)) in
@@ -72,15 +63,10 @@ let sgr depth style =
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"
   else
-    let parts = List.map snd (attributes style) in
-    let parts =
-      match style.fg with
-      | Some p -> parts @ [ Fmt.str "fg(%a)" Color.pp p ]
-      | None -> parts
+    let colour name c =
+      Option.to_list (Option.map (Fmt.str "%s(%a)" name Color.pp) c)
     in
-    let parts =
-      match style.bg with
-      | Some p -> parts @ [ Fmt.str "bg(%a)" Color.pp p ]
-      | None -> parts
-    in
-    Fmt.pf ppf "%s" (String.concat " + " parts)
+    Fmt.(list ~sep:(any " + ") string)
+      ppf
+      (List.map snd (attributes style)
+      @ colour "fg" style.fg @ colour "bg" style.bg)
