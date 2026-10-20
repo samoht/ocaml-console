@@ -38,9 +38,23 @@ let test_chunks s =
   ignore (Console_input.feed masked "\n");
   check (Console_input.history masked = [])
 
-(* The keys that edit a line in place: characters one or two cells wide,
+(* The keys that edit a line in place: characters one or two cells wide, a
+   combining mark and a spacing mark, which join the character before them,
    both erasing keys and the arrows that move along the line. *)
-let keys = [| "a"; "b"; "Z"; "\u{754c}"; "\127"; "\b"; "\027[D"; "\027[C" |]
+let keys =
+  [|
+    "a";
+    "b";
+    "Z";
+    "\u{754c}";
+    "\u{0301}";
+    "\u{093F}";
+    "\127";
+    "\b";
+    "\027[D";
+    "\027[C";
+  |]
+
 let key = map [ uint8 ] (fun k -> keys.(k mod Array.length keys))
 
 (* The echo of any editing, written on a terminal, shows the line being

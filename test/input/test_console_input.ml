@@ -164,6 +164,46 @@ let test_wide_left_steps_two_cells () =
   Alcotest.(check string)
     "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
 
+(* ---- Grapheme clusters ------------------------------------------------- *)
+
+(* The screen a terminal shows after [keys] typed in an editor, and the
+   line the editor holds. *)
+let typed ?mask keys =
+  let t = Console_input.v ?mask () in
+  let term = Console_vte.v ~raw:true ~rows:1 ~cols:40 () in
+  List.iter (fun k -> Console_vte.feed term (fst (Console_input.feed t k))) keys;
+  let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
+  (shown, Console_input.pending t)
+
+let check_typed msg ?mask keys ~shown ~line =
+  let s, l = typed ?mask keys in
+  Alcotest.(check string) (msg ^ ": the screen") shown s;
+  Alcotest.(check string) (msg ^ ": the line") line l
+
+(* A backspace erases the cluster before the cursor, its marks with it, on
+   the screen as in the line, however its characters were typed. *)
+let test_cluster_backspace () =
+  check_typed "a combining mark" [ "ae\u{0301}\127" ] ~shown:"a" ~line:"a";
+  check_typed "typed apart" [ "ae"; "\u{0301}"; "\127" ] ~shown:"a" ~line:"a";
+  check_typed "a spacing mark" [ "a\u{0915}\u{093F}\127" ] ~shown:"a" ~line:"a";
+  check_typed "in the middle"
+    [ "e\u{0301}x"; left; "\127" ]
+    ~shown:"x" ~line:"x";
+  check_typed ~mask:"*" "masked" [ "ae\u{0301}"; "\127" ] ~shown:"*" ~line:"a";
+  check_typed "a mark with nothing to join" [ "\u{0301}a" ] ~shown:"a" ~line:"a"
+
+(* The arrows step over a cluster whole, so that what is typed next goes
+   before or after it, never inside. *)
+let test_cluster_arrows () =
+  check_typed "left over a cluster" [ "e\u{0301}"; left; "X" ]
+    ~shown:"Xe\u{0301}" ~line:"Xe\u{0301}";
+  check_typed "and back"
+    [ "e\u{0301}"; left; right; "X" ]
+    ~shown:"e\u{0301}X" ~line:"e\u{0301}X";
+  check_typed "a spacing mark, two cells"
+    [ "\u{0915}\u{093F}y"; left; left; "X" ]
+    ~shown:"X\u{0915}\u{093F}y" ~line:"X\u{0915}\u{093F}y"
+
 (* ---- History ----------------------------------------------------------- *)
 
 let up = "\027[A"
@@ -350,6 +390,9 @@ let suite =
       Alcotest.test_case "wide char backspace" `Quick
         test_wide_backspace_clears_two_cells;
       Alcotest.test_case "wide char left" `Quick test_wide_left_steps_two_cells;
+      Alcotest.test_case "backspace erases a cluster" `Quick
+        test_cluster_backspace;
+      Alcotest.test_case "arrows step over a cluster" `Quick test_cluster_arrows;
       Alcotest.test_case "history up" `Quick test_history_up;
       Alcotest.test_case "history up clamps" `Quick test_history_up_twice_clamps;
       Alcotest.test_case "history down restores draft" `Quick
