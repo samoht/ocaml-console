@@ -160,9 +160,11 @@ let still t = { t with motion = None; spinner = Spinner.static }
 
 (* The colours of each scheme are taken from its upstream source, named
    beside it, and degrade to 256 or 16 colours as a terminal's depth asks.
-   Where a scheme's colour is below its contrast on its own background, 3:1
-   for a mark and 4.5:1 for the muted colour, it is moved towards the
-   scheme's text to just above it. Headers are bold, in the accent unless
+   Where a scheme's colour is below its contrast on its own background,
+   4.5:1 for the colours text takes (the main colour, the roles and the muted
+   colour) and 3:1 for the palette, it is moved to just above it: the muted
+   colour towards the scheme's text, the others by their lightness alone,
+   their hue and saturation kept. Headers are bold, in the accent unless
    [header] names another colour, and frames shimmer in the accent. *)
 
 let scheme ~name ~accent ~ok ~warn ~fail ~muted ?(header = accent) ~background
@@ -180,33 +182,33 @@ let dracula =
 (* Nord, by Sven Greb (MIT): nordtheme/nord src/nord.css. *)
 let nord =
   scheme ~name:"nord" ~accent:"#88c0d0" ~ok:"#a3be8c" ~warn:"#ebcb8b"
-    ~fail:"#bf616a" ~muted:"#969ead" ~background:"#2e3440" ()
+    ~fail:"#cf8a90" ~muted:"#969ead" ~background:"#2e3440" ()
 
 (* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
 let solarized_dark =
-  scheme ~name:"solarized-dark" ~accent:"#268bd2" ~ok:"#859900" ~warn:"#b58900"
-    ~fail:"#dc322f" ~muted:"#839496" ~header:"#93a1a1" ~background:"#002b36" ()
+  scheme ~name:"solarized-dark" ~accent:"#3094da" ~ok:"#859900" ~warn:"#b58900"
+    ~fail:"#e56563" ~muted:"#839496" ~header:"#93a1a1" ~background:"#002b36" ()
 
 (* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
 let solarized_light =
-  scheme ~name:"solarized-light" ~accent:"#268bd2" ~ok:"#819400" ~warn:"#b18600"
-    ~fail:"#dc322f" ~muted:"#5e7379" ~header:"#586e75" ~background:"#fdf6e3" ()
+  scheme ~name:"solarized-light" ~accent:"#2075b1" ~ok:"#687700" ~warn:"#8e6b00"
+    ~fail:"#d82824" ~muted:"#5e7379" ~header:"#586e75" ~background:"#fdf6e3" ()
 
 (* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
 let gruvbox_dark =
   scheme ~name:"gruvbox-dark" ~accent:"#fe8019" ~ok:"#b8bb26" ~warn:"#fabd2f"
-    ~fail:"#fb4934" ~muted:"#a89984" ~background:"#282828" ()
+    ~fail:"#fb5642" ~muted:"#a89984" ~background:"#282828" ()
 
 (* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
 let gruvbox_light =
-  scheme ~name:"gruvbox-light" ~accent:"#af3a03" ~ok:"#79740e" ~warn:"#b57614"
+  scheme ~name:"gruvbox-light" ~accent:"#af3a03" ~ok:"#74700d" ~warn:"#966211"
     ~fail:"#9d0006" ~muted:"#665c54" ~background:"#fbf1c7" ()
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette
    palette.json 1.8.0. *)
 let catppuccin_latte =
-  scheme ~name:"catppuccin-latte" ~accent:"#8839ef" ~ok:"#3e9b2a"
-    ~warn:"#be7919" ~fail:"#d20f39" ~muted:"#5c5f77" ~background:"#eff1f5" ()
+  scheme ~name:"catppuccin-latte" ~accent:"#8839ef" ~ok:"#327c22"
+    ~warn:"#996114" ~fail:"#d20f39" ~muted:"#5c5f77" ~background:"#eff1f5" ()
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette
    palette.json 1.8.0. *)
@@ -223,13 +225,13 @@ let tokyo_night =
 (* One Dark, by GitHub (MIT): atom/atom packages/one-dark-syntax and
    packages/one-dark-ui. *)
 let one_dark =
-  scheme ~name:"one-dark" ~accent:"#528bff" ~ok:"#98c379" ~warn:"#e5c07b"
-    ~fail:"#e06c75" ~muted:"#8e95a2" ~header:"#61afef" ~background:"#282c34" ()
+  scheme ~name:"one-dark" ~accent:"#5990ff" ~ok:"#98c379" ~warn:"#e5c07b"
+    ~fail:"#e17179" ~muted:"#8e95a2" ~header:"#61afef" ~background:"#282c34" ()
 
 (* Monokai, by Wimer Hazenberg (no licence stated): the 2007 Monokai.tmTheme. *)
 let monokai =
   scheme ~name:"monokai" ~accent:"#66d9ef" ~ok:"#a6e22e" ~warn:"#e6db74"
-    ~fail:"#f92672" ~muted:"#939080" ~background:"#272822" ()
+    ~fail:"#fa4b8a" ~muted:"#939080" ~background:"#272822" ()
 
 (* GitHub Dark, by GitHub (MIT): primer/github-vscode-theme. *)
 let github_dark =

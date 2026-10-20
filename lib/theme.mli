@@ -23,15 +23,19 @@
     for the users who ask for no animation. A program lets its users choose with
     a [--theme] option ({!all}).
 
-    Colours are given as the scheme defines them; a terminal that shows fewer
-    colours gets the nearest ones it has ({!Color.val-depth}). In every
-    predefined theme, as WCAG 2.1 measures contrast against its {!background},
-    or against black and white alike when it has none, the colours of text (the
-    {!muted} colour and that of the {!header}) are at 4.5:1 or more, and those
-    of glyphs alone (the main colour, the colours of a success, a warning and a
-    failure and those of the progress rows) at 3:1 or more; a frame that moves
-    is drawn in these colours alone, so every one of its frames keeps to the
-    contrast of a glyph. *)
+    Colours are given as the scheme defines them, but where one would be hard to
+    read; a terminal that shows fewer colours gets the nearest ones it has
+    ({!Color.val-depth}). In every predefined theme, as WCAG 2.1 measures
+    contrast against its {!background}, the colours of text (the {!muted}
+    colour, that of the {!header} and those of the roles, which {!Span.role}
+    gives text: the main colour and the colours of a success, a warning and a
+    failure) are at 4.5:1 or more, and those of the progress rows at 3:1 or
+    more. A theme without a background is read against black and white alike, at
+    4.5:1 for its muted colour and header and 3:1 for the others: 4.5:1 on both
+    asks colours as light as one another, which no amber of the 256-colour
+    palette is. A frame that moves is drawn in these colours alone, so every one
+    of its frames keeps to the contrast of a glyph. At 16 colours, the
+    terminal's own palette draws them, which console does not know. *)
 
 (** {1:themes Themes} *)
 

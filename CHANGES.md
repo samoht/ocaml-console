@@ -24,10 +24,10 @@ Initial release of `console` and `console-eio`.
   spinner. Eighteen are predefined: `Theme.default`, which reads on any
   background, `ascii`, `dos`, `matrix`, `rainbow`, and the colour schemes of
   Dracula, Nord, Solarized, gruvbox, Catppuccin, Tokyo Night, One Dark,
-  Monokai and GitHub. Text colours are at 4.5:1 contrast on the theme's
-  background and glyph colours at 3:1. `Span.role` styles text as a
-  success, a warning, a failure, the main colour, muted text or a header,
-  in the theme of the formatter it is printed on. `Theme.all` and
+  Monokai and GitHub. Text colours, the roles' included, are at 4.5:1
+  contrast on the theme's background and glyph colours at 3:1. `Span.role`
+  styles text as a success, a warning, a failure, the main colour, muted
+  text or a header, in the theme of the formatter it is printed on. `Theme.all` and
   `Theme.of_string` make a `--theme` option one line of Cmdliner.
 - Motion. In a live display the frame of a table or a panel drawn above the
   rows (`Display.set_scene`) moves in the theme's way (`Theme.motion`):
