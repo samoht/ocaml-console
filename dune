@@ -10,6 +10,7 @@
  (libraries
   console
   console.text
+  console.tty
   console-eio
   eio
   eio.unix

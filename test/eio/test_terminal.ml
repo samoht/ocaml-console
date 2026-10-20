@@ -23,11 +23,14 @@ let open_pty ~sw =
 
 let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
 
-(* [f ()] with standard output on [stdout], standard error on [stderr] and
-   [TERM] set to [term], each given back as it was found. *)
+(* [f ()] with standard output on [stdout], standard error on [stderr],
+   [TERM] set to [term] and the colour of both decided for them, in UTF-8,
+   each given back as it was found. *)
 let with_fds ~stdout ~stderr ~term f =
   let saved_out = Unix.dup Unix.stdout and saved_err = Unix.dup Unix.stderr in
   let saved_term = Sys.getenv_opt "TERM" in
+  let stds = [ Fmt.stdout; Fmt.stderr ] in
+  let looks = List.map (fun p -> (Fmt.style_renderer p, Fmt.utf_8 p)) stds in
   Fun.protect ~finally:(fun () ->
       flush Stdlib.stdout;
       flush Stdlib.stderr;
@@ -35,11 +38,17 @@ let with_fds ~stdout ~stderr ~term f =
       Unix.dup2 saved_err Unix.stderr;
       Unix.close saved_out;
       Unix.close saved_err;
-      Unix.putenv "TERM" (Option.value saved_term ~default:""))
+      Unix.putenv "TERM" (Option.value saved_term ~default:"");
+      List.iter2
+        (fun p (r, u) ->
+          Fmt.set_style_renderer p r;
+          Fmt.set_utf_8 p u)
+        stds looks)
   @@ fun () ->
   Unix.dup2 stdout Unix.stdout;
   Unix.dup2 stderr Unix.stderr;
   Unix.putenv "TERM" term;
+  Console_tty.setup ~utf_8:true ();
   f ()
 
 (* One task, drawn on standard error by [Console_eio.run] in [`Auto], on a

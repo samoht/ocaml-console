@@ -78,8 +78,8 @@ let test_setup () =
           Alcotest.(check bool)
             "--color=always wins over NO_COLOR" true
             (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
-          Alcotest.(check bool) "utf_8 wins over the locale" false
-            (Fmt.utf_8 Fmt.stderr);
+          Alcotest.(check bool)
+            "utf_8 wins over the locale" false (Fmt.utf_8 Fmt.stderr);
           Alcotest.(check bool)
             "the depth of TERM" true
             (Console.Color.depth Fmt.stdout = `Ansi_256);
@@ -93,15 +93,21 @@ let test_setup () =
    colours. *)
 let probe mode =
   let env =
-    Array.append [| "TERM=xterm-256color"; "COLORTERM=" |]
+    Array.append
+      [| "TERM=xterm-256color"; "COLORTERM=" |]
       (Array.of_list
          (List.filter
-            (fun b -> not (String.starts_with ~prefix:"TERM=" b))
+            (fun b ->
+              not
+                (String.starts_with ~prefix:"TERM=" b
+                || String.starts_with ~prefix:"COLORTERM=" b))
             (Array.to_list (Unix.environment ()))))
   in
-  let ic = Unix.open_process_args_in_env "./probe.exe" [| "probe"; mode |] env in
+  let ((ic, _, _) as p) =
+    Unix.open_process_args_full "./probe.exe" [| "probe"; mode |] env
+  in
   let out = In_channel.input_all ic in
-  ignore (Unix.close_process_in ic);
+  ignore (Unix.close_process_full p);
   out
 
 (* [ensure] decides for an output on which the program chose nothing, a
@@ -119,7 +125,9 @@ let test_is_terminal () =
       Unix.close r;
       Unix.close w)
     (fun () ->
-      with_env [ ("TERM", "xterm") ] (fun () ->
+      with_env
+        [ ("TERM", "xterm") ]
+        (fun () ->
           Alcotest.(check bool) "a pipe" false (Console_tty.is_terminal w)))
 
 let suite =

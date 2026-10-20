@@ -4,7 +4,9 @@ synopsis: "Terminal styling and layout widgets"
 description: """
 Type-safe terminal styling (colors, bold, italic) and layout widgets
    (tables, trees, panels) for OCaml CLI applications. Inspired by
-   Python's Rich and Go's Charm/lipgloss."""
+   Python's Rich and Go's Charm/lipgloss. The console.tty library decides
+   colour and UTF-8 for the standard outputs from the terminal and the
+   environment, with Unix alone."""
 maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"

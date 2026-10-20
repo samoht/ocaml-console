@@ -49,7 +49,7 @@ let () =
       prerr_endline e;
       exit 2
   | Ok theme ->
-      Console_eio.setup ~style_renderer:`Ansi_tty ();
+      Console_tty.setup ~style_renderer:`Ansi_tty ();
       Theme.set Fmt.stdout theme;
       widgets theme;
       Eio_main.run @@ fun env -> progress ~clock:(Eio.Stdenv.clock env)

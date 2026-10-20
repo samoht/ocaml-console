@@ -1,0 +1,6 @@
+; Values kept on a formatter, shared by console and console.tty and not
+; part of either interface.
+
+(library
+ (name console_slot)
+ (package console))

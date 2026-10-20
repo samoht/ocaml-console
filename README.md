@@ -80,13 +80,14 @@ Good to know:
 - The display draws on standard error, so standard output stays the
   program's; what the program prints with `Fmt.pr` while the display runs
   goes above the rows, a line at a time, and so do `Logs` messages.
-- A program decides on colour once, with `Console_eio.setup`: no colour
-  when `NO_COLOR` is set and not empty, or when `TERM` is unset, empty or
-  `dumb`; otherwise colour if and only if the output is a terminal, in as
-  many colours as `COLORTERM` and `TERM` announce. A `--color` option passed
-  to `setup` as its `?style_renderer` decides instead (below). If the
-  program does not call `setup`, `Console_eio.run` does, for the outputs on
-  which the program chose nothing itself.
+- A program decides on colour once, with `Console_tty.setup` from the
+  `console.tty` library: no colour when `NO_COLOR` is set and not empty, or
+  when `TERM` is unset, empty or `dumb`; otherwise colour if and only if the
+  output is a terminal, in as many colours as `COLORTERM` and `TERM`
+  announce, and UTF-8 if the locale is. A `--color` option passed to `setup`
+  as its `?style_renderer` decides instead (below). If the program does not
+  call `setup`, `Console_eio.run` does, for the outputs on which the program
+  chose nothing itself.
 - A task your function did not end is shown as cancelled when the display
   closes, unless the function said the work succeeded with
   `Display.set_result`. When it raises, or its fiber is cancelled, the
@@ -103,7 +104,7 @@ straight to `setup`. This is a whole program, `ready`, whose entry point is
 
 ```ocaml
 let ready style_renderer =
-  Console_eio.setup ?style_renderer ();
+  Console_tty.setup ?style_renderer ();
   Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
 
 let cmd =
@@ -124,9 +125,9 @@ ready
 ## Styles and widgets
 
 Styles combine with `+`, and text in a style is a `Span.t`, printed by a
-[`Fmt`](https://erratique.ch/software/fmt) printer. `Console_eio.setup`
-turns colour on when the output is a terminal; without it, everything prints
-plain:
+[`Fmt`](https://erratique.ch/software/fmt) printer. The widgets need neither
+Eio nor Unix; `Console_tty.setup`, in `console.tty`, turns colour on when the
+output is a terminal, and without it everything prints plain:
 
 ```ocaml
 open Console
@@ -135,14 +136,14 @@ let success = Style.(bold + fg Color.green)
 let error = Style.(bold + fg Color.red)
 
 let () =
-  Console_eio.setup ();
+  Console_tty.setup ();
   Fmt.pr "%a@." Span.pp (Span.styled success "✓ Build passed");
   Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
 ```
 
 Tables and other widgets take their text as a `Span.t`, a piece of text with
 its style and, optionally, a link. `Span.pp` prints the colours and links
-when its formatter is set to colour, as `Console_eio.setup` sets standard
+when its formatter is set to colour, as `Console_tty.setup` sets standard
 output on a terminal, and `Span.to_string` returns the plain text.
 
 ```ocaml

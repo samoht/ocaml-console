@@ -12,3 +12,8 @@
 - Colours are written at the colour depth of their formatter
   (`Color.set_depth`), 16 colours until one is set: a program that turns
   colour on with Fmt alone sends codes that every terminal reads.
+- `console.tty` (`Console_tty.setup`) decides colour, its depth and UTF-8
+  for the standard outputs from the terminal, `NO_COLOR`, `TERM`,
+  `COLORTERM` and the locale, with Unix alone: a program that prints a
+  table needs no Eio. `Console_eio.run` calls `Console_tty.ensure`, which
+  decides only for the outputs the program left alone.

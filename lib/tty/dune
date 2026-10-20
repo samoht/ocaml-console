@@ -1,0 +1,10 @@
+(library
+ (name console_tty)
+ (public_name console.tty)
+ (private_modules colour)
+ (libraries console console_slot fmt unix))
+
+(mdx
+ (package console)
+ (files console_tty.mli)
+ (libraries console console.tty fmt))

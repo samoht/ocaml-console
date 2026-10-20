@@ -1,7 +1,7 @@
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt matrix.glyph)
+ (libraries console.text console_slot fmt matrix.glyph)
  (private_modules
   widget
   width
@@ -12,7 +12,6 @@
   display_text
   inked
   sgr
-  slot
   span_core))
 
 (mdx

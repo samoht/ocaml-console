@@ -2,8 +2,7 @@
 opam-version: "2.0"
 synopsis: "Eio backend for console"
 description: """
-Decides once whether standard output and standard error are in colour,
-   and runs a Console.Display on the terminal with Eio: finds whether the
+Runs a Console.Display on the terminal with Eio: finds whether the
    output is a terminal and its size, redraws the progress rows, prints the
    program's output and Logs messages above them and gives the terminal
    back however the program ends. Also asks questions on the terminal,

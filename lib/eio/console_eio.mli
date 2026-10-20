@@ -5,38 +5,15 @@
 
 (** Console with {{:https://github.com/ocaml-multicore/eio}Eio}.
 
-    [Console_eio] decides once whether the standard outputs are in colour, and
-    runs a {!Console.Display} on the terminal: it finds out whether the output
-    is a terminal and how large it is, redraws the progress rows ten times a
-    second, prints {!Logs} messages and the program's own output above them, and
-    gives the terminal back as it found it when the function returns or raises,
-    when its fiber is cancelled, when the program exits and when SIGINT or
-    SIGTERM ends it. *)
+    [Console_eio] runs a {!Console.Display} on the terminal: it finds out
+    whether the output is a terminal and how large it is, redraws the progress
+    rows ten times a second, prints {!Logs} messages and the program's own
+    output above them, and gives the terminal back as it found it when the
+    function returns or raises, when its fiber is cancelled, when the program
+    exits and when SIGINT or SIGTERM ends it. *)
 
 module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
-
-val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
-(** [setup ()] decides whether {!Fmt.stdout} and {!Fmt.stderr} are in colour, as
-    the OCaml command-line tools do: not when [NO_COLOR] is set and not empty,
-    nor when [TERM] is unset, empty or [dumb], and otherwise iff the output is a
-    terminal. [style_renderer], when given, is the program's choice and decides
-    instead, as [Fmt_tty.setup] takes it: a [--color] option made with
-    [Fmt_cli.style_renderer] is passed here as it is.
-
-    It sets {!Fmt.utf_8} on both iff the locale's character set is UTF-8: that
-    of the first of [LC_ALL], [LC_CTYPE] and [LANG] that is set and not empty.
-    The widgets and the display print ASCII alone on a formatter that is not.
-
-    It also sets their {!Console.Color.val-depth}: [`True_color] if [COLORTERM]
-    is [truecolor] or [24bit] or [TERM] ends in [-direct], [`Ansi_256] if [TERM]
-    contains [256color], and [`Ansi_16] otherwise, so that every widget and span
-    printed on them uses colours the terminal has.
-
-    A program calls it once, first. {!run} calls it if it was not, but only for
-    the formatters on which the program chose nothing with [Fmt], such as with
-    {!Fmt.set_style_renderer} or [Fmt_tty.setup_std_outputs]: a choice the
-    program made is never overridden. *)
 
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
@@ -48,7 +25,9 @@ val run :
 (** [run ~clock f] is [f display] for a display on [ppf] (defaults to
     {!Fmt.stderr}, so that standard output stays the program's), timed by
     [clock]. [header] and [layout] are those of {!Console.Display.v}, and the
-    display is drawn in [ppf]'s theme ({!Console.Theme.get}).
+    display is drawn in [ppf]'s theme ({!Console.Theme.get}). It first calls
+    {!Console_tty.ensure}, so a standard output on which the program chose
+    nothing gets the colours its terminal and environment allow.
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
     and that output is a terminal whose [TERM] is set and not [dumb]; then what

@@ -29,8 +29,8 @@
 
     Text is in colour when its formatter is set to colour
     ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows;
-    [Console_eio.setup] sets both for standard output and standard error, as the
-    terminal and the environment say.
+    [Console_tty.setup], in the [console.tty] library, sets both for standard
+    output and standard error, as the terminal and the environment say.
 
     {1:quickstart Quick start}
 

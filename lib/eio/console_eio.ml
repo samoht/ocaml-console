@@ -5,42 +5,16 @@
 
 module Prompt = Prompt
 
-let getenv = Sys.getenv_opt
-let decided = Atomic.make false
-
-(* Fmt keeps what a program chose for a formatter in tag functions it
-   installs on the first choice, so a formatter whose tag functions are still
-   Format's own, but for its theme, has had nothing chosen for it. *)
-let chosen ppf = not (Console.Theme.unset ppf)
-
-let decide ?style_renderer ~only () =
-  List.iter
-    (fun (ppf, fd) ->
-      if only ppf then begin
-        let renderer =
-          match style_renderer with
-          | Some r -> r
-          | None -> Colour.renderer ~getenv ~is_tty:(Terminal.is_tty fd)
-        in
-        Fmt.set_style_renderer ppf renderer;
-        Fmt.set_utf_8 ppf (Colour.utf_8 ~getenv);
-        Console.Color.set_depth ppf (Colour.depth ~getenv)
-      end)
-    [ (Fmt.stdout, Eio_unix.Fd.stdout); (Fmt.stderr, Eio_unix.Fd.stderr) ];
-  Atomic.set decided true
-
-let setup ?style_renderer () = decide ?style_renderer ~only:(Fun.const true) ()
-
 (* The descriptor a formatter writes to, when it is one of the two the
    standard library opens on them. *)
 let descriptor ppf =
-  if ppf == Fmt.stdout then Some Eio_unix.Fd.stdout
-  else if ppf == Fmt.stderr then Some Eio_unix.Fd.stderr
+  if ppf == Fmt.stdout then Some (Eio_unix.Fd.stdout, Unix.stdout)
+  else if ppf == Fmt.stderr then Some (Eio_unix.Fd.stderr, Unix.stderr)
   else None
 
 let terminal ppf =
   match descriptor ppf with
-  | Some fd when Terminal.is_tty fd && not (Colour.dumb ~getenv) -> Some fd
+  | Some (fd, unix) when Console_tty.is_terminal unix -> Some fd
   | _ -> None
 
 (* The display writes on a formatter of its own, to the same output as
@@ -60,8 +34,7 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
   match Session.find () with
   | Some display -> f display
   | None -> (
-      if not (Atomic.get decided) then
-        decide ~only:(fun ppf -> not (chosen ppf)) ();
+      Console_tty.ensure ();
       Session.claim ();
       let now () = Eio.Time.now clock in
       match

@@ -250,10 +250,9 @@ let of_string s =
 
 (* A theme is not a choice of colours: a formatter given one alone still has
    them decided for it. *)
-let slot = Slot.v ~setting:false ()
-let unset = Slot.unset
-let get ppf = Option.value (Slot.find slot ppf) ~default
-let set ppf t = Slot.set slot ppf t
+let slot = Console_slot.v ~setting:false ()
+let get ppf = Option.value (Console_slot.find slot ppf) ~default
+let set ppf t = Console_slot.set slot ppf t
 
 let pp ppf t =
   Fmt.pf ppf "@[<1>(theme %s@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%a)@]"

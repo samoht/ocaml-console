@@ -19,7 +19,9 @@
  (description
   "Type-safe terminal styling (colors, bold, italic) and layout widgets
    (tables, trees, panels) for OCaml CLI applications. Inspired by
-   Python's Rich and Go's Charm/lipgloss.")
+   Python's Rich and Go's Charm/lipgloss. The console.tty library decides
+   colour and UTF-8 for the standard outputs from the terminal and the
+   environment, with Unix alone.")
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
@@ -35,8 +37,7 @@
  (synopsis "Eio backend for console")
  (tags (command-line-utilities format eio))
  (description
-  "Decides once whether standard output and standard error are in colour,
-   and runs a Console.Display on the terminal with Eio: finds whether the
+  "Runs a Console.Display on the terminal with Eio: finds whether the
    output is a terminal and its size, redraws the progress rows, prints the
    program's output and Logs messages above them and gives the terminal
    back however the program ends. Also asks questions on the terminal,

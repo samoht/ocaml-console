@@ -1,5 +1,5 @@
 (library
  (name console_eio)
  (public_name console-eio)
- (private_modules colour interrupt session terminal)
- (libraries console console.text eio eio.unix fmt logs unix))
+ (private_modules interrupt session terminal)
+ (libraries console console.tty console.text eio eio.unix fmt logs unix))
