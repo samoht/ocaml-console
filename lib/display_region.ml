@@ -8,6 +8,11 @@ open Display_state
 let hide_cursor = "\027[?25l"
 let show_cursor = "\027[?25h"
 
+(* From any column: [width] spaces from the first column fill the row and
+   leave the cursor on it, from any other they wrap onto the next row; the
+   carriage return then goes to the first column. *)
+let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
+
 (* Everything the display writes goes out in one piece per operation, so a
    terminal never shows a region half erased or half drawn. A write error
    (a closed pipe) is the end of the output, not of the program. *)

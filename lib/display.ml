@@ -87,7 +87,8 @@ let v ?(theme = Theme.unicode) ?(layout = Line.default) ?header ?size ~now ppf =
   in
   ignore (Display_region.refresh_size t);
   if is_live t then begin
-    Display_region.write t Display_region.hide_cursor;
+    Display_region.write t
+      (Display_region.hide_cursor ^ Display_region.fresh_row t);
     Display_region.paint t
   end
   else watch_lines t;

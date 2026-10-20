@@ -14,6 +14,11 @@ val hide_cursor : string
 val show_cursor : string
 (** [show_cursor] is the escape code that shows the cursor. *)
 
+val fresh_row : t -> string
+(** [fresh_row t] is what takes the cursor, at any column, to the first column
+    of a blank row: the row it is on if that is the first column, the next one
+    otherwise. *)
+
 val write : t -> string -> unit
 (** [write t s] writes [s] on [t]'s output and flushes it, a write error ending
     the output rather than the program. *)
