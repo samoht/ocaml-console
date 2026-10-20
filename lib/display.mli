@@ -265,7 +265,8 @@ val task :
     work it has. Without a terminal it prints a line as it starts.
 
     - [key], if given, names the task: while it runs, a later call with the same
-      [key] returns the same task, wherever it is called from.
+      [key] returns the same task, wherever it is called from, and the [label],
+      [parent], [log_lines] and [transient] of that call are ignored.
     - [parent] (defaults to the current task, if any) draws the task under
       [parent]. A task started under a parent that ended takes the parent's
       ending.
@@ -291,7 +292,9 @@ val with_task :
 (** [with_task display label f] is [f task], for a [task] started as {!val-task}
     starts it and current while [f] runs. The task succeeds when [f] returns and
     fails when [f] raises, and the exception is raised again; if [f] ended the
-    task, that ending counts. *)
+    task, that ending counts. When [key] names a task that runs, [with_task] is
+    [within task (fun () -> f task)] for that task: it ends nothing, and the
+    task ends as the call that started it says. *)
 
 val within : task -> (unit -> 'a) -> 'a
 (** [within task f] is [f ()] with [task] current while [f] runs, and with the

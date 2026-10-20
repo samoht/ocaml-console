@@ -348,7 +348,8 @@ let start t r =
       | _ -> print t (finish `Cancelled r))
   | None -> touch t
 
-let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
+(* The task of [key] that runs, or a new task, and whether it is new. *)
+let keyed ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
   (match key with
   | Some "" -> invalid_arg "Console.Display.task: empty key"
@@ -358,7 +359,7 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
       invalid_arg "Console.Display.task: parent belongs to another display"
   | _ -> ());
   match Option.bind key (Hashtbl.find_opt t.by_key) with
-  | Some r -> r
+  | Some r -> (r, false)
   | None ->
       let parent =
         match parent with
@@ -375,7 +376,10 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
         r.outcome <- Some `Cancelled
       end
       else start t r;
-      r
+      (r, true)
+
+let task ?key ?parent ?log_lines ?transient t label =
+  fst (keyed ?key ?parent ?log_lines ?transient t label)
 
 let root t =
   match t.root with
@@ -394,17 +398,20 @@ let succeed ?message r = print r.disp (finish `Succeeded ?message r)
 let fail ?message r = print r.disp (finish `Failed ?message r)
 let cancel ?message r = print r.disp (finish `Cancelled ?message r)
 
+(* A task found by its key ends as the call that started it says. *)
 let with_task ?key ?parent ?log_lines ?transient t label f =
-  let r = task ?key ?parent ?log_lines ?transient t label in
-  let value = ref None in
-  match t.scope.within r (fun () -> value := Some (f r)) with
-  | () ->
-      succeed r;
-      Option.get !value
-  | exception e ->
-      let bt = Printexc.get_raw_backtrace () in
-      if t.scope.cancelled e then cancel r else fail r;
-      Printexc.raise_with_backtrace e bt
+  match keyed ?key ?parent ?log_lines ?transient t label with
+  | r, false -> within r (fun () -> f r)
+  | r, true -> (
+      let value = ref None in
+      match t.scope.within r (fun () -> value := Some (f r)) with
+      | () ->
+          succeed r;
+          Option.get !value
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          if t.scope.cancelled e then cancel r else fail r;
+          Printexc.raise_with_backtrace e bt)
 
 let set_label r label =
   if is_running r && not (is_root r) then begin
