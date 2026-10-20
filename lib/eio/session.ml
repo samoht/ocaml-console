@@ -199,16 +199,16 @@ let receive ~sw ~closed requests display =
 
 (* The display redraws on its clock, so that the spinners turn and the
    timers run while no task reports. *)
-let animate ~sw ~clock display =
+let animate ~sw ~sleep display =
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
-        Eio.Time.sleep clock 0.1;
+        sleep 0.1;
         Display.redraw display;
         loop ()
       in
       loop ())
 
-let run ~clock ~intercept:formatters display f =
+let run ~sleep ~intercept:formatters display f =
   Atomic.set running (Some display);
   Fun.protect ~finally:(fun () ->
       restore ();
@@ -224,7 +224,7 @@ let run ~clock ~intercept:formatters display f =
       Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests display);
       Logs.set_reporter
         (reporter ~owner:(Domain.self ()) ~closed ~requests display);
-      animate ~sw ~clock display;
+      animate ~sw ~sleep display;
       Fun.protect ~finally:(fun () ->
           Logs.set_reporter previous;
           Eio.Promise.resolve close ())

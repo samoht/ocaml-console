@@ -52,9 +52,7 @@ let build display =
       Console.Display.log step "ocamlopt parser.ml";
       Console.Display.set_count step ~cur:2 ~total:2)
 
-let main () =
-  Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build
+let main () = Eio_main.run @@ fun _ -> Console_eio.run ~header:"Building" build
 ```
 
 `with_task` succeeds its task when the function returns and fails it when the

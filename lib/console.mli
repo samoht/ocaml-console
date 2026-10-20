@@ -106,9 +106,8 @@
           Display.set_count step ~cur:2 ~total:2)
     ]}
 
-    run with [Console_eio.run ~clock ~header:"Building" build_step]. A library
-    can call [Console_eio.run] itself: inside another one, it gets the same
-    display. *)
+    run with [Console_eio.run ~header:"Building" build_step]. A library can call
+    [Console_eio.run] itself: inside another one, it gets the same display. *)
 
 (** {1:modules Modules} *)
 

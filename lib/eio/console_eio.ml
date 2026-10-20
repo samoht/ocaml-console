@@ -30,13 +30,19 @@ let own ppf =
     (Format.pp_get_formatter_stag_functions ppf ());
   own
 
-let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
+(* Without a clock, the system's times the display, through the loop the
+   caller runs in. *)
+let timing = function
+  | Some clock -> ((fun () -> Eio.Time.now clock), Eio.Time.sleep clock)
+  | None -> (Unix.gettimeofday, Eio_unix.sleep)
+
+let run ?clock ?(ppf = Fmt.stderr) ?layout ?header f =
   match Session.find () with
   | Some display -> f display
   | None -> (
       Console_tty.ensure ();
       Session.claim ();
-      let now () = Eio.Time.now clock in
+      let now, sleep = timing clock in
       match
         match terminal ppf with
         | None ->
@@ -54,7 +60,7 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
             in
             (display, routed)
       with
-      | display, intercept -> Session.run ~clock ~intercept display f
+      | display, intercept -> Session.run ~sleep ~intercept display f
       | exception e ->
           Session.release ();
           raise e)

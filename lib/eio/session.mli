@@ -29,14 +29,14 @@ val with_terminal : (unit -> 'a) -> 'a
     straight out. *)
 
 val run :
-  clock:float Eio.Time.clock_ty Eio.Resource.t ->
+  sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   Console.Display.t ->
   (Console.Display.t -> 'a) ->
   'a
-(** [run ~clock ~intercept display f] is [f display], with [display] the calling
-    fiber's and the program's one, redrawn ten times a second on [clock],
-    {!Logs} messages and each whole line written on the formatters of
+(** [run ~sleep ~intercept display f] is [f display], with [display] the calling
+    fiber's and the program's one, redrawn ten times a second, waiting with
+    [sleep], {!Logs} messages and each whole line written on the formatters of
     [intercept] printed above its region, and closed when [f] returns, raises,
     is cancelled, the program exits or a signal ends it ({!Interrupt}). A
     {!claim} must be held; it is released. *)

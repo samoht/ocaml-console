@@ -43,18 +43,20 @@ module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
 
 val run :
-  clock:float Eio.Time.clock_ty Eio.Resource.t ->
+  ?clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
   ?layout:Console.Display.Layout.t ->
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a
-(** [run ~clock f] is [f display] for a display on [ppf] (defaults to
-    {!Fmt.stderr}, so that standard output stays the program's), timed by
-    [clock]. [header] and [layout] are those of {!Console.Display.v}, and the
-    display is drawn in [ppf]'s theme ({!Console.Theme.get}). It first calls
-    {!Console_tty.ensure}, so a standard output on which the program chose
-    nothing gets the colours its terminal and environment allow.
+(** [run f] is [f display] for a display on [ppf] (defaults to {!Fmt.stderr}, so
+    that standard output stays the program's), timed by [clock] (defaults to the
+    system's, read with {!Unix.gettimeofday} and waited on with
+    {!Eio_unix.sleep}; a test passes a mock clock to fix the times). [header]
+    and [layout] are those of {!Console.Display.v}, and the display is drawn in
+    [ppf]'s theme ({!Console.Theme.get}). It first calls {!Console_tty.ensure},
+    so a standard output on which the program chose nothing gets the colours its
+    terminal and environment allow.
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
     and that output is a terminal whose [TERM] is set and not [dumb]; then what
