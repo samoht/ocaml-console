@@ -152,6 +152,24 @@ ready
 - : int = 0
 ```
 
+### In tests
+
+An elapsed time is the one part of the output that the machine writes rather
+than the program. With `CONSOLE_FROZEN_CLOCK` set to any value but the empty
+string, `Console_eio.run` reads a clock stopped at zero: every elapsed time
+reads `0.0s`, no rate shows, and the spinners and the motion stand still, so
+a cram test of the program's output reads the same on every machine:
+
+<!-- $MDX skip -->
+```sh
+  $ export CONSOLE_FROZEN_CLOCK=1
+  $ build 2>&1 | cat
+  • compile
+    › compile: ocamlopt parser.ml
+  ✓ compile  2/2  0.0s
+  ✓ Building 0.0s (1/1)
+```
+
 ## A table while work runs
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)

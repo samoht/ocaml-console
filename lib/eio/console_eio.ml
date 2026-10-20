@@ -52,13 +52,20 @@ let seconds clock =
   fun () ->
     Mtime.Span.to_float_ns (Mtime.span start (Eio.Time.Mono.now clock)) *. 1e-9
 
+(* A clock stopped at zero, under CONSOLE_FROZEN_CLOCK; the redraws still
+   wait on [clock]. *)
+let reading clock =
+  match Sys.getenv_opt "CONSOLE_FROZEN_CLOCK" with
+  | None | Some "" -> seconds clock
+  | Some _ -> fun () -> 0.
+
 let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
   match Session.find () with
   | Some display -> f display
   | None -> (
       Console_tty.ensure ();
       Session.claim ();
-      let now = seconds clock in
+      let now = reading clock in
       match
         match terminal ppf with
         | None ->

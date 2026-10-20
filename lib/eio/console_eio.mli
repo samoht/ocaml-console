@@ -88,5 +88,11 @@ val run :
     are ignored: the display keeps those of the outer [run], and closes when the
     outer [f] ends, not the inner one.
 
+    [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
+    empty string, stops the display's clock at zero: every elapsed time reads
+    [0.0s], no rate shows, and the spinners and the motion stand still, while
+    the redraws still wait on [clock]. The progress a test captures from the
+    program then reads the same on every machine.
+
     @raise Invalid_argument
       if a display opened elsewhere in the program is still running. *)

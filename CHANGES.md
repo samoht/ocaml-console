@@ -67,3 +67,5 @@
 - `Console_eio.run ~clock` takes a monotonic clock
   (`Eio.Stdenv.mono_clock env`), which times the display and paces its
   redraws, so a change of the system's time moves no timer.
+  `CONSOLE_FROZEN_CLOCK`, set and not empty, stops that clock at zero, so
+  a test of a program's output reads `0.0s` for every elapsed time.

@@ -1,8 +1,8 @@
 CONSOLE_FROZEN_CLOCK, set to any value but the empty string, stops the clock
 of every Console_eio.run at zero, so a transcript of a program's progress
 holds the program's output and nothing of how fast the machine ran it: every
-elapsed time reads 0.0s, and the rates, the spinners and the motion of a
-scene stand still. The example takes three seconds.
+elapsed time reads 0.0s, no rate shows, and the spinners and the motion of
+a scene stand still. The example takes three seconds.
 
   $ export CONSOLE_FROZEN_CLOCK=1
 
