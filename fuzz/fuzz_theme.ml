@@ -17,6 +17,9 @@ let test_theme s n =
   let t = Theme.v ~accent:c ~palette ~ok:c ~marks:(fun _ -> s) () in
   check (Theme.palette t <> []);
   check (Color.equal (Theme.accent t) c && Color.equal (Theme.ok t) c);
+  (match Theme.of_string s with
+  | Ok t -> check (String.equal (Theme.name t) s)
+  | Error (`Msg _) -> check (not (List.mem_assoc s Theme.all)));
   List.iter
     (fun t ->
       check (Theme.palette t <> []);

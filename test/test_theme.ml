@@ -213,6 +213,51 @@ let test_contrast () =
         backgrounds)
     presets
 
+(* A command line chooses a theme by name: [all] holds every predefined
+   theme once, under the name [of_string] reads back. *)
+let test_names () =
+  Alcotest.(check (list string))
+    "names"
+    [
+      "default";
+      "ascii";
+      "dos";
+      "matrix";
+      "rainbow";
+      "dracula";
+      "nord";
+      "solarized-dark";
+      "solarized-light";
+      "gruvbox-dark";
+      "gruvbox-light";
+      "catppuccin-latte";
+      "catppuccin-mocha";
+      "tokyo-night";
+      "one-dark";
+      "monokai";
+      "github-dark";
+      "github-light";
+    ]
+    (List.map fst Theme.all);
+  List.iter
+    (fun (name, t) ->
+      Alcotest.(check string) "name" name (Theme.name t);
+      Alcotest.(check bool)
+        ("of_string " ^ name) true
+        (match Theme.of_string name with Ok t' -> t' == t | Error _ -> false))
+    Theme.all;
+  Alcotest.(check bool)
+    "presets" true
+    (List.for_all2 (fun (_, t) (_, t') -> t == t') presets Theme.all);
+  (match Theme.of_string "solarized" with
+  | Ok _ -> Alcotest.fail "unknown name accepted"
+  | Error (`Msg m) ->
+      Alcotest.(check bool)
+        "names the choices" true
+        (contains "solarized-dark" m));
+  Alcotest.(check string) "custom" "custom" (Theme.name (Theme.v ()));
+  Alcotest.(check string) "named" "mine" (Theme.name (Theme.v ~name:"mine" ()))
+
 let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 
 (* A display on a terminal that is not UTF-8, with a spinner, a bar, a
@@ -282,5 +327,6 @@ let suite =
       Alcotest.test_case "widgets read it" `Quick test_widgets_read_it;
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
       Alcotest.test_case "ASCII when not UTF-8" `Quick test_ascii_fallback;
+      Alcotest.test_case "names" `Quick test_names;
       Alcotest.test_case "contrast" `Quick test_contrast;
     ] )
