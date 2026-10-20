@@ -395,6 +395,11 @@ who ask for no animation:
 let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 ```
 
+A user can stop the motion of a program that offers no such option: with
+`NO_COLOR` set, frames stand still but the spinner turns; with `TERM=dumb`,
+or the output in a pipe, the display prints its lines in turn, without
+colour, spinner or scene, as on a CI log.
+
 A scene is drawn only on a terminal and goes when the display closes:
 print the table again once the work is done, as
 [the example](examples/display/main.ml), recorded by
