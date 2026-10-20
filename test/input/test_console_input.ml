@@ -351,9 +351,32 @@ let test_application_arrows () =
   let _, submitted = Console_input.feed t "\027OA\r" in
   Alcotest.check lines "up arrow" [ "aXb" ] submitted
 
+(* A selector inserted before existing text must still join its base on
+   the terminal, where the suffix has already been echoed. *)
+let test_insert_emoji_before_text () =
+  let editor = Console_input.v () in
+  let input = "a\027[D\u{2764}\u{fe0f}" in
+  let echo, _ = Console_input.feed editor input in
+  Alcotest.(check string)
+    "inserted before a" "\u{2764}\u{fe0f}a"
+    (Console_input.pending editor);
+  let actual = Console_vte.v ~raw:true ~rows:1 ~cols:20 ()
+  and expected = Console_vte.v ~raw:true ~rows:1 ~cols:20 () in
+  Console_vte.feed actual echo;
+  Console_vte.feed expected "\u{2764}\u{fe0f}a";
+  Alcotest.(check (list string))
+    "the echo shows the selected emoji and its suffix"
+    (Console_vte.screen expected)
+    (Console_vte.screen actual);
+  Alcotest.(check int)
+    "cursor follows the two-cell emoji" 2
+    (snd (Console_vte.cursor_pos actual))
+
 let suite =
   ( "console_input",
     [
+      Alcotest.test_case "insert an emoji before existing text" `Quick
+        test_insert_emoji_before_text;
       Alcotest.test_case "typed C1 control is a space" `Quick test_typed_c1;
       Alcotest.test_case "application mode arrows" `Quick
         test_application_arrows;
