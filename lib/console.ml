@@ -40,9 +40,8 @@ let hcat ?(gap = 2) blocks =
   fun ppf () ->
     if blocks <> [] then begin
       let look = Look.v ppf and n = List.length blocks in
-      let margin =
-        max 1 ((Format.pp_get_margin ppf () - (gap * (n - 1))) / n)
-      in
+      let room = Format.pp_get_margin ppf () in
+      let margin = max 1 ((room - (gap * (n - 1))) / n) in
       let block pp =
         let lines =
           Array.of_list (Span_core.capture ~look ~margin (fun ppf -> pp ppf ()))
@@ -53,5 +52,8 @@ let hcat ?(gap = 2) blocks =
       let height =
         Array.fold_left (fun h (b, _) -> max h (Array.length b)) 0 blocks
       in
-      Span_core.pp_lines ppf (List.init height (row ~gap blocks))
+      (* The gaps may leave the blocks less than a cell each. *)
+      let fit line = Widget.truncate look (max 1 room) line in
+      Span_core.pp_lines ppf
+        (List.init height (fun i -> fit (row ~gap blocks i)))
     end

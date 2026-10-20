@@ -160,9 +160,11 @@ val hcat : ?gap:int -> unit Fmt.t list -> unit Fmt.t
     the gaps, divided evenly among the blocks. Its lines are then laid side by
     side, each block padded to its widest line and a shorter block with blank
     lines; a line ends at its last block with text on it, so no line ends with
-    spaces [hcat] adds. The spans a block prints ({!Span.pp}), such as the
-    widgets', keep their colours and their parts drawn when printed, so blocks
-    side by side make a scene ({!Display.set_scene}) whose frames move; any
-    other text is plain. There is no line end after the last line.
+    spaces [hcat] adds, and a line wider than the margin, as when the gaps leave
+    the blocks no room, is cut with an ellipsis. The spans a block prints
+    ({!Span.pp}), such as the widgets', keep their colours and their parts drawn
+    when printed, so blocks side by side make a scene ({!Display.set_scene})
+    whose frames move; any other text is plain. There is no line end after the
+    last line.
 
     @raise Invalid_argument if [gap] is negative. *)
