@@ -1,0 +1,71 @@
+name: Fuzz
+
+# Every build runs each property for 0.3 s, which keeps pull requests fast
+# and finds only what is common. Once a night the properties run for longer,
+# and AFL explores from the corpus they generate.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+env:
+  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#main
+
+jobs:
+  properties:
+    name: Properties, 20 s each
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '5.4'
+
+      - run: opam pin add -n vhs "$VHS_PIN"
+      - run: opam install . vhs --deps-only --with-test
+      - run: opam exec -- dune build ./fuzz/fuzz.exe
+      - run: ./_build/default/fuzz/fuzz.exe --budget 20
+
+  afl:
+    name: AFL, 30 min
+    runs-on: ubuntu-latest
+    env:
+      AFL_SKIP_CPUFREQ: 1
+      AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: sudo apt-get update && sudo apt-get install -y afl++
+
+      # A compiler with AFL instrumentation, which the afl profile of
+      # fuzz/dune expects.
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 'ocaml-variants.5.4.0+options,ocaml-option-afl'
+
+      - run: opam pin add -n vhs "$VHS_PIN"
+      - run: opam install . vhs --deps-only --with-test
+      - run: opam exec -- dune build ./fuzz/fuzz.exe --profile=afl
+
+      # The fuzz alias runs AFL for a minute; the night has more time.
+      - name: Run AFL
+        run: |
+          cd "$RUNNER_TEMP"
+          fuzz="$GITHUB_WORKSPACE/_build/default/fuzz/fuzz.exe"
+          "$fuzz" --gen-corpus corpus
+          afl-fuzz -V 1800 -i corpus -o findings -- "$fuzz" @@
+
+      - name: Fail on a crash
+        run: |
+          crashes="$RUNNER_TEMP/findings/default/crashes"
+          if ls "$crashes" 2>/dev/null | grep -qv README; then
+            ls -l "$crashes"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: afl-findings
+          path: ${{ runner.temp }}/findings
