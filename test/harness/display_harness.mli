@@ -20,7 +20,8 @@ val plain :
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string
 (** [plain f] is the value of [f display advance] on a display that is not on a
-    terminal, and what it wrote once closed. *)
+    terminal, and what it wrote once closed. [theme], if given, is set on the
+    display's formatter. *)
 
 type term = private {
   vte : Vte.t;
@@ -47,7 +48,8 @@ val terminal :
     40 by 8), in colour iff [styled] (defaults to [false]). If [raw] (defaults
     to [false]) the terminal's line discipline is in raw mode: a line feed moves
     down and keeps the column. [before] (defaults to [""]) is what the host
-    wrote on the terminal before the display started. *)
+    wrote on the terminal before the display started. [theme], if given, is set
+    on the display's formatter. *)
 
 val written : term -> string
 (** [written t] is every byte the display wrote, in order. *)

@@ -14,8 +14,9 @@ let clock () =
 let plain ?header ?layout ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
+  Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let d = Display.v ?header ?layout ?theme ~now ppf in
+  let d = Display.v ?header ?layout ~now ppf in
   let v = f d advance in
   Display.close d;
   Format.pp_print_flush ppf ();
@@ -60,10 +61,9 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
   Vte.feed_string vte before;
   let ppf = Format.make_formatter out_string out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let display =
-    Display.v ?header ?layout ?theme ~size:(fun () -> !size) ~now ppf
-  in
+  let display = Display.v ?header ?layout ~size:(fun () -> !size) ~now ppf in
   { vte; display; advance; size; chunks }
 
 let written t = String.concat "" (List.rev !(t.chunks))
