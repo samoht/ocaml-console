@@ -507,6 +507,31 @@ let test_frame_contrast () =
         frames)
     presets
 
+(* Rain runs along an intact frame: in every frame the corners and the tees,
+   where lines meet, keep their glyphs, a trail of three cells at most shows
+   other glyphs, and behind it the frame's own lines fade from the main
+   colour. *)
+let test_rain_intact () =
+  let times = List.init 60 (fun i -> float_of_int i *. 0.07) in
+  let still = List.hd (frames (Theme.still Theme.matrix) [ 0. ]) in
+  List.iteri
+    (fun i frame ->
+      let swapped = ref 0 and faded = ref 0 in
+      List.iter2
+        (fun (g0, c0) (g, c) ->
+          if g <> g0 then begin
+            if not (List.mem g0 [ "\u{2500}"; "\u{2502}" ]) then
+              Alcotest.failf "frame %d: %S, where lines meet, became %S" i g0 g;
+            incr swapped
+          end
+          else if not (Color.equal c c0) then incr faded)
+        still frame;
+      if !swapped > 3 then
+        Alcotest.failf "frame %d: %d glyphs swapped, at most 3" i !swapped;
+      if !faded < 4 then
+        Alcotest.failf "frame %d: a trail of %d line glyphs fading" i !faded)
+    (frames Theme.matrix times)
+
 let suite =
   ( "theme",
     [
@@ -528,4 +553,5 @@ let suite =
       Alcotest.test_case "still" `Quick test_still;
       Alcotest.test_case "printed still" `Quick test_still_printed;
       Alcotest.test_case "every frame in contrast" `Quick test_frame_contrast;
+      Alcotest.test_case "rain on an intact frame" `Quick test_rain_intact;
     ] )
