@@ -1,7 +1,7 @@
 (executable
  (name main)
  (modules main)
- (libraries console console-eio eio eio_main fmt))
+ (libraries console console-eio eio eio_main fmt logs))
 
 (executable
  (name tape)

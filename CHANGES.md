@@ -31,3 +31,20 @@
   and glyphs change, never a width; printed with `Fmt`, on a pipe or
   without colour, a frame is still. `Theme.still` stops every motion, the
   spinner's too.
+- A display keeps two kinds of lines apart: `Logs` messages, the program's
+  diagnostics, are always kept, printed after the name of the task they
+  were logged in; the output of a task, given to `Display.log`, shows in
+  its window while it runs, goes when it succeeds, is printed whole under
+  its line when it fails (up to 1 MiB, the oldest lines dropped and
+  counted) and stays in its window when it is cancelled, Ctrl-C included.
+  On a pipe a task prints a line when it starts, every line at once after
+  its name, and repeats its window under a failure. `Display.with_task`
+  makes a task current for a function and the fibers it forks, and ends it
+  when the function returns or raises; `Display.iter` counts a list.
+  `Display.report` and `Display.scope` are for drivers such as
+  `Console_eio.run`; `Display.message` is gone, and `Display.log` has no
+  level.
+- `Display.set_result` takes a `(string, string) result`, the row layout is
+  `Display.Layout`, and a closed display ignores what it is told rather
+  than raising, so a fiber that outlives `Console_eio.run` is harmless.
+- `Theme.mark` has a `` `Debug `` mark for debug messages.

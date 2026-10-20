@@ -113,7 +113,7 @@ let test_auto_asks_the_formatters_own_descriptor () =
     (contains hide_cursor written)
 
 (* Standard error is a pipe and standard output a terminal: the display
-   appends, and the pipe holds the task's line and no escape. An
+   appends, and the pipe holds the task's lines and no escape. An
    implementation that asks standard output draws a region into the pipe. *)
 let test_auto_appends_on_a_pipe () =
   Eio_main.run @@ fun _env ->
@@ -136,7 +136,8 @@ let test_auto_appends_on_a_pipe () =
   drain ();
   let written = Buffer.contents written in
   Alcotest.(check bool) "no escape" false (contains "\027[" written);
-  Alcotest.(check string) "the task's line" "\xe2\x9c\x93 step  0.0s\n" written
+  Alcotest.(check string)
+    "the task's lines" "\xe2\x80\xa2 step\n\xe2\x9c\x93 step  0.0s\n" written
 
 (* Both descriptors are the same terminal; under TERM=xterm-256color the
    region is drawn, under TERM=dumb the display appends. *)

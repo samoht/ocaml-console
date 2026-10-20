@@ -100,10 +100,10 @@
     open Console
 
     let build_step display =
-      let step = Display.task display "compile" in
-      Display.set_count step ~cur:1 ~total:2;
-      Display.log step "compiled parser.ml";
-      Display.succeed step
+      Display.with_task display "compile" (fun step ->
+          Display.set_count step ~cur:1 ~total:2;
+          Display.log step "ocamlopt parser.ml";
+          Display.set_count step ~cur:2 ~total:2)
     ]}
 
     run with [Console_eio.run ~clock ~header:"Building" build_step]. A library

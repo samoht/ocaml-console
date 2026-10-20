@@ -30,7 +30,7 @@ let mark_style t (m : Theme.mark) =
   | `Failed | `Error -> Style.(bold + fg (Theme.fail theme))
   | `Cancelled | `Warning -> Style.(bold + fg (Theme.warn theme))
   | `Running -> Style.(bold + fg (Theme.accent theme))
-  | `Info -> Widget.muted (look t)
+  | `Info | `Debug -> Widget.muted (look t)
 
 let mark t m = Span.styled (mark_style t m) (Widget.mark (look t) m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
@@ -130,18 +130,27 @@ let live t ~lasts r =
 let gap_suffix t gap =
   if gap >= 1. then muted t ("  +" ^ Display_text.duration gap) else Span.empty
 
+(* A task's output after the mark of its kind; a Logs message after the
+   mark of its level, none for an application or an information message. *)
+let lead_mark t = function
+  | Output -> Span.(mark t `Info ++ text " ")
+  | Logs (`App | `Info) -> Span.empty
+  | Logs ((`Warning | `Error | `Debug) as l) ->
+      Span.(mark t (l :> Theme.mark) ++ text " ")
+
+let body t ?label (line : line) =
+  let label =
+    match label with Some l -> muted t (l ^ ": ") | None -> Span.empty
+  in
+  Span.(label ++ text line.text ++ gap_suffix t line.gap)
+
 let tail t ~lasts r =
-  let prefix = continuation t lasts in
+  let prefix = Span.styled (Guide.style (guide t)) (continuation t lasts) in
   Queue.fold
-    (fun acc log ->
-      let line =
-        Span.(
-          styled (Guide.style (guide t)) prefix
-          ++ mark t (log.level :> Theme.mark)
-          ++ text " " ++ text log.message ++ gap_suffix t log.gap)
-      in
-      cut t (room t) line :: acc)
-    [] r.logs
+    (fun acc line ->
+      cut t (room t) Span.(prefix ++ lead_mark t line.kind ++ body t line)
+      :: acc)
+    [] r.window
   |> List.rev
 
 (* {1 Permanent lines} *)
@@ -196,29 +205,50 @@ let appended r =
     ++ text (label_of r)
     ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r)))
 
-let committed_log r log =
+(* On a terminal a line that does not fit goes on over the lines below,
+   under its start; without one it is a line of its own, as long as it is. *)
+let folded t ~width lead body =
+  if not (is_live t) then [ Span.(lead ++ body) ]
+  else
+    let w = Span.width lead in
+    (* Only a terminal narrower than the lead cuts a line. *)
+    List.map (cut t width)
+      (match Span.wrap (max 1 (width - w)) body with
+      | first :: rest ->
+          Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
+      | [] -> [ lead ])
+
+let under_task r = text (indent r ^ "  ")
+
+(* The mark leads, so that a line that goes on over the next ones goes on
+   under its text. *)
+let labelled r line =
   let t = r.disp in
-  cut t (room t)
-    Span.(
-      text (indent r ^ "  ")
-      ++ mark t (log.level :> Theme.mark)
-      ++ text " " ++ text log.message ++ gap_suffix t log.gap)
+  folded t ~width:(room t)
+    Span.(under_task r ++ lead_mark t line.kind)
+    (body t ~label:r.label line)
 
-(* Without a terminal, lines of tasks that run at once are interleaved, so
-   each says which task it is from. *)
-let appended_log r log =
+let under r line =
+  let t = r.disp in
+  folded t ~width:(room t)
+    Span.(under_task r ++ lead_mark t line.kind)
+    (body t line)
+
+let dropped r n =
+  let t = r.disp in
+  let look = look t in
   Span.(
-    text (indent r ^ "  ")
-    ++ mark r.disp (log.level :> Theme.mark)
-    ++ text " "
-    ++ muted r.disp (r.label ^ ": ")
-    ++ text log.message ++ gap_suffix r.disp log.gap)
+    under_task r
+    ++ muted t
+         (Fmt.str "%s %d %s dropped" (Widget.ellipsis look) n
+            (if n = 1 then "line" else "lines")))
 
-let message t (level : level) msg =
-  match level with
-  | `Info -> text msg
-  | (`Warning | `Error) as l ->
-      Span.(mark t (l :> Theme.mark) ++ text " " ++ text msg)
+let started r =
+  let t = r.disp in
+  Span.(text (indent r) ++ mark t `Running ++ text " " ++ text r.label)
+
+let message t level msg =
+  folded t ~width:t.width (lead_mark t (Logs level)) (text msg)
 
 (* {1 The header and the verdict} *)
 

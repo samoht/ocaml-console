@@ -41,7 +41,8 @@ let test_nested_run_reuses_the_display () =
       Format.pp_print_flush ppf ();
       Alcotest.(check bool)
         "nested task uses the outer output" true
-        (String.starts_with ~prefix:"\xe2\x9c\x93 nested work"
+        (String.starts_with
+           ~prefix:"\xe2\x80\xa2 nested work\n\xe2\x9c\x93 nested work"
            (Buffer.contents buf)))
 
 (* A display that is not this fiber's is refused, and the one that runs is

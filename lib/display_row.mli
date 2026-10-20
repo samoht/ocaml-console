@@ -20,8 +20,8 @@ val live : t -> lasts:bool list -> row -> Span.t
     leave; at most [t.width] cells. *)
 
 val tail : t -> lasts:bool list -> row -> Span.t list
-(** [tail t ~lasts r] are [r]'s log lines under its row, oldest first, each of
-    at most [t.width] cells. *)
+(** [tail t ~lasts r] are the lines of [r]'s window under its row, oldest first,
+    each of at most [t.width] cells. *)
 
 val committed : t -> row -> Span.t list
 (** [committed t r] is the line printed when [r] ends on a terminal: its mark
@@ -32,18 +32,29 @@ val committed : t -> row -> Span.t list
 val appended : row -> Span.t
 (** [appended r] is the line printed when [r] ends without a terminal. *)
 
-(** {1:logs Log lines and messages} *)
+(** {1:lines Lines of tasks and Logs messages}
 
-val committed_log : row -> log -> Span.t
-(** [committed_log r l] is [l] printed above the region, under [r]'s indent, at
-    most the terminal's width. *)
+    On a terminal each of these is folded to the width of the rows, the lines
+    after the first indented under it; without one it is one line. *)
 
-val appended_log : row -> log -> Span.t
-(** [appended_log r l] is [l] printed without a terminal, after [r]'s label. *)
+val started : row -> Span.t
+(** [started r] is the line printed when [r] starts without a terminal. *)
 
-val message : t -> level -> string -> Span.t
-(** [message t level s] is [s] after [level]'s mark, unless [level] is [`Info].
+val labelled : row -> line -> Span.t list
+(** [labelled r l] is [l] printed above the region or without a terminal, under
+    [r]'s indent and after [r]'s label. *)
+
+val under : row -> line -> Span.t list
+(** [under r l] is [l] printed under [r]'s line, under its indent, without its
+    label. *)
+
+val dropped : row -> int -> Span.t
+(** [dropped r n] is the line that says [n] of [r]'s output lines were dropped.
 *)
+
+val message : t -> level -> string -> Span.t list
+(** [message t level s] is the Logs message [s] of no task, after [level]'s
+    mark, folded to the terminal's width. *)
 
 (** {1:summary The header and the result} *)
 

@@ -681,6 +681,29 @@ let scope current =
       current := Some task;
       Fun.protect f ~finally:(fun () -> current := saved))
 
+(* A task of the model, started on [d] under [parent]. *)
+let new_task d parent name window_size =
+  let task =
+    Display.task
+      ?parent:(Option.map (fun p -> p.task) parent)
+      ~log_lines:window_size d name
+  in
+  let t = { task; name; window_size; window = []; outcome = None; kids = [] } in
+  (match parent with
+  | Some ({ outcome = None; _ } as p) -> p.kids <- t :: p.kids
+  | Some { outcome = Some `Succeeded; _ } -> model_end `Succeeded t
+  | Some _ -> model_end `Cancelled t
+  | None -> ());
+  t
+
+let end_task t o =
+  let o = outcome o in
+  (match o with
+  | `Succeeded -> Display.succeed t.task
+  | `Failed -> Display.fail t.task
+  | `Cancelled -> Display.cancel t.task);
+  model_end o t
+
 (* Runs [steps] on [d], whose scope reads its current task from [current],
    and closes [d]. *)
 let run_steps d current steps =
@@ -703,22 +726,8 @@ let run_steps d current steps =
   List.iter
     (function
       | New (p, l) when Array.length !tasks < 16 ->
-          let parent = Option.bind p pick in
           let name = "t" ^ string_of_int (Array.length !tasks) in
-          let window_size = l mod 4 in
-          let task =
-            Display.task
-              ?parent:(Option.map (fun p -> p.task) parent)
-              ~log_lines:window_size d name
-          in
-          let t =
-            { task; name; window_size; window = []; outcome = None; kids = [] }
-          in
-          (match parent with
-          | Some ({ outcome = None; _ } as p) -> p.kids <- t :: p.kids
-          | Some { outcome = Some `Succeeded; _ } -> model_end `Succeeded t
-          | Some _ -> model_end `Cancelled t
-          | None -> ());
+          let t = new_task d (Option.bind p pick) name (l mod 4) in
           tasks := Array.append !tasks [| t |]
       | New _ -> ()
       | Out i ->
@@ -729,7 +738,7 @@ let run_steps d current steps =
           current := Option.map (fun t -> t.task) t;
           Display.report d `Info token;
           current := None
-      | Finish (i, o) -> Option.iter (model_end (outcome o)) (pick i))
+      | Finish (i, o) -> Option.iter (fun t -> end_task t o) (pick i))
     steps;
   Display.close d;
   (* Closing cancels what runs, the latest first. *)

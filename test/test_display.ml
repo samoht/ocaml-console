@@ -449,7 +449,7 @@ let test_keys_and_transient () =
         Display.succeed (Display.task ~transient:true d "gone"))
   in
   check_lines "no line for a transient task"
-    [ "[+] first  0.0s"; "[+] third  0.0s"; "" ]
+    [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
     (String.split_on_char '\n' out)
 
 let test_counts () =
@@ -467,7 +467,13 @@ let test_counts () =
         Display.succeed b)
   in
   check_lines "never back, total raised"
-    [ "[+] count  12/12  0.0s"; "[+] bytes  1.00 MiB / 2.00 MiB  0.0s"; "" ]
+    [
+      "[-] count";
+      "[+] count  12/12  0.0s";
+      "[-] bytes";
+      "[+] bytes  1.00 MiB / 2.00 MiB  0.0s";
+      "";
+    ]
     (String.split_on_char '\n' out)
 
 (* A count near [max_int] still shows its share. *)
@@ -875,7 +881,9 @@ let test_scope () =
   Display.report d `Info "in a";
   current := None;
   Display.with_task d "b" (fun b ->
-      Alcotest.(check bool) "current within" true (!current == Some b));
+      Alcotest.(check bool)
+        "current within" true
+        (match !current with Some c -> c == b | None -> false));
   Display.close d;
   Format.pp_print_flush ppf ();
   check_lines "the scope's current task"

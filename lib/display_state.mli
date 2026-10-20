@@ -12,16 +12,19 @@ type metric = Spin | Count of int * int | Bytes of int64 * int64
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
 (** The type for task endings. *)
 
-type level = [ `Info | `Warning | `Error ]
-(** The type for log levels. *)
+type level = [ `App | `Error | `Warning | `Info | `Debug ]
+(** The type for the levels of Logs messages. *)
 
-type log = {
+(** The type for the kinds of lines. *)
+type kind = Output | Logs of level
+
+type line = {
   gap : float;  (** Seconds since the task's previous line. *)
-  level : level;
-  message : string;  (** One line, without control characters. *)
-  kept : bool;  (** Printed above the region when it leaves the tail. *)
+  kind : kind;
+  text : string;  (** One line, without control characters. *)
 }
-(** The type for log lines in a task's tail. *)
+(** The type for the lines of a task: its output, given to {!Display.log}, or a
+    Logs message logged while it was current. *)
 
 val count_text : metric -> string
 (** [count_text m] is what a row's count cell shows: items or bytes done over
@@ -61,6 +64,12 @@ type t = {
   mutable suspended : int;
   mutable partial : bool;
   mutable release : unit -> unit;
+  scope : scope;
+}
+
+and scope = {
+  current : unit -> row option;
+  within : row -> (unit -> unit) -> unit;
 }
 
 and row = {
@@ -69,7 +78,10 @@ and row = {
   disp : t;
   parent : row option;
   log_lines : int;
-  logs : log Queue.t;
+  window : line Queue.t;
+  output : line Queue.t;
+  mutable output_bytes : int;
+  mutable dropped : int;
   mutable log_prev : float;
   mutable label : string;
   mutable metric : metric;
@@ -87,10 +99,13 @@ and row = {
 (** The type for displays and their tasks. {!field-running} holds the tasks in
     the order they started, the running ones and at most as many that ended
     ({!field-stale}); {!field-scene} prints what is drawn above the header;
-    {!field-frame} is the region on the screen, as written. Without a terminal,
-    {!field-partial} is [true] iff the last byte written on {!field-ppf} did not
-    end a line, and {!field-release} gives {!field-ppf} its own output functions
-    back. *)
+    {!field-frame} is the region on the screen, as written; {!field-scope} says
+    which task is current. A task's {!field-window} holds its latest lines, at
+    most {!field-log_lines}, and on a terminal its {!field-output} holds its
+    output lines, {!field-output_bytes} bytes in all, the {!field-dropped}
+    oldest left out. Without a terminal, {!field-partial} is [true] iff the last
+    byte written on {!field-ppf} did not end a line, and {!field-release} gives
+    {!field-ppf} its own output functions back. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)

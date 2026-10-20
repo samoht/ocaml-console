@@ -75,7 +75,7 @@ let rows t =
     let live (r, lasts) = Display_row.live t ~lasts r in
     let n = List.length rows in
     let total =
-      List.fold_left (fun acc (r, _) -> acc + 1 + Queue.length r.logs) 0 rows
+      List.fold_left (fun acc (r, _) -> acc + 1 + Queue.length r.window) 0 rows
     in
     if budget <= 0 then header
     else if total <= budget then

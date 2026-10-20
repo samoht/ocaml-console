@@ -13,6 +13,7 @@ module Display = Console.Display
    in the middle of the work still closes it. *)
 
 let current : Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
+let task : Display.task Eio.Fiber.key = Eio.Fiber.create_key ()
 let busy = Atomic.make false
 let running : Display.t option Atomic.t = Atomic.make None
 let find () = Eio.Fiber.get current
@@ -27,6 +28,19 @@ let at_exit =
          | Some d -> (
              try Display.close ~running:`Cancel d with Sys_error _ -> ())
          | None -> ()))
+
+(* A task is current in the fibers its function forks, as a binding is; a
+   fiber cancelled in it cancels the task rather than failing it. *)
+let scope =
+  Display.scope
+    ~current:(fun () -> Eio.Fiber.get task)
+    ~within:(fun t f ->
+      Eio.Fiber.with_binding task t @@ fun () ->
+      try f ()
+      with Eio.Cancel.Cancelled _ as e ->
+        let bt = Printexc.get_raw_backtrace () in
+        Display.cancel t;
+        Printexc.raise_with_backtrace e bt)
 
 let claim () =
   Lazy.force at_exit;
@@ -111,13 +125,15 @@ let with_terminal f =
 
 (* {1 Logs} *)
 
-let level : Logs.level -> [ `Info | `Warning | `Error ] = function
-  | Logs.Warning -> `Warning
+let level : Logs.level -> Display.level = function
+  | Logs.App -> `App
   | Logs.Error -> `Error
-  | Logs.App | Logs.Info | Logs.Debug -> `Info
+  | Logs.Warning -> `Warning
+  | Logs.Info -> `Info
+  | Logs.Debug -> `Debug
 
 type request = {
-  level : [ `Info | `Warning | `Error ];
+  level : Display.level;
   message : string;
   reply : (unit, exn) result Eio.Promise.t Eio.Promise.u;
 }
@@ -131,7 +147,7 @@ let reporter ~owner ~closed ~requests display =
   let emit level message =
     if Option.is_some (Eio.Promise.peek closed) then closed_reporter ();
     if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
-      Display.message ~level display message
+      Display.report display level message
     else
       Eio.Fiber.first
         (fun () ->
@@ -168,7 +184,7 @@ let receive ~sw ~closed requests display =
             (fun () ->
               if Option.is_some (Eio.Promise.peek closed) then
                 closed_reporter ();
-              Display.message ~level display message)
+              Display.report display level message)
             (fun () ->
               Eio.Promise.await closed;
               closed_reporter ()))

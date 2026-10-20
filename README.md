@@ -42,30 +42,59 @@ $ opam pin add https://github.com/samoht/ocaml-console.git
 ![A build whose running steps are redrawn in place](examples/display/display.gif)
 
 A display shows one row for each task that runs and redraws those rows in
-place; a task that ends, and each line it logs, is printed once above them and
-stays. The smallest program:
+place; a task that ends is printed once above them and stays. The smallest
+program:
 
 ```ocaml
 let build display =
-  let step = Console.Display.task display "compile" in
-  Console.Display.set_count step ~cur:2 ~total:2;
-  Console.Display.log step "compiled parser.ml";
-  Console.Display.succeed step
+  Console.Display.with_task display "compile" (fun step ->
+      Console.Display.set_count step ~cur:1 ~total:2;
+      Console.Display.log step "ocamlopt parser.ml";
+      Console.Display.set_count step ~cur:2 ~total:2)
 
 let main () =
   Eio_main.run @@ fun env ->
   Console_eio.run ~clock:(Eio.Stdenv.clock env) ~header:"Building" build
 ```
 
-When the output is not a terminal, nothing is redrawn and the same work prints
-these lines, each log line after the name of its task and the header last, as
+`with_task` succeeds its task when the function returns and fails it when the
+function raises. When the output is not a terminal, nothing is redrawn and the
+same work prints these lines: one when the task starts, each line of its
+output after the name of its task, one when it ends, and the header last, as
 a summary:
 
 ```text
-  › compile: compiled parser.ml
+• compile
+  › compile: ocamlopt parser.ml
 ✓ compile  2/2  0.0s
 ✓ Building 0.0s (1/1)
 ```
+
+### Where text goes
+
+While a display runs, your program's text goes to one of three places. What
+it prints on standard output with `Fmt.pr` is its result: console never moves
+or hides it. On the terminal it only waits for each whole line and prints it
+above the progress rows. Under each running task, console shows that task's
+latest lines (8 unless `~log_lines` says otherwise). Those lines are either
+what you hand it with `Display.log`, such as a command's output, or the `Logs`
+messages logged inside the task, meaning in the function given to
+`Display.with_task` or in a fiber that function started. Log messages always
+stay. Command output stays only if the task fails.
+
+| What | Terminal, while running | Terminal, once the task ends | Pipe or CI |
+|---|---|---|---|
+| `Fmt.pr` (stdout) | above the rows | stays | unchanged, on stdout |
+| `Logs` outside a task | above the rows | stays | printed at once |
+| `Logs` inside a task | in the task's window | stays above, after the task's name | printed at once, after the task's name |
+| `Display.log`, task succeeds | in the task's window | removed | printed at once, after the task's name |
+| `Display.log`, task fails | in the task's window | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
+| `Display.log`, task cancelled (Ctrl-C) | in the task's window | what was in the window stays | printed at once |
+
+A failed task keeps up to 1 MiB of its output, the oldest lines dropped first
+and counted on a line of their own. What `print_string`, `Printf` or a child
+process writes on the terminal is not seen and garbles the rows: print it with
+`Display.with_output`.
 
 Each line starts with a mark that says how its task ended; the theme chooses
 the marks:
@@ -79,8 +108,7 @@ the marks:
 Good to know:
 
 - The display draws on standard error, so standard output stays the
-  program's; what the program prints with `Fmt.pr` while the display runs
-  goes above the rows, a line at a time, and so do `Logs` messages.
+  program's.
 - A program decides on colour once, with `Console_tty.setup` from the
   `console.tty` library: no colour when `NO_COLOR` is set and not empty, or
   when `TERM` is unset, empty or `dumb`; otherwise colour if and only if the

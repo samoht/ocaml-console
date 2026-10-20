@@ -39,11 +39,13 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
       let now () = Eio.Time.now clock in
       match
         match terminal ppf with
-        | None -> (Console.Display.v ?layout ?header ~now ppf, [])
+        | None ->
+            (Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf, [])
         | Some fd ->
             let size () = Terminal.dimensions (Some fd) in
             let display =
-              Console.Display.v ?layout ?header ~size ~now (own ppf)
+              Console.Display.v ?layout ?header ~size ~scope:Session.scope ~now
+                (own ppf)
             in
             let routed =
               List.filter

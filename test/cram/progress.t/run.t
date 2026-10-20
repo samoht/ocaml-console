@@ -17,4 +17,4 @@ window under its line. This is the text a log collector ingests.
   ✗ qux.ml  0.1s
     › line 2
     › line 3
-  ✗ Processing 0.4s (4/4)
+  ✗ Processing 0.5s (4/4)

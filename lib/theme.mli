@@ -37,9 +37,10 @@ type mark =
   | `Succeeded  (** A task or a session that succeeded. *)
   | `Failed  (** A task or a session that failed. *)
   | `Cancelled  (** A task or a session that was cancelled. *)
-  | `Info  (** A log line that informs. *)
-  | `Warning  (** A log line that warns. *)
-  | `Error  (** A log line that reports an error. *) ]
+  | `Info  (** A line of a task's output. *)
+  | `Warning  (** A message that warns. *)
+  | `Error  (** A message that reports an error. *)
+  | `Debug  (** A message for debugging. *) ]
 (** The type for the states a mark says. *)
 
 type bar =
@@ -181,7 +182,7 @@ val default : t
     contrast on dark and light backgrounds alike, bold headers, rounded frames,
     a braille spinner and, for the states of {!type-mark} in order, a bullet, a
     check mark, a cross, a circle, a single right-pointing angle quotation mark,
-    [!] and a cross. *)
+    [!], a cross and a middle dot. *)
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
@@ -192,7 +193,7 @@ val ascii : t
 val dos : t
 (** [dos] is amber on black, a darker amber muted and bold amber headers, with
     ASCII frames, tree lines and spinner, [`Block] bars and the marks [[-]],
-    [[+]], [[x]], [[~]], [#], [!] and [x]. *)
+    [[+]], [[x]], [[~]], [#], [!], [x] and [.]. *)
 
 val matrix : t
 (** [matrix] is bright green on black, a darker green muted and bold green

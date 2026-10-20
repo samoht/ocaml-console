@@ -7,28 +7,57 @@
 
     A display shows one row for each task still running, with a spinner or a
     progress bar, and redraws those rows in place: they are its {e live region},
-    at the bottom of the terminal's normal output. When a task ends, or logs a
-    line, that line is printed once above the region and stays in the
-    scrollback. When the output is not a terminal, such as a pipe or a CI log,
-    nothing is redrawn: each of those lines is printed in turn, and the header
-    comes last, as a summary. Each starts a line of its own: when what the
-    program wrote on the same formatter did not end its line, a line feed comes
-    first.
+    at the bottom of the terminal's normal output. When a task ends, its line is
+    printed once above the region and stays in the scrollback. When the output
+    is not a terminal, such as a pipe or a CI log, nothing is redrawn: a task
+    prints a line when it starts and one when it ends, and the header comes
+    last, as a summary. Each starts a line of its own: when what the program
+    wrote on the same formatter did not end its line, a line feed comes first.
 
     [Console_eio.run] opens a display, passes it to a function and closes it
     when the function returns; most programs need nothing else.
 
     {[
     let build display =
-      let step = Console.Display.task display "compile" in
-      Console.Display.set_count step ~cur:1 ~total:2;
-      Console.Display.log step "compiled parser.ml";
-      Console.Display.succeed step
+      Console.Display.with_task display "compile" (fun step ->
+          Console.Display.set_count step ~cur:1 ~total:2;
+          Console.Display.log step "ocamlopt parser.ml";
+          Console.Display.set_count step ~cur:2 ~total:2)
     ]}
 
+    {1:output Where text goes}
+
+    While a display runs, your program's text goes to one of three places. What
+    it prints on standard output with [Fmt.pr] is its result: console never
+    moves or hides it. On the terminal it only waits for each whole line and
+    prints it above the progress rows. Under each running task, console shows
+    that task's latest lines (8 unless [~log_lines] says otherwise). Those lines
+    are either what you hand it with [Display.log], such as a command's output,
+    or the [Logs] messages logged inside the task, meaning in the function given
+    to [Display.with_task] or in a fiber that function started. Log messages
+    always stay. Command output stays only if the task fails.
+
+    {t
+      | What                                   | Terminal, while running | Terminal, once the task ends       | Pipe or CI                                         |
+      |----------------------------------------|-------------------------|------------------------------------|----------------------------------------------------|
+      | [Fmt.pr] (stdout)                      | above the rows          | stays                              | unchanged, on stdout                               |
+      | [Logs] outside a task                  | above the rows          | stays                              | printed at once                                    |
+      | [Logs] inside a task                   | in the task's window    | stays above, after the task's name | printed at once, after the task's name             |
+      | [Display.log], task succeeds           | in the task's window    | removed                            | printed at once, after the task's name             |
+      | [Display.log], task fails              | in the task's window    | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
+      | [Display.log], task cancelled (Ctrl-C) | in the task's window    | what was in the window stays       | printed at once                                    |
+    }
+
+    A line too wide for the terminal is cut in a task's window and nowhere else.
+    The output of a failed task is kept up to 1 MiB, its oldest lines dropped
+    first and counted on a line of their own. Console sees standard output
+    through {!Fmt.stdout} and [Logs] messages through its driver ({!drivers}):
+    what [print_string], [Printf] or a child process writes on the terminal is
+    not seen and garbles the rows, so print it with {!with_output}.
+
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
-    what they are: how a task ended, the level of a log line, and in the header
-    whether work is still running and how it ended.
+    what they are: how a task ended, a line of its output, the level of a [Logs]
+    message, and in the header whether work is still running and how it ended.
 
     {1:guarantees Guarantees}
 
@@ -116,10 +145,14 @@ end
 type t
 (** The type for displays. *)
 
+type scope
+(** The type for the ways to tell which task is current ({!drivers}). *)
+
 val v :
   ?layout:Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
+  ?scope:scope ->
   now:(unit -> float) ->
   Format.formatter ->
   t
@@ -131,6 +164,9 @@ val v :
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row.
+    - [scope] says which task is current (defaults to the task of the innermost
+      {!with_task} that runs, which suits a program without fibers;
+      [Console_eio.run] passes one that follows Eio's fibers).
 
     The display is drawn in [ppf]'s theme ({!Theme.get}), read again each time
     it draws, and in colour iff [ppf]'s style renderer is [`Ansi_tty], at
@@ -145,11 +181,8 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] takes the region off the screen, calls [f] with the
     display's formatter, as wide as the terminal, and draws the region again
     below what [f] printed, also when [f] raises. Output that [f] does not end
-    with a line feed is ended. *)
-
-val message : ?level:[ `Info | `Warning | `Error ] -> t -> string -> unit
-(** [message display text] prints each line of [text] above the region, after
-    the mark of [level] unless [level] is [`Info] (the default). *)
+    with a line feed is ended. This prints what console does not see, such as
+    the text of [print_string] or of a child process. *)
 
 val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
 (** [set_scene display scene] draws what [scene ~height ppf] prints above the
@@ -194,8 +227,13 @@ val pp : t Fmt.t
 
 (** {1:tasks Tasks}
 
-    A task that ended ignores what it is told, but its {!log}. Once its display
-    closed, every task has ended, and so has one {!task} starts then. *)
+    A task is {e current} in the function given to {!with_task} and, with the
+    scope of [Console_eio.run], in the fibers that function starts: a task
+    started there goes under it, and a [Logs] message logged there goes to its
+    window ({!report}).
+
+    A task that ended ignores what it is told. Once its display closed, every
+    task has ended, and so has one {!val-task} starts then. *)
 
 type task
 (** The type for tasks. *)
@@ -210,20 +248,41 @@ val task :
   task
 (** [task display label] starts a task named [label] (a line feed in it is a
     space). It shows a spinner until {!set_count} or {!set_bytes} says how much
-    work it has.
+    work it has. Without a terminal it prints a line as it starts.
 
     - [key], if given, names the task: while it runs, a later call with the same
       [key] returns the same task, wherever it is called from.
-    - [parent], if given, draws the task under [parent]. A task started under a
-      parent that ended takes the parent's ending.
-    - [log_lines] is how many of the task's latest {!log} lines are shown under
+    - [parent] (defaults to the current task, if any) draws the task under
+      [parent]. A task started under a parent that ended takes the parent's
+      ending.
+    - [log_lines] is how many of the task's latest lines its window shows under
       its row while it runs (defaults to [8]).
-    - [transient] (defaults to [false]) makes a task that leaves no line when it
-      ends: it shows while it runs, and that is all.
+    - [transient] (defaults to [false]) makes a task that leaves no line of its
+      own when it ends, nor any of its output: it shows while it runs, and that
+      is all.
 
     @raise Invalid_argument
       if [key] is empty, [log_lines] is negative, or [parent] belongs to another
       display. *)
+
+val with_task :
+  ?key:string ->
+  ?parent:task ->
+  ?log_lines:int ->
+  ?transient:bool ->
+  t ->
+  string ->
+  (task -> 'a) ->
+  'a
+(** [with_task display label f] is [f task], for a [task] started as {!val-task}
+    starts it and current while [f] runs. The task succeeds when [f] returns and
+    fails when [f] raises, and the exception is raised again; if [f] ended the
+    task, that ending counts. *)
+
+val iter : t -> string -> ('a -> unit) -> 'a list -> unit
+(** [iter display label f l] applies [f] to the elements of [l] in turn, inside
+    a {!with_task} named [label] whose count is the elements done out of the
+    length of [l]. *)
 
 val set_label : task -> string -> unit
 (** [set_label task label] renames [task] to [label]. *)
@@ -243,28 +302,48 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
     @raise Invalid_argument
       if [cur] or [total] is negative, or [task] counts items. *)
 
-val log :
-  ?level:[ `Info | `Warning | `Error ] -> ?keep:bool -> task -> string -> unit
-(** [log task text] prints each line of [text] as a line of [task], after the
-    mark of [level] (defaults to [`Info]). Its latest lines show under the
-    task's row while the task runs, and each one is printed above the region
-    once it leaves it. Without a terminal, each line is printed at once, after
-    the label of its task. A line that does not fit the terminal under the row
-    is cut with an ellipsis.
-
-    With [~keep:false] (defaults to [true]) a line only shows under the row and
-    is never printed above it, for output that is only worth watching while it
-    comes. *)
+val log : task -> string -> unit
+(** [log task text] gives each line of [text] to [task] as its output, such as
+    the lines of a command it runs. The latest show in [task]'s window while it
+    runs; then they are dropped if [task] succeeds, printed whole under its line
+    if it fails, and those of its window stay under its line if it is cancelled.
+    Without a terminal each line is printed at once, after [task]'s label, and
+    under the line of a failure the lines of the window are printed again. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its
     label if given. A task ends once: the first of {!succeed}, {!fail} and
     {!cancel} counts and the others do nothing. The tasks under it that still
-    run end first: they succeed with it, and are cancelled when it fails or is
-    cancelled. *)
+    run end first, each with a line of its own: they succeed with it, and are
+    cancelled when it fails or is cancelled. *)
 
 val fail : ?message:string -> task -> unit
 (** [fail task] is like {!succeed} but ends [task] as a failure. *)
 
 val cancel : ?message:string -> task -> unit
 (** [cancel task] is like {!succeed} but ends [task] as cancelled. *)
+
+(** {1:drivers Drivers}
+
+    A driver runs a display for a scheduler, as [Console_eio.run] does for Eio:
+    it says with a {!type-scope} which task is current in a fiber, and passes
+    the program's [Logs] messages to {!report}. A program that opens a display
+    with {!v} can do the same. *)
+
+type level = [ `App | `Error | `Warning | `Info | `Debug ]
+(** The type for the levels of messages, those of [Logs]. *)
+
+val report : t -> level -> string -> unit
+(** [report display level text] prints each line of [text] as a message of
+    [level]: in the window of the current task, if there is one, then above the
+    region after the task's label once it leaves the window; above the region at
+    once otherwise. A message of level [`Warning], [`Error] or [`Debug] comes
+    after the mark of its level, one of level [`App] or [`Info] after none. *)
+
+val scope :
+  current:(unit -> task option) ->
+  within:(task -> (unit -> unit) -> unit) ->
+  scope
+(** [scope ~current ~within] is the scope in which [current ()] is the task
+    current where it is called, and [within task f] calls [f] with [task]
+    current there and in what [f] starts. *)

@@ -38,7 +38,7 @@ let progress ~clock table =
       Display.fail failed;
       let compile = Display.task ~log_lines:1 d "compile" in
       Display.set_count compile ~cur:5 ~total:8;
-      Display.log ~level:`Warning compile "unused variable x";
+      Display.log compile "unused variable x";
       ignore (Display.task d "test");
       Eio.Time.sleep clock 3.;
       Display.cancel compile)

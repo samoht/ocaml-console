@@ -4,7 +4,14 @@
   ---------------------------------------------------------------------------*)
 
 type mark =
-  [ `Running | `Succeeded | `Failed | `Cancelled | `Info | `Warning | `Error ]
+  [ `Running
+  | `Succeeded
+  | `Failed
+  | `Cancelled
+  | `Info
+  | `Warning
+  | `Error
+  | `Debug ]
 
 type bar = [ `Line | `Block | `Ascii ]
 type motion = [ `Rain | `Sweep | `Shimmer ]
@@ -52,6 +59,7 @@ let unicode_marks = function
   | `Cancelled -> "\xe2\x97\x8b"
   | `Info -> "\xe2\x80\xba"
   | `Warning -> "!"
+  | `Debug -> "\xc2\xb7"
 
 let ascii_marks = function
   | `Running -> "[-]"
@@ -61,6 +69,7 @@ let ascii_marks = function
   | `Info -> "#"
   | `Warning -> "!"
   | `Error -> "x"
+  | `Debug -> "."
 
 (* Entries of the xterm 256-colour palette whose contrast is 3:1 or more on
    black and on white alike, for a terminal whose background is unknown, and
@@ -280,4 +289,13 @@ let pp ppf t =
     pp_motion t.motion
     Fmt.(list ~sep:(any " ") string)
     (List.map (mark t)
-       [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error ])
+       [
+         `Running;
+         `Succeeded;
+         `Failed;
+         `Cancelled;
+         `Info;
+         `Warning;
+         `Error;
+         `Debug;
+       ])

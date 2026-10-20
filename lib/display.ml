@@ -8,6 +8,23 @@ module Layout = Display_layout
 
 type nonrec t = t
 type task = row
+type nonrec scope = scope
+type nonrec level = level
+
+let scope ~current ~within = { current; within }
+
+(* Without a driver, the current task is that of the innermost [with_task]
+   that runs. *)
+let local () =
+  let stack = ref [] in
+  {
+    current = (fun () -> match !stack with r :: _ -> Some r | [] -> None);
+    within =
+      (fun r f ->
+        let saved = !stack in
+        stack := r :: saved;
+        Fun.protect f ~finally:(fun () -> stack := saved));
+  }
 
 let pp = Display_state.pp
 
@@ -51,7 +68,7 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-let v ?(layout = Layout.default) ?header ?size ~now ppf =
+let v ?(layout = Layout.default) ?header ?size ?scope ~now ppf =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -88,6 +105,7 @@ let v ?(layout = Layout.default) ?header ?size ~now ppf =
       suspended = 0;
       partial = false;
       release = ignore;
+      scope = (match scope with Some s -> s | None -> local ());
     }
   in
   ignore (Display_region.refresh_size t);
@@ -149,41 +167,115 @@ let set_scene t scene =
   end
 
 (* Lines printed once: above the region, or in turn without one. *)
-let print t lines = Display_region.commit t lines
-
-let message ?(level = `Info) t text =
-  if not t.closed then
-    let lines = match Display_text.lines text with [] -> [ "" ] | l -> l in
-    print t
-      (List.concat_map
-         (fun l ->
-           let line = Display_row.message t level l in
-           if is_live t then Span.wrap (max 1 t.width) line else [ line ])
-         lines)
+let print t = function [] -> touch t | lines -> Display_region.commit t lines
 
 (* {1 Tasks} *)
 
-let rec finish ?(swept = false) outcome ?message r =
+let current t =
+  match t.scope.current () with Some r when r.disp == t -> Some r | _ -> None
+
+(* The output a task keeps for its failure, the oldest dropped first. *)
+let output_cap = 1_048_576
+
+let keep_output r line =
+  Queue.add line r.output;
+  r.output_bytes <- r.output_bytes + String.length line.text + 1;
+  while r.output_bytes > output_cap do
+    let old = Queue.take r.output in
+    r.output_bytes <- r.output_bytes - String.length old.text - 1;
+    r.dropped <- r.dropped + 1
+  done
+
+(* What a line that leaves a window prints: a Logs message is kept, after
+   its task's label; output is not. *)
+let leave r (line : line) =
+  match line.kind with Logs _ -> Display_row.labelled r line | Output -> []
+
+(* The line a window lets go of, once it holds more than its task shows. *)
+let push r line =
+  if r.log_lines = 0 then Some line
+  else begin
+    Queue.add line r.window;
+    if Queue.length r.window > r.log_lines then Some (Queue.take r.window)
+    else None
+  end
+
+(* A running task takes each line in its window; without a terminal, and
+   for a task that ended, a line is printed at once after its label. *)
+let add r kind text =
   let t = r.disp in
-  if is_running r then begin
+  let line text =
+    let now = t.now () in
+    let line = { gap = now -. r.log_prev; kind; text } in
+    r.log_prev <- now;
+    if not (is_running r) then Display_row.labelled r line
+    else
+      let left = push r line in
+      if is_live t then begin
+        (match kind with Output -> keep_output r line | Logs _ -> ());
+        match left with Some l -> leave r l | None -> []
+      end
+      else Display_row.labelled r line
+  in
+  print t (List.concat_map line (Display_text.lines text))
+
+let log r text = if is_running r && not r.disp.closed then add r Output text
+
+let report t level text =
+  if not t.closed then
+    match current t with
+    | Some r -> add r (Logs level) text
+    | None ->
+        print t
+          (List.concat_map
+             (Display_row.message t level)
+             (Display_text.lines text))
+
+(* What a task prints when it ends: on a terminal, the Logs messages its
+   window still holds, its line, then its output if it failed, or what its
+   window holds of it if it was cancelled; without one, its line, then its
+   window again if it failed. *)
+let ending r outcome window =
+  let t = r.disp in
+  let output l = match l.kind with Output -> true | Logs _ -> false in
+  if is_live t then
+    let block =
+      match outcome with
+      | `Succeeded -> []
+      | `Failed ->
+          let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
+          (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
+          @ List.concat_map (Display_row.under r) (List.rev all)
+      | `Cancelled ->
+          List.concat_map (Display_row.under r) (List.filter output window)
+    in
+    List.concat_map (leave r) window
+    @ if r.transient then [] else Display_row.committed t r @ block
+  else if r.transient then []
+  else
+    Display_row.appended r
+    ::
+    (match outcome with
+    | `Failed -> List.concat_map (Display_row.under r) window
+    | `Succeeded | `Cancelled -> [])
+
+(* The tasks under one that ends end first: they succeed with it, and are
+   cancelled when it fails or is cancelled. *)
+let rec finish outcome ?message r =
+  if not (is_running r) then []
+  else begin
+    let t = r.disp in
     let child_outcome =
       match outcome with
       | `Succeeded -> `Succeeded
       | `Failed | `Cancelled -> `Cancelled
     in
-    List.iter
-      (fun child -> finish ~swept:true child_outcome child)
-      (running_children r);
-    r.children <- [];
-    (* The row leaves the region: its tail is printed before its line. *)
-    let tail =
-      Queue.fold
-        (fun acc log ->
-          if log.kept then Display_row.committed_log r log :: acc else acc)
-        [] r.logs
-      |> List.rev
+    let children =
+      List.concat_map (finish child_outcome) (List.rev (running_children r))
     in
-    Queue.clear r.logs;
+    r.children <- [];
+    let window = List.rev (Queue.fold (fun acc l -> l :: acc) [] r.window) in
+    Queue.clear r.window;
     r.ended_at <- Some (t.now ());
     r.message <- Option.map Display_text.clean message;
     r.outcome <- Some outcome;
@@ -195,12 +287,10 @@ let rec finish ?(swept = false) outcome ?message r =
     Option.iter (fun k -> Hashtbl.remove t.by_key k) r.key;
     t.stale <- t.stale + 1;
     compact t;
-    let line =
-      if swept || r.transient then []
-      else if is_live t then Display_row.committed t r
-      else [ Display_row.appended r ]
-    in
-    match tail @ line with [] -> touch t | lines -> print t lines
+    let lines = ending r outcome window in
+    Queue.clear r.output;
+    r.output_bytes <- 0;
+    children @ lines
   end
 
 let row t ?key ?parent ~log_lines ~transient label =
@@ -213,7 +303,10 @@ let row t ?key ?parent ~log_lines ~transient label =
     disp = t;
     parent;
     log_lines;
-    logs = Queue.create ();
+    window = Queue.create ();
+    output = Queue.create ();
+    output_bytes = 0;
+    dropped = 0;
     log_prev = now;
     label = Display_text.clean label;
     metric = Spin;
@@ -233,7 +326,8 @@ let start t r =
   t.started <- t.started + 1;
   Queue.add r t.running;
   Option.iter (fun k -> Hashtbl.replace t.by_key k r) r.key;
-  (match r.parent with
+  if not (is_live t || r.transient) then print t [ Display_row.started r ];
+  match r.parent with
   | Some p when is_running p ->
       (* The children that ended are pruned each time the list doubles. *)
       p.children <- r :: p.children;
@@ -241,14 +335,14 @@ let start t r =
       if p.child_limit <= 0 then begin
         p.children <- List.filter is_running p.children;
         p.child_limit <- max 16 (List.length p.children)
-      end
+      end;
+      touch t
   | Some p -> (
       (* A task started under one that ended takes its ending. *)
       match p.outcome with
-      | Some `Succeeded -> finish ~swept:true `Succeeded r
-      | _ -> finish ~swept:true `Cancelled r)
-  | None -> ());
-  touch t
+      | Some `Succeeded -> print t (finish `Succeeded r)
+      | _ -> print t (finish `Cancelled r))
+  | None -> touch t
 
 let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
@@ -262,6 +356,7 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
   match Option.bind key (Hashtbl.find_opt t.by_key) with
   | Some r -> r
   | None ->
+      let parent = match parent with Some _ -> parent | None -> current t in
       let r = row t ?key ?parent ~log_lines ~transient label in
       if t.closed then begin
         (* A task of a closed display has already ended, so it ignores all. *)
@@ -270,6 +365,22 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
       end
       else start t r;
       r
+
+let succeed ?message r = print r.disp (finish `Succeeded ?message r)
+let fail ?message r = print r.disp (finish `Failed ?message r)
+let cancel ?message r = print r.disp (finish `Cancelled ?message r)
+
+let with_task ?key ?parent ?log_lines ?transient t label f =
+  let r = task ?key ?parent ?log_lines ?transient t label in
+  let value = ref None in
+  match t.scope.within r (fun () -> value := Some (f r)) with
+  | () ->
+      succeed r;
+      Option.get !value
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      fail r;
+      Printexc.raise_with_backtrace e bt
 
 let set_label r label =
   if is_running r then begin
@@ -292,6 +403,16 @@ let set_count r ~cur ~total =
     | Count (c, n) ->
         let cur = max c cur in
         set_metric r (Count (cur, max cur (max n total)))
+
+let iter t label f items =
+  let total = List.length items in
+  with_task t label (fun r ->
+      set_count r ~cur:0 ~total;
+      List.iteri
+        (fun i x ->
+          f x;
+          set_count r ~cur:(i + 1) ~total)
+        items)
 
 let set_bytes r ~cur ~total =
   if cur < 0L || total < 0L then
@@ -320,38 +441,10 @@ let set_bytes r ~cur ~total =
     set_metric r (Bytes (cur, total))
   end
 
-(* A line is on screen once: while the row's tail holds it, nothing else
-   does; it is printed above the region when it leaves the tail. *)
-let log ?(level = `Info) ?(keep = true) r text =
-  let t = r.disp in
-  if not t.closed then (
-    let tailed = is_running r && is_live t && r.log_lines > 0 in
-    List.iter
-      (fun message ->
-        let now = t.now () in
-        let log = { gap = now -. r.log_prev; level; message; kept = keep } in
-        r.log_prev <- now;
-        if tailed then begin
-          Queue.add log r.logs;
-          if Queue.length r.logs > r.log_lines then
-            let old = Queue.take r.logs in
-            if old.kept then print t [ Display_row.committed_log r old ]
-        end
-        else if keep then
-          print t
-            [
-              (if is_live t then Display_row.committed_log r log
-               else Display_row.appended_log r log);
-            ])
-      (Display_text.lines text);
-    touch t)
-
-let succeed ?message r = finish `Succeeded ?message r
-let fail ?message r = finish `Failed ?message r
-let cancel ?message r = finish `Cancelled ?message r
-
 let finish_running outcome ?message t =
-  List.iter (fun r -> finish outcome ?message r) (List.rev (running_rows t))
+  List.iter
+    (fun r -> print t (finish outcome ?message r))
+    (List.rev (running_rows t))
 
 let set_result ?detail t result =
   if (not t.closed) && Option.is_none t.result then begin

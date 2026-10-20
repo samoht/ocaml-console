@@ -5,8 +5,9 @@
 
 type metric = Spin | Count of int * int | Bytes of int64 * int64
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
-type level = [ `Info | `Warning | `Error ]
-type log = { gap : float; level : level; message : string; kept : bool }
+type level = [ `App | `Error | `Warning | `Info | `Debug ]
+type kind = Output | Logs of level
+type line = { gap : float; kind : kind; text : string }
 
 let count_text = function
   | Spin -> ""
@@ -55,6 +56,12 @@ type t = {
   mutable suspended : int;
   mutable partial : bool;
   mutable release : unit -> unit;
+  scope : scope;
+}
+
+and scope = {
+  current : unit -> row option;
+  within : row -> (unit -> unit) -> unit;
 }
 
 and row = {
@@ -63,7 +70,10 @@ and row = {
   disp : t;
   parent : row option;
   log_lines : int;
-  logs : log Queue.t;
+  window : line Queue.t;
+  output : line Queue.t;
+  mutable output_bytes : int;
+  mutable dropped : int;
   mutable log_prev : float;
   mutable label : string;
   mutable metric : metric;
