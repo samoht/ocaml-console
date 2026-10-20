@@ -83,8 +83,7 @@ type layout = {
   widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
 }
 
-let is_ascii_text = Width.is_ascii
-let ascii line = List.for_all (fun a -> is_ascii_text a.text) line
+let ascii line = List.for_all (fun a -> Width.is_ascii a.text) line
 
 let layout line =
   let parts = Array.of_list line in
@@ -156,16 +155,13 @@ let sub l i j =
       l.parts;
     List.rev !acc
 
-let measure = Glyph.String.measure ~width_method:`Unicode ~tab_width:1
-
 let line_width = function
-  | [] -> 0
-  | [ a ] ->
-      if is_ascii_text a.text then String.length a.text else measure a.text
+  | [ a ] -> Width.string_width a.text
   | line ->
       if ascii line then
         List.fold_left (fun n a -> n + String.length a.text) 0 line
-      else measure (String.concat "" (List.map (fun a -> a.text) line))
+      else
+        Width.string_width (String.concat "" (List.map (fun a -> a.text) line))
 
 let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
 
