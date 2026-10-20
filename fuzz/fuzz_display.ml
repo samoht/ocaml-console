@@ -948,11 +948,13 @@ let widget kind cells =
     Panel.pp ppf
       (Panel.v ~title:(List.hd cells) (Span.concat ~sep:(Span.text "\n") cells))
 
-(* The rows above the header, at each of [times] in tenths of a second. *)
+(* The rows above the header, at each of [times] in tenths of a second.
+   A terminal of eight columns cuts the header after its third letter. *)
 let scene_frames theme ~width pp times =
   let t = terminal ~theme ~width ~height:600 ~styled:true () in
   let d = display t in
   Display.set_scene d (fun ~height:_ ppf -> pp ppf);
+  let header = String.sub header 0 3 in
   let frames =
     List.map
       (fun dt ->
