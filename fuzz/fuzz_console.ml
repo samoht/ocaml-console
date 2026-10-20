@@ -114,10 +114,11 @@ let test_hcat_combining_suffix n =
 
 (* {1 Widgets put together}
 
-   Each guarantee a widget states alone, checked on widgets put together: a
-   span in a table cell in a panel next to a tree, printed in any theme, at
-   any colour depth or none, in UTF-8 or not, at any margin, and drawn as a
-   display's scene. *)
+   Each guarantee a widget states alone, checked on widgets put together:
+   every widget as a span in every other, a table in a panel in a cell of a
+   table next to a tree, in roles, styles and gradients, printed in any
+   theme, at any colour depth or none, in UTF-8 or not, at any margin, and
+   drawn as a display's scene. *)
 
 (* Text that is hard to lay out: wide, combining, joined and selected
    emoji, a spacing mark, controls and escapes, and ASCII. *)
@@ -148,19 +149,25 @@ let hostile_text s =
        (min 24 (String.length s))
        (fun i -> hostile.(Char.code s.[i] mod Array.length hostile)))
 
+(* A span may be a widget as a span ([Nest]), and a block a printer in a
+   style ([Styled]), so that every widget nests in every other: a table in a
+   panel in a cell of a table, in [hcat], in a scene. *)
 type span =
   | Text of int * string
   | Gradient of string
   | Link of string
   | Bar of int * int
+  | Role of int * span
+  | Nest of int * block
   | Cat of span list
 
-type block =
+and block =
   | Span of span
   | Table of int * span list list
   | Panel of int * span * span option
   | Tree of span * span list
   | Rule of span option
+  | Styled of int * block
   | Hcat of int * block list
 
 let rec pp_span ppf = function
@@ -168,9 +175,11 @@ let rec pp_span ppf = function
   | Gradient s -> Fmt.pf ppf "gradient(%S)" s
   | Link s -> Fmt.pf ppf "link(%S)" s
   | Bar (w, f) -> Fmt.pf ppf "bar(%d,%d)" w f
+  | Role (k, s) -> Fmt.pf ppf "role(%d,%a)" k pp_span s
+  | Nest (k, b) -> Fmt.pf ppf "nest(%d,%a)" k pp_block b
   | Cat l -> Fmt.pf ppf "cat%a" Fmt.(Dump.list pp_span) l
 
-let rec pp_block ppf = function
+and pp_block ppf = function
   | Span s -> pp_span ppf s
   | Table (k, rows) ->
       Fmt.pf ppf "table(%d,%a)" k Fmt.(Dump.list (Dump.list pp_span)) rows
@@ -178,34 +187,36 @@ let rec pp_block ppf = function
       Fmt.pf ppf "panel(%d,%a,%a)" k pp_span s Fmt.(Dump.option pp_span) t
   | Tree (s, l) -> Fmt.pf ppf "tree(%a,%a)" pp_span s Fmt.(Dump.list pp_span) l
   | Rule l -> Fmt.pf ppf "rule(%a)" Fmt.(Dump.option pp_span) l
+  | Styled (k, b) -> Fmt.pf ppf "styled(%d,%a)" k pp_block b
   | Hcat (g, l) -> Fmt.pf ppf "hcat(%d,%a)" g Fmt.(Dump.list pp_block) l
-
-let span_gen =
-  fix (fun span ->
-      choose
-        [
-          map [ uint8; bytes ] (fun k s -> Text (k, hostile_text s));
-          map [ bytes ] (fun s -> Gradient (hostile_text s));
-          map [ bytes ] (fun s -> Link (hostile_text s));
-          map [ uint8; uint8 ] (fun w f -> Bar (w mod 12, f));
-          map [ list span ] (fun l -> Cat (List.filteri (fun i _ -> i < 3) l));
-        ])
 
 let take n l = List.filteri (fun i _ -> i < n) l
 
 let block_gen =
   fix (fun block ->
+      let span =
+        fix (fun span ->
+            choose
+              [
+                map [ uint8; bytes ] (fun k s -> Text (k, hostile_text s));
+                map [ bytes ] (fun s -> Gradient (hostile_text s));
+                map [ bytes ] (fun s -> Link (hostile_text s));
+                map [ uint8; uint8 ] (fun w f -> Bar (w mod 12, f));
+                map [ uint8; span ] (fun k s -> Role (k, s));
+                map [ uint8; block ] (fun k b -> Nest (k, b));
+                map [ list span ] (fun l -> Cat (take 3 l));
+              ])
+      in
       choose
         [
-          map [ span_gen ] (fun s -> Span s);
+          map [ span ] (fun s -> Span s);
           map
-            [ uint8; list1 (list1 span_gen) ]
+            [ uint8; list1 (list1 span) ]
             (fun k rows -> Table (k, take 4 (List.map (take 3) rows)));
-          map
-            [ uint8; span_gen; option span_gen ]
-            (fun k s t -> Panel (k, s, t));
-          map [ span_gen; list span_gen ] (fun s l -> Tree (s, take 4 l));
-          map [ option span_gen ] (fun l -> Rule l);
+          map [ uint8; span; option span ] (fun k s t -> Panel (k, s, t));
+          map [ span; list span ] (fun s l -> Tree (s, take 4 l));
+          map [ option span ] (fun l -> Rule l);
+          map [ uint8; block ] (fun k b -> Styled (k, b));
           map [ uint8; list1 block ] (fun g l -> Hcat (g mod 4, take 3 l));
         ])
 
@@ -213,6 +224,8 @@ let block_gen = with_printer pp_block block_gen
 
 let styles =
   [| Style.none; Style.bold; Style.(fg Color.red); Style.(bold + underline) |]
+
+let roles = [| `Accent; `Ok; `Warn; `Fail; `Muted; `Header |]
 
 let borders =
   [|
@@ -227,46 +240,60 @@ let borders =
     Border.hidden;
   |]
 
+let pick a k = a.(k mod Array.length a)
+
 let rec span = function
-  | Text (k, s) -> Span.styled styles.(k mod Array.length styles) s
+  | Text (k, s) -> Span.styled (pick styles k) s
   | Gradient s -> Span.gradient s
   | Link s -> Span.link ~uri:"https://example.org/a" s
   | Bar (w, f) -> Bar.to_span (Bar.v ~width:w (Float.of_int f /. 255.))
+  | Role (k, s) -> Span.with_role (pick roles k) (span s)
+  | Nest (k, b) -> nested k b
   | Cat l -> Span.concat (List.map span l)
+
+(* A block as a span: a widget by its [to_span], at its natural width or at
+   one [k] gives. *)
+and nested k b =
+  let width = if k land 1 = 0 then None else Some (1 + (k / 2 mod 60)) in
+  match b with
+  | Span s -> span s
+  | Table (k, rows) -> Table.to_span ?width (table k rows)
+  | Panel (k, s, t) -> Panel.to_span ?width (panel k s t)
+  | Tree (s, l) -> Tree.to_span ?width (tree s l)
+  | Rule l -> Rule.to_span ~width:(Option.value width ~default:20) (rule l)
+  | Styled (j, b) -> Span.with_style (pick styles j) (nested k b)
+  | Hcat (_, l) -> Span.concat ~sep:(Span.text " ") (List.map (nested k) l)
+
+and table k rows =
+  let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
+  let columns =
+    List.init n (fun i ->
+        Table.column
+          ~align:[| `Left; `Center; `Right |].((k + i) mod 3)
+          ~overflow:(if (k + i) land 4 = 0 then `Wrap else `Truncate)
+          (if i = 1 then Span.role `Header ("c" ^ string_of_int i)
+           else Span.text ("c" ^ string_of_int i)))
+  in
+  let border = if k land 8 = 0 then None else Some (pick borders (k / 16)) in
+  Table.v ?border ~rules:(k land 1 = 1) columns (List.map (List.map span) rows)
+
+and panel k s t =
+  let border =
+    if k land 1 = 0 then None
+    else Some borders.(1 + (k / 2 mod (Array.length borders - 1)))
+  in
+  Panel.v ?border ?title:(Option.map span t) ~padding:(k / 32 mod 3) (span s)
+
+and tree s l = Tree.v (span s) (List.map (fun c -> Tree.v (span c) []) l)
+and rule l = Rule.v ?label:(Option.map span l) ()
 
 let rec pp = function
   | Span s -> Fmt.const Span.pp (span s)
-  | Table (k, rows) ->
-      let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
-      let columns =
-        List.init n (fun i ->
-            Table.column
-              ~align:[| `Left; `Center; `Right |].((k + i) mod 3)
-              ~overflow:(if (k + i) land 4 = 0 then `Wrap else `Truncate)
-              (Span.text ("c" ^ string_of_int i)))
-      in
-      let border =
-        if k land 8 = 0 then None
-        else Some borders.(k / 16 mod Array.length borders)
-      in
-      Fmt.const Table.pp
-        (Table.v ?border
-           ~rules:(k land 1 = 1)
-           columns
-           (List.map (List.map span) rows))
-  | Panel (k, s, t) ->
-      let border =
-        if k land 1 = 0 then None
-        else Some borders.(1 + (k / 2 mod (Array.length borders - 1)))
-      in
-      Fmt.const Panel.pp
-        (Panel.v ?border ?title:(Option.map span t)
-           ~padding:(k / 32 mod 3)
-           (span s))
-  | Tree (s, l) ->
-      Fmt.const Tree.pp
-        (Tree.v (span s) (List.map (fun c -> Tree.v (span c) []) l))
-  | Rule l -> Fmt.const Rule.pp (Rule.v ?label:(Option.map span l) ())
+  | Table (k, rows) -> Fmt.const Table.pp (table k rows)
+  | Panel (k, s, t) -> Fmt.const Panel.pp (panel k s t)
+  | Tree (s, l) -> Fmt.const Tree.pp (tree s l)
+  | Rule l -> Fmt.const Rule.pp (rule l)
+  | Styled (k, b) -> Style.styled (pick styles k) (pp b)
   | Hcat (gap, l) -> hcat ~gap (List.map pp l)
 
 (* {1 Printing} *)
@@ -332,19 +359,25 @@ let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 let rec texts_span = function
   | Text (_, s) | Gradient s | Link s -> [ s ]
   | Bar _ -> []
+  | Role (_, s) -> texts_span s
+  | Nest (_, b) -> texts b
   | Cat l -> List.concat_map texts_span l
 
-let rec texts = function
+and texts = function
   | Span s | Rule (Some s) -> texts_span s
   | Rule None -> []
   | Table (_, rows) -> List.concat_map (List.concat_map texts_span) rows
   | Panel (_, s, t) -> texts_span s @ Option.fold ~none:[] ~some:texts_span t
   | Tree (s, l) -> List.concat_map texts_span (s :: l)
+  | Styled (_, b) -> texts b
   | Hcat (_, l) -> List.concat_map texts l
 
 (* A span is text, printed whole, and a rule's label wider than the margin
    makes the rule two cells wider, alone; inside [hcat] both are cut. *)
-let may_overflow = function Span _ | Rule (Some _) -> true | _ -> false
+let rec may_overflow = function
+  | Span _ | Rule (Some _) -> true
+  | Styled (_, b) -> may_overflow b
+  | _ -> false
 
 (* The cells a line takes on a terminal wide enough for it. *)
 let on_screen line =
