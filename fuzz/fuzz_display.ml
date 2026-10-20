@@ -118,6 +118,21 @@ let check_styles_closed chunk =
       | Some s -> failf "%S left on in %S" s l)
     (String.split_on_char '\n' chunk)
 
+(* A write of the display is one synchronized update: it opens and closes
+   the mode once, at its ends. *)
+let check_synchronized chunk =
+  let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
+  let occurrences sub =
+    List.length (Re.matches (Re.compile (Re.str sub)) chunk)
+  in
+  if
+    not
+      (String.starts_with ~prefix:begin_ chunk
+      && String.ends_with ~suffix:end_ chunk
+      && occurrences begin_ = 1
+      && occurrences end_ = 1)
+  then failf "not one synchronized update: %S" chunk
+
 (* A display on an emulated terminal, and what the test knows of it. *)
 type term = {
   vte : Vte.t;
@@ -160,7 +175,8 @@ let terminal ?(prefix = "") ~width ~height ~styled () =
       (* What the program writes under [with_output] is its own. *)
       if not !(t.in_output) then begin
         check_chunk_lines ~width:(fst !(t.size)) s;
-        check_line_ends s
+        check_line_ends s;
+        check_synchronized s
       end;
       if styled then check_styles_closed s;
       Vte.feed_string t.vte s

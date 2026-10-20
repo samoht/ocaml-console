@@ -506,6 +506,32 @@ let test_wide () =
     "the line it ends on" 100
     (List.fold_left max 0 (widths ()))
 
+(* On a terminal, each write of the display is one synchronized update, so
+   that a terminal that knows the mode shows a frame whole; a pipe gets no
+   such escape. *)
+let test_synchronized () =
+  let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
+  let t = terminal ~header:"Build" () in
+  let task = Display.task t.display "a" in
+  t.advance 0.2;
+  Display.redraw t.display;
+  Display.log task "x";
+  Display.succeed task;
+  Display.close t.display;
+  let occurrences sub s = List.length (Astring.String.cuts ~sep:sub s) - 1 in
+  List.iter
+    (fun c ->
+      if
+        not
+          (String.starts_with ~prefix:begin_ c
+          && String.ends_with ~suffix:end_ c
+          && occurrences begin_ c = 1
+          && occurrences end_ c = 1)
+      then Alcotest.failf "not one synchronized update: %S" c)
+    !(t.chunks);
+  let (), out = plain (fun d _ -> Display.succeed (Display.task d "a")) in
+  Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
+
 let suite =
   ( "display",
     [
@@ -532,6 +558,7 @@ let suite =
       Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
       Alcotest.test_case "narrowing" `Quick test_narrowing;
       Alcotest.test_case "wide" `Quick test_wide;
+      Alcotest.test_case "synchronized" `Quick test_synchronized;
       Alcotest.test_case "height changes" `Quick test_height_changes;
       Alcotest.test_case "nested" `Quick test_nested;
       Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;
