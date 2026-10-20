@@ -6,9 +6,10 @@ on:
   pull_request:
 
 # The tape examples need vhs, which is not in opam-repository yet. Pinning it
-# from its repository lets every job build them and check the tapes.
+# from its repository, at one commit, lets every job build them and check the
+# tapes against the same vhs.
 env:
-  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#main
+  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#bfda559456a5d6da304c7f30736a17d2513790a6
 
 jobs:
   build:

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#main
+  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#bfda559456a5d6da304c7f30736a17d2513790a6
 
 jobs:
   properties:
