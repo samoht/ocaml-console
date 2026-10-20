@@ -112,6 +112,332 @@ let test_hcat_combining_suffix n =
     (Console_vte.to_string actual);
   check_eq ~pp:Fmt.Dump.string want got
 
+(* {1 Widgets put together}
+
+   Each guarantee a widget states alone, checked on widgets put together: a
+   span in a table cell in a panel next to a tree, printed in any theme, at
+   any colour depth or none, in UTF-8 or not, at any margin, and drawn as a
+   display's scene. *)
+
+(* Text that is hard to lay out: wide, combining, joined and selected
+   emoji, a spacing mark, controls and escapes, and ASCII. *)
+let hostile =
+  [|
+    "x";
+    "ab";
+    " ";
+    "\n";
+    "/";
+    "\u{754c}";
+    "e\u{301}";
+    "\u{1f468}\u{200d}\u{1f469}";
+    "\u{2764}\u{fe0f}";
+    "a\u{fe0f}";
+    "1\u{fe0f}\u{20e3}";
+    "\u{1f44d}\u{1f3fd}";
+    "x\u{940}";
+    "\027[31m";
+    "\027[2J";
+    "\t";
+    "\u{202e}";
+  |]
+
+let hostile_text s =
+  String.concat ""
+    (List.init
+       (min 24 (String.length s))
+       (fun i -> hostile.(Char.code s.[i] mod Array.length hostile)))
+
+type span =
+  | Text of int * string
+  | Gradient of string
+  | Link of string
+  | Bar of int * int
+  | Cat of span list
+
+type block =
+  | Span of span
+  | Table of int * span list list
+  | Panel of int * span * span option
+  | Tree of span * span list
+  | Rule of span option
+  | Hcat of int * block list
+
+let rec pp_span ppf = function
+  | Text (k, s) -> Fmt.pf ppf "text(%d,%S)" k s
+  | Gradient s -> Fmt.pf ppf "gradient(%S)" s
+  | Link s -> Fmt.pf ppf "link(%S)" s
+  | Bar (w, f) -> Fmt.pf ppf "bar(%d,%d)" w f
+  | Cat l -> Fmt.pf ppf "cat%a" Fmt.(Dump.list pp_span) l
+
+let rec pp_block ppf = function
+  | Span s -> pp_span ppf s
+  | Table (k, rows) ->
+      Fmt.pf ppf "table(%d,%a)" k Fmt.(Dump.list (Dump.list pp_span)) rows
+  | Panel (k, s, t) ->
+      Fmt.pf ppf "panel(%d,%a,%a)" k pp_span s Fmt.(Dump.option pp_span) t
+  | Tree (s, l) -> Fmt.pf ppf "tree(%a,%a)" pp_span s Fmt.(Dump.list pp_span) l
+  | Rule l -> Fmt.pf ppf "rule(%a)" Fmt.(Dump.option pp_span) l
+  | Hcat (g, l) -> Fmt.pf ppf "hcat(%d,%a)" g Fmt.(Dump.list pp_block) l
+
+let span_gen =
+  fix (fun span ->
+      choose
+        [
+          map [ uint8; bytes ] (fun k s -> Text (k, hostile_text s));
+          map [ bytes ] (fun s -> Gradient (hostile_text s));
+          map [ bytes ] (fun s -> Link (hostile_text s));
+          map [ uint8; uint8 ] (fun w f -> Bar (w mod 12, f));
+          map [ list span ] (fun l -> Cat (List.filteri (fun i _ -> i < 3) l));
+        ])
+
+let take n l = List.filteri (fun i _ -> i < n) l
+
+let block_gen =
+  fix (fun block ->
+      choose
+        [
+          map [ span_gen ] (fun s -> Span s);
+          map
+            [ uint8; list1 (list1 span_gen) ]
+            (fun k rows -> Table (k, take 4 (List.map (take 3) rows)));
+          map
+            [ uint8; span_gen; option span_gen ]
+            (fun k s t -> Panel (k, s, t));
+          map [ span_gen; list span_gen ] (fun s l -> Tree (s, take 4 l));
+          map [ option span_gen ] (fun l -> Rule l);
+          map [ uint8; list1 block ] (fun g l -> Hcat (g mod 4, take 3 l));
+        ])
+
+let block_gen = with_printer pp_block block_gen
+
+let styles =
+  [| Style.none; Style.bold; Style.(fg Color.red); Style.(bold + underline) |]
+
+let borders =
+  [|
+    Border.none;
+    Border.simple;
+    Border.ascii;
+    Border.single;
+    Border.double;
+    Border.dos;
+    Border.rounded;
+    Border.heavy;
+    Border.hidden;
+  |]
+
+let rec span = function
+  | Text (k, s) -> Span.styled styles.(k mod Array.length styles) s
+  | Gradient s -> Span.gradient s
+  | Link s -> Span.link ~uri:"https://example.org/a" s
+  | Bar (w, f) -> Bar.to_span (Bar.v ~width:w (Float.of_int f /. 255.))
+  | Cat l -> Span.concat (List.map span l)
+
+let rec pp = function
+  | Span s -> Fmt.const Span.pp (span s)
+  | Table (k, rows) ->
+      let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
+      let columns =
+        List.init n (fun i ->
+            Table.column
+              ~align:[| `Left; `Center; `Right |].((k + i) mod 3)
+              ~overflow:(if (k + i) land 4 = 0 then `Wrap else `Truncate)
+              ("c" ^ string_of_int i))
+      in
+      let border =
+        if k land 8 = 0 then None
+        else Some borders.(k / 16 mod Array.length borders)
+      in
+      Fmt.const Table.pp
+        (Table.v ?border
+           ~rules:(k land 1 = 1)
+           columns
+           (List.map (List.map span) rows))
+  | Panel (k, s, t) ->
+      let border =
+        if k land 1 = 0 then None
+        else Some borders.(1 + (k / 2 mod (Array.length borders - 1)))
+      in
+      Fmt.const Panel.pp
+        (Panel.v ?border ?title:(Option.map span t)
+           ~padding:(k / 32 mod 3)
+           (span s))
+  | Tree (s, l) ->
+      Fmt.const Tree.pp
+        (Tree.v (span s) (List.map (fun c -> Tree.v (span c) []) l))
+  | Rule l -> Fmt.const Rule.pp (Rule.v ?label:(Option.map span l) ())
+  | Hcat (gap, l) -> hcat ~gap (List.map pp l)
+
+(* {1 Printing} *)
+
+type look = {
+  theme : Theme.t;
+  utf_8 : bool;
+  depth : Color.depth option;
+  margin : int;
+}
+
+let look k m =
+  {
+    theme = snd (List.nth Theme.all (k mod List.length Theme.all));
+    utf_8 = k land 0x100 = 0;
+    depth =
+      [| None; Some `Ansi_16; Some `Ansi_256; Some `True_color |].(k / 512 mod 4);
+    margin = 1 + (m mod 200);
+  }
+
+let print look block =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf look.margin;
+  Fmt.set_utf_8 ppf look.utf_8;
+  Theme.set ppf look.theme;
+  Option.iter
+    (fun d ->
+      Fmt.set_style_renderer ppf `Ansi_tty;
+      Color.set_depth ppf d)
+    look.depth;
+  match pp block ppf () with
+  | () ->
+      Format.pp_print_flush ppf ();
+      Some (Buffer.contents buf)
+  | exception Invalid_argument _ -> None
+
+(* Every escape sequence is whole: a CSI ends at its final byte, an OSC at
+   ST or BEL. *)
+let escapes_whole s =
+  let n = String.length s in
+  let rec ground i =
+    match String.index_from_opt s i '\027' with
+    | None -> true
+    | Some j when j + 1 >= n -> false
+    | Some j -> (
+        match s.[j + 1] with
+        | '[' -> csi (j + 2)
+        | ']' -> osc (j + 2)
+        | _ -> false)
+  and csi i =
+    i < n && if s.[i] >= '@' && s.[i] <= '~' then ground (i + 1) else csi (i + 1)
+  and osc i =
+    i < n
+    && ((s.[i] = '\007' && ground (i + 1))
+       || (s.[i] = '\027' && i + 1 < n && s.[i + 1] = '\\' && ground (i + 2))
+       || osc (i + 1))
+  in
+  ground 0
+
+let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
+
+let rec texts_span = function
+  | Text (_, s) | Gradient s | Link s -> [ s ]
+  | Bar _ -> []
+  | Cat l -> List.concat_map texts_span l
+
+let rec texts = function
+  | Span s | Rule (Some s) -> texts_span s
+  | Rule None -> []
+  | Table (_, rows) -> List.concat_map (List.concat_map texts_span) rows
+  | Panel (_, s, t) -> texts_span s @ Option.fold ~none:[] ~some:texts_span t
+  | Tree (s, l) -> List.concat_map texts_span (s :: l)
+  | Hcat (_, l) -> List.concat_map texts l
+
+(* A span is text, printed whole, and a rule's label wider than the margin
+   makes the rule two cells wider, alone; inside [hcat] both are cut. *)
+let may_overflow = function Span _ | Rule (Some _) -> true | _ -> false
+
+(* The cells a line takes on a terminal wide enough for it. *)
+let on_screen line =
+  let term = Console_vte.v ~rows:1 ~cols:2000 () in
+  Console_vte.feed term line;
+  snd (Console_vte.cursor_pos term)
+
+(* Printed anywhere, any tree of widgets: no line wider than the margin, and
+   each as wide on the terminal as console counts it; the same bytes each
+   time; the plain text, without colour, of the bytes in colour; valid UTF-8
+   with every escape whole, none at all without colour, and ASCII alone
+   when the formatter is not UTF-8 and the text is ASCII. *)
+let test_printed block k m =
+  let look = look k m in
+  match print look block with
+  | None -> ()
+  | Some out ->
+      check_eq ~pp:Fmt.(option Dump.string) (Some out) (print look block);
+      check (String.is_valid_utf_8 out);
+      if not (escapes_whole out) then failf "a cut escape in %S" out;
+      let plain = Console_text.strip out in
+      List.iter
+        (fun line ->
+          let cells = Width.string_width line in
+          if cells > look.margin && not (may_overflow block) then
+            failf "a line of %d cells at a margin of %d: %S" cells look.margin
+              line;
+          let shown = on_screen line in
+          if shown <> cells then
+            failf "%S is %d cells, %d on the terminal" line cells shown)
+        (String.split_on_char '\n' plain);
+      (match look.depth with
+      | None -> if String.contains out '\027' then failf "an escape: %S" out
+      | Some _ ->
+          check_eq
+            ~pp:Fmt.(option Dump.string)
+            (print { look with depth = None } block)
+            (Some plain));
+      if (not look.utf_8) && List.for_all is_ascii (texts block) then
+        if not (is_ascii out) then failf "not ASCII: %S" out
+
+(* {1 Scenes} *)
+
+(* The screen a display draws with [block] as its scene, in [theme] at
+   [time]. *)
+let scene_screen theme ~width ~height ~time block =
+  let term = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 1024 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        Console_vte.feed term (Buffer.contents buf);
+        Buffer.clear buf)
+  in
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  Color.set_depth ppf `True_color;
+  Theme.set ppf theme;
+  let d =
+    Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> time) ppf
+  in
+  (try Display.set_scene d (fun ~height:_ ppf -> pp block ppf ())
+   with Invalid_argument _ -> ());
+  Display.redraw d;
+  let g = Console_vte.grid term in
+  let rows =
+    List.init (height - 1) (fun y ->
+        List.init width (fun x ->
+            let i = Grid.idx g ~x ~y in
+            (Grid.is_continuation g i, Grid.get_text g i)))
+  in
+  Display.close d;
+  rows
+
+let is_text c = String.length c = 1 && Char.Ascii.is_alphanum c.[0]
+
+(* A scene in a theme that moves, at any time: each frame lays its cells
+   out as the still frame does, so motion changes no width, and keeps every
+   letter and digit of it, so only the frame's lines move. *)
+let test_scene block k w t =
+  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let width = 1 + (w mod 120) and height = 3 + (k / 64 mod 12) in
+  let time = Float.of_int t /. 10. in
+  let moving = scene_screen theme ~width ~height ~time block
+  and still = scene_screen (Theme.still theme) ~width ~height ~time block in
+  List.iteri
+    (fun y (m, s) ->
+      List.iteri
+        (fun x ((mc, mt), (sc, st)) ->
+          if mc <> sc then failf "row %d, column %d: a width moved" y x;
+          if is_text st && mt <> st then
+            failf "row %d, column %d: %S became %S" y x st mt)
+        (List.combine m s))
+    (List.combine moving still)
+
 let suite =
   ( "console",
     [
@@ -119,6 +445,12 @@ let suite =
         test_hcat_combining_suffix;
       test_case "hcat widgets fit without terminal autowrap" [ uint8; uint8 ]
         test_hcat_margin;
+      test_case "any tree of widgets printed anywhere"
+        [ block_gen; uint16; uint8 ]
+        test_printed;
+      test_case "a scene of widgets moves only its lines"
+        [ block_gen; uint16; uint8; uint8 ]
+        test_scene;
       test_case "hcat lines are the blocks' widths and gaps"
         [ list bytes; uint8 ]
         test_hcat;

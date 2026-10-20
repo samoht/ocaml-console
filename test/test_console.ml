@@ -209,6 +209,80 @@ let test_hcat_combining_suffix () =
     "the accent survives composition" "e\u{0301}"
     (printed (hcat ~gap:0 [ block "e"; block "\u{0301}" ]))
 
+(* {1 Widgets put together} *)
+
+(* [pp] at a margin of [margin], in colour iff [styled], its lines. *)
+let lines ?(styled = false) margin pp =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf margin;
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Console.Color.set_depth ppf `True_color
+  end;
+  pp ppf ();
+  Format.pp_print_flush ppf ();
+  String.split_on_char '\n' (Buffer.contents buf)
+
+let check_fits name margin pp =
+  List.iter
+    (fun l ->
+      if Width.string_width l > margin then
+        Alcotest.failf "%s: %d cells at a margin of %d: %S" name
+          (Width.string_width l) margin l)
+    (lines margin pp)
+
+(* Cases the properties of widgets put together found, and nested widgets
+   each guarantee holds in. *)
+let test_put_together () =
+  let open Console in
+  let emoji =
+    "1\u{fe0f}\u{20e3}a\u{fe0f} x\u{1f44d}\u{1f3fd}x\u{940}\u{2764}\u{fe0f}"
+  in
+  (* A gradient wrapped in a cell, cut where its drawing has the cells its
+     text is counted at. *)
+  check_fits "a gradient in a cell" 14
+    (Fmt.const Table.pp
+       (Table.v
+          [ Table.column "a"; Table.column "b" ]
+          [ [ Span.gradient (emoji ^ " " ^ emoji); Span.text "x" ] ]));
+  (* A panel's hanging lines have less room than its first one. *)
+  check_fits "a narrow panel" 4
+    (Fmt.const Panel.pp
+       (Panel.v ~border:Border.ascii ~padding:0
+          (Span.text
+             "\u{1f468}\u{200d}\u{1f469}1\u{fe0f}\u{20e3}x 1\u{fe0f}\u{20e3}")));
+  (* A table and a tree side by side at less room than they need. *)
+  let side_by_side =
+    hcat ~gap:1
+      [
+        Fmt.const Table.pp
+          (Table.v [ Table.column "h" ] [ [ Span.text "\u{754c}\u{754c}" ] ]);
+        Fmt.const Tree.pp
+          (Tree.v (Span.text "root") [ Tree.v (Span.text "leaf") [] ]);
+      ]
+  in
+  List.iter
+    (fun m -> check_fits "a table by a tree" m side_by_side)
+    [ 1; 2; 5; 9 ];
+  (* In colour, a panel with a gradient title by a rule with a bar in its
+     label is its plain text with escape codes. *)
+  let scene =
+    hcat
+      [
+        Fmt.const Panel.pp
+          (Panel.v ~title:(Span.gradient "title") (Span.text emoji));
+        Fmt.const Rule.pp (Rule.v ~label:(Bar.to_span (Bar.v ~width:4 0.5)) ());
+      ]
+  in
+  List.iter
+    (fun m ->
+      check_fits "a panel by a rule" m scene;
+      Alcotest.(check (list string))
+        "plain is styled without escapes" (lines m scene)
+        (List.map Console_text.strip (lines ~styled:true m scene)))
+    [ 3; 20; 60 ]
+
 let suite =
   ( "console",
     [
@@ -217,6 +291,7 @@ let suite =
       Alcotest.test_case "side by side fits a two-column margin" `Quick
         test_hcat_narrow;
       Alcotest.test_case "public surface" `Quick test_public_surface;
+      Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
       Alcotest.test_case "side by side, shares of the margin" `Quick
         test_hcat_share;
