@@ -137,7 +137,7 @@ let dos =
   v ~name:"dos" ~accent:dos_amber ~ok:dos_amber ~warn:dos_amber
     ~fail:(Color.rgb 0xff 0x55 0x55) ~muted:(Color.rgb 0xa1 0x6c 0x00)
     ~header:Style.(bold + fg dos_amber)
-    ~background:Color.black ~border:Border.double ~guide:Guide.unicode
+    ~background:Color.black ~border:Border.dos ~guide:Guide.unicode
     ~spinner:Spinner.ascii ~bar:`Block ~marks:ascii_marks ()
 
 let matrix_green = Color.rgb 0x33 0xff 0x33

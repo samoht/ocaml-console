@@ -25,8 +25,10 @@
   default, full blocks on a light shade in `Theme.dos`, `#` on `-` in
   `Theme.ascii` and on any formatter that is not UTF-8.
 - `Theme.dos` draws in the box-drawing characters of code page 437, as
-  Norton Commander did: double-line frames with a double header rule, and
-  single-line tree guides.
+  Norton Commander did: frames of double lines divided by single ones
+  (`Border.dos`), and single-line tree guides. A border names the line
+  between two columns and the line of a rule across the box
+  (`Border.chars`), which `Border.dos` draws apart from its frame.
 - A bar given no style spreads a palette of several colours along its
   length, each cell in the colour of its place: `Theme.rainbow`'s bars,
   its progress rows' included, are rainbows.

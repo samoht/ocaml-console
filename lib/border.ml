@@ -12,6 +12,8 @@ type chars = {
   bottom_left : string;
   bottom : string;
   bottom_right : string;
+  vertical : string;
+  horizontal : string;
   cross : string;
   top_cross : string;
   bottom_cross : string;
@@ -34,6 +36,8 @@ let v ?style c =
       bottom_left = clean c.bottom_left;
       bottom = clean c.bottom;
       bottom_right = clean c.bottom_right;
+      vertical = clean c.vertical;
+      horizontal = clean c.horizontal;
       cross = clean c.cross;
       top_cross = clean c.top_cross;
       bottom_cross = clean c.bottom_cross;
@@ -54,6 +58,8 @@ let none_chars =
     bottom_left = "";
     bottom = "";
     bottom_right = "";
+    vertical = "";
+    horizontal = "";
     cross = "";
     top_cross = "";
     bottom_cross = "";
@@ -71,6 +77,8 @@ let ascii_chars =
     bottom_left = "+";
     bottom = "-";
     bottom_right = "+";
+    vertical = "|";
+    horizontal = "-";
     cross = "+";
     top_cross = "+";
     bottom_cross = "+";
@@ -88,6 +96,8 @@ let single_chars =
     bottom_left = "└";
     bottom = "─";
     bottom_right = "┘";
+    vertical = "│";
+    horizontal = "─";
     cross = "┼";
     top_cross = "┬";
     bottom_cross = "┴";
@@ -105,6 +115,8 @@ let double_chars =
     bottom_left = "╚";
     bottom = "═";
     bottom_right = "╝";
+    vertical = "║";
+    horizontal = "═";
     cross = "╬";
     top_cross = "╦";
     bottom_cross = "╩";
@@ -122,6 +134,8 @@ let rounded_chars =
     bottom_left = "╰";
     bottom = "─";
     bottom_right = "╯";
+    vertical = "│";
+    horizontal = "─";
     cross = "┼";
     top_cross = "┬";
     bottom_cross = "┴";
@@ -139,6 +153,8 @@ let heavy_chars =
     bottom_left = "┗";
     bottom = "━";
     bottom_right = "┛";
+    vertical = "┃";
+    horizontal = "━";
     cross = "╋";
     top_cross = "┳";
     bottom_cross = "┻";
@@ -156,6 +172,8 @@ let hidden_chars =
     bottom_left = " ";
     bottom = " ";
     bottom_right = " ";
+    vertical = " ";
+    horizontal = " ";
     cross = " ";
     top_cross = " ";
     bottom_cross = " ";
@@ -163,10 +181,23 @@ let hidden_chars =
     right_cross = " ";
   }
 
+let dos_chars =
+  {
+    double_chars with
+    vertical = "│";
+    horizontal = "─";
+    cross = "┼";
+    top_cross = "╤";
+    bottom_cross = "╧";
+    left_cross = "╟";
+    right_cross = "╢";
+  }
+
 let none = v none_chars
 let ascii = v ascii_chars
 let single = v single_chars
 let double = v double_chars
+let dos = v dos_chars
 let rounded = v rounded_chars
 let heavy = v heavy_chars
 let hidden = v hidden_chars

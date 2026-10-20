@@ -53,7 +53,7 @@ let frame border =
   let c = Border.chars border in
   {
     left = Widget.widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
-    mid = Widget.widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
+    mid = Widget.widest [ c.top_cross; c.vertical; c.cross; c.bottom_cross ];
     right =
       Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
   }
@@ -262,7 +262,8 @@ let edged_line t style cells k =
                   (align_span ~pad_right:true col.align w (at ls k))
              ++ text " "
              ++
-             if i < last then edge t (Widget.pad_glyph t.frame.mid chars.right)
+             if i < last then
+               edge t (Widget.pad_glyph t.frame.mid chars.vertical)
              else empty))
          cells)
   in
@@ -313,7 +314,7 @@ let lines ?max_width t =
     let has_headers = Array.exists (fun h -> lines_width h > 0) t.headers in
     let between =
       rule t widths ~left:c.left_cross ~mid:c.cross ~right:c.right_cross
-        ~line:c.top
+        ~line:c.horizontal
     in
     let body =
       List.concat

@@ -20,6 +20,9 @@ type chars = {
   bottom_left : string;
   bottom : string;
   bottom_right : string;
+  vertical : string;  (** The line between two columns. *)
+  horizontal : string;
+      (** The line of a rule across the box: under a header, between rows. *)
   cross : string;  (** The crossing of a horizontal and a vertical line. *)
   top_cross : string;  (** The tee on the top edge, pointing down. *)
   bottom_cross : string;  (** The tee on the bottom edge, pointing up. *)
@@ -62,6 +65,10 @@ val single : t
 
 val double : t
 (** [double] is the border drawn with Unicode double box-drawing lines. *)
+
+val dos : t
+(** [dos] is the border drawn as Norton Commander drew its panels in code page
+    437: a frame of Unicode double box-drawing lines, divided by light ones. *)
 
 val rounded : t
 (** [rounded] is like {!single} with Unicode arc corners. *)

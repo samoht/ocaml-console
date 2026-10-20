@@ -34,6 +34,8 @@ let border look border =
         c.bottom_left;
         c.bottom;
         c.bottom_right;
+        c.vertical;
+        c.horizontal;
         c.cross;
         c.top_cross;
         c.bottom_cross;

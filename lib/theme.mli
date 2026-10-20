@@ -201,7 +201,7 @@ val ascii : t
 val dos : t
 (** [dos] is amber on black, a darker amber muted and bold amber headers, drawn
     in the box-drawing characters of code page 437 as Norton Commander drew its
-    panels: {!Border.double} frames, a double header rule across them and
+    panels: {!Border.dos} frames, double lines divided by single ones, and
     {!Guide.unicode}'s single-line tree guides, with [`Block] bars, the ASCII
     spinner and the marks [[-]], [[+]], [[x]], [[~]], [#], [!], [x] and [.]. *)
 
