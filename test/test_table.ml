@@ -6,8 +6,8 @@
 open Console
 open Display_harness
 
-let of_string_rows ?theme ?border columns rows =
-  Table.v ?theme ?border columns (List.map (List.map Span.text) rows)
+let of_string_rows ?border columns rows =
+  Table.v ?border columns (List.map (List.map Span.text) rows)
 
 let test_basic () =
   let table =

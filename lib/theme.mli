@@ -180,6 +180,16 @@ val github_light : t
 (** [github_light] is GitHub Light's accent blue, green, yellow and red, for its
     background [#ffffff]. *)
 
+(** {1:formatters Themes of formatters} *)
+
+val set : Format.formatter -> t -> unit
+(** [set ppf t] makes [t] the theme of [ppf]: the widgets printed on [ppf] from
+    now on are drawn in it. *)
+
+val get : Format.formatter -> t
+(** [get ppf] is the theme of [ppf]: the last one {!set} gave it, else
+    {!default}. *)
+
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t

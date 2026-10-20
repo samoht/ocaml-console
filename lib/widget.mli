@@ -5,9 +5,26 @@
 
 (** What the widgets share. *)
 
-val border : ?theme:Theme.t -> ?border:Border.t -> unit -> Border.t
-(** [border ~theme ~border ()] is [border] if given, else the border of [theme]
-    (defaults to {!Theme.default}). *)
+type look = { theme : Theme.t }
+(** The type for what a formatter says of how to draw a widget. *)
+
+val look : Format.formatter -> look
+(** [look ppf] is the look of the widgets printed on [ppf]: its {!Theme.get}. *)
+
+val default_look : look
+(** [default_look] is the look of a formatter given nothing: {!Theme.default}.
+*)
+
+val border : look -> Border.t option -> Border.t
+(** [border look b] is the border of [b] if given, else that of [look]'s theme.
+*)
+
+val guide : look -> Guide.t option -> Guide.t
+(** [guide look g] is like {!border} for the guide of a tree. *)
+
+val accent : look -> Style.t option -> Style.t
+(** [accent look s] is like {!border} for a style, whose default is the accent
+    colour of [look]'s theme. *)
 
 val one_line : Span.t -> Span.t
 (** [one_line s] is [s] with each line feed a space. *)
@@ -40,16 +57,16 @@ val pad_glyph : int -> string -> string
 val pad : int -> Span.t
 (** [pad n] is [n] spaces, none if [n] is not positive. *)
 
-val pp : (margin:int -> 'a -> Span.t list) -> 'a Fmt.t
-(** [pp lines] formats the [lines] of a widget at the formatter's margin, one
-    per line, with no line end after the last. *)
+val pp : (look -> margin:int -> 'a -> Span.t list) -> 'a Fmt.t
+(** [pp lines] formats the [lines] of a widget in the formatter's {!look} and at
+    its margin, one per line, with no line end after the last. *)
 
 val to_string :
-  (margin:int -> 'a -> Span.t list) ->
+  (look -> margin:int -> 'a -> Span.t list) ->
   ?styled:bool ->
   ?width:int ->
   'a ->
   string
-(** [to_string lines v] is the [lines] of [v] at a margin of [width] (defaults
-    to [max_int]: its natural width), joined by line feeds, styled iff [styled]
-    (defaults to [false]). *)
+(** [to_string lines v] is the [lines] of [v] in {!default_look} at a margin of
+    [width] (defaults to [max_int]: its natural width), joined by line feeds,
+    styled iff [styled] (defaults to [false]). *)

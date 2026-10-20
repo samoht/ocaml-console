@@ -3,9 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = { guide : Guide.t; label : Span.t; children : t list }
+type t = { guide : Guide.t option; label : Span.t; children : t list }
 
-let v ?(guide = Guide.unicode) label children = { guide; label; children }
+let v ?guide label children = { guide; label; children }
 
 (* A label wider than the margin leaves it wraps, the rest under its text. *)
 let label_lines ~room label =
@@ -16,8 +16,8 @@ let label_lines ~room label =
       else Span_core.wrap_hanging room line)
     (Span_core.lines label)
 
-let lines ~margin t =
-  let guide = t.guide in
+let lines look ~margin t =
+  let guide = Widget.guide look t.guide in
   let style = Guide.style guide in
   let acc = ref [] in
   let emit line = acc := Span.truncate margin line :: !acc in

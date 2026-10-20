@@ -192,6 +192,10 @@ let github_light =
   scheme ~accent:"#0969da" ~ok:"#116329" ~warn:"#4d2d00" ~fail:"#cf222e"
     ~background:"#ffffff"
 
+let slot = Slot.v ()
+let get ppf = Option.value (Slot.find slot ppf) ~default
+let set ppf t = Slot.set slot ppf t
+
 let pp ppf t =
   Fmt.pf ppf "@[<1>(theme@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%a)@]"
     Color.pp t.accent Color.pp t.ok Color.pp t.warn Color.pp t.fail

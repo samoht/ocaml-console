@@ -12,17 +12,12 @@ type t
 (** The type for horizontal lines. *)
 
 val v :
-  ?theme:Theme.t ->
-  ?style:Style.t ->
-  ?glyph:string ->
-  ?align:align ->
-  ?label:Span.t ->
-  unit ->
-  t
+  ?style:Style.t -> ?glyph:string -> ?align:align -> ?label:Span.t -> unit -> t
 (** [v ()] is a horizontal line drawn with [glyph] (defaults to a light
-    horizontal line, U+2500) in [style] (defaults to the accent colour of
-    [theme], or faint without one). [label], if given, sits in the line at
-    [align] (defaults to [`Center]), with a space on each side.
+    horizontal line, U+2500) in [style] (defaults to the accent colour of the
+    theme of the formatter it is printed on, {!Theme.get}). [label], if given,
+    sits in the line at [align] (defaults to [`Center]), with a space on each
+    side.
 
     @raise Invalid_argument
       if [glyph], with each control character a space, is not one terminal cell

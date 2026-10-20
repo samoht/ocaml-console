@@ -53,17 +53,16 @@ val column :
 (** {1:tables Tables} *)
 
 val v :
-  ?theme:Theme.t ->
   ?border:Border.t ->
   ?header_style:Style.t ->
   column list ->
   Span.t list list ->
   t
-(** [v columns rows] is the table of [rows] under [columns]. The frame is
-    [border] if given, else [theme]'s (defaults to {!Theme.default}, whose
-    border is {!Border.rounded}, as {!Panel.v}'s); the headers are in
-    [header_style] (defaults to {!Style.bold}). A cell may hold line feeds,
-    which start new lines inside its row.
+(** [v columns rows] is the table of [rows] under [columns]. Its frame is
+    [border] if given, else the border of the theme of the formatter it is
+    printed on ({!Theme.get}); the headers are in [header_style] (defaults to
+    {!Style.bold}). A cell may hold line feeds, which start new lines inside its
+    row.
 
     A row with fewer cells than there are columns ends in a cell that spans the
     columns left. In a table without a frame ({!Border.none}) a line ends at its

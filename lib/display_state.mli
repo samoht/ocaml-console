@@ -38,8 +38,6 @@ type t = {
   now : unit -> float;
   header : string option;
   layout : Display_line.t;
-  theme : Theme.t;
-  palette : Color.t array;
   start : float;
   mutable width : int;
   mutable height : int;
@@ -69,7 +67,6 @@ and row = {
   key : string option;
   disp : t;
   parent : row option;
-  color : Color.t;
   log_lines : int;
   logs : log Queue.t;
   mutable log_prev : float;

@@ -27,8 +27,9 @@ type t
 
 val v : ?guide:Guide.t -> Span.t -> t list -> t
 (** [v label children] is the tree of [label] above [children]. Its lines are
-    those of [guide] (defaults to {!Guide.unicode}); a tree drawn under another
-    takes the lines of the one above it. *)
+    those of [guide] if given, else the guide of the theme of the formatter it
+    is printed on ({!Theme.get}); a tree drawn under another takes the lines of
+    the one above it. *)
 
 val pp : t Fmt.t
 (** [pp] formats a tree, with no line end after its last line. No line is wider

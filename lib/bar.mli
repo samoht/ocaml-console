@@ -5,25 +5,49 @@
 
 (** Horizontal bars, for progress and for figures.
 
-    A bar is a {!Span.t} exactly [width] cells wide. Its empty cells are the
-    track, drawn as light shade (U+2591) in the [track] style (defaults to
-    {!Style.faint}). [brackets] (defaults to [false]) adds a right one eighth
+    A bar is [width] cells filled to a fraction of its length. Its empty cells
+    are the track, drawn as light shade (U+2591) in the [track] style (defaults
+    to {!Style.faint}). [brackets] (defaults to [false]) adds a right one eighth
     block (U+2595) before the bar and a left one eighth block (U+258F) after it,
     in the track style, which makes the bar two cells wider. *)
 
+type t
+(** The type for bars. *)
+
 val v :
-  ?style:Style.t ->
-  ?track:Style.t ->
-  ?brackets:bool ->
-  width:int ->
-  float ->
-  Span.t
+  ?style:Style.t -> ?track:Style.t -> ?brackets:bool -> width:int -> float -> t
 (** [v ~width frac] is a [width]-cell bar filled to [frac] of its length,
     rounded to the nearest eighth of a cell: full blocks (U+2588), then the
     block of the partial cell's eighths (U+258F for one to U+2589 for seven), in
-    [style] (defaults to [Style.fg (Theme.accent Theme.default)]). [frac] is
-    clamped to the range 0 to 1, NaN being 0. The invariant
-    [Span.width (v ~brackets ~width frac) = width + (if brackets then 2 else 0)]
-    holds.
+    [style] (defaults to the accent colour of the theme of the formatter it is
+    printed on, {!Theme.get}). [frac] is clamped to the range 0 to 1, NaN being
+    0.
 
     @raise Invalid_argument if [width] is negative. *)
+
+(** {1:converting Converting} *)
+
+val to_string : ?styled:bool -> t -> string
+(** [to_string bar] is [bar] as {!pp} formats it on a formatter of unbounded
+    margin, with colours iff [styled] (defaults to [false]). *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a bar on one line, [width] cells wide, or two more with
+    brackets, and cut with an ellipsis to the formatter's margin. *)
+
+(**/**)
+
+val span :
+  style:Style.t ->
+  track:Style.t ->
+  brackets:bool ->
+  width:int ->
+  float ->
+  Span.t
+(** [span ~style ~track ~brackets ~width frac] is the bar of
+    [v ~style ~track ~brackets ~width frac] as a span, [frac] in the range 0 to
+    1. *)
+
+(**/**)

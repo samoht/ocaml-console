@@ -225,12 +225,13 @@ src
 `Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
 ```ocaml
-# print_endline (Span.to_string (Bar.v ~brackets:true ~width:20 0.65));;
+# print_endline (Bar.to_string (Bar.v ~brackets:true ~width:20 0.65));;
 ▕█████████████░░░░░░░▏
 - : unit = ()
 ```
 
-To give every widget the same look, pass them the same `~theme`: it sets the
+Every widget is drawn in the theme of the formatter it is printed on, which
+`Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
 main colour, the colours of success, warning and failure, the marks, the
 frame style, the lines that connect tree branches and the spinner. The
 themes are shown [at the end](#themes).

@@ -5,16 +5,19 @@
 
 open Console
 
-(* {1 Bars as spans} *)
+(* {1 Bars} *)
 
-let plain = Span.to_string
-let ansi = Span.to_string ~styled:true
+let plain = Bar.to_string
+let ansi = Bar.to_string ~styled:true
 let red = Style.fg Color.red
 let dim = Style.faint
 let check_plain msg want span = Alcotest.(check string) msg want (plain span)
 
 let check_ansi msg want span =
-  Alcotest.(check string) msg (ansi (Span.concat want)) (ansi span)
+  Alcotest.(check string)
+    msg
+    (Span.to_string ~styled:true (Span.concat want))
+    (ansi span)
 
 (* bar.mli, v: a fraction [k/8] of one cell is the glyph of [k] eighths, the
    empty cell the track and the full one a block. *)

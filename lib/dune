@@ -12,6 +12,7 @@
   display_text
   inked
   sgr
+  slot
   span_core))
 
 (mdx

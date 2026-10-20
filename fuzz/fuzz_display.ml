@@ -488,8 +488,9 @@ let test_untrusted_arguments s =
     let layout =
       Display.Line.(v [ text input; accent input; label; spacer; elapsed ])
     in
+    Theme.set ppf theme;
     let d =
-      Display.v ~theme ~layout ~header:input
+      Display.v ~layout ~header:input
         ~size:(fun () -> (40, 8))
         ~now:(fun () -> 0.)
         ppf

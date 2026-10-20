@@ -13,7 +13,9 @@ let test_width n f b =
   match Bar.v ~brackets:b ~width f with
   | bar ->
       if width < 0 then fail "negative width accepted";
-      check_eq ~pp:Fmt.int (width + if b then 2 else 0) (Span.width bar)
+      check_eq ~pp:Fmt.int
+        (width + if b then 2 else 0)
+        (Width.string_width (Bar.to_string bar))
   | exception Invalid_argument _ -> if width >= 0 then fail "width refused"
 
 let suite = ("bar", [ test_case "width" [ int; float; bool ] test_width ])

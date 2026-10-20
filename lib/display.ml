@@ -51,7 +51,7 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-let v ?(theme = Theme.default) ?(layout = Line.default) ?header ?size ~now ppf =
+let v ?(layout = Line.default) ?header ?size ~now ppf =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -65,8 +65,6 @@ let v ?(theme = Theme.default) ?(layout = Line.default) ?header ?size ~now ppf =
       now;
       header = Option.map Display_text.clean header;
       layout;
-      theme;
-      palette = Array.of_list (Theme.palette theme);
       start = now ();
       width = 80;
       height = 24;
@@ -225,7 +223,6 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
           key;
           disp = t;
           parent;
-          color = t.palette.(id mod Array.length t.palette);
           log_lines;
           logs = Queue.create ();
           log_prev = now;

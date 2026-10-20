@@ -3,8 +3,20 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let border ?(theme = Theme.default) ?border () =
-  match border with Some border -> border | None -> Theme.border theme
+type look = { theme : Theme.t }
+
+let look ppf = { theme = Theme.get ppf }
+let default_look = { theme = Theme.default }
+
+let border look = function
+  | Some border -> border
+  | None -> Theme.border look.theme
+
+let guide look = function Some guide -> guide | None -> Theme.guide look.theme
+
+let accent look = function
+  | Some style -> style
+  | None -> Style.fg (Theme.accent look.theme)
 
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)
 let cells = Width.string_width
@@ -48,7 +60,8 @@ let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
 let pad n = Span.text (String.make (max 0 n) ' ')
 
 let pp lines ppf v =
-  Span_core.pp_lines ppf (lines ~margin:(Format.pp_get_margin ppf ()) v)
+  Span_core.pp_lines ppf
+    (lines (look ppf) ~margin:(Format.pp_get_margin ppf ()) v)
 
 let to_string lines ?styled ?(width = max_int) v =
-  Span_core.string_of_lines ?styled (lines ~margin:width v)
+  Span_core.string_of_lines ?styled (lines default_look ~margin:width v)

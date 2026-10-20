@@ -14,7 +14,6 @@ type t
 (** The type for panels. *)
 
 val v :
-  ?theme:Theme.t ->
   ?border:Border.t ->
   ?title:Span.t ->
   ?subtitle:Span.t ->
@@ -24,15 +23,16 @@ val v :
   t
 (** [v content] is a panel around [content].
 
-    - The border is [border] if given, else [theme]'s (defaults to
-      {!Theme.default}, whose border is {!Border.rounded}, as {!Table.v}'s).
+    - The border is [border] if given, else the border of the theme of the
+      formatter it is printed on ({!Theme.get}).
     - [title] / [subtitle] label the top / bottom edge.
     - [padding] is the internal horizontal padding (default [1]).
     - [width] fixes the width, cutting content and edge labels to keep the box a
       rectangle; by default it is sized to the content.
 
     @raise Invalid_argument
-      if [padding] is negative or [width] cannot hold the border and padding. *)
+      if [padding] is negative or [width] cannot hold the padding and [border],
+      or without [border] a frame one cell wide on each side. *)
 
 (** {1:converting Converting} *)
 

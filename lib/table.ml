@@ -21,7 +21,7 @@ type column = {
 type frame = { left : int; mid : int; right : int }
 
 (* A cell is kept as its lines, split once. *)
-type t = {
+type drawn = {
   border : Border.t;
   frame : frame;
   header_style : Style.t;
@@ -29,6 +29,9 @@ type t = {
   headers : Span.t list array;
   rows : Span.t list array list;
 }
+
+(* A table is drawn in the look of the formatter it is printed on. *)
+type t = Widget.look -> drawn
 
 let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
     ?(shrinkable = true) ?(style = Style.none) header =
@@ -44,7 +47,16 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
   let header = Span.text header in
   { header; align; min_width; max_width; overflow; shrinkable; style }
 
-let v ?theme ?border ?(header_style = Style.bold) columns rows =
+let frame border =
+  let c = Border.chars border in
+  {
+    left = Widget.widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
+    mid = Widget.widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
+    right =
+      Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
+  }
+
+let v ?border ?(header_style = Style.bold) columns rows =
   let expected = List.length columns in
   let rows =
     List.map
@@ -57,22 +69,10 @@ let v ?theme ?border ?(header_style = Style.bold) columns rows =
       rows
   in
   let columns = Array.of_list columns in
-  let border = Widget.border ?theme ?border () in
-  let c = Border.chars border in
-  {
-    border;
-    frame =
-      {
-        left = Widget.widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
-        mid = Widget.widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
-        right =
-          Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
-      };
-    header_style;
-    columns;
-    headers = Array.map (fun c -> Span_core.lines c.header) columns;
-    rows;
-  }
+  let headers = Array.map (fun c -> Span_core.lines c.header) columns in
+  fun look ->
+    let border = Widget.border look border in
+    { border; frame = frame border; header_style; columns; headers; rows }
 
 (* {1 Column widths} *)
 
@@ -320,7 +320,9 @@ let lines ?max_width t =
     | Some w -> List.map (Span.truncate w) lines
 
 let pp ppf t =
-  Span_core.pp_lines ppf (lines ~max_width:(Format.pp_get_margin ppf ()) t)
+  Span_core.pp_lines ppf
+    (lines ~max_width:(Format.pp_get_margin ppf ()) (t (Widget.look ppf)))
 
 let to_string ?styled ?width t =
-  Span_core.string_of_lines ?styled (lines ?max_width:width t)
+  Span_core.string_of_lines ?styled
+    (lines ?max_width:width (t Widget.default_look))

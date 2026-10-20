@@ -114,7 +114,6 @@ type t
 (** The type for displays. *)
 
 val v :
-  ?theme:Theme.t ->
   ?layout:Line.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
@@ -128,10 +127,10 @@ val v :
       height, read again before each redraw: the display hides the cursor and
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
-    - [theme] (defaults to {!Theme.default}) gives the colours and marks, and
-      [layout] (defaults to {!Line.default}) the pieces of each row.
+    - [layout] (defaults to {!Line.default}) gives the pieces of each row.
 
-    The display is in colour iff [ppf]'s style renderer is [`Ansi_tty], at
+    The display is drawn in [ppf]'s theme ({!Theme.get}), read again each time
+    it draws, and in colour iff [ppf]'s style renderer is [`Ansi_tty], at
     [ppf]'s {!Color.val-depth}. *)
 
 val redraw : t -> unit

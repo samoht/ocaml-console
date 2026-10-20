@@ -40,17 +40,14 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
-  ?theme:Console.Theme.t ->
   ?layout:Console.Display.Line.t ->
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a
 (** [run ~clock f] is [f display] for a display on [ppf] (defaults to
     {!Fmt.stderr}, so that standard output stays the program's), timed by
-    [clock]. [header], [theme] and [layout] are those of {!Console.Display.v},
-    but for the default theme on a terminal whose formatter is not {!Fmt.utf_8}
-    ({!setup} decides it): it is {!Console.Theme.ascii}, so that no character
-    the terminal cannot show is drawn.
+    [clock]. [header] and [layout] are those of {!Console.Display.v}, and the
+    display is drawn in [ppf]'s theme ({!Console.Theme.get}).
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
     and that output is a terminal whose [TERM] is set and not [dumb]; then what
@@ -72,8 +69,8 @@ val run :
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
-    whether its caller already did. Its [ppf], [theme], [layout] and [header]
-    are ignored: the display keeps those of the outer [run], and closes when the
+    whether its caller already did. Its [ppf], [layout] and [header] are
+    ignored: the display keeps those of the outer [run], and closes when the
     outer [f] ends, not the inner one.
 
     @raise Invalid_argument

@@ -51,18 +51,19 @@ let terminal ppf =
   | _ -> None
 
 (* The display writes on a formatter of its own, to the same output as
-   [ppf] and in its colours, so that [ppf] itself can be routed above the
-   region. *)
+   [ppf] and with the same tag functions, which hold its colours, its theme
+   and whether it is UTF-8, as [Fmt.with_buffer ~like] does, so that [ppf]
+   itself can be routed above the region. *)
 let own ppf =
   let own =
     Format.formatter_of_out_functions
       (Format.pp_get_formatter_out_functions ppf ())
   in
-  Fmt.set_style_renderer own (Fmt.style_renderer ppf);
-  Console.Color.set_depth own (Console.Color.depth ppf);
+  Format.pp_set_formatter_stag_functions own
+    (Format.pp_get_formatter_stag_functions ppf ());
   own
 
-let run ~clock ?(ppf = Fmt.stderr) ?theme ?layout ?header f =
+let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
   match Session.find () with
   | Some display -> f display
   | None -> (
@@ -72,16 +73,11 @@ let run ~clock ?(ppf = Fmt.stderr) ?theme ?layout ?header f =
       let now () = Eio.Time.now clock in
       match
         match terminal ppf with
-        | None -> (Console.Display.v ?theme ?layout ?header ~now ppf, [])
+        | None -> (Console.Display.v ?layout ?header ~now ppf, [])
         | Some fd ->
             let size () = Terminal.dimensions (Some fd) in
-            let theme =
-              match theme with
-              | None when not (Fmt.utf_8 ppf) -> Some Console.Theme.ascii
-              | theme -> theme
-            in
             let display =
-              Console.Display.v ?theme ?layout ?header ~size ~now (own ppf)
+              Console.Display.v ?layout ?header ~size ~now (own ppf)
             in
             let routed =
               List.filter

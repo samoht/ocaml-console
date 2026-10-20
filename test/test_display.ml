@@ -39,7 +39,8 @@ let test_plain_lines () =
 let test_plain_column () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
-  let d = Display.v ~theme ~now:(fun () -> 0.) ppf in
+  Theme.set ppf theme;
+  let d = Display.v ~now:(fun () -> 0.) ppf in
   Fmt.pf ppf "partial%!";
   Display.message d "next";
   Fmt.pf ppf "again";

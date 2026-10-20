@@ -59,38 +59,9 @@ let bright_white = Ansi `Bright_white
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
 
-(* A formatter's depth is kept the way Fmt keeps its style renderer: by a
-   semantic tag its tag functions answer, so it travels with the formatter
-   and no table outlives it. *)
-type Format.stag += Depth_get | Depth_set of depth
-
-let depth_code = function
-  | `True_color -> "T"
-  | `Ansi_256 -> "2"
-  | `Ansi_16 -> "1"
-
-let depth ppf =
-  let funs = Format.pp_get_formatter_stag_functions ppf () in
-  match funs.mark_open_stag Depth_get with
-  | "2" -> `Ansi_256
-  | "1" -> `Ansi_16
-  | _ -> `True_color
-
-let set_depth ppf d =
-  let funs = Format.pp_get_formatter_stag_functions ppf () in
-  match funs.mark_open_stag (Depth_set d) with
-  | "ok" -> ()
-  | _ ->
-      let current = ref d in
-      let other = funs.mark_open_stag in
-      let mark_open_stag = function
-        | Depth_get -> depth_code !current
-        | Depth_set d ->
-            current := d;
-            "ok"
-        | stag -> other stag
-      in
-      Format.pp_set_formatter_stag_functions ppf { funs with mark_open_stag }
+let depth_slot = Slot.v ()
+let depth ppf = Option.value (Slot.find depth_slot ppf) ~default:`True_color
+let set_depth ppf d = Slot.set depth_slot ppf d
 
 (* The xterm defaults of the 16 named colours, in palette order. *)
 let named =

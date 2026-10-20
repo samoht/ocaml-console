@@ -27,9 +27,10 @@ let pick s i =
   pool.((Char.code s.[i mod String.length s] + i) mod Array.length pool)
 
 (* What [pp] prints at [margin], in colour, as lines without their escapes. *)
-let render pp margin v =
+let render ?theme pp margin v =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
+  Option.iter (Theme.set ppf) theme;
   Format.pp_set_margin ppf margin;
   Fmt.set_style_renderer ppf `Ansi_tty;
   pp ppf v;
@@ -225,11 +226,9 @@ let test_mixed_script_themes s n =
   List.iter
     (fun theme ->
       let t =
-        Table.v ~theme
-          [ Table.column "name"; Table.column ~align:`Right "size" ]
-          rows
+        Table.v [ Table.column "name"; Table.column ~align:`Right "size" ] rows
       in
-      let raw, lines = render Table.pp margin t in
+      let raw, lines = render ~theme Table.pp margin t in
       check (String.is_valid_utf_8 raw);
       check_fits margin lines;
       check_closed raw;

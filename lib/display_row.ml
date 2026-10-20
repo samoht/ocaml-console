@@ -13,8 +13,20 @@ let pad_left n span =
   let w = Span.width span in
   if w >= n then span else Span.(pad (n - w) ++ span)
 
+(* The display is drawn in the theme of its formatter; the default one in
+   ASCII when the formatter is not UTF-8. *)
+let theme t =
+  match Theme.get t.ppf with
+  | th when th == Theme.default && not (Fmt.utf_8 t.ppf) -> Theme.ascii
+  | th -> th
+
+(* Successive rows take the colours of the theme's palette in turn. *)
+let color r =
+  let palette = Theme.palette (theme r.disp) in
+  List.nth palette (r.id mod List.length palette)
+
 let mark_style t (m : Theme.mark) =
-  let theme = t.theme in
+  let theme = theme t in
   match m with
   | `Succeeded -> Style.(bold + fg (Theme.ok theme))
   | `Failed | `Error -> Style.(bold + fg (Theme.fail theme))
@@ -22,12 +34,12 @@ let mark_style t (m : Theme.mark) =
   | `Running -> Style.(bold + fg (Theme.accent theme))
   | `Info -> Style.faint
 
-let mark t m = Span.styled (mark_style t m) (Theme.mark t.theme m)
+let mark t m = Span.styled (mark_style t m) (Theme.mark (theme t) m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
 
 (* {1 Guides} *)
 
-let guide t = Theme.guide t.theme
+let guide t = Theme.guide (theme t)
 
 (* [lasts] are a row's flags, innermost first, ending with its root's, which
    draws nothing: a root row starts at the left edge. *)
@@ -59,7 +71,9 @@ let bar r width =
   match fraction r.metric with
   | Some f when f > 0. ->
       let f = Float.max f (1. /. float (max 1 (width * 8))) in
-      Bar.v ~brackets:true ~style:(Style.fg r.color) ~width f
+      Bar.span ~brackets:true
+        ~style:(Style.fg (color r))
+        ~track:Style.faint ~width f
   | _ -> Span.empty
 
 let count_cell t r = pad_left t.count_cell (faint (count_text r.metric))
@@ -70,8 +84,9 @@ let timer d =
 let piece t r ~time (p : Display_line.piece) =
   match p with
   | Spinner ->
-      Span.styled (Style.fg r.color)
-        (Spinner.frame (Theme.spinner t.theme) ~elapsed:time)
+      Span.styled
+        (Style.fg (color r))
+        (Spinner.frame (Theme.spinner (theme t)) ~elapsed:time)
   | Label | Spacer -> Span.empty
   | Bar n -> bar r n
   | Percent -> (
@@ -86,7 +101,7 @@ let piece t r ~time (p : Display_line.piece) =
       | _ -> Span.empty)
   | Elapsed -> timer (elapsed r)
   | Text s -> text s
-  | Accent s -> Span.styled Style.(bold + fg r.color) s
+  | Accent s -> Span.styled Style.(bold + fg (color r)) s
 
 (* The label takes the room the other pieces leave and is cut to it; one
    spacer takes the slack, so the pieces after it sit at the right edge. *)
@@ -108,7 +123,7 @@ let live t ~lasts r =
   let slack = max reserve (t.width - fixed - Span.width label) in
   let line =
     Span.concat
-      (Span.styled (Style.fg (Theme.accent t.theme)) prefix
+      (Span.styled (Style.fg (Theme.accent (theme t))) prefix
       :: List.map
            (fun ((p : Display_line.piece), s) ->
              match p with Label -> label | Spacer -> pad slack | _ -> s)
@@ -229,7 +244,7 @@ let header t =
           t.finished t.started
       in
       let lead = Span.(mark t (state t) ++ text " ") in
-      let h = Span.styled (Theme.header t.theme) h in
+      let h = Span.styled (Theme.header (theme t)) h in
       let full = Span.(lead ++ h ++ meta) in
       if (not (is_live t)) || Span.width full <= t.width then full
       else Span.truncate t.width Span.(lead ++ h))

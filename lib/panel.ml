@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = {
+type drawn = {
   border : Border.t;
   title : Span.t option;
   subtitle : Span.t option;
@@ -11,6 +11,9 @@ type t = {
   width : int option;
   lines : Span.t list;
 }
+
+(* A panel is drawn in the look of the formatter it is printed on. *)
+type t = Widget.look -> drawn
 
 (* The cells of the frame's left and right columns, each as wide as its
    widest glyph. *)
@@ -24,16 +27,23 @@ let frame border padding =
   let left, right = columns border in
   left + right + (2 * padding)
 
-let v ?theme ?border ?title ?subtitle ?(padding = 1) ?width content =
-  let border = Widget.border ?theme ?border () in
+let v ?border ?title ?subtitle ?(padding = 1) ?width content =
   if padding < 0 then invalid_arg "Console.Panel.v: negative padding";
+  let least =
+    match border with
+    | Some border -> frame border padding
+    | None -> 2 + (2 * padding)
+  in
   (match width with
-  | Some width when width < frame border padding ->
+  | Some width when width < least ->
       invalid_arg "Console.Panel.v: width too small for padding"
   | _ -> ());
   let title = Option.map Widget.one_line title
   and subtitle = Option.map Widget.one_line subtitle in
-  { border; title; subtitle; padding; width; lines = Span_core.lines content }
+  let lines = Span_core.lines content in
+  fun look ->
+    let border = Widget.border look border in
+    { border; title; subtitle; padding; width; lines }
 
 let natural_width panel =
   let label = function Some span -> Span.width span + 2 | None -> 0 in
@@ -121,5 +131,6 @@ let lines ~margin panel =
   (* A margin too narrow for the border itself still bounds every line. *)
   List.map (Span.truncate margin) (top @ body @ bottom)
 
+let lines look ~margin t = lines ~margin (t look)
 let pp = Widget.pp lines
 let to_string = Widget.to_string lines
