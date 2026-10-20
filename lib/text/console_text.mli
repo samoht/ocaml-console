@@ -18,10 +18,11 @@ val sanitize : ?keep_newlines:bool -> string -> string
     marks U+061C, U+200E and U+200F, embeddings and overrides U+202A to U+202E
     and isolates U+2066 to U+2069, and the interlinear annotation characters
     U+FFF9 to U+FFFB. The joiners U+200C and U+200D, which some scripts and
-    emoji need, are kept. Line feeds are kept unless [keep_newlines] is [false].
-    An escape code in [s] stays visible as text. The result is valid UTF-8
-    without a control character but line feeds, and
-    [sanitize (sanitize s) = sanitize s]. *)
+    emoji need, are kept. A line ends at a line feed, a carriage return, or a
+    carriage return and a line feed together; each line end is one line feed, or
+    one space if [keep_newlines] is [false] (defaults to [true]). An escape code
+    in [s] stays visible as text. The result is valid UTF-8 without a control
+    character but line feeds, and [sanitize (sanitize s) = sanitize s]. *)
 
 val strip : ?keep_newlines:bool -> string -> string
 (** [strip s] is the text a terminal shows of [s]: {!sanitize} of [s] once each

@@ -16,24 +16,33 @@ let reorders c =
   || (c >= 0x2066 && c <= 0x2069)
   || (c >= 0xfff9 && c <= 0xfffb)
 
-(* [text buf ~keep_newlines u] adds what [sanitize] makes of the character
-   [u]: itself, nothing if it {!reorders}, or a space for a control. *)
-let text buf ~keep_newlines u =
+(* [text buf ~keep_newlines ~cr u] adds what [sanitize] makes of the
+   character [u]: itself, nothing if it {!reorders}, a line end for LF or CR,
+   or a space for another control. [cr] is [true] after a CR, whose line end
+   a LF then completes. *)
+let text buf ~keep_newlines ~cr u =
   let c = Uchar.to_int u in
-  if reorders c then ()
-  else if
-    (keep_newlines && c = 0x0a) || (c >= 0x20 && not (c >= 0x7f && c <= 0x9f))
-  then Buffer.add_utf_8_uchar buf u
+  let line_end () = Buffer.add_char buf (if keep_newlines then '\n' else ' ') in
+  let after_cr = !cr in
+  cr := c = 0x0d;
+  if c = 0x0d then line_end ()
+  else if c = 0x0a then (if not after_cr then line_end ())
+  else if reorders c then ()
+  else if c >= 0x20 && not (c >= 0x7f && c <= 0x9f) then
+    Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 
-let sanitize_into buf ~keep_newlines str =
+let sanitize_into buf ~keep_newlines ~cr str =
   let n = String.length str in
   let rec go i =
     if i < n then begin
       let d = String.get_utf_8_uchar str i in
       if Uchar.utf_decode_is_valid d then
-        text buf ~keep_newlines (Uchar.utf_decode_uchar d)
-      else Buffer.add_utf_8_uchar buf Uchar.rep;
+        text buf ~keep_newlines ~cr (Uchar.utf_decode_uchar d)
+      else begin
+        cr := false;
+        Buffer.add_utf_8_uchar buf Uchar.rep
+      end;
       go (i + Uchar.utf_decode_length d)
     end
   in
@@ -45,7 +54,7 @@ let sanitize ?(keep_newlines = true) str =
   if String.for_all printable str then str
   else
     let buf = Buffer.create (String.length str) in
-    sanitize_into buf ~keep_newlines str;
+    sanitize_into buf ~keep_newlines ~cr:(ref false) str;
     Buffer.contents buf
 
 (* What the scan is inside of. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
@@ -214,14 +223,14 @@ let sgr seq =
     Some (state `Reset params)
 
 let rewrite ~keep_newlines ~keep str =
-  let buf = Buffer.create (String.length str) in
+  let buf = Buffer.create (String.length str) and cr = ref false in
   let open_style =
     fold_tokens
       (fun open_style kind pos len ->
         let token = String.sub str pos len in
         match kind with
         | `Text ->
-            sanitize_into buf ~keep_newlines token;
+            sanitize_into buf ~keep_newlines ~cr token;
             open_style
         | `Escape -> (
             match keep token with

@@ -37,14 +37,5 @@ let clean = Console_text.sanitize ~keep_newlines:false
 let lines s =
   if s = "" then []
   else
-    let lines = String.split_on_char '\n' s in
-    let lines =
-      match List.rev lines with "" :: rest -> List.rev rest | _ -> lines
-    in
-    List.map
-      (fun line ->
-        let n = String.length line in
-        clean
-          (if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1)
-           else line))
-      lines
+    let lines = String.split_on_char '\n' (Console_text.sanitize s) in
+    match List.rev lines with "" :: rest -> List.rev rest | _ -> lines

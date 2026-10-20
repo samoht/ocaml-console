@@ -9,11 +9,12 @@
     is the text every widget lays out.
 
     A span only holds text that prints: the constructors replace each control
-    character but the line feed with a space and each malformed UTF-8 sequence
-    with U+FFFD, and remove the characters that reorder or hide the text around
-    them (the bidirectional controls), so no span can move the cursor, change
-    the colours of what follows it or show its text in another order. A line
-    feed starts a new line, and the functions below work line by line.
+    character with a space, a line end (a line feed, a carriage return or the
+    two together) with a line feed and each malformed UTF-8 sequence with
+    U+FFFD, and remove the characters that reorder or hide the text around them
+    (the bidirectional controls), so no span can move the cursor, change the
+    colours of what follows it or show its text in another order. A line feed
+    starts a new line, and the functions below work line by line.
 
     Widths are counted in terminal cells, as a terminal draws the text: a wide
     character, such as a Chinese one or an emoji, takes two cells and an accent
