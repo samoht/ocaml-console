@@ -187,6 +187,7 @@ type layout = {
   n : int;  (** The number of clusters. *)
   starts : int array;  (** Where each cluster starts; [[||]] when ASCII. *)
   widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
+  drawn : bool;  (** Whether a part is drawn when printed. *)
 }
 
 let ascii line = List.for_all (fun a -> Width.is_ascii a.text) line
@@ -203,6 +204,7 @@ let layout line =
     |> snd
   in
   let text = String.concat "" (List.map (fun a -> a.text) line) in
+  let drawn = List.exists is_drawn line in
   if ascii line then
     {
       joined = text;
@@ -211,6 +213,7 @@ let layout line =
       n = total;
       starts = [||];
       widths = [||];
+      drawn;
     }
   else begin
     let starts = ref [] and widths = ref [] and n = ref 0 in
@@ -222,7 +225,7 @@ let layout line =
       text;
     let starts = Array.of_list (List.rev !starts) in
     let widths = Array.of_list (List.rev !widths) in
-    { joined = text; parts; part_starts; n = !n; starts; widths }
+    { joined = text; parts; part_starts; n = !n; starts; widths; drawn }
   end
 
 let start l i =
@@ -231,7 +234,6 @@ let start l i =
   else l.starts.(i)
 
 let cell_width l i = if l.widths = [||] then 1 else l.widths.(i)
-let is_space l i = l.joined.[start l i] = ' ' && start l (i + 1) = start l i + 1
 
 (* The atom cluster [i] starts in. *)
 let owner l i =
@@ -241,6 +243,13 @@ let owner l i =
     decr k
   done;
   l.parts.(!k)
+
+(* A space of a part drawn when printed may be text in another look, as
+   the dots of an ASCII ellipsis are: it is not one a break stands on. *)
+let is_space l i =
+  l.joined.[start l i] = ' '
+  && start l (i + 1) = start l i + 1
+  && not (l.drawn && is_drawn (owner l i))
 
 (* The number of first clusters of a line that fit in [room] cells. *)
 let fitting l room =

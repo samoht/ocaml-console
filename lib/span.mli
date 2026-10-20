@@ -103,12 +103,14 @@ val truncate : int -> t -> t
 val wrap : int -> t -> t list
 (** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.
     A line breaks at a run of spaces, which the break removes, or after a slash;
-    the spaces inside a line and its leading ones are kept. A word wider than
-    [w] goes on over the next lines, broken where the room ends. A character
-    wider than [w] (a wide one when [w] is [1], or one with a spacing mark when
-    [w] is its width less one) cannot be drawn and is left out. The result is
-    never empty, and every other non-space character of [s] is in it, in order,
-    styles and links kept.
+    the spaces inside a line and its leading ones are kept. A part drawn when
+    printed, such as a widget's, breaks only where the room ends, its spaces
+    kept, for another look may draw text there. A word wider than [w] goes on
+    over the next lines, broken where the room ends. A character wider than [w]
+    (a wide one when [w] is [1], or one with a spacing mark when [w] is its
+    width less one) cannot be drawn and is left out. The result is never empty,
+    and every other non-space character of [s] is in it, in order, styles and
+    links kept.
 
     @raise Invalid_argument if [w] is not positive. *)
 
