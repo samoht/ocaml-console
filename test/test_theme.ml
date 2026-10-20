@@ -243,9 +243,12 @@ let presets =
 
 (* Text a theme colours reads on its background at 4.5:1 or more, and a
    glyph it colours alone at 3:1 or more, as WCAG 2.1 asks of text and of
-   graphics; a theme without a background is read on black and on white
-   alike. The muted colour and the header's are text: counts, timers and
-   headings. *)
+   graphics. The muted colour and the header's are text: counts, timers and
+   headings; so are the colours of the roles, which [Span.role] gives text,
+   on a theme that names its background. A theme without one is read on
+   black and on white alike, where 4.5:1 on both asks a luminance of 0.175
+   to 0.183, which no amber of the 256-colour palette has: its roles are
+   held to 3:1 on both, as glyphs. *)
 let test_contrast () =
   List.iter
     (fun (name, t) ->
@@ -254,14 +257,16 @@ let test_contrast () =
         | Some bg -> [ bg ]
         | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
       in
-      let glyphs =
+      let roles =
         [
           ("accent", Theme.accent t);
           ("ok", Theme.ok t);
           ("warn", Theme.warn t);
           ("fail", Theme.fail t);
         ]
-        @ List.mapi (fun i c -> (Fmt.str "palette %d" i, c)) (Theme.palette t)
+      in
+      let palette =
+        List.mapi (fun i c -> (Fmt.str "palette %d" i, c)) (Theme.palette t)
       in
       let text =
         ("muted", Theme.muted t)
@@ -269,6 +274,11 @@ let test_contrast () =
              (Option.map
                 (fun c -> ("header", c))
                 (Style.foreground (Theme.header t)))
+      in
+      let glyphs, text =
+        match Theme.background t with
+        | Some _ -> (palette, roles @ text)
+        | None -> (roles @ palette, text)
       in
       List.iter
         (fun bg ->
