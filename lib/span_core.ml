@@ -19,16 +19,37 @@ type t = atom list
 
 let clean = Console_text.sanitize ~keep_newlines:true
 
-(* Every linked atom is built here, so no link escapes the check: a target
-   is printable ASCII without a space, which cannot end the OSC 8 sequence it
-   is written in. *)
+(* The characters of a URI (RFC 3986, sections 2.2 and 2.3) and the percent
+   sign of an escape: none of them can end the OSC 8 sequence a target is
+   written in. *)
+let uri_char = function
+  | 'A' .. 'Z'
+  | 'a' .. 'z'
+  | '0' .. '9'
+  | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '[' | ']' | '@' | '!' | '$'
+  | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' ->
+      true
+  | _ -> false
+
+let hex = "0123456789ABCDEF"
+
+let target uri =
+  if String.for_all uri_char uri then uri
+  else begin
+    let buf = Buffer.create (3 * String.length uri) in
+    String.iter
+      (fun c ->
+        if uri_char c then Buffer.add_char buf c
+        else begin
+          Buffer.add_char buf '%';
+          Buffer.add_char buf hex.[Char.code c lsr 4];
+          Buffer.add_char buf hex.[Char.code c land 15]
+        end)
+      uri;
+    Buffer.contents buf
+  end
+
 let atom ?link style text =
-  Option.iter
-    (fun uri ->
-      if uri = "" then invalid_arg "Console.Span.link: empty URI";
-      if String.exists (fun ch -> ch <= ' ' || ch >= '\x7f') uri then
-        invalid_arg "Console.Span.link: unsafe URI character")
-    link;
   match clean text with
   | "" -> []
   | text -> [ { style; link; text; draw = None } ]
@@ -36,7 +57,10 @@ let atom ?link style text =
 let empty = []
 let text s = atom Style.none s
 let styled style s = atom style s
-let link ?(style = Style.none) ~uri s = atom ~link:uri style s
+
+let link ?(style = Style.none) ~uri s =
+  atom ?link:(if uri = "" then None else Some (target uri)) style s
+
 let ( ++ ) = ( @ )
 
 let concat ?(sep = empty) = function

@@ -38,10 +38,12 @@ val styled : Style.t -> string -> t
 val link : ?style:Style.t -> uri:string -> string -> t
 (** [link ~style ~uri label] is [label] drawn in [style] (defaults to
     {!Style.none}) as a link to [uri], which a terminal that supports links
-    opens on a click. Printed without colours, it is [label] alone.
-
-    @raise Invalid_argument
-      if [uri] is empty or holds a byte outside the printable ASCII range. *)
+    opens on a click. Printed without colours, it is [label] alone. Each byte of
+    [uri] that a URI may not hold
+    ({{:https://www.rfc-editor.org/rfc/rfc3986#section-2}RFC 3986}), such as a
+    control character, a space or a byte of a non-ASCII character, is written
+    percent-encoded, and the other bytes, escapes included, as they are. An
+    empty [uri] links nowhere: the span is [label] in [style]. *)
 
 val gradient : ?colors:Color.t list -> string -> t
 (** [gradient ~colors s] is [s] in colours graded along each of its lines: each

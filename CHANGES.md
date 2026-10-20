@@ -74,3 +74,5 @@
 - The line editor is `Console_input`, in a `console.input` library of its
   own, rather than `Console.Input`: a program that drives a serial line or
   a network channel links it without the widgets.
+- `Span.link` percent-encodes the bytes a URI may not hold rather than
+  raising, and an empty URI links nowhere.
