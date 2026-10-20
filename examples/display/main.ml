@@ -4,9 +4,9 @@
   ---------------------------------------------------------------------------*)
 
 (* A build in the terminal's scrollback: steps that end are printed once and
-   stay; only the steps still running are redrawn in place, under a table of
-   the steps, whose frame moves in a theme with motion. The table is printed
-   once the build is done. Name a theme to see it in that one; pipe it
+   stay; only the steps still running are redrawn in place, under a title in
+   the theme's palette and a table of the steps, whose frame moves in a theme
+   with motion. The title and the table are printed once the build is done. Name a theme to see it in that one; pipe it
    through [cat] to see the lines a CI log gets. *)
 
 open Console
@@ -19,8 +19,11 @@ type step = { name : string; mutable status : Span.t; mutable detail : string }
 let step name = { name; status = Span.text "waiting"; detail = "" }
 let steps = [ step "fetch"; step "compile"; step "test" ]
 
+let title =
+  Span.with_style Style.bold (Span.gradient "console, built step by step")
+
 let table () =
-  Table.v
+  Table.v ~rules:true
     [ Table.column "Step"; Table.column "Status"; Table.column "Detail" ]
     (List.map
        (fun s -> [ Span.text s.name; s.status; Span.text s.detail ])
@@ -75,6 +78,8 @@ let test theme clock display =
   done;
   finished "130 passed"
 
+let scene ppf () = Fmt.pf ppf "%a@.%a" Span.pp title Table.pp (table ())
+
 let () =
   let name = if Array.length Sys.argv > 1 then Sys.argv.(1) else "default" in
   let theme =
@@ -88,10 +93,10 @@ let () =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.clock env in
   Console_eio.run ~clock ~header:"Building" (fun display ->
-      Display.set_scene display (fun ~height:_ ppf -> Table.pp ppf (table ()));
+      Display.set_scene display (fun ~height:_ ppf -> scene ppf ());
       Eio.Fiber.both
         (fun () -> fetch theme clock display)
         (fun () -> compile theme clock display);
       test theme clock display;
       Display.set_result display (Ok "build complete"));
-  Fmt.pr "%a@." Table.pp (table ())
+  Fmt.pr "%a@." scene ()

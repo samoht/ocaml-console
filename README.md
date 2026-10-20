@@ -318,6 +318,57 @@ rootfs.tar  ━━━━━━━━━╺
 - : unit = ()
 ```
 
+Without a style, a bar takes the palette of its theme: in `Theme.rainbow`,
+whose palette has six colours, each filled cell is in the colour of its
+place along the bar, so the fill uncovers a rainbow as it grows.
+`Span.gradient` grades text through the same palette, or through the
+colours it is given, one grapheme cluster at a time; without colour it is
+its text:
+
+```ocaml
+# Fmt.pr "%a@." Span.pp (Span.gradient ~colors:[ Color.red; Color.blue ] "console");;
+console
+- : unit = ()
+```
+
+`Table.v ~rules:true` separates the rows of a table, which helps when its
+cells wrap over several lines:
+
+```ocaml
+# print_endline
+    (Table.to_string
+       (Table.v ~rules:true
+          [ Table.column "Step"; Table.column "Status" ]
+          [
+            [ Span.text "fetch"; Span.text "done" ];
+            [ Span.text "compile"; Span.text "2 warnings\n1 error" ];
+          ]));;
+╭─────────┬────────────╮
+│ Step    │ Status     │
+├─────────┼────────────┤
+│ fetch   │ done       │
+├─────────┼────────────┤
+│ compile │ 2 warnings │
+│         │ 1 error    │
+╰─────────┴────────────╯
+- : unit = ()
+```
+
+`Console.hcat` prints blocks side by side, each at its share of the margin
+and in its own colours; a scene can be one:
+
+```ocaml
+# let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ]
+  and panel = Panel.v (Span.text "2 files") in
+  Fmt.pr "%a@."
+    (Console.hcat [ Fmt.const Tree.pp tree; Fmt.const Panel.pp panel ])
+    ();;
+src      ╭─────────╮
+└── lib  │ 2 files │
+         ╰─────────╯
+- : unit = ()
+```
+
 Every widget is drawn in the theme of the formatter it is printed on, which
 `Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
 main colour, the colours of success, warning and failure, the marks, the
@@ -442,12 +493,21 @@ does.
 
 ### Motion
 
-[The build in `Theme.matrix`](examples/display/matrix.gif), recorded by
-[its tape](examples/display/tape.ml), shows a frame moving. `Theme.matrix`
-rains (`` `Rain ``), `Theme.rainbow` sweeps its palette round
-(`` `Sweep ``), every theme named after a colour scheme shimmers in its main
-colour (`` `Shimmer ``), and `Theme.default`, `Theme.ascii` and `Theme.dos`
-stand still.
+The build of [the example](examples/display/main.ml), recorded by
+[its tape](examples/display/tape.ml), shows each motion. `Theme.matrix`
+rains along the frame (`` `Rain ``), as
+[the build above](#a-table-while-work-runs) shows.
+`Theme.rainbow` sweeps its palette, graded round the frame (`` `Sweep ``),
+under a title in `Span.gradient` and over rows whose bars are rainbows:
+
+![The build in Theme.rainbow, a rainbow sweeping round the frame of its table](examples/display/rainbow.gif)
+
+Every theme named after a colour scheme, such as `Theme.tokyo_night`,
+shimmers in its main colour (`` `Shimmer ``):
+
+![The build in Theme.tokyo_night, a highlight going round the frame of its table](examples/display/tokyo-night.gif)
+
+`Theme.default`, `Theme.ascii` and `Theme.dos` stand still.
 
 ### `Theme.default`
 

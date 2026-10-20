@@ -3,8 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The same tree, table and progress rows in the theme its argument names:
-   the README's gallery is screenshots of this program, one per theme. The
+(* The same title, tree, table and progress rows in the theme its argument
+   names, the title graded through the theme's palette: the README's
+   gallery is screenshots of this program, one per theme. The
    table is drawn above the rows while they run, so a theme with motion
    shows its frame moving, and is printed once they are done. *)
 
@@ -12,7 +13,7 @@ open Console
 
 let table theme =
   let accent = Style.(bold + fg (Theme.accent theme)) in
-  Table.v
+  Table.v ~rules:true
     [ Table.column "Package"; Table.column ~align:`Right "Size" ]
     [
       [ Span.styled accent "console"; Span.text "42 KiB" ];
@@ -52,7 +53,11 @@ let () =
   | Ok theme ->
       Console_tty.setup ~style_renderer:`Ansi_tty ();
       Theme.set Fmt.stdout theme;
-      Fmt.pr "%a@.@." Tree.pp (tree theme);
+      let ocaml = String.map (function '-' -> '_' | c -> c) name in
+      let title = Span.gradient ("Theme." ^ ocaml) in
+      Fmt.pr "%a@.%a@.@." Span.pp
+        (Span.with_style Style.bold title)
+        Tree.pp (tree theme);
       let table = table theme in
       (Eio_main.run @@ fun env -> progress ~clock:(Eio.Stdenv.clock env) table);
       Fmt.pr "@.%a@." Table.pp table

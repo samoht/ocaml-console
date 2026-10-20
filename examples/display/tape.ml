@@ -4,7 +4,23 @@
   ---------------------------------------------------------------------------*)
 
 (* The tape that records the build in the theme its argument names, if any:
-   display.gif in the default theme, <theme>.gif in another. *)
+   display.gif in the default theme, <theme>.gif in another, on that theme's
+   background. *)
+
+(* Text that reads on the background: dark on a light one, light on a dark
+   one. *)
+let vhs_theme name =
+  match
+    Option.bind (List.assoc_opt name Console.Theme.all) Console.Theme.background
+  with
+  | None -> "Builtin Dark"
+  | Some bg ->
+      let r, g, b = Console.Color.to_rgb bg in
+      let light = (r * 299) + (g * 587) + (b * 114) > 128_000 in
+      let fg = if light then "#333333" else "#dddddd" in
+      Fmt.str
+        {|{ "name": "demo", "background": "#%02x%02x%02x", "foreground": "%s", "cursor": "%s", "selection": "%s" }|}
+        r g b fg fg fg
 
 let () =
   let theme = if Array.length Sys.argv > 1 then Some Sys.argv.(1) else None in
@@ -22,7 +38,7 @@ let () =
           Font_size 18;
           Width 1000;
           Height 640;
-          Theme "Builtin Dark";
+          Theme (vhs_theme (Option.value theme ~default:"default"));
           Padding 20;
           Typing_speed (Ms 20);
         ]

@@ -7,7 +7,7 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries vhs fmt))
+ (libraries console vhs fmt))
 
 (rule
  (enabled_if %{lib-available:vhs})
@@ -36,3 +36,31 @@
  (enabled_if %{lib-available:vhs})
  (action
   (diff matrix.tape matrix.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target rainbow.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe rainbow))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff rainbow.tape rainbow.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target tokyo-night.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe tokyo-night))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff tokyo-night.tape tokyo-night.generated.tape)))
