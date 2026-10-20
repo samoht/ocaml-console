@@ -92,7 +92,13 @@
 
 (** {1:layout Row layout} *)
 
-(** The pieces of a running task's row. *)
+(** The pieces of a running task's row.
+
+    A layout draws the rows a display redraws on a terminal. The other lines
+    have pieces of their own, whatever the layout: the line a task prints when
+    it ends is its mark, its label, its count and its elapsed time, and without
+    a terminal the line it prints when it starts is its mark and its label. No
+    bar, rate or percentage shows on them. *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
@@ -145,8 +151,9 @@ module Layout : sig
         if [pieces] has more than one {!label} or {!spacer}. *)
 
   val default : t
-  (** [default] is a spinner, the label, a spacer, a bar, the count, the rate
-      and the elapsed time. *)
+  (** [default] is a spinner, the label, a spacer, a bar 12 cells wide, the
+      count, the rate and the elapsed time, with a space after the spinner and
+      between each two of the last four. *)
 end
 
 (** {1:displays Displays}
@@ -173,7 +180,9 @@ val v :
       height, read again before each redraw: the display hides the cursor and
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
-    - [layout] (defaults to {!Layout.default}) gives the pieces of each row.
+    - [layout] (defaults to {!Layout.default}) gives the pieces of each row
+      redrawn on a terminal; the lines printed in turn have their own
+      ({!Layout}).
 
     The current task is that of the innermost {!with_task} that runs; under
     [Console_eio.run], that of the fiber that asks or of the fibers it was

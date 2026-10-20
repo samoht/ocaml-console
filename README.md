@@ -460,7 +460,10 @@ Good to know:
 
 When the output is not a terminal, nothing is redrawn. A task prints a line
 when it starts and one when it ends, with each line of its output after its
-name in between, and the header comes last, as a summary. `Display.v` opens a display on
+name in between, and the header comes last, as a summary. These lines are
+the task's mark, its label, its count and its time, whatever the layout:
+the bar, the rate and the other pieces of a layout are for the rows a
+terminal redraws. `Display.v` opens a display on
 any formatter, here a buffer, with a clock that stays at zero, and shows
 what `build` above prints in a pipe:
 
