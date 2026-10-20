@@ -12,6 +12,10 @@ type t
 val empty : t
 (** See {!Span.empty}. *)
 
+val is_empty : t -> bool
+(** [is_empty s] is [true] iff [s] holds no text, not even a character that
+    takes no cell. *)
+
 val text : string -> t
 (** See {!Span.text}. *)
 

@@ -19,12 +19,15 @@ module Display = Display
 
 let width lines = Array.fold_left (fun n l -> max n (Span_core.width l)) 0 lines
 
-(* A line ends at its last block with text on it: the blocks before it are
-   padded to their widths and followed by the gap, and nothing follows. *)
+(* A line ends at its last block with text on it, a mark that takes no cell
+   included: the blocks before it are padded to their widths and followed by
+   the gap, and nothing follows. *)
 let row ~gap blocks i =
   let cell (b, _) = if i < Array.length b then b.(i) else Span_core.empty in
   let last = ref (-1) in
-  Array.iteri (fun j b -> if Span_core.width (cell b) > 0 then last := j) blocks;
+  Array.iteri
+    (fun j b -> if not (Span_core.is_empty (cell b)) then last := j)
+    blocks;
   Span_core.concat
     (List.init (!last + 1) (fun j ->
          let ((_, w) as b) = blocks.(j) in

@@ -55,6 +55,7 @@ let atom ?link style text =
   | text -> [ { style; link; text; draw = None } ]
 
 let empty = []
+let is_empty = function [] -> true | _ :: _ -> false
 let text s = atom Style.none s
 let styled style s = atom style s
 
