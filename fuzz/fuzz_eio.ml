@@ -3,4 +3,5 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let () = Alcobar.run "console-eio" [ Fuzz_console_eio.suite ]
+let suite = Fuzz_console_eio.suite
+let () = Alcobar.run "console-eio" [ suite ]
