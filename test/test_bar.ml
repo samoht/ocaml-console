@@ -119,8 +119,9 @@ let test_theme_glyphs () =
 
 (* theme.mli, palette: a bar given no style spreads a palette of several
    colours along its length, each cell in the colour of its place, so the
-   fill uncovers the colours as it grows; a bar given a style, or in a
-   theme of one colour, is in one colour. *)
+   fill uncovers the colours as it grows; a bar given a style is in it, and
+   one in a theme of one colour is in the theme's main colour, whatever that
+   colour is. *)
 let test_palette () =
   let styled theme bar =
     let buf = Buffer.create 64 in
@@ -155,6 +156,12 @@ let test_palette () =
     (want
        [ Span.styled (Style.fg (Theme.accent Theme.nord)) "\u{2501}\u{2501}" ])
     (styled Theme.nord (Bar.v ~width:2 1.));
+  Alcotest.(check string)
+    "a palette of one colour gives the main colour"
+    (want [ Span.styled (Style.fg Color.blue) "\u{2501}\u{2501}" ])
+    (styled
+       (Theme.v ~palette:[ Color.red ] ~accent:Color.blue ())
+       (Bar.v ~width:2 1.));
   Alcotest.(check string)
     "plain" "\u{2501}\u{2501}\u{2501}\u{257a}\u{2501}\u{2501}"
     (in_theme Theme.rainbow (Bar.v ~width:6 0.5))

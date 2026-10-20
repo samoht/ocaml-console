@@ -117,8 +117,8 @@ val v :
     - [name] is its {!name} (defaults to ["custom"]);
     - [accent] is the main colour (defaults to {!default}'s teal);
     - [palette] are the colours successive progress rows take in turn, and that
-      a bar spreads along its length when there are several (defaults to
-      [[accent]], as does [[]]);
+      a bar without a style spreads along its length when there are several
+      (defaults to [[accent]], as does [[]]);
     - [ok], [warn] and [fail] colour the marks of a success, of a warning or a
       cancellation, and of a failure or an error (default to {!default}'s green,
       amber and red);
@@ -144,8 +144,9 @@ val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
 
 val palette : t -> Color.t list
-(** [palette t] are the colours successive progress rows take in turn, spread
-    along each bar without a style ({!Bar.v}) when there are several. It is
+(** [palette t] are the colours successive progress rows take in turn. A bar
+    without a style ({!Bar.v}) spreads them along its length when there are
+    several, and is in the main colour, {!accent}, when there is one. It is
     never empty. *)
 
 val ok : t -> Color.t
