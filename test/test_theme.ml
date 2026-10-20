@@ -32,7 +32,7 @@ let test_dos () =
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
   let table =
     Table.v
-      [ Table.column "a"; Table.column "b" ]
+      [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
       [ [ Span.text "1"; Span.text "2" ] ]
   in
   let tree = Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ] in
@@ -138,7 +138,7 @@ let test_widgets_read_it () =
       (contains default (printed pp v))
   in
   check "table" Table.pp
-    (Table.v [ Table.column "a" ] [ [ Span.text "1" ] ])
+    (Table.v [ Table.column (Span.text "a") ] [ [ Span.text "1" ] ])
     ~ascii:"+---+" ~default:"\u{256d}\u{2500}";
   check "panel" Panel.pp
     (Panel.v (Span.text "1"))
@@ -310,7 +310,8 @@ let test_roles () =
     if not (contains affix s) then Alcotest.failf "%s: no %S in %S" what affix s
   in
   let table =
-    print Table.pp (Table.v [ Table.column "a" ] [ [ Span.text "1" ] ])
+    print Table.pp
+      (Table.v [ Table.column (Span.text "a") ] [ [ Span.text "1" ] ])
   in
   check "table frame" (muted ^ "\u{256d}") table;
   check "table header" (header ^ "a") table;
@@ -409,7 +410,10 @@ let test_ascii_fallback () =
       ( "table",
         print Table.pp
           (Table.v
-             [ Table.column "a"; Table.column ~overflow:`Truncate "b" ]
+             [
+               Table.column (Span.text "a");
+               Table.column ~overflow:`Truncate (Span.text "b");
+             ]
              [ [ Span.text "1"; long ] ]) );
       ("panel", print Panel.pp (Panel.v ~title:long long));
       ( "tree",
@@ -475,7 +479,7 @@ let test_still () =
 let test_still_printed () =
   let table =
     Table.v
-      [ Table.column "a"; Table.column "b" ]
+      [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
       [ [ Span.text "1"; Span.text "2" ] ]
   in
   let panel = Panel.v ~title:(Span.text "T") (Span.text "body") in
@@ -523,7 +527,10 @@ let frames theme times =
   let term = terminal ~theme ~styled:true ~width:40 ~height:12 () in
   let table =
     Table.v
-      [ Table.column "step"; Table.column ~align:`Right "time" ]
+      [
+        Table.column (Span.text "step");
+        Table.column ~align:`Right (Span.text "time");
+      ]
       [ [ Span.text "fetch"; Span.text "1.2s" ] ]
   in
   Display.set_scene term.display (fun ~height:_ ppf -> Table.pp ppf table);

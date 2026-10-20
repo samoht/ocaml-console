@@ -34,7 +34,12 @@ let main color theme =
   let ok = Span.role `Ok "passed" in
   let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
   let cols =
-    Table.[ column "Suite"; column ~align:`Right "Tests"; column "Result" ]
+    Table.
+      [
+        column (Span.text "Suite");
+        column ~align:`Right (Span.text "Tests");
+        column (Span.text "Result");
+      ]
   in
   Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
 
@@ -129,7 +134,8 @@ open Span
 let print_files () =
   let table = Table.(
     v ~border:Border.rounded
-      [ column "Name"; column ~align:`Right "Size"; column "Modified" ]
+      [ column (text "Name"); column ~align:`Right (text "Size");
+        column (text "Modified") ]
       [
         [ text "README.md"; text "2.4K"; text "2 hours ago" ];
         [ text "src/"; text "4.0K"; text "yesterday" ];
@@ -160,7 +166,10 @@ Korean text, or of emoji, which take two cells each, stays aligned.
 # print_endline
     (Table.to_string
        (Table.v ~border:Border.simple
-          [ Table.column "Name"; Table.column ~align:`Right "Size" ]
+          [
+            Table.column (Span.text "Name");
+            Table.column ~align:`Right (Span.text "Size");
+          ]
           [
             [ Span.text "README.md"; Span.text "2.4K" ];
             [ Span.text "src/"; Span.text "4.0K" ];
@@ -173,7 +182,7 @@ src/       4.0K
 # print_endline
     (Table.to_string
        (Table.v ~rules:true
-          [ Table.column "Step"; Table.column "Status" ]
+          [ Table.column (Span.text "Step"); Table.column (Span.text "Status") ]
           [
             [ Span.text "fetch"; Span.text "done" ];
             [ Span.text "compile"; Span.text "2 warnings\n1 error" ];
@@ -233,7 +242,7 @@ label, and `Bar` a bar, here 65% full and twenty cells wide:
 ```ocaml
 # let downloads =
     Table.v ~border:Border.none
-      [ Table.column "File"; Table.column "Progress" ]
+      [ Table.column (Span.text "File"); Table.column (Span.text "Progress") ]
       [
         [ Span.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
         [ Span.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];

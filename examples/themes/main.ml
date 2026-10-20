@@ -15,7 +15,10 @@ let accent s = Span.with_style Style.bold (Span.role `Accent s)
 
 let table =
   Table.v ~rules:true
-    [ Table.column "Package"; Table.column ~align:`Right "Size" ]
+    [
+      Table.column (Span.text "Package");
+      Table.column ~align:`Right (Span.text "Size");
+    ]
     [
       [ accent "console"; Span.text "42 KiB" ];
       [ Span.text "console-eio"; Span.text "9 KiB" ];

@@ -12,7 +12,10 @@ and in plain text on a pipe:
 # let sizes =
     Console.Table.(
       v
-        [ column "Package"; column ~align:`Right "Size" ]
+        [
+          column (Console.Span.text "Package");
+          column ~align:`Right (Console.Span.text "Size");
+        ]
         [
           [ Console.Span.text "console"; Console.Span.text "42 KiB" ];
           [ Console.Span.text "console-eio"; Console.Span.text "9 KiB" ];

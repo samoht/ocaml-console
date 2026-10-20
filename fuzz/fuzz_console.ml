@@ -243,7 +243,7 @@ let rec pp = function
             Table.column
               ~align:[| `Left; `Center; `Right |].((k + i) mod 3)
               ~overflow:(if (k + i) land 4 = 0 then `Wrap else `Truncate)
-              ("c" ^ string_of_int i))
+              (Span.text ("c" ^ string_of_int i)))
       in
       let border =
         if k land 8 = 0 then None

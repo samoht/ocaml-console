@@ -25,7 +25,11 @@ let title =
 
 let table () =
   Table.v ~rules:true
-    [ Table.column "Step"; Table.column "Status"; Table.column "Detail" ]
+    [
+      Table.column (Span.text "Step");
+      Table.column (Span.text "Status");
+      Table.column (Span.text "Detail");
+    ]
     (List.map
        (fun s -> [ Span.text s.name; s.status; Span.text s.detail ])
        steps)

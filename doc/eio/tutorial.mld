@@ -81,7 +81,12 @@ val suites : (string * int) list = [("parser", 3); ("layout", 2)]
       [ Console.Span.text name; Console.Span.text (Int.to_string n) ]
     in
     Console.Table.(
-      v [ column "Suite"; column ~align:`Right "Tests" ] (List.map row suites));;
+      v
+        [
+          column (Console.Span.text "Suite");
+          column ~align:`Right (Console.Span.text "Tests");
+        ]
+        (List.map row suites));;
 val results : (string * int) list -> Console.Table.t = <fun>
 # Fmt.pr "%a@." Console.Table.pp (results suites);;
 ╭────────┬───────╮

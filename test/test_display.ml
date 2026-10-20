@@ -953,7 +953,10 @@ let test_iter () =
 
 let steps =
   Table.v
-    [ Table.column "step"; Table.column ~align:`Right "time" ]
+    [
+      Table.column (Span.text "step");
+      Table.column ~align:`Right (Span.text "time");
+    ]
     [
       [ Span.text "fetch"; Span.text "1.2s" ];
       [ Span.text "compile"; Span.text "3.4s" ];
@@ -1145,7 +1148,10 @@ let test_scene_moves () =
 let test_simple_scene_stands_still () =
   let simple =
     Table.v ~border:Border.simple
-      [ Table.column "step"; Table.column ~align:`Right "time" ]
+      [
+        Table.column (Span.text "step");
+        Table.column ~align:`Right (Span.text "time");
+      ]
       [
         [ Span.text "fetch"; Span.text "1.2s" ];
         [ Span.text "compile"; Span.text "3.4s" ];

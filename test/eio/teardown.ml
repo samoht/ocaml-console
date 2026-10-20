@@ -38,7 +38,10 @@ let widgets env =
   let leaf = Tree.v long [] in
   Fmt.pr "%a@.%a@.%a@.%a@.%a@." Table.pp
     (Table.v
-       [ Table.column "a"; Table.column ~overflow:`Truncate "b" ]
+       [
+         Table.column (Span.text "a");
+         Table.column ~overflow:`Truncate (Span.text "b");
+       ]
        [ [ Span.text "1"; long ] ])
     Panel.pp (Panel.v ~title:long long) Tree.pp
     (Tree.v long [ Tree.v long [ leaf ]; leaf ])

@@ -54,7 +54,9 @@
       let table =
         Table.(
           v ~border:Border.rounded
-            [ column "Name"; column ~align:`Right "Age" ]
+            [
+              column (Span.text "Name"); column ~align:`Right (Span.text "Age");
+            ]
             [
               [ Span.text "Alice"; Span.text "30" ];
               [ Span.text "Bob"; Span.text "25" ];

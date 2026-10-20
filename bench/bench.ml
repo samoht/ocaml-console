@@ -52,7 +52,12 @@ let table () =
         [ Fmt.kstr Span.text "row %d" i; Span.text prose; Span.text "42" ])
   in
   let columns =
-    Table.[ column "Name"; column "Text"; column ~align:`Right "N" ]
+    Table.
+      [
+        column (Span.text "Name");
+        column (Span.text "Text");
+        column ~align:`Right (Span.text "N");
+      ]
   in
   Format.pp_set_margin null 120;
   run "table 1k rows" ~n:10 (fun () -> Table.pp null (Table.v columns rows))

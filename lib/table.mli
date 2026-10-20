@@ -30,9 +30,10 @@ val column :
   ?overflow:overflow ->
   ?shrinkable:bool ->
   ?style:Style.t ->
-  string ->
+  Span.t ->
   column
-(** [column header] is a column headed [header], such that:
+(** [column header] is a column headed [header], in the table's header style
+    under its own styles, such that:
 
     - [align] places the cells in the column (defaults to [`Left]);
     - [min_width] and [max_width] bound its width, in cells; the table goes

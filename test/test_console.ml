@@ -244,7 +244,7 @@ let test_put_together () =
   check_fits "a gradient in a cell" 14
     (Fmt.const Table.pp
        (Table.v
-          [ Table.column "a"; Table.column "b" ]
+          [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
           [ [ Span.gradient (emoji ^ " " ^ emoji); Span.text "x" ] ]));
   (* A panel's hanging lines have less room than its first one. *)
   check_fits "a narrow panel" 4
@@ -257,7 +257,9 @@ let test_put_together () =
     hcat ~gap:1
       [
         Fmt.const Table.pp
-          (Table.v [ Table.column "h" ] [ [ Span.text "\u{754c}\u{754c}" ] ]);
+          (Table.v
+             [ Table.column (Span.text "h") ]
+             [ [ Span.text "\u{754c}\u{754c}" ] ]);
         Fmt.const Tree.pp
           (Tree.v (Span.text "root") [ Tree.v (Span.text "leaf") [] ]);
       ]

@@ -28,7 +28,12 @@ let main color theme =
   let ok = Span.role `Ok "passed" in
   let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
   let cols =
-    Table.[ column "Suite"; column ~align:`Right "Tests"; column "Result" ]
+    Table.
+      [
+        column (Span.text "Suite");
+        column ~align:`Right (Span.text "Tests");
+        column (Span.text "Result");
+      ]
   in
   Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
 

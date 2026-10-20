@@ -69,7 +69,7 @@ let table ?(border = Border.rounded) s =
         Table.column
           ~align:(match i mod 3 with 0 -> `Left | 1 -> `Right | _ -> `Center)
           ~overflow:(if i mod 2 = 0 then `Wrap else `Truncate)
-          (pick s (i + 1)))
+          (Span.text (pick s (i + 1))))
   in
   let rows =
     List.init 3 (fun r ->
@@ -120,7 +120,9 @@ let test_right_aligned s =
   let rows = List.init 4 (fun i -> [ cells_of i; Span.text "|" ]) in
   let t =
     Table.v ~border:Border.none
-      [ Table.column ~align:`Right "a"; Table.column "b" ]
+      [
+        Table.column ~align:`Right (Span.text "a"); Table.column (Span.text "b");
+      ]
       rows
   in
   let firsts = Span.text "a" :: List.map List.hd rows in
@@ -140,7 +142,9 @@ let test_right_aligned s =
 let test_shape s n =
   let k = abs n mod 4 in
   let rows = [ List.init k (fun i -> Span.text (pick s i)) ] in
-  match Table.v [ Table.column "a"; Table.column "b" ] rows with
+  match
+    Table.v [ Table.column (Span.text "a"); Table.column (Span.text "b") ] rows
+  with
   | _ -> if k = 0 || k > 2 then fail "bad row accepted"
   | exception Invalid_argument _ -> if k >= 1 && k <= 2 then fail "row refused"
 
@@ -148,7 +152,10 @@ let test_huge_min_width n =
   let minimum = max_int - (n mod 1024) in
   let t =
     Table.v
-      [ Table.column ~min_width:minimum "A"; Table.column "B" ]
+      [
+        Table.column ~min_width:minimum (Span.text "A");
+        Table.column (Span.text "B");
+      ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
   let out = Table.to_string ~width:20 t in
@@ -179,7 +186,7 @@ let test_wide_border n =
   in
   let t =
     Table.v ~border
-      [ Table.column "A"; Table.column "B" ]
+      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
   let lines = String.split_on_char '\n' (Table.to_string ~width:40 t) in
@@ -193,7 +200,9 @@ let check_marker_columns mixed s =
   (* A marker in the next column gives an observable column boundary. *)
   let t =
     Table.v ~border:Border.none
-      [ Table.column ~align:`Right ""; Table.column "|" ]
+      [
+        Table.column ~align:`Right (Span.text ""); Table.column (Span.text "|");
+      ]
       (List.map
          (fun cell -> [ cell; Span.text "|" ])
          [
@@ -231,7 +240,12 @@ let test_mixed_script_themes s n =
   List.iter
     (fun theme ->
       let t =
-        Table.v [ Table.column "name"; Table.column ~align:`Right "size" ] rows
+        Table.v
+          [
+            Table.column (Span.text "name");
+            Table.column ~align:`Right (Span.text "size");
+          ]
+          rows
       in
       let raw, lines = render ~theme Table.pp margin t in
       check (String.is_valid_utf_8 raw);
@@ -247,7 +261,7 @@ let test_mixed_script_themes s n =
 let test_rules s n =
   let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
   let nrows = 1 + (abs n mod 6) in
-  let columns = List.init ncol (fun _ -> Table.column "h") in
+  let columns = List.init ncol (fun _ -> Table.column (Span.text "h")) in
   let rows =
     List.init nrows (fun r ->
         List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))

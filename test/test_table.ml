@@ -13,7 +13,7 @@ let test_basic () =
   let table =
     Table.(
       v
-        [ column "A"; column "B" ]
+        [ column (Span.text "A"); column (Span.text "B") ]
         [ [ Span.text "1"; Span.text "2" ]; [ Span.text "3"; Span.text "4" ] ])
   in
   let output = Table.to_string table in
@@ -22,7 +22,7 @@ let test_basic () =
 
 (* Without a border or a theme, a table is framed as a panel is. *)
 let test_default_border () =
-  let table = Table.(v [ column "A" ] [ [ Span.text "1" ] ]) in
+  let table = Table.(v [ column (Span.text "A") ] [ [ Span.text "1" ] ]) in
   let panel = Panel.v (Span.text "1") in
   let first s = String.sub s 0 (String.index s '\n') in
   Alcotest.(check string)
@@ -31,7 +31,7 @@ let test_default_border () =
     (Astring.String.with_range ~len:3 (first (Table.to_string table)))
 
 let test_empty () =
-  let table = Table.(v [ column "X" ] []) in
+  let table = Table.(v [ column (Span.text "X") ] []) in
   let output = Table.to_string table in
   Alcotest.(check bool) "contains X" true (contains "X" output)
 
@@ -39,7 +39,7 @@ let test_wrap () =
   let table =
     Table.(
       v
-        [ column ~max_width:10 ~overflow:`Wrap "Header" ]
+        [ column ~max_width:10 ~overflow:`Wrap (Span.text "Header") ]
         [ [ Span.text "hello world this wraps" ] ])
   in
   let output = Table.to_string table in
@@ -58,7 +58,9 @@ let test_wrap_preserves_unbroken_token () =
   let table =
     of_string_rows
       [
-        Table.column "Context"; Table.column "Service"; Table.column "Endpoint";
+        Table.column (Span.text "Context");
+        Table.column (Span.text "Service");
+        Table.column (Span.text "Endpoint");
       ]
       [ [ "infra  ACTIVE"; "Scheduler"; url ] ]
   in
@@ -70,7 +72,9 @@ let test_wrap_preserves_unbroken_token () =
    detection, owns colour policy. *)
 let test_string_conversion_is_plain () =
   let t =
-    of_string_rows [ Table.column "A"; Table.column "B" ] [ [ "1"; "2" ] ]
+    of_string_rows
+      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
+      [ [ "1"; "2" ] ]
   in
   let has_esc s = String.contains s '\027' in
   Alcotest.(check bool)
@@ -107,7 +111,10 @@ let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
 let test_bar_cell () =
   let table ?overflow ?max_width bar =
     Table.v ~border:Border.none
-      [ Table.column "task"; Table.column ?overflow ?max_width "done" ]
+      [
+        Table.column (Span.text "task");
+        Table.column ?overflow ?max_width (Span.text "done");
+      ]
       [ [ Span.text "copy"; Bar.to_span bar ] ]
   in
   let half = table (Bar.v ~width:4 0.5) in
@@ -149,7 +156,9 @@ let test_bar_span () =
 
 let test_formatter_gates_cell_styles () =
   let table =
-    Table.v [ Table.column "A" ] [ [ Span.styled Style.(fg Color.red) "red" ] ]
+    Table.v
+      [ Table.column (Span.text "A") ]
+      [ [ Span.styled Style.(fg Color.red) "red" ] ]
   in
   Alcotest.(check bool)
     "plain formatter has no escapes" false
@@ -161,7 +170,7 @@ let test_formatter_gates_cell_styles () =
 let test_link_cell () =
   let table =
     Table.v
-      [ Table.column "A" ]
+      [ Table.column (Span.text "A") ]
       [ [ Span.link ~uri:"https://example.com" "docs" ] ]
   in
   Alcotest.(check bool)
@@ -175,8 +184,8 @@ let test_formatter_margin_never_wraps_border () =
   let table =
     of_string_rows ~border:Border.rounded
       [
-        Table.column ~shrinkable:false "Package";
-        Table.column ~overflow:`Wrap "Remote";
+        Table.column ~shrinkable:false (Span.text "Package");
+        Table.column ~overflow:`Wrap (Span.text "Remote");
       ]
       [
         [ "ocaml-parquet"; "git@git.recoil.org:gazagnaire.org/ocaml-parquet" ];
@@ -253,7 +262,7 @@ let test_every_margin_is_a_hard_limit () =
         Table.column ~min_width:12
           ~shrinkable:(i mod 2 = 0)
           ~overflow:(if i mod 2 = 0 then `Wrap else `Truncate)
-          header)
+          (Span.text header))
       hostile
   in
   let table = of_string_rows ~border:Border.rounded columns [ hostile ] in
@@ -323,11 +332,13 @@ let test_every_margin_is_a_hard_limit () =
 let test_invalid_shape () =
   Alcotest.check_raises "negative minimum width"
     (Invalid_argument "Console.Table.column: negative min_width") (fun () ->
-      ignore (Table.column ~min_width:(-1) "A"));
+      ignore (Table.column ~min_width:(-1) (Span.text "A")));
   Alcotest.check_raises "minimum exceeds maximum"
     (Invalid_argument "Console.Table.column: min_width exceeds max_width")
-    (fun () -> ignore (Table.column ~min_width:3 ~max_width:2 "A"));
-  let columns = [ Table.column "A"; Table.column "B" ] in
+    (fun () -> ignore (Table.column ~min_width:3 ~max_width:2 (Span.text "A")));
+  let columns =
+    [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
+  in
   Alcotest.check_raises "too many cells"
     (Invalid_argument "Console.Table.v: expected 1 to 2 cells, got 3")
     (fun () ->
@@ -345,8 +356,8 @@ let test_shrinkable_protects_column () =
     Table.(
       v
         [
-          column ~shrinkable:false "Package";
-          column ~overflow:`Truncate "Detail";
+          column ~shrinkable:false (Span.text "Package");
+          column ~overflow:`Truncate (Span.text "Detail");
         ]
         [ [ Span.text long_name; Span.text detail ] ])
   in
@@ -356,7 +367,10 @@ let test_shrinkable_protects_column () =
   let shrinkable =
     Table.(
       v
-        [ column ~overflow:`Truncate "Package"; column "Detail" ]
+        [
+          column ~overflow:`Truncate (Span.text "Package");
+          column (Span.text "Detail");
+        ]
         [ [ Span.text long_name; Span.text detail ] ])
   in
   Alcotest.(check bool)
@@ -376,23 +390,26 @@ let test_no_border_draws_no_edge () =
     [ "NAME         SIZE"; "alpha        1"; "beta-longer  22" ]
     (lines
        (of_string_rows ~border:Border.none
-          [ Table.column "NAME"; Table.column "SIZE" ]
+          [ Table.column (Span.text "NAME"); Table.column (Span.text "SIZE") ]
           [ [ "alpha"; "1" ]; [ "beta-longer"; "22" ] ]));
   Alcotest.(check (list string))
     "a right-aligned last column is padded on its left"
     [ "NAME  SIZE"; "a        1"; "b       22" ]
     (lines
        (of_string_rows ~border:Border.none
-          [ Table.column "NAME"; Table.column ~align:`Right "SIZE" ]
+          [
+            Table.column (Span.text "NAME");
+            Table.column ~align:`Right (Span.text "SIZE");
+          ]
           [ [ "a"; "1" ]; [ "b"; "22" ] ]));
   Alcotest.(check (list string))
     "a cell of fewer lines than its row ends where its text ends"
     [ "NAME  NOTE"; "a     one"; "      two" ]
     (lines
        (of_string_rows ~border:Border.none
-          [ Table.column "NAME"; Table.column "NOTE" ]
+          [ Table.column (Span.text "NAME"); Table.column (Span.text "NOTE") ]
           [ [ "a"; "one\ntwo" ] ]));
-  let col = Table.column "" in
+  let col = Table.column (Span.text "") in
   Alcotest.(check string)
     "a line ends at its last cell that is not empty" "fix   stuck  /pool\nmain"
     (Table.to_string
@@ -404,7 +421,7 @@ let test_styled_border_runs () =
   let t =
     Table.v
       ~border:(Border.with_style Style.(fg Color.red) Border.single)
-      [ Table.column "a" ]
+      [ Table.column (Span.text "a") ]
       [ [ Span.text "b" ] ]
   in
   let lines = String.split_on_char '\n' (Table.to_string ~styled:true t) in
@@ -418,7 +435,9 @@ let test_styled_border_runs () =
 
 let test_pp_ending () =
   let table =
-    of_string_rows ~border:Border.none [ Table.column "" ] [ [ "x" ] ]
+    of_string_rows ~border:Border.none
+      [ Table.column (Span.text "") ]
+      [ [ "x" ] ]
   in
   Alcotest.(check string)
     "caller supplies the line ending" "x!"
@@ -427,7 +446,10 @@ let test_pp_ending () =
 let test_huge_min_width () =
   let t =
     Table.v
-      [ Table.column ~min_width:max_int "A"; Table.column "B" ]
+      [
+        Table.column ~min_width:max_int (Span.text "A");
+        Table.column (Span.text "B");
+      ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
   let out = Table.to_string ~width:20 t in
@@ -462,7 +484,7 @@ let test_wide_border () =
   in
   let t =
     Table.v ~border
-      [ Table.column "A"; Table.column "B" ]
+      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
       [ [ Span.text "x"; Span.text "y" ] ]
   in
   let widths =
@@ -486,7 +508,7 @@ let test_wide_border () =
 let test_rules () =
   let table ?rules ?border () =
     Table.v ?rules ?border
-      [ Table.column "a" ]
+      [ Table.column (Span.text "a") ]
       [ [ Span.text "1" ]; [ Span.text "2\n3" ]; [ Span.text "4" ] ]
   in
   Alcotest.(check string)
@@ -523,7 +545,10 @@ let test_rules () =
 let test_simple () =
   let table ?rules () =
     Table.v ?rules ~border:Border.simple
-      [ Table.column "Name"; Table.column ~align:`Right "Size" ]
+      [
+        Table.column (Span.text "Name");
+        Table.column ~align:`Right (Span.text "Size");
+      ]
       [
         [ Span.text "README.md"; Span.text "2.4K" ];
         [ Span.text "src/"; Span.text "4.0K" ];

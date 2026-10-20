@@ -45,7 +45,6 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
   | Some min, Some max when min > max ->
       invalid_arg "Console.Table.column: min_width exceeds max_width"
   | _ -> ());
-  let header = Span.text header in
   { header; align; min_width; max_width; overflow; shrinkable; style }
 
 let frame border =

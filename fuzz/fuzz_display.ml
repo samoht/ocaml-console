@@ -920,7 +920,10 @@ let widget kind cells =
     Table.pp ppf
       (Table.v
          ~rules:(List.length cells mod 2 = 0)
-         [ Table.column "a"; Table.column ~align:`Right "b" ]
+         [
+           Table.column (Span.text "a");
+           Table.column ~align:`Right (Span.text "b");
+         ]
          (List.map (fun c -> [ c; c ]) cells))
   else fun ppf ->
     Panel.pp ppf

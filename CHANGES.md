@@ -9,9 +9,10 @@ Initial release of `console` and `console-eio`.
   links (`Span.link`, percent-encoding the bytes a URI may not hold) and
   colours graded along it (`Span.gradient`). A span holds only text that
   prints, and `Style.styled` styles any `Fmt` printer.
-- Widgets. `Table` (columns that wrap or truncate, rules between rows with
-  `~rules:true`, a frameless `Border.simple`), `Tree`, `Panel`, `Rule` and
-  `Bar`, which `Bar.to_span` puts in a cell; `Console.hcat` prints blocks
+- Widgets. `Table` (headers and cells are spans, columns that wrap or
+  truncate, rules between rows with `~rules:true`, a frameless
+  `Border.simple`), `Tree`, `Panel`, `Rule` and `Bar`, which `Bar.to_span`
+  puts in a cell; `Console.hcat` prints blocks
   side by side. Widths are counted in terminal cells, wide characters and
   emoji included, a widget is no wider than its formatter's margin, and
   every widget is drawn in ASCII on a formatter that is not UTF-8. Each has a

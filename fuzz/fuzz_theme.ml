@@ -53,7 +53,10 @@ let test_ascii s n =
   let leaf = Tree.v text [] in
   Fmt.pf ppf "%a@.%a@.%a@.%a@.%a@." Table.pp
     (Table.v
-       [ Table.column s; Table.column ~overflow:`Truncate s ]
+       [
+         Table.column (Span.text s);
+         Table.column ~overflow:`Truncate (Span.text s);
+       ]
        [ [ text; text ]; [ text ] ])
     Panel.pp
     (Panel.v ~title:text ~subtitle:text text)
