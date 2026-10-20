@@ -20,9 +20,10 @@ let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* The DOS preset draws as DOS programs did in code page 437: double-line
-   frames, a header rule across them, tree guides of single lines, blocky
-   bars and the ASCII spinner; ASCII alone where UTF-8 is not shown. *)
+(* The DOS preset draws as Norton Commander did in code page 437: frames of
+   double lines with single lines inside them, tree guides of single lines,
+   blocky bars and the ASCII spinner; ASCII alone where UTF-8 is not
+   shown. *)
 let test_dos () =
   let t = Theme.dos in
   Alcotest.(check string)
@@ -36,12 +37,12 @@ let test_dos () =
   in
   let tree = Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ] in
   Alcotest.(check string)
-    "double-line table"
-    "\u{2554}\u{2550}\u{2550}\u{2550}\u{2566}\u{2550}\u{2550}\u{2550}\u{2557}\n\
-     \u{2551} a \u{2551} b \u{2551}\n\
-     \u{2560}\u{2550}\u{2550}\u{2550}\u{256c}\u{2550}\u{2550}\u{2550}\u{2563}\n\
-     \u{2551} 1 \u{2551} 2 \u{2551}\n\
-     \u{255a}\u{2550}\u{2550}\u{2550}\u{2569}\u{2550}\u{2550}\u{2550}\u{255d}"
+    "double-line frame, single-line inside"
+    "\u{2554}\u{2550}\u{2550}\u{2550}\u{2564}\u{2550}\u{2550}\u{2550}\u{2557}\n\
+     \u{2551} a \u{2502} b \u{2551}\n\
+     \u{255f}\u{2500}\u{2500}\u{2500}\u{253c}\u{2500}\u{2500}\u{2500}\u{2562}\n\
+     \u{2551} 1 \u{2502} 2 \u{2551}\n\
+     \u{255a}\u{2550}\u{2550}\u{2550}\u{2567}\u{2550}\u{2550}\u{2550}\u{255d}"
     (printed ~theme:t Table.pp table);
   Alcotest.(check string)
     "double-line panel"

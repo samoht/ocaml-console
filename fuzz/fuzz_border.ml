@@ -19,6 +19,8 @@ let test s =
       bottom_left = s;
       bottom = s;
       bottom_right = s;
+      vertical = s;
+      horizontal = s;
       cross = s;
       top_cross = s;
       bottom_cross = s;
@@ -41,6 +43,7 @@ let test s =
       Border.ascii;
       Border.single;
       Border.double;
+      Border.dos;
       Border.rounded;
       Border.heavy;
       Border.hidden;
