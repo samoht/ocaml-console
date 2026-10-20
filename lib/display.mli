@@ -53,7 +53,9 @@
     first and counted on a line of their own. Console sees standard output
     through {!Fmt.stdout} and [Logs] messages through its driver ({!drivers}):
     what [print_string], [Printf] or a child process writes on the terminal is
-    not seen and garbles the rows, so print it with {!with_output}.
+    not seen and garbles the rows, so print it with {!with_output}. Without a
+    terminal, console flushes {!Fmt.stdout} before each line it writes, so that
+    [2>&1] keeps the order of the two outputs.
 
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of its output, the level of a [Logs]

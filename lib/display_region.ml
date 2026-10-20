@@ -20,9 +20,16 @@ let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 let synchronized t s =
   if is_live t then "\027[?2026h" ^ s ^ "\027[?2026l" else s
 
+(* Without a terminal, standard output may share the display's pipe: what
+   the program printed there goes out first. *)
+let flush_stdout t =
+  if (not (is_live t)) && t.ppf != Fmt.stdout then
+    try Format.pp_print_flush Fmt.stdout () with Sys_error _ -> ()
+
 let write t s =
   if s <> "" then
     try
+      flush_stdout t;
       Format.pp_print_flush t.ppf ();
       let s =
         if is_live t then synchronized t s

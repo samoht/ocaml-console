@@ -94,7 +94,8 @@ stay. Command output stays only if the task fails.
 A failed task keeps up to 1 MiB of its output, the oldest lines dropped first
 and counted on a line of their own. What `print_string`, `Printf` or a child
 process writes on the terminal is not seen and garbles the rows: print it with
-`Display.with_output`.
+`Display.with_output`. On a pipe, console flushes standard output before each
+line it writes, so that `2>&1` keeps the order of the two outputs.
 
 Each line starts with a mark that says how its task ended; the theme chooses
 the marks:
