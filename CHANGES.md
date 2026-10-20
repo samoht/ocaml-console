@@ -76,3 +76,5 @@
   a network channel links it without the widgets.
 - `Span.link` percent-encodes the bytes a URI may not hold rather than
   raising, and an empty URI links nowhere.
+- `Rule.to_string ~width` draws a rule as a string, as the other widgets'
+  `to_string` do.

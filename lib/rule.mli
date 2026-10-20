@@ -5,6 +5,8 @@
 
 (** Horizontal lines with an optional label. *)
 
+(** {1:rules Rules} *)
+
 type align = [ `Left | `Center | `Right ]
 (** The type for label alignments within a line. *)
 
@@ -23,6 +25,14 @@ val v :
     @raise Invalid_argument
       if [glyph], with each control character a space, is not one terminal cell
       wide. *)
+
+(** {1:converting Converting} *)
+
+val to_string : ?styled:bool -> width:int -> t -> string
+(** [to_string ~width rule] is [rule] as {!pp} formats it at a margin of
+    [width], with colours iff [styled] (defaults to [false]). *)
+
+(** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
 (** [pp] formats a line exactly as wide as the formatter's margin. A label wider
