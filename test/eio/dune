@@ -15,13 +15,20 @@
  (modules tty)
  (libraries console_vte cstruct eio eio.unix eio_main matrix.vte unix))
 
+; A program under Console_eio.run on a pipe, for the cram tests.
+
+(executable
+ (name piped)
+ (modules piped)
+ (libraries console console-eio eio eio.mock eio_main fmt logs))
+
 (cram
  (package console-eio)
- (deps tty.exe ../../examples/progress/main.exe))
+ (deps tty.exe piped.exe ../../examples/progress/main.exe))
 
 (test
  (name test)
- (modules :standard \ teardown tty)
+ (modules :standard \ teardown tty piped)
  (package console-eio)
  (deps teardown.exe)
  (libraries
