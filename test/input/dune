@@ -5,6 +5,7 @@
 (test
  (name test)
  (package console)
+ (deps widths.txt)
  (libraries
   console.input
   console_vte

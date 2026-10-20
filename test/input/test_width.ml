@@ -32,9 +32,56 @@ let test_matches_terminal () =
         (Width.string_width s))
     [ "hello"; "\xe7\x95\x8c\xe7\x95\x8c"; "e\xcc\x81"; "\xf0\x9f\x8e\x89 ok" ]
 
+(* {1 Real terminals} *)
+
+let utf_8 cps =
+  let b = Buffer.create 16 in
+  List.iter
+    (fun cp ->
+      Buffer.add_utf_8_uchar b (Uchar.of_int (int_of_string ("0x" ^ cp))))
+    cps;
+  Buffer.contents b
+
+(* The rows of widths.txt: the string, the cells each terminal gives it,
+   [None] where unknown, and console's. *)
+let rows () =
+  In_channel.with_open_text "widths.txt" In_channel.input_lines
+  |> List.filter (fun l -> l <> "" && l.[0] <> '#')
+  |> List.map (fun line ->
+      match List.map String.trim (String.split_on_char '|' line) with
+      | cps :: rest -> (
+          let cells = function "?" -> None | n -> Some (int_of_string n) in
+          match List.rev rest with
+          | what :: console :: terminals ->
+              ( what,
+                utf_8 (String.split_on_char ' ' cps |> List.filter (( <> ) "")),
+                List.rev_map cells terminals,
+                int_of_string console )
+          | _ -> Alcotest.failf "a short row: %S" line)
+      | [] -> Alcotest.failf "an empty row: %S" line)
+
+(* Console counts what its policy says, which is what the terminals show
+   where they agree, and one of their counts where they do not. *)
+let test_real_terminals () =
+  let rows = rows () in
+  Alcotest.(check bool) "the table has rows" true (List.length rows > 10);
+  List.iter
+    (fun (what, s, terminals, console) ->
+      Alcotest.(check int) what console (Width.string_width s);
+      let known = List.filter_map Fun.id terminals in
+      (match List.sort_uniq Int.compare known with
+      | [ all ] ->
+          Alcotest.(check int) (what ^ ": as every terminal") all console
+      | _ -> ());
+      Alcotest.(check bool)
+        (what ^ ": as some terminal")
+        true (List.mem console known))
+    rows
+
 let suite =
   ( "width",
     [
       Alcotest.test_case "widths" `Quick test_widths;
       Alcotest.test_case "matches the terminal" `Quick test_matches_terminal;
+      Alcotest.test_case "as real terminals show it" `Quick test_real_terminals;
     ] )
