@@ -98,9 +98,10 @@ val wrap : int -> t -> t list
     A line breaks at a run of spaces, which the break removes, or after a slash;
     the spaces inside a line and its leading ones are kept. A word wider than
     [w] goes on over the next lines, broken where the room ends. A character
-    wider than [w] (a wide one when [w] is [1]) cannot be drawn and is left out.
-    The result is never empty, and every other non-space character of [s] is in
-    it, in order, styles and links kept.
+    wider than [w] (a wide one when [w] is [1], or one with a spacing mark when
+    [w] is its width less one) cannot be drawn and is left out. The result is
+    never empty, and every other non-space character of [s] is in it, in order,
+    styles and links kept.
 
     @raise Invalid_argument if [w] is not positive. *)
 

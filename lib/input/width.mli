@@ -10,9 +10,11 @@ val string_width : string -> int
     control character: grapheme clusters (UAX #29) at their East Asian width
     (UAX #11), so that a wide character takes two cells, a combining mark none,
     and an emoji sequence two: a ZWJ sequence, a skin tone, a flag, a keycap,
-    and a character VS16 shows as an emoji. A VS16 after a character that
-    emoji-variation-sequences.txt does not list selects nothing and adds no
-    cell.
+    and a character VS16 shows as an emoji. A spacing mark (general category Mc)
+    after the first code point of its cluster adds a cell, as xterm, VTE and
+    Ghostty draw it, so that a consonant and its vowel sign take two. A VS16
+    after a character that emoji-variation-sequences.txt does not list selects
+    nothing and adds no cell.
 
     This is how terminals that cluster graphemes draw text, kitty and Ghostty
     among them. Terminals that give each code point its own width, xterm and VTE
