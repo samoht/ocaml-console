@@ -32,6 +32,7 @@
   its progress rows' included, are rainbows.
 - `Bar.to_span` puts a bar in a table cell, a tree or a panel, drawn in
   the theme and the UTF-8 of the formatter it is printed on.
+- `Table.v ~rules:true` separates the rows of a table with rules.
 - `Display.set_scene` draws what a printer prints, such as a table, above
   the rows of a live display, at their width and in the display's theme.
 - A theme's frames move (`Theme.motion`) in a scene: digital rain in

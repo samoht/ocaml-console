@@ -26,6 +26,7 @@ type drawn = {
   border : Border.t;
   frame : frame;
   header_style : Style.t;
+  rules : bool;
   columns : column array;
   headers : Span.t list array;
   rows : Span.t list array list;
@@ -57,7 +58,7 @@ let frame border =
       Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
   }
 
-let v ?border ?header_style columns rows =
+let v ?border ?header_style ?(rules = false) columns rows =
   let expected = List.length columns in
   let rows =
     List.map
@@ -76,7 +77,16 @@ let v ?border ?header_style columns rows =
     let header_style =
       Option.value header_style ~default:(Theme.header look.theme)
     in
-    { look; border; frame = frame border; header_style; columns; headers; rows }
+    {
+      look;
+      border;
+      frame = frame border;
+      header_style;
+      rules;
+      columns;
+      headers;
+      rows;
+    }
 
 (* {1 Column widths} *)
 
@@ -301,17 +311,22 @@ let lines ?max_width t =
     let widths = widths ?max_width t in
     let row style r = row_lines ?max_width t widths style r in
     let has_headers = Array.exists (fun h -> lines_width h > 0) t.headers in
-    let body = List.concat_map (row Style.none) t.rows in
+    let between =
+      rule t widths ~left:c.left_cross ~mid:c.cross ~right:c.right_cross
+        ~line:c.top
+    in
+    let body =
+      List.concat
+        (List.mapi
+           (fun i r ->
+             (if i > 0 && t.rules then between else []) @ row Style.none r)
+           t.rows)
+    in
     let lines =
       rule t widths ~left:c.top_left ~mid:c.top_cross ~right:c.top_right
         ~line:c.top
       @ (if has_headers then
-           row t.header_style t.headers
-           @
-           if t.rows <> [] then
-             rule t widths ~left:c.left_cross ~mid:c.cross ~right:c.right_cross
-               ~line:c.top
-           else []
+           row t.header_style t.headers @ if t.rows <> [] then between else []
          else [])
       @ body
       @ rule t widths ~left:c.bottom_left ~mid:c.bottom_cross

@@ -55,14 +55,17 @@ val column :
 val v :
   ?border:Border.t ->
   ?header_style:Style.t ->
+  ?rules:bool ->
   column list ->
   Span.t list list ->
   t
-(** [v columns rows] is the table of [rows] under [columns]. Its frame is
+(** [v ~rules columns rows] is the table of [rows] under [columns]. Its frame is
     [border] if given, else the border of the theme of the formatter it is
     printed on ({!Theme.get}); the headers are in [header_style] (defaults to
     the theme's {!Theme.header}). A cell may hold line feeds, which start new
-    lines inside its row.
+    lines inside its row. If [rules] (defaults to [false]), a rule in the glyphs
+    and the style of the header's rule separates each two rows; a frame that
+    moves ({!Theme.motion}) moves its ends with its edges.
 
     A row with fewer cells than there are columns ends in a cell that spans the
     columns left. In a table without a frame ({!Border.none}) a line ends at its
