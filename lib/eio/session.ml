@@ -59,12 +59,12 @@ let await_release () =
 (* The run that opened the display waits for those that joined it. *)
 let last_out s =
   s.users <- s.users - 1;
+  Fun.protect ~finally:(fun () -> s.closing <- true) @@ fun () ->
   if s.users > 0 then begin
     let idle, resolver = Eio.Promise.create () in
     s.idle <- Some resolver;
     Eio.Promise.await idle
-  end;
-  s.closing <- true
+  end
 
 (* [exit] runs the [at_exit] functions but no [finally]: the display is
    closed there, its tasks cancelled, so the cursor is shown again and the
@@ -311,6 +311,18 @@ let suspend ~cursor display stop =
       cursor true;
       Fun.protect stop ~finally:(fun () -> cursor false))
 
+(* [f] for the run that opened [s]'s display. A function that raised waits
+   for the others as one that returned does; a cancelled one cannot wait. *)
+let first_run s f =
+  match Eio.Fiber.with_binding current s.display (fun () -> f s.display) with
+  | v ->
+      last_out s;
+      v
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      (try last_out s with Eio.Cancel.Cancelled _ -> ());
+      Printexc.raise_with_backtrace e bt
+
 let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
   Atomic.set running (Some display);
   let s =
@@ -345,10 +357,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
       @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
           Display.close display)
-      @@ fun () ->
-      let v = Eio.Fiber.with_binding current display (fun () -> f display) in
-      last_out s;
-      v
+      @@ fun () -> first_run s f
     with
     | v -> v
     | exception e ->
