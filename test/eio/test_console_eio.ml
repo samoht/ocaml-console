@@ -81,25 +81,18 @@ let test_nested_run_reuses_the_display () =
            ~prefix:"\xe2\x80\xa2 nested work\n\xe2\x9c\x93 nested work"
            (Buffer.contents buf)))
 
-(* A display that is not this fiber's is refused, and the one that runs is
-   not disturbed. *)
+(* A display in another domain is refused, and the one that runs is not
+   disturbed. *)
 let test_second_display_refused () =
-  with_clock (fun clock ->
-      let _, ppf = buffer () in
-      let started, start = Eio.Promise.create () in
-      let finish, finished = Eio.Promise.create () in
-      Eio.Fiber.both
-        (fun () ->
-          Console_eio.run ~clock ~ppf (fun _ ->
-              Eio.Promise.resolve start ();
-              Eio.Promise.await finish))
-        (fun () ->
-          Eio.Promise.await started;
+  Eio_main.run @@ fun env ->
+  let clock = Eio.Stdenv.mono_clock env in
+  let _, ppf = buffer () in
+  Console_eio.run ~clock ~ppf (fun _ ->
+      Eio.Domain_manager.run (Eio.Stdenv.domain_mgr env) (fun () ->
           Alcotest.check_raises "refused"
             (Invalid_argument "Console_eio.run: a display is already running")
-            (fun () -> Console_eio.run ~clock ~ppf ignore);
-          Eio.Promise.resolve finished ());
-      Console_eio.run ~clock ~ppf ignore)
+            (fun () -> Console_eio.run ~clock ~ppf ignore)));
+  Console_eio.run ~clock ~ppf ignore
 
 let test_dimensions_read_the_environment () =
   let check msg columns lines expected =
@@ -425,7 +418,7 @@ let suite =
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
-      Alcotest.test_case "a second display is refused" `Quick
+      Alcotest.test_case "a display in another domain is refused" `Quick
         test_second_display_refused;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;

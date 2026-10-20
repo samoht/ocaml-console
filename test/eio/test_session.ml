@@ -164,6 +164,35 @@ let test_nested_fiber () =
               Alcotest.(check bool) "inherited display" true (d == nested)))
         Eio.Fiber.yield)
 
+(* Two runs in sibling fibers share one display, which closes once the
+   last of them ends: the task the second starts after the first returned
+   still prints its lines. A run that starts while the other's display
+   closes opens its own once that one is gone. *)
+let test_sibling_fibers () =
+  let siblings ~overlap =
+    Eio_mock.Backend.run @@ fun () ->
+    let clock = Eio_mock.Clock.Mono.make () in
+    let out = Buffer.create 128 in
+    let ppf = Format.formatter_of_buffer out in
+    let first = ref None and same = ref false in
+    Eio.Fiber.both
+      (fun () ->
+        Console_eio.run ~clock ~ppf (fun d ->
+            first := Some d;
+            if overlap then Eio.Fiber.yield ()))
+      (fun () ->
+        Console_eio.run ~clock ~ppf (fun d ->
+            same := Option.fold ~none:false ~some:(( == ) d) !first;
+            Eio.Fiber.yield ();
+            Console.Display.with_task d "late" ignore));
+    Format.pp_print_flush ppf ();
+    (!same, contains "late" (Buffer.contents out))
+  in
+  Alcotest.(check (pair bool bool))
+    "overlapping runs share the display" (true, true) (siblings ~overlap:true);
+  Alcotest.(check (pair bool bool))
+    "a run after the other's display" (false, true) (siblings ~overlap:false)
+
 let renderer_equal a b =
   match (a, b) with `Ansi_tty, `Ansi_tty | `None, `None -> true | _ -> false
 
@@ -298,5 +327,7 @@ let suite =
       Alcotest.test_case "run failure releases display" `Quick test_run_failure;
       Alcotest.test_case "nested child fiber shares display" `Quick
         test_nested_fiber;
+      Alcotest.test_case "runs in sibling fibers share a display" `Quick
+        test_sibling_fibers;
       Alcotest.test_case "setup under mock backend" `Quick test_setup;
     ] )
