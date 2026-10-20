@@ -80,20 +80,40 @@ let fitted_lines panel cw =
 
 let pad = Widget.pad
 
-(* A top or bottom edge, [label] centred in it. *)
+(* A top or bottom edge, [label] centred in it, and the cells the label and
+   the spaces around it take. *)
 let edge look style ~left ~mid ~right inner label =
   let draw n = Span.styled style (Widget.fill n mid) in
-  let middle =
+  let middle, gap =
     match label with
     | Some label when inner >= 3 ->
         let label = Widget.truncate look (inner - 2) label in
         let w = Span.width label in
         let l = (inner - w - 2) / 2 in
-        Span.(
-          draw l ++ text " " ++ label ++ text " " ++ draw (inner - w - 2 - l))
-    | _ -> draw inner
+        let at = Widget.cells left + l in
+        ( Span.(
+            draw l ++ text " " ++ label ++ text " " ++ draw (inner - w - 2 - l)),
+          Some (at, at + w + 2) )
+    | _ -> (draw inner, None)
   in
-  Span.(styled style left ++ middle ++ styled style right)
+  (Span.(styled style left ++ middle ++ styled style right), gap)
+
+(* A frame that fits the margin and has its two edges moves; one cut to a
+   margin too narrow for the border still bounds every line. *)
+let framed panel ~margin ~width ~left ~right (top, top_gap) body
+    (bottom, bottom_gap) =
+  let lines = top @ body @ bottom in
+  if width > margin then List.map (Widget.truncate panel.look margin) lines
+  else if top = [] || bottom = [] then lines
+  else
+    let gaps =
+      List.filter_map Fun.id
+        [
+          Option.map (fun (a, b) -> (0, a, b)) top_gap;
+          Option.map (fun (a, b) -> (List.length lines - 1, a, b)) bottom_gap;
+        ]
+    in
+    Border_motion.frame panel.look ~left ~right ~gaps lines
 
 let lines ~margin panel =
   let chars = Border.chars panel.border in
@@ -103,22 +123,24 @@ let lines ~margin panel =
   let cw = content_width ~margin panel in
   let inner = cw + (2 * panel.padding) in
   let has_edge l m r label = label <> None || l ^ m ^ r <> "" in
-  let top =
+  let top, top_gap =
     if has_edge chars.top_left chars.top chars.top_right panel.title then
-      [
+      let line, gap =
         edge panel.look style ~left:(l chars.top_left) ~mid:chars.top
-          ~right:(r chars.top_right) inner panel.title;
-      ]
-    else []
+          ~right:(r chars.top_right) inner panel.title
+      in
+      ([ line ], gap)
+    else ([], None)
   in
-  let bottom =
+  let bottom, bottom_gap =
     if has_edge chars.bottom_left chars.bottom chars.bottom_right panel.subtitle
     then
-      [
+      let line, gap =
         edge panel.look style ~left:(l chars.bottom_left) ~mid:chars.bottom
-          ~right:(r chars.bottom_right) inner panel.subtitle;
-      ]
-    else []
+          ~right:(r chars.bottom_right) inner panel.subtitle
+      in
+      ([ line ], gap)
+    else ([], None)
   in
   let body =
     List.map
@@ -130,8 +152,9 @@ let lines ~margin panel =
           ++ styled style (r chars.right)))
       (fitted_lines panel cw)
   in
-  (* A margin too narrow for the border itself still bounds every line. *)
-  List.map (Widget.truncate panel.look margin) (top @ body @ bottom)
+  let width = lw + inner + rw in
+  framed panel ~margin ~width ~left:lw ~right:rw (top, top_gap) body
+    (bottom, bottom_gap)
 
 let lines look ~margin t = lines ~margin (t look)
 let pp = Widget.pp lines

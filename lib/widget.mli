@@ -5,9 +5,10 @@
 
 (** What the widgets share. *)
 
-type look = Look.t = { theme : Theme.t; utf_8 : bool }
-(** The type for what a formatter says of how to draw a widget: its theme, and
-    whether it shows UTF-8 or ASCII alone. *)
+type look = Look.t = { theme : Theme.t; utf_8 : bool; elapsed : float option }
+(** The type for what a formatter says of how to draw a widget: its theme,
+    whether it shows UTF-8 or ASCII alone, and the time of a frame that moves.
+*)
 
 val look : Format.formatter -> look
 (** [look ppf] is the look of the widgets printed on [ppf]: its {!Theme.get} and

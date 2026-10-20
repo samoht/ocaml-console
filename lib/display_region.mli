@@ -32,13 +32,15 @@ val eol : t -> string
     otherwise. *)
 
 val render : t -> Span.t -> string
-(** [render t s] is [s] as [t] writes it: styled at its depth, or plain. *)
+(** [render t s] is [s] as [t] writes it: styled at its depth, its frames moving
+    by the time since [t] started, or plain and still. *)
 
 val frame : t -> Span.t list
-(** [frame t] is the region of [t]: the header, then each running task and its
-    log tail, at most [t.height - 1] lines. When they do not fit, log lines go
-    first, the oldest first, then the tasks between the first and the most
-    recent, and a marker counts what is hidden. *)
+(** [frame t] is the region of [t]: the scene, then the header, then each
+    running task and its log tail, at most [t.height - 1] lines. When they do
+    not fit, the scene gives way first, from its last line, then log lines, the
+    oldest first, then the tasks between the first and the most recent, and a
+    marker counts what is hidden. *)
 
 val clear : Buffer.t -> t -> unit
 (** [clear buf t] adds to [buf] what erases the region on the screen, counting

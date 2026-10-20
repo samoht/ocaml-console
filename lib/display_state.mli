@@ -51,6 +51,7 @@ type t = {
   mutable failed : int;
   mutable cancelled : int;
   mutable result : ([ `Ok of string | `Fail of string ] * string list) option;
+  mutable scene : (height:int -> Format.formatter -> unit) option;
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;
@@ -85,10 +86,11 @@ and row = {
 }
 (** The type for displays and their tasks. {!field-running} holds the tasks in
     the order they started, the running ones and at most as many that ended
-    ({!field-stale}); {!field-frame} is the region on the screen, as written.
-    Without a terminal, {!field-partial} is [true] iff the last byte written on
-    {!field-ppf} did not end a line, and {!field-release} gives {!field-ppf} its
-    own output functions back. *)
+    ({!field-stale}); {!field-scene} prints what is drawn above the header;
+    {!field-frame} is the region on the screen, as written. Without a terminal,
+    {!field-partial} is [true] iff the last byte written on {!field-ppf} did not
+    end a line, and {!field-release} gives {!field-ppf} its own output functions
+    back. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)

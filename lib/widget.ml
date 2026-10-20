@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type look = Look.t = { theme : Theme.t; utf_8 : bool }
+type look = Look.t = { theme : Theme.t; utf_8 : bool; elapsed : float option }
 
 let look = Look.v
 let default_look = Look.default

@@ -39,6 +39,8 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Display` | without a terminal: no escape, header last | display / plain output |
 | `Display` | on a terminal, each write is one synchronized update, opened and closed once at its ends | display / screen guarantees |
 | `Display` | on a terminal wider than 100 columns, no row nor line of a task is wider than 100 | display / rows keep to 100 columns on a wide terminal |
+| `Display.set_scene`, `Theme.motion` | in every frame of a table or a panel in any theme, at any width and time, only border glyphs differ from the theme without motion, each from one as wide; without motion every frame is the one `Fmt` prints | display / a scene's frames move only its border |
+| `Display.set_scene`, `Theme.still` | a scene is never drawn without a terminal; a widget printed on a formatter is the bytes of its theme without motion | display / a scene is still off a live display |
 
 The display's column alignment with wide labels, its narrowing clear and its
 marks are unit tests in `test/test_display.ml`; its teardown on return,

@@ -206,6 +206,32 @@ and cells first last line =
   let l = layout line in
   sub l (at_cell l first) (at_cell l last)
 
+(* A cluster is replaced only by text as wide that holds no control: the
+   line keeps its cells. A cluster drawn when printed is kept. *)
+let recell f line =
+  let l = layout line in
+  let out = ref [] and run = ref 0 and cell = ref 0 in
+  for i = 0 to l.n - 1 do
+    let w = cell_width l i in
+    (match f ~cell:!cell with
+    | None -> ()
+    | Some g ->
+        let a = owner l i in
+        if Option.is_none a.draw then begin
+          let first = start l i in
+          let text = String.sub l.joined first (start l (i + 1) - first) in
+          let style, glyph = g a.style text in
+          let glyph =
+            if clean glyph = glyph && Width.string_width glyph = w then glyph
+            else text
+          in
+          out := [ { a with style; text = glyph } ] :: sub l !run i :: !out;
+          run := i + 1
+        end);
+    cell := !cell + w
+  done;
+  if !out = [] then line else List.concat (List.rev (sub l !run l.n :: !out))
+
 let line_width = function
   | [ a ] -> Width.string_width a.text
   | line ->
@@ -453,13 +479,101 @@ let render ~look ?depth t =
 let to_string ?(styled = false) t =
   render ~look:Look.default ?depth:(if styled then Some `True_color else None) t
 
+(* {1 Capturing}
+
+   A formatter that captures takes each span printed on it whole, its parts
+   drawn when printed still to draw, in the order of the text around it: the
+   span goes through the formatter as a semantic tag, which the formatter
+   marks in its place. *)
+
+type Format.stag += Captured of t
+
+let capturing = Console_slot.v ()
+
 let pp ppf t =
-  let t = if List.exists is_drawn t then resolve (Look.v ppf) t else t in
-  match Fmt.style_renderer ppf with
-  | `None -> List.iter (fun a -> Format.pp_print_string ppf a.text) t
-  | `Ansi_tty ->
-      Format.pp_print_string ppf
-        (render ~look:Look.default ~depth:(Color.depth ppf) t)
+  match Console_slot.find capturing ppf with
+  | Some () ->
+      List.iteri
+        (fun i line ->
+          if i > 0 then Format.pp_print_char ppf '\n';
+          Format.pp_open_stag ppf (Captured line);
+          Format.pp_close_stag ppf ();
+          Format.pp_print_as ppf (line_width line) "")
+        (lines t)
+  | None -> (
+      let t = if List.exists is_drawn t then resolve (Look.v ppf) t else t in
+      match Fmt.style_renderer ppf with
+      | `None -> List.iter (fun a -> Format.pp_print_string ppf a.text) t
+      | `Ansi_tty ->
+          Format.pp_print_string ppf
+            (render ~look:Look.default ~depth:(Color.depth ppf) t))
+
+(* A formatter that gives [text] the text it writes, [span] the spans
+   printed on it and [newline] its line ends, in order. *)
+let capturing_formatter ~text ~span ~newline =
+  let out_string s o l =
+    let stop = o + l in
+    let rec go o =
+      match String.index_from_opt s o '\n' with
+      | Some i when i < stop ->
+          text (String.sub s o (i - o));
+          newline ();
+          go (i + 1)
+      | _ -> text (String.sub s o (stop - o))
+    in
+    if l > 0 then go o
+  in
+  let spaces n = text (String.make (max 0 n) ' ') in
+  let ppf = Format.make_formatter out_string ignore in
+  Format.pp_set_formatter_out_functions ppf
+    {
+      (Format.pp_get_formatter_out_functions ppf ()) with
+      out_newline = newline;
+      out_spaces = spaces;
+      out_indent = spaces;
+    };
+  (* A mark is output in its place among the text, as a print is not. *)
+  let mark_open_stag = function
+    | Captured t ->
+        span t;
+        ""
+    | _ -> ""
+  in
+  Format.pp_set_formatter_stag_functions ppf
+    {
+      (Format.pp_get_formatter_stag_functions ppf ()) with
+      mark_open_stag;
+      mark_close_stag = (fun _ -> "");
+    };
+  Format.pp_set_mark_tags ppf true;
+  Console_slot.set capturing ppf ();
+  ppf
+
+let capture ~look ~margin f =
+  let lines = ref [] and line = ref [] and buf = Buffer.create 64 in
+  let take_text () =
+    if Buffer.length buf > 0 then begin
+      line := text (Buffer.contents buf) :: !line;
+      Buffer.clear buf
+    end
+  in
+  let newline () =
+    take_text ();
+    lines := List.concat (List.rev !line) :: !lines;
+    line := []
+  in
+  let span t =
+    take_text ();
+    line := t :: !line
+  in
+  let ppf = capturing_formatter ~text:(Buffer.add_string buf) ~span ~newline in
+  Theme.set ppf look.Look.theme;
+  Fmt.set_utf_8 ppf look.utf_8;
+  Format.pp_set_margin ppf margin;
+  f ppf;
+  Format.pp_print_flush ppf ();
+  if !line <> [] || Buffer.length buf > 0 then newline ();
+  List.rev !lines
 
 let pp_lines ppf lines =
   List.iteri

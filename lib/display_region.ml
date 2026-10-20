@@ -34,8 +34,16 @@ let write t s =
       out.out_flush ()
     with Sys_error _ -> ()
 
+(* A frame that moves moves only in colour: without it, rain would still
+   change its glyphs. *)
 let render t span =
-  Span_core.render ~look:(Widget.look t.ppf) ?depth:t.depth span
+  let look = Widget.look t.ppf in
+  let look =
+    if Option.is_some t.depth then
+      { look with elapsed = Some (t.now () -. t.start) }
+    else look
+  in
+  Span_core.render ~look ?depth:t.depth span
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -53,11 +61,11 @@ let marker t hidden =
     (Span.styled (Widget.muted look)
        (Fmt.str "  %s %d more lines" (Widget.ellipsis look) hidden))
 
-(* The region: the header, then each running row and its log tail, within
-   {!capacity}. When they do not fit, log lines go first, the oldest first;
-   then the rows between the first and the most recent; a marker counts what
-   is hidden. Only the rows shown are drawn. *)
-let frame t =
+(* The region below the scene: the header, then each running row and its
+   log tail, within {!capacity}. When they do not fit, log lines go first,
+   the oldest first; then the rows between the first and the most recent; a
+   marker counts what is hidden. Only the rows shown are drawn. *)
+let rows t =
   let cap = capacity t in
   if cap = 0 then []
   else
@@ -103,6 +111,24 @@ let frame t =
             @ live first
               :: marker t (total - 1 - List.length shown)
               :: List.map live shown
+
+(* The scene takes the lines the rows leave, which it is told. *)
+let frame t =
+  let rows = rows t in
+  match t.scene with
+  | None -> rows
+  | Some scene ->
+      let height = capacity t - List.length rows in
+      if height <= 0 then rows
+      else
+        let look = Widget.look t.ppf in
+        let width = room t in
+        let lines =
+          Span_core.capture ~look ~margin:width (fun ppf -> scene ~height ppf)
+        in
+        List.filteri (fun i _ -> i < height) lines
+        |> List.map (Widget.truncate look width)
+        |> fun scene -> scene @ rows
 
 (* {1 Drawing} *)
 
@@ -186,7 +212,9 @@ let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
     let resized = refresh_size t in
     let stamp = stamp t in
-    if resized || stamp <> t.painted || t.frame = [||] then begin
+    (* A scene may show what the display is not told of. *)
+    if resized || stamp <> t.painted || t.frame = [||] || Option.is_some t.scene
+    then begin
       t.painted <- stamp;
       t.painted_at <- t.now ();
       (* A narrower terminal has reflowed the old frame: it is cleared with

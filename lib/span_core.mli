@@ -75,6 +75,19 @@ val drawn : (Look.t -> t) -> t
 val resolve : Look.t -> t -> t
 (** [resolve look s] is [s] with each {!drawn} part drawn in [look]. *)
 
+val recell :
+  (cell:int -> (Style.t -> string -> Style.t * string) option) -> t -> t
+(** [recell f line] is the line [line] with each cluster [g] in style [s] that
+    starts [cell] cells in, when [f ~cell] is [Some r], drawn as [r s g]: a new
+    style and glyph. A glyph that does not take the cells of [g], or holds a
+    control character, is [g]; a cluster of a {!drawn} part is kept. *)
+
+val capture : look:Look.t -> margin:int -> (Format.formatter -> unit) -> t list
+(** [capture ~look ~margin f] are the lines [f ppf] prints on a formatter [ppf]
+    in [look]'s theme and UTF-8, at [margin], without colours. A span printed on
+    [ppf] ({!pp}) is taken whole, its styles and its parts drawn when printed
+    kept; any other text is unstyled. A line end after the last line ends it. *)
+
 val pp_lines : t list Fmt.t
 (** [pp_lines] formats spans one per line, with no line end after the last. *)
 

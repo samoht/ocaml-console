@@ -320,8 +320,13 @@ let lines ?max_width t =
     (* Columns at their narrowest may still not fit beside the border: each
        line is then cut, visibly, rather than a column left out. *)
     match max_width with
-    | None -> lines
-    | Some w -> List.map (Widget.truncate t.look w) lines
+    | Some w when rendered_width t widths > w ->
+        List.map (Widget.truncate t.look w) lines
+    | Some w when not (edged t && c.top <> "") ->
+        List.map (Widget.truncate t.look w) lines
+    | None when not (edged t && c.top <> "") -> lines
+    | _ ->
+        Border_motion.frame t.look ~left:t.frame.left ~right:t.frame.right lines
 
 let pp ppf t =
   Span_core.pp_lines ppf

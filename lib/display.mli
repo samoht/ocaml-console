@@ -151,6 +151,27 @@ val message : ?level:[ `Info | `Warning | `Error ] -> t -> string -> unit
 (** [message display text] prints each line of [text] above the region, after
     the mark of [level] unless [level] is [`Info] (the default). *)
 
+val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
+(** [set_scene display scene] draws what [scene ~height ppf] prints above the
+    header each time the region is drawn, in place of the scene set before.
+    [ppf] is in the theme and the UTF-8 of [display]'s formatter, and its margin
+    is the width of the rows, so that a {!Table.pp} or a {!Panel.pp} printed on
+    it fits. A span printed on [ppf] keeps its styles, and other text is plain.
+    [height] is the number of lines the header and the rows leave: the lines
+    after them are not drawn, and a line wider than the rows is cut.
+
+    While [display] draws in colour, a frame drawn in a theme with a
+    {!Theme.val-motion} moves, by the time since [display] started; on a
+    terminal without colour it stands still. Without a terminal the scene is not
+    drawn, and once [display] closes it is gone: it shows what the program also
+    prints, such as a table it prints when the work is done.
+
+    {[
+    let watch display results =
+      Console.Display.set_scene display (fun ~height:_ ppf ->
+          Console.Table.pp ppf (results ()))
+    ]} *)
+
 val set_result :
   ?detail:string -> t -> [ `Ok of string | `Fail of string ] -> unit
 (** [set_result display result] says how the work ended: when [display] closes,
@@ -170,9 +191,9 @@ val pp : t Fmt.t
 
 (** {1:tasks Tasks}
 
-    Every function below, and {!redraw}, {!with_output}, {!message} and
-    {!set_result}, raises [Invalid_argument] when the display has closed. A task
-    that ended ignores what it is told, but its {!log}. *)
+    Every function below, and {!redraw}, {!with_output}, {!message},
+    {!set_scene} and {!set_result}, raises [Invalid_argument] when the display
+    has closed. A task that ended ignores what it is told, but its {!log}. *)
 
 type task
 (** The type for tasks. *)

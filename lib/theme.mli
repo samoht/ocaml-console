@@ -8,10 +8,10 @@
     A theme holds the choices the widgets share: the main colour, the colours of
     a success, a warning and a failure, a muted colour for what frames and
     annotates, the style of headers, the marks that say how a task ended, the
-    frame of tables and panels, the lines of a tree and the spinner of a
-    {!Display}. A formatter has one theme ({!set}), in which every widget
-    printed on it is drawn: with ASCII glyphs alone when the formatter is not
-    {!Fmt.utf_8}.
+    frame of tables and panels and how it moves, the lines of a tree and the
+    spinner of a {!Display}. A formatter has one theme ({!set}), in which every
+    widget printed on it is drawn: with ASCII glyphs alone when the formatter is
+    not {!Fmt.utf_8}.
 
     {!default} reads on any background and is the one to keep when nothing is
     known of the terminal. A theme with a {!background}, such as {!dracula} or
@@ -26,7 +26,9 @@
     or against black and white alike when it has none, the colours of text (the
     {!muted} colour and that of the {!header}) are at 4.5:1 or more, and those
     of glyphs alone (the main colour, the colours of a success, a warning and a
-    failure and those of the progress rows) at 3:1 or more. *)
+    failure and those of the progress rows) at 3:1 or more; a frame that moves
+    is drawn in these colours alone, so every one of its frames keeps to the
+    contrast of a glyph. *)
 
 (** {1:themes Themes} *)
 
@@ -50,6 +52,21 @@ type bar =
   | `Ascii  (** Whole cells of [#] on [-], in square brackets. *) ]
 (** The type for the glyphs of a {!Bar}. *)
 
+type motion =
+  [ `Rain
+    (** Digital rain: a bold head in the main colour runs round the frame,
+        trailing ASCII glyphs that flicker and fade to the muted colour. *)
+  | `Sweep  (** The colours of the palette travel round the frame in bands. *)
+  | `Shimmer
+    (** A short highlight in the main colour travels round the frame. *) ]
+(** The type for how the frame of a table or a panel moves while a live
+    {!Display} draws it ([Display.set_scene]), clockwise and by the elapsed
+    time. Only the colours of the border's cells change, and the glyphs of some
+    to one as wide, so the frame keeps its width and its cells their place in
+    every frame. Printed on a formatter, drawn by a display without colour or
+    with [NO_COLOR] set, a frame stands still: it is the frame of the theme
+    without motion. *)
+
 type t
 (** The type for themes. *)
 
@@ -64,6 +81,7 @@ val v :
   ?header:Style.t ->
   ?background:Color.t ->
   ?border:Border.t ->
+  ?motion:motion ->
   ?guide:Guide.t ->
   ?spinner:Spinner.t ->
   ?bar:bar ->
@@ -85,6 +103,8 @@ val v :
       header (defaults to {!Style.bold});
     - [background] is the background the colours are chosen for, light or dark
       (defaults to none: the terminal's own). The widgets do not paint it;
+    - [motion] is how frames move in a live display (defaults to none: they
+      stand still);
     - [border], [guide] and [spinner] are the frame of tables and panels, the
       lines of a tree and the spinner of a running task (default to
       {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
@@ -126,6 +146,9 @@ val background : t -> Color.t option
 val border : t -> Border.t
 (** [border t] is the frame of tables and panels. *)
 
+val motion : t -> motion option
+(** [motion t] is how the frames of [t] move in a live display, if they do. *)
+
 val guide : t -> Guide.t
 (** [guide t] is the lines that connect the branches of a tree. *)
 
@@ -140,13 +163,17 @@ val mark : t -> mark -> string
 (** [mark t m] is the mark of [m], on one line: a control character in it is a
     space. *)
 
+val still : t -> t
+(** [still t] is [t] with nothing that moves: no {!val-motion} and the
+    {!Spinner.static} spinner, for the users who ask for no animation. *)
+
 (** {1:predefined Predefined themes}
 
     The themes after {!rainbow} take their colours from a colour scheme, as its
     authors define them; their {!background} is the scheme's, their muted colour
-    its grey for comments or secondary text, and their headers are bold in the
-    main colour unless said otherwise. A colour below its contrast is moved
-    towards the scheme's text to just above it. *)
+    its grey for comments or secondary text, their headers are bold in the main
+    colour unless said otherwise, and their frames [`Shimmer]. A colour below
+    its contrast is moved towards the scheme's text to just above it. *)
 
 val default : t
 (** [default] is teal, with a green, an amber, a red and a grey taken from the
@@ -169,11 +196,12 @@ val dos : t
 
 val matrix : t
 (** [matrix] is bright green on black, a darker green muted and bold green
-    headers, with single-line frames. *)
+    headers, with single-line frames on which digital rain falls ([`Rain]). *)
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
-    from the xterm 256-colour palette as {!default}'s are. *)
+    from the xterm 256-colour palette as {!default}'s are, and sweeps them round
+    its frames ([`Sweep]). *)
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background

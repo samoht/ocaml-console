@@ -7,6 +7,7 @@ type mark =
   [ `Running | `Succeeded | `Failed | `Cancelled | `Info | `Warning | `Error ]
 
 type bar = [ `Line | `Block | `Ascii ]
+type motion = [ `Rain | `Sweep | `Shimmer ]
 
 type t = {
   name : string;
@@ -19,6 +20,7 @@ type t = {
   header : Style.t;
   background : Color.t option;
   border : Border.t;
+  motion : motion option;
   guide : Guide.t;
   spinner : Spinner.t;
   bar : bar;
@@ -35,6 +37,7 @@ let muted t = t.muted
 let header t = t.header
 let background t = t.background
 let border t = t.border
+let motion t = t.motion
 let guide t = t.guide
 let spinner t = t.spinner
 let bar t = t.bar
@@ -82,6 +85,7 @@ let default =
     header = Style.bold;
     background = None;
     border = Border.rounded;
+    motion = None;
     guide = Guide.unicode;
     spinner = Spinner.braille;
     bar = `Line;
@@ -90,7 +94,7 @@ let default =
 
 let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
     ?(warn = default.warn) ?(fail = default.fail) ?(muted = default.muted)
-    ?(header = default.header) ?background ?(border = default.border)
+    ?(header = default.header) ?background ?(border = default.border) ?motion
     ?(guide = default.guide) ?(spinner = default.spinner) ?(bar = default.bar)
     ?(marks = default.marks) () =
   let palette =
@@ -107,6 +111,7 @@ let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
     header;
     background;
     border;
+    motion;
     guide;
     spinner;
     bar;
@@ -133,26 +138,28 @@ let matrix =
     ~warn:(Color.rgb 0xcc 0xff 0x66) ~fail:(Color.rgb 0xff 0x33 0x33)
     ~muted:(Color.rgb 0x1c 0x89 0x1c)
     ~header:Style.(bold + fg matrix_green)
-    ~background:Color.black ~border:Border.single ()
+    ~background:Color.black ~border:Border.single ~motion:`Rain ()
 
 let rainbow =
   v ~name:"rainbow" ~accent:magenta
     ~palette:[ red; amber; green; teal; blue; magenta ]
-    ()
+    ~motion:`Sweep ()
+
+let still t = { t with motion = None; spinner = Spinner.static }
 
 (* The colours of each scheme are taken from its upstream source, named
    beside it, and degrade to 256 or 16 colours as a terminal's depth asks.
    Where a scheme's colour is below its contrast on its own background, 3:1
    for a mark and 4.5:1 for the muted colour, it is moved towards the
    scheme's text to just above it. Headers are bold, in the accent unless
-   [header] names another colour. *)
+   [header] names another colour, and frames shimmer in the accent. *)
 
 let scheme ~name ~accent ~ok ~warn ~fail ~muted ?(header = accent) ~background
     () =
   v ~name ~accent:(Color.hex accent) ~ok:(Color.hex ok) ~warn:(Color.hex warn)
     ~fail:(Color.hex fail) ~muted:(Color.hex muted)
     ~header:Style.(bold + fg (Color.hex header))
-    ~background:(Color.hex background) ()
+    ~background:(Color.hex background) ~motion:`Shimmer ()
 
 (* Dracula, by Zeno Rocha (MIT): draculatheme.com/spec. *)
 let dracula =
@@ -260,9 +267,17 @@ let slot = Console_slot.v ~setting:false ()
 let get ppf = Option.value (Console_slot.find slot ppf) ~default
 let set ppf t = Console_slot.set slot ppf t
 
+let pp_motion ppf = function
+  | None -> Fmt.string ppf "none"
+  | Some `Rain -> Fmt.string ppf "rain"
+  | Some `Sweep -> Fmt.string ppf "sweep"
+  | Some `Shimmer -> Fmt.string ppf "shimmer"
+
 let pp ppf t =
-  Fmt.pf ppf "@[<1>(theme %s@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ marks=%a)@]"
+  Fmt.pf ppf
+    "@[<1>(theme %s@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ motion=%a@ marks=%a)@]"
     t.name Color.pp t.accent Color.pp t.ok Color.pp t.warn Color.pp t.fail
+    pp_motion t.motion
     Fmt.(list ~sep:(any " ") string)
     (List.map (mark t)
        [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error ])

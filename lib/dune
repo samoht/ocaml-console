@@ -3,6 +3,7 @@
  (public_name console)
  (libraries console.text console_slot fmt matrix.glyph)
  (private_modules
+  border_motion
   widget
   width
   display_line

@@ -23,3 +23,11 @@
   `Theme.ascii` and on any formatter that is not UTF-8.
 - `Bar.to_span` puts a bar in a table cell, a tree or a panel, drawn in
   the theme and the UTF-8 of the formatter it is printed on.
+- `Display.set_scene` draws what a printer prints, such as a table, above
+  the rows of a live display, at their width and in the display's theme.
+- A theme's frames move (`Theme.motion`) in a scene: digital rain in
+  `Theme.matrix`, the rainbow sweeping round them in `Theme.rainbow`, a
+  shimmer of the main colour in the themes of colour schemes. Only colours
+  and glyphs change, never a width; printed with `Fmt`, on a pipe or
+  without colour, a frame is still. `Theme.still` stops every motion, the
+  spinner's too.

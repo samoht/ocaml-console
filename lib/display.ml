@@ -78,6 +78,7 @@ let v ?(layout = Line.default) ?header ?size ~now ppf =
       failed = 0;
       cancelled = 0;
       result = None;
+      scene = None;
       frame = [||];
       frame_widths = [||];
       painted_at = neg_infinity;
@@ -145,6 +146,11 @@ let with_output t f =
         t.suspended <- t.suspended - 1;
         Display_region.paint t)
   end
+
+let set_scene t scene =
+  check_open "set_scene" t;
+  t.scene <- Some scene;
+  touch t
 
 (* Lines printed once: above the region, or in turn without one. *)
 let print t lines = Display_region.commit t lines

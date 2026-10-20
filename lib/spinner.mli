@@ -9,8 +9,8 @@
     ASCII bar, shown beside a task of unknown length. {!Display} animates one
     per running row, ten frames a second, and a {!Theme.t} carries the one a
     display uses. A spinner of one frame, such as {!static}, does not move: a
-    program offers it to users who prefer no animation, through
-    [Theme.v ~spinner:Spinner.static ()]. *)
+    program offers it to users who prefer no animation, with [Theme.still],
+    which also stops the frames of tables and panels. *)
 
 (** {1:spinners Spinners} *)
 
