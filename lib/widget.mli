@@ -23,6 +23,16 @@ val fill : int -> string -> string
     fit, then the characters of one more that fit, then spaces. It is [""] if
     [n] is not positive, and [n] spaces if [g] takes no cell. *)
 
+val rails : Guide.t -> bool list -> string
+(** [rails g lasts] are the guides beside a node whose ancestors' flags,
+    innermost first, are [lasts]: [true] when the ancestor is the last of its
+    siblings, which leaves a {!Guide.space} under it, else a {!Guide.pipe}. *)
+
+val branch : Guide.t -> bool list -> string
+(** [branch g (own :: up)] is the guide before a node whose flag is [own] and
+    whose ancestors' are [up]: {!rails} of [up], then {!Guide.last} if [own]
+    else {!Guide.branch}. It is [""] for a root, whose flags are [[]]. *)
+
 val pad_glyph : int -> string -> string
 (** [pad_glyph n g] is [g] followed by the spaces that make it [n] cells wide.
 *)

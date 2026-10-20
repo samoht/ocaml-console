@@ -31,29 +31,12 @@ let guide t = Theme.guide t.theme
 
 (* [lasts] are a row's flags, innermost first, ending with its root's, which
    draws nothing: a root row starts at the left edge. *)
-let nested lasts = match List.rev lasts with _ :: l -> l | [] -> []
+let rec nested = function [] | [ _ ] -> [] | own :: up -> own :: nested up
 
 let prefix t lasts =
-  match nested lasts with
-  | [] -> ""
-  | outer ->
-      let g = guide t in
-      let rec go = function
-        | [ own ] -> [ (if own then Guide.last g else Guide.branch g) ]
-        | last :: rest ->
-            (if last then Guide.space g else Guide.pipe g) :: go rest
-        | [] -> []
-      in
-      "  " ^ String.concat "" (go outer)
+  match nested lasts with [] -> "" | l -> "  " ^ Widget.branch (guide t) l
 
-let continuation t lasts =
-  let g = guide t in
-  "  "
-  ^ String.concat ""
-      (List.map
-         (fun last -> if last then Guide.space g else Guide.pipe g)
-         (nested lasts))
-
+let continuation t lasts = "  " ^ Widget.rails (guide t) (nested lasts)
 let indent r = String.make (2 * depth r) ' '
 
 (* {1 Live rows} *)

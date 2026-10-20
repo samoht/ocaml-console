@@ -34,6 +34,16 @@ let fill n glyph =
       ^ Buffer.contents part
       ^ String.make (rest - !used) ' '
 
+let rails g lasts =
+  String.concat ""
+    (List.rev_map
+       (fun last -> if last then Guide.space g else Guide.pipe g)
+       lasts)
+
+let branch g = function
+  | [] -> ""
+  | own :: up -> rails g up ^ if own then Guide.last g else Guide.branch g
+
 let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
 let pad n = Span.text (String.make (max 0 n) ' ')
 

@@ -7,21 +7,6 @@ type t = { guide : Guide.t; label : Span.t; children : t list }
 
 let v ?(guide = Guide.unicode) label children = { guide; label; children }
 
-(* [lasts] are the is-last-of-its-siblings flags of a node's ancestors below
-   the root, innermost first; [own] is the node's. *)
-let node_prefix ~guide lasts own =
-  String.concat ""
-    (List.rev_map
-       (fun last -> if last then Guide.space guide else Guide.pipe guide)
-       lasts
-    @ [ (if own then Guide.last guide else Guide.branch guide) ])
-
-let beside ~guide lasts =
-  String.concat ""
-    (List.rev_map
-       (fun last -> if last then Guide.space guide else Guide.pipe guide)
-       lasts)
-
 (* A label wider than the margin leaves it wraps, the rest under its text. *)
 let label_lines ~room label =
   List.concat_map
@@ -36,15 +21,11 @@ let lines ~margin t =
   let style = Guide.style guide in
   let acc = ref [] in
   let emit line = acc := Span.truncate margin line :: !acc in
-  let rec go ~root lasts node =
-    let first, after =
-      if root then ("", "")
-      else
-        match lasts with
-        | own :: ancestors ->
-            (node_prefix ~guide ancestors own, beside ~guide lasts)
-        | [] -> ("", "")
-    in
+  (* [lasts] are the node's is-last-of-its-siblings flag and its ancestors'
+     below the root, innermost first. *)
+  let rec go lasts node =
+    let first = Widget.branch guide lasts
+    and after = Widget.rails guide lasts in
     let room = margin - Span.width (Span.text first) in
     (match label_lines ~room node.label with
     | [] -> ()
@@ -52,11 +33,9 @@ let lines ~margin t =
         emit Span.(styled style first ++ l);
         List.iter (fun l -> emit Span.(styled style after ++ l)) rest);
     let n = List.length node.children in
-    List.iteri
-      (fun i child -> go ~root:false ((i = n - 1) :: lasts) child)
-      node.children
+    List.iteri (fun i child -> go ((i = n - 1) :: lasts) child) node.children
   in
-  go ~root:true [] t;
+  go [] t;
   List.rev !acc
 
 let pp = Widget.pp lines
