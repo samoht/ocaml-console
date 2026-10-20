@@ -472,6 +472,33 @@ let test_keys_and_transient () =
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
     (String.split_on_char '\n' out)
 
+(* A with_task that finds its key running enters that task and ends
+   nothing: the task ends as the call that started it says. *)
+let test_with_task_shared_key () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        Display.with_task ~key:"k" d "first" (fun a ->
+            Display.with_task ~key:"k" d "second" (fun b ->
+                Alcotest.(check bool) "same task" true (a == b);
+                Display.log b "inside");
+            Display.log a "after the second";
+            match
+              Display.with_task ~key:"k" d "third" (fun _ -> raise Exit)
+            with
+            | () -> Alcotest.fail "the exception was swallowed"
+            | exception Exit -> Display.log a "after the third"))
+  in
+  check_lines "one task, ended once by the first"
+    [
+      "[-] first";
+      "  # first: inside";
+      "  # first: after the second";
+      "  # first: after the third";
+      "[+] first  0.0s";
+      "";
+    ]
+    (String.split_on_char '\n' out)
+
 let test_counts () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -1290,6 +1317,8 @@ let suite =
       Alcotest.test_case "nested" `Quick test_nested;
       Alcotest.test_case "nested on a pipe" `Quick test_nested_plain;
       Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;
+      Alcotest.test_case "a key shared by two with_task" `Quick
+        test_with_task_shared_key;
       Alcotest.test_case "counts" `Quick test_counts;
       Alcotest.test_case "large counts" `Quick test_large_counts;
       Alcotest.test_case "invalid" `Quick test_invalid;
