@@ -5,4 +5,10 @@
 (test
  (name test)
  (package console)
- (libraries console.input display_harness matrix.glyph matrix.vte alcotest))
+ (libraries
+  console.input
+  console_vte
+  display_harness
+  matrix.glyph
+  matrix.vte
+  alcotest))

@@ -55,8 +55,8 @@ let run argv =
       ignore (Eio.Process.await child : Eio.Process.exit_status);
       settle (Buffer.length written));
   ignore (Eio.Process.await child : Eio.Process.exit_status);
-  let vte = Vte.create ~rows ~cols () in
-  Vte.feed_string vte (Buffer.contents written);
+  let vte = Console_vte.v ~rows ~cols () in
+  Console_vte.feed vte (Buffer.contents written);
   List.iter print_endline (Console_vte.screen ~scrollback:true vte)
 
 let () =

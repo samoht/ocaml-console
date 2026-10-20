@@ -10,6 +10,7 @@
   console.text
   matrix.glyph
   matrix.grid
+  console_vte
   matrix.vte
   fmt
   re

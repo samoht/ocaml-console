@@ -21,13 +21,13 @@ let geom name default =
 let () =
   let height = geom "LINES" 24 in
   let width = geom "COLUMNS" 80 in
-  let vte = Vte.create ~rows:height ~cols:width () in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   let now = ref 0. in
   let sync () =
     Format.pp_print_flush ppf ();
-    Vte.feed_string vte (Buffer.contents buf);
+    Console_vte.feed vte (Buffer.contents buf);
     Buffer.clear buf
   in
   (* A frame is what the driver's tick painted. An update of its own repaints

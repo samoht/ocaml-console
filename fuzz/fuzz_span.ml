@@ -225,9 +225,9 @@ let test_linked_unicode_cuts s n =
   check_eq ~pp:Fmt.int
     (occurrences "\027]8;;https://example.invalid\027\\")
     (occurrences "\027]8;;\027\\");
-  let vte = Vte.create ~rows:1 ~cols:81 () in
-  Vte.feed_string vte raw;
-  check_eq ~pp:Fmt.int (Span.width fitted) (snd (Vte.cursor_pos vte))
+  let vte = Console_vte.v ~rows:1 ~cols:81 () in
+  Console_vte.feed vte raw;
+  check_eq ~pp:Fmt.int (Span.width fitted) (snd (Console_vte.cursor_pos vte))
 
 (* A gradient is as wide as its text, which it is without colour; in
    colour, at any depth and in any theme, it is that text and escape codes. *)
@@ -300,13 +300,17 @@ let test_gradient_wrap s k =
   check (String.is_valid_utf_8 raw);
   check_eq ~pp:Fmt.Dump.string input (Console_text.strip raw);
   let cols = Span.width gradient + 2 in
-  let expected = Vte.create ~rows:1 ~cols ()
-  and actual = Vte.create ~rows:1 ~cols () in
-  Vte.feed_string expected (render gradient ^ "!");
-  Vte.feed_string actual (raw ^ "!");
+  let expected = Console_vte.v ~rows:1 ~cols ()
+  and actual = Console_vte.v ~rows:1 ~cols () in
+  Console_vte.feed expected (render gradient ^ "!");
+  Console_vte.feed actual (raw ^ "!");
   for i = 0 to cols - 1 do
-    if not (Grid.cells_equal (Vte.grid expected) i (Vte.grid actual) i) then
-      failf "wrapping changed the glyph or colour at column %d" i
+    if
+      not
+        (Grid.cells_equal
+           (Console_vte.grid expected)
+           i (Console_vte.grid actual) i)
+    then failf "wrapping changed the glyph or colour at column %d" i
   done
 
 let suite =

@@ -26,9 +26,9 @@ let test_laws s =
 
 let test_styles_isolated s =
   let draw prefix =
-    let vte = Vte.create ~rows:2 ~cols:8 () in
-    Vte.feed_string vte ("\027[2J\027[H" ^ prefix ^ "\r\n!");
-    let g = Vte.grid vte in
+    let vte = Console_vte.v ~rows:2 ~cols:8 () in
+    Console_vte.feed vte ("\027[2J\027[H" ^ prefix ^ "\r\n!");
+    let g = Console_vte.grid vte in
     let i = Grid.idx g ~x:0 ~y:1 in
     (Grid.get_fg_r g i, Grid.get_fg_g g i, Grid.get_fg_b g i, Grid.get_bg_r g i)
   in

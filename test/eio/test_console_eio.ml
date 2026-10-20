@@ -183,8 +183,8 @@ let test_teardown () =
       Alcotest.(check (option char))
         (how ^ ": the cursor is shown last")
         (Some 'h') (last_cursor out);
-      let vte = Vte.create ~rows:24 ~cols:80 () in
-      Vte.feed_string vte out;
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
       Alcotest.(check bool)
         (how ^ ": standard output above the region, unlabelled")
         true
@@ -192,7 +192,7 @@ let test_teardown () =
       Alcotest.(check int)
         (how ^ ": the cursor is at the start of a line")
         0
-        (snd (Vte.cursor_pos vte));
+        (snd (Console_vte.cursor_pos vte));
       Alcotest.(check bool)
         (how ^ ": exit status") true
         (match (status, expected) with
@@ -208,8 +208,8 @@ let test_teardown () =
 (* The final screen of [teardown.exe how]. *)
 let final how =
   let _, out = teardown how in
-  let vte = Vte.create ~rows:24 ~cols:80 () in
-  Vte.feed_string vte out;
+  let vte = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed vte out;
   Console_vte.screen ~scrollback:true vte
 
 (* Ctrl-C cancels the task, which keeps its window under its line; a task
@@ -242,10 +242,11 @@ let test_sigint_teardown () =
   let _, out = teardown "sigint" in
   Alcotest.(check bool)
     "SIGINT interrupted a live display" true (contains hide out);
-  let vte = Vte.create ~rows:24 ~cols:80 () in
-  Vte.feed_string vte out;
+  let vte = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed vte out;
   Alcotest.(check bool)
-    "SIGINT restores the cursor" true (Vte.cursor_visible vte)
+    "SIGINT restores the cursor" true
+    (Console_vte.cursor_visible vte)
 
 (* However a session ends, text written after it is drawn as on a fresh
    terminal: at the first column, in the terminal's own colours. *)
@@ -254,16 +255,17 @@ let test_usable_after () =
     (fun (how, no_color) ->
       let _, out, _ = session ~no_color how in
       let name = Fmt.str "%s%s" how (if no_color then " (NO_COLOR)" else "") in
-      let vte = Vte.create ~rows:24 ~cols:80 () in
-      Vte.feed_string vte out;
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
       Alcotest.(check bool)
-        (name ^ ": cursor shown") true (Vte.cursor_visible vte);
-      let y, x = Vte.cursor_pos vte in
+        (name ^ ": cursor shown") true
+        (Console_vte.cursor_visible vte);
+      let y, x = Console_vte.cursor_pos vte in
       Alcotest.(check int) (name ^ ": first column") 0 x;
-      Vte.feed_string vte "AFTER";
-      let plain = Vte.create ~rows:1 ~cols:80 () in
-      Vte.feed_string plain "AFTER";
-      let g = Vte.grid vte and reference = Vte.grid plain in
+      Console_vte.feed vte "AFTER";
+      let plain = Console_vte.v ~rows:1 ~cols:80 () in
+      Console_vte.feed plain "AFTER";
+      let g = Console_vte.grid vte and reference = Console_vte.grid plain in
       let i = Grid.idx g ~x:0 ~y and j = Grid.idx reference ~x:0 ~y:0 in
       Alcotest.(check (list (float 0.)))
         (name ^ ": default colours")

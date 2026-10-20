@@ -80,9 +80,9 @@ let test_hcat_margin n k =
   hcat ~gap blocks ppf ();
   Format.pp_print_flush ppf ();
   let raw = Buffer.contents buf in
-  let vte = Vte.create ~rows:32 ~cols:margin () in
-  Vte.feed_string vte raw;
-  check_eq ~pp:Fmt.int 0 (fst (Vte.cursor_pos vte));
+  let vte = Console_vte.v ~rows:32 ~cols:margin () in
+  Console_vte.feed vte raw;
+  check_eq ~pp:Fmt.int 0 (fst (Console_vte.cursor_pos vte));
   check (String.is_valid_utf_8 raw);
   check (Span.width (Span.text (Console_text.strip raw)) <= margin)
 
@@ -103,11 +103,13 @@ let test_hcat_combining_suffix n =
     ppf ();
   Format.pp_print_flush ppf ();
   let got = Buffer.contents buf and want = base ^ suffix in
-  let actual = Vte.create ~rows:2 ~cols:10 ()
-  and expected = Vte.create ~rows:2 ~cols:10 () in
-  Vte.feed_string actual got;
-  Vte.feed_string expected want;
-  check_eq ~pp:Fmt.Dump.string (Vte.to_string expected) (Vte.to_string actual);
+  let actual = Console_vte.v ~rows:2 ~cols:10 ()
+  and expected = Console_vte.v ~rows:2 ~cols:10 () in
+  Console_vte.feed actual got;
+  Console_vte.feed expected want;
+  check_eq ~pp:Fmt.Dump.string
+    (Console_vte.to_string expected)
+    (Console_vte.to_string actual);
   check_eq ~pp:Fmt.Dump.string want got
 
 let suite =

@@ -24,11 +24,11 @@ let test_widths () =
 let test_matches_terminal () =
   List.iter
     (fun s ->
-      let vte = Vte.create ~rows:1 ~cols:80 () in
-      Vte.feed_string vte s;
+      let vte = Console_vte.v ~rows:1 ~cols:80 () in
+      Console_vte.feed vte s;
       Alcotest.(check int)
         (String.escaped s)
-        (snd (Vte.cursor_pos vte))
+        (snd (Console_vte.cursor_pos vte))
         (Width.string_width s))
     [ "hello"; "\xe7\x95\x8c\xe7\x95\x8c"; "e\xcc\x81"; "\xf0\x9f\x8e\x89 ok" ]
 

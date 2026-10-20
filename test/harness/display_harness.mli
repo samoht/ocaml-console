@@ -24,7 +24,7 @@ val plain :
     display's formatter. *)
 
 type term = private {
-  vte : Vte.t;
+  vte : Console_vte.t;
   display : Display.t;
   advance : float -> unit;
   size : (int * int) ref;

@@ -535,7 +535,7 @@ let frames theme times =
       Display.redraw term.display;
       let rows = screen term in
       let height = 5 and width = Width.string_width (List.hd rows) in
-      let grid = Vte.grid term.vte in
+      let grid = Console_vte.grid term.vte in
       let cell x y =
         let i = Grid.idx grid ~x ~y in
         let c f = int_of_float (Float.round (f grid i *. 255.)) in

@@ -71,7 +71,9 @@ let rstrip s =
   done;
   String.sub s 0 !n
 
-let screen vte = List.map rstrip (String.split_on_char '\n' (Vte.to_string vte))
+let screen vte =
+  List.map rstrip (String.split_on_char '\n' (Console_vte.to_string vte))
+
 let count p l = List.length (List.filter p l)
 let has affix s = Re.execp (Re.compile (Re.str affix)) s
 
@@ -135,7 +137,7 @@ let check_synchronized chunk =
 
 (* A display on an emulated terminal, and what the test knows of it. *)
 type term = {
-  vte : Vte.t;
+  vte : Console_vte.t;
   size : (int * int) ref;
   time : float ref;
   chunks : int ref;
@@ -154,10 +156,23 @@ let check_screen t =
       Fmt.(list ~sep:cut string)
       rows
 
+(* A frame drawn in place shows what the same frame drawn afresh shows:
+   nothing of the frame before it is left, and nothing of its own erased. *)
+let check_in_place t =
+  let before = screen t.vte in
+  Option.iter (fun d -> Display.with_output d ignore) t.display;
+  let after = screen t.vte in
+  if before <> after then
+    failf "drawn in place:@.%a@.drawn afresh:@.%a"
+      Fmt.(list ~sep:cut string)
+      before
+      Fmt.(list ~sep:cut string)
+      after
+
 let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
   let t =
     {
-      vte = Vte.create ~rows:height ~cols:width ();
+      vte = Console_vte.v ~rows:height ~cols:width ();
       size = ref (width, height);
       time = ref 0.;
       chunks = ref 0;
@@ -179,10 +194,10 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
         check_synchronized s
       end;
       if styled then check_styles_closed s;
-      Vte.feed_string t.vte s
+      Console_vte.feed t.vte s
     end
   in
-  Vte.feed_string t.vte prefix;
+  Console_vte.feed t.vte prefix;
   let ppf = Format.make_formatter (Buffer.add_substring chunk) out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   Option.iter (Theme.set ppf) theme;
@@ -222,8 +237,10 @@ let redraw_twice t =
   Display.redraw (display t);
   let after = screen t.vte in
   let _, height = !(t.size) in
-  let top = fst (Vte.cursor_pos t.vte) - (height - 2) in
-  if Vte.scrollback_size t.vte = 0 || List.length before = List.length after
+  let top = fst (Console_vte.cursor_pos t.vte) - (height - 2) in
+  if
+    Console_vte.scrollback_size t.vte = 0
+    || List.length before = List.length after
   then
     List.iteri
       (fun i (b, a) ->
@@ -260,7 +277,7 @@ let apply t = function
   | Resize (w, h) ->
       let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
       t.size := (w, h);
-      Vte.resize t.vte ~rows:h ~cols:w
+      Console_vte.resize t.vte ~rows:h ~cols:w
   | Redraw -> redraw_twice t
   | Output l -> output t l
 
@@ -270,7 +287,7 @@ let test ops w h styled p =
   let width = 8 + (w mod 72) in
   let prefix = String.make (p mod width) 'p' in
   let t = terminal ~prefix ~width ~height:(3 + (h mod 20)) ~styled () in
-  (match Vte.scrollback_lines t.vte @ screen t.vte with
+  (match Console_vte.scrollback_lines t.vte @ screen t.vte with
   | _ when prefix = "" -> ()
   | first :: _ when rstrip first = prefix -> ()
   | first :: _ -> failf "the host's line %S became %S" prefix first
@@ -279,11 +296,13 @@ let test ops w h styled p =
     (fun o ->
       apply t o;
       Display.redraw (display t);
-      check_screen t)
+      check_screen t;
+      check_in_place t)
     ops;
   Display.close (display t);
-  if not (Vte.cursor_visible t.vte) then fail "the cursor is hidden after close";
-  if snd (Vte.cursor_pos t.vte) <> 0 then
+  if not (Console_vte.cursor_visible t.vte) then
+    fail "the cursor is hidden after close";
+  if snd (Console_vte.cursor_pos t.vte) <> 0 then
     fail "the cursor is not at the start of a line"
 
 (* Without a terminal, nothing moves the cursor: every line is printed once,
@@ -401,16 +420,16 @@ let test_output_exception s cancel =
   Display.redraw d;
   check_screen t;
   Display.close ~running:(if cancel then `Cancel else `Succeed) d;
-  check (Vte.cursor_visible t.vte);
-  check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte));
-  let y, _ = Vte.cursor_pos t.vte in
-  Vte.feed_string t.vte "AFTER";
+  check (Console_vte.cursor_visible t.vte);
+  check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos t.vte));
+  let y, _ = Console_vte.cursor_pos t.vte in
+  Console_vte.feed t.vte "AFTER";
   check (has "AFTER" (List.nth (screen t.vte) y));
-  let grid = Vte.grid t.vte in
+  let grid = Console_vte.grid t.vte in
   let index = Grid.idx grid ~x:0 ~y in
-  let reference = Vte.create ~rows:8 ~cols:40 () in
-  Vte.feed_string reference "AFTER";
-  let plain = Vte.grid reference in
+  let reference = Console_vte.v ~rows:8 ~cols:40 () in
+  Console_vte.feed reference "AFTER";
+  let plain = Console_vte.grid reference in
   let first = Grid.idx plain ~x:0 ~y:0 in
   check (Grid.get_fg_r grid index = Grid.get_fg_r plain first);
   check (Grid.get_fg_g grid index = Grid.get_fg_g plain first);
@@ -425,20 +444,22 @@ let test_resize_erases_old_frame n =
   Display.redraw d;
   let w = 12 + (n mod 40) in
   t.size := (w, 8);
-  Vte.resize t.vte ~rows:8 ~cols:w;
+  Console_vte.resize t.vte ~rows:8 ~cols:w;
   Display.set_label a "new-a";
   Display.set_label b "new-b";
   Display.redraw d;
   check_screen t;
   let rows =
-    String.concat "\n" (Vte.scrollback_lines t.vte @ [ Vte.to_string t.vte ])
+    String.concat "\n"
+      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
   in
   if has "OLD_SENTINEL" rows then failf "old frame survived shrink: %S" rows;
   t.size := (80, 12);
-  Vte.resize t.vte ~rows:12 ~cols:80;
+  Console_vte.resize t.vte ~rows:12 ~cols:80;
   Display.redraw d;
   let rows =
-    String.concat "\n" (Vte.scrollback_lines t.vte @ [ Vte.to_string t.vte ])
+    String.concat "\n"
+      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
   in
   if has "OLD_SENTINEL" rows then
     failf "old frame returned after growth: %S" rows;
@@ -472,8 +493,8 @@ let test_static_rows_and_idle n =
    without changing what the terminal shows. Keep cursor state in the oracle. *)
 let capture_frames () =
   let out = Buffer.create 512 and chunk = Buffer.create 512 in
-  let vte = Vte.create ~rows:8 ~cols:40 () in
-  Vte.feed_string vte "OUTSIDE_SENTINEL\r\n";
+  let vte = Console_vte.v ~rows:8 ~cols:40 () in
+  Console_vte.feed vte "OUTSIDE_SENTINEL\r\n";
   let frames = ref [] in
   let write bytes start len =
     Buffer.add_substring out bytes start len;
@@ -483,9 +504,13 @@ let capture_frames () =
     let bytes = Buffer.contents chunk in
     Buffer.clear chunk;
     if bytes <> "" then begin
-      Vte.feed_string vte bytes;
-      let rows = List.map rstrip (Vte.scrollback_lines vte @ screen vte) in
-      frames := (rows, Vte.cursor_pos vte, Vte.cursor_visible vte) :: !frames
+      Console_vte.feed vte bytes;
+      let rows =
+        List.map rstrip (Console_vte.scrollback_lines vte @ screen vte)
+      in
+      frames :=
+        (rows, Console_vte.cursor_pos vte, Console_vte.cursor_visible vte)
+        :: !frames
     end
   in
   (Format.make_formatter write flush, out, frames)
@@ -564,10 +589,10 @@ let test_extreme_terminals n styled =
       redraw_twice t;
       (* Nothing has completed or logged a permanent line. A region that fits
        leaves its bottom row free and cannot have produced scrollback. *)
-      check_eq ~pp:Fmt.int 0 (Vte.scrollback_size t.vte);
+      check_eq ~pp:Fmt.int 0 (Console_vte.scrollback_size t.vte);
       Display.close d;
-      check (Vte.cursor_visible t.vte);
-      check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte)))
+      check (Console_vte.cursor_visible t.vte);
+      check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos t.vte)))
     [ (1, 1); (2, 80); (300, 10) ]
 
 (* On a terminal of any width above 100 columns, no row the display draws
@@ -590,7 +615,7 @@ let test_wide n label =
       if Width.string_width l > 100 then
         failf "a line of %d cells on %d columns: %S" (Width.string_width l)
           width l)
-    (List.map rstrip (Vte.scrollback_lines t.vte) @ screen t.vte)
+    (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
 (* [n] running tasks with [l] log lines each, on a screen [h] rows high: the
    region is at most [h - 1] lines, and a marker counts exactly the lines
@@ -816,7 +841,7 @@ let test_terminal_lines steps =
   in
   check_lines ~where:"terminal"
     (List.map (fun l -> (l, expected l)) lines)
-    (List.map rstrip (Vte.scrollback_lines t.vte) @ screen t.vte)
+    (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
 (* {1 Scenes} *)
 
@@ -893,8 +918,8 @@ let test_scene_frames kind cells n w times =
     Format.pp_set_margin ppf (min width 100);
     pp ppf;
     Format.pp_print_flush ppf ();
-    let vte = Vte.create ~rows:600 ~cols:width () in
-    Vte.feed_string vte
+    let vte = Console_vte.v ~rows:600 ~cols:width () in
+    Console_vte.feed vte
       (String.concat "\r\n" (String.split_on_char '\n' (Buffer.contents buf)));
     List.filter (( <> ) "") (screen vte)
   in

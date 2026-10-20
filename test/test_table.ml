@@ -201,8 +201,8 @@ let test_formatter_margin_never_wraps_border () =
         "raw row reaches margin" width
         (Width.string_width (Console_text.strip row)))
     logical_rows;
-  let vte = Vte.create ~rows:12 ~cols:width () in
-  Vte.feed_string vte raw;
+  let vte = Console_vte.v ~rows:12 ~cols:width () in
+  Console_vte.feed vte raw;
   let rows = List.filter (( <> ) "") (Console_vte.screen vte) in
   let left_edge row =
     List.exists
@@ -226,11 +226,12 @@ let test_formatter_margin_never_wraps_border () =
         (Width.string_width (Console_text.strip row)))
     rows;
   Alcotest.(check int)
-    "table does not enter scrollback" 0 (Vte.scrollback_size vte);
+    "table does not enter scrollback" 0
+    (Console_vte.scrollback_size vte);
   Alcotest.(check (pair int int))
     "cursor begins the next physical row"
     (List.length logical_rows, 0)
-    (Vte.cursor_pos vte)
+    (Console_vte.cursor_pos vte)
 
 (* Every narrow width is a hard limit. Protected columns, preferred minima, wide glyphs, combining
    marks, control bytes and malformed UTF-8 are all incapable of overriding the
@@ -279,15 +280,18 @@ let test_every_margin_is_a_hard_limit () =
           width
           (Width.string_width (Console_text.strip row)))
       logical_rows;
-    let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
-    Vte.feed_string vte raw;
+    let vte =
+      Console_vte.v ~rows:(List.length logical_rows + 2) ~cols:width ()
+    in
+    Console_vte.feed vte raw;
     let visual_rows = List.filter (( <> ) "") (Console_vte.screen vte) in
     Alcotest.(check int)
       (Fmt.str "physical row count at width %d" width)
       (List.length logical_rows) (List.length visual_rows);
     Alcotest.(check int)
       (Fmt.str "no scrollback at width %d" width)
-      0 (Vte.scrollback_size vte);
+      0
+      (Console_vte.scrollback_size vte);
     List.iter
       (fun row ->
         Alcotest.(check bool)
@@ -313,7 +317,7 @@ let test_every_margin_is_a_hard_limit () =
     Alcotest.(check (pair int int))
       (Fmt.str "cursor at width %d" width)
       (List.length logical_rows, 0)
-      (Vte.cursor_pos vte)
+      (Console_vte.cursor_pos vte)
   done
 
 let test_invalid_shape () =

@@ -3,18 +3,74 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** What a terminal recording put on the screen.
+(** An emulated terminal, and what a terminal recording put on its screen.
+
+    The tests read console's output on the screen of an emulator, matrix's
+    [Vte]. Version 0.1.0 of it departs from xterm where console's guarantees are
+    decided: a backspace erases the cell it moves over, SGR 39 and 49 set no
+    default colour, characters of no width are dropped, and after a character in
+    the last column its cursor controls act one column off. A {!t} reads the
+    bytes itself and hands the emulator only what it reads as xterm does, so
+    that a test passes or fails as it would on xterm.
 
     A recording of a program that redraws lines in place holds every redraw, so
-    reading it as text does not say what the screen showed. These functions
-    replay a recording into a terminal emulator and read the screen after each
-    write, with the time of the write. *)
+    reading it as text does not say what the screen showed. {!frames} replays a
+    recording and reads the screen after each write, with the time of the write.
+*)
 
-val screen : ?scrollback:bool -> Vte.t -> string list
-(** [screen vte] is the emulator's visible screen: one string per row, trailing
-    blanks removed, and the blank rows at the bottom dropped. [scrollback]
-    (default [false]) puts the lines that have already scrolled off the top in
-    front of it. *)
+(** {1:terminal Terminal} *)
+
+type t
+(** The type for emulated terminals. *)
+
+val v : ?raw:bool -> rows:int -> cols:int -> unit -> t
+(** [v ~rows ~cols ()] is a blank terminal of [rows] by [cols] cells, its cursor
+    at the top left. A line feed also returns the cursor to the first column, as
+    a tty with output processing on makes it; with [raw] (default [false]) it
+    keeps the column, as with output processing off. *)
+
+val feed : t -> string -> unit
+(** [feed t s] is the terminal reading [s]. An escape sequence or a character
+    that [s] leaves unended is read with the bytes of the next [feed]. *)
+
+val vte : t -> Vte.t
+(** [vte t] is the emulator behind [t]. *)
+
+val rows : t -> int
+(** [rows t] is the height of [t]. *)
+
+val cols : t -> int
+(** [cols t] is the width of [t]. *)
+
+val resize : t -> rows:int -> cols:int -> unit
+(** [resize t ~rows ~cols] gives [t] a new size and blanks its screen. *)
+
+val cursor_pos : t -> int * int
+(** [cursor_pos t] is the cursor's row and column. After a character in the last
+    column, the column is the width of [t]: the next character wraps. *)
+
+val cursor_visible : t -> bool
+(** [cursor_visible t] is [true] iff the cursor is shown. *)
+
+val to_string : t -> string
+(** [to_string t] is the visible screen, a line per row. *)
+
+val scrollback_lines : t -> string list
+(** [scrollback_lines t] is what has scrolled off the top, oldest first. *)
+
+val scrollback_size : t -> int
+(** [scrollback_size t] is the number of {!scrollback_lines}. *)
+
+val grid : t -> Grid.t
+(** [grid t] is the visible screen's cells. *)
+
+val screen : ?scrollback:bool -> t -> string list
+(** [screen t] is the visible screen: one string per row, trailing blanks
+    removed, and the blank rows at the bottom dropped. [scrollback] (default
+    [false]) puts the lines that have already scrolled off the top in front of
+    it. *)
+
+(** {1:recordings Recordings} *)
 
 val records : string -> (float * string) list
 (** [records recording] is what the recorded program wrote and when, oldest
@@ -35,7 +91,7 @@ val records : string -> (float * string) list
 val frames : rows:int -> cols:int -> string -> (float * string list) list
 (** [frames ~rows ~cols recording] is the screen after each write in
     [recording], with its timestamp: the writes of {!records} replayed into a
-    [rows] by [cols] emulator, each paired with {!screen} taken straight after
+    [rows] by [cols] terminal, each paired with {!screen} taken straight after
     it.
 
     The timestamp is seconds from the recording's first record, not the epoch

@@ -23,31 +23,17 @@ let plain ?header ?layout ?theme f =
   (v, Buffer.contents buffer)
 
 type term = {
-  vte : Vte.t;
+  vte : Console_vte.t;
   display : Display.t;
   advance : float -> unit;
   size : (int * int) ref;
   chunks : string list ref;
 }
 
-(* A tty with output processing off passes a line feed through as is: down
-   one row, same column. The emulator returns to the first column on a line
-   feed, so the column is put back after it. *)
-let feed_raw vte s =
-  List.iteri
-    (fun i part ->
-      if i > 0 then begin
-        let col = min (snd (Vte.cursor_pos vte)) (Vte.cols vte - 1) in
-        Vte.feed_string vte "\n";
-        if col > 0 then Vte.feed_string vte (Fmt.str "\027[%dG" (col + 1))
-      end;
-      Vte.feed_string vte part)
-    (String.split_on_char '\n' s)
-
 let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
     ?(styled = false) ?(raw = false) ?(before = "") () =
   let buffer = Buffer.create 512 in
-  let vte = Vte.create ~rows:height ~cols:width () in
+  let vte = Console_vte.v ~raw ~rows:height ~cols:width () in
   let chunks = ref [] and size = ref (width, height) in
   let out_string s o l = Buffer.add_substring buffer s o l in
   let out_flush () =
@@ -55,10 +41,10 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
     Buffer.clear buffer;
     if s <> "" then begin
       chunks := s :: !chunks;
-      if raw then feed_raw vte s else Vte.feed_string vte s
+      Console_vte.feed vte s
     end
   in
-  Vte.feed_string vte before;
+  Console_vte.feed vte before;
   let ppf = Format.make_formatter out_string out_flush in
   if styled then begin
     Fmt.set_style_renderer ppf `Ansi_tty;
@@ -73,7 +59,7 @@ let written t = String.concat "" (List.rev !(t.chunks))
 
 let resize t ~width ~height =
   t.size := (width, height);
-  Vte.resize t.vte ~rows:height ~cols:width
+  Console_vte.resize t.vte ~rows:height ~cols:width
 
 let screen t = Console_vte.screen t.vte
 let lines t = Console_vte.screen ~scrollback:true t.vte
