@@ -8,20 +8,54 @@ the whole screen, use [notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term). Windows
 consoles are not supported.
 
-It has:
+This program runs three test suites side by side as progress rows, then
+prints their results in a table. Its `--theme` option picks one of eighteen
+themes and its `--color` option says when to use colour:
 
-- text styles (bold, underline, colours) that you combine with `+`, from the
-  standard terminal colours up to any RGB colour, brought down to what the
-  terminal can show;
-- clickable links, in the terminals that support them;
-- tables, trees, framed panels, horizontal lines and bars;
-- progress rows that update in place on a terminal, and plain lines in a
-  pipe or a CI log;
-- correct alignment for wide characters, such as Chinese, Japanese, Korean
-  and emoji, which take two columns on screen;
-- eighteen themes, from the colour schemes you may already use, chosen
-  with one `--theme` option; in most of them the frame of a table shown
-  while work runs moves.
+<!-- $MDX file=examples/quickstart/main.ml,part=main -->
+```ocaml
+open Console
+
+let suites = [ ("parser", 120); ("layout", 80); ("render", 60) ]
+
+let test clock display (name, total) =
+  Display.with_task display name @@ fun task ->
+  for cur = 1 to total do
+    Display.set_count task ~cur ~total;
+    Eio.Time.Mono.sleep clock 0.02
+  done
+
+let main color theme =
+  Console_tty.setup ?style_renderer:color ();
+  List.iter (fun ppf -> Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Eio_main.run @@ fun env ->
+  let clock = Eio.Stdenv.mono_clock env in
+  Console_eio.run ~clock ~header:"Testing" (fun d ->
+      Eio.Fiber.List.iter (test clock d) suites);
+  let ok = Span.styled Style.(bold + fg (Theme.ok theme)) "passed" in
+  let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
+  let cols =
+    Table.[ column "Suite"; column ~align:`Right "Tests"; column "Result" ]
+  in
+  Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
+
+let theme =
+  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
+
+let cmd =
+  Cmdliner.Cmd.(
+    v (info "check")
+      Cmdliner.Term.(const main $ Fmt_cli.style_renderer () $ theme))
+
+let () = exit (Cmdliner.Cmd.eval cmd)
+```
+
+![check, then check --theme=rainbow: three progress rows, then a table of the results](examples/quickstart/quickstart.gif)
+
+On a terminal the rows are redrawn in place and each suite leaves one line
+when it ends. In a pipe or a CI log nothing is redrawn: the same program
+prints plain lines, without colour unless `--color=always` asks for it. The
+program is [examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 ## Installation
 
@@ -37,180 +71,21 @@ Until console is in the opam repository, install it from GitHub:
 $ opam pin add https://github.com/samoht/ocaml-console.git
 ```
 
-## Progress
+The `console` package holds the widgets, which need neither Eio nor Unix,
+and three small libraries: `console.tty` decides on colour for the standard
+outputs, `console.text` makes untrusted text safe to print and
+`console.input` is a line editor. The `console-eio` package runs the
+progress rows with [Eio](https://github.com/ocaml-multicore/eio). Each
+module is documented in its `.mli` file, and the tutorial
+[A first CLI](doc/eio/tutorial.mld) builds a command like the one above
+step by step, with a test of its output.
 
-![A build whose running steps are redrawn in place](examples/display/display.gif)
-
-A display shows one row for each task that runs and redraws those rows in
-place; a task that ends is printed once above them and stays. The smallest
-program:
-
-```ocaml
-let build display =
-  Console.Display.with_task display "compile" (fun step ->
-      Console.Display.set_count step ~cur:1 ~total:2;
-      Console.Display.log step "ocamlopt parser.ml";
-      Console.Display.set_count step ~cur:2 ~total:2)
-
-let main () =
-  Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
-```
-
-`with_task` succeeds its task when the function returns and fails it when the
-function raises. When the output is not a terminal, nothing is redrawn and the
-same work prints these lines: one when the task starts, each line of its
-output after the name of its task, one when it ends, and the header last, as
-a summary:
-
-```text
-• compile
-  › compile: ocamlopt parser.ml
-✓ compile  2/2  0.0s
-✓ Building 0.0s (1/1)
-```
-
-### Where text goes
-
-While a display runs, your program's text goes to one of three places. What
-it prints on standard output with `Fmt.pr` is its result: console never moves
-or hides it. On the terminal it only waits for each whole line and prints it
-above the progress rows. Under each running task, console shows that task's
-latest lines (8 unless `~log_lines` says otherwise). Those lines are either
-what you hand it with `Display.log`, such as a command's output, or the `Logs`
-messages logged inside the task, meaning in the function given to
-`Display.with_task` or in a fiber that function started. Log messages always
-stay. Command output stays only if the task fails.
-
-| What | Terminal, while running | Terminal, once the task ends | Pipe or CI |
-|---|---|---|---|
-| `Fmt.pr` (stdout) | above the rows | stays | unchanged, on stdout |
-| `Logs` outside a task | above the rows | stays | printed at once |
-| `Logs` inside a task | in the task's window | stays above, after the task's name | printed at once, after the task's name |
-| `Display.log`, task succeeds | in the task's window | removed | printed at once, after the task's name |
-| `Display.log`, task fails | in the task's window | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
-| `Display.log`, task cancelled (Ctrl-C) | in the task's window | what was in the window stays | printed at once |
-
-A failed task keeps up to 1 MiB of its output, the oldest lines dropped first
-and counted on a line of their own. What `print_string`, `Printf` or a child
-process writes on the terminal is not seen and garbles the rows: print it with
-`Display.with_output`. On a pipe, console flushes standard output before each
-line it writes, so that `2>&1` keeps the order of the two outputs.
-
-Each line starts with a mark that says how its task ended; the theme chooses
-the marks:
-
-| Task | `Theme.default` | `Theme.dos` |
-|---|---|---|
-| succeeded | `✓` | `[+]` |
-| failed | `✗` | `[x]` |
-| cancelled | `○` | `[~]` |
-
-Good to know:
-
-- The display draws on standard error, so standard output stays the
-  program's.
-- A program decides on colour once, with `Console_tty.setup` from the
-  `console.tty` library: no colour when `NO_COLOR` is set and not empty, or
-  when `TERM` is unset, empty or `dumb`; otherwise colour if and only if the
-  output is a terminal, in as many colours as `COLORTERM` and `TERM`
-  announce, and UTF-8 if the locale is. A `--color` option passed to `setup`
-  as its `?style_renderer` decides instead (below). If the program does not
-  call `setup`, `Console_eio.run` does, for the outputs on which the program
-  chose nothing itself.
-- A task your function did not end is shown as cancelled when the display
-  closes, unless the function said the work succeeded with
-  `Display.set_result`. When it raises, or its fiber is cancelled, the
-  exception goes on; when the program exits in the middle, or Ctrl-C stops
-  it, the display still closes and shows the cursor again.
-- `Console_eio.run ~plain:true` prints the lines a pipe gets on a terminal
-  too, for a `--progress=plain` option.
-- A `Console_eio.run` inside another one gets the same display, so a library
-  can start one without knowing whether its caller did.
-- `Console_eio.Prompt` asks a question, or a password without echoing it,
-  and takes the rows off the screen while it asks.
-
-A `--color=auto|always|never` option comes from `fmt.cli`, and its value goes
-straight to `setup`. This is a whole program, `ready`, whose entry point is
-`let () = main ()`:
-
-```ocaml
-let ready style_renderer =
-  Console_tty.setup ?style_renderer ();
-  Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
-
-let cmd =
-  Cmdliner.Cmd.v (Cmdliner.Cmd.info "ready")
-    Cmdliner.Term.(const ready $ Fmt_cli.style_renderer ())
-
-let main () = exit (Cmdliner.Cmd.eval cmd)
-```
-
-Run as `ready --color=never`, it prints plain text:
-
-```ocaml
-# Cmdliner.Cmd.eval ~argv:[| "ready"; "--color=never" |] cmd;;
-ready
-- : int = 0
-```
-
-### In tests
-
-An elapsed time is the one part of the output that the machine writes rather
-than the program. With `CONSOLE_FROZEN_CLOCK` set to any value but the empty
-string, `Console_eio.run` reads a clock stopped at zero: every elapsed time
-reads `0.0s`, no rate shows, and the spinners and the motion stand still, so
-a cram test of the program's output reads the same on every machine:
-
-<!-- $MDX skip -->
-```sh
-  $ export CONSOLE_FROZEN_CLOCK=1
-  $ build 2>&1 | cat
-  • compile
-    › compile: ocamlopt parser.ml
-  ✓ compile  2/2  0.0s
-  ✓ Building 0.0s (1/1)
-```
-
-## A table while work runs
-
-![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
-
-`Display.set_scene` draws what a printer prints above the rows, each time
-they are redrawn: a table of results that fills in as the work goes, say.
-Its width is the rows', and it is drawn in the display's theme:
-
-```ocaml
-let watch display (results : unit -> Console.Table.t) =
-  Console.Display.set_scene display (fun ~height:_ ppf ->
-      Console.Table.pp ppf (results ()))
-```
-
-In a theme with motion (`Theme.motion`), the frame of a table or a panel
-in a scene moves, by the time since the display started: digital rain
-running along it in `Theme.matrix`, a rainbow graded round it and sweeping
-in `Theme.rainbow`, and a highlight of the main colour going round it in
-the themes of colour schemes. Only colours and the glyphs of straight
-lines change, never a width, so the columns stay aligned in every frame.
-The same table printed with `Fmt`, on a pipe, or without colour is still,
-a rainbow frame keeping its colours, and so is every frame of a theme
-passed through `Theme.still`, which also stops the spinner, for the users
-who ask for no animation:
-
-```ocaml
-let theme ~no_motion t = if no_motion then Console.Theme.still t else t
-```
-
-A scene is drawn only on a terminal and goes when the display closes:
-print the table again once the work is done, as
-[the example](examples/display/main.ml) does.
-
-## Styles and widgets
+## Styles, spans and tables
 
 Styles combine with `+`, and text in a style is a `Span.t`, printed by a
-[`Fmt`](https://erratique.ch/software/fmt) printer. The widgets need neither
-Eio nor Unix; `Console_tty.setup`, in `console.tty`, turns colour on when the
-output is a terminal, and without it everything prints plain:
+[`Fmt`](https://erratique.ch/software/fmt) printer. `Console_tty.setup`, in
+`console.tty`, turns colour on when the output is a terminal; without it
+everything prints plain:
 
 ```ocaml
 open Console
@@ -230,10 +105,9 @@ let () =
 let () = Fmt.pr "%a tests passed@." Console.Style.(styled bold Fmt.int) 42
 ```
 
-Tables and other widgets take their text as a `Span.t`, a piece of text with
-its style and, optionally, a link. `Span.pp` prints the colours and links
-when its formatter is set to colour, as `Console_tty.setup` sets standard
-output on a terminal, and `Span.to_string` returns the plain text.
+A span can hold several styles and links, which a terminal that supports
+them opens on a click. `Span.pp` prints the colours and links when its
+formatter is set to colour, and `Span.to_string` returns the plain text:
 
 ```ocaml
 open Console
@@ -246,7 +120,8 @@ let docs =
 let () = Fmt.pr "%a@." Span.pp docs
 ```
 
-A table is as wide as its content needs, unless you give it a `~width`:
+The widgets take their text as spans. A table is as wide as its content
+needs, unless you give it a `~width`:
 
 ```ocaml
 open Console
@@ -277,7 +152,10 @@ let print_files () =
 - : unit = ()
 ```
 
-`Border.simple` draws no frame, only a rule under the header:
+Widths are counted in terminal cells, so a column of Chinese, Japanese or
+Korean text, or of emoji, which take two cells each, stays aligned.
+`Border.simple` draws no frame, only a rule under the header, and
+`Table.v ~rules:true` separates the rows, which helps when cells wrap:
 
 ```ocaml
 # print_endline
@@ -293,12 +171,28 @@ Name       Size
 README.md  2.4K
 src/       4.0K
 - : unit = ()
+# print_endline
+    (Table.to_string
+       (Table.v ~rules:true
+          [ Table.column "Step"; Table.column "Status" ]
+          [
+            [ Span.text "fetch"; Span.text "done" ];
+            [ Span.text "compile"; Span.text "2 warnings\n1 error" ];
+          ]));;
+╭─────────┬────────────╮
+│ Step    │ Status     │
+├─────────┼────────────┤
+│ fetch   │ done       │
+├─────────┼────────────┤
+│ compile │ 2 warnings │
+│         │ 1 error    │
+╰─────────┴────────────╯
+- : unit = ()
 ```
 
 Trees and framed panels print the same way:
 
 ```ocaml
-# open Console;;
 # let file name = Tree.v (Span.text name) [] in
   Fmt.pr "%a@." Tree.pp
     (Tree.v (Span.text "src")
@@ -321,26 +215,21 @@ src
 - : unit = ()
 ```
 
-`Rule` draws a horizontal line as wide as the output, with an optional title:
+`Rule` draws a horizontal line as wide as the output, with an optional
+label, and `Bar` a bar, here 65% full and twenty cells wide:
 
 ```ocaml
 # Format.set_margin 40;;
 - : unit = ()
-# Fmt.pr "%a@." Console.Rule.pp
-    (Console.Rule.v ~label:(Console.Span.text "Results") ());;
+# Fmt.pr "%a@." Rule.pp (Rule.v ~label:(Span.text "Results") ());;
 ─────────────── Results ────────────────
 - : unit = ()
-```
-
-`Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
-
-```ocaml
 # print_endline (Bar.to_string (Bar.v ~width:20 0.65));;
 ━━━━━━━━━━━━━╺━━━━━━
 - : unit = ()
 ```
 
-`Bar.to_span` puts one in a table cell, drawn in the table's theme:
+`Bar.to_span` puts a bar in a table cell, drawn in the table's theme:
 
 ```ocaml
 # let downloads =
@@ -358,12 +247,9 @@ rootfs.tar  ━━━━━━━━━╺
 - : unit = ()
 ```
 
-Without a style, a bar takes the palette of its theme: in `Theme.rainbow`,
-whose palette has six colours, each filled cell is in the colour of its
-place along the bar, so the fill uncovers a rainbow as it grows.
-`Span.gradient` grades text through the same palette, or through the
-colours it is given, one grapheme cluster at a time; without colour it is
-its text:
+`Span.gradient` grades text through the colours it is given, or through
+the palette of the theme, one grapheme cluster at a time; without colour it
+is its text:
 
 ```ocaml
 # Fmt.pr "%a@." Span.pp (Span.gradient ~colors:[ Color.red; Color.blue ] "console");;
@@ -371,31 +257,8 @@ console
 - : unit = ()
 ```
 
-`Table.v ~rules:true` separates the rows of a table, which helps when its
-cells wrap over several lines:
-
-```ocaml
-# print_endline
-    (Table.to_string
-       (Table.v ~rules:true
-          [ Table.column "Step"; Table.column "Status" ]
-          [
-            [ Span.text "fetch"; Span.text "done" ];
-            [ Span.text "compile"; Span.text "2 warnings\n1 error" ];
-          ]));;
-╭─────────┬────────────╮
-│ Step    │ Status     │
-├─────────┼────────────┤
-│ fetch   │ done       │
-├─────────┼────────────┤
-│ compile │ 2 warnings │
-│         │ 1 error    │
-╰─────────┴────────────╯
-- : unit = ()
-```
-
 `Console.hcat` prints blocks side by side, each at its share of the margin
-and in its own colours; a scene can be one:
+and in its own colours:
 
 ```ocaml
 # let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ]
@@ -409,13 +272,14 @@ src      ╭─────────╮
 - : unit = ()
 ```
 
+## Themes
+
 Every widget is drawn in the theme of the formatter it is printed on, which
-`Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
-main colour, the colours of success, warning and failure, the marks, the
-frame style and how it moves, the lines that connect tree branches, the
-bars and the spinner. The
-themes are shown [at the end](#themes). `Theme.all` names them all, so a
-`--theme` option is one line of
+`Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours. A
+theme holds the main colour, the colours of success, warning and failure,
+the marks, the frame style and how it moves, the lines of a tree, the bars
+and the spinner.
+`Theme.all` names the eighteen themes, so a `--theme` option is one line of
 [Cmdliner](https://erratique.ch/software/cmdliner):
 
 ```ocaml
@@ -441,9 +305,241 @@ let cmd =
 - : int = 0
 ```
 
-## API
+`Theme.default` reads on any background and is the one to keep when
+nothing is known of the terminal. A theme named after a colour scheme, such
+as `Theme.dracula` or `Theme.solarized_light`, is for a terminal that uses
+that scheme: its colours are chosen for the scheme's background, which
+console does not paint, and some of them may be hard to read on another
+one. Every theme falls back to ASCII on a terminal whose locale is not
+UTF-8, as `Theme.ascii` always does.
 
-The `console` library:
+Each tile below is [the same program](examples/themes/main.ml) in one
+theme, recorded by [its tape](examples/themes/tape.ml) on the background
+the theme is made for, while its progress rows run. In reading order:
+`default`, `ascii`, `dos`, `matrix`, `rainbow`, `dracula`, `nord`,
+`solarized_dark`, `solarized_light`, `gruvbox_dark`, `gruvbox_light`,
+`catppuccin_latte`, `catppuccin_mocha`, `tokyo_night`, `one_dark`,
+`monokai`, `github_dark` and `github_light`.
+
+![The eighteen themes, each drawing the same tree, table and progress rows](examples/themes/gallery.png)
+
+### Motion
+
+![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
+
+`Display.set_scene` draws what a printer prints above the progress rows,
+each time they are redrawn: a table of results that fills in as the work
+goes, say. Its width is the rows', and it is drawn in the display's theme:
+
+```ocaml
+let watch display (results : unit -> Console.Table.t) =
+  Console.Display.set_scene display (fun ~height:_ ppf ->
+      Console.Table.pp ppf (results ()))
+```
+
+In a theme with motion (`Theme.motion`), the frame of a table or a panel in
+a scene moves, by the time since the display started. `Theme.matrix` runs
+digital rain along it (`` `Rain ``, above), `Theme.rainbow` sweeps its
+palette, graded round it (`` `Sweep ``), and every theme named after a
+colour scheme, such as `Theme.tokyo_night`, sends a highlight of its main
+colour round it (`` `Shimmer ``). `Theme.default`, `Theme.ascii` and
+`Theme.dos` stand still. Only colours and the glyphs of straight lines
+change, each glyph keeping its width, so the columns stay aligned in every
+frame.
+
+![The build in Theme.rainbow, a rainbow sweeping round the frame of its table](examples/display/rainbow.gif)
+
+![The build in Theme.tokyo_night, a highlight going round the frame of its table](examples/display/tokyo-night.gif)
+
+The same table printed with `Fmt`, on a pipe, or without colour is still,
+a rainbow frame keeping its colours, and so is every frame of a theme
+passed through `Theme.still`, which also stops the spinner, for the users
+who ask for no animation:
+
+```ocaml
+let theme ~no_motion t = if no_motion then Console.Theme.still t else t
+```
+
+A scene is drawn only on a terminal and goes when the display closes:
+print the table again once the work is done, as
+[the example](examples/display/main.ml), recorded by
+[its tape](examples/display/tape.ml), does.
+
+## Live progress
+
+![A build whose running steps are redrawn in place](examples/display/display.gif)
+
+A display shows one row for each task that runs and redraws those rows in
+place; a task that ends is printed once above them and stays. The smallest
+program:
+
+```ocaml
+let build display =
+  Console.Display.with_task display "compile" (fun step ->
+      Console.Display.set_count step ~cur:1 ~total:2;
+      Console.Display.log step "ocamlopt parser.ml";
+      Console.Display.set_count step ~cur:2 ~total:2)
+
+let main () =
+  Eio_main.run @@ fun env ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
+```
+
+`with_task` succeeds its task when the function returns and fails it when
+the function raises. A task started inside it, or in a fiber it forks, goes
+under it.
+
+### Where text goes
+
+While a display runs, your program's text goes to one of three places. What
+it prints on standard output with `Fmt.pr` is its result: console never moves
+or hides it. On the terminal it only waits for each whole line and prints it
+above the progress rows. Under each running task, console shows that task's
+latest lines (8 unless `~log_lines` says otherwise). Those lines are either
+what you hand it with `Display.log`, such as a command's output, or the `Logs`
+messages logged inside the task, meaning in the function given to
+`Display.with_task` or in a fiber that function started. Log messages always
+stay. Command output stays only if the task fails.
+
+| What | Terminal, while running | Terminal, once the task ends | Pipe or CI |
+|---|---|---|---|
+| `Fmt.pr` (stdout) | above the rows | stays | unchanged, on stdout |
+| `Logs` outside a task | above the rows | stays | printed at once |
+| `Logs` inside a task | in the task's window | stays above, after the task's name | printed at once, after the task's name |
+| `Display.log`, task succeeds | in the task's window | removed | printed at once, after the task's name |
+| `Display.log`, task fails | in the task's window | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
+| `Display.log`, task cancelled (Ctrl-C) | in the task's window | what was in the window stays | printed at once |
+
+A failed task keeps up to 1 MiB of its output, the oldest lines dropped first
+and counted on a line of their own. What `print_string`, `Printf` or a child
+process writes on the terminal is not seen and garbles the rows: print it with
+`Display.with_output`. The display draws on standard error, so standard
+output stays the program's.
+
+Good to know:
+
+- A task your function did not end is shown as cancelled when the display
+  closes, unless the function said the work succeeded with
+  `Display.set_result`. When it raises, or its fiber is cancelled, the
+  exception goes on; when the program exits in the middle, or Ctrl-C stops
+  it, the display still closes and shows the cursor again.
+- A `Console_eio.run` inside another one gets the same display, so a library
+  can start one without knowing whether its caller did.
+- Call the functions of a display from the domain that runs it. A `Logs`
+  message logged in another domain that Eio runs, such as one of an
+  `Eio.Executor_pool`, is passed to that one and printed above the rows.
+- `Console_eio.Prompt` asks a question, or a password without echoing it,
+  and takes the rows off the screen while it asks.
+
+## Pipes, CI and colour
+
+When the output is not a terminal, nothing is redrawn. A task prints a line
+when it starts and one when it ends, with each line of its output after its
+name in between, and the header comes last, as a summary. `Display.v` opens a display on
+any formatter, here a buffer, with a clock that stays at zero, and shows
+what `build` above prints in a pipe:
+
+```ocaml
+# let pipe = Buffer.create 256 in
+  let display =
+    Console.Display.v ~header:"Building" ~now:(fun () -> 0.)
+      (Format.formatter_of_buffer pipe)
+  in
+  build display;
+  Console.Display.close display;
+  print_string (Buffer.contents pipe);;
+• compile
+  › compile: ocamlopt parser.ml
+✓ compile  2/2  0.0s
+✓ Building 0.0s (1/1)
+- : unit = ()
+```
+
+On a pipe, console flushes standard output before each line it writes, so
+that `2>&1` keeps the order of the two outputs. `Console_eio.run
+~plain:true` prints these lines on a terminal too, for a `--progress=plain`
+option. Each line starts with a mark that says how its task ended; the
+theme chooses the marks:
+
+| Task | `Theme.default` | `Theme.dos` |
+|---|---|---|
+| succeeded | `✓` | `[+]` |
+| failed | `✗` | `[x]` |
+| cancelled | `○` | `[~]` |
+
+A program decides on colour once, with `Console_tty.setup` from the
+`console.tty` library. There is no colour when `NO_COLOR` is set and not
+empty, or when `TERM` is unset, empty or `dumb`. Otherwise an output is in
+colour if and only if it is a terminal, in as many colours as `COLORTERM`
+and `TERM` announce, and in UTF-8 if the locale is. A
+`--color=auto|always|never` option from `fmt.cli`, passed to `setup` as its
+`?style_renderer`, decides instead. If the program does not call `setup`,
+`Console_eio.run` does, for the outputs on which the program chose nothing
+itself:
+
+```ocaml
+let ready style_renderer =
+  Console_tty.setup ?style_renderer ();
+  Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
+
+let cmd =
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "ready")
+    Cmdliner.Term.(const ready $ Fmt_cli.style_renderer ())
+```
+
+```ocaml
+# Cmdliner.Cmd.eval ~argv:[| "ready"; "--color=never" |] cmd;;
+ready
+- : int = 0
+```
+
+## Tests
+
+An elapsed time is the one part of the output that the machine writes rather
+than the program. With `CONSOLE_FROZEN_CLOCK` set to any value but the empty
+string, `Console_eio.run` reads a clock stopped at zero: every elapsed time
+reads `0.0s`, no rate shows, and the spinners and the motion stand still, so
+a cram test of the program's output reads the same on every machine:
+
+<!-- $MDX skip -->
+```sh
+  $ export CONSOLE_FROZEN_CLOCK=1
+  $ build 2>&1 | cat
+  • compile
+    › compile: ocamlopt parser.ml
+  ✓ compile  2/2  0.0s
+  ✓ Building 0.0s (1/1)
+```
+
+The widgets need no clock: `to_string` on a table, a tree, a panel, a rule
+or a bar gives the text a test compares, plain unless `~styled:true`.
+
+## Line editing and untrusted text
+
+The `console.input` library has one module, `Console_input`, a line editor
+for a serial line, a network channel or a terminal in raw mode. It turns the
+bytes typed into what to echo and the lines entered, with a cursor, history
+and completion. It does no input or output itself, so the program reads the
+bytes and writes the echo back:
+
+```ocaml
+# let editor = Console_input.v () in
+  Console_input.feed editor "ls\r";;
+- : string * string list = ("ls\r\n", ["ls"])
+```
+
+The `console.text` library has one module, `Console_text`, which makes text
+you do not trust safe to print: it removes escape codes, control characters
+and the characters that reorder text, without the rest of console:
+
+```ocaml
+# Console_text.strip "\027[31mred\027[0m and \027]0;title\007plain";;
+- : string = "red and plain"
+# Console_text.sanitize "rm \027[2J-rf";;
+- : string = "rm  [2J-rf"
+```
+
+## API
 
 | Module | What it does |
 |---|---|
@@ -456,42 +552,15 @@ The `console` library:
 | `Console.Table` | Tables with headers and aligned columns |
 | `Console.Tree` | Trees, drawn like the output of `tree` |
 | `Console.Panel` | Text in a frame, with an optional title |
-| `Console.Rule` | Horizontal lines with an optional title |
+| `Console.Rule` | Horizontal lines with an optional label |
 | `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Spinner` | Spinners for work of unknown length |
-| `Console.Display` | Progress rows that update in place, under a scene such as a table, or plain lines outside a terminal |
-
-The `console-eio` library:
-
-| Module | What it does |
-|---|---|
-| `Console_eio` | Decides on colour, and runs a `Display` with [Eio](https://github.com/ocaml-multicore/eio) |
-| `Console_eio.Prompt` | Asking a question on the terminal and reading the answer with Eio, or a password without showing it |
-
-The `console.text` library has one module, `Console_text`, which makes text
-you do not trust safe to print: it removes escape codes, control characters
-and the characters that reorder text, without the rest of console. It comes
-with the `console` package; add `console.text` to the `libraries` of your
-`dune` file:
-
-```ocaml
-# Console_text.strip "\027[31mred\027[0m and \027]0;title\007plain";;
-- : string = "red and plain"
-# Console_text.sanitize "rm \027[2J-rf";;
-- : string = "rm  [2J-rf"
-```
-
-The `console.input` library has one module, `Console_input`, a line editor
-for a serial line, a network channel or a terminal in raw mode: it turns the
-bytes typed into what to echo and the lines entered, with a cursor, history
-and completion, and does no input or output itself, so the program reads the
-bytes and writes the echo back. It also comes with the `console` package:
-
-```ocaml
-# let editor = Console_input.v () in
-  Console_input.feed editor "ls\r";;
-- : string * string list = ("ls\r\n", ["ls"])
-```
+| `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
+| `Console_tty` | Colour and UTF-8 on the standard outputs (`console.tty`) |
+| `Console_text` | Untrusted text made safe for a terminal (`console.text`) |
+| `Console_input` | A line editor that does no input or output (`console.input`) |
+| `Console_eio` | Runs a `Display` with Eio (`console-eio`) |
+| `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
 
 ## Related work
 
@@ -530,104 +599,3 @@ bytes and writes the echo back. It also comes with the `console` package:
   Hazenberg (no licence stated), and
   [GitHub Dark and Light](https://github.com/primer/github-vscode-theme) by
   GitHub (MIT).
-
-## Themes
-
-Each picture is [the same program](examples/themes/main.ml) in one theme,
-recorded by [its tape](examples/themes/tape.ml), on the background the
-theme is made for, while its progress rows run: the table above them is
-caught in the middle of its theme's motion. `Theme.default` reads on any background; a theme named
-after a colour scheme is for a terminal that uses that scheme, and its
-colours may be hard to read on another background. Every theme falls back
-to ASCII on a terminal whose locale is not UTF-8, as `Theme.ascii` always
-does.
-
-### Motion
-
-The build of [the example](examples/display/main.ml), recorded by
-[its tape](examples/display/tape.ml), shows each motion. `Theme.matrix`
-rains along the frame (`` `Rain ``), as
-[the build above](#a-table-while-work-runs) shows.
-`Theme.rainbow` sweeps its palette, graded round the frame (`` `Sweep ``),
-under a title in `Span.gradient` and over rows whose bars are rainbows:
-
-![The build in Theme.rainbow, a rainbow sweeping round the frame of its table](examples/display/rainbow.gif)
-
-Every theme named after a colour scheme, such as `Theme.tokyo_night`,
-shimmers in its main colour (`` `Shimmer ``):
-
-![The build in Theme.tokyo_night, a highlight going round the frame of its table](examples/display/tokyo-night.gif)
-
-`Theme.default`, `Theme.ascii` and `Theme.dos` stand still.
-
-### `Theme.default`
-
-![The theme demo in default](examples/themes/default.png)
-
-### `Theme.ascii`
-
-![The theme demo in ascii](examples/themes/ascii.png)
-
-### `Theme.dos`
-
-![The theme demo in dos](examples/themes/dos.png)
-
-### `Theme.matrix`
-
-![The theme demo in matrix](examples/themes/matrix.png)
-
-### `Theme.rainbow`
-
-![The theme demo in rainbow](examples/themes/rainbow.png)
-
-### `Theme.dracula`
-
-![The theme demo in dracula](examples/themes/dracula.png)
-
-### `Theme.nord`
-
-![The theme demo in nord](examples/themes/nord.png)
-
-### `Theme.solarized_dark`
-
-![The theme demo in solarized-dark](examples/themes/solarized-dark.png)
-
-### `Theme.solarized_light`
-
-![The theme demo in solarized-light](examples/themes/solarized-light.png)
-
-### `Theme.gruvbox_dark`
-
-![The theme demo in gruvbox-dark](examples/themes/gruvbox-dark.png)
-
-### `Theme.gruvbox_light`
-
-![The theme demo in gruvbox-light](examples/themes/gruvbox-light.png)
-
-### `Theme.catppuccin_latte`
-
-![The theme demo in catppuccin-latte](examples/themes/catppuccin-latte.png)
-
-### `Theme.catppuccin_mocha`
-
-![The theme demo in catppuccin-mocha](examples/themes/catppuccin-mocha.png)
-
-### `Theme.tokyo_night`
-
-![The theme demo in tokyo-night](examples/themes/tokyo-night.png)
-
-### `Theme.one_dark`
-
-![The theme demo in one-dark](examples/themes/one-dark.png)
-
-### `Theme.monokai`
-
-![The theme demo in monokai](examples/themes/monokai.png)
-
-### `Theme.github_dark`
-
-![The theme demo in github-dark](examples/themes/github-dark.png)
-
-### `Theme.github_light`
-
-![The theme demo in github-light](examples/themes/github-light.png)

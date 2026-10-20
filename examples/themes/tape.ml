@@ -5,7 +5,10 @@
 
 (* The tape that screenshots the theme demo in the theme its argument names,
    on that theme's background: the one place that says how the gallery is
-   recorded. *)
+   recorded. The README shows the eighteen screenshots as one grid,
+   gallery.png, in the order of Theme.all: each cropped to 900x400 from
+   y = 42 (below the command line), scaled to 600 wide and laid out three
+   to a row, 8 pixels apart, with ffmpeg's xstack filter. *)
 
 (* Text that reads on the background: dark on a light one, light on a dark
    one. *)

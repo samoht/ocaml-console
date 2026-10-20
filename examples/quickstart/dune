@@ -1,0 +1,32 @@
+(executable
+ (name main)
+ (modules main)
+ (libraries
+  console
+  console.tty
+  console-eio
+  eio
+  eio_main
+  fmt
+  fmt.cli
+  cmdliner))
+
+(executable
+ (name tape)
+ (modules tape)
+ (optional)
+ (libraries vhs))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target quickstart.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff quickstart.tape quickstart.generated.tape)))
