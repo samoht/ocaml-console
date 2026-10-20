@@ -69,9 +69,30 @@ let test_inner_lines () =
       c.right_cross;
     ]
 
+(* [simple] has no frame and no line between the columns: a rule under the
+   header alone, across them. *)
+let test_simple () =
+  let c = Border.chars Border.simple in
+  Alcotest.(check (list string))
+    "no frame" []
+    (List.filter (( <> ) "")
+       [
+         c.top_left;
+         c.top;
+         c.top_right;
+         c.left;
+         c.right;
+         c.bottom_left;
+         c.bottom;
+         c.bottom_right;
+         c.vertical;
+       ]);
+  Alcotest.(check string) "a light rule" "\u{2500}" c.horizontal
+
 let suite =
   ( "border",
     [
+      Alcotest.test_case "simple" `Quick test_simple;
       Alcotest.test_case "inner lines" `Quick test_inner_lines;
       Alcotest.test_case "ascii" `Quick test_ascii;
       Alcotest.test_case "unicode" `Quick test_unicode;

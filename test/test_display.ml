@@ -1081,10 +1081,37 @@ let test_scene_moves () =
     "still once stilled" true
     (unmoved (run (Theme.still Theme.matrix) ~styled:true))
 
+(* A table in [Border.simple] has no frame to move: in a theme with motion,
+   every frame of a scene is the still one. *)
+let test_simple_scene_stands_still () =
+  let simple =
+    Table.v ~border:Border.simple
+      [ Table.column "step"; Table.column ~align:`Right "time" ]
+      [
+        [ Span.text "fetch"; Span.text "1.2s" ];
+        [ Span.text "compile"; Span.text "3.4s" ];
+      ]
+  in
+  List.iter
+    (fun theme ->
+      let t = terminal ~theme ~styled:true ~width:40 ~height:12 () in
+      Display.set_scene t.display (fun ~height:_ ppf -> Table.pp ppf simple);
+      Display.redraw t.display;
+      let still = screen t in
+      for _ = 1 to 12 do
+        t.advance 0.25;
+        Display.redraw t.display;
+        Alcotest.(check (list string)) "still" still (screen t)
+      done;
+      Display.close t.display)
+    Theme.[ matrix; rainbow; tokyo_night ]
+
 let suite =
   ( "display",
     [
       Alcotest.test_case "a scene side by side" `Quick test_scene_hcat;
+      Alcotest.test_case "a simple table stands still" `Quick
+        test_simple_scene_stands_still;
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
       Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;

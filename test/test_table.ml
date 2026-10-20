@@ -512,6 +512,45 @@ let test_rules () =
   Alcotest.(check string)
     "in the header rule's style" (List.nth lines 2) (List.nth lines 4)
 
+(* [Border.simple] draws no frame: the columns two spaces apart, as in a
+   table without edges, and a rule under the header as wide as the table,
+   between the rows too with [rules], in ASCII on a formatter that is not
+   UTF-8. *)
+let test_simple () =
+  let table ?rules () =
+    Table.v ?rules ~border:Border.simple
+      [ Table.column "Name"; Table.column ~align:`Right "Size" ]
+      [
+        [ Span.text "README.md"; Span.text "2.4K" ];
+        [ Span.text "src/"; Span.text "4.0K" ];
+      ]
+  in
+  let rule = String.concat "" (List.init 15 (Fun.const "\u{2500}")) in
+  Alcotest.(check string)
+    "header rule"
+    (String.concat "\n"
+       [ "Name       Size"; rule; "README.md  2.4K"; "src/       4.0K" ])
+    (Table.to_string (table ()));
+  Alcotest.(check string)
+    "rules"
+    (String.concat "\n"
+       [ "Name       Size"; rule; "README.md  2.4K"; rule; "src/       4.0K" ])
+    (Table.to_string (table ~rules:true ()));
+  Alcotest.(check string)
+    "not UTF-8"
+    (String.concat "\n"
+       [
+         "Name       Size";
+         String.make 15 '-';
+         "README.md  2.4K";
+         "src/       4.0K";
+       ])
+    (printed ~utf_8:false (table ()));
+  Alcotest.(check (list int))
+    "cut to the margin" [ 10; 10; 10; 10 ]
+    (List.map Width.string_width
+       (String.split_on_char '\n' (Table.to_string ~width:10 (table ()))))
+
 let suite =
   ( "table",
     [
@@ -542,6 +581,7 @@ let suite =
       Alcotest.test_case "invalid shape" `Quick test_invalid_shape;
       Alcotest.test_case "empty" `Quick test_empty;
       Alcotest.test_case "a bar in a cell" `Quick test_bar_cell;
+      Alcotest.test_case "simple border" `Quick test_simple;
       Alcotest.test_case "a bar as a span" `Quick test_bar_span;
       Alcotest.test_case "wrap" `Quick test_wrap;
       Alcotest.test_case "wrap preserves an unbroken token" `Quick
