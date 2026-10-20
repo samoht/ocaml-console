@@ -22,3 +22,17 @@
  (enabled_if %{lib-available:vhs})
  (action
   (diff display.tape display.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target matrix.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe matrix))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff matrix.tape matrix.generated.tape)))

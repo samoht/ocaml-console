@@ -20,7 +20,8 @@ It has:
 - correct alignment for wide characters, such as Chinese, Japanese, Korean
   and emoji, which take two columns on screen;
 - eighteen themes, from the colour schemes you may already use, chosen
-  with one `--theme` option.
+  with one `--theme` option; in most of them the frame of a table shown
+  while work runs moves.
 
 ## Installation
 
@@ -121,6 +122,38 @@ Run as `ready --color=never`, it prints plain text:
 ready
 - : int = 0
 ```
+
+## A table while work runs
+
+![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
+
+`Display.set_scene` draws what a printer prints above the rows, each time
+they are redrawn: a table of results that fills in as the work goes, say.
+Its width is the rows', and it is drawn in the display's theme:
+
+```ocaml
+let watch display (results : unit -> Console.Table.t) =
+  Console.Display.set_scene display (fun ~height:_ ppf ->
+      Console.Table.pp ppf (results ()))
+```
+
+In a theme with motion (`Theme.motion`), the frame of a table or a panel
+in a scene moves, by the time since the display started: digital rain in
+`Theme.matrix`, the colours of the rainbow sweeping round it in
+`Theme.rainbow`, and a highlight of the main colour going round it in the
+themes of colour schemes. Only colours and glyphs change, never a width,
+so the columns stay aligned in every frame. The same table printed with
+`Fmt`, on a pipe, or without colour is still, and so is every frame of a
+theme passed through `Theme.still`, which also stops the spinner, for the
+users who ask for no animation:
+
+```ocaml
+let theme ~no_motion t = if no_motion then Console.Theme.still t else t
+```
+
+A scene is drawn only on a terminal and goes when the display closes:
+print the table again once the work is done, as
+[the example](examples/display/main.ml) does.
 
 ## Styles and widgets
 
@@ -260,8 +293,8 @@ rootfs.tar  ━━━━━━━━━╺
 Every widget is drawn in the theme of the formatter it is printed on, which
 `Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
 main colour, the colours of success, warning and failure, the marks, the
-frame style, the lines that connect tree branches, the bars and the
-spinner. The
+frame style and how it moves, the lines that connect tree branches, the
+bars and the spinner. The
 themes are shown [at the end](#themes). `Theme.all` names them all, so a
 `--theme` option is one line of
 [Cmdliner](https://erratique.ch/software/cmdliner):
@@ -307,7 +340,7 @@ The `console` library:
 | `Console.Rule` | Horizontal lines with an optional title |
 | `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Spinner` | Spinners for work of unknown length |
-| `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
+| `Console.Display` | Progress rows that update in place, under a scene such as a table, or plain lines outside a terminal |
 | `Console.Input` | A line editor that turns bytes typed into echo and lines, with history and completion; it does no input or output itself |
 
 The `console-eio` library:
@@ -372,11 +405,21 @@ with the `console` package; add `console.text` to the `libraries` of your
 
 Each picture is [the same program](examples/themes/main.ml) in one theme,
 recorded by [its tape](examples/themes/tape.ml), on the background the
-theme is made for. `Theme.default` reads on any background; a theme named
+theme is made for, while its progress rows run: the table above them is
+caught in the middle of its theme's motion. `Theme.default` reads on any background; a theme named
 after a colour scheme is for a terminal that uses that scheme, and its
 colours may be hard to read on another background. Every theme falls back
 to ASCII on a terminal whose locale is not UTF-8, as `Theme.ascii` always
 does.
+
+### Motion
+
+[The build in `Theme.matrix`](examples/display/matrix.gif), recorded by
+[its tape](examples/display/tape.ml), shows a frame moving. `Theme.matrix`
+rains (`` `Rain ``), `Theme.rainbow` sweeps its palette round
+(`` `Sweep ``), every theme named after a colour scheme shimmers in its main
+colour (`` `Shimmer ``), and `Theme.default`, `Theme.ascii` and `Theme.dos`
+stand still.
 
 ### `Theme.default`
 

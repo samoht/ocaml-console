@@ -2,7 +2,7 @@ Output "examples/display/display.gif"
 Set Shell "bash"
 Set FontSize 18
 Set Width 1000
-Set Height 460
+Set Height 640
 Set Theme "Builtin Dark"
 Set Padding 20
 Set TypingSpeed 20ms
