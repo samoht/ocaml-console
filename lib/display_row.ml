@@ -110,7 +110,9 @@ let piece t r ~time (p : Display_layout.piece) =
    spacer takes the slack, so the pieces after it sit at the right edge. *)
 let live t ~lasts r =
   let time = t.now () -. t.start in
-  let pieces = List.map (fun p -> (p, piece t r ~time p)) t.layout in
+  let pieces =
+    List.map (fun p -> (p, piece t r ~time p)) (Display_layout.pieces t.layout)
+  in
   let prefix = prefix t lasts in
   let has p = List.exists (fun (q, _) -> q = p) pieces in
   let fixed =

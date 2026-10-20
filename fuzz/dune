@@ -11,6 +11,7 @@
   matrix.glyph
   matrix.grid
   console_vte
+  display_harness
   matrix.vte
   fmt
   re

@@ -21,9 +21,12 @@ type piece =
   | Accent of string  (** A sanitized literal in the accent colour. *)
   | Spacer  (** Flexible space. *)
 
-type t = piece list
+type t
 (** The type for layouts, at most one {!constructor-Label} and one
     {!constructor-Spacer}. *)
+
+val pieces : t -> piece list
+(** [pieces l] are the pieces of [l], left to right. *)
 
 val is_label : piece -> bool
 (** [is_label p] is [true] iff [p] is {!constructor-Label}. *)

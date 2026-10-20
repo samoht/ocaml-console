@@ -40,9 +40,9 @@
     escape codes. A task that succeeds leaves its line alone; one that fails or
     is cancelled prints its output under its line, up to 1 MiB, its oldest lines
     dropped first and counted on a line of their own. A line too wide for the
-    terminal is cut under a running task and nowhere else. Console sees standard
-    output through {!Fmt.stdout} and [Logs] messages through its driver
-    ({!drivers}): what [print_string], [Printf] or a child process writes on the
+    terminal is cut under a running task and nowhere else. [Console_eio.run]
+    sees standard output through {!Fmt.stdout} and [Logs] messages through its
+    reporter: what [print_string], [Printf] or a child process writes on the
     terminal is not seen and garbles the rows, so print it with {!with_output}.
     Without a terminal, console flushes {!Fmt.stdout} before each line it
     writes, so that [2>&1] keeps the order of the two outputs. A write error on
@@ -92,7 +92,7 @@
 
 (** The pieces of a running task's row. *)
 module Layout : sig
-  type piece
+  type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
 
   val spinner : piece
@@ -131,7 +131,7 @@ module Layout : sig
   (** [spacer] is the space that pushes the pieces after it to the right edge.
   *)
 
-  type t
+  type t = Display_layout.t
   (** The type for row layouts. *)
 
   val v : piece list -> t
@@ -152,17 +152,13 @@ end
     messages logged in the other domains Eio runs, such as those of an
     [Eio.Executor_pool], and they go above the rows. *)
 
-type t
+type t = Display_state.t
 (** The type for displays. *)
-
-type scope
-(** The type for the ways to tell which task is current ({!drivers}). *)
 
 val v :
   ?layout:Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
-  ?scope:scope ->
   now:(unit -> float) ->
   Format.formatter ->
   t
@@ -174,9 +170,10 @@ val v :
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row.
-    - [scope] says which task is current (defaults to the task of the innermost
-      {!with_task} that runs, which suits a program without fibers;
-      [Console_eio.run] passes one that follows Eio's fibers).
+
+    The current task is that of the innermost {!with_task} that runs; under
+    [Console_eio.run], that of the fiber that asks or of the fibers it was
+    forked from.
 
     The display is drawn in [ppf]'s theme ({!Theme.get}), read again each time
     it draws, and in colour iff [ppf]'s style renderer is [`Ansi_tty], at
@@ -249,7 +246,7 @@ val pp : t Fmt.t
     A task that ended ignores what it is told. Once its display closed, every
     task has ended, and so has one {!val-task} starts then. *)
 
-type task
+type task = Display_state.row
 (** The type for tasks. *)
 
 val task :
@@ -355,37 +352,3 @@ val fail : ?message:string -> task -> unit
 
 val cancel : ?message:string -> task -> unit
 (** [cancel task] is like {!succeed} but ends [task] as cancelled. *)
-
-(** {1:drivers Drivers}
-
-    A driver runs a display for a scheduler, as [Console_eio.run] does for Eio:
-    it says with a {!type-scope} which task is current in a fiber, passes the
-    program's [Logs] messages to {!report}, and gives the current task what the
-    program prints on the display's terminal ({!current}). A program that opens
-    a display with {!v} can do the same. *)
-
-type level = [ `App | `Error | `Warning | `Info | `Debug ]
-(** The type for the levels of messages, those of [Logs]. *)
-
-val report : t -> level -> string -> unit
-(** [report display level text] gives each line of [text], a message of [level],
-    to the current task as its output ({!output}), or prints it above the region
-    when there is none. A message of level [`Warning], [`Error] or [`Debug]
-    comes after the mark of its level, one of level [`App] or [`Info] after
-    none. *)
-
-val current : t -> task option
-(** [current display] is the task of [display] current where it is called, if it
-    still runs and is not the {!root}. A driver gives it what the program prints
-    on the display's terminal meanwhile, with {!log}. *)
-
-val scope :
-  current:(unit -> task option) ->
-  within:(task -> (unit -> unit) -> unit) ->
-  cancelled:(exn -> bool) ->
-  scope
-(** [scope ~current ~within ~cancelled] is the scope in which [current ()] is
-    the task current where it is called, [within task f] calls [f] with [task]
-    current there and in what [f] starts, and [cancelled e] is [true] iff [e]
-    says that the fiber raising it was cancelled: a {!with_task} whose function
-    raises it cancels its task rather than failing it. *)

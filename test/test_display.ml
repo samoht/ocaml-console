@@ -24,7 +24,7 @@ let test_plain_lines () =
         advance 1.5;
         Display.log t "slow";
         Display.succeed t;
-        Display.report d `Info "done")
+        Driver.report d `Info "done")
   in
   check_lines "lines in turn, the header last"
     [
@@ -46,7 +46,7 @@ let test_plain_column () =
   Theme.set ppf theme;
   let d = Display.v ~now:(fun () -> 0.) ppf in
   Fmt.pf ppf "partial%!";
-  Display.report d `Info "next";
+  Driver.report d `Info "next";
   Fmt.pf ppf "again";
   Display.succeed (Display.task d "t");
   Display.close d;
@@ -182,7 +182,7 @@ let test_raw_tty () =
     Display.redraw t.display;
     let live = screen t in
     Display.succeed a;
-    Display.report t.display `Info "note";
+    Driver.report t.display `Info "note";
     Display.set_count b ~cur:2 ~total:4;
     Display.redraw t.display;
     let later = screen t in
@@ -224,7 +224,7 @@ let test_window () =
   let wide = "wide " ^ String.make 40 'w' in
   Display.with_task ~log_lines:3 t.display "job" (fun job ->
       List.iter (Display.log job) [ "one"; "two" ];
-      Display.report t.display `Info "note";
+      Driver.report t.display `Info "note";
       Display.log job wide;
       Display.redraw t.display;
       let rows = screen t in
@@ -650,7 +650,7 @@ let test_pipe_lines () =
     plain ~theme (fun d _ ->
         Display.with_task d "job" (fun job ->
             Display.log job "one";
-            Display.report d `Info "note";
+            Driver.report d `Info "note";
             Display.log job "two"))
   in
   check_lines "in turn, each after its task's label"
@@ -678,61 +678,6 @@ let test_pipe_start () =
     [ "[-] fetch"; "  [-] index"; "" ]
     (split (Buffer.contents buffer));
   Display.close d
-
-(* A Logs message inside a task is its output, as a line given to [log]
-   is: it shows in the task's window, goes when the task succeeds, even
-   once pushed out of the window, and is printed under the task's line,
-   after the mark of its level, when it fails. *)
-let test_logs_in_task () =
-  let run ~fails =
-    let t = terminal ~theme ~width:30 ~height:10 () in
-    Display.with_task ~log_lines:1 t.display "job" (fun job ->
-        Display.report t.display `Warning "first";
-        Display.log job "out";
-        Display.redraw t.display;
-        Alcotest.(check bool)
-          "pushed out, not above" false
-          (List.exists (contains "first") (screen t));
-        Display.report t.display `Info "last";
-        if fails then Display.fail job);
-    Display.close t.display;
-    List.map untimed (lines t)
-  in
-  check_lines "a success folds them away" [ "[+] job" ] (run ~fails:false);
-  check_lines "a failure prints them all under its line"
-    [ "[x] job"; "  ! first"; "  # out"; "  last" ]
-    (run ~fails:true)
-
-(* A Logs message with no current task goes above at once, a
-   debug message after its own mark, an application or an information
-   message after none. A task started with [task] is not current. *)
-let test_logs_outside () =
-  let report d =
-    ignore (Display.task d "running");
-    List.iter
-      (fun (level, text) -> Display.report d level text)
-      [
-        (`App, "app");
-        (`Info, "info");
-        (`Debug, "debug");
-        (`Warning, "warn");
-        (`Error, "error");
-      ]
-  in
-  let expected = [ "app"; "info"; ". debug"; "! warn"; "x error" ] in
-  let t = terminal ~theme ~width:30 ~height:10 () in
-  report t.display;
-  Display.redraw t.display;
-  check_lines "above the rows, at once" expected
-    (List.filteri (fun i _ -> i < 5) (screen t));
-  Display.close t.display;
-  let (), out = plain ~theme (fun d _ -> report d) in
-  check_lines "on a pipe"
-    (("[-] running" :: expected) @ [ "[~] running  0.0s"; "" ])
-    (split out);
-  let (), out = plain (fun d _ -> Display.report d `Debug "debug") in
-  check_lines "the default theme's debug mark" [ "\u{00b7} debug"; "" ]
-    (split out)
 
 (* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
@@ -869,7 +814,7 @@ let test_root () =
   (match
      Display.with_task ~log_lines:2 d "job" (fun job ->
          Display.log job "mine";
-         Display.within root (fun () -> Display.report d `Warning "above");
+         Display.within root (fun () -> Driver.report d `Warning "above");
          Display.log root "also above";
          Display.redraw d;
          check_lines "above the rows at once"
@@ -877,7 +822,7 @@ let test_root () =
            (List.filteri (fun i _ -> i < 2) (screen t));
          Alcotest.(check bool)
            "back in the task" true
-           (match Display.current d with Some c -> c == job | None -> false);
+           (match Driver.current d with Some c -> c == job | None -> false);
          failwith "boom")
    with
   | () -> Alcotest.fail "no exception"
@@ -894,9 +839,9 @@ let test_root () =
     plain ~theme (fun d _ ->
         Display.with_task d "job" (fun _ ->
             Display.within (Display.root d) (fun () ->
-                Display.report d `Info "above";
+                Driver.report d `Info "above";
                 Display.succeed (Display.task d "top"));
-            Display.report d `Info "inside"))
+            Driver.report d `Info "inside"))
   in
   check_lines "on a pipe, unlabelled"
     [
@@ -920,12 +865,12 @@ let test_within () =
         Display.with_task d "b" (fun _ ->
             let v =
               Display.within a (fun () ->
-                  Display.report d `Info "for a";
+                  Driver.report d `Info "for a";
                   ignore (Display.task d "under a");
                   7)
             in
             Alcotest.(check int) "its value" 7 v;
-            Display.report d `Info "for b");
+            Driver.report d `Info "for b");
         (match Display.within a (fun () -> failwith "inside") with
         | () -> Alcotest.fail "no exception"
         | exception Failure _ -> ());
@@ -969,11 +914,11 @@ let test_with_task () =
   let v, out =
     plain ~theme (fun d _ ->
         Display.with_task d "outer" (fun _ ->
-            Display.with_task d "inner" (fun _ -> Display.report d `Info "deep");
+            Display.with_task d "inner" (fun _ -> Driver.report d `Info "deep");
             ignore (Display.task d "child");
             Display.with_task d "ended" (fun t ->
                 Display.fail t;
-                Display.report d `Info "after its end";
+                Driver.report d `Info "after its end";
                 Display.log t "ignored");
             42))
   in
@@ -1003,43 +948,6 @@ let test_iter () =
   in
   Alcotest.(check (list int)) "in order" [ 1; 2; 3 ] (List.rev !seen);
   check_lines "counted" [ "[-] items"; "[+] items  3/3  0.0s"; "" ] (split out)
-
-(* A driver's scope says which task is current, here a fiber's own. *)
-let test_scope () =
-  let current = ref None in
-  let scope =
-    Display.scope
-      ~current:(fun () -> !current)
-      ~within:(fun task f ->
-        let saved = !current in
-        current := Some task;
-        Fun.protect f ~finally:(fun () -> current := saved))
-      ~cancelled:(fun _ -> false)
-  in
-  let buffer = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buffer in
-  Theme.set ppf theme;
-  let d = Display.v ~scope ~now:(fun () -> 0.) ppf in
-  let a = Display.task d "a" in
-  current := Some a;
-  Display.report d `Info "in a";
-  current := None;
-  let is task = function Some c -> c == task | None -> false in
-  Display.with_task d "b" (fun b ->
-      Alcotest.(check bool) "current within" true (is b !current);
-      Alcotest.(check bool)
-        "the display's current task" true
-        (is b (Display.current d));
-      Display.succeed b;
-      Alcotest.(check bool)
-        "none once it ended" true
-        (Option.is_none (Display.current d)));
-  Alcotest.(check bool) "none outside" true (Option.is_none (Display.current d));
-  Display.close d;
-  Format.pp_print_flush ppf ();
-  check_lines "the scope's current task"
-    [ "[-] a"; "  a: in a"; "[-] b"; "[+] b  0.0s"; "[~] a  0.0s"; "" ]
-    (split (Buffer.contents buffer))
 
 (* {1 Scenes} *)
 
@@ -1326,9 +1234,6 @@ let suite =
       Alcotest.test_case "colours" `Quick test_colours;
       Alcotest.test_case "pipe lines" `Quick test_pipe_lines;
       Alcotest.test_case "pipe start lines" `Quick test_pipe_start;
-      Alcotest.test_case "Logs lines inside a task are its output" `Quick
-        test_logs_in_task;
-      Alcotest.test_case "Logs lines outside a task" `Quick test_logs_outside;
       Alcotest.test_case "a success drops its output" `Quick test_success_drops;
       Alcotest.test_case "a failure prints its output" `Quick test_failure_block;
       Alcotest.test_case "a failure keeps 1 MiB" `Quick test_failure_cap;
@@ -1340,7 +1245,6 @@ let suite =
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "iter" `Quick test_iter;
-      Alcotest.test_case "a driver's scope" `Quick test_scope;
       Alcotest.test_case "scene" `Quick test_scene;
       Alcotest.test_case "scene fits" `Quick test_scene_fits;
       Alcotest.test_case "scene width" `Quick test_scene_width;

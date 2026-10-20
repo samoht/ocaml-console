@@ -1,3 +1,8 @@
+; Console__ holds console's internal modules, Display_driver among them,
+; which the tests reach as console-eio does.
+
 (library
  (name display_harness)
+ (flags
+  (:standard -open Console__))
  (libraries console console_vte matrix.vte alcotest astring fmt))

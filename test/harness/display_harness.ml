@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Console
+module Driver = Display_driver
 
 let contains affix s = Astring.String.is_infix ~affix s
 

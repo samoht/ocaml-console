@@ -5,6 +5,7 @@
 
 open Alcobar
 open Console
+module Driver = Display_harness.Driver
 
 let marks =
   [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error; `Debug ]
@@ -71,8 +72,8 @@ let test_ascii s n =
   Display.set_count child ~cur:(n mod 5) ~total:4;
   Display.log child s;
   ignore (Display.task d s);
-  Display.report d `Warning s;
-  Display.report d `Debug s;
+  Driver.report d `Warning s;
+  Driver.report d `Debug s;
   Display.fail child;
   Display.succeed child;
   Display.close d;

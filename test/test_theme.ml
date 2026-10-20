@@ -392,7 +392,7 @@ let display_bytes theme =
   let child = Display.task ~parent d "child" in
   Display.set_count child ~cur:1 ~total:3;
   Display.log parent "careful";
-  Display.report d `Debug "debug";
+  Driver.report d `Debug "debug";
   List.iter (fun l -> ignore (Display.task d l)) [ "b"; "c"; "d"; "e" ];
   Display.succeed child;
   Display.close d;

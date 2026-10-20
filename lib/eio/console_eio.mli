@@ -71,17 +71,17 @@ val run :
     display's output and nothing else, and one on standard output is met by the
     program's own writes, as without console ({!Console.Display.v}).
 
-    While [f] runs, {!Logs} messages go to the display
-    ({!Console.Display.report}): they are the output of the task current in the
-    calling fiber, the one of the innermost {!Console.Display.with_task} of that
-    fiber or of the fibers it was forked from, or go above the rows when there
-    is none. A message from a source other than {!Logs.default} comes after the
-    source's name in brackets, as in [[http] connected]. A fiber cancelled
-    inside a {!Console.Display.with_task} cancels its task. The reporter
-    installed before [run] is put back when [f] ends. A message logged in
-    another domain that Eio runs, such as one of an [Eio.Executor_pool], is
-    passed to the domain that runs [f] and goes above the rows; the display
-    itself is for that domain alone ({{!Console.Display.displays}Displays}).
+    While [f] runs, {!Logs} messages go to the display: they are the output of
+    the task current in the calling fiber, the one of the innermost
+    {!Console.Display.with_task} of that fiber or of the fibers it was forked
+    from, or go above the rows when there is none. A message from a source other
+    than {!Logs.default} comes after the source's name in brackets, as in
+    [[http] connected]. A fiber cancelled inside a {!Console.Display.with_task}
+    cancels its task. The reporter installed before [run] is put back when [f]
+    ends. A message logged in another domain that Eio runs, such as one of an
+    [Eio.Executor_pool], is passed to the domain that runs [f] and goes above
+    the rows; the display itself is for that domain alone
+    ({{!Console.Display.displays}Displays}).
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing

@@ -2,8 +2,9 @@
 
 (copy_files input/width.{ml,mli})
 
-; Slot is not a private module, for console.tty reads it, but the interface of
-; Console does not expose it, so odoc shows no page for it.
+; Slot and Display_driver are not private modules, for console.tty and
+; console-eio read them, but the interface of Console does not expose them, so
+; odoc shows no page for them.
 
 (library
  (name console)
@@ -13,6 +14,7 @@
   border_motion
   widget
   width
+  display_core
   display_layout
   display_region
   display_row

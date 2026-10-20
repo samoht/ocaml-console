@@ -1,7 +1,12 @@
+; Console__ holds console's internal modules, Display_driver among them,
+; which the interface of Console does not expose.
+
 (library
  (name console_eio)
  (public_name console-eio)
  (private_modules interrupt session terminal)
+ (flags
+  (:standard -open Console__))
  (libraries
   console
   console.input

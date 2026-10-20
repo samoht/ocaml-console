@@ -30,7 +30,7 @@ let at_exit =
 
 (* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
-  Display.scope
+  Display_driver.scope
     ~current:(fun () -> Eio.Fiber.get task)
     ~within:(fun t f -> Eio.Fiber.with_binding task t f)
     ~cancelled:(function Eio.Cancel.Cancelled _ -> true | _ -> false)
@@ -86,14 +86,15 @@ let intercept display ppf =
     else begin
       Buffer.add_substring i.pending s o l;
       match String.index_from_opt s o '\n' with
-      | Some k when k < o + l -> Option.iter to_task (Display.current display)
+      | Some k when k < o + l ->
+          Option.iter to_task (Display_driver.current display)
       | _ -> ()
     end
   in
   let flush () =
     if Atomic.get direct > 0 then out.out_flush ()
     else
-      match Display.current display with
+      match Display_driver.current display with
       | Some task -> to_task task
       | None ->
           Option.iter
@@ -141,7 +142,7 @@ let with_terminal f =
 
 (* {1 Logs} *)
 
-let level : Logs.level -> Display.level = function
+let level : Logs.level -> Display_driver.level = function
   | Logs.App -> `App
   | Logs.Error -> `Error
   | Logs.Warning -> `Warning
@@ -149,7 +150,7 @@ let level : Logs.level -> Display.level = function
   | Logs.Debug -> `Debug
 
 type request = {
-  level : Display.level;
+  level : Display_driver.level;
   message : string;
   reply : (unit, exn) result Eio.Promise.t Eio.Promise.u;
 }
@@ -163,7 +164,7 @@ let reporter ~owner ~closed ~requests display =
   let emit level message =
     if Option.is_some (Eio.Promise.peek closed) then closed_reporter ();
     if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
-      Display.report display level message
+      Display_driver.report display level message
     else
       Eio.Fiber.first
         (fun () ->
@@ -200,7 +201,7 @@ let receive ~sw ~closed requests display =
             (fun () ->
               if Option.is_some (Eio.Promise.peek closed) then
                 closed_reporter ();
-              Display.report display level message)
+              Display_driver.report display level message)
             (fun () ->
               Eio.Promise.await closed;
               closed_reporter ()))

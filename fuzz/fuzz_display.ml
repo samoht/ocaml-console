@@ -9,6 +9,7 @@
 
 open Alcobar
 open Console
+module Driver = Display_harness.Driver
 
 let labels =
   [|
@@ -217,12 +218,12 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
   let ppf = Format.make_formatter (Buffer.add_substring chunk) out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   Option.iter (Theme.set ppf) theme;
+  let size () = !(t.size) and now () = !(t.time) in
   t.display <-
     Some
-      (Display.v ~header ?scope
-         ~size:(fun () -> !(t.size))
-         ~now:(fun () -> !(t.time))
-         ppf);
+      (match scope with
+      | Some scope -> Driver.v ~header ~scope ~size ~now ppf
+      | None -> Display.v ~header ~size ~now ppf);
   t
 
 let display t = Option.get t.display
@@ -312,7 +313,7 @@ let apply t = function
   | Log (i, l) ->
       Option.iter (fun task -> Display.log task (label l)) (task t i)
   | End (i, o) -> Option.iter (fun task -> finish task o) (task t i)
-  | Report l -> Display.report (display t) (level l) (label l)
+  | Report l -> Driver.report (display t) (level l) (label l)
   | Advance n -> t.time := !(t.time) +. (Float.of_int n /. 100.)
   | Resize (w, h) ->
       let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
@@ -591,7 +592,7 @@ let test_untrusted_arguments s =
     let task = Display.task d input in
     Display.set_label task input;
     Display.log task lines;
-    Display.report d `Warning lines;
+    Driver.report d `Warning lines;
     Display.redraw d;
     Display.succeed ~message:input task;
     Display.set_result ~detail:lines d (Ok input);
@@ -744,7 +745,7 @@ let outcome o =
   match o mod 3 with 0 -> `Succeeded | 1 -> `Failed | _ -> `Cancelled
 
 let scope current =
-  Display.scope
+  Driver.scope
     ~current:(fun () -> !current)
     ~within:(fun task f ->
       let saved = !current in
@@ -807,7 +808,7 @@ let run_steps d current steps =
           let t = Option.bind i pick in
           let token = add t false in
           current := Option.map (fun t -> t.task) t;
-          Display.report d `Info token;
+          Driver.report d `Info token;
           current := None
       | Finish (i, o) -> Option.iter (fun t -> end_task t o) (pick i))
     steps;
@@ -851,7 +852,7 @@ let test_pipe_lines steps =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   let current = ref None in
-  let d = Display.v ~scope:(scope current) ~now:(fun () -> 0.) ppf in
+  let d = Driver.v ~scope:(scope current) ~now:(fun () -> 0.) ppf in
   let lines = run_steps d current steps in
   Format.pp_print_flush ppf ();
   let expected l =

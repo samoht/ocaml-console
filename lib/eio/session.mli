@@ -9,7 +9,7 @@
 val find : unit -> Console.Display.t option
 (** [find ()] is the display of the calling fiber, if any. *)
 
-val scope : Console.Display.scope
+val scope : Display_driver.scope
 (** [scope] is the scope in which the current task is that of the innermost
     {!Console.Display.with_task} of the calling fiber or of the fibers it forked
     from. A fiber cancelled in a {!Console.Display.with_task} cancels its task.

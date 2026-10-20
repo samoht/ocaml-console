@@ -75,13 +75,13 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
       match
         match if plain then None else terminal ppf with
         | None ->
-            ( Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf,
+            ( Display_driver.v ?layout ?header ~scope:Session.scope ~now ppf,
               [],
               ignore )
         | Some (fd, unix) ->
             let size () = Terminal.dimensions (Some fd) in
             let display =
-              Console.Display.v ?layout ?header ~size ~scope:Session.scope ~now
+              Display_driver.v ?layout ?header ~size ~scope:Session.scope ~now
                 (own ppf)
             in
             (display, routed unix, cursor unix)

@@ -7,6 +7,10 @@
 
 open Console
 
+module Driver = Display_driver
+(** How [Console_eio.run] drives a display: its scope, its [Logs] messages and
+    the current task. *)
+
 val contains : string -> string -> bool
 (** [contains affix s] is [true] iff [affix] occurs in [s]. *)
 

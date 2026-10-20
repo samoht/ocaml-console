@@ -17,6 +17,7 @@ type piece =
 
 type t = piece list
 
+let pieces t = t
 let spinner = Spinner
 let label = Label
 
