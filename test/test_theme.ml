@@ -344,7 +344,8 @@ let display_bytes theme =
   let parent = Display.task d "a label much wider than the terminal" in
   let child = Display.task ~parent d "child" in
   Display.set_count child ~cur:1 ~total:3;
-  Display.log ~level:`Warning parent "careful";
+  Display.log parent "careful";
+  Display.report d `Debug "debug";
   List.iter (fun l -> ignore (Display.task d l)) [ "b"; "c"; "d"; "e" ];
   Display.succeed child;
   Display.close d;

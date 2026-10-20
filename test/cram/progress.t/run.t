@@ -1,8 +1,20 @@
-In plain mode (no terminal), the display emits one append-only line per
-finished row, then a header summary. This is the text a log collector ingests.
+In plain mode (no terminal), the display writes one line when a task starts and
+one when it ends, each line of output at once after its task's name, and the
+header last, as a summary. A task that fails repeats the last lines of its
+window under its line. This is the text a log collector ingests.
 
   $ dump_progress.exe
+  • foo.ml
   ✓ foo.ml  0.1s
+  • bar.ml
   ✓ bar.ml  0.1s
+  • baz.ml
   ✓ baz.ml  0.1s
-  ✓ Processing 0.3s (3/3)
+  • qux.ml
+    › qux.ml: line 1
+    › qux.ml: line 2
+    › qux.ml: line 3
+  ✗ qux.ml  0.1s
+    › line 2
+    › line 3
+  ✗ Processing 0.4s (4/4)

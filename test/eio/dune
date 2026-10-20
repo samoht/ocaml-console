@@ -5,7 +5,7 @@
 (executable
  (name teardown)
  (modules teardown)
- (libraries console console.tty console-eio eio eio_main fmt unix))
+ (libraries console console.tty console-eio eio eio_main fmt logs unix))
 
 (test
  (name test)
@@ -17,6 +17,7 @@
   console.tty
   console-eio
   display_harness
+  console_vte
   cstruct
   eio
   eio.unix

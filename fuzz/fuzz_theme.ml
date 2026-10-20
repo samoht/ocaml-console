@@ -7,7 +7,7 @@ open Alcobar
 open Console
 
 let marks =
-  [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error ]
+  [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error; `Debug ]
 
 (* [v] keeps what it is given, its palette is never empty, and a mark is one
    line of text. *)
@@ -69,9 +69,11 @@ let test_ascii s n =
   let parent = Display.task d s in
   let child = Display.task ~parent d s in
   Display.set_count child ~cur:(n mod 5) ~total:4;
-  Display.log ~level:`Error child s;
+  Display.log child s;
   ignore (Display.task d s);
-  Display.message ~level:`Warning d s;
+  Display.report d `Warning s;
+  Display.report d `Debug s;
+  Display.fail child;
   Display.succeed child;
   Display.close d;
   Format.pp_print_flush ppf ();

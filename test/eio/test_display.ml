@@ -69,12 +69,67 @@ let test_reporter () =
         Logs.app (fun m -> m "╭───╮\n│ x │\n╰───╯");
         Logs.warn (fun m -> m "warning-line");
         Logs.info ~src:named (fun m -> m "named-line");
+        Logs.debug (fun m -> m "debug-line");
         D.succeed step)
   in
-  mem ~msg:"a named source says its name" "[console.test] named-line" out;
-  mem ~msg:"application log" "application-line" out;
+  mem ~msg:"a named source says its name" "\n[console.test] named-line\n" out;
+  mem ~msg:"application log, no mark" "\napplication-line\n" out;
+  mem ~msg:"debug log, its mark" "\n\u{00b7} debug-line\n" out;
   mem ~msg:"multiline log keeps physical rows" "╭───╮\n│ x │\n╰───╯\n" out;
-  mem ~msg:"warning log" "warning-line" out
+  mem ~msg:"warning log" "\n! warning-line\n" out
+
+let absent ~msg needle haystack =
+  Alcotest.(check bool) msg false (contains needle haystack)
+
+(* Logs messages inside [with_task] go under its task, from the fibers its
+   function forks too. *)
+let test_logs_in_task () =
+  let out =
+    capture (fun d ->
+        Logs.set_level (Some Logs.Debug);
+        D.with_task d "build" (fun _ ->
+            Logs.info (fun m -> m "outer");
+            Eio.Fiber.both
+              (fun () -> Logs.warn (fun m -> m "forked"))
+              (fun () -> Logs.debug (fun m -> m "deep"))))
+  in
+  mem ~msg:"the start line" "\u{2022} build\n" out;
+  mem ~msg:"in the task" "\n  build: outer\n" out;
+  mem ~msg:"from a forked fiber" "\n  ! build: forked\n" out;
+  mem ~msg:"debug, from a forked fiber" "\n  \u{00b7} build: deep\n" out;
+  mem ~msg:"the end line" "\u{2713} build" out
+
+(* Two tasks in two fibers: each Logs message goes to its own fiber's. *)
+let test_two_fibers () =
+  let out =
+    capture (fun d ->
+        Logs.set_level (Some Logs.Info);
+        let work name =
+          D.with_task d name (fun _ ->
+              Logs.info (fun m -> m "%s1" name);
+              Eio.Fiber.yield ();
+              Logs.info (fun m -> m "%s2" name))
+        in
+        Eio.Fiber.both (fun () -> work "a") (fun () -> work "b"))
+  in
+  List.iter
+    (fun l -> mem ~msg:l ("\n  " ^ l ^ "\n") out)
+    [ "a: a1"; "a: a2"; "b: b1"; "b: b2" ];
+  List.iter (fun l -> absent ~msg:l l out) [ "a: b1"; "b: a1" ]
+
+(* A fiber cancelled inside [with_task] cancels its task: it did not fail. *)
+let test_cancelled_fiber () =
+  let out =
+    capture (fun d ->
+        Eio.Fiber.first
+          (fun () ->
+            D.with_task d "slow" (fun t ->
+                D.log t "partial";
+                Eio.Fiber.await_cancel ()))
+          (fun () -> ()))
+  in
+  mem ~msg:"cancelled" "\u{25cb} slow" out;
+  absent ~msg:"not failed" "\u{2717} slow" out
 
 let suite =
   ( "display",
@@ -83,6 +138,9 @@ let suite =
       ("run fail", `Quick, test_run_fail);
       ("run raises", `Quick, test_run_raises);
       ("reporter", `Quick, test_reporter);
+      ("Logs inside a task", `Quick, test_logs_in_task);
+      ("two fibers, two tasks", `Quick, test_two_fibers);
+      ("a cancelled fiber cancels its task", `Quick, test_cancelled_fiber);
     ] )
 
 module Report_domains = struct

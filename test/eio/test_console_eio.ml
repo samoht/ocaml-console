@@ -152,12 +152,12 @@ let test_teardown () =
       Alcotest.(check (option char))
         (how ^ ": the cursor is shown last")
         (Some 'h') (last_cursor out);
-      Alcotest.(check bool)
-        (how ^ ": printed above the region")
-        true
-        (contains "a line of output" out);
       let vte = Vte.create ~rows:24 ~cols:80 () in
       Vte.feed_string vte out;
+      Alcotest.(check bool)
+        (how ^ ": standard output above the region, unlabelled")
+        true
+        (List.mem "a line of output" (Console_vte.screen ~scrollback:true vte));
       Alcotest.(check int)
         (how ^ ": the cursor is at the start of a line")
         0
@@ -173,6 +173,39 @@ let test_teardown () =
       ("raise", `Exited 2);
       ("cancel", `Exited 0);
     ]
+
+(* The final screen of [teardown.exe how]. *)
+let final how =
+  let _, out = teardown how in
+  let vte = Vte.create ~rows:24 ~cols:80 () in
+  Vte.feed_string vte out;
+  Console_vte.screen ~scrollback:true vte
+
+(* Ctrl-C cancels the task, which keeps its window under its line; a task
+   that succeeds drops its output. *)
+let test_sigint_window () =
+  let rows = final "sigint" in
+  let rec under = function
+    | l :: next :: _ when contains "\u{25cb} pushing" l -> next
+    | _ :: rest -> under rest
+    | [] -> Alcotest.fail "no cancelled line"
+  in
+  Alcotest.(check string)
+    "the window stays" "  \u{203a} pushed 3 objects" (under rows);
+  Alcotest.(check bool)
+    "a success drops it" false
+    (List.exists (contains "pushed 3 objects") (final "ok"))
+
+(* A Logs message from a fiber that a task's function forked is kept, after
+   the task's label, while the task's output goes with its success. *)
+let test_forked_logs () =
+  let rows = final "logs" in
+  Alcotest.(check bool)
+    "the forked message" true
+    (List.mem "  ! work: a forked note" rows);
+  Alcotest.(check bool)
+    "the output dropped" false
+    (List.exists (contains "an output line") rows)
 
 let test_sigint_teardown () =
   let _, out = teardown "sigint" in
@@ -273,6 +306,10 @@ let suite =
         test_sigint_secret;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
+      Alcotest.test_case "SIGINT keeps the window of a cancelled task" `Quick
+        test_sigint_window;
+      Alcotest.test_case "Logs from a forked fiber on a terminal" `Quick
+        test_forked_logs;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick

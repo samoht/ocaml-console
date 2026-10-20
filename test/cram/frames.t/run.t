@@ -3,12 +3,11 @@ reconstructed screen (real control characters applied), so a duplicated or
 stranded row would show up directly. Geometry is pinned for a stable diff.
 
 On a roomy terminal the whole tree, its per-row log windows, the committed
-rows and the redraw after a row closes all fit -- and every row appears
-exactly once, as does every log line. A line lives in the window beneath the
-row that made it, and reaches permanent history when it ages out of that
-window ("cc a.o" below) or when the row finishes, so the record above the live
-region groups a row's output under that row instead of interleaving it with
-whatever else was running:
+rows and the redraw after a row closes all fit, and every row appears exactly
+once. A line of a task's output lives in the window beneath the row that made
+it, and only there: one that ages out of the window ("cc a.o" below) is gone,
+and a row that succeeds takes its lines with it, so the record above the live
+region holds one line per finished row:
 
   $ COLUMNS=70 LINES=20 frames.exe
   --- tree with one node + a log ---
@@ -25,7 +24,6 @@ whatever else was running:
         › cc a.o
         › cc b.o
   --- resolve finished (committed), siblings still live ---
-      › fetch index
     ✓ resolve                                                       0.0s
   • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
@@ -34,9 +32,7 @@ whatever else was running:
         › cc a.o
         › cc b.o
   --- more logs after the row closed ---
-      › fetch index
     ✓ resolve                                                       0.0s
-      › cc a.o
   • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
     › planning
@@ -46,15 +42,8 @@ whatever else was running:
         › cc c.o
         › link
   --- all finished ---
-      › fetch index
     ✓ resolve                                                       0.0s
-      › cc a.o
-      › cc b.o
-      › cc c.o
-      › link
     ✓ compile                                                       0.0s
-    › planning
-    › still working
   ✓ app                                                             0.0s
   ✓ Build 0.0s (3/3)
 
@@ -77,7 +66,6 @@ what was hidden:
         › cc a.o
         › cc b.o
   --- resolve finished (committed), siblings still live ---
-      › fetch index
     ✓ resolve                                                       0.0s
   • Build 0.0s (1/3)
   ⠋ app                                                             0.0s
@@ -86,9 +74,7 @@ what was hidden:
         › cc a.o
         › cc b.o
   --- more logs after the row closed ---
-      › fetch index
     ✓ resolve                                                       0.0s
-      › cc a.o
   • Build 0.0s (1/3)
     … 2 more lines
   ⠋ app                                                             0.0s
@@ -97,14 +83,7 @@ what was hidden:
         › cc c.o
         › link
   --- all finished ---
-      › fetch index
     ✓ resolve                                                       0.0s
-      › cc a.o
-      › cc b.o
-      › cc c.o
-      › link
     ✓ compile                                                       0.0s
-    › planning
-    › still working
   ✓ app                                                             0.0s
   ✓ Build 0.0s (3/3)

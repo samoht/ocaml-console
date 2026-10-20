@@ -27,7 +27,7 @@ type op =
   | Bytes of int * int
   | Log of int * int
   | End of int * int
-  | Message of int
+  | Report of int
   | Advance of int
   | Resize of int * int
   | Redraw
@@ -42,7 +42,7 @@ let op =
       map [ uint8; uint8 ] (fun i n -> Bytes (i, n));
       map [ uint8; uint8 ] (fun i l -> Log (i, l));
       map [ uint8; uint8 ] (fun i o -> End (i, o));
-      map [ uint8 ] (fun l -> Message l);
+      map [ uint8 ] (fun l -> Report l);
       map [ uint8 ] (fun d -> Advance d);
       map [ uint8; uint8 ] (fun w h -> Resize (w, h));
       const Redraw;
@@ -55,7 +55,7 @@ let pp_op ppf = function
   | Bytes (i, n) -> Fmt.pf ppf "bytes %d %d" i n
   | Log (i, l) -> Fmt.pf ppf "log %d %d" i l
   | End (i, o) -> Fmt.pf ppf "end %d %d" i o
-  | Message l -> Fmt.pf ppf "message %d" l
+  | Report l -> Fmt.pf ppf "report %d" l
   | Advance d -> Fmt.pf ppf "advance %d" d
   | Resize (w, h) -> Fmt.pf ppf "resize %d %d" w h
   | Redraw -> Fmt.string ppf "redraw"
@@ -154,7 +154,7 @@ let check_screen t =
       Fmt.(list ~sep:cut string)
       rows
 
-let terminal ?(prefix = "") ?theme ~width ~height ~styled () =
+let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
   let t =
     {
       vte = Vte.create ~rows:height ~cols:width ();
@@ -188,7 +188,7 @@ let terminal ?(prefix = "") ?theme ~width ~height ~styled () =
   Option.iter (Theme.set ppf) theme;
   t.display <-
     Some
-      (Display.v ~header
+      (Display.v ~header ?scope
          ~size:(fun () -> !(t.size))
          ~now:(fun () -> !(t.time))
          ppf);
@@ -196,6 +196,8 @@ let terminal ?(prefix = "") ?theme ~width ~height ~styled () =
 
 let display t = Option.get t.display
 let label i = labels.(i mod Array.length labels)
+let levels = [| `App; `Error; `Warning; `Info; `Debug |]
+let level i = levels.(i mod Array.length levels)
 
 let task t i =
   let n = Array.length t.tasks in
@@ -253,7 +255,7 @@ let apply t = function
   | Log (i, l) ->
       Option.iter (fun task -> Display.log task (label l)) (task t i)
   | End (i, o) -> Option.iter (fun task -> finish task o) (task t i)
-  | Message l -> Display.message (display t) (label l)
+  | Report l -> Display.report (display t) (level l) (label l)
   | Advance n -> t.time := !(t.time) +. (Float.of_int n /. 100.)
   | Resize (w, h) ->
       let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
@@ -309,8 +311,10 @@ let test_plain ops =
       if not (has header last) then failf "the header is not last: %S" last
   | [] -> fail "no header"
 
-(* The sink and the caller retain neither completed tasks nor old log text.
-   After warmup, live heap measures retention rather than allocation volume. *)
+(* The sink and the caller retain no completed task, and a running task
+   keeps at most 1 MiB of its output, for the case where it fails. After
+   warmup past that cap, live heap measures retention rather than
+   allocation volume. *)
 let test_retained_heap n =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let d = Display.v ~size:(fun () -> (80, 10)) ~now:(fun () -> 0.) ppf in
@@ -318,7 +322,7 @@ let test_retained_heap n =
   let batch () =
     for i = 1 to 1000 + n do
       Display.succeed (Display.task ~transient:true d "short lived");
-      Display.log ~keep:false task (string_of_int i ^ String.make 512 'x')
+      Display.log task (string_of_int i ^ String.make 512 'x')
     done;
     Display.redraw d;
     Gc.full_major ();
@@ -326,6 +330,8 @@ let test_retained_heap n =
   in
   Fun.protect
     (fun () ->
+      ignore (batch ());
+      ignore (batch ());
       let warm = batch () in
       for _ = 1 to 3 do
         let retained = batch () in
@@ -348,7 +354,6 @@ let test_pipe_attribution n =
         let task = i mod 4 in
         let token = "record_" ^ string_of_int i ^ "_end" in
         Display.log tasks.(task) (token ^ "\n" ^ token ^ "_second");
-        Display.log ~keep:false tasks.(task) "PRIVATE";
         [
           "task" ^ string_of_int task ^ ": " ^ token;
           "task" ^ string_of_int task ^ ": " ^ token ^ "_second";
@@ -361,7 +366,6 @@ let test_pipe_attribution n =
   let out = Buffer.contents b in
   check (String.is_valid_utf_8 out);
   check (not (String.contains out '\027'));
-  check (not (has "PRIVATE" out));
   let records =
     String.split_on_char '\n' out
     |> List.filter (has ": record_")
@@ -517,7 +521,7 @@ let test_untrusted_arguments s =
     let task = Display.task d input in
     Display.set_label task input;
     Display.log task lines;
-    Display.message ~level:`Warning d lines;
+    Display.report d `Warning lines;
     Display.redraw d;
     Display.succeed ~message:input task;
     Display.set_result ~detail:lines d (Ok input);
@@ -554,7 +558,7 @@ let test_extreme_terminals n styled =
           Display.task ~log_lines:1 d
             (string_of_int i ^ " \u{754c}\u{1f469}\u{200d}\u{1f4bb}")
         in
-        Display.log ~keep:false task "\u{754c}\u{1f1eb}\u{1f1f7} tail";
+        Display.log task "\u{754c}\u{1f1eb}\u{1f1f7} tail";
         Display.set_count task ~cur:i ~total:100
       done;
       redraw_twice t;
@@ -598,7 +602,7 @@ let test_marker_counts n l h =
   for i = 0 to n - 1 do
     let task = Display.task ~log_lines:l d ("t" ^ string_of_int i) in
     for j = 1 to l do
-      Display.log ~keep:false task ("l" ^ string_of_int j)
+      Display.log task ("l" ^ string_of_int j)
     done
   done;
   Display.redraw d;
@@ -613,6 +617,197 @@ let test_marker_counts n l h =
       check_eq ~pp:Fmt.int (total - (shown - 2)) hidden
   | None -> if budget >= 3 then check_eq ~pp:Fmt.int total (shown - 1));
   Display.close d
+
+(* {1 Task output and Logs messages}
+
+   A model of where each line goes. Every line is a unique token; the model
+   follows which task is current, what each window holds and how each task
+   ends, and the properties count where each token lands. *)
+
+type step =
+  | New of int option * int
+  | Out of int
+  | Diag of int option
+  | Finish of int * int
+
+let step =
+  choose
+    [
+      map [ option uint8; uint8 ] (fun p l -> New (p, l));
+      map [ uint8 ] (fun i -> Out i);
+      map [ option uint8 ] (fun i -> Diag i);
+      map [ uint8; uint8 ] (fun i o -> Finish (i, o));
+    ]
+
+let pp_step ppf = function
+  | New (p, l) -> Fmt.pf ppf "new %a %d" Fmt.(option int) p l
+  | Out i -> Fmt.pf ppf "out %d" i
+  | Diag i -> Fmt.pf ppf "diag %a" Fmt.(option int) i
+  | Finish (i, o) -> Fmt.pf ppf "finish %d %d" i o
+
+let step = with_printer pp_step step
+
+type mtask = {
+  task : Display.task;
+  name : string;
+  window_size : int;
+  mutable window : string list;  (** Newest first. *)
+  mutable outcome : [ `Succeeded | `Failed | `Cancelled ] option;
+  mutable kids : mtask list;
+}
+
+(* A token, the task it was given to if any, whether it is output and
+   whether that task still ran. *)
+type line = { token : string; owner : mtask option; output : bool; ran : bool }
+
+let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
+
+(* The model of [finish]: the children that run end first. *)
+let rec model_end o t =
+  if Option.is_none t.outcome then begin
+    let child = match o with `Succeeded -> `Succeeded | _ -> `Cancelled in
+    List.iter (model_end child) (List.rev t.kids);
+    t.outcome <- Some o
+  end
+
+let outcome o =
+  match o mod 3 with 0 -> `Succeeded | 1 -> `Failed | _ -> `Cancelled
+
+let scope current =
+  Display.scope
+    ~current:(fun () -> !current)
+    ~within:(fun task f ->
+      let saved = !current in
+      current := Some task;
+      Fun.protect f ~finally:(fun () -> current := saved))
+
+(* Runs [steps] on [d], whose scope reads its current task from [current],
+   and closes [d]. *)
+let run_steps d current steps =
+  let tasks = ref [||] and lines = ref [] in
+  let pick i =
+    let n = Array.length !tasks in
+    if n = 0 then None else Some !tasks.(i mod n)
+  in
+  let add owner output =
+    let token = Fmt.str "k%04d" (List.length !lines) in
+    let ran =
+      match owner with Some t -> Option.is_none t.outcome | None -> false
+    in
+    (match owner with
+    | Some t when ran -> t.window <- take t.window_size (token :: t.window)
+    | _ -> ());
+    lines := { token; owner; output; ran } :: !lines;
+    token
+  in
+  List.iter
+    (function
+      | New (p, l) when Array.length !tasks < 16 ->
+          let parent = Option.bind p pick in
+          let name = "t" ^ string_of_int (Array.length !tasks) in
+          let window_size = l mod 4 in
+          let task =
+            Display.task
+              ?parent:(Option.map (fun p -> p.task) parent)
+              ~log_lines:window_size d name
+          in
+          let t =
+            { task; name; window_size; window = []; outcome = None; kids = [] }
+          in
+          (match parent with
+          | Some ({ outcome = None; _ } as p) -> p.kids <- t :: p.kids
+          | Some { outcome = Some `Succeeded; _ } -> model_end `Succeeded t
+          | Some _ -> model_end `Cancelled t
+          | None -> ());
+          tasks := Array.append !tasks [| t |]
+      | New _ -> ()
+      | Out i ->
+          Option.iter (fun t -> Display.log t.task (add (Some t) true)) (pick i)
+      | Diag i ->
+          let t = Option.bind i pick in
+          let token = add t false in
+          current := Option.map (fun t -> t.task) t;
+          Display.report d `Info token;
+          current := None
+      | Finish (i, o) -> Option.iter (model_end (outcome o)) (pick i))
+    steps;
+  Display.close d;
+  (* Closing cancels what runs, the latest first. *)
+  List.iter (fun t -> model_end `Cancelled t) (List.rev (Array.to_list !tasks));
+  List.rev !lines
+
+(* [count token ~label lines] is how many of [lines] hold [token] after
+   [label], and how many hold it otherwise. *)
+let count token ~label lines =
+  List.fold_left
+    (fun (l, o) line ->
+      if not (has token line) then (l, o)
+      else
+        match label with
+        | Some name when has (name ^ ": " ^ token) line -> (l + 1, o)
+        | _ -> (l, o + 1))
+    (0, 0) lines
+
+let check_lines ~where expected out =
+  List.iter
+    (fun (l, (want_labelled, want_other)) ->
+      let label = Option.map (fun t -> t.name) l.owner in
+      let labelled, other = count l.token ~label out in
+      if labelled <> want_labelled || other <> want_other then
+        failf "%s: %s %d labelled (want %d), %d other (want %d) in@.%a" where
+          l.token labelled want_labelled other want_other
+          Fmt.(list ~sep:cut string)
+          out)
+    expected
+
+let in_window l =
+  match l.owner with Some t -> List.mem l.token t.window | None -> false
+
+let ended l = match l.owner with Some t -> t.outcome | None -> None
+
+(* On a pipe every line comes at once, after its task's label or alone
+   without a task, and a failed task repeats its window under its line. *)
+let test_pipe_lines steps =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let current = ref None in
+  let d = Display.v ~scope:(scope current) ~now:(fun () -> 0.) ppf in
+  let lines = run_steps d current steps in
+  Format.pp_print_flush ppf ();
+  let expected l =
+    match l.owner with
+    | None -> (0, 1)
+    | Some _ when l.output && not l.ran -> (0, 0)
+    | Some _ ->
+        (1, if ended l = Some `Failed && l.ran && in_window l then 1 else 0)
+  in
+  check_lines ~where:"pipe"
+    (List.map (fun l -> (l, expected l)) lines)
+    (String.split_on_char '\n' (Buffer.contents buf))
+
+(* On a terminal a succeeded task's output never reaches the scrollback, a
+   failed one's all goes under its line, a cancelled one's window stays,
+   and every Logs line is kept once, after its task's label. *)
+let test_terminal_lines steps =
+  let current = ref None in
+  let t =
+    terminal ~scope:(scope current) ~width:80 ~height:12 ~styled:false ()
+  in
+  let lines = run_steps (display t) current steps in
+  let expected l =
+    match l.owner with
+    | None -> (0, 1)
+    | Some _ when not l.output -> (1, 0)
+    | Some _ when not l.ran -> (0, 0)
+    | Some _ -> (
+        match ended l with
+        | Some `Failed -> (0, 1)
+        | Some `Cancelled when in_window l -> (0, 1)
+        | _ -> (0, 0))
+  in
+  check_lines ~where:"terminal"
+    (List.map (fun l -> (l, expected l)) lines)
+    (List.map rstrip (Vte.scrollback_lines t.vte) @ screen t.vte)
 
 (* {1 Scenes} *)
 
@@ -774,6 +969,12 @@ let suite =
       test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
       test_case "screen guarantees" [ list op; uint8; uint8; bool; uint8 ] test;
       test_case "plain output" [ list op ] test_plain;
+      test_case "on a pipe each line comes once after its task's label"
+        [ list step ]
+        test_pipe_lines;
+      test_case "on a terminal a line stays as its task ended"
+        [ list step ]
+        test_terminal_lines;
       test_case "the marker counts what the region hides"
         [ uint8; uint8; uint8 ] test_marker_counts;
       test_case "a scene's frames move only its border"

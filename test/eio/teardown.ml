@@ -8,8 +8,9 @@
    its fiber cancelled; or, with [secret], it is interrupted while it reads
    a password; or, with [colourless], it chose no colour before the display;
    or, with [widgets], it prints every widget before it; or, with [themed],
-   it gave standard error a theme and chose nothing else. It also prints a line
-   on standard output, which goes above the region. *)
+   it gave standard error a theme and chose nothing else; or, with [logs], it
+   logs from a fiber its task forked. It also prints a line on standard
+   output, which goes above the region, and its task a line of output. *)
 
 let secret env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
@@ -54,11 +55,20 @@ let themed env =
   Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
       Console.Display.succeed (Console.Display.task display "themed"))
 
+let logs env =
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+      Console.Display.with_task display "work" (fun task ->
+          Console.Display.log task "an output line";
+          Eio.Fiber.both
+            (fun () -> Logs.warn (fun m -> m "a forked note"))
+            Eio.Fiber.yield))
+
 let display env =
   let clock = Eio.Stdenv.clock env in
   let run () =
     Console_eio.run ~clock (fun display ->
         let task = Console.Display.task display "pushing" in
+        Console.Display.log task "pushed 3 objects";
         Fmt.pr "a line of output@.";
         Console.Display.redraw display;
         match Sys.argv with
@@ -77,4 +87,5 @@ let () =
   | [| _; "colourless" |] -> colourless env
   | [| _; "widgets" |] -> widgets env
   | [| _; "themed" |] -> themed env
+  | [| _; "logs" |] -> logs env
   | _ -> display env

@@ -3,9 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Demonstrates Console.Display in plain mode: a 3-step job whose finished rows
-    are committed as append-only lines, then a summary. A fixed clock keeps the
-    timers deterministic so cram diffs are stable. *)
+(** Demonstrates Console.Display in plain mode: a 4-step job whose tasks print a
+    line when they start and when they end, the last one failing with its
+    output, then a summary. A fixed clock keeps the timers deterministic so cram
+    diffs are stable. *)
 
 let () =
   let now = ref 0. in
@@ -22,4 +23,8 @@ let () =
   step "foo.ml";
   step "bar.ml";
   step "baz.ml";
+  let task = Console.Display.task ~log_lines:2 display "qux.ml" in
+  List.iter (Console.Display.log task) [ "line 1"; "line 2"; "line 3" ];
+  now := !now +. 0.1;
+  Console.Display.fail task;
   Console.Display.close display
