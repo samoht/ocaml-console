@@ -38,12 +38,13 @@
   be one.
 - `Display.set_scene` draws what a printer prints, such as a table, above
   the rows of a live display, at their width and in the display's theme.
-- A theme's frames move (`Theme.motion`) in a scene: digital rain in
-  `Theme.matrix`, the rainbow sweeping round them in `Theme.rainbow`, a
-  shimmer of the main colour in the themes of colour schemes. Only colours
-  and glyphs change, never a width; printed with `Fmt`, on a pipe or
-  without colour, a frame is still. `Theme.still` stops every motion, the
-  spinner's too.
+- A theme's frames move (`Theme.motion`) in a scene: digital rain running
+  along an intact frame in `Theme.matrix`, a rainbow graded round them and
+  sweeping in `Theme.rainbow`, a shimmer of the main colour in the themes
+  of colour schemes. Only colours and the glyphs of straight lines change,
+  never a width; printed with `Fmt`, on a pipe or without colour, a frame
+  is still, a sweep keeping its colours. `Theme.still` stops every motion,
+  the spinner's too.
 - A display keeps two kinds of lines apart: `Logs` messages, the program's
   diagnostics, are always kept, printed after the name of the task they
   were logged in; the output of a task, given to `Display.log`, shows in

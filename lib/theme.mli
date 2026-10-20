@@ -59,16 +59,20 @@ type motion =
         ASCII glyphs flicker behind it on the frame's straight lines and the
         lines behind them fade to the muted colour. A corner or a tee keeps its
         glyph. *)
-  | `Sweep  (** The colours of the palette travel round the frame in bands. *)
+  | `Sweep
+    (** The palette, graded once round the frame from its first colour at the
+        top-left corner, travels round it. *)
   | `Shimmer
     (** A short highlight in the main colour travels round the frame. *) ]
 (** The type for how the frame of a table or a panel moves while a live
     {!Display} draws it ([Display.set_scene]), clockwise and by the elapsed
     time. Only the colours of the border's cells change, and the glyphs of some
     to one as wide, so the frame keeps its width and its cells their place in
-    every frame. Printed on a formatter, drawn by a display without colour or
-    with [NO_COLOR] set, a frame stands still: it is the frame of the theme
-    without motion. *)
+    every frame. Printed on a formatter, or drawn by a display without colour or
+    with [NO_COLOR] set, a frame stands still in the glyphs of the theme without
+    motion: a sweep keeps the colours a display starts with, and rain and a
+    shimmer, a highlight that would move, keep those of the theme without
+    motion. *)
 
 type t
 (** The type for themes. *)

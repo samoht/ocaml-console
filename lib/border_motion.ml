@@ -41,14 +41,20 @@ let rain theme ~line ~n ~elapsed p style glyph =
       glyph )
   else (style, glyph)
 
-(* Two rainbows round the frame, travelling clockwise. *)
+(* The palette graded once round the frame, from its first colour at the
+   top-left corner back to it, travelling clockwise. *)
 let sweep theme ~line:_ ~n ~elapsed p style glyph =
   let palette = Array.of_list (Theme.palette theme) in
-  let colours = Array.length palette in
-  let band = max 2 (n / (2 * colours)) in
-  let shift = Float.to_int (Float.rem (elapsed *. 8.) (Float.of_int n)) in
-  let i = (p - shift + n) mod n / band mod colours in
-  (recolour palette.(i) style, glyph)
+  let k = Array.length palette and n = Float.of_int n in
+  let at = Float.rem (Float.of_int p -. (elapsed *. 8.)) n in
+  let x = (if at < 0. then at +. n else at) /. n *. Float.of_int k in
+  let i = min (k - 1) (Float.to_int x) in
+  let f = x -. Float.of_int i in
+  let c =
+    if f = 0. then palette.(i)
+    else Color.blend palette.(i) palette.((i + 1) mod k) f
+  in
+  (recolour c style, glyph)
 
 (* A lap takes four seconds, at a speed the eye follows whatever the size. *)
 let shimmer theme ~line:_ ~n ~elapsed p style glyph =
@@ -99,9 +105,13 @@ let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
                   (fun p -> draw ~elapsed p)
                   (position ~width ~height ~left ~right ~y cell)
             in
+            (* Still, a sweep keeps its colours, which cover the whole frame;
+               a moving highlight is no pattern to keep. *)
             Span_core.drawn (fun (now : Look.t) ->
-                match now.elapsed with
-                | Some elapsed when Float.is_finite elapsed && elapsed >= 0. ->
+                match (now.elapsed, motion) with
+                | Some elapsed, _ when Float.is_finite elapsed && elapsed >= 0.
+                  ->
                     Span_core.recell (border ~elapsed) line
+                | _, `Sweep -> Span_core.recell (border ~elapsed:0.) line
                 | _ -> line))
           lines

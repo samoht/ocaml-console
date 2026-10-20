@@ -165,14 +165,15 @@ let watch display (results : unit -> Console.Table.t) =
 ```
 
 In a theme with motion (`Theme.motion`), the frame of a table or a panel
-in a scene moves, by the time since the display started: digital rain in
-`Theme.matrix`, the colours of the rainbow sweeping round it in
-`Theme.rainbow`, and a highlight of the main colour going round it in the
-themes of colour schemes. Only colours and glyphs change, never a width,
-so the columns stay aligned in every frame. The same table printed with
-`Fmt`, on a pipe, or without colour is still, and so is every frame of a
-theme passed through `Theme.still`, which also stops the spinner, for the
-users who ask for no animation:
+in a scene moves, by the time since the display started: digital rain
+running along it in `Theme.matrix`, a rainbow graded round it and sweeping
+in `Theme.rainbow`, and a highlight of the main colour going round it in
+the themes of colour schemes. Only colours and the glyphs of straight
+lines change, never a width, so the columns stay aligned in every frame.
+The same table printed with `Fmt`, on a pipe, or without colour is still,
+a rainbow frame keeping its colours, and so is every frame of a theme
+passed through `Theme.still`, which also stops the spinner, for the users
+who ask for no animation:
 
 ```ocaml
 let theme ~no_motion t = if no_motion then Console.Theme.still t else t
