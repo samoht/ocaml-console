@@ -64,19 +64,19 @@ type intercepted = {
   pending : Buffer.t;
 }
 
-let intercepted : intercepted list ref = ref []
-let direct = ref 0
+let intercepted : intercepted list Atomic.t = Atomic.make []
+let direct = Atomic.make 0
 
 let intercept display ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
   let i = { ppf; out; pending = Buffer.create 256 } in
   let add s o l =
-    if !direct > 0 then out.out_string s o l
+    if Atomic.get direct > 0 then out.out_string s o l
     else Buffer.add_substring i.pending s o l
   in
   let flush () =
-    if !direct > 0 then out.out_flush ()
+    if Atomic.get direct > 0 then out.out_flush ()
     else
       let s = Buffer.contents i.pending in
       match String.rindex_opt s '\n' with
@@ -99,7 +99,11 @@ let intercept display ppf =
       out_spaces = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
       out_indent = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
     };
-  intercepted := i :: !intercepted
+  let rec remember () =
+    let l = Atomic.get intercepted in
+    if not (Atomic.compare_and_set intercepted l (i :: l)) then remember ()
+  in
+  remember ()
 
 let restore () =
   List.iter
@@ -112,16 +116,15 @@ let restore () =
           i.out.out_string rest 0 (String.length rest);
           i.out.out_flush ()
         with Sys_error _ -> ())
-    !intercepted;
-  intercepted := []
+    (Atomic.exchange intercepted [])
 
 let with_terminal f =
   match find () with
   | None -> f ()
   | Some d ->
       Display.with_output d (fun _ ->
-          incr direct;
-          Fun.protect f ~finally:(fun () -> decr direct))
+          Atomic.incr direct;
+          Fun.protect f ~finally:(fun () -> Atomic.decr direct))
 
 (* {1 Logs} *)
 
