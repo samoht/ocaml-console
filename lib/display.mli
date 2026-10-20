@@ -55,7 +55,11 @@
     what [print_string], [Printf] or a child process writes on the terminal is
     not seen and garbles the rows, so print it with {!with_output}. Without a
     terminal, console flushes {!Fmt.stdout} before each line it writes, so that
-    [2>&1] keeps the order of the two outputs.
+    [2>&1] keeps the order of the two outputs. A write error on the display's
+    output, such as a reader that closed its pipe in [prog 2>&1 | head -1], ends
+    the display's output and nothing else. One on standard output is the
+    program's: console stops flushing it, and the program's own writes meet the
+    error as they would without console.
 
     What the program prints goes out as it is, escape codes included: console
     does not read it, so that the terminal shows what a pipe receives, colours,

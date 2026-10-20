@@ -77,7 +77,9 @@ val run :
     does when SIGINT or SIGTERM arrives during [f] and the program left that
     signal at its default disposition: the display closes, then the signal ends
     the program as it would have. A signal the program handles or ignores is
-    left to it.
+    left to it. A closed pipe on [ppf] ends the display's output and nothing
+    else, and one on standard output is met by the program's own writes, as
+    without console ({!Console.Display.v}).
 
     While [f] runs, {!Logs} messages go to the display
     ({!Console.Display.report}): to the window of the task current in the

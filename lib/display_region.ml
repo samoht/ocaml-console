@@ -21,10 +21,15 @@ let synchronized t s =
   if is_live t then "\027[?2026h" ^ s ^ "\027[?2026l" else s
 
 (* Without a terminal, standard output may share the display's pipe: what
-   the program printed there goes out first. *)
+   the program printed there goes out first. An error there is the
+   program's, which its own writes meet once console stops flushing. *)
+let stdout_failed = Atomic.make false
+
 let flush_stdout t =
-  if (not (is_live t)) && t.ppf != Fmt.stdout then
-    try Format.pp_print_flush Fmt.stdout () with Sys_error _ -> ()
+  if (not (is_live t)) && t.ppf != Fmt.stdout && not (Atomic.get stdout_failed)
+  then
+    try Format.pp_print_flush Fmt.stdout ()
+    with Sys_error _ -> Atomic.set stdout_failed true
 
 let write t s =
   if s <> "" then
