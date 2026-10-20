@@ -9,3 +9,6 @@
   `--theme` option in one line. Text colours are at 4.5:1 contrast on the
   theme's background and glyph colours at 3:1, and every widget falls back
   to ASCII on a formatter that is not UTF-8.
+- Colours are written at the colour depth of their formatter
+  (`Color.set_depth`), 16 colours until one is set: a program that turns
+  colour on with Fmt alone sends codes that every terminal reads.

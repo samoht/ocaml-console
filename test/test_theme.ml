@@ -89,7 +89,10 @@ let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   let ppf = Format.formatter_of_buffer buf in
   Option.iter (Theme.set ppf) theme;
   Fmt.set_utf_8 ppf utf_8;
-  if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color
+  end;
   Format.pp_set_margin ppf margin;
   pp ppf v;
   Format.pp_print_flush ppf ();

@@ -60,7 +60,7 @@ let bright_white = Ansi `Bright_white
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
 
 let depth_slot = Slot.v ()
-let depth ppf = Option.value (Slot.find depth_slot ppf) ~default:`True_color
+let depth ppf = Option.value (Slot.find depth_slot ppf) ~default:`Ansi_16
 let set_depth ppf d = Slot.set depth_slot ppf d
 
 (* The xterm defaults of the 16 named colours, in palette order. *)

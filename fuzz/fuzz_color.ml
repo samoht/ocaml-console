@@ -112,7 +112,7 @@ let test_sgr_in_range n r g b f =
 (* A formatter's depth is the one last set on it. *)
 let test_depth n =
   let ppf = Format.formatter_of_buffer (Buffer.create 1) in
-  check (Color.depth ppf = `True_color);
+  check (Color.depth ppf = `Ansi_16);
   let d =
     match n mod 3 with 0 -> `Ansi_16 | 1 -> `Ansi_256 | _ -> `True_color
   in

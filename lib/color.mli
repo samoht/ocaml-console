@@ -119,7 +119,8 @@ type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
 val depth : Format.formatter -> depth
 (** [depth ppf] is the colour depth of [ppf]: the colours every printer of this
     library writes on [ppf] are {!downsample}d to it. If {!set_depth} has never
-    been called on [ppf] this is [`True_color]. *)
+    been called on [ppf] this is [`Ansi_16], the colours every terminal shows;
+    [Console_tty.setup] sets it from the environment. *)
 
 val set_depth : Format.formatter -> depth -> unit
 (** [set_depth ppf d] sets the colour depth of [ppf] to [d]. *)

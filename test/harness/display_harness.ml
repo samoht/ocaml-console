@@ -60,7 +60,10 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
   in
   Vte.feed_string vte before;
   let ppf = Format.make_formatter out_string out_flush in
-  if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color
+  end;
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
   let display = Display.v ?header ?layout ~size:(fun () -> !size) ~now ppf in
