@@ -1023,9 +1023,45 @@ let test_scene_pipe kind cells n m =
   if Theme.motion theme <> Some `Sweep then
     check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
 
+(* Scene callbacks are user code too: once one raises, closing must still
+   restore the cursor and default attributes for the next terminal writer. *)
+let test_scene_exception_close n k styled =
+  let width = 20 + (n mod 61) and height = 8 + (k mod 8) in
+  let term = Console_vte.v ~raw:true ~rows:height ~cols:width () in
+  let ppf =
+    Format.make_formatter
+      (fun s off len -> Console_vte.feed term (String.sub s off len))
+      (fun () -> ())
+  in
+  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  let d = Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> 0.) ppf in
+  ignore (Display.task d "running");
+  (match
+     Display.set_scene d (fun ~height:_ ppf ->
+         Span.pp ppf (Span.styled Style.bold "partial scene");
+         raise Exit);
+     Display.redraw d
+   with
+  | () -> fail "scene exception swallowed"
+  | exception Exit -> ());
+  (try Display.close d with Exit -> fail "close called the failed scene again");
+  check (Console_vte.cursor_visible term);
+  let y, x = Console_vte.cursor_pos term in
+  check_eq ~pp:Fmt.int 0 x;
+  Console_vte.feed term "AFTER";
+  let reference = Console_vte.v ~raw:true ~rows:height ~cols:width () in
+  Console_vte.feed reference "AFTER";
+  for x = 0 to 4 do
+    let grid = Console_vte.grid term and plain = Console_vte.grid reference in
+    check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
+  done
+
 let suite =
   ( "display",
     [
+      test_case "scene exceptions leave the terminal usable"
+        [ uint8; uint8; bool ] test_scene_exception_close;
       test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
         test_wide;
       test_case "extreme terminal sizes keep region width and height bounded"
