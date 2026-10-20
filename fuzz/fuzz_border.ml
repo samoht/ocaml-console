@@ -47,6 +47,7 @@ let test s =
       Border.rounded;
       Border.heavy;
       Border.hidden;
+      Border.simple;
     ]
 
 let suite = ("border", [ test_case "accessors" [ bytes ] test ])

@@ -57,6 +57,11 @@ val with_style : Style.t -> t -> t
 val none : t
 (** [none] is the border drawn with empty strings: a box without edges. *)
 
+val simple : t
+(** [simple] is the border drawn with a Unicode light horizontal line under a
+    table's header and between its rows, and nothing else: no frame and no line
+    between the columns. *)
+
 val ascii : t
 (** [ascii] is the border drawn with [+], [-] and [|]. *)
 

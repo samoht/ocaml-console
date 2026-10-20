@@ -277,6 +277,24 @@ let print_files () =
 - : unit = ()
 ```
 
+`Border.simple` draws no frame, only a rule under the header:
+
+```ocaml
+# print_endline
+    (Table.to_string
+       (Table.v ~border:Border.simple
+          [ Table.column "Name"; Table.column ~align:`Right "Size" ]
+          [
+            [ Span.text "README.md"; Span.text "2.4K" ];
+            [ Span.text "src/"; Span.text "4.0K" ];
+          ]));;
+Name       Size
+───────────────
+README.md  2.4K
+src/       4.0K
+- : unit = ()
+```
+
 Trees and framed panels print the same way:
 
 ```ocaml

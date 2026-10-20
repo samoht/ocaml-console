@@ -80,3 +80,5 @@
   `to_string` do.
 - `Span.align` is the one alignment type, of `Table.column ~align` and
   `Rule.v ~align`, which no longer define their own.
+- `Border.simple` draws a table without a frame, a rule under its header
+  alone, `-` on a formatter that is not UTF-8.

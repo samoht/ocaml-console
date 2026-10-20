@@ -62,7 +62,7 @@ let check_closed raw =
           then failf "style left on: %S" l)
     (String.split_on_char (Char.chr 10) raw)
 
-let table s =
+let table ?(border = Border.rounded) s =
   let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
   let columns =
     List.init ncol (fun i ->
@@ -75,7 +75,7 @@ let table s =
     List.init 3 (fun r ->
         List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))
   in
-  (ncol, Table.v ~border:Border.rounded columns rows)
+  (ncol, Table.v ~border columns rows)
 
 (* No line is wider than the margin, every style is turned off, and a framed
    table that fits has all its lines as wide as one another. *)
@@ -90,6 +90,29 @@ let test_fits s n =
     | first :: rest ->
         List.iter (fun l -> check_eq ~pp:Fmt.int (cells first) (cells l)) rest
     | [] -> fail "no line"
+
+(* A table in [Border.simple] fits the margin, and once its columns fit,
+   the rule under a header runs across it: no line is wider. *)
+let test_simple s n =
+  let margin = 4 + (abs n mod 80) in
+  let ncol, t = table ~border:Border.simple s in
+  let raw, lines = render Table.pp margin t in
+  check_fits margin lines;
+  check_closed raw;
+  let headed =
+    List.exists (fun i -> pick s (i + 1) <> "") (List.init ncol Fun.id)
+  in
+  let is_rule l =
+    l <> "" && String.concat "" (List.init (cells l) (Fun.const "\u{2500}")) = l
+  in
+  if headed && margin >= ncol * 3 then
+    match List.filter is_rule lines with
+    | [] -> fail "no header rule"
+    | rule :: _ ->
+        List.iter
+          (fun l ->
+            if cells l > cells rule then failf "%S is wider than the rule" l)
+          lines
 
 (* A right-aligned column's cells end in the same column. *)
 let test_right_aligned s =
@@ -245,6 +268,8 @@ let suite =
       test_case "huge minimum narrows to available width" [ uint8 ]
         test_huge_min_width;
       test_case "fits the margin" [ bytes; int ] test_fits;
+      test_case "a simple table's rule runs across it" [ bytes; int ]
+        test_simple;
       test_case "right-aligned cells line up" [ bytes ] test_right_aligned;
       test_case "row shape" [ bytes; int ] test_shape;
     ] )

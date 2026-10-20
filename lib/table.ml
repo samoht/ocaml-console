@@ -182,8 +182,15 @@ let widths ?max_width t =
 
 (* {1 Lines} *)
 
+(* A rule across a table without edges runs under its columns and the gaps
+   between them. *)
 let rule t widths ~left ~mid ~right ~line =
-  if (chars t).top = "" then []
+  if line = "" then []
+  else if not (edged t) then
+    [
+      Span.styled (Border.style t.border)
+        (Widget.fill (rendered_width t widths) line);
+    ]
   else
     let style = Border.style t.border in
     let last = Array.length widths - 1 in

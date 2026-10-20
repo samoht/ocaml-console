@@ -193,7 +193,9 @@ let dos_chars =
     right_cross = "╢";
   }
 
+let simple_chars = { none_chars with horizontal = "─" }
 let none = v none_chars
+let simple = v simple_chars
 let ascii = v ascii_chars
 let single = v single_chars
 let double = v double_chars

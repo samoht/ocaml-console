@@ -9,7 +9,8 @@ let look = Look.v
 let default_look = Look.default
 
 (* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
-   replaced, all of a part at once so that its pieces still join. *)
+   replaced, all of a part at once so that its pieces still join; a piece a
+   border leaves out stays out. *)
 let shows look glyphs = look.utf_8 || List.for_all Width.is_ascii glyphs
 let muted look = Style.fg (Theme.muted look.theme)
 let accent look = Style.fg (Theme.accent look.theme)
@@ -43,7 +44,27 @@ let border look border =
         c.right_cross;
       ]
   then border
-  else Border.with_style (Border.style border) Border.ascii
+  else
+    let a = Border.chars Border.ascii in
+    let keep g a = if g = "" then "" else a in
+    Border.v ~style:(Border.style border)
+      {
+        top_left = keep c.top_left a.top_left;
+        top = keep c.top a.top;
+        top_right = keep c.top_right a.top_right;
+        left = keep c.left a.left;
+        right = keep c.right a.right;
+        bottom_left = keep c.bottom_left a.bottom_left;
+        bottom = keep c.bottom a.bottom;
+        bottom_right = keep c.bottom_right a.bottom_right;
+        vertical = keep c.vertical a.vertical;
+        horizontal = keep c.horizontal a.horizontal;
+        cross = keep c.cross a.cross;
+        top_cross = keep c.top_cross a.top_cross;
+        bottom_cross = keep c.bottom_cross a.bottom_cross;
+        left_cross = keep c.left_cross a.left_cross;
+        right_cross = keep c.right_cross a.right_cross;
+      }
 
 let guide look guide =
   let guide = Option.value guide ~default:(Theme.guide look.theme) in
