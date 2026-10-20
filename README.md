@@ -26,8 +26,7 @@ let test clock display (name, total) =
   done
 
 let main color theme =
-  Console_tty.setup ?style_renderer:color ();
-  List.iter (fun ppf -> Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Testing" (fun d ->
@@ -275,12 +274,12 @@ src      ╭─────────╮
 ## Themes
 
 Every widget is drawn in the theme of the formatter it is printed on, which
-`Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours. A
-theme holds the main colour, the colours of success, warning and failure,
-the marks, the frame style and how it moves, the lines of a tree, the bars
-and the spinner.
-`Theme.all` names the eighteen themes, so a `--theme` option is one line of
-[Cmdliner](https://erratique.ch/software/cmdliner):
+`Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours;
+`Console_tty.setup ~theme` sets it on both standard outputs. A theme holds
+the main colour, the colours of success, warning and failure, the marks,
+the frame style and how it moves, the lines of a tree, the bars and the
+spinner. `Theme.all` names the eighteen themes, so a `--theme` option is
+one line of [Cmdliner](https://erratique.ch/software/cmdliner):
 
 ```ocaml
 let theme =
@@ -290,7 +289,7 @@ let theme =
     & info [ "theme" ] ~doc:"The look of the output.")
 
 let greet theme =
-  List.iter (fun ppf -> Console.Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Console.Theme.set Fmt.stdout theme;
   Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.Span.text "hello"))
 
 let cmd =

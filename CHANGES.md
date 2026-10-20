@@ -50,8 +50,8 @@ Initial release of `console` and `console-eio`.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
   `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix
-  alone. `Console_eio.run` decides only for the outputs the program left
-  alone (`Console_tty.ensure`).
+  alone, and sets the theme of both (`~theme`). `Console_eio.run` decides
+  only for the outputs the program left alone (`Console_tty.ensure`).
 - Tests. `CONSOLE_FROZEN_CLOCK`, set and not empty, stops the display's
   clock at zero, so a cram test of a program's progress reads the same on
   every machine.

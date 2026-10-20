@@ -19,9 +19,15 @@
 
     This library is [console.tty]: it needs Unix, not Eio. *)
 
-val setup : ?style_renderer:Fmt.style_renderer -> ?utf_8:bool -> unit -> unit
-(** [setup ()] sets the style renderer, the {!Fmt.utf_8} and the
-    {!Console.Color.val-depth} of {!Fmt.stdout} and of {!Fmt.stderr}:
+val setup :
+  ?style_renderer:Fmt.style_renderer ->
+  ?utf_8:bool ->
+  ?theme:Console.Theme.t ->
+  unit ->
+  unit
+(** [setup ()] sets the style renderer, the {!Fmt.utf_8}, the
+    {!Console.Color.val-depth} and the {!Console.Theme} of {!Fmt.stdout} and of
+    {!Fmt.stderr}:
 
     - the style renderer is [style_renderer] if given, as
       [Fmt_cli.style_renderer] reads a [--color] option; otherwise it is [`None]
@@ -35,7 +41,9 @@ val setup : ?style_renderer:Fmt.style_renderer -> ?utf_8:bool -> unit -> unit
       ASCII alone on it;
     - the colour depth is [`True_color] if [COLORTERM] is [truecolor] or [24bit]
       or [TERM] ends in [-direct], [`Ansi_256] if [TERM] contains [256color],
-      and [`Ansi_16] otherwise. *)
+      and [`Ansi_16] otherwise;
+    - the theme is [theme] if given, as [Cmdliner.Arg.enum Console.Theme.all]
+      reads a [--theme] option; otherwise each output keeps its own. *)
 
 val ensure : unit -> unit
 (** [ensure ()] is like {!setup}[ ()] but leaves as it is each of {!Fmt.stdout}

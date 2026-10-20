@@ -33,13 +33,13 @@ reads the terminal and the environment ([NO_COLOR], [TERM], [COLORTERM] and
 the locale) and sets colour, colour depth and UTF-8 on the standard outputs.
 Given a style renderer, it uses that one instead: [Fmt_cli.style_renderer]
 reads it from a [--color=auto|always|never] option. A
-{{!Console.Theme}theme} is kept on the formatter too, and the progress rows
-draw on standard error, so [check] sets the theme of both outputs:
+{{!Console.Theme}theme} is kept on the formatter too, and [setup] gives both
+outputs the one a [--theme] option reads, since the table prints on
+standard output and the progress rows draw on standard error:
 
 {@ocaml[
 let setup color theme =
-  Console_tty.setup ?style_renderer:color ();
-  List.iter (fun ppf -> Console.Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Console_tty.setup ?style_renderer:color ~theme ();
   Logs.set_level (Some Logs.Info)
 
 let theme =

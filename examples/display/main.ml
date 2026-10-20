@@ -89,7 +89,7 @@ let () =
         prerr_endline e;
         exit 2
   in
-  List.iter (fun ppf -> Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Console_tty.setup ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Building" (fun display ->

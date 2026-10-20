@@ -20,8 +20,7 @@ let test clock display (name, total) =
   done
 
 let main color theme =
-  Console_tty.setup ?style_renderer:color ();
-  List.iter (fun ppf -> Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Testing" (fun d ->

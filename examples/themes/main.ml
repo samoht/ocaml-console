@@ -51,8 +51,7 @@ let () =
       prerr_endline e;
       exit 2
   | Ok theme ->
-      Console_tty.setup ~style_renderer:`Ansi_tty ();
-      Theme.set Fmt.stdout theme;
+      Console_tty.setup ~style_renderer:`Ansi_tty ~theme ();
       let ocaml = String.map (function '-' -> '_' | c -> c) name in
       let title = Span.gradient ("Theme." ^ ocaml) in
       Fmt.pr "%a@.%a@.@." Span.pp
