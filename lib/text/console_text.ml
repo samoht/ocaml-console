@@ -117,7 +117,7 @@ let continues = function
    end the sequence and act on their own; any other character outside the
    sequence's ranges ends it in error, and is text. A control string ends at
    ST, ESC 05/12 or 09/12, an OSC also at BEL; CAN, SUB, ESC and a C1 control
-   end it and act. *)
+   end it and act. CAN and SUB act by being discarded. *)
 (* What the character at [i], [len] bytes long, does from [state] in a token
    that began at [start]: the tokens it ends, and where the scan goes on. *)
 type move = {
@@ -129,9 +129,14 @@ type move = {
 
 let move ?(ends = []) next at from = { ends; next; at; from }
 
-(* NEL is text: {!text} makes it a line end. *)
+(* NEL is text: {!text} makes it a line end. CAN and SUB, which print
+   nothing, are an escape of their own. *)
 let in_ground ~valid ~c ~i ~len ~start =
-  if valid && (c = esc || (is_c1 c && c <> nel)) then
+  if valid && (c = can || c = sub) then
+    move
+      ~ends:[ (`Text, start, i); (`Escape, i, i + len) ]
+      Ground (i + len) (i + len)
+  else if valid && (c = esc || (is_c1 c && c <> nel)) then
     match if c = esc then Escape else c1 c with
     | Ground ->
         move
