@@ -8,6 +8,7 @@ let border ?(theme = Theme.unicode) ?border () =
 
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)
 let cells = Width.string_width
+let widest glyphs = List.fold_left (fun n g -> max n (cells g)) 0 glyphs
 
 let fill n glyph =
   if n <= 0 then ""

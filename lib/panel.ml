@@ -16,9 +16,8 @@ type t = {
    widest glyph. *)
 let columns border =
   let c = Border.chars border in
-  let widest = List.fold_left (fun n g -> max n (Widget.cells g)) 0 in
-  ( widest [ c.top_left; c.left; c.bottom_left ],
-    widest [ c.top_right; c.right; c.bottom_right ] )
+  ( Widget.widest [ c.top_left; c.left; c.bottom_left ],
+    Widget.widest [ c.top_right; c.right; c.bottom_right ] )
 
 (* The cells the border and the padding take on a content line. *)
 let frame border padding =

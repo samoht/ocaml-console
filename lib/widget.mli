@@ -15,6 +15,9 @@ val one_line : Span.t -> Span.t
 val cells : string -> int
 (** [cells s] is the number of cells [s] takes on a terminal. *)
 
+val widest : string list -> int
+(** [widest gs] is the {!cells} of the widest of [gs], [0] if there is none. *)
+
 val fill : int -> string -> string
 (** [fill n g] is [g] repeated over exactly [n] cells: the copies of [g] that
     fit, then the characters of one more that fit, then spaces. It is [""] if

@@ -59,14 +59,13 @@ let v ?theme ?border ?(header_style = Style.bold) columns rows =
   let columns = Array.of_list columns in
   let border = Widget.border ?theme ?border () in
   let c = Border.chars border in
-  let widest = List.fold_left (fun n g -> max n (Widget.cells g)) 0 in
   {
     border;
     frame =
       {
-        left = widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
-        mid = widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
-        right = widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
+        left = Widget.widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
+        mid = Widget.widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
+        right = Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
       };
     header_style;
     columns;
