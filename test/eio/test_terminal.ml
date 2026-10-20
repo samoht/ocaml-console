@@ -162,6 +162,30 @@ let test_auto_appends_under_term_dumb () =
     "the task's line under dumb" true
     (contains "\xe2\x9c\x93 step  0.0s" dumb)
 
+(* Standard output is a terminal, but not the display's: what the program
+   prints there goes out as it is written, a line not yet ended included,
+   since no region of the display is on it. *)
+let test_other_terminal_passes_through () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let out = open_pty ~sw and err = open_pty ~sw in
+  let out_tty = tty out and err_tty = tty err in
+  Fun.protect ~finally:(fun () ->
+      Unix.close out_tty;
+      Unix.close err_tty)
+  @@ fun () ->
+  let mock = Eio_mock.Clock.make () in
+  let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+  let written =
+    with_fds ~stdout:out_tty ~stderr:err_tty ~term:"xterm-256color" (fun () ->
+        Console_eio.run ~clock ~ppf:Fmt.stderr (fun _ ->
+            Fmt.pr "partial%!";
+            mark Unix.stdout;
+            read_to_mark env out))
+  in
+  Alcotest.(check string)
+    "byte for byte, at once" ("partial" ^ end_mark) written
+
 (* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
    cursor controls a region is made of are CSIs too, with other final bytes. *)
 let has_sgr s =
@@ -238,6 +262,8 @@ let suite =
         `Quick test_small_dimensions;
       Alcotest.test_case "auto asks the formatter's own descriptor" `Quick
         test_auto_asks_the_formatters_own_descriptor;
+      Alcotest.test_case "another terminal's output passes through" `Quick
+        test_other_terminal_passes_through;
       Alcotest.test_case "auto appends on a pipe" `Quick
         test_auto_appends_on_a_pipe;
       Alcotest.test_case "auto appends under TERM=dumb" `Quick
