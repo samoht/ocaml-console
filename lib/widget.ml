@@ -3,16 +3,56 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type look = { theme : Theme.t }
+type look = { theme : Theme.t; utf_8 : bool }
 
-let look ppf = { theme = Theme.get ppf }
-let default_look = { theme = Theme.default }
+let look ppf = { theme = Theme.get ppf; utf_8 = Fmt.utf_8 ppf }
+let default_look = { theme = Theme.default; utf_8 = true }
 
-let border look = function
-  | Some border -> border
-  | None -> Theme.border look.theme
+(* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
+   replaced, all of a part at once so that its pieces still join. *)
+let shows look glyphs = look.utf_8 || List.for_all Width.is_ascii glyphs
 
-let guide look = function Some guide -> guide | None -> Theme.guide look.theme
+let border look border =
+  let border = Option.value border ~default:(Theme.border look.theme) in
+  let c = Border.chars border in
+  if
+    shows look
+      [
+        c.top_left;
+        c.top;
+        c.top_right;
+        c.left;
+        c.right;
+        c.bottom_left;
+        c.bottom;
+        c.bottom_right;
+        c.cross;
+        c.top_cross;
+        c.bottom_cross;
+        c.left_cross;
+        c.right_cross;
+      ]
+  then border
+  else Border.with_style (Border.style border) Border.ascii
+
+let guide look guide =
+  let guide = Option.value guide ~default:(Theme.guide look.theme) in
+  let g = Guide.[ branch guide; last guide; pipe guide; space guide ] in
+  if shows look g then guide
+  else Guide.with_style (Guide.style guide) Guide.ascii
+
+let glyph look g ~ascii = if shows look [ g ] then g else ascii
+
+let spinner look ~elapsed =
+  glyph look
+    (Spinner.frame (Theme.spinner look.theme) ~elapsed)
+    ~ascii:(Spinner.frame Spinner.ascii ~elapsed)
+
+let mark look m =
+  glyph look (Theme.mark look.theme m) ~ascii:(Theme.mark Theme.ascii m)
+
+let ellipsis look = if look.utf_8 then Span_core.ellipsis else "..."
+let truncate look w s = Span_core.truncate ~ellipsis:(ellipsis look) w s
 
 let accent look = function
   | Some style -> style

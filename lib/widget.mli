@@ -5,22 +5,43 @@
 
 (** What the widgets share. *)
 
-type look = { theme : Theme.t }
-(** The type for what a formatter says of how to draw a widget. *)
+type look = { theme : Theme.t; utf_8 : bool }
+(** The type for what a formatter says of how to draw a widget: its theme, and
+    whether it shows UTF-8 or ASCII alone. *)
 
 val look : Format.formatter -> look
-(** [look ppf] is the look of the widgets printed on [ppf]: its {!Theme.get}. *)
+(** [look ppf] is the look of the widgets printed on [ppf]: its {!Theme.get} and
+    its {!Fmt.utf_8}. *)
 
 val default_look : look
-(** [default_look] is the look of a formatter given nothing: {!Theme.default}.
-*)
+(** [default_look] is the look of a formatter given nothing: {!Theme.default},
+    in UTF-8. *)
 
 val border : look -> Border.t option -> Border.t
-(** [border look b] is the border of [b] if given, else that of [look]'s theme.
-*)
+(** [border look b] is [b] if given, else the border of [look]'s theme; in
+    {!Border.ascii}, in the same style, when [look] is not UTF-8 and one of its
+    glyphs is not ASCII. *)
 
 val guide : look -> Guide.t option -> Guide.t
 (** [guide look g] is like {!border} for the guide of a tree. *)
+
+val glyph : look -> string -> ascii:string -> string
+(** [glyph look g ~ascii] is [g], or [ascii] when [look] is not UTF-8 and [g] is
+    not ASCII. *)
+
+val spinner : look -> elapsed:float -> string
+(** [spinner look ~elapsed] is the frame of [look]'s spinner [elapsed] seconds
+    in, as {!glyph} shows it, with {!Spinner.ascii}'s frame for ASCII. *)
+
+val mark : look -> Theme.mark -> string
+(** [mark look m] is the mark of [m] in [look]'s theme, as {!glyph} shows it,
+    with {!Theme.ascii}'s mark for ASCII. *)
+
+val ellipsis : look -> string
+(** [ellipsis look] ends a cut line: U+2026 in UTF-8, three dots in ASCII. *)
+
+val truncate : look -> int -> Span.t -> Span.t
+(** [truncate look w s] is {!Span.truncate}[ w s] with {!ellipsis}. *)
 
 val accent : look -> Style.t option -> Style.t
 (** [accent look s] is like {!border} for a style, whose default is the accent

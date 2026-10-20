@@ -8,7 +8,9 @@
     A theme holds the choices the widgets share: the main colour, the colours of
     a success, a warning and a failure, the marks that say how a task ended, the
     frame of tables and panels, the lines of a tree and the spinner of a
-    {!Display}. Give the same theme to each widget to make them match.
+    {!Display}. A formatter has one theme ({!set}), in which every widget
+    printed on it is drawn: with ASCII glyphs alone when the formatter is not
+    {!Fmt.utf_8}.
 
     Colours are given as the scheme defines them; a terminal that shows fewer
     colours gets the nearest ones it has ({!Color.val-depth}). In every
@@ -112,8 +114,9 @@ val default : t
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
-    lines and spinner, and the marks of {!dos}. It is the look for a terminal
-    whose character set is not UTF-8. *)
+    lines and spinner, and the marks of {!dos}. Every theme is drawn with these
+    on a formatter that is not {!Fmt.utf_8}; [ascii] is drawn with them on any.
+*)
 
 val dos : t
 (** [dos] is amber on black, with ASCII frames, tree lines and spinner and the

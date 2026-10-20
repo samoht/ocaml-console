@@ -20,7 +20,7 @@ let lines look ~margin t =
   let guide = Widget.guide look t.guide in
   let style = Guide.style guide in
   let acc = ref [] in
-  let emit line = acc := Span.truncate margin line :: !acc in
+  let emit line = acc := Widget.truncate look margin line :: !acc in
   (* [lasts] are the node's is-last-of-its-siblings flag and its ancestors'
      below the root, innermost first. *)
   let rec go lasts node =

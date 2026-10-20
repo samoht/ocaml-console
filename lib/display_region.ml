@@ -39,9 +39,10 @@ let eol t = if is_live t then "\r\n" else "\n"
 let capacity t = max 0 (t.height - 1)
 
 let marker t hidden =
-  Span.truncate t.width
+  let look = Widget.look t.ppf in
+  Widget.truncate look t.width
     (Span.styled Style.faint
-       ("  \xe2\x80\xa6 " ^ string_of_int hidden ^ " more lines"))
+       (Fmt.str "  %s %d more lines" (Widget.ellipsis look) hidden))
 
 (* The region: the header, then each running row and its log tail, within
    {!capacity}. When they do not fit, log lines go first, the oldest first;

@@ -22,6 +22,7 @@ type frame = { left : int; mid : int; right : int }
 
 (* A cell is kept as its lines, split once. *)
 type drawn = {
+  look : Widget.look;
   border : Border.t;
   frame : frame;
   header_style : Style.t;
@@ -72,7 +73,7 @@ let v ?border ?(header_style = Style.bold) columns rows =
   let headers = Array.map (fun c -> Span_core.lines c.header) columns in
   fun look ->
     let border = Widget.border look border in
-    { border; frame = frame border; header_style; columns; headers; rows }
+    { look; border; frame = frame border; header_style; columns; headers; rows }
 
 (* {1 Column widths} *)
 
@@ -202,14 +203,14 @@ let align_span ~pad_right align target span =
 
 (* The physical lines of a cell in [width] cells; [None] is a cell nothing
    bounds, the last of a line without edges and no width. *)
-let fit overflow width lines =
+let fit t overflow width lines =
   match width with
   | None -> lines
   | Some width when width <= 0 -> [ Span.empty ]
   | Some width -> (
       match overflow with
       | `Wrap -> List.concat_map (Span.wrap width) lines
-      | `Truncate -> List.map (Span.truncate width) lines)
+      | `Truncate -> List.map (Widget.truncate t.look width) lines)
 
 (* The width each cell of [row] fills. A short row's last cell fills the
    columns it spans and the separators between them, and in a table without
@@ -280,7 +281,7 @@ let row_lines ?max_width t widths style row =
       (fun i lines ->
         let col = t.columns.(i) in
         let width = slot_width ?max_width t widths row i in
-        let lines = Array.of_list (fit col.overflow width lines) in
+        let lines = Array.of_list (fit t col.overflow width lines) in
         (col, Option.value width ~default:0, lines))
       row
   in
@@ -317,7 +318,7 @@ let lines ?max_width t =
        line is then cut, visibly, rather than a column left out. *)
     match max_width with
     | None -> lines
-    | Some w -> List.map (Span.truncate w) lines
+    | Some w -> List.map (Widget.truncate t.look w) lines
 
 let pp ppf t =
   Span_core.pp_lines ppf

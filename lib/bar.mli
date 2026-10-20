@@ -9,7 +9,10 @@
     are the track, drawn as light shade (U+2591) in the [track] style (defaults
     to {!Style.faint}). [brackets] (defaults to [false]) adds a right one eighth
     block (U+2595) before the bar and a left one eighth block (U+258F) after it,
-    in the track style, which makes the bar two cells wider. *)
+    in the track style, which makes the bar two cells wider.
+
+    On a formatter that is not {!Fmt.utf_8}, the fill is whole cells of [#], the
+    track [-] and the brackets [\[] and [\]]. *)
 
 type t
 (** The type for bars. *)
@@ -40,14 +43,15 @@ val pp : t Fmt.t
 (**/**)
 
 val span :
+  utf_8:bool ->
   style:Style.t ->
   track:Style.t ->
   brackets:bool ->
   width:int ->
   float ->
   Span.t
-(** [span ~style ~track ~brackets ~width frac] is the bar of
-    [v ~style ~track ~brackets ~width frac] as a span, [frac] in the range 0 to
-    1. *)
+(** [span ~utf_8 ~style ~track ~brackets ~width frac] is the bar of
+    [v ~style ~track ~brackets ~width frac] as a span, in ASCII unless [utf_8],
+    [frac] in the range 0 to 1. *)
 
 (**/**)

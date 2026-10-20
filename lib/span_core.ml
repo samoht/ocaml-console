@@ -169,21 +169,27 @@ let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
 
 let ellipsis = "\xe2\x80\xa6"
 
-let truncate_line w line =
+(* An ellipsis wider than [w], ASCII dots, is cut to [w]. *)
+let truncate_line ~ellipsis w line =
   if line_width line <= w then line
   else
+    let ellipsis =
+      if Width.string_width ellipsis <= w then ellipsis
+      else String.sub ellipsis 0 w
+    in
     let l = layout line in
     let rec take i room =
       if i < l.n && cell_width l i <= room then
         take (i + 1) (room - cell_width l i)
       else i
     in
-    let k = take 0 (w - 1) in
+    let k = take 0 (w - Width.string_width ellipsis) in
     let style = if k < l.n then (owner l k).style else Style.none in
     sub l 0 k @ [ { style; link = None; text = ellipsis } ]
 
-let truncate w t =
-  if w <= 0 then empty else unlines (List.map (truncate_line w) (lines t))
+let truncate ?(ellipsis = ellipsis) w t =
+  if w <= 0 then empty
+  else unlines (List.map (truncate_line ~ellipsis w) (lines t))
 
 (* {1 Wrapping} *)
 

@@ -26,6 +26,7 @@ val setup : ?style_renderer:Fmt.style_renderer -> unit -> unit
 
     It sets {!Fmt.utf_8} on both iff the locale's character set is UTF-8: that
     of the first of [LC_ALL], [LC_CTYPE] and [LANG] that is set and not empty.
+    The widgets and the display print ASCII alone on a formatter that is not.
 
     It also sets their {!Console.Color.val-depth}: [`True_color] if [COLORTERM]
     is [truecolor] or [24bit] or [TERM] ends in [-direct], [`Ansi_256] if [TERM]

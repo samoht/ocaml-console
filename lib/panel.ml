@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 type drawn = {
+  look : Widget.look;
   border : Border.t;
   title : Span.t option;
   subtitle : Span.t option;
@@ -43,7 +44,7 @@ let v ?border ?title ?subtitle ?(padding = 1) ?width content =
   let lines = Span_core.lines content in
   fun look ->
     let border = Widget.border look border in
-    { border; title; subtitle; padding; width; lines }
+    { look; border; title; subtitle; padding; width; lines }
 
 let natural_width panel =
   let label = function Some span -> Span.width span + 2 | None -> 0 in
@@ -72,19 +73,19 @@ let fitted_lines panel cw =
     List.concat_map
       (fun line ->
         if Span.width line <= cw then [ line ]
-        else if panel.width <> None then [ Span.truncate cw line ]
+        else if panel.width <> None then [ Widget.truncate panel.look cw line ]
         else Span_core.wrap_hanging cw line)
       panel.lines
 
 let pad = Widget.pad
 
 (* A top or bottom edge, [label] centred in it. *)
-let edge style ~left ~mid ~right inner label =
+let edge look style ~left ~mid ~right inner label =
   let draw n = Span.styled style (Widget.fill n mid) in
   let middle =
     match label with
     | Some label when inner >= 3 ->
-        let label = Span.truncate (inner - 2) label in
+        let label = Widget.truncate look (inner - 2) label in
         let w = Span.width label in
         let l = (inner - w - 2) / 2 in
         Span.(
@@ -104,7 +105,7 @@ let lines ~margin panel =
   let top =
     if has_edge chars.top_left chars.top chars.top_right panel.title then
       [
-        edge style ~left:(l chars.top_left) ~mid:chars.top
+        edge panel.look style ~left:(l chars.top_left) ~mid:chars.top
           ~right:(r chars.top_right) inner panel.title;
       ]
     else []
@@ -113,7 +114,7 @@ let lines ~margin panel =
     if has_edge chars.bottom_left chars.bottom chars.bottom_right panel.subtitle
     then
       [
-        edge style ~left:(l chars.bottom_left) ~mid:chars.bottom
+        edge panel.look style ~left:(l chars.bottom_left) ~mid:chars.bottom
           ~right:(r chars.bottom_right) inner panel.subtitle;
       ]
     else []
@@ -129,7 +130,7 @@ let lines ~margin panel =
       (fitted_lines panel cw)
   in
   (* A margin too narrow for the border itself still bounds every line. *)
-  List.map (Span.truncate margin) (top @ body @ bottom)
+  List.map (Widget.truncate panel.look margin) (top @ body @ bottom)
 
 let lines look ~margin t = lines ~margin (t look)
 let pp = Widget.pp lines

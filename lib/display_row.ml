@@ -13,12 +13,10 @@ let pad_left n span =
   let w = Span.width span in
   if w >= n then span else Span.(pad (n - w) ++ span)
 
-(* The display is drawn in the theme of its formatter; the default one in
-   ASCII when the formatter is not UTF-8. *)
-let theme t =
-  match Theme.get t.ppf with
-  | th when th == Theme.default && not (Fmt.utf_8 t.ppf) -> Theme.ascii
-  | th -> th
+(* The display is drawn in the look of its formatter. *)
+let look t = Widget.look t.ppf
+let theme t = (look t).theme
+let cut t w s = Widget.truncate (look t) w s
 
 (* Successive rows take the colours of the theme's palette in turn. *)
 let color r =
@@ -34,12 +32,12 @@ let mark_style t (m : Theme.mark) =
   | `Running -> Style.(bold + fg (Theme.accent theme))
   | `Info -> Style.faint
 
-let mark t m = Span.styled (mark_style t m) (Theme.mark (theme t) m)
+let mark t m = Span.styled (mark_style t m) (Widget.mark (look t) m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
 
 (* {1 Guides} *)
 
-let guide t = Theme.guide (theme t)
+let guide t = Widget.guide (look t) None
 
 (* [lasts] are a row's flags, innermost first, ending with its root's, which
    draws nothing: a root row starts at the left edge. *)
@@ -66,12 +64,15 @@ let percent m =
     (fraction m)
 
 (* No bar is drawn before work advances, since an empty track reads as an
-   input field; once it has, the bar shows at least one eighth of a cell. *)
-let bar r width =
+   input field; once it has, the bar shows the least it can. *)
+let bar t r width =
   match fraction r.metric with
   | Some f when f > 0. ->
-      let f = Float.max f (1. /. float (max 1 (width * 8))) in
-      Bar.span ~brackets:true
+      let utf_8 = (look t).utf_8 in
+      (* An ASCII cell is drawn from half of it on. *)
+      let steps = if utf_8 then 8 else 2 in
+      let f = Float.max f (1. /. float (max 1 (width * steps))) in
+      Bar.span ~utf_8 ~brackets:true
         ~style:(Style.fg (color r))
         ~track:Style.faint ~width f
   | _ -> Span.empty
@@ -84,11 +85,9 @@ let timer d =
 let piece t r ~time (p : Display_line.piece) =
   match p with
   | Spinner ->
-      Span.styled
-        (Style.fg (color r))
-        (Spinner.frame (Theme.spinner (theme t)) ~elapsed:time)
+      Span.styled (Style.fg (color r)) (Widget.spinner (look t) ~elapsed:time)
   | Label | Spacer -> Span.empty
-  | Bar n -> bar r n
+  | Bar n -> bar t r n
   | Percent -> (
       match percent r.metric with
       | Some p -> Fmt.kstr faint "%3d%%" p
@@ -117,7 +116,7 @@ let live t ~lasts r =
   let reserve = if has Display_line.Spacer then 1 else 0 in
   let label =
     if has Display_line.Label then
-      Span.truncate (t.width - fixed - reserve) (Span.styled Style.bold r.label)
+      cut t (t.width - fixed - reserve) (Span.styled Style.bold r.label)
     else Span.empty
   in
   let slack = max reserve (t.width - fixed - Span.width label) in
@@ -129,7 +128,7 @@ let live t ~lasts r =
              match p with Label -> label | Spacer -> pad slack | _ -> s)
            pieces)
   in
-  Span.truncate t.width line
+  cut t t.width line
 
 let gap_suffix gap =
   if gap >= 1. then faint ("  +" ^ Display_text.duration gap) else Span.empty
@@ -144,7 +143,7 @@ let tail t ~lasts r =
           ++ mark t (log.level :> Theme.mark)
           ++ text " " ++ text log.message ++ gap_suffix log.gap)
       in
-      Span.truncate t.width line :: acc)
+      cut t t.width line :: acc)
     [] r.logs
   |> List.rev
 
@@ -179,13 +178,13 @@ let committed t r =
   in
   let head = Span.(lead ++ first) in
   let gap = t.width - Span.width head - Span.width meta in
-  let head = Span.truncate t.width Span.(head ++ pad gap ++ meta) in
+  let head = cut t t.width Span.(head ++ pad gap ++ meta) in
   let under = pad lead_w in
   head
   :: List.concat_map
        (fun l ->
          List.map
-           (fun l -> Span.truncate t.width Span.(under ++ l))
+           (fun l -> cut t t.width Span.(under ++ l))
            (Span.wrap (max 1 (t.width - lead_w)) l))
        rest
 
@@ -201,7 +200,7 @@ let appended r =
 
 let committed_log r log =
   let t = r.disp in
-  Span.truncate t.width
+  cut t t.width
     Span.(
       text (indent r ^ "  ")
       ++ mark t (log.level :> Theme.mark)
@@ -247,7 +246,7 @@ let header t =
       let h = Span.styled (Theme.header (theme t)) h in
       let full = Span.(lead ++ h ++ meta) in
       if (not (is_live t)) || Span.width full <= t.width then full
-      else Span.truncate t.width Span.(lead ++ h))
+      else cut t t.width Span.(lead ++ h))
     t.header
 
 let verdict t result =
