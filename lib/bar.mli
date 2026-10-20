@@ -38,6 +38,13 @@ val v :
 
 (** {1:converting Converting} *)
 
+val to_span : t -> Span.t
+(** [to_span bar] is [bar] as a span, to put in a table cell, a tree or a panel:
+    it is drawn when it is printed, in the theme and the {!Fmt.utf_8} of the
+    formatter it is printed on, as {!pp} draws it, and takes the cells {!pp}
+    gives it. A part that {!Span.truncate} or {!Span.wrap} keep is drawn as
+    those cells of the bar. *)
+
 val to_string : ?styled:bool -> t -> string
 (** [to_string bar] is [bar] as {!pp} formats it on a formatter of unbounded
     margin, with colours iff [styled] (defaults to [false]). *)
@@ -47,19 +54,3 @@ val to_string : ?styled:bool -> t -> string
 val pp : t Fmt.t
 (** [pp] formats a bar on one line, [width] cells wide, or two more with
     brackets, and cut with an ellipsis to the formatter's margin. *)
-
-(**/**)
-
-val span :
-  glyphs:Theme.bar ->
-  style:Style.t ->
-  track:Style.t ->
-  brackets:bool ->
-  width:int ->
-  float ->
-  Span.t
-(** [span ~glyphs ~style ~track ~brackets ~width frac] is the bar of
-    [v ~style ~track ~brackets ~width frac] as a span, in [glyphs], [frac] in
-    the range 0 to 1. *)
-
-(**/**)

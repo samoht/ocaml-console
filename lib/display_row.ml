@@ -70,12 +70,8 @@ let bar t r width =
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
-      Bar.span
-        ~glyphs:(Widget.bar (look t))
-        ~brackets:false
-        ~style:(Style.fg (color r))
-        ~track:(Widget.muted (look t))
-        ~width f
+      Span_core.resolve (look t)
+        (Bar.to_span (Bar.v ~style:(Style.fg (color r)) ~width f))
   | _ -> Span.empty
 
 let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))

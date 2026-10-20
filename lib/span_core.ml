@@ -5,8 +5,16 @@
 
 (* Each atom's text is non-empty, valid UTF-8 and holds no control character
    but the line feed: the constructors make it so, and every operation below
-   keeps it. *)
-type atom = { style : Style.t; link : string option; text : string }
+   keeps it. An atom with [draw] is drawn when printed, in [style] and the
+   formatter's look; its [text] is its drawing in {!Look.default}, which has
+   the same cells in every look, and measures it. *)
+type atom = {
+  style : Style.t;
+  link : string option;
+  text : string;
+  draw : (Look.t -> atom list) option;
+}
+
 type t = atom list
 
 let clean = Console_text.sanitize ~keep_newlines:true
@@ -21,7 +29,9 @@ let atom ?link style text =
       if String.exists (fun ch -> ch <= ' ' || ch >= '\x7f') uri then
         invalid_arg "Console.Span.link: unsafe URI character")
     link;
-  match clean text with "" -> [] | text -> [ { style; link; text } ]
+  match clean text with
+  | "" -> []
+  | text -> [ { style; link; text; draw = None } ]
 
 let empty = []
 let text s = atom Style.none s
@@ -35,6 +45,23 @@ let concat ?(sep = empty) = function
 
 let with_style base t =
   List.map (fun a -> { a with style = Style.(base + a.style) }) t
+
+let is_drawn a = Option.is_some a.draw
+
+let rec resolve look t =
+  if not (List.exists is_drawn t) then t
+  else
+    List.concat_map
+      (fun a ->
+        match a.draw with
+        | None -> [ a ]
+        | Some draw -> with_style a.style (resolve look (draw look)))
+      t
+
+let drawn draw =
+  match String.concat "" (List.map (fun a -> a.text) (draw Look.default)) with
+  | "" -> empty
+  | text -> [ { style = Style.none; link = None; text; draw = Some draw } ]
 
 (* {1 Lines} *)
 
@@ -139,8 +166,16 @@ let owner l i =
   done;
   l.parts.(!k)
 
-(* The atoms of clusters [i] to [j - 1]. *)
-let sub l i j =
+(* The cluster that starts [cells] cells into a line, or [l.n]. *)
+let at_cell l cells =
+  let rec go i c =
+    if i >= l.n || c >= cells then i else go (i + 1) (c + cell_width l i)
+  in
+  go 0 0
+
+(* The atoms of clusters [i] to [j - 1]. The part of an atom drawn when
+   printed is the same cells of its drawing. *)
+let rec sub l i j =
   if i >= j then []
   else
     let a = start l i and b = start l j in
@@ -151,9 +186,25 @@ let sub l i j =
         let pe = ps + String.length p.text in
         let s = max a ps and e = min b pe in
         if s < e then
-          acc := { p with text = String.sub l.joined s (e - s) } :: !acc)
+          let text = String.sub l.joined s (e - s) in
+          let draw =
+            match p.draw with
+            | Some draw when s > ps || e < pe ->
+                let first =
+                  Width.string_width (String.sub l.joined ps (s - ps))
+                in
+                let last = first + Width.string_width text in
+                Some (fun look -> cells first last (draw look))
+            | d -> d
+          in
+          acc := { p with text; draw } :: !acc)
       l.parts;
     List.rev !acc
+
+(* Cells [first] to [last - 1] of a line. *)
+and cells first last line =
+  let l = layout line in
+  sub l (at_cell l first) (at_cell l last)
 
 let line_width = function
   | [ a ] -> Width.string_width a.text
@@ -185,7 +236,7 @@ let truncate_line ~ellipsis w line =
     in
     let k = take 0 (w - Width.string_width ellipsis) in
     let style = if k < l.n then (owner l k).style else Style.none in
-    sub l 0 k @ [ { style; link = None; text = ellipsis } ]
+    sub l 0 k @ [ { style; link = None; text = ellipsis; draw = None } ]
 
 let truncate ?(ellipsis = ellipsis) w t =
   if w <= 0 then empty
@@ -234,7 +285,13 @@ let finish f =
   let body =
     if f.first || f.hang = 0 then body
     else
-      { style = Style.none; link = None; text = String.make f.hang ' ' } :: body
+      {
+        style = Style.none;
+        link = None;
+        text = String.make f.hang ' ';
+        draw = None;
+      }
+      :: body
   in
   f.out <- body :: f.out;
   f.cur <- [];
@@ -370,7 +427,7 @@ let runs t =
    it, so that no line leaves them on for what the terminal prints next. *)
 let add_styled buf ~depth t =
   List.iter
-    (fun { style; link; text } ->
+    (fun { style; link; text; _ } ->
       let sgr = Escape.sgr depth style in
       List.iteri
         (fun i line ->
@@ -385,7 +442,8 @@ let add_styled buf ~depth t =
         (String.split_on_char '\n' text))
     (runs t)
 
-let render ?depth t =
+let render ~look ?depth t =
+  let t = resolve look t in
   let buf = Buffer.create 64 in
   (match depth with
   | None -> List.iter (fun a -> Buffer.add_string buf a.text) t
@@ -393,12 +451,15 @@ let render ?depth t =
   Buffer.contents buf
 
 let to_string ?(styled = false) t =
-  render ?depth:(if styled then Some `True_color else None) t
+  render ~look:Look.default ?depth:(if styled then Some `True_color else None) t
 
 let pp ppf t =
+  let t = if List.exists is_drawn t then resolve (Look.v ppf) t else t in
   match Fmt.style_renderer ppf with
   | `None -> List.iter (fun a -> Format.pp_print_string ppf a.text) t
-  | `Ansi_tty -> Format.pp_print_string ppf (render ~depth:(Color.depth ppf) t)
+  | `Ansi_tty ->
+      Format.pp_print_string ppf
+        (render ~look:Look.default ~depth:(Color.depth ppf) t)
 
 let pp_lines ppf lines =
   List.iteri

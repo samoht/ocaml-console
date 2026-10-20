@@ -34,7 +34,8 @@ let write t s =
       out.out_flush ()
     with Sys_error _ -> ()
 
-let render t span = Span_core.render ?depth:t.depth span
+let render t span =
+  Span_core.render ~look:(Widget.look t.ppf) ?depth:t.depth span
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)

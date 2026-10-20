@@ -239,10 +239,29 @@ src
 - : unit = ()
 ```
 
+`Bar.to_span` puts one in a table cell, drawn in the table's theme:
+
+```ocaml
+# let downloads =
+    Table.v ~border:Border.none
+      [ Table.column "File"; Table.column "Progress" ]
+      [
+        [ Span.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
+        [ Span.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];
+      ]
+  in
+  print_endline (Table.to_string downloads);;
+File        Progress
+boot.img    ━━━━╺━━━━━
+rootfs.tar  ━━━━━━━━━╺
+- : unit = ()
+```
+
 Every widget is drawn in the theme of the formatter it is printed on, which
 `Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
 main colour, the colours of success, warning and failure, the marks, the
-frame style, the lines that connect tree branches and the spinner. The
+frame style, the lines that connect tree branches, the bars and the
+spinner. The
 themes are shown [at the end](#themes). `Theme.all` names them all, so a
 `--theme` option is one line of
 [Cmdliner](https://erratique.ch/software/cmdliner):

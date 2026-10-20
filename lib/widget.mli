@@ -5,7 +5,7 @@
 
 (** What the widgets share. *)
 
-type look = { theme : Theme.t; utf_8 : bool }
+type look = Look.t = { theme : Theme.t; utf_8 : bool }
 (** The type for what a formatter says of how to draw a widget: its theme, and
     whether it shows UTF-8 or ASCII alone. *)
 

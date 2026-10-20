@@ -53,14 +53,13 @@ let span ~glyphs ~style ~track ~brackets ~width frac =
   let fill, rest = cells ~glyphs ~width frac in
   framed ~glyphs ~track ~brackets Span.(styled style fill ++ styled track rest)
 
-let lines look ~margin t =
+let draw t look =
   let style = Option.value t.style ~default:(Widget.accent look) in
   let track = Option.value t.track ~default:(Widget.muted look) in
-  [
-    Widget.truncate look margin
-      (span ~glyphs:(Widget.bar look) ~style ~track ~brackets:t.brackets
-         ~width:t.width t.frac);
-  ]
+  span ~glyphs:(Widget.bar look) ~style ~track ~brackets:t.brackets
+    ~width:t.width t.frac
 
+let to_span t = Span_core.drawn (draw t)
+let lines look ~margin t = [ Widget.truncate look margin (draw t look) ]
 let pp = Widget.pp lines
 let to_string ?styled t = Widget.to_string lines ?styled t

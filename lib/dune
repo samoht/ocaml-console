@@ -12,6 +12,7 @@
   display_text
   inked
   escape
+  look
   sgr
   span_core))
 

@@ -3,10 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type look = { theme : Theme.t; utf_8 : bool }
+type look = Look.t = { theme : Theme.t; utf_8 : bool }
 
-let look ppf = { theme = Theme.get ppf; utf_8 = Fmt.utf_8 ppf }
-let default_look = { theme = Theme.default; utf_8 = true }
+let look = Look.v
+let default_look = Look.default
 
 (* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
    replaced, all of a part at once so that its pieces still join. *)

@@ -85,7 +85,9 @@ val pp : t Fmt.t
 (** [pp] formats a span with its styles and links iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
     formatter's {!Color.val-depth} shows them. Each style that is turned on is
-    turned off after the text it covers, and before each line feed.
+    turned off after the text it covers, and before each line feed. A part drawn
+    when printed, such as a [Bar.to_span], is drawn in the formatter's theme
+    ({!Theme.get}) and {!Fmt.utf_8}.
 
     The formatter's margin does not apply: each line is printed whole, and
     {!truncate} or {!wrap} fit a span to a width first. A line feed is printed
@@ -95,4 +97,5 @@ val pp : t Fmt.t
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string s] is [s] with its styles and links iff [styled] (defaults to
-    [false]), in 24-bit colour. *)
+    [false]), in 24-bit colour, a part drawn when printed (such as a
+    [Bar.to_span]) drawn in {!Theme.default} in UTF-8. *)

@@ -62,9 +62,18 @@ val wrap_hanging : int -> t -> t list
 val widest_word : t -> int
 (** [widest_word s] is the width of the widest run of [s] without a space. *)
 
-val render : ?depth:Color.depth -> t -> string
-(** [render ~depth s] is [s] with its styles at [depth], or its text alone
-    without [depth]. *)
+val render : look:Look.t -> ?depth:Color.depth -> t -> string
+(** [render ~look ~depth s] is [s] drawn in [look] with its styles at [depth],
+    or its text alone without [depth]. *)
+
+val drawn : (Look.t -> t) -> t
+(** [drawn draw] is the span [draw look] when it is printed in [look], and
+    measured as [draw Look.default]. Every [draw look] must take the same cells
+    as [draw Look.default], one cluster for one. A part of it that {!truncate}
+    or {!wrap} keep is drawn as the same cells of [draw look]. *)
+
+val resolve : Look.t -> t -> t
+(** [resolve look s] is [s] with each {!drawn} part drawn in [look]. *)
 
 val pp_lines : t list Fmt.t
 (** [pp_lines] formats spans one per line, with no line end after the last. *)
