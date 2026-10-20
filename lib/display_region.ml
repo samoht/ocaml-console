@@ -67,7 +67,8 @@ let frame t =
       @ List.concat_map
           (fun ((r, lasts) as row) -> live row :: Display_row.tail t ~lasts r)
           rows
-    else if n <= budget then begin
+    else if n < budget then begin
+      (* Every row and the marker fit; tails give way to the marker. *)
       let to_drop = ref (total - (budget - 1)) in
       let hidden = !to_drop in
       let body =
