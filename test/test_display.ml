@@ -96,6 +96,29 @@ let test_plain_attribution () =
     ]
     (String.split_on_char '\n' out)
 
+(* A tab in a task's output goes to the next stop of eight columns from the
+   start of its line, so tabbed columns stay aligned. *)
+let test_tabs () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let a = Display.task d "a" in
+        Display.log a "x\ty\n\u{754c}\tz\n12345678\tw";
+        Display.fail a)
+  in
+  check_lines "tab stops"
+    [
+      "[-] a";
+      "  # a: x       y";
+      "  # a: \u{754c}      z";
+      "  # a: 12345678        w";
+      "[x] a  0.0s";
+      "  # x       y";
+      "  # \u{754c}      z";
+      "  # 12345678        w";
+      "";
+    ]
+    (String.split_on_char '\n' out)
+
 let test_plain_sanitizes () =
   let (), out =
     plain ~header:"Build\027[2J" (fun d _ ->
@@ -1231,6 +1254,7 @@ let suite =
       Alcotest.test_case "nested" `Quick test_nested;
       Alcotest.test_case "nested on a pipe" `Quick test_nested_plain;
       Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;
+      Alcotest.test_case "tab stops in a task's output" `Quick test_tabs;
       Alcotest.test_case "a key shared by two with_task" `Quick
         test_with_task_shared_key;
       Alcotest.test_case "counts" `Quick test_counts;
