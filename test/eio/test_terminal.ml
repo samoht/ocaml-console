@@ -55,8 +55,7 @@ let with_fds ~stdout ~stderr ~term f =
    clock that never moves: the case asserts which display was chosen and
    nothing about the machine's pace. *)
 let draw_a_task () =
-  let mock = Eio_mock.Clock.make () in
-  let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+  let clock = Eio_mock.Clock.Mono.make () in
   Console_eio.run ~clock ~ppf:Fmt.stderr (fun display ->
       let task = Console.Display.task display "step" in
       Console.Display.succeed task)
@@ -174,8 +173,7 @@ let test_other_terminal_passes_through () =
       Unix.close out_tty;
       Unix.close err_tty)
   @@ fun () ->
-  let mock = Eio_mock.Clock.make () in
-  let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+  let clock = Eio_mock.Clock.Mono.make () in
   let written =
     with_fds ~stdout:out_tty ~stderr:err_tty ~term:"xterm-256color" (fun () ->
         Console_eio.run ~clock ~ppf:Fmt.stderr (fun _ ->
@@ -227,8 +225,7 @@ let test_run_styles_a_terminal () =
     with_no_color no_color (fun () ->
         with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
             Console_tty.setup ();
-            let mock = Eio_mock.Clock.make () in
-            let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
+            let clock = Eio_mock.Clock.Mono.make () in
             Console_eio.run ~clock ~ppf (fun display ->
                 Console.Display.succeed (Console.Display.task display "step"));
             mark Unix.stderr));

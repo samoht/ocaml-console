@@ -22,6 +22,7 @@
   eio
   eio.unix
   eio.mock
+  mtime
   eio_main
   matrix.grid
   matrix.vte

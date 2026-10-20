@@ -14,7 +14,7 @@ module D = Console.Display
    text. *)
 let capture ?header f =
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.clock env in
+  let clock = Eio.Stdenv.mono_clock env in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Console_eio.run ~clock ~ppf ?header f;
@@ -170,7 +170,7 @@ module Report_domains = struct
     Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 3. (fun () -> f env)
 
   let run env sink f =
-    Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf:sink.ppf f
+    Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf:sink.ppf f
 
   let pool env sw =
     Eio.Executor_pool.create ~sw ~domain_count:1 (Eio.Stdenv.domain_mgr env)

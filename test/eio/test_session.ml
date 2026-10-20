@@ -110,26 +110,20 @@ let test_limit () =
 
 let test_run_clock () =
   Eio_mock.Backend.run @@ fun () ->
-  let clock = Eio_mock.Clock.make () in
+  let clock = Eio_mock.Clock.Mono.make () in
   let out = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer out in
   let value =
-    Console_eio.run
-      ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-      ~ppf ~header:"build"
-      (fun d ->
+    Console_eio.run ~clock ~ppf ~header:"build" (fun d ->
         let task = Console.Display.task d "compile" in
         Eio.Fiber.both
           (fun () ->
-            Eio.Time.sleep clock 0.5;
+            Eio.Time.Mono.sleep clock 0.5;
             Console.Display.succeed task)
           (fun () ->
             Eio.Fiber.yield ();
-            Eio_mock.Clock.set_time clock 0.5);
-        Console_eio.run
-          ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-          ~ppf
-          (fun nested ->
+            Eio_mock.Clock.Mono.set_time clock (Mtime.of_uint64_ns 500_000_000L));
+        Console_eio.run ~clock ~ppf (fun nested ->
             Alcotest.(check bool) "same display" true (nested == d));
         42)
   in
@@ -146,20 +140,14 @@ exception Body_failure
 
 let test_run_failure () =
   Eio_mock.Backend.run @@ fun () ->
-  let clock = Eio_mock.Clock.make () in
+  let clock = Eio_mock.Clock.Mono.make () in
   let out = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer out in
   Alcotest.check_raises "body exception" Body_failure (fun () ->
-      Console_eio.run
-        ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-        ~ppf
-        (fun d ->
+      Console_eio.run ~clock ~ppf (fun d ->
           ignore (Console.Display.task d "abandoned");
           raise Body_failure));
-  Console_eio.run
-    ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-    ~ppf
-    (fun _ -> ());
+  Console_eio.run ~clock ~ppf (fun _ -> ());
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "cancelled task" true
@@ -167,18 +155,12 @@ let test_run_failure () =
 
 let test_nested_fiber () =
   Eio_mock.Backend.run @@ fun () ->
-  let clock = Eio_mock.Clock.make () in
+  let clock = Eio_mock.Clock.Mono.make () in
   let ppf = Format.formatter_of_buffer (Buffer.create 64) in
-  Console_eio.run
-    ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-    ~ppf
-    (fun d ->
+  Console_eio.run ~clock ~ppf (fun d ->
       Eio.Fiber.both
         (fun () ->
-          Console_eio.run
-            ~clock:(clock :> float Eio.Time.clock_ty Eio.Resource.t)
-            ~ppf
-            (fun nested ->
+          Console_eio.run ~clock ~ppf (fun nested ->
               Alcotest.(check bool) "inherited display" true (d == nested)))
         Eio.Fiber.yield)
 
@@ -234,7 +216,7 @@ let test_concurrent_order () =
   let count = 20 in
   let output = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer output in
-  let clock = Eio.Stdenv.clock env in
+  let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~ppf (fun display ->
       let reporter = Logs.reporter () in
       let fibers =
@@ -286,7 +268,7 @@ let test_handler_kept () =
   @@ fun () ->
   Eio_main.run @@ fun env ->
   let ppf = Format.formatter_of_buffer (Buffer.create 64) in
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) ~ppf (fun _ ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf (fun _ ->
       Sys.set_signal Sys.sigterm (Sys.Signal_handle mine));
   Alcotest.(check bool)
     "the program's handler" true

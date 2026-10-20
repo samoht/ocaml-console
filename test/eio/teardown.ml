@@ -25,7 +25,7 @@ let secret env =
 let colourless env =
   Fmt.set_style_renderer Fmt.stdout `None;
   Fmt.set_style_renderer Fmt.stderr `None;
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       Console.Display.succeed (Console.Display.task display "plain"))
 
 (* Every widget, on standard output once [setup] has looked at the locale,
@@ -43,7 +43,7 @@ let widgets env =
     (Tree.v long [ Tree.v long [ leaf ]; leaf ])
     Rule.pp (Rule.v ~label:long ()) Bar.pp
     (Bar.v ~brackets:true ~width:10 0.55);
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       let task = Display.task display "counting" in
       Display.set_count task ~cur:1 ~total:3;
       Display.redraw display;
@@ -52,11 +52,11 @@ let widgets env =
 (* The program chose a theme, and no colour, before the display. *)
 let themed env =
   Console.Theme.set Fmt.stderr Console.Theme.nord;
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       Console.Display.succeed (Console.Display.task display "themed"))
 
 let logs env =
-  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       Console.Display.with_task display "work" (fun task ->
           Console.Display.log task "an output line";
           Eio.Fiber.both
@@ -64,7 +64,7 @@ let logs env =
             Eio.Fiber.yield))
 
 let display env =
-  let clock = Eio.Stdenv.clock env in
+  let clock = Eio.Stdenv.mono_clock env in
   let run () =
     Console_eio.run ~clock (fun display ->
         let task = Console.Display.task display "pushing" in

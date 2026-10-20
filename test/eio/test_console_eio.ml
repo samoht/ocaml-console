@@ -5,7 +5,7 @@
 
 open Display_harness
 
-let with_clock f = Eio_main.run @@ fun env -> f (Eio.Stdenv.clock env)
+let with_clock f = Eio_main.run @@ fun env -> f (Eio.Stdenv.mono_clock env)
 
 let buffer () =
   let buf = Buffer.create 64 in
@@ -19,23 +19,24 @@ let test_run_returns () =
       Alcotest.(check int) "result" 42 result;
       Alcotest.(check string) "nothing on a pipe" "" (Buffer.contents buf))
 
-(* Without a clock, a run is timed by the system's: a task that sleeps a
-   fifth of a second says so. *)
-let test_run_without_clock () =
+let seconds s = Mtime.of_uint64_ns (Int64.of_float (s *. 1e9))
+
+(* A display reads the time on its monotonic clock: a task that waits two
+   seconds on a mock one, moved by hand, took two seconds. *)
+let test_run_on_a_monotonic_clock () =
   Eio_main.run @@ fun _ ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  Eio_mock.Clock.Mono.set_time clock (seconds 100.);
   let buf, ppf = buffer () in
-  Console_eio.run ~ppf (fun display ->
-      Console.Display.with_task display "nap" (fun _ -> Eio_unix.sleep 0.2));
+  Console_eio.run ~clock ~ppf (fun display ->
+      Console.Display.with_task display "nap" (fun _ ->
+          Eio.Fiber.both
+            (fun () -> Eio.Time.Mono.sleep clock 2.)
+            (fun () -> Eio_mock.Clock.Mono.set_time clock (seconds 102.))));
   Format.pp_print_flush ppf ();
-  let out = Buffer.contents buf and line = "\u{2713} nap  0." in
-  let tenths =
-    Option.map
-      (fun i -> out.[i + String.length line])
-      (Astring.String.find_sub ~sub:line out)
-  in
   Alcotest.(check bool)
     "the time it took" true
-    (match tenths with Some c -> c >= '2' && c <= '9' | None -> false)
+    (contains "\u{2713} nap  2.0s" (Buffer.contents buf))
 
 let test_run_raises () =
   with_clock (fun clock ->
@@ -330,7 +331,8 @@ let suite =
       Alcotest.test_case "Logs from a forked fiber on a terminal" `Quick
         test_forked_logs;
       Alcotest.test_case "run returns" `Quick test_run_returns;
-      Alcotest.test_case "run without a clock" `Quick test_run_without_clock;
+      Alcotest.test_case "run on a monotonic clock" `Quick
+        test_run_on_a_monotonic_clock;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
