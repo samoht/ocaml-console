@@ -190,6 +190,28 @@ let test_hcat_share () =
     (printed ~styled:true
        (hcat [ Fmt.const Span.pp red; Fmt.const Span.pp blue ]))
 
+(* A printer in a style keeps it beside another block, nested styles and
+   the spans it prints included. *)
+let test_hcat_styled () =
+  let block ppf () =
+    Style.styled Style.bold
+      (fun ppf () ->
+        Fmt.string ppf "a ";
+        Style.styled (Style.fg Color.red) Fmt.string ppf "b";
+        Span.pp ppf (Span.text " c"))
+      ppf ()
+  in
+  let want =
+    Span.(
+      styled Style.bold "a "
+      ++ styled Style.(bold + fg Color.red) "b"
+      ++ styled Style.bold " c")
+  in
+  Alcotest.(check string)
+    "styled text keeps its styles"
+    (Span.to_string ~styled:true want ^ "  x")
+    (printed ~styled:true (hcat [ block; text "x" ]))
+
 (* Composing widgets must retain their margin guarantee, even when the gaps
    alone consume all the available columns. *)
 let test_hcat_narrow () =
@@ -296,6 +318,7 @@ let suite =
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
+      Alcotest.test_case "hcat keeps a printer's styles" `Quick test_hcat_styled;
       Alcotest.test_case "side by side, shares of the margin" `Quick
         test_hcat_share;
       Alcotest.test_case "sanitize" `Quick test_sanitize;
