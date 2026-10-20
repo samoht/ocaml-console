@@ -197,6 +197,56 @@ let test_secret_leaves_the_domain_running () =
   Alcotest.(check bool)
     "the domain ran while the terminal was awaited" true !by_fiber
 
+(* What is typed before [secret] masks the terminal is echoed, as it is
+   under getpass(3), but it is not the answer: [secret] discards it and
+   reads what is typed once the question is masked. A domain plays the
+   terminal: once the echo is off it types the answer until the call
+   returns, and it reads what the terminal shows, as masking waits for that
+   output to be read. It types nothing while the mask is set: on macOS a
+   line typed as the input is discarded can leave the read waiting. *)
+let test_secret_drops_typeahead () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty =
+    match Eio_unix.Pty.open_pty ~sw () with
+    | pty -> pty
+    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+        Alcotest.skip ()
+  in
+  let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
+  let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
+  Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
+  @@ fun () ->
+  ignore (Unix.write_substring master "early\n" 0 6 : int);
+  let answered = Atomic.make false in
+  let typist =
+    Domain.spawn (fun () ->
+        let deadline = Unix.gettimeofday () +. 10. in
+        let masked = ref false in
+        while (not (Atomic.get answered)) && Unix.gettimeofday () < deadline do
+          if !masked then
+            ignore (Unix.write_substring master "late\n" 0 5 : int)
+          else masked := not (Unix.tcgetattr tty).Unix.c_echo;
+          match Unix.select [ master ] [] [] 0.05 with
+          | [], _, _ -> ()
+          | _ -> ignore (Unix.read master (Bytes.create 256) 0 256 : int)
+        done)
+  in
+  let result =
+    with_stdin ~stdin:tty (fun () ->
+        let t =
+          Prompt.v
+            ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
+            (Eio.Stdenv.stdin env)
+        in
+        Fun.protect
+          ~finally:(fun () -> Atomic.set answered true)
+          (fun () -> Prompt.secret t "secret: "))
+  in
+  Domain.join typist;
+  Alcotest.check string_answer "the line typed once masked" (Got "late")
+    (seen result)
+
 let suite =
   ( "prompt",
     [
@@ -223,4 +273,6 @@ let suite =
         test_secret_without_a_terminal_is_refused;
       Alcotest.test_case "secret leaves the domain running" `Quick
         test_secret_leaves_the_domain_running;
+      Alcotest.test_case "secret drops what was typed before it masks" `Quick
+        test_secret_drops_typeahead;
     ] )
