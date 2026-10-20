@@ -35,15 +35,19 @@ let test_styles_isolated s =
   let styled = Console_text.sanitize_styles ~keep_newlines:false s in
   check (draw styled = draw "")
 
-(* A line ends at LF, at CR LF, and at a CR alone: [sanitize] keeps one line
-   feed for each. *)
+(* A line ends at LF, at NEL (U+0085, which UTF-8 writes C2 85), and at a
+   CR that neither follows: [sanitize] keeps one line feed for each. *)
 let line_ends s =
   let n = String.length s in
+  let nel i = i + 1 < n && s.[i] = '\xc2' && s.[i + 1] = '\x85' in
   let count = ref 0 in
   String.iteri
     (fun i c ->
-      if c = '\n' || (c = '\r' && (i + 1 >= n || s.[i + 1] <> '\n')) then
-        incr count)
+      if
+        c = '\n' || nel i
+        || (c = '\r' && i + 1 < n && s.[i + 1] <> '\n' && not (nel (i + 1)))
+        || (c = '\r' && i + 1 >= n)
+      then incr count)
     s;
   !count
 

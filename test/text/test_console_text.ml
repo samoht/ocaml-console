@@ -60,7 +60,9 @@ let stripped =
     (* 5.3: the other C1 controls, ESC Fe and their 8-bit forms, and the
        ECMA-35 escape sequences ESC Fp, ESC Fs and ESC I F. *)
     ("RI, 7-bit", "a\027Mb", "ab");
-    ("NEL, 8-bit", "a\u{0085}b", "ab");
+    (* 8.3.86 NEXT LINE ends a line, in both codes. *)
+    ("NEL, 8-bit", "a\u{0085}b", "a\nb");
+    ("NEL, 7-bit", "a\027Eb", "a\nb");
     ("lone ST", "a\u{009C}b", "ab");
     ("ESC Fp", "a\0277b", "ab");
     ("ESC Fs", "a\027cb", "ab");
@@ -138,6 +140,12 @@ let test_line_ends () =
   check "CR CR LF" "a\n\nb" strip "a\r\r\nb";
   check "LF CR" "a\n\nb" strip "a\n\rb";
   check "CR, an escape, LF" "a\nb" strip "a\r\027[K\nb";
+  check "NEL" "a\nb" Console_text.sanitize "a\u{0085}b";
+  check "CR NEL" "a\nb" strip "a\r\u{0085}b";
+  check "NEL ends a sequence" "a\nb" strip "a\027[3\u{0085}b";
+  check "NEL without keep_newlines" "a b"
+    (Console_text.strip ~keep_newlines:false)
+    "a\u{0085}b";
   check "sanitize, CR LF" "a\nb" Console_text.sanitize "a\r\nb";
   check "sanitize_styles, CR LF" "a\nb" Console_text.sanitize_styles "a\r\nb";
   check "CR LF without keep_newlines" "a b"
