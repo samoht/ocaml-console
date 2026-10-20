@@ -7,7 +7,8 @@
    returns, calls [exit] (a CLI's error path), raises to the toplevel, or has
    its fiber cancelled; or, with [secret], it is interrupted while it reads
    a password; or, with [colourless], it chose no colour before the display;
-   or, with [widgets], it prints every widget before it. It also prints a line
+   or, with [widgets], it prints every widget before it; or, with [themed],
+   it gave standard error a theme and chose nothing else. It also prints a line
    on standard output, which goes above the region. *)
 
 let secret env =
@@ -47,6 +48,12 @@ let widgets env =
       Display.redraw display;
       Display.succeed task)
 
+(* The program chose a theme, and no colour, before the display. *)
+let themed env =
+  Console.Theme.set Fmt.stderr Console.Theme.nord;
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+      Console.Display.succeed (Console.Display.task display "themed"))
+
 let display env =
   let clock = Eio.Stdenv.clock env in
   let run () =
@@ -69,4 +76,5 @@ let () =
   | [| _; "secret" |] -> secret env
   | [| _; "colourless" |] -> colourless env
   | [| _; "widgets" |] -> widgets env
+  | [| _; "themed" |] -> themed env
   | _ -> display env

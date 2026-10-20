@@ -302,6 +302,15 @@ let test_choice_kept () =
   Alcotest.(check bool) "drew a region" true (contains hide out);
   Alcotest.(check bool) "no colour" false (contains "\027[0m" out)
 
+(* A theme is not a colour choice: a program that only chose a theme still
+   has colour decided for it, and in that theme. *)
+let test_theme_not_a_choice () =
+  let _, out, _ = session "themed" in
+  let nord =
+    Console.(Style.(sgr `Ansi_256 (bold + fg (Theme.ok Theme.nord))))
+  in
+  Alcotest.(check bool) "colour, in the theme" true (contains nord out)
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -316,6 +325,8 @@ let suite =
         test_usable_after;
       Alcotest.test_case "the program's colour choice is kept" `Quick
         test_choice_kept;
+      Alcotest.test_case "a theme is not a colour choice" `Quick
+        test_theme_not_a_choice;
       Alcotest.test_case "ASCII on a terminal that is not UTF-8" `Quick
         test_ascii_locale;
       Alcotest.test_case "SIGINT during a password restores echo" `Quick
