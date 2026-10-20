@@ -24,6 +24,6 @@ let setup ?style_renderer ?utf_8 ?theme () =
    installs on the first choice, so a formatter whose tag functions are still
    Format's own, but for its theme, has had nothing chosen for it. *)
 let ensure () =
-  List.iter (fun out -> if Console_slot.unset (fst out) then set out) outputs
+  List.iter (fun out -> if Slot.unset (fst out) then set out) outputs
 
 let is_terminal fd = Unix.isatty fd && not (Colour.dumb ~getenv)

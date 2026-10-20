@@ -583,10 +583,10 @@ let to_string ?(styled = false) t =
 
 type Format.stag += Captured of t
 
-let capturing = Console_slot.v ()
+let capturing = Slot.v ()
 
 let pp ppf t =
-  match Console_slot.find capturing ppf with
+  match Slot.find capturing ppf with
   | Some () ->
       List.iteri
         (fun i line ->
@@ -641,7 +641,7 @@ let capturing_formatter ~text ~span ~newline =
       mark_close_stag = (fun _ -> "");
     };
   Format.pp_set_mark_tags ppf true;
-  Console_slot.set capturing ppf ();
+  Slot.set capturing ppf ();
   ppf
 
 let capture ~look ~margin f =

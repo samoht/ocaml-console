@@ -274,9 +274,9 @@ let of_string s =
 
 (* A theme is not a choice of colours: a formatter given one alone still has
    them decided for it. *)
-let slot = Console_slot.v ~setting:false ()
-let get ppf = Option.value (Console_slot.find slot ppf) ~default
-let set ppf t = Console_slot.set slot ppf t
+let slot = Slot.v ~setting:false ()
+let get ppf = Option.value (Slot.find slot ppf) ~default
+let set ppf t = Slot.set slot ppf t
 
 let pp_motion ppf = function
   | None -> Fmt.string ppf "none"

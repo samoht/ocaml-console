@@ -5,8 +5,8 @@
 
 (** Values kept on a formatter.
 
-    This library is internal to [console] and [console.tty], and no other
-    package can link it.
+    This module is internal to the [console] package: [Console] does not expose
+    it, and [console.tty] reads it through [Console__].
 
     A slot holds one value per formatter, kept as {!Fmt} keeps its style
     renderer: in the semantic tag functions of the formatter, so that it lives

@@ -2,10 +2,13 @@
 
 (copy_files input/width.{ml,mli})
 
+; Slot is not a private module, for console.tty reads it, but the interface of
+; Console does not expose it, so odoc shows no page for it.
+
 (library
  (name console)
  (public_name console)
- (libraries console.text console_slot fmt matrix.glyph)
+ (libraries console.text fmt matrix.glyph)
  (private_modules
   border_motion
   widget

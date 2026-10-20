@@ -1,8 +1,13 @@
+; Console__ holds console's internal modules, Slot among them, which the
+; interface of Console does not expose.
+
 (library
  (name console_tty)
  (public_name console.tty)
  (private_modules colour)
- (libraries console console_slot fmt unix))
+ (flags
+  (:standard -open Console__))
+ (libraries console fmt unix))
 
 (mdx
  (package console)

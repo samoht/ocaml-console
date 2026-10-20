@@ -1,6 +1,9 @@
-; Width is private to the library; its tests compile it in.
+; Width is private to the library, and Slot internal to it; their tests
+; compile them in.
 
 (copy_files ../lib/input/width.{ml,mli})
+
+(copy_files ../lib/slot.{ml,mli})
 
 (test
  (name test)
