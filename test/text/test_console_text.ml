@@ -6,7 +6,7 @@
 (* What a terminal shows of a string: ECMA-48 (5th ed.) gives the grammar of
    everything else. Each case is [(what, raw, visible)]; a sequence a terminal
    consumes is gone whole, a malformed UTF-8 sequence is the replacement glyph
-   and any other control is a space, as {!Console_text.sanitize} makes it. *)
+   and a tab is a space, as {!Console_text.sanitize} makes it. *)
 let stripped =
   [
     (* Annex B.1, CURSOR RIGHT by one in 7-bit and 8-bit codes, 01/11 05/11
@@ -83,7 +83,7 @@ let stripped =
     ("malformed UTF-8", "a\255b", "a\u{FFFD}b");
     ("raw 09/11 byte", "a\15531mb", "a\u{FFFD}31mb");
     (* The rest is {!Console_text.sanitize}'s. *)
-    ("tab and DEL", "a\tb\127c", "a b c");
+    ("tab and DEL", "a\tb\127c", "a bc");
     ("plain text", "\u{4E16}\u{754C} ok", "\u{4E16}\u{754C} ok");
   ]
 

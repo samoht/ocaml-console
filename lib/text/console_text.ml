@@ -75,6 +75,11 @@ let bel = 0x07
 let can = 0x18
 let sub = 0x1a
 let del = 0x7f
+
+(* The controls a terminal acts on without printing anything: DEL and the C0
+   controls but HT, which leaves blank cells, the line ends LF, VT, FF and CR,
+   and ESC. *)
+let silent c = (c < 0x20 && c <> esc && not (c >= 0x09 && c <= 0x0d)) || c = del
 let is_c1 c = c >= 0x80 && c <= 0x9f
 let nel = 0x85
 
@@ -118,7 +123,7 @@ let continues = function
    end the sequence and act on their own; any other character outside the
    sequence's ranges ends it in error, and is text. A control string ends at
    ST, ESC 05/12 or 09/12, an OSC also at BEL; CAN, SUB, ESC and a C1 control
-   end it and act. CAN and SUB act by being discarded. *)
+   end it and act. A {!silent} control acts by being discarded. *)
 (* What the character at [i], [len] bytes long, does from [state] in a token
    that began at [start]: the tokens it ends, and where the scan goes on. *)
 type move = {
@@ -130,10 +135,10 @@ type move = {
 
 let move ?(ends = []) next at from = { ends; next; at; from }
 
-(* NEL is text: {!text} makes it a line end. CAN and SUB, which print
-   nothing, are an escape of their own. *)
+(* NEL is text: {!text} makes it a line end. A {!silent} control is an
+   escape of its own. *)
 let in_ground ~valid ~c ~i ~len ~start =
-  if valid && (c = can || c = sub) then
+  if valid && silent c then
     move
       ~ends:[ (`Text, start, i); (`Escape, i, i + len) ]
       Ground (i + len) (i + len)
@@ -160,8 +165,9 @@ let in_string str ~bel:b state ~valid ~c ~i ~len ~start =
 let in_sequence_or_escape state ~valid ~c ~i ~len ~start =
   if not valid then move ~ends:[ (`Escape, start, i) ] Ground i i
   else if c < 0x20 && c <> esc && c <> can && c <> sub then
+    let kind = if silent c then `Escape else `Text in
     move
-      ~ends:[ (`Escape, start, i); (`Text, i, i + len) ]
+      ~ends:[ (`Escape, start, i); (kind, i, i + len) ]
       state (i + len) (i + len)
   else if c = del then move state (i + len) start
   else

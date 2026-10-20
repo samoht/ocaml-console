@@ -28,9 +28,10 @@ val sanitize : ?keep_newlines:bool -> string -> string
 val strip : ?keep_newlines:bool -> string -> string
 (** [strip s] is the text a terminal shows of [s]: {!sanitize} of [s] once each
     escape code is removed whole, a hyperlink's target or a window title
-    included, but for [ESC E], the 7-bit next line, which ends a line. CAN and
-    SUB, which cancel an escape code, are removed too. It holds no escape, and
-    [strip (strip s) = strip s]. *)
+    included, but for [ESC E], the 7-bit next line, which ends a line. DEL and
+    the C0 controls but a tab, ESC and the line ends, which a terminal acts on
+    without printing, are removed too: [strip "a\007b"] is ["ab"]. It holds no
+    escape, and [strip (strip s) = strip s]. *)
 
 val sanitize_styles : ?keep_newlines:bool -> string -> string
 (** [sanitize_styles s] is like {!strip} but keeps the escape codes that only
