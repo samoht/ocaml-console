@@ -67,17 +67,14 @@ let intercept display ppf =
       let s = Buffer.contents i.pending in
       match String.rindex_opt s '\n' with
       | None -> ()
-      | Some k -> (
+      | Some k ->
           Buffer.clear i.pending;
           Buffer.add_substring i.pending s (k + 1) (String.length s - k - 1);
           let write () =
             out.out_string s 0 (k + 1);
             out.out_flush ()
           in
-          (* Once the display closed, lines go straight out. *)
-          match Display.with_output display (fun _ -> write ()) with
-          | () -> ()
-          | exception Invalid_argument _ -> write ())
+          Display.with_output display (fun _ -> write ())
   in
   Format.pp_set_formatter_out_functions ppf
     {

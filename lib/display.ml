@@ -99,12 +99,7 @@ let v ?(layout = Layout.default) ?header ?size ~now ppf =
   else watch_lines t;
   t
 
-let check_open fn t =
-  if t.closed then invalid_arg ("Console.Display." ^ fn ^ ": closed display")
-
-let redraw t =
-  check_open "redraw" t;
-  Display_region.paint t
+let redraw t = Display_region.paint t
 
 let touch t =
   t.changes <- t.changes + 1;
@@ -123,7 +118,6 @@ let end_line t (out : Format.formatter_out_functions) last =
 (* What [f] writes is watched for its last byte: output that does not end
    its line is ended, so the region starts on a line of its own. *)
 let with_output t f =
-  check_open "with_output" t;
   let call () =
     Format.pp_print_flush t.ppf ();
     let margin = Format.pp_get_margin t.ppf () in
@@ -137,7 +131,8 @@ let with_output t f =
         Format.pp_set_formatter_out_functions t.ppf out;
         Format.pp_set_margin t.ppf margin)
   in
-  if (not (is_live t)) || t.suspended > 0 then call ()
+  if t.closed then f t.ppf
+  else if (not (is_live t)) || t.suspended > 0 then call ()
   else begin
     ignore (Display_region.refresh_size t);
     Display_region.erase t;
@@ -148,22 +143,23 @@ let with_output t f =
   end
 
 let set_scene t scene =
-  check_open "set_scene" t;
-  t.scene <- Some scene;
-  touch t
+  if not t.closed then begin
+    t.scene <- Some scene;
+    touch t
+  end
 
 (* Lines printed once: above the region, or in turn without one. *)
 let print t lines = Display_region.commit t lines
 
 let message ?(level = `Info) t text =
-  check_open "message" t;
-  let lines = match Display_text.lines text with [] -> [ "" ] | l -> l in
-  print t
-    (List.concat_map
-       (fun l ->
-         let line = Display_row.message t level l in
-         if is_live t then Span.wrap (max 1 t.width) line else [ line ])
-       lines)
+  if not t.closed then
+    let lines = match Display_text.lines text with [] -> [ "" ] | l -> l in
+    print t
+      (List.concat_map
+         (fun l ->
+           let line = Display_row.message t level l in
+           if is_live t then Span.wrap (max 1 t.width) line else [ line ])
+         lines)
 
 (* {1 Tasks} *)
 
@@ -207,8 +203,54 @@ let rec finish ?(swept = false) outcome ?message r =
     match tail @ line with [] -> touch t | lines -> print t lines
   end
 
+let row t ?key ?parent ~log_lines ~transient label =
+  let now = t.now () in
+  let id = t.next_id in
+  t.next_id <- id + 1;
+  {
+    id;
+    key;
+    disp = t;
+    parent;
+    log_lines;
+    logs = Queue.create ();
+    log_prev = now;
+    label = Display_text.clean label;
+    metric = Spin;
+    transient;
+    started_at = now;
+    ended_at = None;
+    message = None;
+    outcome = None;
+    children = [];
+    child_limit = 16;
+    last_cur = 0L;
+    last_t = now;
+    rate = 0.;
+  }
+
+let start t r =
+  t.started <- t.started + 1;
+  Queue.add r t.running;
+  Option.iter (fun k -> Hashtbl.replace t.by_key k r) r.key;
+  (match r.parent with
+  | Some p when is_running p ->
+      (* The children that ended are pruned each time the list doubles. *)
+      p.children <- r :: p.children;
+      p.child_limit <- p.child_limit - 1;
+      if p.child_limit <= 0 then begin
+        p.children <- List.filter is_running p.children;
+        p.child_limit <- max 16 (List.length p.children)
+      end
+  | Some p -> (
+      (* A task started under one that ended takes its ending. *)
+      match p.outcome with
+      | Some `Succeeded -> finish ~swept:true `Succeeded r
+      | _ -> finish ~swept:true `Cancelled r)
+  | None -> ());
+  touch t
+
 let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
-  check_open "task" t;
   if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
   (match key with
   | Some "" -> invalid_arg "Console.Display.task: empty key"
@@ -220,55 +262,16 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
   match Option.bind key (Hashtbl.find_opt t.by_key) with
   | Some r -> r
   | None ->
-      let now = t.now () in
-      let id = t.next_id in
-      t.next_id <- id + 1;
-      let r =
-        {
-          id;
-          key;
-          disp = t;
-          parent;
-          log_lines;
-          logs = Queue.create ();
-          log_prev = now;
-          label = Display_text.clean label;
-          metric = Spin;
-          transient;
-          started_at = now;
-          ended_at = None;
-          message = None;
-          outcome = None;
-          children = [];
-          child_limit = 16;
-          last_cur = 0L;
-          last_t = now;
-          rate = 0.;
-        }
-      in
-      t.started <- t.started + 1;
-      Queue.add r t.running;
-      Option.iter (fun k -> Hashtbl.replace t.by_key k r) key;
-      (match parent with
-      | Some p when is_running p ->
-          (* The children that ended are pruned each time the list doubles. *)
-          p.children <- r :: p.children;
-          p.child_limit <- p.child_limit - 1;
-          if p.child_limit <= 0 then begin
-            p.children <- List.filter is_running p.children;
-            p.child_limit <- max 16 (List.length p.children)
-          end
-      | Some p -> (
-          (* A task started under one that ended takes its ending. *)
-          match p.outcome with
-          | Some `Succeeded -> finish ~swept:true `Succeeded r
-          | _ -> finish ~swept:true `Cancelled r)
-      | None -> ());
-      touch t;
+      let r = row t ?key ?parent ~log_lines ~transient label in
+      if t.closed then begin
+        (* A task of a closed display has already ended, so it ignores all. *)
+        r.ended_at <- Some r.started_at;
+        r.outcome <- Some `Cancelled
+      end
+      else start t r;
       r
 
 let set_label r label =
-  check_open "set_label" r.disp;
   if is_running r then begin
     r.label <- Display_text.clean label;
     touch r.disp
@@ -280,7 +283,6 @@ let set_metric r metric =
   touch r.disp
 
 let set_count r ~cur ~total =
-  check_open "set_count" r.disp;
   if cur < 0 || total < 0 then
     invalid_arg "Console.Display.set_count: negative progress";
   if is_running r then
@@ -292,7 +294,6 @@ let set_count r ~cur ~total =
         set_metric r (Count (cur, max cur (max n total)))
 
 let set_bytes r ~cur ~total =
-  check_open "set_bytes" r.disp;
   if cur < 0L || total < 0L then
     invalid_arg "Console.Display.set_bytes: negative progress";
   if is_running r then begin
@@ -323,46 +324,37 @@ let set_bytes r ~cur ~total =
    does; it is printed above the region when it leaves the tail. *)
 let log ?(level = `Info) ?(keep = true) r text =
   let t = r.disp in
-  check_open "log" t;
-  let tailed = is_running r && is_live t && r.log_lines > 0 in
-  List.iter
-    (fun message ->
-      let now = t.now () in
-      let log = { gap = now -. r.log_prev; level; message; kept = keep } in
-      r.log_prev <- now;
-      if tailed then begin
-        Queue.add log r.logs;
-        if Queue.length r.logs > r.log_lines then
-          let old = Queue.take r.logs in
-          if old.kept then print t [ Display_row.committed_log r old ]
-      end
-      else if keep then
-        print t
-          [
-            (if is_live t then Display_row.committed_log r log
-             else Display_row.appended_log r log);
-          ])
-    (Display_text.lines text);
-  touch t
+  if not t.closed then (
+    let tailed = is_running r && is_live t && r.log_lines > 0 in
+    List.iter
+      (fun message ->
+        let now = t.now () in
+        let log = { gap = now -. r.log_prev; level; message; kept = keep } in
+        r.log_prev <- now;
+        if tailed then begin
+          Queue.add log r.logs;
+          if Queue.length r.logs > r.log_lines then
+            let old = Queue.take r.logs in
+            if old.kept then print t [ Display_row.committed_log r old ]
+        end
+        else if keep then
+          print t
+            [
+              (if is_live t then Display_row.committed_log r log
+               else Display_row.appended_log r log);
+            ])
+      (Display_text.lines text);
+    touch t)
 
-let succeed ?message r =
-  check_open "succeed" r.disp;
-  finish `Succeeded ?message r
-
-let fail ?message r =
-  check_open "fail" r.disp;
-  finish `Failed ?message r
-
-let cancel ?message r =
-  check_open "cancel" r.disp;
-  finish `Cancelled ?message r
+let succeed ?message r = finish `Succeeded ?message r
+let fail ?message r = finish `Failed ?message r
+let cancel ?message r = finish `Cancelled ?message r
 
 let finish_running outcome ?message t =
   List.iter (fun r -> finish outcome ?message r) (List.rev (running_rows t))
 
 let set_result ?detail t result =
-  check_open "set_result" t;
-  if Option.is_none t.result then begin
+  if (not t.closed) && Option.is_none t.result then begin
     (match result with
     | Ok _ -> finish_running `Succeeded t
     | Error _ -> finish_running `Cancelled t);

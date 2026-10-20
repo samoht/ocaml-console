@@ -182,17 +182,20 @@ val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
 (** [close display] ends the tasks still running, as [running] says (defaults to
     [`Cancel]: a task nobody ended did not finish; {!set_result} with [Ok] has
     them succeed first), takes the region off the screen, shows the cursor and
-    prints the header, then the result of {!set_result}. Closing a closed
-    display does nothing. *)
+    prints the header, then the result of {!set_result}.
+
+    A closed display ignores what it is told, so that a fiber that outlives it
+    does not fail: closing it again, {!redraw}, {!set_scene} and {!set_result}
+    do nothing, and [with_output display f] is [f ppf], [ppf] being the
+    formatter of {!v}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
 
 (** {1:tasks Tasks}
 
-    Every function below, and {!redraw}, {!with_output}, {!message},
-    {!set_scene} and {!set_result}, raises [Invalid_argument] when the display
-    has closed. A task that ended ignores what it is told, but its {!log}. *)
+    A task that ended ignores what it is told, but its {!log}. Once its display
+    closed, every task has ended, and so has one {!task} starts then. *)
 
 type task
 (** The type for tasks. *)
