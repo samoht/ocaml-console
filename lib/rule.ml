@@ -21,9 +21,7 @@ let v ?theme ?style ?(glyph = "─") ?(align = `Center) ?(label = Span.empty) ()
 let space = Span.text " "
 
 let line t width =
-  let fill n =
-    Span.styled t.style (String.concat "" (List.init n (Fun.const t.glyph)))
-  in
+  let fill n = Span.styled t.style (Widget.fill n t.glyph) in
   let label = Span.truncate width t.label in
   let available = width - Span.width label in
   if Span.width label = 0 then fill width

@@ -5,12 +5,7 @@
 
 (* Eighth-of-a-cell glyphs. *)
 let eighths = [| " "; "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
-let repeat n glyph = String.concat "" (List.init (max 0 n) (fun _ -> glyph))
 let default_style = Style.fg (Theme.accent Theme.unicode)
-
-(* [n] cells of [glyph] in [style]; no cell adds nothing, not even a style. *)
-let run style n glyph =
-  if n <= 0 then Span.empty else Span.styled style (repeat n glyph)
 
 let framed ~track ~brackets body =
   if brackets then
@@ -26,12 +21,8 @@ let v ?(style = default_style) ?(track = Style.faint) ?(brackets = false) ~width
   let e = int_of_float (Float.round (frac *. float_of_int (width * 8))) in
   let full = e / 8 and part = e mod 8 in
   let fill =
-    repeat full eighths.(8) ^ if part > 0 then eighths.(part) else ""
+    Widget.fill full eighths.(8) ^ if part > 0 then eighths.(part) else ""
   in
   let used = full + if part > 0 then 1 else 0 in
-  framed ~track ~brackets
-    (Span.concat
-       [
-         (if fill = "" then Span.empty else Span.styled style fill);
-         run track (width - used) "░";
-       ])
+  let track_cells = Widget.fill (width - used) "░" in
+  framed ~track ~brackets Span.(styled style fill ++ styled track track_cells)
