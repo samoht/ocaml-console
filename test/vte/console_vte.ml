@@ -266,7 +266,7 @@ let is_spacing_mark c =
 (* [c] in pieces that each start at a spacing mark but the first: xterm and
    VTE give such a mark a cell of its own, and Ghostty its cluster as many
    cells, where matrix draws the cluster in the cells of its first
-   character. *)
+   character. A piece of no width joins the cell before it. *)
 let pieces c =
   let n = String.length c in
   let rec go start i acc =
@@ -331,7 +331,9 @@ let draw t =
         flush ();
         List.iter
           (fun p ->
-            if is_single p then Vte.feed_string t.vte p else cluster t p)
+            if width t p = 0 then attach t p
+            else if is_single p then Vte.feed_string t.vte p
+            else cluster t p)
           (pieces c)
       end)
     s;
