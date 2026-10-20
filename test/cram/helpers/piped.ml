@@ -26,6 +26,13 @@ let () =
       for i = 1 to int_of_string n do
         Fmt.pr "result %d\n" i
       done
+  | [| _; "notes"; n |] ->
+      Console_eio.run ~clock (fun display ->
+          for i = 1 to int_of_string n do
+            step display i;
+            Logs.warn (fun m -> m "after %d" i);
+            Fmt.epr "note %d@." i
+          done)
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do
