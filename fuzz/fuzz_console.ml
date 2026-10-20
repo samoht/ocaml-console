@@ -471,9 +471,92 @@ let test_scene block k w t =
         (List.combine m s))
     (List.combine moving still)
 
+let nested_cells raw =
+  List.concat_map
+    (fun line ->
+      let cols = Width.string_width (Console_text.strip line) + 2 in
+      let vte = Console_vte.v ~rows:1 ~cols () in
+      Console_vte.feed vte line;
+      let g = Console_vte.grid vte in
+      List.filter_map
+        (fun i ->
+          match Grid.get_text g i with "" | " " -> None | _ -> Some (g, i))
+        (List.init cols Fun.id))
+    (String.split_on_char '\n' raw)
+
+(* Wrapping changes where a widget's lines break, not the glyphs, colours
+   or attributes of its non-space cells. Compare those cells on matrix.vte,
+   rather than accepting a correctly sized output that lost its content. *)
+let test_nested_wrap s k n =
+  let clusters =
+    [|
+      "a"; " "; "b"; "\n"; "\u{754c}"; "e\u{0301}"; "\u{1f469}\u{200d}\u{1f4bb}";
+    |]
+  in
+  let input =
+    String.concat ""
+      (List.init
+         (min 16 (String.length s))
+         (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
+  in
+  let content = Span.with_style Style.bold (Span.gradient input) in
+  let inner =
+    match k mod 5 with
+    | 0 -> Panel.to_span (Panel.v content)
+    | 1 ->
+        Table.to_span
+          (Table.v [ Table.column (Span.role `Header "h") ] [ [ content ] ])
+    | 2 -> Tree.to_span (Tree.v content [ Tree.v (Span.role `Ok "leaf") [] ])
+    | 3 -> Rule.to_span ~width:20 (Rule.v ~label:content ())
+    | _ -> Bar.to_span (Bar.v ~width:12 0.6)
+  in
+  let nested =
+    match k / 5 mod 3 with
+    | 0 -> Panel.to_span (Panel.v inner)
+    | 1 ->
+        Table.to_span (Table.v [ Table.column (Span.text "h") ] [ [ inner ] ])
+    | _ -> Tree.to_span (Tree.v (Span.text "root") [ Tree.v inner [] ])
+  in
+  let source = Span.with_role `Warn nested in
+  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let render span =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color;
+    Fmt.set_utf_8 ppf (k land 128 = 0);
+    Theme.set ppf theme;
+    Span.pp ppf span;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  let width = 2 + (n mod 19) in
+  let pieces = Span.wrap width source in
+  List.iter (fun piece -> check (Span.width piece <= width)) pieces;
+  let expected = nested_cells (render source) in
+  let actual =
+    List.concat_map (fun piece -> nested_cells (render piece)) pieces
+  in
+  check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
+  List.iter2
+    (fun (g, i) (h, j) ->
+      let cell g i =
+        ( Grid.get_text g i,
+          Grid.get_attrs g i,
+          (Grid.get_fg_r g i, Grid.get_fg_g g i, Grid.get_fg_b g i),
+          (Grid.get_bg_r g i, Grid.get_bg_g g i, Grid.get_bg_b g i),
+          Grid.hyperlink_url g (Grid.get_link g i) )
+      in
+      if cell g i <> cell h j then
+        failf "wrapping at %d changed a cell in %s: %S became %S" width
+          (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
+    expected actual
+
 let suite =
   ( "console",
     [
+      test_case "wrapping nested widgets preserves their terminal cells"
+        [ bytes; uint8; uint8 ] test_nested_wrap;
       test_case "hcat preserves trailing combining marks" [ uint8 ]
         test_hcat_combining_suffix;
       test_case "hcat widgets fit without terminal autowrap" [ uint8; uint8 ]
