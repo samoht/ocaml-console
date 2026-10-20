@@ -88,7 +88,8 @@ step by step, with a test of its output.
 
 Styles combine with `+`, and text in a style is a `Span.t`, printed by a
 [`Fmt`](https://erratique.ch/software/fmt) printer. `Console_tty.setup`, in
-`console.tty`, turns colour on when the output is a terminal; without it
+`console.tty`, turns colour on when the output is a terminal; without it,
+or `Console_eio.run`, which decides for the outputs the program left alone,
 everything prints plain:
 
 ```ocaml
@@ -343,7 +344,8 @@ one. Every theme falls back to ASCII on a terminal whose locale is not
 UTF-8, as `Theme.ascii` always does.
 
 Each tile below is [the same program](examples/themes/main.ml) in one
-theme, recorded by [its tape](examples/themes/tape.ml) on the background
+theme, recorded with [VHS](https://github.com/charmbracelet/vhs) by the
+script that drives it, [its tape](examples/themes/tape.ml), on the background
 the theme is made for, while its progress rows run. In reading order:
 `default`, `ascii`, `dos`, `matrix`, `rainbow`, `dracula`, `nord`,
 `solarized_dark`, `solarized_light`, `gruvbox_dark`, `gruvbox_light`,
@@ -356,7 +358,8 @@ the theme is made for, while its progress rows run. In reading order:
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
 
-`Display.set_scene` draws what a printer prints above the progress rows,
+`Display.set_scene` draws what a printer prints above the header and the
+progress rows,
 each time they are redrawn: a table of results that fills in as the work
 goes, say. Its width is the rows', and it is drawn in the display's theme:
 

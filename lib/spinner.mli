@@ -26,7 +26,8 @@ val v : string array -> t
     @raise Invalid_argument if [frames] is empty. *)
 
 val braille : t
-(** [braille] cycles the ten braille dots [⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏]. *)
+(** [braille] cycles the ten braille patterns U+280B, U+2819, U+2839, U+2838,
+    U+283C, U+2834, U+2826, U+2827, U+2807 and U+280F. *)
 
 val ascii : t
 (** [ascii] cycles the four frames [|], [/], [-] and a backslash, for terminals

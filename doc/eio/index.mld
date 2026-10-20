@@ -4,10 +4,11 @@ Progress rows for OCaml command-line tools, run with
 {{:https://github.com/ocaml-multicore/eio}Eio}.
 
 [console-eio] runs a {!Console.Display} on the terminal. It finds whether
-the output is a terminal and its size, redraws the progress rows, prints the
-program's output and its [Logs] messages above them, and gives the terminal
-back however the program ends. On a pipe or in a CI log it prints plain
-lines instead. The smallest program:
+the output is a terminal and its size, redraws the progress rows, gives the
+program's output and its [Logs] messages to the task current where they are
+printed, under its row, or prints them above the rows outside a task, and
+gives the terminal back however the program ends. On a pipe or in a CI log
+it prints plain lines instead. The smallest program:
 
 {@ocaml[
 let build display =

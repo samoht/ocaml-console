@@ -94,7 +94,7 @@ val width : t -> int
 
 val truncate : int -> t -> t
 (** [truncate w s] is [s] with each line wider than [w] cells cut between two
-    characters and ended with an ellipsis ["…"], within [w] cells. Lines that
+    characters and ended with an ellipsis, U+2026, within [w] cells. Lines that
     fit are kept as they are, and so are the styles and links of what is kept.
     It is {!empty} if [w] is not positive. The invariants
     [width (truncate w s) <= max 0 w] and [truncate w s = s] when [width s <= w]
