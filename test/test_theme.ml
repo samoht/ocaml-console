@@ -144,7 +144,14 @@ let test_display_reads_it () =
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "dos marks" true
-    (contains "[+] done" (Buffer.contents buf))
+    (contains "[+] done" (Buffer.contents buf));
+  let term = terminal ~theme:Theme.dos () in
+  let task = Display.task term.display "copy" in
+  Display.set_count task ~cur:1 ~total:2;
+  Display.redraw term.display;
+  Alcotest.(check bool)
+    "dos bars" true
+    (contains "\u{2588}\u{2591}" (written term))
 
 let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in

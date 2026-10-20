@@ -84,6 +84,39 @@ let test_ascii () =
     "brackets" "[#--]"
     (ascii (Bar.v ~brackets:true ~width:3 0.4))
 
+(* [bar] printed on a formatter in [theme]. *)
+let in_theme ?(utf_8 = true) theme bar =
+  let buf = Buffer.create 16 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Fmt.set_utf_8 ppf utf_8;
+  Bar.pp ppf bar;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* theme.mli, bar: a theme gives its bars their glyphs. [dos] fills whole
+   cells with full blocks on a light shade, in brackets, [ascii] draws [#]
+   on [-] even in UTF-8, and the others heavy lines. *)
+let test_theme_glyphs () =
+  let check msg want got = Alcotest.(check string) msg want got in
+  let half = Bar.v ~width:4 0.5 in
+  check "dos" "\u{2588}\u{2588}\u{2591}\u{2591}" (in_theme Theme.dos half);
+  check "dos brackets" "[\u{2588}\u{2591}\u{2591}]"
+    (in_theme Theme.dos (Bar.v ~brackets:true ~width:3 0.4));
+  check "dos in ASCII" "##--" (in_theme ~utf_8:false Theme.dos half);
+  check "ascii in UTF-8" "##--" (in_theme Theme.ascii half);
+  check "ascii brackets" "[#--]"
+    (in_theme Theme.ascii (Bar.v ~brackets:true ~width:3 0.4));
+  check "default" "\u{2501}\u{2501}\u{257a}\u{2501}"
+    (in_theme Theme.default half);
+  check "nord" "\u{2501}\u{2501}\u{257a}\u{2501}" (in_theme Theme.nord half);
+  Alcotest.(check bool)
+    "Theme.bar" true
+    (Theme.bar Theme.dos = `Block
+    && Theme.bar Theme.ascii = `Ascii
+    && Theme.bar Theme.default = `Line
+    && Theme.bar (Theme.v ~bar:`Block ()) = `Block)
+
 let test_span_invalid () =
   Alcotest.check_raises "v width"
     (Invalid_argument "Console.Bar.v: negative width") (fun () ->
@@ -98,5 +131,6 @@ let suite =
       Alcotest.test_case "v clamped" `Quick test_v_clamped;
       Alcotest.test_case "v styles" `Quick test_v_styles;
       Alcotest.test_case "ASCII" `Quick test_ascii;
+      Alcotest.test_case "glyphs of the theme" `Quick test_theme_glyphs;
       Alcotest.test_case "span invalid" `Quick test_span_invalid;
     ] )
