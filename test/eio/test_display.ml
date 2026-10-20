@@ -131,6 +131,43 @@ let test_cancelled_fiber () =
   mem ~msg:"cancelled" "\u{25cb} slow" out;
   absent ~msg:"not failed" "\u{2717} slow" out
 
+(* [within] makes a task current from another fiber, and the fibers it forks
+   with it; a fiber cancelled there does not end the task. Within the root,
+   a message goes above the rows, unlabelled. *)
+let test_within_fiber () =
+  let out =
+    capture (fun d ->
+        Logs.set_level (Some Logs.Info);
+        let a = D.task d "a" in
+        Eio.Fiber.both
+          (fun () ->
+            D.with_task d "b" (fun _ ->
+                D.within a (fun () ->
+                    Logs.info (fun m -> m "for a");
+                    Eio.Fiber.both
+                      (fun () -> Logs.info (fun m -> m "forked for a"))
+                      ignore);
+                Logs.info (fun m -> m "for b")))
+          (fun () ->
+            D.within (D.root d) (fun () -> Logs.info (fun m -> m "for root")));
+        Eio.Fiber.first
+          (fun () -> D.within a Eio.Fiber.await_cancel)
+          (fun () -> ());
+        D.log a "still running";
+        D.succeed a)
+  in
+  List.iter
+    (fun l -> mem ~msg:l ("\n" ^ l ^ "\n") out)
+    [
+      "  a: for a";
+      "  a: forked for a";
+      "  b: for b";
+      "for root";
+      "  \u{203a} a: still running";
+    ];
+  mem ~msg:"a succeeds" "\u{2713} a" out;
+  absent ~msg:"not cancelled" "\u{25cb} a" out
+
 let suite =
   ( "display",
     [
@@ -140,6 +177,8 @@ let suite =
       ("reporter", `Quick, test_reporter);
       ("Logs inside a task", `Quick, test_logs_in_task);
       ("two fibers, two tasks", `Quick, test_two_fibers);
+      Alcotest.test_case "within a task from another fiber" `Quick
+        test_within_fiber;
       ("a cancelled fiber cancels its task", `Quick, test_cancelled_fiber);
     ] )
 

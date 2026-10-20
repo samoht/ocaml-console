@@ -374,7 +374,8 @@ let test_plain ops =
 (* The sink and the caller retain no completed task, and a running task
    keeps at most 1 MiB of its output, for the case where it fails. After
    warmup past that cap, live heap measures retention rather than
-   allocation volume. *)
+   allocation volume. The task succeeds at the end, so that the 1 MiB it
+   holds is not printed. *)
 let test_retained_heap n =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let d = Display.v ~size:(fun () -> (80, 10)) ~now:(fun () -> 0.) ppf in
@@ -398,7 +399,7 @@ let test_retained_heap n =
         if retained > warm + 4096 then
           failf "retained heap grew from %d to %d words" warm retained
       done)
-    ~finally:(fun () -> Display.close d)
+    ~finally:(fun () -> Display.close ~running:`Succeed d)
 
 (* Each call has a unique token, so duplicates, reorderings and misattribution
    are detectable even when several tasks have the same display label. *)
@@ -746,6 +747,7 @@ let scope current =
       let saved = !current in
       current := Some task;
       Fun.protect f ~finally:(fun () -> current := saved))
+    ~cancelled:(fun _ -> false)
 
 (* A task of the model, started on [d] under [parent]. *)
 let new_task d parent name window_size =
@@ -860,9 +862,10 @@ let test_pipe_lines steps =
     (List.map (fun l -> (l, expected l)) lines)
     (String.split_on_char '\n' (Buffer.contents buf))
 
-(* On a terminal a succeeded task's output never reaches the scrollback, a
-   failed one's all goes under its line, a cancelled one's window stays,
-   and every Logs line is kept once, after its task's label. *)
+(* On a terminal a line of a running task, output or Logs message alike,
+   never reaches the scrollback if the task succeeds, and goes once under
+   its line, without its label, if it fails or is cancelled. A Logs message
+   of a task that ended goes above at once, after its label. *)
 let test_terminal_lines steps =
   let current = ref None in
   let t =
@@ -872,13 +875,11 @@ let test_terminal_lines steps =
   let expected l =
     match l.owner with
     | None -> (0, 1)
-    | Some _ when not l.output -> (1, 0)
-    | Some _ when not l.ran -> (0, 0)
+    | Some _ when not l.ran -> if l.output then (0, 0) else (1, 0)
     | Some _ -> (
         match ended l with
-        | Some `Failed -> (0, 1)
-        | Some `Cancelled when in_window l -> (0, 1)
-        | _ -> (0, 0))
+        | Some (`Failed | `Cancelled) -> (0, 1)
+        | Some `Succeeded | None -> (0, 0))
   in
   check_lines ~where:"terminal"
     (List.map (fun l -> (l, expected l)) lines)

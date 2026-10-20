@@ -230,9 +230,9 @@ let final_of out =
 (* The final screen of [teardown.exe how]. *)
 let final how = final_of (snd (teardown how))
 
-(* Ctrl-C cancels the task, which keeps its window under its line; a task
-   that succeeds drops its output. *)
-let test_sigint_window () =
+(* Ctrl-C cancels the task, which prints its output under its line; a task
+   that succeeds drops it. *)
+let test_sigint_output () =
   let rows = final "sigint" in
   let rec under = function
     | l :: next :: _ when contains "\u{25cb} pushing" l -> next
@@ -240,21 +240,48 @@ let test_sigint_window () =
     | [] -> Alcotest.fail "no cancelled line"
   in
   Alcotest.(check string)
-    "the window stays" "  \u{203a} pushed 3 objects" (under rows);
+    "the output stays" "  \u{203a} pushed 3 objects" (under rows);
   Alcotest.(check bool)
     "a success drops it" false
     (List.exists (contains "pushed 3 objects") (final "ok"))
 
-(* A Logs message from a fiber that a task's function forked is kept, after
-   the task's label, while the task's output goes with its success. *)
-let test_forked_logs () =
+(* What a task's function prints on the display's terminal, on either
+   standard output, is its output, as are the Logs messages of the fibers it
+   forks: it goes when the task succeeds and is printed under its line when
+   it fails. A line printed within the root task goes above the rows. *)
+let test_task_output () =
+  let output =
+    [
+      "  \u{203a} an output line";
+      "  \u{203a} a result line";
+      "  \u{203a} a note line";
+      "  ! a forked note";
+    ]
+  in
+  let rec under = function
+    | l :: rest when contains "\u{2717} work" l ->
+        List.filteri (fun i _ -> i < List.length output) rest
+    | _ :: rest -> under rest
+    | [] -> Alcotest.fail "no failed line"
+  in
+  let failed = final "logs-failed" in
+  Alcotest.(check (list string)) "under the failure" output (under failed);
   let rows = final "logs" in
+  List.iter
+    (fun rows ->
+      Alcotest.(check bool)
+        "within the root, above the rows" true
+        (List.mem "a root line" rows))
+    [ failed; rows ];
   Alcotest.(check bool)
-    "the forked message" true
-    (List.mem "  ! work: a forked note" rows);
-  Alcotest.(check bool)
-    "the output dropped" false
-    (List.exists (contains "an output line") rows)
+    "the success line" true
+    (List.exists (contains "\u{2713} work") rows);
+  List.iter
+    (fun text ->
+      Alcotest.(check bool)
+        ("folded away: " ^ text) false
+        (List.exists (contains text) rows))
+    [ "an output line"; "a result line"; "a note line"; "a forked note" ]
 
 let test_sigint_teardown () =
   let _, out = teardown "sigint" in
@@ -388,10 +415,9 @@ let suite =
         test_sigint_teardown;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
-      Alcotest.test_case "SIGINT keeps the window of a cancelled task" `Quick
-        test_sigint_window;
-      Alcotest.test_case "Logs from a forked fiber on a terminal" `Quick
-        test_forked_logs;
+      Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
+        test_sigint_output;
+      Alcotest.test_case "a task's output on a terminal" `Quick test_task_output;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;

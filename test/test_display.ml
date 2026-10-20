@@ -233,8 +233,8 @@ let test_window () =
         [ "  # two"; "  note"; "  # " ^ String.sub wide 0 25 ^ "\u{2026}" ]
         (List.filteri (fun i _ -> i > 0) rows));
   Display.close t.display;
-  check_lines "a success keeps its Logs lines only"
-    [ "  job: note"; "[+] job                   0.0s" ]
+  check_lines "a success folds them all away"
+    [ "[+] job                   0.0s" ]
     (lines t)
 
 let test_alignment () =
@@ -652,24 +652,31 @@ let test_pipe_start () =
     (split (Buffer.contents buffer));
   Display.close d
 
-(* Rule 2: a Logs message inside a task is always kept: printed above,
-   after the task's label, once a newer line pushes it out of the window or
-   the task ends. *)
-let test_logs_kept () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
-  Display.with_task ~log_lines:1 t.display "job" (fun job ->
-      Display.report t.display `Warning "first";
-      Display.log job "out";
-      Display.redraw t.display;
-      check_lines "pushed out, printed above" [ "  ! job: first" ]
-        [ List.hd (screen t) ];
-      Display.report t.display `Info "last");
-  Display.close t.display;
-  check_lines "each once, before the task's line"
-    [ "  ! job: first"; "  job: last"; "[+] job                   0.0s" ]
-    (lines t)
+(* A Logs message inside a task is its output, as a line given to [log]
+   is: it shows in the task's window, goes when the task succeeds, even
+   once pushed out of the window, and is printed under the task's line,
+   after the mark of its level, when it fails. *)
+let test_logs_in_task () =
+  let run ~fails =
+    let t = terminal ~theme ~width:30 ~height:10 () in
+    Display.with_task ~log_lines:1 t.display "job" (fun job ->
+        Display.report t.display `Warning "first";
+        Display.log job "out";
+        Display.redraw t.display;
+        Alcotest.(check bool)
+          "pushed out, not above" false
+          (List.exists (contains "first") (screen t));
+        Display.report t.display `Info "last";
+        if fails then Display.fail job);
+    Display.close t.display;
+    List.map untimed (lines t)
+  in
+  check_lines "a success folds them away" [ "[+] job" ] (run ~fails:false);
+  check_lines "a failure prints them all under its line"
+    [ "[x] job"; "  ! first"; "  # out"; "  last" ]
+    (run ~fails:true)
 
-(* Rule 3: a Logs message with no current task goes above at once, a
+(* A Logs message with no current task goes above at once, a
    debug message after its own mark, an application or an information
    message after none. A task started with [task] is not current. *)
 let test_logs_outside () =
@@ -700,7 +707,7 @@ let test_logs_outside () =
   check_lines "the default theme's debug mark" [ "\u{00b7} debug"; "" ]
     (split out)
 
-(* Rule 4: a task that succeeds drops its output, on a terminal, even the
+(* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
 let test_success_drops () =
   let t = terminal ~theme ~width:30 ~height:10 () in
@@ -714,7 +721,7 @@ let test_success_drops () =
   Display.close t.display;
   check_lines "only its line" [ "[+] job                   0.0s" ] (lines t)
 
-(* Rule 4: a task that fails prints all its output under its line, in one
+(* A task that fails prints all its output under its line, in one
    block, without its label and not cut: a line too wide goes on over the
    rows below. [with_task] fails its task when its function raises. *)
 let test_failure_block () =
@@ -742,7 +749,7 @@ let test_failure_block () =
           rest));
   Alcotest.(check bool) "no label" false (List.exists (contains "job:") rows)
 
-(* Rule 4: the block holds at most 1 MiB, the latest lines, and one line
+(* The block holds at most 1 MiB, the latest lines, and one line
    says how many were dropped. *)
 let test_failure_cap () =
   let t = terminal ~theme ~width:40 ~height:10 () in
@@ -801,9 +808,10 @@ let test_failure_plain () =
     ]
     tail
 
-(* Rule 4: a task that is cancelled, as Ctrl-C cancels them all, keeps the
-   lines of its window under its line. *)
-let test_cancelled_window () =
+(* A task that is cancelled, as Ctrl-C cancels them all, prints all its
+   output under its line, as a failure does, the lines that left its window
+   too. *)
+let test_cancelled_output () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let job = Display.task ~log_lines:2 t.display "job" in
   let other = Display.task ~log_lines:1 t.display "other" in
@@ -811,8 +819,8 @@ let test_cancelled_window () =
   Display.log other "z";
   Display.cancel job;
   Display.close ~running:`Cancel t.display;
-  check_lines "the window under each line"
-    [ "[~] job"; "  # b"; "  # c"; "[~] other"; "  # z" ]
+  check_lines "all of it under each line"
+    [ "[~] job"; "  # a"; "  # b"; "  # c"; "[~] other"; "  # z" ]
     (List.map untimed (lines t));
   let (), out =
     plain ~theme (fun d _ ->
@@ -822,6 +830,94 @@ let test_cancelled_window () =
   in
   check_lines "nothing repeated on a pipe"
     [ "[-] job"; "  # job: a"; "[~] job  0.0s"; "" ]
+    (split out)
+
+(* [root] is the display's top task: within it, output goes above the rows
+   at once and stays, while a task runs and when that task fails, and a task
+   started there has no parent. It never ends. *)
+let test_root () =
+  let t = terminal ~theme ~width:30 ~height:10 () in
+  let d = t.display in
+  let root = Display.root d in
+  (match
+     Display.with_task ~log_lines:2 d "job" (fun job ->
+         Display.log job "mine";
+         Display.within root (fun () -> Display.report d `Warning "above");
+         Display.log root "also above";
+         Display.redraw d;
+         check_lines "above the rows at once"
+           [ "! above"; "also above" ]
+           (List.filteri (fun i _ -> i < 2) (screen t));
+         Alcotest.(check bool)
+           "back in the task" true
+           (match Display.current d with Some c -> c == job | None -> false);
+         failwith "boom")
+   with
+  | () -> Alcotest.fail "no exception"
+  | exception Failure _ -> ());
+  Display.succeed root;
+  Display.fail root;
+  Display.cancel root;
+  Display.log root "still there";
+  Display.close d;
+  check_lines "they stay, the task's own under its failure"
+    [ "! above"; "also above"; "[x] job"; "  # mine"; "still there" ]
+    (List.map untimed (lines t));
+  let (), out =
+    plain ~theme (fun d _ ->
+        Display.with_task d "job" (fun _ ->
+            Display.within (Display.root d) (fun () ->
+                Display.report d `Info "above";
+                Display.succeed (Display.task d "top"));
+            Display.report d `Info "inside"))
+  in
+  check_lines "on a pipe, unlabelled"
+    [
+      "[-] job";
+      "above";
+      "[-] top";
+      "[+] top  0.0s";
+      "  job: inside";
+      "[+] job  0.0s";
+      "";
+    ]
+    (split out)
+
+(* [within task f] makes a task that runs current for [f], and ends nothing:
+   what [f] prints and the tasks it starts are [task]'s, also when [f]
+   raises. *)
+let test_within () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let a = Display.task d "a" in
+        Display.with_task d "b" (fun _ ->
+            let v =
+              Display.within a (fun () ->
+                  Display.report d `Info "for a";
+                  ignore (Display.task d "under a");
+                  7)
+            in
+            Alcotest.(check int) "its value" 7 v;
+            Display.report d `Info "for b");
+        (match Display.within a (fun () -> failwith "inside") with
+        | () -> Alcotest.fail "no exception"
+        | exception Failure _ -> ());
+        Display.log a "still runs";
+        Display.succeed a)
+  in
+  check_lines "the lines of the task given"
+    [
+      "[-] a";
+      "[-] b";
+      "  a: for a";
+      "  [-] under a";
+      "  b: for b";
+      "[+] b  0.0s";
+      "  # a: still runs";
+      "  [+] under a  0.0s";
+      "[+] a  0.0s";
+      "";
+    ]
     (split out)
 
 (* Two tasks that run at once: on a terminal each block is printed under
@@ -891,6 +987,7 @@ let test_scope () =
         let saved = !current in
         current := Some task;
         Fun.protect f ~finally:(fun () -> current := saved))
+      ~cancelled:(fun _ -> false)
   in
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -900,10 +997,17 @@ let test_scope () =
   current := Some a;
   Display.report d `Info "in a";
   current := None;
+  let is task = function Some c -> c == task | None -> false in
   Display.with_task d "b" (fun b ->
+      Alcotest.(check bool) "current within" true (is b !current);
       Alcotest.(check bool)
-        "current within" true
-        (match !current with Some c -> c == b | None -> false));
+        "the display's current task" true
+        (is b (Display.current d));
+      Display.succeed b;
+      Alcotest.(check bool)
+        "none once it ended" true
+        (Option.is_none (Display.current d)));
+  Alcotest.(check bool) "none outside" true (Option.is_none (Display.current d));
   Display.close d;
   Format.pp_print_flush ppf ();
   check_lines "the scope's current task"
@@ -1169,15 +1273,17 @@ let suite =
       Alcotest.test_case "colours" `Quick test_colours;
       Alcotest.test_case "pipe lines" `Quick test_pipe_lines;
       Alcotest.test_case "pipe start lines" `Quick test_pipe_start;
-      Alcotest.test_case "Logs lines inside a task are kept" `Quick
-        test_logs_kept;
+      Alcotest.test_case "Logs lines inside a task are its output" `Quick
+        test_logs_in_task;
       Alcotest.test_case "Logs lines outside a task" `Quick test_logs_outside;
       Alcotest.test_case "a success drops its output" `Quick test_success_drops;
       Alcotest.test_case "a failure prints its output" `Quick test_failure_block;
       Alcotest.test_case "a failure keeps 1 MiB" `Quick test_failure_cap;
       Alcotest.test_case "a failure on a pipe" `Quick test_failure_plain;
-      Alcotest.test_case "a cancelled task keeps its window" `Quick
-        test_cancelled_window;
+      Alcotest.test_case "a cancelled task prints its output" `Quick
+        test_cancelled_output;
+      Alcotest.test_case "the root task" `Quick test_root;
+      Alcotest.test_case "within a task" `Quick test_within;
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "iter" `Quick test_iter;

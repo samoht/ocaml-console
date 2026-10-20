@@ -8,8 +8,8 @@
    its fiber cancelled; or, with [secret], it is interrupted while it reads
    a password; or, with [colourless], it chose no colour before the display;
    or, with [widgets], it prints every widget before it; or, with [themed],
-   it gave standard error a theme and chose nothing else; or, with [logs], it
-   logs from a fiber its task forked; or, with [suspend], it is stopped by
+   it gave standard error a theme and chose nothing else; or, with [logs] or [logs-failed], its
+   task prints and logs, then succeeds or fails; or, with [suspend], it is stopped by
    SIGTSTP, as Ctrl-Z does, and goes on once continued. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
@@ -56,13 +56,21 @@ let themed env =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       Console.Display.succeed (Console.Display.task display "themed"))
 
-let logs env =
+(* A task's output, a line on each standard output, one within the root task
+   and a Logs message from a fiber the task forked; with [fails], the task
+   fails. *)
+let logs ~fails env =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
       Console.Display.with_task display "work" (fun task ->
           Console.Display.log task "an output line";
+          Fmt.pr "a result line@.";
+          Fmt.epr "a note line@.";
+          Console.Display.within (Console.Display.root display) (fun () ->
+              Fmt.pr "a root line@.");
           Eio.Fiber.both
             (fun () -> Logs.warn (fun m -> m "a forked note"))
-            Eio.Fiber.yield))
+            Eio.Fiber.yield;
+          if fails then Console.Display.fail task))
 
 let suspend env =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
@@ -97,6 +105,7 @@ let () =
   | [| _; "colourless" |] -> colourless env
   | [| _; "widgets" |] -> widgets env
   | [| _; "themed" |] -> themed env
-  | [| _; "logs" |] -> logs env
+  | [| _; "logs" |] -> logs ~fails:false env
+  | [| _; "logs-failed" |] -> logs ~fails:true env
   | [| _; "suspend" |] -> suspend env
   | _ -> display env
