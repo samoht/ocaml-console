@@ -56,6 +56,27 @@ let equal left right =
 
 let is_none style = equal style none
 
+(* The style the enclosing [styled] calls of a formatter have on, which an
+   inner call adds to and selects again when it ends. *)
+let current = Console_slot.v ~setting:false ()
+
+let styled style pp_v ppf v =
+  match Fmt.style_renderer ppf with
+  | `None -> pp_v ppf v
+  | `Ansi_tty when is_none style -> pp_v ppf v
+  | `Ansi_tty ->
+      let outer = Option.value (Console_slot.find current ppf) ~default:none in
+      let inner = outer + style and depth = Color.depth ppf in
+      let code s = Format.pp_print_as ppf 0 s in
+      Console_slot.set current ppf inner;
+      code (Escape.sgr depth inner);
+      Fun.protect
+        ~finally:(fun () ->
+          Console_slot.set current ppf outer;
+          code Sgr.reset;
+          code (Escape.sgr depth outer))
+        (fun () -> pp_v ppf v)
+
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"
   else

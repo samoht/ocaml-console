@@ -141,6 +141,12 @@ let () =
   Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
 ```
 
+`Style.styled` styles any `Fmt` printer, so a value keeps its own printer:
+
+```ocaml
+let () = Fmt.pr "%a tests passed@." Console.Style.(styled bold Fmt.int) 42
+```
+
 Tables and other widgets take their text as a `Span.t`, a piece of text with
 its style and, optionally, a link. `Span.pp` prints the colours and links
 when its formatter is set to colour, as `Console_tty.setup` sets standard

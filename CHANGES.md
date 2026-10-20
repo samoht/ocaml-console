@@ -17,3 +17,4 @@
   `COLORTERM` and the locale, with Unix alone: a program that prints a
   table needs no Eio. `Console_eio.run` calls `Console_tty.ensure`, which
   decides only for the outputs the program left alone.
+- `Style.styled` styles any `Fmt` printer at its formatter's colour depth.
