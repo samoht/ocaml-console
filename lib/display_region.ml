@@ -40,7 +40,7 @@ let capacity t = max 0 (t.height - 1)
 
 let marker t hidden =
   let look = Widget.look t.ppf in
-  Widget.truncate look t.width
+  Widget.truncate look (room t)
     (Span.styled (Widget.muted look)
        (Fmt.str "  %s %d more lines" (Widget.ellipsis look) hidden))
 

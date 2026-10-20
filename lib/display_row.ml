@@ -115,10 +115,10 @@ let live t ~lasts r =
   let reserve = if has Display_line.Spacer then 1 else 0 in
   let label =
     if has Display_line.Label then
-      cut t (t.width - fixed - reserve) (Span.styled Style.bold r.label)
+      cut t (room t - fixed - reserve) (Span.styled Style.bold r.label)
     else Span.empty
   in
-  let slack = max reserve (t.width - fixed - Span.width label) in
+  let slack = max reserve (room t - fixed - Span.width label) in
   let line =
     Span.concat
       (Span.styled (Guide.style (guide t)) prefix
@@ -127,7 +127,7 @@ let live t ~lasts r =
              match p with Label -> label | Spacer -> pad slack | _ -> s)
            pieces)
   in
-  cut t t.width line
+  cut t (room t) line
 
 let gap_suffix t gap =
   if gap >= 1. then muted t ("  +" ^ Display_text.duration gap) else Span.empty
@@ -142,7 +142,7 @@ let tail t ~lasts r =
           ++ mark t (log.level :> Theme.mark)
           ++ text " " ++ text log.message ++ gap_suffix t log.gap)
       in
-      cut t t.width line :: acc)
+      cut t (room t) line :: acc)
     [] r.logs
   |> List.rev
 
@@ -158,6 +158,7 @@ let mark_of t r =
    up whatever the labels. A label that does not fit folds onto the lines
    below it. *)
 let committed t r =
+  let width = room t in
   let lead = Span.(text (indent r) ++ mark_of t r ++ text " ") in
   let lead_w = Span.width lead in
   let timer = timer t (elapsed r) in
@@ -165,26 +166,26 @@ let committed t r =
     if t.count_cell = 0 then timer
     else Span.(count_cell t r ++ text "  " ++ timer)
   in
-  let meta = if lead_w + 2 + Span.width meta <= t.width then meta else timer in
-  let room = t.width - lead_w - Span.width meta - 2 in
+  let meta = if lead_w + 2 + Span.width meta <= width then meta else timer in
+  let space = width - lead_w - Span.width meta - 2 in
   let label = text (label_of r) in
   let first, rest =
-    if room <= 0 then (Span.empty, [ label ])
+    if space <= 0 then (Span.empty, [ label ])
     else
-      match Span.wrap room label with
+      match Span.wrap space label with
       | first :: rest -> (first, rest)
       | [] -> (Span.empty, [])
   in
   let head = Span.(lead ++ first) in
-  let gap = t.width - Span.width head - Span.width meta in
-  let head = cut t t.width Span.(head ++ pad gap ++ meta) in
+  let gap = width - Span.width head - Span.width meta in
+  let head = cut t width Span.(head ++ pad gap ++ meta) in
   let under = pad lead_w in
   head
   :: List.concat_map
        (fun l ->
          List.map
-           (fun l -> cut t t.width Span.(under ++ l))
-           (Span.wrap (max 1 (t.width - lead_w)) l))
+           (fun l -> cut t width Span.(under ++ l))
+           (Span.wrap (max 1 (width - lead_w)) l))
        rest
 
 (* Without a terminal: the same, compact, on one line. *)
@@ -199,7 +200,7 @@ let appended r =
 
 let committed_log r log =
   let t = r.disp in
-  cut t t.width
+  cut t (room t)
     Span.(
       text (indent r ^ "  ")
       ++ mark t (log.level :> Theme.mark)
@@ -244,8 +245,8 @@ let header t =
       let lead = Span.(mark t (state t) ++ text " ") in
       let h = Span.styled (Theme.header (theme t)) h in
       let full = Span.(lead ++ h ++ meta) in
-      if (not (is_live t)) || Span.width full <= t.width then full
-      else cut t t.width Span.(lead ++ h))
+      if (not (is_live t)) || Span.width full <= room t then full
+      else cut t (room t) Span.(lead ++ h))
     t.header
 
 let verdict t result =
@@ -257,7 +258,7 @@ let verdict t result =
   if not (is_live t) then [ Span.(lead ++ msg) ]
   else
     let w = Span.width lead in
-    match Span.wrap (max 1 (t.width - w)) msg with
+    match Span.wrap (max 1 (room t - w)) msg with
     | first :: rest ->
         Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
     | [] -> [ lead ]
@@ -266,5 +267,5 @@ let detail t lines =
   List.concat_map
     (fun l ->
       let l = muted t l in
-      if is_live t then Span.wrap (max 1 t.width) l else [ l ])
+      if is_live t then Span.wrap (max 1 (room t)) l else [ l ])
     lines

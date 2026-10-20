@@ -83,6 +83,9 @@ let pp ppf t =
     t.started
     (if t.closed then " closed" else "")
 
+(* On a wide terminal, a count or a timer at the right edge is far from
+   its label. *)
+let room t = min t.width 100
 let is_live t = Option.is_some t.size
 let is_running r = r.ended_at = None
 

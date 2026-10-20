@@ -93,6 +93,10 @@ and row = {
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)
 
+val room : t -> int
+(** [room t] is the width the rows of [t] are laid out in: the terminal's, at
+    most 100 columns. *)
+
 val is_live : t -> bool
 (** [is_live t] is [true] iff [t] draws a region on a terminal. *)
 

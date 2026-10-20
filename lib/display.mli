@@ -44,7 +44,9 @@
     - a label cut to fit is cut between two characters, never inside an escape
       code, ends with an ellipsis and turns its style off;
     - the counts, rates and timers of all rows sit in the same columns, whatever
-      the width of the labels;
+      the width of the labels: at the right edge of the first [min w 100]
+      columns, so that on a wide terminal they stay near their labels and do not
+      move when it is resized wider;
     - after a resize the old frame is erased, counting the rows a terminal that
       reflows its lines gives it;
     - the cursor is hidden while the display runs and shown again when it
