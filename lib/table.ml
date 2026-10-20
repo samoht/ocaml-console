@@ -65,7 +65,8 @@ let v ?theme ?border ?(header_style = Style.bold) columns rows =
       {
         left = Widget.widest [ c.top_left; c.left; c.left_cross; c.bottom_left ];
         mid = Widget.widest [ c.top_cross; c.right; c.cross; c.bottom_cross ];
-        right = Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
+        right =
+          Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
       };
     header_style;
     columns;
@@ -230,6 +231,49 @@ let slot_width ?max_width t widths row i =
     done;
     Option.map (fun w -> max 0 (w - !before)) max_width
 
+let at lines k = if k < Array.length lines then lines.(k) else Span.empty
+let edge t s = Span.styled (Border.style t.border) s
+
+(* Line [k] of a row of [(column, width, lines)] cells in [style]. *)
+let edged_line t style cells k =
+  let chars = chars t and last = Array.length cells - 1 in
+  let parts =
+    Array.to_list
+      (Array.mapi
+         (fun i (col, w, ls) ->
+           Span.(
+             text " "
+             ++ with_style
+                  Style.(style + col.style)
+                  (align_span ~pad_right:true col.align w (at ls k))
+             ++ text " "
+             ++
+             if i < last then edge t (Widget.pad_glyph t.frame.mid chars.right)
+             else empty))
+         cells)
+  in
+  Span.concat
+    ((edge t (Widget.pad_glyph t.frame.left chars.left) :: parts)
+    @ [ edge t (Widget.pad_glyph t.frame.right chars.right) ])
+
+(* Without edges, a line ends at its last cell that is not empty, unpadded. *)
+let bare_line t style cells k =
+  let shown = ref 0 in
+  Array.iteri
+    (fun i (_, _, lines) -> if Span.width (at lines k) > 0 then shown := i)
+    cells;
+  let parts =
+    List.filteri (fun i _ -> i <= !shown) (Array.to_list cells)
+    |> List.mapi (fun i (col, w, ls) ->
+        Span.(
+          (if i > 0 then text "  " else empty)
+          ++ with_style
+               Style.(style + col.style)
+               (align_span ~pad_right:(i < !shown) col.align w (at ls k))))
+  in
+  let right = (chars t).right in
+  Span.concat (parts @ if right <> "" then [ edge t right ] else [])
+
 let row_lines ?max_width t widths style row =
   let cells =
     Array.mapi
@@ -243,48 +287,8 @@ let row_lines ?max_width t widths style row =
   let height =
     Array.fold_left (fun h (_, _, l) -> max h (Array.length l)) 0 cells
   in
-  let at lines k = if k < Array.length lines then lines.(k) else Span.empty in
-  let cell_style col = Style.(style + col.style) in
-  let chars = chars t and bstyle = Border.style t.border in
-  let edge s = Span.styled bstyle s in
-  List.init height (fun k ->
-      if edged t then
-        let last = Array.length cells - 1 in
-        let parts =
-          Array.to_list
-            (Array.mapi
-               (fun i (col, w, ls) ->
-                 Span.(
-                   text " "
-                   ++ with_style (cell_style col)
-                        (align_span ~pad_right:true col.align w (at ls k))
-                   ++ text " "
-                   ++
-                   if i < last then
-                     edge (Widget.pad_glyph t.frame.mid chars.right)
-                   else empty))
-               cells)
-        in
-        Span.concat
-          ((edge (Widget.pad_glyph t.frame.left chars.left) :: parts)
-          @ [ edge (Widget.pad_glyph t.frame.right chars.right) ])
-      else
-        (* A line ends at its last cell that is not empty, unpadded. *)
-        let shown = ref 0 in
-        Array.iteri
-          (fun i (_, _, lines) ->
-            if Span.width (at lines k) > 0 then shown := i)
-          cells;
-        let parts =
-          List.filteri (fun i _ -> i <= !shown) (Array.to_list cells)
-          |> List.mapi (fun i (col, w, ls) ->
-              Span.(
-                (if i > 0 then text "  " else empty)
-                ++ with_style (cell_style col)
-                     (align_span ~pad_right:(i < !shown) col.align w (at ls k))))
-        in
-        Span.concat
-          (parts @ if chars.right <> "" then [ edge chars.right ] else []))
+  let line = if edged t then edged_line else bare_line in
+  List.init height (line t style cells)
 
 let lines ?max_width t =
   if Array.length t.columns = 0 then []
