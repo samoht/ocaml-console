@@ -36,24 +36,25 @@ let run argv =
   in
   let written = Buffer.create 4096 and buf = Cstruct.create 4096 in
   let source = Eio_unix.Pty.source pty in
-  let exited = ref false in
-  (* What the child writes until it has exited and nothing more comes. *)
-  let rec drain () =
-    match
-      Eio.Time.with_timeout (Eio.Stdenv.clock env) 0.5 (fun () ->
-          Ok (Eio.Flow.single_read source buf))
-    with
-    | Ok n ->
+  (* A read is never raced against a timeout, which could drop what it
+     read: the reader runs until the child has exited and nothing more has
+     come for half a second. *)
+  let rec read () =
+    match Eio.Flow.single_read source buf with
+    | n ->
         Buffer.add_string written (Cstruct.to_string ~len:n buf);
-        drain ()
-    | Error `Timeout -> if not !exited then drain ()
+        read ()
     | exception (End_of_file | Eio.Io _) -> ()
   in
-  Eio.Fiber.both
-    (fun () ->
+  let rec settle seen =
+    Eio.Time.sleep (Eio.Stdenv.clock env) 0.5;
+    let now = Buffer.length written in
+    if now <> seen then settle now
+  in
+  Eio.Fiber.first read (fun () ->
       ignore (Eio.Process.await child : Eio.Process.exit_status);
-      exited := true)
-    drain;
+      settle (Buffer.length written));
+  ignore (Eio.Process.await child : Eio.Process.exit_status);
   let vte = Vte.create ~rows ~cols () in
   Vte.feed_string vte (Buffer.contents written);
   List.iter print_endline (Console_vte.screen ~scrollback:true vte)
