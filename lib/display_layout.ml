@@ -21,7 +21,7 @@ let spinner = Spinner
 let label = Label
 
 let bar n =
-  if n < 0 then invalid_arg "Console.Display.Line.bar: negative width";
+  if n < 0 then invalid_arg "Console.Display.Layout.bar: negative width";
   Bar n
 
 let percent = Percent
@@ -39,9 +39,9 @@ let v pieces =
      the spacer that pushes what follows to the right edge. *)
   let count is = List.length (List.filter is pieces) in
   if count is_label > 1 then
-    invalid_arg "Console.Display.Line.v: more than one label";
+    invalid_arg "Console.Display.Layout.v: more than one label";
   if count is_spacer > 1 then
-    invalid_arg "Console.Display.Line.v: more than one spacer";
+    invalid_arg "Console.Display.Layout.v: more than one spacer";
   pieces
 
 let pp_piece ppf = function

@@ -37,7 +37,7 @@ type t = {
   depth : Color.depth option;
   now : unit -> float;
   header : string option;
-  layout : Display_line.t;
+  layout : Display_layout.t;
   start : float;
   mutable width : int;
   mutable height : int;

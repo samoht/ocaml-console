@@ -6,7 +6,7 @@
 (** Task-line layouts.
 
     A layout is a list of pieces a row renders left to right. This is the
-    representation behind {!Display.Line}. *)
+    representation behind {!Display.Layout}. *)
 
 (** The type for layout pieces. *)
 type piece =

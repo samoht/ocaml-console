@@ -18,7 +18,7 @@ module Prompt = Prompt
 val run :
   clock:float Eio.Time.clock_ty Eio.Resource.t ->
   ?ppf:Format.formatter ->
-  ?layout:Console.Display.Line.t ->
+  ?layout:Console.Display.Layout.t ->
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a

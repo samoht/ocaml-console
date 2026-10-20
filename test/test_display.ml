@@ -441,7 +441,7 @@ let test_counts () =
 
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
-  let layout = Display.Line.(v [ label; text " "; percent ]) in
+  let layout = Display.Layout.(v [ label; text " "; percent ]) in
   let t = terminal ~theme ~layout ~width:30 () in
   let task = Display.task t.display "big" in
   Display.set_count task ~cur:(max_int / 2) ~total:max_int;
@@ -469,10 +469,10 @@ let test_invalid () =
   let t = Display.task d "t" in
   check_invalid "Console.Display.set_count: negative progress" (fun () ->
       Display.set_count t ~cur:(-1) ~total:1);
-  check_invalid "Console.Display.Line.bar: negative width" (fun () ->
-      ignore (Display.Line.bar (-1)));
-  check_invalid "Console.Display.Line.v: more than one label" (fun () ->
-      ignore Display.Line.(v [ label; label ]));
+  check_invalid "Console.Display.Layout.bar: negative width" (fun () ->
+      ignore (Display.Layout.bar (-1)));
+  check_invalid "Console.Display.Layout.v: more than one label" (fun () ->
+      ignore Display.Layout.(v [ label; label ]));
   Display.close d;
   Display.close d;
   check_invalid "Console.Display.task: closed display" (fun () ->

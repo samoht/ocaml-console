@@ -57,7 +57,7 @@
 (** {1:layout Row layout} *)
 
 (** The pieces of a running task's row. *)
-module Line : sig
+module Layout : sig
   type piece
   (** The type for the pieces of a row. *)
 
@@ -117,7 +117,7 @@ type t
 (** The type for displays. *)
 
 val v :
-  ?layout:Line.t ->
+  ?layout:Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
   now:(unit -> float) ->
@@ -130,7 +130,7 @@ val v :
       height, read again before each redraw: the display hides the cursor and
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
-    - [layout] (defaults to {!Line.default}) gives the pieces of each row.
+    - [layout] (defaults to {!Layout.default}) gives the pieces of each row.
 
     The display is drawn in [ppf]'s theme ({!Theme.get}), read again each time
     it draws, and in colour iff [ppf]'s style renderer is [`Ansi_tty], at

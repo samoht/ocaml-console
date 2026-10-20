@@ -15,7 +15,7 @@ val clock : unit -> (unit -> float) * (float -> unit)
 
 val plain :
   ?header:string ->
-  ?layout:Display.Line.t ->
+  ?layout:Display.Layout.t ->
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
   'a * string
@@ -37,7 +37,7 @@ val terminal :
   ?width:int ->
   ?height:int ->
   ?header:string ->
-  ?layout:Display.Line.t ->
+  ?layout:Display.Layout.t ->
   ?theme:Theme.t ->
   ?styled:bool ->
   ?raw:bool ->

@@ -79,7 +79,7 @@ let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))
 let timer t d =
   pad_left Display_text.duration_cells (muted t (Display_text.duration d))
 
-let piece t r ~time (p : Display_line.piece) =
+let piece t r ~time (p : Display_layout.piece) =
   match p with
   | Spinner ->
       Span.styled (Style.fg (color r)) (Widget.spinner (look t) ~elapsed:time)
@@ -110,9 +110,9 @@ let live t ~lasts r =
     Span.width (Span.text prefix)
     + List.fold_left (fun n (_, s) -> n + Span.width s) 0 pieces
   in
-  let reserve = if has Display_line.Spacer then 1 else 0 in
+  let reserve = if has Display_layout.Spacer then 1 else 0 in
   let label =
-    if has Display_line.Label then
+    if has Display_layout.Label then
       cut t (room t - fixed - reserve) (Span.styled Style.bold r.label)
     else Span.empty
   in
@@ -121,7 +121,7 @@ let live t ~lasts r =
     Span.concat
       (Span.styled (Guide.style (guide t)) prefix
       :: List.map
-           (fun ((p : Display_line.piece), s) ->
+           (fun ((p : Display_layout.piece), s) ->
              match p with Label -> label | Spacer -> pad slack | _ -> s)
            pieces)
   in

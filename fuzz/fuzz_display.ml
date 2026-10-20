@@ -505,7 +505,7 @@ let test_untrusted_arguments s =
       Theme.v ~marks:(fun _ -> input) ~spinner:(Spinner.v [| input |]) ()
     in
     let layout =
-      Display.Line.(v [ text input; accent input; label; spacer; elapsed ])
+      Display.Layout.(v [ text input; accent input; label; spacer; elapsed ])
     in
     Theme.set ppf theme;
     let d =
