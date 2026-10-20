@@ -43,17 +43,19 @@ module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
 
 val run :
-  ?clock:float Eio.Time.clock_ty Eio.Resource.t ->
+  clock:_ Eio.Time.Mono.t ->
   ?ppf:Format.formatter ->
   ?layout:Console.Display.Layout.t ->
   ?header:string ->
   (Console.Display.t -> 'a) ->
   'a
-(** [run f] is [f display] for a display on [ppf] (defaults to {!Fmt.stderr}, so
-    that standard output stays the program's), timed by [clock] (defaults to the
-    system's, read with {!Unix.gettimeofday} and waited on with
-    {!Eio_unix.sleep}; a test passes a mock clock to fix the times). [header]
-    and [layout] are those of {!Console.Display.v}, and the display is drawn in
+(** [run ~clock f] is [f display] for a display on [ppf] (defaults to
+    {!Fmt.stderr}, so that standard output stays the program's), timed by the
+    monotonic [clock], such as [Eio.Stdenv.mono_clock env]: the elapsed times,
+    the rates, the spinners and the motion of a scene read it and the redraws
+    wait on it, so a change of the system's time moves none of them. A test
+    passes an [Eio_mock.Clock.Mono] clock and moves it by hand. [header] and
+    [layout] are those of {!Console.Display.v}, and the display is drawn in
     [ppf]'s theme ({!Console.Theme.get}). It first calls {!Console_tty.ensure},
     so a standard output on which the program chose nothing gets the colours its
     terminal and environment allow.
@@ -82,8 +84,8 @@ val run :
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
-    whether its caller already did. Its [ppf], [layout] and [header] are
-    ignored: the display keeps those of the outer [run], and closes when the
+    whether its caller already did. Its [clock], [ppf], [layout] and [header]
+    are ignored: the display keeps those of the outer [run], and closes when the
     outer [f] ends, not the inner one.
 
     @raise Invalid_argument

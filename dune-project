@@ -46,6 +46,7 @@
   (ocaml (>= 5.4))
   (console (= :version))
   (eio (>= 1.4))
+  (mtime (>= 2.0.0))
   fmt
   logs
   (alcotest (and :with-test (>= 1.7.0)))

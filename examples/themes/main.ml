@@ -41,7 +41,7 @@ let progress ~clock table =
       Display.set_count compile ~cur:5 ~total:8;
       Display.log compile "unused variable x";
       ignore (Display.task d "test");
-      Eio.Time.sleep clock 3.;
+      Eio.Time.Mono.sleep clock 3.;
       Display.cancel compile)
 
 let () =
@@ -59,5 +59,6 @@ let () =
         (Span.with_style Style.bold title)
         Tree.pp (tree theme);
       let table = table theme in
-      (Eio_main.run @@ fun env -> progress ~clock:(Eio.Stdenv.clock env) table);
+      ( Eio_main.run @@ fun env ->
+        progress ~clock:(Eio.Stdenv.mono_clock env) table );
       Fmt.pr "@.%a@." Table.pp table

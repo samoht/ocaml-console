@@ -48,7 +48,7 @@ let fetch theme clock display =
       ~cur:(Int64.div (Int64.mul total (Int64.of_int i)) 12L)
       ~total;
     if i mod 4 = 0 then Fmt.kstr (Display.log t) "GET pkg-%d.tar.gz" i;
-    Eio.Time.sleep clock 0.15
+    Eio.Time.Mono.sleep clock 0.15
   done;
   finished "13 packages, 48 MiB"
 
@@ -60,7 +60,7 @@ let compile theme clock display =
     (fun i f ->
       Display.set_count t ~cur:i ~total:(Array.length files);
       Fmt.kstr (Display.log t) "ocamlopt %s" f;
-      Eio.Time.sleep clock 0.35)
+      Eio.Time.Mono.sleep clock 0.35)
     files;
   Display.set_count t ~cur:(Array.length files) ~total:(Array.length files);
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
@@ -74,7 +74,7 @@ let test theme clock display =
   for i = 0 to 10 do
     Display.set_count unit ~cur:(i * 12) ~total:120;
     Display.set_count fuzz ~cur:i ~total:10;
-    Eio.Time.sleep clock 0.2
+    Eio.Time.Mono.sleep clock 0.2
   done;
   finished "130 passed"
 
@@ -91,7 +91,7 @@ let () =
   in
   List.iter (fun ppf -> Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.clock env in
+  let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Building" (fun display ->
       Display.set_scene display (fun ~height:_ ppf -> scene ppf ());
       Eio.Fiber.both

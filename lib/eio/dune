@@ -2,4 +2,13 @@
  (name console_eio)
  (public_name console-eio)
  (private_modules interrupt session terminal)
- (libraries console console.tty console.text eio eio.unix fmt logs unix))
+ (libraries
+  console
+  console.tty
+  console.text
+  eio
+  eio.unix
+  fmt
+  logs
+  mtime
+  unix))

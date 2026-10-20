@@ -12,19 +12,19 @@ let build clock display =
   for i = 0 to 5 do
     Console.Display.set_count step ~cur:i ~total:5;
     Fmt.kstr (Console.Display.log step) "  CC src/file%d.c" i;
-    Eio.Time.sleep clock 0.2
+    Eio.Time.Mono.sleep clock 0.2
   done;
   let total = 2147483648L in
   for i = 0 to 8 do
     Console.Display.set_bytes layer
       ~cur:(Int64.mul (Int64.of_int i) 268435456L)
       ~total;
-    Eio.Time.sleep clock 0.2
+    Eio.Time.Mono.sleep clock 0.2
   done;
   Console.Display.succeed layer;
   Console.Display.succeed step
 
 let () =
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.clock env in
+  let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Building" (build clock)

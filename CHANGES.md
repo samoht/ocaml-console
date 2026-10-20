@@ -64,5 +64,6 @@
   `Display.Layout`, and a closed display ignores what it is told rather
   than raising, so a fiber that outlives `Console_eio.run` is harmless.
 - `Theme.mark` has a `` `Debug `` mark for debug messages.
-- `Console_eio.run` takes its `~clock` as an option: without one the system's
-  clock times the display.
+- `Console_eio.run ~clock` takes a monotonic clock
+  (`Eio.Stdenv.mono_clock env`), which times the display and paces its
+  redraws, so a change of the system's time moves no timer.
