@@ -60,7 +60,7 @@ let test_plain_unfinished () =
   let (), out =
     plain ~theme (fun d _ ->
         ignore (Display.task d "left");
-        Display.set_result d (`Ok "done"))
+        Display.set_result d (Ok "done"))
   in
   check_lines "succeeded with the work"
     [ "[+] left  0.0s"; "[+] done"; "" ]
@@ -101,8 +101,8 @@ let test_plain_result () =
   let (), out =
     plain ~theme ~header:"Work" (fun d _ ->
         ignore (Display.task d "left running");
-        Display.set_result ~detail:"see the log" d (`Fail "it broke");
-        Display.set_result d (`Ok "changed my mind"))
+        Display.set_result ~detail:"see the log" d (Error "it broke");
+        Display.set_result d (Ok "changed my mind"))
   in
   check_lines "running tasks cancelled, verdict last"
     [

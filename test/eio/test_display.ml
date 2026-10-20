@@ -24,26 +24,26 @@ let capture ?header f =
 let mem ~msg needle haystack =
   Alcotest.(check bool) msg true (contains needle haystack)
 
-(* A finished task commits its label; set_result `Ok prints the verdict. *)
+(* A finished task commits its label; set_result Ok prints the verdict. *)
 let test_run_banner () =
   let out =
     capture ~header:"Build" (fun t ->
         let step = D.task t "compile foo.ml" in
         D.succeed step;
-        D.set_result t ~detail:"3 files, 0 errors" (`Ok "build succeeded"))
+        D.set_result t ~detail:"3 files, 0 errors" (Ok "build succeeded"))
   in
   mem ~msg:"task label" "compile foo.ml" out;
   mem ~msg:"detail" "3 files, 0 errors" out;
   mem ~msg:"verdict marker" "✓" out;
   mem ~msg:"verdict message" "build succeeded" out
 
-(* set_result `Fail prints the failure verdict. *)
+(* set_result Error prints the failure verdict. *)
 let test_run_fail () =
   let out =
     capture (fun t ->
         let step = D.task t "link" in
         D.fail step;
-        D.set_result t (`Fail "link failed"))
+        D.set_result t (Error "link failed"))
   in
   mem ~msg:"fail marker" "✗" out;
   mem ~msg:"fail message" "link failed" out

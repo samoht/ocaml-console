@@ -520,7 +520,7 @@ let test_untrusted_arguments s =
     Display.message ~level:`Warning d lines;
     Display.redraw d;
     Display.succeed ~message:input task;
-    Display.set_result ~detail:lines d (`Ok input);
+    Display.set_result ~detail:lines d (Ok input);
     Display.close d;
     Format.pp_print_flush ppf ();
     (Buffer.contents out, List.rev !frames)
