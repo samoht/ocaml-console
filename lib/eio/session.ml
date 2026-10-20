@@ -229,8 +229,8 @@ let deliver ~owner ~closed ~requests display level message =
           `Closed)
     with Effect.Unhandled _ -> `Closed
 
-(* A message the display cannot take goes to the reporter it replaced, so
-   that a log call never fails. A message from a source of its own is
+(* A message the display cannot take, closed or refusing its output, goes
+   to the reporter it replaced, so that a log call never fails. A message from a source of its own is
    prefixed with the source's name, as the reporter of the Logs
    documentation does. *)
 let reporter ~previous ~owner ~closed ~requests display =
@@ -247,7 +247,15 @@ let reporter ~previous ~owner ~closed ~requests display =
               in
               let delivered =
                 if shown = "" then `Written
-                else deliver ~owner ~closed ~requests display (level l) shown
+                else
+                  match
+                    deliver ~owner ~closed ~requests display (level l) shown
+                  with
+                  | d -> d
+                  | exception
+                      ( Failure _ | Invalid_argument _ | End_of_file
+                      | Sys_error _ | Eio.Io _ ) ->
+                      `Closed
               in
               match delivered with
               | `Written ->

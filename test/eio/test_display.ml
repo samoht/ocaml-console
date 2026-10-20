@@ -277,8 +277,11 @@ module Report_domains = struct
       "each continuation acknowledged once" 2 (Atomic.get continued);
     restored previous
 
+  (* An output refusal on the domain that runs the display does not fail
+     the worker's log call: the record goes to the prior reporter. *)
   let output_error () =
     with_runtime @@ fun env ->
+    recording @@ fun kept ->
     let first = ref true in
     let sink =
       sink
@@ -293,17 +296,15 @@ module Report_domains = struct
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
     run env sink (fun _ ->
         Eio.Switch.run @@ fun sw ->
-        Alcotest.check_raises "actual output refusal reaches the worker"
-          (Failure "owner sink refused") (fun () ->
-            Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
-                send (Logs.reporter ()) "refused"
-                  ~over:(fun () -> Atomic.incr over_count)
-                  ~continued:(fun () -> Atomic.incr continued))));
-    Alcotest.(check int)
-      "failed output has zero completion acknowledgements" 0
-      (Atomic.get over_count);
-    Alcotest.(check int)
-      "failed output has zero continuations" 0 (Atomic.get continued);
+        Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
+            send (Logs.reporter ()) "refused"
+              ~over:(fun () -> Atomic.incr over_count)
+              ~continued:(fun () -> Atomic.incr continued)));
+    Alcotest.(check (list string))
+      "the previous reporter receives the refused record" [ "refused" ]
+      (kept ());
+    Alcotest.(check int) "completion runs once" 1 (Atomic.get over_count);
+    Alcotest.(check int) "the worker continues once" 1 (Atomic.get continued);
     Alcotest.(check int)
       "zero foreign sink accesses" 0 (Atomic.get sink.foreign);
     restored previous
@@ -419,7 +420,8 @@ module Report_domains = struct
           owner_domain;
         Alcotest.test_case "a refused Logs record reaches the prior reporter"
           `Quick output_refusal_falls_back;
-        Alcotest.test_case "worker receives actual output failure" `Quick
+        Alcotest.test_case
+          "a worker's refused record reaches the prior reporter" `Quick
           output_error;
         Alcotest.test_case "a captured reporter hands over after teardown"
           `Quick stale_reporter;
