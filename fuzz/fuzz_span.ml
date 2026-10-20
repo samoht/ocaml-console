@@ -278,21 +278,11 @@ let test_linked_unicode_cuts s n =
 
 (* A gradient is as wide as its text, which it is without colour; in
    colour, at any depth and in any theme, it is that text and escape codes. *)
-let test_gradient s k =
-  let s = if k land 1 = 0 then text s else s in
-  let colors =
-    match k / 2 mod 4 with
-    | 0 -> None
-    | n ->
-        Some
-          (List.init n (fun i ->
-               if i = 0 then Color.palette k
-               else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
-  in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
-  let g = Span.gradient ?colors s and t = Span.text s in
-  check_eq ~pp:Fmt.int (Span.width t) (Span.width g);
-  check_eq ~pp:Fmt.Dump.string (plain t) (plain g);
+(* [span] is as wide as [t] and prints as [t]'s text in [theme], without
+   colour and, its escapes taken out, at every depth. *)
+let check_is_text ~theme t span =
+  check_eq ~pp:Fmt.int (Span.width t) (Span.width span);
+  check_eq ~pp:Fmt.Dump.string (plain t) (plain span);
   let printed depth =
     let buf = Buffer.create 64 in
     let ppf = Format.formatter_of_buffer buf in
@@ -302,7 +292,7 @@ let test_gradient s k =
         Fmt.set_style_renderer ppf `Ansi_tty;
         Color.set_depth ppf depth)
       depth;
-    Span.pp ppf g;
+    Span.pp ppf span;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
@@ -315,6 +305,28 @@ let test_gradient s k =
       check_eq ~pp:Fmt.Dump.string (plain t)
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
+
+let theme_of k = snd (List.nth Theme.all (k mod List.length Theme.all))
+
+let test_gradient s k =
+  let s = if k land 1 = 0 then text s else s in
+  let colors =
+    match k / 2 mod 4 with
+    | 0 -> None
+    | n ->
+        Some
+          (List.init n (fun i ->
+               if i = 0 then Color.palette k
+               else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
+  in
+  check_is_text ~theme:(theme_of k) (Span.text s) (Span.gradient ?colors s)
+
+let roles = [| `Accent; `Ok; `Warn; `Fail; `Muted; `Header |]
+
+let test_role s k =
+  let s = if k land 1 = 0 then text s else s in
+  let role = roles.(k / 2 mod Array.length roles) in
+  check_is_text ~theme:(theme_of k) (Span.text s) (Span.role role s)
 
 (* Fitting a gradient changes line breaks, not the colours of the text
    kept. Compare terminal cells after joining the wrapped pieces again. *)
@@ -383,4 +395,5 @@ let suite =
       test_case "link" [ bytes; bytes ] test_link;
       test_case "concat" [ bytes; bytes; bytes ] test_concat;
       test_case "a gradient is its text, as wide" [ bytes; uint8 ] test_gradient;
+      test_case "a role is its text, as wide" [ bytes; uint8 ] test_role;
     ] )

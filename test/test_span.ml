@@ -284,6 +284,57 @@ let test_gradient_theme () =
     "plain without colour" "abcdef"
     (printed ~theme:Theme.rainbow span)
 
+(* A role takes its style from the theme of the formatter it is printed on,
+   when it is printed. *)
+let test_role () =
+  let check what theme want got =
+    Alcotest.(check string)
+      what
+      (printed ~theme ~depth:`True_color want)
+      (printed ~theme ~depth:`True_color got)
+  in
+  List.iter
+    (fun theme ->
+      let name = Theme.name theme in
+      check (name ^ " accent") theme
+        (fg (Theme.accent theme) "x")
+        (Span.role `Accent "x");
+      check (name ^ " ok") theme (fg (Theme.ok theme) "x") (Span.role `Ok "x");
+      check (name ^ " warn") theme
+        (fg (Theme.warn theme) "x")
+        (Span.role `Warn "x");
+      check (name ^ " fail") theme
+        (fg (Theme.fail theme) "x")
+        (Span.role `Fail "x");
+      check (name ^ " muted") theme
+        (fg (Theme.muted theme) "x")
+        (Span.role `Muted "x");
+      check (name ^ " header") theme
+        (Span.styled (Theme.header theme) "x")
+        (Span.role `Header "x"))
+    [ Theme.default; Theme.nord; Theme.dos ];
+  let nord = Theme.ok Theme.nord in
+  check "under a style" Theme.nord
+    (Span.styled Style.(bold + fg nord) "passed")
+    (Span.with_style Style.bold (Span.role `Ok "passed"));
+  check "each line" Theme.nord (fg nord "a\nb") (Span.role `Ok "a\nb");
+  check "cut" Theme.nord
+    (Span.truncate 3 (fg nord "abcdef"))
+    (Span.truncate 3 (Span.role `Ok "abcdef"));
+  Alcotest.(check string)
+    "plain without colour" "passed"
+    (printed ~theme:Theme.nord (Span.role `Ok "passed"));
+  Alcotest.(check string)
+    "to_string in the default theme"
+    (Span.to_string ~styled:true (fg (Theme.ok Theme.default) "x"))
+    (Span.to_string ~styled:true (Span.role `Ok "x"));
+  Alcotest.(check int)
+    "as wide as its text" 3
+    (Span.width (Span.role `Ok "a\u{754c}"));
+  Alcotest.(check string)
+    "sanitized" "a b"
+    (Span.to_string (Span.role `Fail "a\027b"))
+
 let suite =
   ( "span",
     [
@@ -309,6 +360,7 @@ let suite =
       Alcotest.test_case "runs" `Quick test_runs;
       Alcotest.test_case "depth" `Quick test_depth;
       Alcotest.test_case "gradient" `Quick test_gradient;
+      Alcotest.test_case "role" `Quick test_role;
       Alcotest.test_case "gradient in the theme's palette" `Quick
         test_gradient_theme;
     ] )
