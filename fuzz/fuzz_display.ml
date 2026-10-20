@@ -546,6 +546,32 @@ let test_extreme_terminals n styled =
       check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte)))
     [ (1, 1); (2, 80); (300, 10) ]
 
+(* [n] running tasks with [l] log lines each, on a screen [h] rows high: the
+   region is at most [h - 1] lines, and a marker counts exactly the lines
+   it hides. *)
+let test_marker_counts n l h =
+  let n = 1 + (n mod 12) and l = l mod 3 and h = 3 + (h mod 12) in
+  let t = terminal ~width:30 ~height:h ~styled:false () in
+  let d = display t in
+  for i = 0 to n - 1 do
+    let task = Display.task ~log_lines:l d ("t" ^ string_of_int i) in
+    for j = 1 to l do
+      Display.log ~keep:false task ("l" ^ string_of_int j)
+    done
+  done;
+  Display.redraw d;
+  let rows = List.filter (( <> ) "") (screen t.vte) in
+  let shown = List.length rows in
+  if shown > h - 1 then failf "%d lines on %d rows" shown h;
+  let total = n * (1 + l) in
+  let budget = h - 2 in
+  (match List.find_opt (has "more lines") rows with
+  | Some m ->
+      let hidden = Scanf.sscanf (String.trim m) "%_s %d" Fun.id in
+      check_eq ~pp:Fmt.int (total - (shown - 2)) hidden
+  | None -> if budget >= 3 then check_eq ~pp:Fmt.int total (shown - 1));
+  Display.close d
+
 let suite =
   ( "display",
     [
@@ -564,4 +590,6 @@ let suite =
       test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
       test_case "screen guarantees" [ list op; uint8; uint8; bool; uint8 ] test;
       test_case "plain output" [ list op ] test_plain;
+      test_case "the marker counts what the region hides"
+        [ uint8; uint8; uint8 ] test_marker_counts;
     ] )

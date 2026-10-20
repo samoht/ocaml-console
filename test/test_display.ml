@@ -278,6 +278,26 @@ let test_capped () =
   List.iter Display.cancel tasks;
   Display.close t.display
 
+(* Eight running tasks with a log line each fill a budget of eight lines
+   exactly: the tails go, the marker takes a row and counts what is hidden. *)
+let test_marker_counts () =
+  let t = terminal ~theme ~width:30 ~height:10 ~header:"H" () in
+  let tasks =
+    List.init 8 (fun i ->
+        let task = Display.task ~log_lines:1 t.display (Fmt.str "task %d" i) in
+        Display.log task "line";
+        task)
+  in
+  Display.redraw t.display;
+  let rows = List.filter (( <> ) "") (screen t) in
+  Alcotest.(check int) "no taller than the screen less one" 9 (List.length rows);
+  let hidden = 16 - (List.length rows - 2) in
+  Alcotest.(check bool)
+    "the marker counts the hidden lines" true
+    (List.exists (Fmt.kstr contains "%d more lines" hidden) rows);
+  List.iter Display.cancel tasks;
+  Display.close t.display
+
 let test_marker_fits () =
   let t = terminal ~theme ~width:12 ~height:4 () in
   let tasks = List.init 6 (fun i -> Display.task t.display (Fmt.str "t%d" i)) in
@@ -488,6 +508,7 @@ let suite =
       Alcotest.test_case "label truncated" `Quick test_label_truncated;
       Alcotest.test_case "capped" `Quick test_capped;
       Alcotest.test_case "the marker fits" `Quick test_marker_fits;
+      Alcotest.test_case "the marker counts" `Quick test_marker_counts;
       Alcotest.test_case "with_output" `Quick test_with_output;
       Alcotest.test_case "with_output without a line end" `Quick
         test_with_output_partial;
