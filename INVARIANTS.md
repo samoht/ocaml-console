@@ -38,7 +38,7 @@ own code.
 | Every theme's colours stand out from its background, in every frame | `test/test_theme.ml` "contrast" (unit); `test/test_theme.ml` "every frame in contrast" (unit) |
 | Motion never changes widths: only a frame's straight lines move, each into glyphs as wide | `fuzz/fuzz_display.ml` "a scene's frames move only its border" (property); `fuzz/fuzz_console.ml` "a scene of widgets moves only its lines" (property); `test/test_theme.ml` "rain on an intact frame" (unit) |
 | Printed output is motionless: a widget on a formatter, or a scene off a live display, prints its still frame | `fuzz/fuzz_display.ml` "a scene is still off a live display" (property); `test/test_theme.ml` "printed still" (unit) |
-| A line editor's echo shows the line typed, whole or in pieces, and holds no escape | `fuzz/fuzz_input.ml` "the echo shows the line" (property); `fuzz/fuzz_input.ml` "chunking and masking" (property) |
+| A line editor's echo shows the line typed, whole or in pieces, and holds no escape, a cluster inserted before text included | `fuzz/fuzz_input.ml` "the echo shows the line" (property); `fuzz/fuzz_input.ml` "chunking and masking" (property); `fuzz/fuzz_input.ml` "inserting a cluster redraws its suffix" (property); `test/input/test_console_input.ml` "insert an emoji before existing text" (unit) |
 
 ## What each interface states
 

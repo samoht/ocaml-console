@@ -71,10 +71,12 @@ let reposition t echo =
   if tail > 0 then add echo (String.make tail '\b')
 
 (* Insert [s] (one or more whole characters) at the cursor, its first joining
-   the cluster before the cursor if it extends it: write the clusters it
-   adds, redraw the tail it pushed right, then step the cursor back to just
-   after [s]. A cluster of no width with nothing before it to join is
-   dropped, as a terminal drops it in the first column. *)
+   the cluster before the cursor if it extends it. A cluster [s] extends is
+   drawn again from its first cell, as a terminal does not join a mark
+   written after the text that follows it; then the tail [s] pushed right is
+   redrawn, the cells a narrower cluster leaves are blanked, and the cursor
+   steps back to just after [s]. A cluster of no width with nothing before
+   it to join is dropped, as a terminal drops it in the first column. *)
 let insert t echo s =
   t.pos <- None;
   let prev, rest = match t.left with c :: l -> (c, l) | [] -> ("", []) in
@@ -84,18 +86,19 @@ let insert t echo s =
     | cs -> cs
   in
   t.left <- List.rev_append kept rest;
-  (match t.mask with
-  | None ->
-      let all = String.concat "" kept in
-      let n = String.length prev in
-      add echo (String.sub all n (String.length all - n))
-  | Some mask ->
-      let added = List.length kept - if prev = "" then 0 else 1 in
-      for _ = 1 to added do
-        add echo mask
-      done);
+  let redrawn, back =
+    match kept with
+    | c :: cs when prev <> "" && display_char t c = display_char t prev ->
+        (cs, 0)
+    | _ when prev = "" -> (kept, 0)
+    | _ -> (kept, width t prev)
+  in
+  let blank = max 0 (back - cols t redrawn) in
+  add echo (String.make back '\b');
+  add echo (display_chars t redrawn);
   add echo (display_chars t t.right);
-  reposition t echo
+  add echo (String.make blank ' ');
+  add echo (String.make (cols t t.right + blank) '\b')
 
 (* Erase the character before the cursor: step left, redraw the tail with a
    trailing space to clear the vacated cell, then step back. At end of line this
