@@ -13,6 +13,7 @@ let test_widths () =
   check "a spacing mark takes a cell of its own" 2 "x\xe0\xa5\x80";
   check "a vowel sign after its consonant" 2 "\u{0915}\u{093F}";
   check "a spacing mark alone" 1 "\u{093F}";
+  check "a wide spacing mark adds its two cells" 3 "x\u{302E}";
   check "a combining mark adds nothing" 1 "e\xcc\x81";
   check "CJK" 4 "\xe7\x95\x8c\xe7\x95\x8c";
   check "emoji" 2 "\xf0\x9f\x8e\x89";
@@ -38,6 +39,7 @@ let test_matches_terminal () =
       "e\xcc\x81";
       "\xf0\x9f\x8e\x89 ok";
       "\u{0915}\u{093F} ok";
+      "\u{FFFD}\u{302E} ok";
     ]
 
 (* {1 Real terminals} *)
