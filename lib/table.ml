@@ -3,12 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type align = [ `Left | `Center | `Right ]
 type overflow = [ `Wrap | `Truncate ]
 
 type column = {
   header : Span.t;
-  align : align;
+  align : Span.align;
   min_width : int option;
   max_width : int option;
   overflow : overflow;

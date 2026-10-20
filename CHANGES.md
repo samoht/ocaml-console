@@ -78,3 +78,5 @@
   raising, and an empty URI links nowhere.
 - `Rule.to_string ~width` draws a rule as a string, as the other widgets'
   `to_string` do.
+- `Span.align` is the one alignment type, of `Table.column ~align` and
+  `Rule.v ~align`, which no longer define their own.

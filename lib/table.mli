@@ -12,9 +12,6 @@
 
 (** {1:columns Columns} *)
 
-type align = [ `Left | `Center | `Right ]
-(** The type for column alignments. *)
-
 type overflow = [ `Wrap | `Truncate ]
 (** The type for what a cell wider than its column does: [`Wrap] goes on over
     several lines ({!Span.wrap}), and [`Truncate] keeps one line ended with an
@@ -27,7 +24,7 @@ type t
 (** The type for tables. *)
 
 val column :
-  ?align:align ->
+  ?align:Span.align ->
   ?min_width:int ->
   ?max_width:int ->
   ?overflow:overflow ->

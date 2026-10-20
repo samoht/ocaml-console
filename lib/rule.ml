@@ -3,12 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type align = [ `Left | `Center | `Right ]
-
 type t = {
   style : Style.t option;
   glyph : string;
-  align : align;
+  align : Span.align;
   label : Span.t;
 }
 

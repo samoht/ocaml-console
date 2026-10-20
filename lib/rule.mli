@@ -7,14 +7,16 @@
 
 (** {1:rules Rules} *)
 
-type align = [ `Left | `Center | `Right ]
-(** The type for label alignments within a line. *)
-
 type t
 (** The type for horizontal lines. *)
 
 val v :
-  ?style:Style.t -> ?glyph:string -> ?align:align -> ?label:Span.t -> unit -> t
+  ?style:Style.t ->
+  ?glyph:string ->
+  ?align:Span.align ->
+  ?label:Span.t ->
+  unit ->
+  t
 (** [v ()] is a horizontal line drawn with [glyph] (defaults to a light
     horizontal line, U+2500, and [-] for a [glyph] that is not ASCII on a
     formatter that is not {!Fmt.utf_8}) in [style] (defaults to the muted colour

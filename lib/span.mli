@@ -67,6 +67,11 @@ val with_style : Style.t -> t -> t
 
 (** {1:measuring Measuring and fitting} *)
 
+type align = [ `Left | `Center | `Right ]
+(** The type for the places of a span in a room wider than it: at its left edge,
+    in its middle or at its right edge, as a {!Table} column or a {!Rule} label
+    sits. *)
+
 val width : t -> int
 (** [width s] is the number of cells the widest line of [s] takes. The invariant
     [width (s0 ++ s1) <= width s0 + width s1] holds. *)
