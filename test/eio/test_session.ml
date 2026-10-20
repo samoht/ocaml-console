@@ -193,6 +193,45 @@ let test_sibling_fibers () =
   Alcotest.(check (pair bool bool))
     "a run after the other's display" (false, true) (siblings ~overlap:false)
 
+(* A callback failure belongs to its run; it cannot close the display a
+   sibling still uses, even when that sibling yields while producing output. *)
+let test_failing_first_run_waits () =
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer out in
+  let entered, enter = Eio.Promise.create () in
+  let sibling_finished = ref false and returned_early = ref false in
+  Eio.Fiber.both
+    (fun () ->
+      Alcotest.check_raises "the first callback's exception survives"
+        (Failure "first callback failed") (fun () ->
+          Console_eio.run ~clock ~ppf (fun _ ->
+              Eio.Promise.await entered;
+              failwith "first callback failed"));
+      returned_early := not !sibling_finished)
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun d ->
+          Eio.Promise.resolve enter ();
+          Eio.Fiber.yield ();
+          Console.Display.with_task d "sibling" (fun task ->
+              for i = 0 to 2 do
+                Console.Display.log task (Fmt.str "record-%d" i);
+                Eio.Fiber.yield ()
+              done);
+          sibling_finished := true));
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "the first run waits for the sibling's callback" false !returned_early;
+  for i = 0 to 2 do
+    Alcotest.(check bool)
+      "every sibling record survives" true
+      (contains (Fmt.str "sibling: record-%d" i) (Buffer.contents out))
+  done;
+  Alcotest.(check bool)
+    "a successful sibling is not cancelled" false
+    (contains "\u{25cb} sibling" (Buffer.contents out))
+
 let renderer_equal a b =
   match (a, b) with `Ansi_tty, `Ansi_tty | `None, `None -> true | _ -> false
 
@@ -329,5 +368,7 @@ let suite =
         test_nested_fiber;
       Alcotest.test_case "runs in sibling fibers share a display" `Quick
         test_sibling_fibers;
+      Alcotest.test_case "a failing first run waits for its sibling" `Quick
+        test_failing_first_run_waits;
       Alcotest.test_case "setup under mock backend" `Quick test_setup;
     ] )
