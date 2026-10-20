@@ -25,7 +25,8 @@
     is cut between two characters and ends with an ellipsis. On a formatter that
     is not {!Fmt.utf_8}, the frames, lines, bars, spinners, marks and ellipses
     of the widgets are ASCII. The guarantees of a live region are those of
-    {!Display}.
+    {!Display}. Each guarantee and the tests that check it are listed in the
+    repository's [INVARIANTS.md].
 
     Text is in colour when its formatter is set to colour
     ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows;

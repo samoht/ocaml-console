@@ -1,0 +1,65 @@
+# Invariants
+
+What console guarantees, and where each guarantee is checked. A reference
+is `file` "test name", then the kind of check: a unit test (Alcotest), a
+property (Alcobar, run briefly by `dune test`, explored by `dune build @fuzz
+--profile=afl` and nightly in CI), a pty test (a real pseudo-terminal) or a
+cram test (a shell session). `test/invariants` fails when a named test no
+longer exists, so this file cannot silently fall behind the suite.
+
+The tests read the screen through `test/vte`, an emulator that hands
+matrix.vte only what it reads as xterm does (`test/test_console_vte.ml`
+"controls from the last column", unit), and they count cells against what
+real terminals show (`test/input/test_width.ml` "as real terminals show
+it", unit), not only against the emulator, which measures with console's
+own code.
+
+## What a user can rely on
+
+| Invariant | Checked by |
+|---|---|
+| Columns line up: counts, rates and timers in the same columns whatever the labels, table cells aligned in every script | `test/test_display.ml` "alignment" (unit); `fuzz/fuzz_table.ml` "right-aligned cells line up" (property); `fuzz/fuzz_table.ml` "mixed-script columns align in every theme" (property) |
+| Wide characters and emoji keep alignment: a cluster takes the cells real terminals give it, and a cut keeps a selector or joiner with its character | `test/input/test_width.ml` "as real terminals show it" (unit); `fuzz/fuzz_span.ml` "cuts fit with joiners and selectors" (property); `fuzz/fuzz_width.ml` "matches the terminal" (property) |
+| No line wider than the terminal, and no cut inside a character or an escape code | `fuzz/fuzz_display.ml` "screen guarantees" (property); `fuzz/fuzz_display.ml` "extreme terminal sizes keep region width and height bounded" (property); `fuzz/fuzz_span.ml` "linked Unicode cuts fit and keep complete escapes" (property) |
+| Widgets put together keep every widget's guarantees: within the margin, as wide on the terminal as counted, plain text plus escape codes, deterministic, valid UTF-8, no escape without colour | `fuzz/fuzz_console.ml` "any tree of widgets printed anywhere" (property); `test/test_console.ml` "widgets put together" (unit); `fuzz/fuzz_console.ml` "hcat lines are the blocks' widths and gaps" (property) |
+| The terminal is restored after a return, an exception, a cancellation, `exit`, Ctrl-C and SIGTERM: cursor shown, first column, default colours, echo back | `test/eio/test_console_eio.ml` "the terminal is usable after every ending" (pty); `test/eio/test_console_eio.ml` "teardown on a terminal" (pty); `test/eio/test_console_eio.ml` "SIGINT restores the terminal cursor" (pty); `test/eio/test_console_eio.ml` "SIGINT during a password restores echo" (pty); `fuzz/fuzz_display.ml` "callback exceptions restore a usable terminal" (property) |
+| Ctrl-Z gives the terminal back before the program stops, and `fg` draws the region again | `test/eio/test_console_eio.ml` "Ctrl-Z gives the terminal back, fg redraws" (pty) |
+| Piped output is clean, ordered and attributed: no escape, each line once after its task's label, the header last, standard output and the display merged in the order written | `fuzz/fuzz_display.ml` "plain output" (property); `fuzz/fuzz_display.ml` "pipe logs retain order and task attribution" (property); `fuzz/fuzz_display.ml` "on a pipe each line comes once after its task's label" (property); `test/cram/ordering.t/run.t` "keep the order in which" (cram); `test/cram/progress.t/run.t` "In plain mode (no terminal)" (cram) |
+| A closed pipe ends the display's output and nothing else; one on standard output is the program's, as without console | `test/cram/epipe.t/run.t` "A closed pipe on" (cram) |
+| Data text never changes the terminal's state: escapes, controls and reordering characters in labels, logs, headers and themes print as text | `fuzz/fuzz_display.ml` "untrusted display arguments behave like sanitized text" (property); `fuzz/fuzz_span.ml` "every span prints" (property); `fuzz/fuzz_console_text.ml` "sanitize and strip" (property); `fuzz/fuzz_console_text.ml` "silent controls print nothing" (property); `fuzz/fuzz_console_text.ml` "sanitize_styles leaves nothing on" (property) |
+| What the program prints on the display's terminal goes above the region as written, and the region is drawn whole below it, wherever its bytes leave the cursor | `test/test_display.ml` "with_output moving the cursor" (unit); `fuzz/fuzz_display.ml` "screen guarantees" (property); `test/eio/test_terminal.ml` "another terminal's output passes through" (unit) |
+| No flicker: each change is one synchronized update, only the region's rows change, a redraw in place shows what a fresh draw does, and an idle redraw writes nothing | `fuzz/fuzz_display.ml` "screen guarantees" (property); `fuzz/fuzz_display.ml` "only live rows change and idle frames write nothing" (property); `test/test_display.ml` "synchronized" (unit); `test/test_display.ml` "idle redraw writes nothing" (unit) |
+| Nothing is left of an old frame after a resize | `fuzz/fuzz_display.ml` "resize erases every old live row" (property); `test/test_display.ml` "narrowing" (unit) |
+| Rows keep to 100 columns on a wide terminal, and the region to the screen's height less one, a marker counting what it hides | `fuzz/fuzz_display.ml` "rows keep to 100 columns on a wide terminal" (property); `fuzz/fuzz_display.ml` "the marker counts what the region hides" (property) |
+| Memory is bounded: finished tasks are dropped, a running task keeps at most 1 MiB of output | `fuzz/fuzz_display.ml` "long runs retain bounded heap" (property); `test/test_display.ml` "a failure keeps 1 MiB" (unit) |
+| Logs and task output go where the display spec says: Logs messages stay, a task's output stays only if it fails, a cancelled task keeps its window | `test/test_display.ml` "Logs lines inside a task are kept" (unit); `test/test_display.ml` "Logs lines outside a task" (unit); `test/test_display.ml` "a success drops its output" (unit); `test/test_display.ml` "a failure prints its output" (unit); `test/test_display.ml` "a cancelled task keeps its window" (unit); `fuzz/fuzz_display.ml` "on a terminal a line stays as its task ended" (property); `test/eio/test_console_eio.ml` "SIGINT keeps the window of a cancelled task" (pty); `test/eio/test_console_eio.ml` "Logs from a forked fiber on a terminal" (pty) |
+| Colour policy: `NO_COLOR`, `TERM`, `COLORTERM` and the program's own choice decide colour, and a theme is not a choice | `test/tty/test_console_tty.ml` "colour rules" (unit); `test/eio/test_console_eio.ml` "the program's colour choice is kept" (pty); `test/eio/test_console_eio.ml` "a theme is not a colour choice" (pty) |
+| ASCII alone on a formatter or terminal that is not UTF-8 | `fuzz/fuzz_theme.ml` "ASCII when not UTF-8" (property); `test/eio/test_console_eio.ml` "ASCII on a terminal that is not UTF-8" (pty); `fuzz/fuzz_console.ml` "any tree of widgets printed anywhere" (property) |
+| Every theme's colours stand out from its background, in every frame | `test/test_theme.ml` "contrast" (unit); `test/test_theme.ml` "every frame in contrast" (unit) |
+| Motion never changes widths: only a frame's straight lines move, each into glyphs as wide | `fuzz/fuzz_display.ml` "a scene's frames move only its border" (property); `fuzz/fuzz_console.ml` "a scene of widgets moves only its lines" (property); `test/test_theme.ml` "rain on an intact frame" (unit) |
+| Printed output is motionless: a widget on a formatter, or a scene off a live display, prints its still frame | `fuzz/fuzz_display.ml` "a scene is still off a live display" (property); `test/test_theme.ml` "printed still" (unit) |
+| A line editor's echo shows the line typed, whole or in pieces, and holds no escape | `fuzz/fuzz_input.ml` "the echo shows the line" (property); `fuzz/fuzz_input.ml` "chunking and masking" (property) |
+
+## What each interface states
+
+| Interface | Invariant | Checked by |
+|---|---|---|
+| `Span.width` | `width (s0 ++ s1) <= width s0 + width s1`; a style boundary adds no cell | `fuzz/fuzz_span.ml` "width is subadditive" (property); `fuzz/fuzz_span.ml` "styles add no cell" (property) |
+| `Span.truncate` | fits `w`, identity when it fits, a cut line keeps a prefix and ends with an ellipsis, idempotent; every style turned on is turned off | `fuzz/fuzz_span.ml` "truncate fits, keeps a prefix, ends with an ellipsis" (property); `fuzz/fuzz_span.ml` "truncate turns styles off" (property) |
+| `Span.wrap` | never empty, every line fits, non-space text kept, any bytes, a non-positive width refused | `fuzz/fuzz_span.ml` "wrap fits and keeps the text" (property); `fuzz/fuzz_span.ml` "wrap takes any bytes" (property); `fuzz/fuzz_span.ml` "wrap refuses a non-positive width" (property) |
+| `Span.link`, `Span.concat` | an unsafe URI refused, the label printed alone; `sep` between each two | `fuzz/fuzz_span.ml` "link" (property); `fuzz/fuzz_span.ml` "concat" (property) |
+| `Span.gradient` | as wide as its text, which it is without colour, at every depth and in every theme | `fuzz/fuzz_span.ml` "a gradient is its text, as wide" (property); `fuzz/fuzz_span.ml` "wrapping a gradient preserves glyphs and colours" (property) |
+| `Console_text.sanitize`, `strip`, `sanitize_styles` | printable result, idempotent, `strip` leaves no escape, one line feed per line end, nothing left on | `fuzz/fuzz_console_text.ml` "sanitize and strip" (property); `fuzz/fuzz_console_text.ml` "one line feed per line end" (property); `fuzz/fuzz_console_text.ml` "sanitize_styles leaves nothing on" (property) |
+| `Color` | `rgb` and `palette` accept exactly 0 to 255; `of_hex`, `hex` and `pp` agree; `blend` and `scale` stay in range; `downsample` is idempotent; a formatter keeps its depth | `fuzz/fuzz_color.ml` "rgb range" (property); `fuzz/fuzz_color.ml` "palette range" (property); `fuzz/fuzz_color.ml` "hex" (property); `fuzz/fuzz_color.ml` "blend and scale stay in range" (property); `fuzz/fuzz_color.ml` "downsample" (property); `fuzz/fuzz_color.ml` "formatter depth" (property); `fuzz/fuzz_color.ml` "SGR parameters in range" (property) |
+| `Style.( + )` | unit, associative, the right colour wins | `fuzz/fuzz_style.ml` "composition laws" (property) |
+| `Border`, `Guide` | accessors give back what was given | `fuzz/fuzz_border.ml` "accessors" (property); `fuzz/fuzz_guide.ml` "accessors" (property) |
+| `Spinner.frame` | one of its frames, the first before time; refusals | `fuzz/fuzz_spinner.ml` "frame" (property) |
+| `Theme` | parts kept, a mark is one line, `of_string` reads back the names of `Theme.all` | `fuzz/fuzz_theme.ml` "parts and marks" (property) |
+| `Bar.v` | exactly `width` cells, two more with brackets | `fuzz/fuzz_bar.ml` "width" (property) |
+| `Rule.pp` | exactly the margin | `fuzz/fuzz_rule.ml` "as wide as the margin" (property) |
+| `Panel.pp` | fits the margin, a fixed panel is a rectangle, a box too small refused | `fuzz/fuzz_panel.ml` "fits the margin" (property); `fuzz/fuzz_panel.ml` "multi-cell borders respect fixed width" (property); `fuzz/fuzz_panel.ml` "refuses a box too small" (property) |
+| `Table.pp` | fits the margin, framed lines of one width, a rule between each two rows, rows of any shape, a huge minimum narrows | `fuzz/fuzz_table.ml` "fits the margin" (property); `fuzz/fuzz_table.ml` "multi-cell borders stay rectangular" (property); `fuzz/fuzz_table.ml` "a rule between each two rows" (property); `fuzz/fuzz_table.ml` "row shape" (property); `fuzz/fuzz_table.ml` "huge minimum narrows to available width" (property); `fuzz/fuzz_table.ml` "a simple table's rule runs across it" (property) |
+| `Tree.pp` | fits the margin | `fuzz/fuzz_tree.ml` "fits the margin" (property) |
+| `Console.hcat` | each line is the widths and gaps of its blocks up to the last with text, within the margin, a trailing combining mark kept | `fuzz/fuzz_console.ml` "hcat lines are the blocks' widths and gaps" (property); `fuzz/fuzz_console.ml` "hcat widgets fit without terminal autowrap" (property); `fuzz/fuzz_console.ml` "hcat preserves trailing combining marks" (property) |
+| `Console_input.feed` | whole or in pieces alike, no escape in the echo, a masked editor keeps no history | `fuzz/fuzz_input.ml` "chunking and masking" (property) |
+| `Display` | the screen guarantees of `display.mli`, on a terminal and on a pipe | `fuzz/fuzz_display.ml` "screen guarantees" (property); `fuzz/fuzz_display.ml` "plain output" (property) |

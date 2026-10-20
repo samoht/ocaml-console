@@ -1,0 +1,11 @@
+; INVARIANTS.md names the tests that check each invariant; this test fails
+; when one of them no longer exists.
+
+(test
+ (name test)
+ (package console)
+ (deps
+  %{project_root}/INVARIANTS.md
+  (source_tree %{project_root}/test)
+  (source_tree %{project_root}/fuzz))
+ (libraries alcotest))

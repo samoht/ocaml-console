@@ -562,6 +562,11 @@ and the characters that reorder text, without the rest of console:
 | `Console_eio` | Runs a `Display` with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
 
+## Guarantees
+
+Every guarantee console states, and the test, property, pty or cram test
+that checks it, is listed in [INVARIANTS.md](INVARIANTS.md).
+
 ## Related work
 
 - [Rich](https://github.com/Textualize/rich), the Python library console is
