@@ -15,6 +15,15 @@ val scope : Display_driver.scope
     from. A fiber cancelled in a {!Console.Display.with_task} cancels its task.
 *)
 
+val join : (Console.Display.t -> 'a) -> 'a option
+(** [join f] is [Some (f display)] for the [display] that {!run} runs in the
+    calling domain, as the calling fiber's, if one runs and does not close yet:
+    the display then closes once [f] returned too. It is [None] otherwise. *)
+
+val await_release : unit -> unit
+(** [await_release ()] waits until the display that {!run} runs in the calling
+    domain is gone, if it closes. *)
+
 val claim : unit -> unit
 (** [claim ()] makes the caller the one that opens a display, until {!release}.
 

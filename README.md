@@ -413,8 +413,9 @@ Good to know:
   `Display.set_result`. When it raises, or its fiber is cancelled, the
   exception goes on; when the program exits in the middle, or Ctrl-C stops
   it, the display still closes and shows the cursor again.
-- A `Console_eio.run` inside another one gets the same display, so a library
-  can start one without knowing whether its caller did.
+- A `Console_eio.run` inside another one, or in a fiber beside it, gets the
+  same display, so a library can start one without knowing whether its
+  caller did; the display closes once the last of them ends.
 - Call the functions of a display from the domain that runs it. A `Logs`
   message logged in another domain that Eio runs, such as one of an
   `Eio.Executor_pool`, is passed to that one and printed above the rows.

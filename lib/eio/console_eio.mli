@@ -87,11 +87,13 @@ val run :
     still waiting for the display when it closes, and one from a domain that Eio
     does not run.
 
-    A [run] called inside [f], or in a fiber [f] started, passes its own
-    function the same display, so a library can call [run] without knowing
-    whether its caller already did. Its [clock], [ppf], [layout], [header] and
-    [plain] are ignored: the display keeps those of the outer [run], and closes
-    when the outer [f] ends, not the inner one.
+    A [run] called while another runs in the same domain, inside [f], in a fiber
+    [f] started or in a fiber beside it, passes its own function the same
+    display, so a library can call [run] without knowing whether its caller
+    already did. Its [clock], [ppf], [layout], [header] and [plain] are ignored:
+    the display keeps those of the first [run], and closes once the last of
+    their functions ends; the first [run] waits for the others. A [run] that
+    starts while that display closes opens its own once it is gone.
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
     empty string, stops the display's clock at zero: every elapsed time reads
@@ -99,5 +101,4 @@ val run :
     the redraws still wait on [clock]. The progress a test captures from the
     program then reads the same on every machine.
 
-    @raise Invalid_argument
-      if a display opened elsewhere in the program is still running. *)
+    @raise Invalid_argument if a display runs in another domain. *)

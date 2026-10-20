@@ -65,31 +65,38 @@ let reading clock =
   | None | Some "" -> seconds clock
   | Some _ -> fun () -> 0.
 
+(* A display of its own, which [f] is given. *)
+let open_display ~clock ~ppf ?layout ?header ~plain f =
+  Console_tty.ensure ();
+  Session.await_release ();
+  Session.claim ();
+  let now = reading clock in
+  match
+    match if plain then None else terminal ppf with
+    | None ->
+        ( Display_driver.v ?layout ?header ~scope:Session.scope ~now ppf,
+          [],
+          ignore )
+    | Some (fd, unix) ->
+        let size () = Terminal.dimensions (Some fd) in
+        let display =
+          Display_driver.v ?layout ?header ~size ~scope:Session.scope ~now
+            (own ppf)
+        in
+        (display, routed unix, cursor unix)
+  with
+  | display, intercept, cursor ->
+      Session.run ~cursor
+        ~sleep:(Eio.Time.Mono.sleep clock)
+        ~intercept display f
+  | exception e ->
+      Session.release ();
+      raise e
+
 let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
   match Session.find () with
   | Some display -> f display
   | None -> (
-      Console_tty.ensure ();
-      Session.claim ();
-      let now = reading clock in
-      match
-        match if plain then None else terminal ppf with
-        | None ->
-            ( Display_driver.v ?layout ?header ~scope:Session.scope ~now ppf,
-              [],
-              ignore )
-        | Some (fd, unix) ->
-            let size () = Terminal.dimensions (Some fd) in
-            let display =
-              Display_driver.v ?layout ?header ~size ~scope:Session.scope ~now
-                (own ppf)
-            in
-            (display, routed unix, cursor unix)
-      with
-      | display, intercept, cursor ->
-          Session.run ~cursor
-            ~sleep:(Eio.Time.Mono.sleep clock)
-            ~intercept display f
-      | exception e ->
-          Session.release ();
-          raise e)
+      match Session.join f with
+      | Some v -> v
+      | None -> open_display ~clock ~ppf ?layout ?header ~plain f)

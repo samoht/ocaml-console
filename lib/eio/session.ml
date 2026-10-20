@@ -9,14 +9,62 @@ module Display = Console.Display
 
    A terminal has one live region at a time. The display that holds it is a
    fiber-local value, so a [run] in a fiber under another one finds it and
-   adds to it, and a global one, so a [run] elsewhere is refused and an exit
-   in the middle of the work still closes it. *)
+   adds to it, and a global one, so a [run] in another fiber of its domain
+   joins it, a [run] in another domain is refused, and an exit in the middle
+   of the work still closes it. *)
 
 let current : Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
 let task : Display.task Eio.Fiber.key = Eio.Fiber.create_key ()
 let busy = Atomic.make false
 let running : Display.t option Atomic.t = Atomic.make None
 let find () = Eio.Fiber.get current
+
+(* The runs that share the display of a domain: the one that opened it and
+   those that joined it. It closes once the last of them ends. *)
+type shared = {
+  display : Display.t;
+  owner : Domain.id;
+  mutable users : int;
+  mutable closing : bool;
+  mutable idle : unit Eio.Promise.u option;
+  released : unit Eio.Promise.t * unit Eio.Promise.u;
+}
+
+let shared : shared option Atomic.t = Atomic.make None
+
+let join f =
+  match Atomic.get shared with
+  | Some s
+    when Int.equal (Domain.self () :> int) (s.owner :> int) && not s.closing ->
+      s.users <- s.users + 1;
+      let leave () =
+        s.users <- s.users - 1;
+        if s.users = 0 then
+          Option.iter (fun u -> ignore (Eio.Promise.try_resolve u ())) s.idle
+      in
+      Some
+        (Fun.protect ~finally:leave (fun () ->
+             Eio.Fiber.with_binding current s.display (fun () -> f s.display)))
+  | _ -> None
+
+(* A run that starts while the display of its domain closes opens its own
+   once that one is gone. *)
+let await_release () =
+  match Atomic.get shared with
+  | Some s when Int.equal (Domain.self () :> int) (s.owner :> int) && s.closing
+    ->
+      Eio.Promise.await (fst s.released)
+  | _ -> ()
+
+(* The run that opened the display waits for those that joined it. *)
+let last_out s =
+  s.users <- s.users - 1;
+  if s.users > 0 then begin
+    let idle, resolver = Eio.Promise.create () in
+    s.idle <- Some resolver;
+    Eio.Promise.await idle
+  end;
+  s.closing <- true
 
 (* [exit] runs the [at_exit] functions but no [finally]: the display is
    closed there, its tasks cancelled, so the cursor is shown again and the
@@ -41,6 +89,9 @@ let claim () =
     invalid_arg "Console_eio.run: a display is already running"
 
 let release () =
+  Option.iter
+    (fun s -> ignore (Eio.Promise.try_resolve (snd s.released) ()))
+    (Atomic.exchange shared None);
   Atomic.set running None;
   Atomic.set busy false
 
@@ -254,6 +305,17 @@ let suspend ~cursor display stop =
 
 let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
   Atomic.set running (Some display);
+  let s =
+    {
+      display;
+      owner = Domain.self ();
+      users = 1;
+      closing = false;
+      idle = None;
+      released = Eio.Promise.create ();
+    }
+  in
+  Atomic.set shared (Some s);
   Fun.protect ~finally:(fun () ->
       restore ();
       release ())
@@ -275,7 +337,10 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
       @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
           Display.close display)
-      @@ fun () -> Eio.Fiber.with_binding current display (fun () -> f display)
+      @@ fun () ->
+      let v = Eio.Fiber.with_binding current display (fun () -> f display) in
+      last_out s;
+      v
     with
     | v -> v
     | exception e ->

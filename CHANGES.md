@@ -48,8 +48,8 @@ Initial release of `console` and `console-eio`.
   with Eio: it gives it the `Logs` messages, those of other Eio domains
   included, and the program's output on its terminal, and gives the
   terminal back when the function returns or raises, when its fiber is
-  cancelled, at exit and on SIGINT or SIGTERM. A `run` inside another gets
-  the same display. `~plain:true` prints the lines a pipe gets on a terminal
+  cancelled, at exit and on SIGINT or SIGTERM. A `run` inside another, or
+  in a fiber beside it, gets the same display. `~plain:true` prints the lines a pipe gets on a terminal
   too. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
   the rows off the screen while it asks.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
