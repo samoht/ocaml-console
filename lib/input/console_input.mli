@@ -18,9 +18,9 @@
     Editing is by whole UTF-8 character at the cursor: a printable character (or
     a multi-byte one, even when its bytes arrive across separate {!feed} calls)
     is inserted, backspace erases the character before the cursor, and the left
-    and right arrows step over one character. A character's width in cells is
-    measured as {!Span.width} measures it, so cursor motion is exact for wide
-    characters and emoji.
+    and right arrows step over one character. A character takes the cells a
+    terminal draws it in, two for a wide character or an emoji, so cursor motion
+    is exact for them.
 
     The keys, the history and the completion follow those of the [down] toplevel
     line editor. *)

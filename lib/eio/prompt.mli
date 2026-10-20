@@ -8,7 +8,7 @@
     A prompt writes a question on a formatter and reads the answer, one line,
     from an Eio flow, so a fiber waiting for an answer lets the others run. The
     terminal edits the line as the user types it; {!secret} alone switches the
-    terminal's echo off and edits the line with a {!Console.Input} editor that
+    terminal's echo off and edits the line with a {!Console_input} editor that
     shows a [*] for each character. A prompt with nobody to type an answer says
     so with an [Error] instead of waiting for ever.
 

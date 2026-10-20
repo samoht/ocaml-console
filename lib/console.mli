@@ -151,9 +151,6 @@ module Rule = Rule
 module Display = Display
 (** Progress rows that are redrawn in place while work runs. *)
 
-module Input = Input
-(** A line editor, with history and completion. *)
-
 (** {1:layout Layout} *)
 
 val hcat : ?gap:int -> unit Fmt.t list -> unit Fmt.t

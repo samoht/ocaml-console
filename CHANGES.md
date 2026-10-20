@@ -71,3 +71,6 @@
   a test of a program's output reads `0.0s` for every elapsed time.
 - `Console_eio.run ~plain:true` prints on a terminal the lines a pipe gets,
   for a program's `--progress=plain`.
+- The line editor is `Console_input`, in a `console.input` library of its
+  own, rather than `Console.Input`: a program that drives a serial line or
+  a network channel links it without the widgets.

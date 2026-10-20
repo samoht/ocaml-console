@@ -4,6 +4,7 @@
  (private_modules interrupt session terminal)
  (libraries
   console
+  console.input
   console.tty
   console.text
   eio

@@ -312,7 +312,7 @@ let test_application_arrows () =
   Alcotest.check lines "up arrow" [ "aXb" ] submitted
 
 let suite =
-  ( "input",
+  ( "console_input",
     [
       Alcotest.test_case "typed C1 control is a space" `Quick test_typed_c1;
       Alcotest.test_case "application mode arrows" `Quick

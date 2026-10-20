@@ -9,6 +9,7 @@
  (files README.md)
  (libraries
   console
+  console.input
   console.text
   console.tty
   console-eio

@@ -1,13 +1,12 @@
 ; Width is private to the library; its tests compile it in.
 
-(copy_files ../lib/width.{ml,mli})
+(copy_files ../lib/input/width.{ml,mli})
 
 (test
  (name test)
  (package console)
  (libraries
   console
-  console.input
   console.text
   console_vte
   matrix.glyph

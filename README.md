@@ -442,7 +442,6 @@ The `console` library:
 | `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Display` | Progress rows that update in place, under a scene such as a table, or plain lines outside a terminal |
-| `Console.Input` | A line editor that turns bytes typed into echo and lines, with history and completion; it does no input or output itself |
 
 The `console-eio` library:
 
@@ -464,6 +463,18 @@ with the `console` package; add `console.text` to the `libraries` of your
 - : string = "rm  [2J-rf"
 ```
 
+The `console.input` library has one module, `Console_input`, a line editor
+for a serial line, a network channel or a terminal in raw mode: it turns the
+bytes typed into what to echo and the lines entered, with a cursor, history
+and completion, and does no input or output itself, so the program reads the
+bytes and writes the echo back. It also comes with the `console` package:
+
+```ocaml
+# let editor = Console_input.v () in
+  Console_input.feed editor "ls\r";;
+- : string * string list = ("ls\r\n", ["ls"])
+```
+
 ## Related work
 
 - [Rich](https://github.com/Textualize/rich), the Python library console is
@@ -479,7 +490,7 @@ with the `console` package; add `console.text` to the `libraries` of your
 - [progress](https://github.com/CraigFe/progress), progress bars in OCaml.
 - [notty](https://github.com/pqwy/notty), for full-screen OCaml programs.
 - [down](https://erratique.ch/software/down), Daniel Bünzli's line editor
-  for the OCaml toplevel, which `Console.Input` follows for its keys, history
+  for the OCaml toplevel, which `Console_input` follows for its keys, history
   and completion.
 - [cli-spinners](https://github.com/sindresorhus/cli-spinners) by Sindre
   Sorhus (MIT), the source of the braille spinner's frames.

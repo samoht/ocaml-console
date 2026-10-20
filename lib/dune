@@ -1,3 +1,7 @@
+; Width is console.input's, compiled in.
+
+(copy_files input/width.{ml,mli})
+
 (library
  (name console)
  (public_name console)

@@ -16,7 +16,6 @@ module Table = Table
 module Tree = Tree
 module Rule = Rule
 module Display = Display
-module Input = Input
 
 let width lines = Array.fold_left (fun n l -> max n (Span_core.width l)) 0 lines
 

@@ -3,7 +3,5 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tests for {!Console_input}. *)
-
-val suite : string * unit Alcotest.test_case list
-(** [suite] is the Alcotest test suite for {!Test_input}. *)
+let () =
+  Alcotest.run "console.input" [ Test_console_input.suite; Test_width.suite ]

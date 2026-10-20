@@ -89,7 +89,7 @@ let rec read_masked t input =
   match Eio.Buf_read.any_char t.input with
   | exception End_of_file -> Error (`Msg "no answer: the input ended")
   | c -> (
-      let echo, lines = Console.Input.feed input (String.make 1 c) in
+      let echo, lines = Console_input.feed input (String.make 1 c) in
       Fmt.pf t.ppf "%s%!" echo;
       match lines with line :: _ -> Ok line | [] -> read_masked t input)
 
@@ -107,6 +107,6 @@ let secret t question =
         Fun.protect ~finally:restore @@ fun () ->
         Interrupt.protect ~restore @@ fun () ->
         Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
-        read_masked t (Console.Input.v ~mask:"*" ())
+        read_masked t (Console_input.v ~mask:"*" ())
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
