@@ -397,13 +397,14 @@ let has_text f =
     f.cur
 
 (* A word wider than the room goes on where the room ends; a cluster wider
-   than a whole line cannot be drawn and is left out. *)
+   than a whole line cannot be drawn and is left out, also when it is wider
+   than the room a hanging line leaves after the first. *)
 let split f i j =
   for k = i to j - 1 do
     let cw = cell_width f.l k in
     if cw <= room f then begin
       if f.cur_w + cw > room f then finish f;
-      add f k (k + 1)
+      if cw <= room f then add f k (k + 1)
     end
   done
 
