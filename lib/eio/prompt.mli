@@ -21,12 +21,10 @@ type t
 val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
 (** [v stdin] is a prompt reading answers from [stdin] and writing questions on
     [ppf] (defaults to {!Fmt.stderr}, so that standard output stays the
-    program's).
-
-    [interactive] defaults to whether [stdin] is a terminal: an Eio flow backed
-    by a Unix descriptor for which [isatty] holds. A prompt that is not
-    interactive answers [Error] to every question and writes nothing, rather
-    than blocking on input nobody will type.
+    program's), [interactive] or not (defaults to whether [stdin] is a terminal:
+    an Eio flow backed by a Unix descriptor for which [isatty] holds). A prompt
+    that is not interactive answers [Error] to every question and writes
+    nothing, rather than blocking on input nobody will type.
 
     One {!type-t} is created per program and reused: it owns the read buffer, so
     two questions in a row do not lose the input between them. *)
@@ -44,9 +42,8 @@ val line : t -> string -> (string, [ `Msg of string ]) result
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
     of ["y"] or ["yes"], compared after trimming surrounding whitespace and
-    ignoring case, and [false] for any other line, an empty one included: the
-    capital in [N] is the promise that only an explicit yes goes ahead. This is
-    [Error] when [t] is not interactive or the input ends. *)
+    ignoring case, and [false] for any other line, an empty one included. This
+    is [Error] when [t] is not interactive or the input ends. *)
 
 val secret : t -> string -> (string, [ `Msg of string ]) result
 (** [secret t question] is like {!line} but the answer is not shown: one [*] is
