@@ -7,8 +7,8 @@ open Alcobar
 open Console
 
 (* Text whose clusters, cells and bytes do not line up: wide characters, a
-   spacing mark that joins the letter before it, an emoji sequence, spaces,
-   punctuation and slashes. *)
+   spacing mark that joins the letter before it in a cluster of two cells,
+   an emoji sequence, spaces, punctuation and slashes. *)
 let alphabet =
   [|
     "x";
@@ -120,12 +120,23 @@ let test_truncate_closes s n =
 
 (* Every line fits, the result is never empty, and with room for any
    character every non-space one is kept, in order. *)
+(* The cells of the widest cluster of [s]. *)
+let widest s =
+  let w = ref 0 in
+  Glyph.String.iter_graphemes
+    (fun ~offset ~len ->
+      w := max !w (Width.string_width (String.sub s offset len)))
+    s;
+  !w
+
+(* Every character is kept but those wider than a line, which cannot be
+   drawn. *)
 let test_wrap s n =
   let s = span (text s) and w = width n in
   let lines = Span.wrap w s in
   check (lines <> []);
   List.iter (fun l -> check (Span.width l <= w)) lines;
-  if w >= 2 then
+  if w >= widest (plain s) then
     check_eq ~pp:Fmt.Dump.string
       (no_space (plain s))
       (no_space (String.concat "" (List.map plain lines)))

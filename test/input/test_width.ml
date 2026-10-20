@@ -10,7 +10,9 @@ let test_widths () =
   check "ASCII" 5 "hello";
   check "empty" 0 "";
   check "malformed UTF-8 is one replacement cell" 1 "\xff";
-  check "a spacing mark attaches to its letter" 1 "x\xe0\xa5\x80";
+  check "a spacing mark takes a cell of its own" 2 "x\xe0\xa5\x80";
+  check "a vowel sign after its consonant" 2 "\u{0915}\u{093F}";
+  check "a spacing mark alone" 1 "\u{093F}";
   check "a combining mark adds nothing" 1 "e\xcc\x81";
   check "CJK" 4 "\xe7\x95\x8c\xe7\x95\x8c";
   check "emoji" 2 "\xf0\x9f\x8e\x89";
@@ -30,7 +32,13 @@ let test_matches_terminal () =
         (String.escaped s)
         (snd (Console_vte.cursor_pos vte))
         (Width.string_width s))
-    [ "hello"; "\xe7\x95\x8c\xe7\x95\x8c"; "e\xcc\x81"; "\xf0\x9f\x8e\x89 ok" ]
+    [
+      "hello";
+      "\xe7\x95\x8c\xe7\x95\x8c";
+      "e\xcc\x81";
+      "\xf0\x9f\x8e\x89 ok";
+      "\u{0915}\u{093F} ok";
+    ]
 
 (* {1 Real terminals} *)
 

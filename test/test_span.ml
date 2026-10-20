@@ -32,8 +32,9 @@ let test_width_boundaries () =
   let suffix = "\xea\xa8\xb4" in
   let joined = Span.text ("x" ^ suffix) in
   let split = Span.(text "x" ++ styled Style.bold suffix) in
-  Alcotest.(check int) "joined cluster occupies one cell" 1 (Span.width joined);
-  Alcotest.(check int) "style changes do not add cells" 1 (Span.width split);
+  Alcotest.(check int)
+    "a spacing mark adds a cell to its cluster" 2 (Span.width joined);
+  Alcotest.(check int) "style changes do not add cells" 2 (Span.width split);
   Alcotest.(check int) "wide" 4 (Span.width (Span.text "界界"))
 
 let test_truncate () =

@@ -27,14 +27,18 @@
 #
 # Console's policy is the grapheme clustering of kitty and Ghostty: a
 # cluster takes the cells of its widest code point, an emoji sequence (ZWJ,
-# skin tone, flag, keycap, a valid VS16) two. Where every terminal agrees,
+# skin tone, flag, keycap, a valid VS16) two, and each spacing mark (general
+# category Mc) after its first code point one more, as xterm, VTE and
+# Ghostty draw it. Where every terminal agrees,
 # console must too; where they differ, console takes one of their counts.
 #
 # code points              | xterm | vte | kitty | wezterm | ghostty | iterm2 | console | what
 0068 0065 006C 006C 006F   | 5     | 5   | 5     | 5       | 5       | 5      | 5       | ASCII
 754C 754C                  | 4     | 4   | 4     | 4       | 4       | 4      | 4       | two CJK ideographs
 0065 0301                  | 1     | 1   | 1     | 1       | 1       | 1      | 1       | a combining mark
-0078 0940                  | 2     | 2   | 1     | ?       | 2       | ?      | 1       | a spacing mark
+0078 0940                  | 2     | 2   | 1     | ?       | 2       | ?      | 2       | a spacing mark
+0915 093F                  | 2     | 2   | 1     | ?       | 2       | ?      | 2       | a consonant and its vowel sign
+093F                       | 1     | 1   | 1     | ?       | ?       | ?      | 1       | a spacing mark alone
 1F389                      | 2     | 2   | 2     | 2       | 2       | 2      | 2       | an emoji
 1F468 200D 1F469 200D 1F467 | 6    | 6   | 2     | 2       | 2       | ?      | 2       | a ZWJ family
 1F1EB 1F1F7                | 2     | 2   | 2     | 2       | 2       | ?      | 2       | a flag
