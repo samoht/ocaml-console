@@ -50,6 +50,7 @@ val secret : t -> string -> (string, [ `Msg of string ]) result
     written for each character typed instead, then a line feed when the answer
     ends, and the answer is never retained. Masking switches echo off on the
     terminal behind [t]'s input, so this is [Error] when that input is not a
-    terminal, and when [t] is not interactive or the input ends. The terminal is
-    given back as it was found on return, on an exception and on SIGINT or
-    SIGTERM. *)
+    terminal, and when [t] is not interactive or the input ends. What is typed
+    before the question is masked, which the terminal shows, is discarded, as
+    getpass(3) does. The terminal is given back as it was found on return, on an
+    exception and on SIGINT or SIGTERM. *)

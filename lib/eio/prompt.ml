@@ -106,7 +106,10 @@ let secret t question =
         Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
         Interrupt.protect ~restore @@ fun () ->
-        Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original);
+        (* As getpass(3) does, the input not read yet is discarded with
+           the echo turned off: typed before the question was masked, the
+           terminal echoed it. *)
+        Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
         read_masked t (Console_input.v ~mask:"*" ())
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
