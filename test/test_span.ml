@@ -128,15 +128,32 @@ let test_link () =
   Alcotest.(check bool)
     "OSC 8 close" true
     (String.ends_with ~suffix:"\027]8;;\027\\" ansi);
-  Alcotest.check_raises "unsafe URI"
-    (Invalid_argument "Console.Span.link: unsafe URI character") (fun () ->
-      ignore (Span.link ~uri:"https://example.com\027bad" "bad"));
-  Alcotest.check_raises "space in URI"
-    (Invalid_argument "Console.Span.link: unsafe URI character") (fun () ->
-      ignore (Span.link ~uri:"https://example.com/a b" "bad"));
-  Alcotest.check_raises "empty URI"
-    (Invalid_argument "Console.Span.link: empty URI") (fun () ->
-      ignore (Span.link ~uri:"" "bad"))
+  (* RFC 3986, section 2.1: a byte that may not appear in a URI is
+     percent-encoded, as two upper-case hexadecimal digits. *)
+  let target uri =
+    let ansi = Span.to_string ~styled:true (Span.link ~uri "x") in
+    match String.index_opt ansi '\027' with
+    | Some 0 when String.starts_with ~prefix:"\027]8;;" ansi ->
+        let rest = String.sub ansi 5 (String.length ansi - 5) in
+        String.sub rest 0 (String.index rest '\027')
+    | _ -> ""
+  in
+  let check msg uri expected =
+    Alcotest.(check string) msg expected (target uri)
+  in
+  check "an escape" "https://example.com\027bad" "https://example.com%1Bbad";
+  check "a space" "https://example.com/a b" "https://example.com/a%20b";
+  check "a BEL" "https://example.com/\007" "https://example.com/%07";
+  check "a DEL" "https://example.com/\127" "https://example.com/%7F";
+  check "UTF-8" "https://example.com/caf\u{e9}" "https://example.com/caf%C3%A9";
+  check "characters RFC 3986 leaves out" "https://example.com/<a|b>{\"^`}\\"
+    "https://example.com/%3Ca%7Cb%3E%7B%22%5E%60%7D%5C";
+  check "reserved, unreserved and escapes kept"
+    "https://u:p@example.com:8/a-b._~c/!$&'()*+,;=?q=[1]#f%20"
+    "https://u:p@example.com:8/a-b._~c/!$&'()*+,;=?q=[1]#f%20";
+  Alcotest.(check string)
+    "an empty URI links nowhere" "x"
+    (Span.to_string ~styled:true (Span.link ~uri:"" "x"))
 
 (* One run of a style is written under one escape code. *)
 let test_runs () =

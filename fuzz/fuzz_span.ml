@@ -138,15 +138,37 @@ let test_wrap_refuses n =
   | _ -> fail "a non-positive width is refused"
   | exception Invalid_argument _ -> ()
 
-(* A link's label is all its plain form; a URI with a byte outside printable
-   ASCII, or an empty one, is refused. *)
+(* RFC 3986, sections 2.1 to 2.3: the characters a URI may hold, the
+   percent sign of an escape included. *)
+let uri_char = function
+  | 'A' .. 'Z'
+  | 'a' .. 'z'
+  | '0' .. '9'
+  | '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '[' | ']' | '@' | '!' | '$'
+  | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '%' ->
+      true
+  | _ -> false
+
+(* A link's label is all its plain form, and the target it writes holds
+   only the characters of a URI, as many escapes as [uri] has bytes outside
+   them; an empty URI writes no link. *)
 let test_link label uri =
-  let bad = uri = "" || String.exists (fun c -> c <= ' ' || c >= '\x7f') uri in
-  match Span.link ~uri label with
-  | l ->
-      if bad then fail "unsafe URI accepted";
-      check_eq ~pp:Fmt.Dump.string (plain (Span.text label)) (plain l)
-  | exception Invalid_argument _ -> if not bad then fail "safe URI refused"
+  let l = Span.link ~uri label in
+  check_eq ~pp:Fmt.Dump.string (plain (Span.text label)) (plain l);
+  let ansi = Span.to_string ~styled:true l in
+  match Re.exec_opt (Re.compile (Re.str "\027]8;;")) ansi with
+  | None -> if uri <> "" && plain l <> "" then fail "no link written"
+  | Some g ->
+      if uri = "" then fail "an empty URI linked";
+      let i = Re.Group.stop g 0 in
+      let rest = String.sub ansi i (String.length ansi - i) in
+      let target = String.sub rest 0 (String.index rest '\027') in
+      if not (String.for_all uri_char target) then fail "unsafe URI written";
+      let outside = ref 0 in
+      String.iter (fun c -> if not (uri_char c) then incr outside) uri;
+      check_eq ~pp:Fmt.int
+        (String.length uri + (2 * !outside))
+        (String.length target)
 
 (* [concat ~sep] puts [sep] between each two. *)
 let test_concat a b c =
