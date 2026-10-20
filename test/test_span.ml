@@ -160,7 +160,15 @@ let test_link () =
     "https://u:p@example.com:8/a-b._~c/!$&'()*+,;=?q=[1]#f%20";
   Alcotest.(check string)
     "an empty URI links nowhere" "x"
-    (Span.to_string ~styled:true (Span.link ~uri:"" "x"))
+    (Span.to_string ~styled:true (Span.link ~uri:"" "x"));
+  (* A form feed ends a line, as a line feed does: such a label has no text
+     to click, and the link is written over the lines that have some. *)
+  Alcotest.(check string)
+    "a label of line ends links nothing" "\n\n"
+    (Span.to_string ~styled:true (Span.link ~uri:"https://x" "\012\n"));
+  Alcotest.(check string)
+    "only the lines with text" "\n\027]8;;https://x\027\\a\027]8;;\027\\"
+    (Span.to_string ~styled:true (Span.link ~uri:"https://x" "\012a"))
 
 (* One run of a style is written under one escape code. *)
 let test_runs () =

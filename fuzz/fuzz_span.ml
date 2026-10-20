@@ -209,13 +209,16 @@ let uri_char = function
 
 (* A link's label is all its plain form, and the target it writes holds
    only the characters of a URI, as many escapes as [uri] has bytes outside
-   them; an empty URI writes no link. *)
+   them; an empty URI writes no link, and neither does a label of line ends
+   alone, which has no text to click. *)
 let test_link label uri =
   let l = Span.link ~uri label in
   check_eq ~pp:Fmt.Dump.string (plain (Span.text label)) (plain l);
   let ansi = Span.to_string ~styled:true l in
   match Re.exec_opt (Re.compile (Re.str "\027]8;;")) ansi with
-  | None -> if uri <> "" && plain l <> "" then fail "no link written"
+  | None ->
+      if uri <> "" && String.exists (( <> ) '\n') (plain l) then
+        fail "no link written"
   | Some g ->
       if uri = "" then fail "an empty URI linked";
       let i = Re.Group.stop g 0 in
