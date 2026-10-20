@@ -212,6 +212,120 @@ let test_hcat_styled () =
     (Span.to_string ~styled:true want ^ "  x")
     (printed ~styled:true (hcat [ block; text "x" ]))
 
+(* {1 Widgets as spans} *)
+
+(* [shown theme ~margin pp] is what [pp] prints on a formatter in [theme] at
+   [margin], without colours. *)
+let shown ?(utf_8 = true) theme ~margin pp =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Fmt.set_utf_8 ppf utf_8;
+  Format.pp_set_margin ppf margin;
+  pp ppf;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+let steps =
+  Table.v
+    [ Table.column (Span.text "step"); Table.column (Span.text "time") ]
+    [
+      [ Span.text "fetch"; Span.text "1.2s" ];
+      [ Span.text "build the whole tree"; Span.text "7.4s" ];
+    ]
+
+(* A widget as a span is laid out where it is printed, in that formatter's
+   theme and UTF-8, at the width it was given, as its [pp] lays it out. *)
+let test_to_span () =
+  let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ] in
+  let panel =
+    Panel.v ~title:(Span.text "t") (Span.text "a long line of text")
+  in
+  let rule = Rule.v ~label:(Span.text "r") () in
+  List.iter
+    (fun (theme, utf_8) ->
+      let same what ~width pp span =
+        Alcotest.(check string)
+          (Theme.name theme ^ ": " ^ what)
+          (shown ~utf_8 theme ~margin:width pp)
+          (shown ~utf_8 theme ~margin:200 (fun ppf -> Span.pp ppf span))
+      in
+      List.iter
+        (fun width ->
+          same "a table" ~width
+            (fun ppf -> Table.pp ppf steps)
+            (Table.to_span ~width steps);
+          same "a tree" ~width
+            (fun ppf -> Tree.pp ppf tree)
+            (Tree.to_span ~width tree);
+          same "a panel" ~width
+            (fun ppf -> Panel.pp ppf panel)
+            (Panel.to_span ~width panel);
+          same "a rule" ~width
+            (fun ppf -> Rule.pp ppf rule)
+            (Rule.to_span ~width rule))
+        [ 12; 20; 40 ])
+    [
+      (Theme.default, true);
+      (Theme.dos, true);
+      (Theme.ascii, true);
+      (Theme.default, false);
+    ];
+  Alcotest.(check string)
+    "natural width" (Table.to_string steps)
+    (Span.to_string (Table.to_span steps))
+
+(* Widgets nest as spans: a table in a panel in a table cell, drawn in the
+   theme of the formatter that prints the outermost. *)
+let test_nested () =
+  let inner = Panel.v (Table.to_span steps) in
+  let outer =
+    Table.v
+      [ Table.column (Span.text "a"); Table.column (Span.text "panel") ]
+      [ [ Span.text "x"; Panel.to_span inner ] ]
+  in
+  let lines s = String.split_on_char '\n' s in
+  let panel = lines (Panel.to_string inner) in
+  let got = lines (Table.to_string outer) in
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        ("the panel's line " ^ line)
+        true
+        (List.exists (Astring.String.is_infix ~affix:line) got))
+    panel;
+  let dos = shown Theme.dos ~margin:200 (fun ppf -> Table.pp ppf outer) in
+  let corners = List.length (Astring.String.cuts ~sep:"\u{2554}" dos) - 1 in
+  Alcotest.(check int) "three frames in the printing theme" 3 corners
+
+(* A theme whose frame takes two cells lays a widget out wider than the
+   default one: as a span, each line keeps the cells it takes in the default
+   theme, cut or padded to them. *)
+let test_to_span_cells () =
+  let wide =
+    Theme.v
+      ~border:
+        (Border.v
+           {
+             (Border.chars Border.single) with
+             left = "\u{2502}\u{2502}";
+             right = "\u{2502}\u{2502}";
+             top_left = "\u{250c}\u{2500}";
+             top_right = "\u{2500}\u{2510}";
+             bottom_left = "\u{2514}\u{2500}";
+             bottom_right = "\u{2500}\u{2518}";
+             left_cross = "\u{251c}\u{2500}";
+             right_cross = "\u{2500}\u{2524}";
+           })
+      ()
+  in
+  let span = Table.to_span steps in
+  let widths s = List.map Width.string_width (String.split_on_char '\n' s) in
+  Alcotest.(check (list int))
+    "the default theme's cells"
+    (widths (Table.to_string steps))
+    (widths (shown wide ~margin:200 (fun ppf -> Span.pp ppf span)))
+
 (* Composing widgets must retain their margin guarantee, even when the gaps
    alone consume all the available columns. *)
 let test_hcat_narrow () =
@@ -318,6 +432,10 @@ let suite =
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
+      Alcotest.test_case "widgets as spans" `Quick test_to_span;
+      Alcotest.test_case "widgets nest as spans" `Quick test_nested;
+      Alcotest.test_case "a widget span keeps its cells" `Quick
+        test_to_span_cells;
       Alcotest.test_case "hcat keeps a printer's styles" `Quick test_hcat_styled;
       Alcotest.test_case "side by side, shares of the margin" `Quick
         test_hcat_share;
