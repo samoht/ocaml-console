@@ -6,16 +6,58 @@
 open Console
 open Display_harness
 
-(* The DOS preset is ASCII through and through: a blocky bar, the ASCII spinner
-   and tree guide. *)
+let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  Option.iter (Theme.set ppf) theme;
+  Fmt.set_utf_8 ppf utf_8;
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color
+  end;
+  Format.pp_set_margin ppf margin;
+  pp ppf v;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* The DOS preset draws as DOS programs did in code page 437: double-line
+   frames, a header rule across them, tree guides of single lines, blocky
+   bars and the ASCII spinner; ASCII alone where UTF-8 is not shown. *)
 let test_dos () =
   let t = Theme.dos in
   Alcotest.(check string)
     "ascii spinner" "/"
     (Spinner.frame (Theme.spinner t) ~elapsed:0.1);
+  Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
+  let table =
+    Table.v
+      [ Table.column "a"; Table.column "b" ]
+      [ [ Span.text "1"; Span.text "2" ] ]
+  in
+  let tree = Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ] in
   Alcotest.(check string)
-    "ascii guide branch" "+-- "
-    (Guide.branch (Theme.guide t))
+    "double-line table"
+    "\u{2554}\u{2550}\u{2550}\u{2550}\u{2566}\u{2550}\u{2550}\u{2550}\u{2557}\n\
+     \u{2551} a \u{2551} b \u{2551}\n\
+     \u{2560}\u{2550}\u{2550}\u{2550}\u{256c}\u{2550}\u{2550}\u{2550}\u{2563}\n\
+     \u{2551} 1 \u{2551} 2 \u{2551}\n\
+     \u{255a}\u{2550}\u{2550}\u{2550}\u{2569}\u{2550}\u{2550}\u{2550}\u{255d}"
+    (printed ~theme:t Table.pp table);
+  Alcotest.(check string)
+    "double-line panel"
+    "\u{2554}\u{2550}\u{2550}\u{2550}\u{2557}\n\
+     \u{2551} 1 \u{2551}\n\
+     \u{255a}\u{2550}\u{2550}\u{2550}\u{255d}"
+    (printed ~theme:t Panel.pp (Panel.v (Span.text "1")));
+  Alcotest.(check string)
+    "single-line tree guides" "r\n\u{2514}\u{2500}\u{2500} c"
+    (printed ~theme:t Tree.pp tree);
+  Alcotest.(check string)
+    "ASCII table" "+---+---+\n| a | b |\n+---+---+\n| 1 | 2 |\n+---+---+"
+    (printed ~theme:t ~utf_8:false Table.pp table);
+  Alcotest.(check string)
+    "ASCII tree" "r\n+-- c"
+    (printed ~theme:t ~utf_8:false Tree.pp tree)
 
 let test_default () =
   let t = Theme.default in
@@ -83,20 +125,6 @@ let test_on_formatter () =
     "Fmt's renderer kept" true
     (Fmt.style_renderer ppf = `Ansi_tty);
   check "another formatter" Theme.default other
-
-let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Option.iter (Theme.set ppf) theme;
-  Fmt.set_utf_8 ppf utf_8;
-  if styled then begin
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color
-  end;
-  Format.pp_set_margin ppf margin;
-  pp ppf v;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
 
 (* A widget built once takes the look of each formatter it is printed on. *)
 let test_widgets_read_it () =
