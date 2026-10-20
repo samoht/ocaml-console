@@ -198,10 +198,12 @@ let draw buf t ~resized =
         lines
     end
     else begin
+      (* The region drawn afresh starts where the cursor is, which output
+         the display did not see may have left anywhere. *)
       clear buf t;
       Array.iteri
         (fun i line ->
-          if i > 0 then Buffer.add_string buf "\r\n";
+          Buffer.add_string buf (if i > 0 then "\r\n\027[K" else "\r\027[K");
           Buffer.add_string buf line)
         lines
     end;

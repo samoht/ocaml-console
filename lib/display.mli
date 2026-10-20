@@ -57,6 +57,15 @@
     terminal, console flushes {!Fmt.stdout} before each line it writes, so that
     [2>&1] keeps the order of the two outputs.
 
+    What the program prints goes out as it is, escape codes included: console
+    does not read it, so that the terminal shows what a pipe receives, colours,
+    tabs and hyperlinks too. Bytes that move the cursor or erase, such as a
+    carriage return, a move up or a clear, act on the lines above the region,
+    which console does not draw again; the region is drawn below wherever they
+    leave the cursor, from the first column, on rows it erases first. A mode
+    they set, such as a scroll region, the alternate screen or a shown cursor,
+    stays set.
+
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of its output, the level of a [Logs]
     message, and in the header whether work is still running and how it ended.
@@ -188,8 +197,10 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] takes the region off the screen, calls [f] with the
     display's formatter, as wide as the terminal, and draws the region again
     below what [f] printed, also when [f] raises. Output that [f] does not end
-    with a line feed is ended. This prints what console does not see, such as
-    the text of [print_string] or of a child process. *)
+    with a line feed is ended, and the region is drawn from the first column of
+    the row where [f] left the cursor, on rows it erases first. This prints what
+    console does not see, such as the text of [print_string] or of a child
+    process. *)
 
 val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
 (** [set_scene display scene] draws what [scene ~height ppf] prints above the

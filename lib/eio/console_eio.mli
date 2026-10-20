@@ -17,12 +17,14 @@
     While a display runs, your program's text goes to one of three places. What
     it prints on standard output with [Fmt.pr] is its result: console never
     moves or hides it. On the terminal it only waits for each whole line and
-    prints it above the progress rows. Under each running task, console shows
-    that task's latest lines (8 unless [~log_lines] says otherwise). Those lines
-    are either what you hand it with [Display.log], such as a command's output,
-    or the [Logs] messages logged inside the task, meaning in the function given
-    to [Display.with_task] or in a fiber that function started. Log messages
-    always stay. Command output stays only if the task fails.
+    prints it above the progress rows, as it is, escape codes included; the rows
+    are drawn again from the first column of the row the line left the cursor
+    on. Under each running task, console shows that task's latest lines (8
+    unless [~log_lines] says otherwise). Those lines are either what you hand it
+    with [Display.log], such as a command's output, or the [Logs] messages
+    logged inside the task, meaning in the function given to [Display.with_task]
+    or in a fiber that function started. Log messages always stay. Command
+    output stays only if the task fails.
 
     {t
       | What                                   | Terminal, while running | Terminal, once the task ends       | Pipe or CI                                         |
