@@ -9,7 +9,8 @@
    a password; or, with [colourless], it chose no colour before the display;
    or, with [widgets], it prints every widget before it; or, with [themed],
    it gave standard error a theme and chose nothing else; or, with [logs], it
-   logs from a fiber its task forked. It also prints a line on standard
+   logs from a fiber its task forked; or, with [suspend], it is stopped by
+   SIGTSTP, as Ctrl-Z does, and goes on once continued. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 let secret env =
@@ -63,6 +64,15 @@ let logs env =
             (fun () -> Logs.warn (fun m -> m "a forked note"))
             Eio.Fiber.yield))
 
+let suspend env =
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+      let task = Console.Display.task display "pausing" in
+      Console.Display.redraw display;
+      Unix.kill (Unix.getpid ()) Sys.sigtstp;
+      Console.Display.set_count task ~cur:1 ~total:2;
+      Console.Display.redraw display;
+      Console.Display.succeed task)
+
 let display env =
   let clock = Eio.Stdenv.mono_clock env in
   let run () =
@@ -88,4 +98,5 @@ let () =
   | [| _; "widgets" |] -> widgets env
   | [| _; "themed" |] -> themed env
   | [| _; "logs" |] -> logs env
+  | [| _; "suspend" |] -> suspend env
   | _ -> display env

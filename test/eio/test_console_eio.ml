@@ -122,8 +122,11 @@ let open_pty ~sw =
       Alcotest.skip ()
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
-   the terminal echoes what is typed once it has. *)
-let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
+   the terminal echoes what is typed once it has. With [continue], the child
+   is sent SIGCONT every tenth of a second, as a shell's [fg] does, until it
+   exits. *)
+let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
+    =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
@@ -156,7 +159,16 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
     | Error `Timeout -> if Option.is_none !status then drain ()
     | exception (End_of_file | Eio.Io _) -> ()
   in
-  Eio.Fiber.both (fun () -> status := Some (Eio.Process.await child)) drain;
+  let rec fg () =
+    if continue && Option.is_none !status then begin
+      Eio.Time.sleep clock 0.1;
+      (try Unix.kill (Eio.Process.pid child) Sys.sigcont
+       with Unix.Unix_error _ -> ());
+      fg ()
+    end
+  in
+  Eio.Fiber.all
+    [ (fun () -> status := Some (Eio.Process.await child)); drain; fg ];
   let echo = Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr in
   (Option.get !status, Buffer.contents written, echo.Unix.c_echo)
 
@@ -205,12 +217,14 @@ let test_teardown () =
       ("cancel", `Exited 0);
     ]
 
-(* The final screen of [teardown.exe how]. *)
-let final how =
-  let _, out = teardown how in
+(* The final screen of what a session wrote. *)
+let final_of out =
   let vte = Console_vte.v ~rows:24 ~cols:80 () in
   Console_vte.feed vte out;
   Console_vte.screen ~scrollback:true vte
+
+(* The final screen of [teardown.exe how]. *)
+let final how = final_of (snd (teardown how))
 
 (* Ctrl-C cancels the task, which keeps its window under its line; a task
    that succeeds drops its output. *)
@@ -317,6 +331,35 @@ let test_theme_not_a_choice () =
   in
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
+(* Ctrl-Z gives the terminal back before the program stops: the region is
+   erased and the cursor shown. Once continued, the region is drawn again and
+   the work goes on. *)
+let test_suspend () =
+  let status, out, _ = session ~continue:true "suspend" in
+  let show = "\027[?25h" in
+  let hidden = Option.get (Astring.String.find_sub ~sub:hide out) in
+  match Astring.String.find_sub ~start:hidden ~sub:show out with
+  | None -> Alcotest.fail "the cursor is not shown before the stop"
+  | Some stop ->
+      let before = String.sub out 0 (stop + String.length show) in
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte before;
+      Alcotest.(check bool)
+        "the cursor is shown" true
+        (Console_vte.cursor_visible vte);
+      Alcotest.(check bool)
+        "the region is erased" false
+        (List.exists (contains "pausing") (Console_vte.screen vte));
+      Alcotest.(check bool)
+        "the region is drawn again, the cursor hidden" true
+        (Option.is_some (Astring.String.find_sub ~start:stop ~sub:hide out));
+      Alcotest.(check bool)
+        "the work goes on" true
+        (List.exists (contains "\u{2713} pausing") (final_of out));
+      Alcotest.(check bool)
+        "exit status" true
+        (match status with `Exited 0 -> true | _ -> false)
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -339,6 +382,8 @@ let suite =
         test_sigint_secret;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
+      Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
+        test_suspend;
       Alcotest.test_case "SIGINT keeps the window of a cancelled task" `Quick
         test_sigint_window;
       Alcotest.test_case "Logs from a forked fiber on a terminal" `Quick
