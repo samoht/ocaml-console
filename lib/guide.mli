@@ -15,8 +15,10 @@ type t
 (** The type for the four glyphs that draw one level of nesting. *)
 
 val v : branch:string -> last:string -> pipe:string -> space:string -> t
-(** [v ~branch ~last ~pipe ~space] is a guide with the given glyphs, drawn
-    unstyled ({!with_style} styles it). *)
+(** [v ~branch ~last ~pipe ~space] is a guide with the given glyphs, drawn in
+    the muted colour of the theme of the formatter it is printed on
+    ({!Theme.muted}) until {!with_style} gives it a style other than
+    {!Style.none}. *)
 
 val branch : t -> string
 (** [branch t] is the non-final child connector. *)
@@ -31,7 +33,8 @@ val space : t -> string
 (** [space t] is the continuation for a final ancestor. *)
 
 val style : t -> Style.t
-(** [style t] is the style [t]'s glyphs are drawn in. *)
+(** [style t] is the style [t]'s glyphs are drawn in, {!Style.none} for the
+    theme's muted colour. *)
 
 val with_style : Style.t -> t -> t
 (** [with_style s t] is [t] drawn in [s]. *)

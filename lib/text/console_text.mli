@@ -30,8 +30,8 @@ val strip : ?keep_newlines:bool -> ?keep_styles:bool -> string -> string
     escape code is removed whole, a hyperlink's target or a window title
     included, but for [ESC E], the 7-bit next line, which ends a line. DEL and
     the C0 controls but a tab, ESC and the line ends, which a terminal acts on
-    without printing, are removed too: [strip "a\007b"] is ["ab"]. It holds no
-    escape, and [strip (strip s) = strip s].
+    without printing, are removed too: [strip "a\007b"] is ["ab"]. Without
+    [keep_styles] it holds no escape and [strip (strip s) = strip s].
 
     If [keep_styles] (defaults to [false]), the escape codes that only set
     colours and text attributes are kept, for relaying the output of a tool that

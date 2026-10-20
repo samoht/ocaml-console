@@ -8,9 +8,8 @@
     A colour is one of the 16 named ANSI colours, an entry of the xterm
     256-colour palette, or a 24-bit RGB colour.
 
-    A colour is kept and written as given. A terminal that shows fewer colours
-    is served by {!downsample}: a live display applies it to what it draws, and
-    a caller printing widgets itself applies it to its own colours. *)
+    A colour is kept as given and written at the {!val-depth} of the formatter
+    it is printed on ({!downsample}). *)
 
 (** {1:colours Colours} *)
 

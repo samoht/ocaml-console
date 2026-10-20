@@ -40,14 +40,16 @@ type t
 (** The type for borders. *)
 
 val v : ?style:Style.t -> chars -> t
-(** [v ~style chars] is the border drawn with [chars] in [style] (defaults to
-    {!Style.none}). *)
+(** [v ~style chars] is the border drawn with [chars] in [style]. Without
+    [style], or with {!Style.none}, it is drawn in the muted colour of the theme
+    of the formatter it is printed on ({!Theme.muted}). *)
 
 val chars : t -> chars
 (** [chars b] are the glyphs of [b], each control character in them a space. *)
 
 val style : t -> Style.t
-(** [style b] is the style [b]'s glyphs are drawn in. *)
+(** [style b] is the style [b]'s glyphs are drawn in, {!Style.none} for the
+    theme's muted colour. *)
 
 val with_style : Style.t -> t -> t
 (** [with_style s b] is [b] drawn in [s]. *)
