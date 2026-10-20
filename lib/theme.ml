@@ -6,6 +6,8 @@
 type mark =
   [ `Running | `Succeeded | `Failed | `Cancelled | `Info | `Warning | `Error ]
 
+type bar = [ `Line | `Block | `Ascii ]
+
 type t = {
   name : string;
   accent : Color.t;
@@ -19,6 +21,7 @@ type t = {
   border : Border.t;
   guide : Guide.t;
   spinner : Spinner.t;
+  bar : bar;
   marks : mark -> string;
 }
 
@@ -34,6 +37,7 @@ let background t = t.background
 let border t = t.border
 let guide t = t.guide
 let spinner t = t.spinner
+let bar t = t.bar
 
 (* A mark is drawn on one line, as text. *)
 let mark t m = Console_text.sanitize ~keep_newlines:false (t.marks m)
@@ -80,13 +84,14 @@ let default =
     border = Border.rounded;
     guide = Guide.unicode;
     spinner = Spinner.braille;
+    bar = `Line;
     marks = unicode_marks;
   }
 
 let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
     ?(warn = default.warn) ?(fail = default.fail) ?(muted = default.muted)
     ?(header = default.header) ?background ?(border = default.border)
-    ?(guide = default.guide) ?(spinner = default.spinner)
+    ?(guide = default.guide) ?(spinner = default.spinner) ?(bar = default.bar)
     ?(marks = default.marks) () =
   let palette =
     match palette with None | Some [] -> [ accent ] | Some p -> p
@@ -104,12 +109,13 @@ let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
     border;
     guide;
     spinner;
+    bar;
     marks;
   }
 
 let ascii =
   v ~name:"ascii" ~border:Border.ascii ~guide:Guide.ascii ~spinner:Spinner.ascii
-    ~marks:ascii_marks ()
+    ~bar:`Ascii ~marks:ascii_marks ()
 
 let dos_amber = Color.rgb 0xff 0xb0 0x00
 
@@ -118,7 +124,7 @@ let dos =
     ~fail:(Color.rgb 0xff 0x55 0x55) ~muted:(Color.rgb 0xa1 0x6c 0x00)
     ~header:Style.(bold + fg dos_amber)
     ~background:Color.black ~border:Border.ascii ~guide:Guide.ascii
-    ~spinner:Spinner.ascii ~marks:ascii_marks ()
+    ~spinner:Spinner.ascii ~bar:`Block ~marks:ascii_marks ()
 
 let matrix_green = Color.rgb 0x33 0xff 0x33
 

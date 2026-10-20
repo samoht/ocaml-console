@@ -37,6 +37,10 @@ val mark : look -> Theme.mark -> string
 (** [mark look m] is the mark of [m] in [look]'s theme, as {!glyph} shows it,
     with {!Theme.ascii}'s mark for ASCII. *)
 
+val bar : look -> Theme.bar
+(** [bar look] is the glyphs of a bar in [look]: its theme's, or [`Ascii] when
+    [look] is not UTF-8. *)
+
 val ellipsis : look -> string
 (** [ellipsis look] ends a cut line: U+2026 in UTF-8, three dots in ASCII. *)
 

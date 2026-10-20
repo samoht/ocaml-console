@@ -64,6 +64,7 @@ let spinner look ~elapsed =
 let mark look m =
   glyph look (Theme.mark look.theme m) ~ascii:(Theme.mark Theme.ascii m)
 
+let bar look = if look.utf_8 then Theme.bar look.theme else `Ascii
 let ellipsis look = if look.utf_8 then Span_core.ellipsis else "..."
 let truncate look w s = Span_core.truncate ~ellipsis:(ellipsis look) w s
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)

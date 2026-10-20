@@ -40,6 +40,16 @@ type mark =
   | `Error  (** A log line that reports an error. *) ]
 (** The type for the states a mark says. *)
 
+type bar =
+  [ `Line
+    (** Heavy horizontal lines (U+2501), filled to the half cell, in right and
+        left one eighth blocks (U+2595 and U+258F). *)
+  | `Block
+    (** Whole cells of full blocks (U+2588) on a light shade (U+2591), in square
+        brackets, as DOS programs drew progress. *)
+  | `Ascii  (** Whole cells of [#] on [-], in square brackets. *) ]
+(** The type for the glyphs of a {!Bar}. *)
+
 type t
 (** The type for themes. *)
 
@@ -56,6 +66,7 @@ val v :
   ?border:Border.t ->
   ?guide:Guide.t ->
   ?spinner:Spinner.t ->
+  ?bar:bar ->
   ?marks:(mark -> string) ->
   unit ->
   t
@@ -77,6 +88,8 @@ val v :
     - [border], [guide] and [spinner] are the frame of tables and panels, the
       lines of a tree and the spinner of a running task (default to
       {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
+    - [bar] is the glyphs of bars and of a display's progress (defaults to
+      [`Line]);
     - [marks] gives the mark of each state (defaults to those of {!default}). *)
 
 val name : t -> string
@@ -119,6 +132,10 @@ val guide : t -> Guide.t
 val spinner : t -> Spinner.t
 (** [spinner t] is the spinner of a running task. *)
 
+val bar : t -> bar
+(** [bar t] is the glyphs of bars and of a display's progress, drawn [`Ascii] on
+    a formatter that is not {!Fmt.utf_8}. *)
+
 val mark : t -> mark -> string
 (** [mark t m] is the mark of [m], on one line: a control character in it is a
     space. *)
@@ -141,14 +158,14 @@ val default : t
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
-    lines and spinner, and the marks of {!dos}. Every theme is drawn with these
-    on a formatter that is not {!Fmt.utf_8}; [ascii] is drawn with them on any.
-*)
+    lines, spinner and bars, and the marks of {!dos}. Every theme is drawn with
+    these on a formatter that is not {!Fmt.utf_8}; [ascii] is drawn with them on
+    any. *)
 
 val dos : t
 (** [dos] is amber on black, a darker amber muted and bold amber headers, with
-    ASCII frames, tree lines and spinner and the marks [[-]], [[+]], [[x]],
-    [[~]], [#], [!] and [x]. *)
+    ASCII frames, tree lines and spinner, [`Block] bars and the marks [[-]],
+    [[+]], [[x]], [[~]], [#], [!] and [x]. *)
 
 val matrix : t
 (** [matrix] is bright green on black, a darker green muted and bold green

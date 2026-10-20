@@ -5,18 +5,24 @@
 
 (** Horizontal bars, for progress and for figures.
 
-    A bar is [width] cells filled to a fraction of its length: a heavy
-    horizontal line (U+2501) in its colour, on a track of the same line in the
-    [track] style (defaults to the muted colour of the theme of the formatter it
-    is printed on, {!Theme.get}). A half filled cell is the left half of the
-    line (U+2578), and the track starts with its right half (U+257A) after a
-    whole filled cell, which leaves a gap between the two. [brackets] (defaults
-    to [false]) adds a right one eighth block (U+2595) before the bar and a left
-    one eighth block (U+258F) after it, in the track style, which makes the bar
-    two cells wider.
+    A bar is [width] cells filled to a fraction of its length in its colour, on
+    a track in the [track] style (defaults to the muted colour of the theme of
+    the formatter it is printed on, {!Theme.get}), in the glyphs of that theme
+    ({!Theme.val-bar}):
 
-    On a formatter that is not {!Fmt.utf_8}, the fill is whole cells of [#], the
-    track [-] and the brackets [\[] and [\]]. *)
+    - [`Line] draws a heavy horizontal line (U+2501), a half filled cell being
+      the left half of the line (U+2578) and the track starting with its right
+      half (U+257A) after a whole filled cell, which leaves a gap between the
+      two; brackets are a right one eighth block (U+2595) and a left one
+      (U+258F);
+    - [`Block] fills whole cells with full blocks (U+2588) on a track of light
+      shade (U+2591), in brackets [\[] and [\]];
+    - [`Ascii] fills whole cells with [#] on a track of [-], in brackets [\[]
+      and [\]]. Every theme draws its bars so on a formatter that is not
+      {!Fmt.utf_8}.
+
+    [brackets] (defaults to [false]) frames the bar in the track style, which
+    makes it two cells wider. *)
 
 type t
 (** The type for bars. *)
@@ -45,15 +51,15 @@ val pp : t Fmt.t
 (**/**)
 
 val span :
-  utf_8:bool ->
+  glyphs:Theme.bar ->
   style:Style.t ->
   track:Style.t ->
   brackets:bool ->
   width:int ->
   float ->
   Span.t
-(** [span ~utf_8 ~style ~track ~brackets ~width frac] is the bar of
-    [v ~style ~track ~brackets ~width frac] as a span, in ASCII unless [utf_8],
-    [frac] in the range 0 to 1. *)
+(** [span ~glyphs ~style ~track ~brackets ~width frac] is the bar of
+    [v ~style ~track ~brackets ~width frac] as a span, in [glyphs], [frac] in
+    the range 0 to 1. *)
 
 (**/**)
