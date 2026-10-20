@@ -55,8 +55,14 @@ let stripped =
     ("lone ESC", "a\027", "a");
     (* An ESC inside a control string ends it and opens what follows. *)
     ("ESC ends a string", "a\027]0;t\027[31mb", "ab");
-    (* 8.3.6 CAN: what precedes it is in error and ignored. *)
-    ("CAN ends a string", "a\027]0;t\024b", "a b");
+    (* 8.3.6 CAN and 8.3.148 SUB: what precedes it is in error and ignored;
+       the DEC parser xterm follows discards them, in a sequence or not. *)
+    ("CAN ends a string", "a\027]0;t\024b", "ab");
+    ("CAN ends a CSI", "a\027[3\024b", "ab");
+    ("SUB ends a CSI", "a\027[3\026b", "ab");
+    ("CAN ends an escape", "a\027(\024b", "ab");
+    ("lone CAN", "a\024b", "ab");
+    ("lone SUB", "a\026b", "ab");
     (* 5.3: the other C1 controls, ESC Fe and their 8-bit forms, and the
        ECMA-35 escape sequences ESC Fp, ESC Fs and ESC I F. *)
     ("RI, 7-bit", "a\027Mb", "ab");

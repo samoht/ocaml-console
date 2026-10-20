@@ -55,11 +55,27 @@ let test_line_ends s =
   let lines = String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 in
   check_eq ~pp:Fmt.int (line_ends s) (lines (Console_text.sanitize s))
 
+(* CAN and SUB print nothing: put between two characters of text that holds
+   no escape, they leave it as it was. *)
+let test_cancel_discarded s p sub =
+  let s = Console_text.strip s in
+  let rec boundary i =
+    if i >= String.length s then String.length s
+    else if Uchar.utf_decode_is_valid (String.get_utf_8_uchar s i) then i
+    else boundary (i + 1)
+  in
+  let i = boundary (if s = "" then 0 else p mod (String.length s + 1)) in
+  let c = if sub then "\026" else "\024" in
+  let with_c = String.sub s 0 i ^ c ^ String.sub s i (String.length s - i) in
+  check_eq ~pp:Fmt.Dump.string s (Console_text.strip with_c)
+
 let suite =
   ( "console_text",
     [
       test_case "sanitize and strip" [ bytes ] test_laws;
       test_case "one line feed per line end" [ bytes ] test_line_ends;
+      test_case "CAN and SUB print nothing" [ bytes; uint8; bool ]
+        test_cancel_discarded;
       test_case "sanitize_styles leaves nothing on" [ bytes ]
         test_styles_isolated;
     ] )
