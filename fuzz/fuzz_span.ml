@@ -269,9 +269,51 @@ let test_gradient s k =
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
 
+(* Fitting a gradient changes line breaks, not the colours of the text
+   kept. Compare terminal cells after joining the wrapped pieces again. *)
+let test_gradient_wrap s k =
+  let clusters =
+    [| "x"; "\u{754c}"; "e\u{0301}"; "\u{1f469}\u{200d}\u{1f4bb}"; "\u{0645}" |]
+  in
+  let input =
+    String.concat ""
+      (List.init
+         (min 64 (String.length s))
+         (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
+  in
+  let gradient = Span.with_style Style.bold (Span.gradient input) in
+  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let render span =
+    let buf = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color;
+    Span.pp ppf span;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  let width = 2 + (k mod 11) in
+  let pieces = Span.wrap width gradient in
+  List.iter (fun piece -> check (Span.width piece <= width)) pieces;
+  let raw = String.concat "" (List.map render pieces) in
+  check (String.is_valid_utf_8 raw);
+  check_eq ~pp:Fmt.Dump.string input (Console_text.strip raw);
+  let cols = Span.width gradient + 2 in
+  let expected = Vte.create ~rows:1 ~cols ()
+  and actual = Vte.create ~rows:1 ~cols () in
+  Vte.feed_string expected (render gradient ^ "!");
+  Vte.feed_string actual (raw ^ "!");
+  for i = 0 to cols - 1 do
+    if not (Grid.cells_equal (Vte.grid expected) i (Vte.grid actual) i) then
+      failf "wrapping changed the glyph or colour at column %d" i
+  done
+
 let suite =
   ( "span",
     [
+      test_case "wrapping a gradient preserves glyphs and colours"
+        [ bytes; uint8 ] test_gradient_wrap;
       test_case "linked Unicode cuts fit and keep complete escapes"
         [ bytes; uint8 ] test_linked_unicode_cuts;
       test_case "multiline styles reset before LF" [ bytes ]
