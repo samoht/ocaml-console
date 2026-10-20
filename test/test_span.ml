@@ -344,6 +344,29 @@ let test_role () =
     "sanitized" "a b"
     (Span.to_string (Span.role `Fail "a\027b"))
 
+(* A role laid under a span: its own styles and links win, a line of it at
+   a time. *)
+let test_with_role () =
+  let check what want got =
+    Alcotest.(check string)
+      what
+      (printed ~theme:Theme.nord ~depth:`True_color want)
+      (printed ~theme:Theme.nord ~depth:`True_color got)
+  in
+  let nord = Theme.ok Theme.nord in
+  check "a role is a role laid under text" (Span.role `Ok "a\nb")
+    (Span.with_role `Ok (Span.text "a\nb"));
+  check "a link in a role"
+    (Span.link ~style:(Style.fg nord) ~uri:"https://ocaml.org" "docs")
+    (Span.with_role `Ok (Span.link ~uri:"https://ocaml.org" "docs"));
+  check "the span's own colour wins"
+    Span.(styled Style.(fg nord) "a" ++ styled Style.(fg Color.red) "b")
+    (Span.with_role `Ok Span.(text "a" ++ styled Style.(fg Color.red) "b"));
+  Alcotest.(check string)
+    "plain without colour" "ab"
+    (printed ~theme:Theme.nord
+       (Span.with_role `Ok Span.(text "a" ++ styled Style.bold "b")))
+
 let suite =
   ( "span",
     [
@@ -370,6 +393,7 @@ let suite =
       Alcotest.test_case "depth" `Quick test_depth;
       Alcotest.test_case "gradient" `Quick test_gradient;
       Alcotest.test_case "role" `Quick test_role;
+      Alcotest.test_case "with_role" `Quick test_with_role;
       Alcotest.test_case "gradient in the theme's palette" `Quick
         test_gradient_theme;
     ] )
