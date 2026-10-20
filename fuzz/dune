@@ -4,6 +4,7 @@
 
 (executable
  (name fuzz)
+ (modules :standard \ fuzz_eio fuzz_console_eio)
  (libraries
   console
   console.input
@@ -38,3 +39,28 @@
   (progn
    (run %{exe:fuzz.exe} --gen-corpus corpus)
    (run afl-fuzz -V 60 -i corpus -o _fuzz -- %{exe:fuzz.exe} @@))))
+
+; Eio properties have their own runner so the pure package needs no Eio.
+
+(executable
+ (name fuzz_eio)
+ (modules fuzz_eio fuzz_console_eio)
+ (libraries console-eio eio eio.mock logs fmt alcobar))
+
+(rule
+ (alias runtest)
+ (package console-eio)
+ (enabled_if
+  (<> %{profile} afl))
+ (action
+  (run %{exe:fuzz_eio.exe} --budget 0.3)))
+
+(rule
+ (alias fuzz)
+ (package console-eio)
+ (enabled_if
+  (= %{profile} afl))
+ (action
+  (progn
+   (run %{exe:fuzz_eio.exe} --gen-corpus corpus-eio)
+   (run afl-fuzz -V 60 -i corpus-eio -o _fuzz_eio -- %{exe:fuzz_eio.exe} @@))))

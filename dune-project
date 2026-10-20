@@ -54,4 +54,5 @@
   (mdx :with-test)
   (cmdliner :with-test)
   (cstruct :with-test)
-  (eio_main :with-test)))
+  (eio_main :with-test)
+  (alcobar :with-test)))
