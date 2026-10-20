@@ -147,6 +147,10 @@ let test_line_ends () =
   check "LF CR" "a\n\nb" strip "a\n\rb";
   check "CR, an escape, LF" "a\nb" strip "a\r\027[K\nb";
   check "NEL" "a\nb" Console_text.sanitize "a\u{0085}b";
+  (* 8.3.161 VT and 8.3.51 FF move to the next line, as a terminal's LF. *)
+  check "VT" "a\nb" strip "a\011b";
+  check "FF" "a\nb" Console_text.sanitize "a\012b";
+  check "CR FF" "a\nb" strip "a\r\012b";
   check "CR NEL" "a\nb" strip "a\r\u{0085}b";
   check "NEL ends a sequence" "a\nb" strip "a\027[3\u{0085}b";
   check "NEL without keep_newlines" "a b"
