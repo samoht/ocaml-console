@@ -5,7 +5,7 @@
 
 (* Eighth-of-a-cell glyphs. *)
 let eighths = [| " "; "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
-let default_style = Style.fg (Theme.accent Theme.unicode)
+let default_style = Style.fg (Theme.accent Theme.default)
 
 let framed ~track ~brackets body =
   if brackets then

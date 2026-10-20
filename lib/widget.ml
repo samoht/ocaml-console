@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let border ?(theme = Theme.unicode) ?border () =
+let border ?(theme = Theme.default) ?border () =
   match border with Some border -> border | None -> Theme.border theme
 
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)

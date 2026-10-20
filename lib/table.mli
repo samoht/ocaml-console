@@ -60,7 +60,7 @@ val v :
   Span.t list list ->
   t
 (** [v columns rows] is the table of [rows] under [columns]. The frame is
-    [border] if given, else [theme]'s (defaults to {!Theme.unicode}, whose
+    [border] if given, else [theme]'s (defaults to {!Theme.default}, whose
     border is {!Border.rounded}, as {!Panel.v}'s); the headers are in
     [header_style] (defaults to {!Style.bold}). A cell may hold line feeds,
     which start new lines inside its row.

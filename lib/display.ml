@@ -51,7 +51,7 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-let v ?(theme = Theme.unicode) ?(layout = Line.default) ?header ?size ~now ppf =
+let v ?(theme = Theme.default) ?(layout = Line.default) ?header ?size ~now ppf =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)

@@ -128,7 +128,7 @@ val v :
       height, read again before each redraw: the display hides the cursor and
       redraws its rows in place. Without it the display prints lines in turn.
     - [header], if given, names the work on a line above the rows.
-    - [theme] (defaults to {!Theme.unicode}) gives the colours and marks, and
+    - [theme] (defaults to {!Theme.default}) gives the colours and marks, and
       [layout] (defaults to {!Line.default}) the pieces of each row.
 
     The display is in colour iff [ppf]'s style renderer is [`Ansi_tty], at

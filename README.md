@@ -68,7 +68,7 @@ a summary:
 Each line starts with a mark that says how its task ended; the theme chooses
 the marks:
 
-| Task | `Theme.unicode` | `Theme.dos` |
+| Task | `Theme.default` | `Theme.dos` |
 |---|---|---|
 | succeeded | `✓` | `[+]` |
 | failed | `✗` | `[x]` |
@@ -319,7 +319,7 @@ with the `console` package; add `console.text` to the `libraries` of your
 Each picture is [the same program](examples/themes/main.ml) in one theme,
 recorded by [its tape](examples/themes/tape.ml).
 
-### `Theme.unicode`
+### `Theme.default`
 
 ![The theme demo in unicode](examples/themes/unicode.png)
 

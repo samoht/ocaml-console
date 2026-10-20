@@ -21,7 +21,7 @@ val v :
 (** [v ~width frac] is a [width]-cell bar filled to [frac] of its length,
     rounded to the nearest eighth of a cell: full blocks (U+2588), then the
     block of the partial cell's eighths (U+258F for one to U+2589 for seven), in
-    [style] (defaults to [Style.fg (Theme.accent Theme.unicode)]). [frac] is
+    [style] (defaults to [Style.fg (Theme.accent Theme.default)]). [frac] is
     clamped to the range 0 to 1, NaN being 0. The invariant
     [Span.width (v ~brackets ~width frac) = width + (if brackets then 2 else 0)]
     holds.

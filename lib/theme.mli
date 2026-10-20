@@ -46,13 +46,13 @@ val v :
   ?marks:(mark -> string) ->
   unit ->
   t
-(** [v ()] is {!unicode} with the given parts replaced:
+(** [v ()] is {!default} with the given parts replaced:
 
-    - [accent] is the main colour (defaults to {!unicode}'s teal);
+    - [accent] is the main colour (defaults to {!default}'s teal);
     - [palette] are the colours successive progress rows take in turn (defaults
       to [[accent]], as does [[]]);
     - [ok], [warn] and [fail] colour the marks of a success, of a warning or a
-      cancellation, and of a failure or an error (default to {!unicode}'s green,
+      cancellation, and of a failure or an error (default to {!default}'s green,
       amber and red);
     - [header] is the style of a display's header (defaults to {!Style.bold});
     - [background] is the background the colours are chosen for, light or dark
@@ -60,7 +60,7 @@ val v :
     - [border], [guide] and [spinner] are the frame of tables and panels, the
       lines of a tree and the spinner of a running task (default to
       {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
-    - [marks] gives the mark of each state (defaults to those of {!unicode}). *)
+    - [marks] gives the mark of each state (defaults to those of {!default}). *)
 
 val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
@@ -103,15 +103,15 @@ val mark : t -> mark -> string
     The themes after {!rainbow} take their colours from a colour scheme, as its
     authors define them; their {!background} is the scheme's. *)
 
-val unicode : t
-(** [unicode] is teal, with a green, an amber and a red taken from the xterm
+val default : t
+(** [default] is teal, with a green, an amber and a red taken from the xterm
     256-colour palette (entries 30, 28, 136 and 160) for their contrast on dark
     and light backgrounds alike, with rounded frames, a braille spinner and, for
     the states of {!type-mark} in order, a bullet, a check mark, a cross, a
     circle, a single right-pointing angle quotation mark, [!] and a cross. *)
 
 val ascii : t
-(** [ascii] is {!unicode} drawn with ASCII characters only: ASCII frames, tree
+(** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
     lines and spinner, and the marks of {!dos}. It is the look for a terminal
     whose character set is not UTF-8. *)
 
@@ -124,7 +124,7 @@ val matrix : t
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
-    from the xterm 256-colour palette as {!unicode}'s are. *)
+    from the xterm 256-colour palette as {!default}'s are. *)
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background

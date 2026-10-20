@@ -17,8 +17,8 @@ let test_dos () =
     "ascii guide branch" "+-- "
     (Guide.branch (Theme.guide t))
 
-let test_unicode () =
-  let t = Theme.unicode in
+let test_default () =
+  let t = Theme.default in
   Alcotest.(check string)
     "braille spinner" "⠙"
     (Spinner.frame (Theme.spinner t) ~elapsed:0.1)
@@ -29,13 +29,11 @@ let test_rainbow () =
     "palette of six colours" 6
     (List.length (Theme.palette t))
 
-(* [v] is the unicode theme with the parts it is given replaced, and its
+(* [v] is the default theme with the parts it is given replaced, and its
    palette follows its accent. *)
 let test_v_defaults () =
   let t = Theme.v ~accent:Color.red ~spinner:Spinner.ascii () in
-  Alcotest.(check string)
-    "default unicode guide" "├── "
-    (Guide.branch (Theme.guide t));
+  Alcotest.(check string) "default guide" "├── " (Guide.branch (Theme.guide t));
   Alcotest.(check bool)
     "palette is the accent" true
     (match Theme.palette t with [ c ] -> Color.equal c Color.red | _ -> false);
@@ -87,7 +85,7 @@ let contrast c0 c1 =
 let presets =
   Theme.
     [
-      ("unicode", unicode);
+      ("default", default);
       ("ascii", ascii);
       ("dos", dos);
       ("matrix", matrix);
@@ -142,7 +140,7 @@ let suite =
   ( "theme",
     [
       Alcotest.test_case "dos preset" `Quick test_dos;
-      Alcotest.test_case "unicode preset" `Quick test_unicode;
+      Alcotest.test_case "default preset" `Quick test_default;
       Alcotest.test_case "rainbow preset" `Quick test_rainbow;
       Alcotest.test_case "v defaults" `Quick test_v_defaults;
       Alcotest.test_case "schemes" `Quick test_schemes;

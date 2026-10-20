@@ -25,7 +25,7 @@ val v :
 (** [v content] is a panel around [content].
 
     - The border is [border] if given, else [theme]'s (defaults to
-      {!Theme.unicode}, whose border is {!Border.rounded}, as {!Table.v}'s).
+      {!Theme.default}, whose border is {!Border.rounded}, as {!Table.v}'s).
     - [title] / [subtitle] label the top / bottom edge.
     - [padding] is the internal horizontal padding (default [1]).
     - [width] fixes the width, cutting content and edge labels to keep the box a

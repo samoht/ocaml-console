@@ -164,7 +164,7 @@ let test_wide_border n =
 let themes =
   Theme.
     [
-      unicode;
+      default;
       dos;
       matrix;
       rainbow;

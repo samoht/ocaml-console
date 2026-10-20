@@ -28,7 +28,7 @@ let test_theme s n =
       Fmt.kstr ignore "%a" Theme.pp t)
     [
       t;
-      Theme.unicode;
+      Theme.default;
       Theme.dos;
       Theme.matrix;
       Theme.rainbow;

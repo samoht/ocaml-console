@@ -10,7 +10,7 @@ open Console
 
 let themes =
   [
-    ("unicode", Theme.unicode);
+    ("unicode", Theme.default);
     ("dos", Theme.dos);
     ("matrix", Theme.matrix);
     ("rainbow", Theme.rainbow);
@@ -65,7 +65,7 @@ let progress ~clock theme =
 
 let () =
   let name = if Array.length Sys.argv > 1 then Sys.argv.(1) else "unicode" in
-  let theme = try List.assoc name themes with Not_found -> Theme.unicode in
+  let theme = try List.assoc name themes with Not_found -> Theme.default in
   Console_eio.setup ~style_renderer:`Ansi_tty ();
   widgets theme;
   Eio_main.run @@ fun env -> progress ~clock:(Eio.Stdenv.clock env) theme

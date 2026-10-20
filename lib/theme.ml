@@ -60,7 +60,7 @@ let red = Color.palette 160
 let blue = Color.palette 63
 let magenta = Color.palette 164
 
-let unicode =
+let default =
   {
     accent = teal;
     palette = [ teal ];
@@ -75,10 +75,10 @@ let unicode =
     marks = unicode_marks;
   }
 
-let v ?(accent = unicode.accent) ?palette ?(ok = unicode.ok)
-    ?(warn = unicode.warn) ?(fail = unicode.fail) ?(header = unicode.header)
-    ?background ?(border = unicode.border) ?(guide = unicode.guide)
-    ?(spinner = unicode.spinner) ?(marks = unicode.marks) () =
+let v ?(accent = default.accent) ?palette ?(ok = default.ok)
+    ?(warn = default.warn) ?(fail = default.fail) ?(header = default.header)
+    ?background ?(border = default.border) ?(guide = default.guide)
+    ?(spinner = default.spinner) ?(marks = default.marks) () =
   let palette =
     match palette with None | Some [] -> [ accent ] | Some p -> p
   in

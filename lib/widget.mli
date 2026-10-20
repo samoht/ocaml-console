@@ -7,7 +7,7 @@
 
 val border : ?theme:Theme.t -> ?border:Border.t -> unit -> Border.t
 (** [border ~theme ~border ()] is [border] if given, else the border of [theme]
-    (defaults to {!Theme.unicode}). *)
+    (defaults to {!Theme.default}). *)
 
 val one_line : Span.t -> Span.t
 (** [one_line s] is [s] with each line feed a space. *)
