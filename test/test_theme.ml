@@ -239,7 +239,10 @@ let test_header () =
         Alcotest.failf "%s: plain headers" name)
     presets
 
-let sgr style = Style.sgr `True_color style
+(* The escape code that selects [style], as a span in it starts. *)
+let sgr style =
+  let s = Span.to_string ~styled:true (Span.styled style "x") in
+  String.sub s 0 (String.index s 'x')
 
 (* Frames, guides, rules, the track of a bar and the counts and timers of a
    display are in the theme's muted colour; table headers, panel titles and

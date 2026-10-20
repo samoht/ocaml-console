@@ -5,6 +5,9 @@
 
 (** Values kept on a formatter.
 
+    This library is internal to [console] and [console.tty], and no other
+    package can link it.
+
     A slot holds one value per formatter, kept as {!Fmt} keeps its style
     renderer: in the semantic tag functions of the formatter, so that it lives
     as long as the formatter and {!Fmt.with_buffer}[ ~like] carries it over. *)

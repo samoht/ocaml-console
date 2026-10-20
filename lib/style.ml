@@ -5,7 +5,7 @@
 
 open Sgr
 
-type t = Color.t style
+type t = Color.t Sgr.style
 
 let none =
   {
@@ -55,10 +55,6 @@ let equal left right =
   && Option.equal Color.equal left.bg right.bg
 
 let is_none style = equal style none
-
-let sgr depth style =
-  let down = Option.map (fun c -> Color.to_sgr (Color.downsample depth c)) in
-  start { style with fg = down style.fg; bg = down style.bg }
 
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"

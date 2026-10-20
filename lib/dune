@@ -11,6 +11,7 @@
   display_state
   display_text
   inked
+  escape
   sgr
   span_core))
 

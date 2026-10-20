@@ -239,7 +239,15 @@ let test_choice_kept () =
 let test_theme_not_a_choice () =
   let _, out, _ = session "themed" in
   let nord =
-    Console.(Style.(sgr `Ansi_256 (bold + fg (Theme.ok Theme.nord))))
+    let buf = Buffer.create 16 in
+    let ppf = Format.formatter_of_buffer buf in
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Console.Color.set_depth ppf `Ansi_256;
+    Console.(
+      Span.pp ppf (Span.styled Style.(bold + fg (Theme.ok Theme.nord)) "x"));
+    Format.pp_print_flush ppf ();
+    let s = Buffer.contents buf in
+    String.sub s 0 (String.index s 'x')
   in
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
