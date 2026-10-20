@@ -39,10 +39,13 @@ val terminal :
   ?layout:Display.Line.t ->
   ?theme:Theme.t ->
   ?styled:bool ->
+  ?raw:bool ->
   unit ->
   term
 (** [terminal ()] is a display on a terminal of [width] by [height] (defaults to
-    40 by 8), in colour iff [styled] (defaults to [false]). *)
+    40 by 8), in colour iff [styled] (defaults to [false]). If [raw] (defaults
+    to [false]) the terminal's line discipline is in raw mode: a line feed moves
+    down and keeps the column. *)
 
 val written : term -> string
 (** [written t] is every byte the display wrote, in order. *)

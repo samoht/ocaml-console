@@ -87,6 +87,15 @@ let check_chunk_lines ~width chunk =
           width l)
     (String.split_on_char '\n' chunk)
 
+(* Every line feed the display writes on a terminal follows a carriage
+   return, so a tty in raw mode starts each line at the first column too. *)
+let check_line_ends chunk =
+  String.iteri
+    (fun i c ->
+      if c = '\n' && (i = 0 || chunk.[i - 1] <> '\r') then
+        failf "a bare line feed at byte %d of %S" i chunk)
+    chunk
+
 (* Every style turned on in a chunk is off again at the end of each line. *)
 let check_styles_closed chunk =
   List.iter
@@ -149,7 +158,10 @@ let terminal ~width ~height ~styled =
     if s <> "" then begin
       incr t.chunks;
       (* What the program writes under [with_output] is its own. *)
-      if not !(t.in_output) then check_chunk_lines ~width:(fst !(t.size)) s;
+      if not !(t.in_output) then begin
+        check_chunk_lines ~width:(fst !(t.size)) s;
+        check_line_ends s
+      end;
       if styled then check_styles_closed s;
       Vte.feed_string t.vte s
     end
@@ -405,7 +417,10 @@ let test_static_rows_and_idle n =
   let t = terminal ~width:60 ~height:10 ~styled:true in
   let d = display t in
   let task = Display.task d "moving" in
-  Display.with_output d (fun ppf -> Fmt.pf ppf "STATIC_SENTINEL@.");
+  Display.with_output d (fun ppf ->
+      t.in_output := true;
+      Fmt.pf ppf "STATIC_SENTINEL@.";
+      t.in_output := false);
   let before = screen t.vte in
   let rec prefix = function
     | [] -> fail "permanent output missing"

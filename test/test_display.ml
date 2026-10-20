@@ -157,6 +157,32 @@ let test_region () =
   Alcotest.(check bool) "cursor shown" true (contains "\027[?25h" (written t));
   Alcotest.(check bool) "no CRLF" false (contains "\r\n" (written t))
 
+(* With the tty in raw mode a line feed keeps the column, so a line that
+   began with a bare line feed would start where the one above it ended: the
+   screen of a raw tty is that of a cooked one. *)
+let test_raw_tty () =
+  let run raw =
+    let t = terminal ~theme ~width:40 ~header:"Build" ~raw () in
+    let a = Display.task t.display "fetch" in
+    let b = Display.task t.display "compile" in
+    Display.set_count b ~cur:1 ~total:4;
+    Display.redraw t.display;
+    let live = screen t in
+    Display.succeed a;
+    Display.message t.display "note";
+    Display.set_count b ~cur:2 ~total:4;
+    Display.redraw t.display;
+    let later = screen t in
+    Display.succeed b;
+    Display.close t.display;
+    (live, later, lines t)
+  in
+  let live, later, final = run false in
+  let live', later', final' = run true in
+  check_lines "the region" live live';
+  check_lines "the region after a line above it" later later';
+  check_lines "the final screen" final final'
+
 let test_tail () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let a = Display.task ~log_lines:2 t.display "job" in
@@ -432,6 +458,7 @@ let suite =
       Alcotest.test_case "empty live header remains pending" `Quick
         test_empty_header_pending;
       Alcotest.test_case "region" `Quick test_region;
+      Alcotest.test_case "a raw tty" `Quick test_raw_tty;
       Alcotest.test_case "tail" `Quick test_tail;
       Alcotest.test_case "alignment" `Quick test_alignment;
       Alcotest.test_case "label truncated" `Quick test_label_truncated;

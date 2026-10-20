@@ -29,8 +29,22 @@ type term = {
   chunks : string list ref;
 }
 
+(* A tty with output processing off passes a line feed through as is: down
+   one row, same column. The emulator returns to the first column on a line
+   feed, so the column is put back after it. *)
+let feed_raw vte s =
+  List.iteri
+    (fun i part ->
+      if i > 0 then begin
+        let col = min (snd (Vte.cursor_pos vte)) (Vte.cols vte - 1) in
+        Vte.feed_string vte "\n";
+        if col > 0 then Vte.feed_string vte (Fmt.str "\027[%dG" (col + 1))
+      end;
+      Vte.feed_string vte part)
+    (String.split_on_char '\n' s)
+
 let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
-    ?(styled = false) () =
+    ?(styled = false) ?(raw = false) () =
   let buffer = Buffer.create 512 in
   let vte = Vte.create ~rows:height ~cols:width () in
   let chunks = ref [] and size = ref (width, height) in
@@ -40,7 +54,7 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
     Buffer.clear buffer;
     if s <> "" then begin
       chunks := s :: !chunks;
-      Vte.feed_string vte s
+      if raw then feed_raw vte s else Vte.feed_string vte s
     end
   in
   let ppf = Format.make_formatter out_string out_flush in
