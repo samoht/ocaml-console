@@ -3,9 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The display that runs, and what goes on around it: the program's output
-    above its region, {!Logs} messages, the redraws, and its closing however the
-    program ends. *)
+(** The display that runs, and what goes on around it: the program's output and
+    {!Logs} messages, the redraws, and its closing however the program ends. *)
 
 val find : unit -> Console.Display.t option
 (** [find ()] is the display of the calling fiber, if any. *)
@@ -13,7 +12,8 @@ val find : unit -> Console.Display.t option
 val scope : Console.Display.scope
 (** [scope] is the scope in which the current task is that of the innermost
     {!Console.Display.with_task} of the calling fiber or of the fibers it forked
-    from. A fiber cancelled in it cancels its task. *)
+    from. A fiber cancelled in a {!Console.Display.with_task} cancels its task.
+*)
 
 val claim : unit -> unit
 (** [claim ()] makes the caller the one that opens a display, until {!release}.
@@ -38,9 +38,9 @@ val run :
 (** [run ~sleep ~intercept display f] is [f display], with [display] the calling
     fiber's and the program's one, redrawn ten times a second, waiting with
     [sleep], {!Logs} messages and each whole line written on the formatters of
-    [intercept] printed above its region, and closed when [f] returns, raises,
-    is cancelled, the program exits or a signal ends it ({!Interrupt}). While
-    SIGTSTP stops the program, the region is off the screen and the cursor shown
-    with [cursor true] (default does nothing); once continued, [cursor false]
-    hides it and the region is drawn again. A {!claim} must be held; it is
-    released. *)
+    [intercept] given to the current task, or printed above its region outside a
+    task, and closed when [f] returns, raises, is cancelled, the program exits
+    or a signal ends it ({!Interrupt}). While SIGTSTP stops the program, the
+    region is off the screen and the cursor shown with [cursor true] (default
+    does nothing); once continued, [cursor false] hides it and the region is
+    drawn again. A {!claim} must be held; it is released. *)

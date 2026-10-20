@@ -11,7 +11,8 @@
 
 open Console
 
-(* The compiler's warnings, which stay above the rows after the step's name. *)
+(* The compiler's warnings, which stay above the rows once their step is done.
+*)
 let src = Logs.Src.create "ocamlopt" ~doc:"The compiler's diagnostics"
 
 type step = { name : string; mutable status : Span.t; mutable detail : string }
@@ -38,7 +39,7 @@ let started name =
     s.detail <- detail
 
 (* What a step's commands print shows under its row while it runs, and goes
-   when it succeeds; a [Logs] message inside it stays. *)
+   when it succeeds. *)
 let fetch clock display =
   let finished = started "fetch" in
   Display.with_task ~log_lines:2 display "fetch dependencies" @@ fun t ->
@@ -54,15 +55,16 @@ let fetch clock display =
 
 let compile clock display =
   let finished = started "compile" in
-  Display.with_task ~log_lines:3 display "compile" @@ fun t ->
   let files = [| "lexer.ml"; "parser.ml"; "types.ml"; "eval.ml"; "main.ml" |] in
-  Array.iteri
-    (fun i f ->
-      Display.set_count t ~cur:i ~total:(Array.length files);
-      Fmt.kstr (Display.log t) "ocamlopt %s" f;
-      Eio.Time.Mono.sleep clock 0.35)
-    files;
-  Display.set_count t ~cur:(Array.length files) ~total:(Array.length files);
+  Display.with_task ~log_lines:3 display "compile" (fun t ->
+      Array.iteri
+        (fun i f ->
+          Display.set_count t ~cur:i ~total:(Array.length files);
+          Fmt.kstr (Display.log t) "ocamlopt %s" f;
+          Eio.Time.Mono.sleep clock 0.35)
+        files;
+      Display.set_count t ~cur:(Array.length files) ~total:(Array.length files));
+  (* Logged outside the task, the warning outlives its success. *)
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
   finished "5 files, 1 warning"
 

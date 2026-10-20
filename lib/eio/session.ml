@@ -29,18 +29,12 @@ let at_exit =
              try Display.close ~running:`Cancel d with Sys_error _ -> ())
          | None -> ()))
 
-(* A task is current in the fibers its function forks, as a binding is; a
-   fiber cancelled in it cancels the task rather than failing it. *)
+(* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
   Display.scope
     ~current:(fun () -> Eio.Fiber.get task)
-    ~within:(fun t f ->
-      Eio.Fiber.with_binding task t @@ fun () ->
-      try f ()
-      with Eio.Cancel.Cancelled _ as e ->
-        let bt = Printexc.get_raw_backtrace () in
-        Display.cancel t;
-        Printexc.raise_with_backtrace e bt)
+    ~within:(fun t f -> Eio.Fiber.with_binding task t f)
+    ~cancelled:(function Eio.Cancel.Cancelled _ -> true | _ -> false)
 
 let claim () =
   Lazy.force at_exit;
@@ -51,12 +45,14 @@ let release () =
   Atomic.set running None;
   Atomic.set busy false
 
-(* {1 Output under the region}
+(* {1 The program's output}
 
    While a display draws a region on a terminal, what the program writes on
-   the standard formatters of that terminal goes above the region, a whole
-   line at a time; a line without its end waits for it. Inside
-   {!with_terminal} the bytes go straight out. *)
+   the standard formatters of that terminal is output, a whole line at a
+   time; a line without its end waits for it. A line goes to the task
+   current in the fiber that writes or flushes it, without its escape codes,
+   or above the region as it is when none is. Inside {!with_terminal} the
+   bytes go straight out. *)
 
 type intercepted = {
   ppf : Format.formatter;
@@ -67,28 +63,46 @@ type intercepted = {
 let intercepted : intercepted list Atomic.t = Atomic.make []
 let direct = Atomic.make 0
 
+(* The whole lines [pending] holds, taken out of it. *)
+let whole_lines pending =
+  let s = Buffer.contents pending in
+  match String.rindex_opt s '\n' with
+  | None -> None
+  | Some k ->
+      Buffer.clear pending;
+      Buffer.add_substring pending s (k + 1) (String.length s - k - 1);
+      Some (String.sub s 0 (k + 1))
+
 let intercept display ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
   let i = { ppf; out; pending = Buffer.create 256 } in
+  let to_task task =
+    Option.iter
+      (fun s -> Console.Display.log task (Console_text.strip s))
+      (whole_lines i.pending)
+  in
   let add s o l =
     if Atomic.get direct > 0 then out.out_string s o l
-    else Buffer.add_substring i.pending s o l
+    else begin
+      Buffer.add_substring i.pending s o l;
+      match String.index_from_opt s o '\n' with
+      | Some k when k < o + l -> Option.iter to_task (Display.current display)
+      | _ -> ()
+    end
   in
   let flush () =
     if Atomic.get direct > 0 then out.out_flush ()
     else
-      let s = Buffer.contents i.pending in
-      match String.rindex_opt s '\n' with
-      | None -> ()
-      | Some k ->
-          Buffer.clear i.pending;
-          Buffer.add_substring i.pending s (k + 1) (String.length s - k - 1);
-          let write () =
-            out.out_string s 0 (k + 1);
-            out.out_flush ()
-          in
-          Display.with_output display (fun _ -> write ())
+      match Display.current display with
+      | Some task -> to_task task
+      | None ->
+          Option.iter
+            (fun s ->
+              Display.with_output display (fun _ ->
+                  out.out_string s 0 (String.length s);
+                  out.out_flush ()))
+            (whole_lines i.pending)
   in
   Format.pp_set_formatter_out_functions ppf
     {

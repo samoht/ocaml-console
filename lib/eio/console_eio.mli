@@ -7,39 +7,26 @@
 
     [Console_eio] runs a {!Console.Display} on the terminal: it finds out
     whether the output is a terminal and how large it is, redraws the progress
-    rows ten times a second, passes it the {!Logs} messages, prints the
-    program's own output above the rows, and gives the terminal back as it found
-    it when the function returns or raises, when its fiber is cancelled, when
-    the program exits and when SIGINT or SIGTERM ends it.
+    rows ten times a second, gives it the program's output and {!Logs} messages,
+    and gives the terminal back as it found it when the function returns or
+    raises, when its fiber is cancelled, when the program exits and when SIGINT
+    or SIGTERM ends it.
 
     {1:output Where text goes}
 
-    While a display runs, your program's text goes to one of three places. What
-    it prints on standard output with [Fmt.pr] is its result: console never
-    moves or hides it. On the terminal it only waits for each whole line and
-    prints it above the progress rows, as it is, escape codes included; the rows
-    are drawn again from the first column of the row the line left the cursor
-    on. Under each running task, console shows that task's latest lines (8
-    unless [~log_lines] says otherwise). Those lines are either what you hand it
-    with [Display.log], such as a command's output, or the [Logs] messages
-    logged inside the task, meaning in the function given to [Display.with_task]
-    or in a fiber that function started. Log messages always stay. Command
-    output stays only if the task fails.
+    A task's output shows under it while it runs, and stays if the task fails.
 
-    {t
-      | What                                   | Terminal, while running | Terminal, once the task ends       | Pipe or CI                                         |
-      |----------------------------------------|-------------------------|------------------------------------|----------------------------------------------------|
-      | [Fmt.pr] (stdout)                      | above the rows          | stays                              | unchanged, on stdout                               |
-      | [Logs] outside a task                  | above the rows          | stays                              | printed at once                                    |
-      | [Logs] inside a task                   | in the task's window    | stays above, after the task's name | printed at once, after the task's name             |
-      | [Display.log], task succeeds           | in the task's window    | removed                            | printed at once, after the task's name             |
-      | [Display.log], task fails              | in the task's window    | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
-      | [Display.log], task cancelled (Ctrl-C) | in the task's window    | what was in the window stays       | printed at once                                    |
-    }
+    - Outside a task, output goes above the rows.
+    - On a pipe, each line is printed at once, after its task's name.
+    - [Display.log] gives a task lines from where it is not current, such as a
+      fiber that reads a child process.
 
-    Text that [print_string], [Printf] or a child process writes on the terminal
-    is not seen and garbles the rows: print it with
-    {!Console.Display.with_output}. *)
+    Output is everything the program prints while a task is current: its [Logs]
+    messages, its [Display.log] lines and the lines of {!Fmt.stdout} and
+    {!Fmt.stderr} on the display's terminal
+    ({{!Console.Display.output}where text goes}). Text that [print_string],
+    [Printf] or a child process writes on the terminal is not seen and garbles
+    the rows: print it with {!Console.Display.with_output}. *)
 
 module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
@@ -67,28 +54,28 @@ val run :
     and that output is a terminal whose [TERM] is set and not [dumb], and
     [plain] is [false] (the default); then what the program prints on
     {!Fmt.stdout} or {!Fmt.stderr} in the meantime on that terminal, a whole
-    line at a time, goes above the rows, and what it prints on another output
-    goes out as it is written. Otherwise each line is printed in turn, as on a
-    pipe: [plain] at [true] asks for that on a terminal too, as a
-    [--progress=plain] option does. When [f] returns, raises or its fiber is
-    cancelled, the tasks still running are cancelled, unless [f] said the work
-    succeeded with {!Console.Display.set_result}; an exception is raised again.
-    Either way, and when the program exits during [f], the display closes. So it
-    does when SIGINT or SIGTERM arrives during [f] and the program left that
-    signal at its default disposition: the display closes, then the signal ends
-    the program as it would have. When SIGTSTP (Ctrl-Z) stops the program and it
-    left that signal at its default disposition, the rows are taken off the
-    terminal and the cursor shown first, and drawn again once [fg] continues it.
-    A signal the program handles or ignores is left to it. A closed pipe on
-    [ppf] ends the display's output and nothing else, and one on standard output
-    is met by the program's own writes, as without console
-    ({!Console.Display.v}).
+    line at a time, is the output of the current task, or goes above the rows as
+    it is outside a task ({!output}), and what it prints on another output goes
+    out as it is written. Otherwise each line is printed in turn, as on a pipe:
+    [plain] at [true] asks for that on a terminal too, as a [--progress=plain]
+    option does. When [f] returns, raises or its fiber is cancelled, the tasks
+    still running are cancelled, unless [f] said the work succeeded with
+    {!Console.Display.set_result}; an exception is raised again. Either way, and
+    when the program exits during [f], the display closes. So it does when
+    SIGINT or SIGTERM arrives during [f] and the program left that signal at its
+    default disposition: the display closes, then the signal ends the program as
+    it would have. When SIGTSTP (Ctrl-Z) stops the program and it left that
+    signal at its default disposition, the rows are taken off the terminal and
+    the cursor shown first, and drawn again once [fg] continues it. A signal the
+    program handles or ignores is left to it. A closed pipe on [ppf] ends the
+    display's output and nothing else, and one on standard output is met by the
+    program's own writes, as without console ({!Console.Display.v}).
 
     While [f] runs, {!Logs} messages go to the display
-    ({!Console.Display.report}): to the window of the task current in the
+    ({!Console.Display.report}): they are the output of the task current in the
     calling fiber, the one of the innermost {!Console.Display.with_task} of that
-    fiber or of the fibers it was forked from, or above the rows when there is
-    none. A message from a source other than {!Logs.default} comes after the
+    fiber or of the fibers it was forked from, or go above the rows when there
+    is none. A message from a source other than {!Logs.default} comes after the
     source's name in brackets, as in [[http] connected]. A fiber cancelled
     inside a {!Console.Display.with_task} cancels its task. The reporter
     installed before [run] is put back when [f] ends. A message logged in

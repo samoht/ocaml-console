@@ -23,8 +23,9 @@ type line = {
   kind : kind;
   text : string;  (** One line, without control characters. *)
 }
-(** The type for the lines of a task: its output, given to {!Display.log}, or a
-    Logs message logged while it was current. *)
+(** The type for the lines of a task's output: given to {!Display.log}, a line
+    of a standard output among them, or a Logs message logged while it was
+    current. *)
 
 val count_text : metric -> string
 (** [count_text m] is what a row's count cell shows: items or bytes done over
@@ -64,12 +65,14 @@ type t = {
   mutable suspended : int;
   mutable partial : bool;
   mutable release : unit -> unit;
+  mutable root : row option;
   scope : scope;
 }
 
 and scope = {
   current : unit -> row option;
   within : row -> (unit -> unit) -> unit;
+  cancelled : exn -> bool;
 }
 
 and row = {
@@ -101,11 +104,12 @@ and row = {
     ({!field-stale}); {!field-scene} prints what is drawn above the header;
     {!field-frame} is the region on the screen, as written; {!field-scope} says
     which task is current. A task's {!field-window} holds its latest lines, at
-    most {!field-log_lines}, and on a terminal its {!field-output} holds its
-    output lines, {!field-output_bytes} bytes in all, the {!field-dropped}
-    oldest left out. Without a terminal, {!field-partial} is [true] iff the last
-    byte written on {!field-ppf} did not end a line, and {!field-release} gives
-    {!field-ppf} its own output functions back. *)
+    most {!field-log_lines}, and on a terminal its {!field-output} holds all its
+    lines, {!field-output_bytes} bytes in all, the {!field-dropped} oldest left
+    out. Without a terminal, {!field-partial} is [true] iff the last byte
+    written on {!field-ppf} did not end a line, and {!field-release} gives
+    {!field-ppf} its own output functions back. {!field-root} is the top task,
+    once asked for, the only one with a negative {!field-id}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)
@@ -119,6 +123,10 @@ val is_live : t -> bool
 
 val is_running : row -> bool
 (** [is_running r] is [true] iff [r] has not ended. *)
+
+val is_root : row -> bool
+(** [is_root r] is [true] iff [r] is its display's top task, which never ends.
+*)
 
 val elapsed : row -> float
 (** [elapsed r] is the seconds [r] ran for, or has run for so far. *)

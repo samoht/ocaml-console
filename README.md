@@ -392,30 +392,19 @@ under it.
 
 ### Where text goes
 
-While a display runs, your program's text goes to one of three places. What
-it prints on standard output with `Fmt.pr` is its result: console never moves
-or hides it. On the terminal it only waits for each whole line and prints it
-above the progress rows. Under each running task, console shows that task's
-latest lines (8 unless `~log_lines` says otherwise). Those lines are either
-what you hand it with `Display.log`, such as a command's output, or the `Logs`
-messages logged inside the task, meaning in the function given to
-`Display.with_task` or in a fiber that function started. Log messages always
-stay. Command output stays only if the task fails.
+A task's output shows under it while it runs, and stays if the task fails.
 
-| What | Terminal, while running | Terminal, once the task ends | Pipe or CI |
-|---|---|---|---|
-| `Fmt.pr` (stdout) | above the rows | stays | unchanged, on stdout |
-| `Logs` outside a task | above the rows | stays | printed at once |
-| `Logs` inside a task | in the task's window | stays above, after the task's name | printed at once, after the task's name |
-| `Display.log`, task succeeds | in the task's window | removed | printed at once, after the task's name |
-| `Display.log`, task fails | in the task's window | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
-| `Display.log`, task cancelled (Ctrl-C) | in the task's window | what was in the window stays | printed at once |
+- Outside a task, output goes above the rows.
+- On a pipe, each line is printed at once, after its task's name.
+- `Display.log` gives a task lines from where it is not current, such as a
+  fiber that reads a child process.
 
-A failed task keeps up to 1 MiB of its output, the oldest lines dropped first
-and counted on a line of their own. What `print_string`, `Printf` or a child
-process writes on the terminal is not seen and garbles the rows: print it with
-`Display.with_output`. The display draws on standard error, so standard
-output stays the program's.
+Output is everything printed while a task is current: its `Logs` messages,
+its `Display.log` lines and its `Fmt.pr` lines on the display's terminal. A
+failed or cancelled task prints up to 1 MiB of it under its line. What
+`print_string`, `Printf` or a child process writes on the terminal is not
+seen and garbles the rows: print it with `Display.with_output`. The display
+draws on standard error, so standard output stays the program's.
 
 Good to know:
 

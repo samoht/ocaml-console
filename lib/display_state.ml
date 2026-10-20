@@ -56,12 +56,14 @@ type t = {
   mutable suspended : int;
   mutable partial : bool;
   mutable release : unit -> unit;
+  mutable root : row option;
   scope : scope;
 }
 
 and scope = {
   current : unit -> row option;
   within : row -> (unit -> unit) -> unit;
+  cancelled : exn -> bool;
 }
 
 and row = {
@@ -99,6 +101,7 @@ let pp ppf t =
 let room t = min t.width 100
 let is_live t = Option.is_some t.size
 let is_running r = r.ended_at = None
+let is_root r = r.id < 0
 
 let elapsed r =
   match r.ended_at with

@@ -27,48 +27,38 @@
 
     {1:output Where text goes}
 
-    While a display runs, your program's text goes to one of three places. What
-    it prints on standard output with [Fmt.pr] is its result: console never
-    moves or hides it. On the terminal it only waits for each whole line and
-    prints it above the progress rows. Under each running task, console shows
-    that task's latest lines (8 unless [~log_lines] says otherwise). Those lines
-    are either what you hand it with [Display.log], such as a command's output,
-    or the [Logs] messages logged inside the task, meaning in the function given
-    to [Display.with_task] or in a fiber that function started. Log messages
-    always stay. Command output stays only if the task fails.
+    A task's output shows under it while it runs, and stays if the task fails.
 
-    {t
-      | What                                   | Terminal, while running | Terminal, once the task ends       | Pipe or CI                                         |
-      |----------------------------------------|-------------------------|------------------------------------|----------------------------------------------------|
-      | [Fmt.pr] (stdout)                      | above the rows          | stays                              | unchanged, on stdout                               |
-      | [Logs] outside a task                  | above the rows          | stays                              | printed at once                                    |
-      | [Logs] inside a task                   | in the task's window    | stays above, after the task's name | printed at once, after the task's name             |
-      | [Display.log], task succeeds           | in the task's window    | removed                            | printed at once, after the task's name             |
-      | [Display.log], task fails              | in the task's window    | all of it printed under the ✗ line | printed at once; the last 8 lines repeated under ✗ |
-      | [Display.log], task cancelled (Ctrl-C) | in the task's window    | what was in the window stays       | printed at once                                    |
-    }
+    - Output outside any task, or within {!root}, goes above the rows.
+    - On a pipe, each line is printed at once, after its task's name.
+    - {!within} makes a task current again, from another fiber say, and {!log}
+      gives it a line from where it is not.
 
-    A line too wide for the terminal is cut in a task's window and nowhere else.
-    The output of a failed task is kept up to 1 MiB, its oldest lines dropped
-    first and counted on a line of their own. Console sees standard output
-    through {!Fmt.stdout} and [Logs] messages through its driver ({!drivers}):
-    what [print_string], [Printf] or a child process writes on the terminal is
-    not seen and garbles the rows, so print it with {!with_output}. Without a
-    terminal, console flushes {!Fmt.stdout} before each line it writes, so that
-    [2>&1] keeps the order of the two outputs. A write error on the display's
-    output, such as a reader that closed its pipe in [prog 2>&1 | head -1], ends
-    the display's output and nothing else. One on standard output is the
-    program's: console stops flushing it, and the program's own writes meet the
-    error as they would without console.
+    Output is what the program prints while a task is current ({!tasks}): its
+    {!log} lines, its [Logs] messages and, under [Console_eio.run], the lines it
+    prints with [Fmt.pr] or [Fmt.epr] on the display's terminal, without their
+    escape codes. A task that succeeds leaves its line alone; one that fails or
+    is cancelled prints its output under its line, up to 1 MiB, its oldest lines
+    dropped first and counted on a line of their own. A line too wide for the
+    terminal is cut under a running task and nowhere else. Console sees standard
+    output through {!Fmt.stdout} and [Logs] messages through its driver
+    ({!drivers}): what [print_string], [Printf] or a child process writes on the
+    terminal is not seen and garbles the rows, so print it with {!with_output}.
+    Without a terminal, console flushes {!Fmt.stdout} before each line it
+    writes, so that [2>&1] keeps the order of the two outputs. A write error on
+    the display's output, such as a reader that closed its pipe in
+    [prog 2>&1 | head -1], ends the display's output and nothing else. One on
+    standard output is the program's: console stops flushing it, and the
+    program's own writes meet the error as they would without console.
 
-    What the program prints goes out as it is, escape codes included: console
-    does not read it, so that the terminal shows what a pipe receives, colours,
-    tabs and hyperlinks too. Bytes that move the cursor or erase, such as a
-    carriage return, a move up or a clear, act on the lines above the region,
-    which console does not draw again; the region is drawn below wherever they
-    leave the cursor, from the first column, on rows it erases first. A mode
-    they set, such as a scroll region, the alternate screen or a shown cursor,
-    stays set.
+    What the program prints outside a task goes out as it is, escape codes
+    included: console does not read it, so that the terminal shows what a pipe
+    receives, colours, tabs and hyperlinks too. Bytes that move the cursor or
+    erase, such as a carriage return, a move up or a clear, act on the lines
+    above the region, which console does not draw again; the region is drawn
+    below wherever they leave the cursor, from the first column, on rows it
+    erases first. A mode they set, such as a scroll region, the alternate screen
+    or a shown cursor, stays set.
 
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of its output, the level of a [Logs]
@@ -251,8 +241,8 @@ val pp : t Fmt.t
 
     A task is {e current} in the function given to {!with_task} and, with the
     scope of [Console_eio.run], in the fibers that function starts: a task
-    started there goes under it, and a [Logs] message logged there goes to its
-    window ({!report}).
+    started there goes under it, and what the program prints there is its output
+    ({!output}).
 
     A task that ended ignores what it is told. Once its display closed, every
     task has ended, and so has one {!val-task} starts then. *)
@@ -301,6 +291,21 @@ val with_task :
     fails when [f] raises, and the exception is raised again; if [f] ended the
     task, that ending counts. *)
 
+val within : task -> (unit -> 'a) -> 'a
+(** [within task f] is [f ()] with [task] current while [f] runs, and with the
+    scope of [Console_eio.run] in the fibers [f] starts: what [f] prints is
+    [task]'s output, and a task [f] starts goes under [task]. Where {!with_task}
+    starts a task, [within] enters one that exists, and ends nothing, also when
+    [f] raises: [task] ends as it is told. *)
+
+val root : t -> task
+(** [root display] is the top task of [display], current where no other is: its
+    output goes above the rows at once and stays, and a task started within it
+    has no parent. [within (root display) f] prints what [f] prints above the
+    rows, from inside a task too. The root never ends: {!succeed}, {!fail},
+    {!cancel}, {!set_label}, {!set_count} and {!set_bytes} do nothing on it, as
+    on a task that ended, so that code given a task needs no case for it. *)
+
 val iter : t -> string -> ('a -> unit) -> 'a list -> unit
 (** [iter display label f l] applies [f] to the elements of [l] in turn, inside
     a {!with_task} named [label] whose count is the elements done out of the
@@ -325,12 +330,13 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
       if [cur] or [total] is negative, or [task] counts items. *)
 
 val log : task -> string -> unit
-(** [log task text] gives each line of [text] to [task] as its output, such as
-    the lines of a command it runs. The latest show in [task]'s window while it
-    runs; then they are dropped if [task] succeeds, printed whole under its line
-    if it fails, and those of its window stay under its line if it is cancelled.
-    Without a terminal each line is printed at once, after [task]'s label, and
-    under the line of a failure the lines of the window are printed again. *)
+(** [log task text] gives each line of [text] to [task] as its output
+    ({!output}), such as the lines of a command it runs: the latest show in
+    [task]'s window while it runs, and all of them under its line if it fails or
+    is cancelled. It is the one-line form of {!within}, for code where [task] is
+    not current. Without a terminal each line is printed at once, after [task]'s
+    label, and under the line of a failure the lines of the window are printed
+    again. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its
@@ -348,24 +354,33 @@ val cancel : ?message:string -> task -> unit
 (** {1:drivers Drivers}
 
     A driver runs a display for a scheduler, as [Console_eio.run] does for Eio:
-    it says with a {!type-scope} which task is current in a fiber, and passes
-    the program's [Logs] messages to {!report}. A program that opens a display
-    with {!v} can do the same. *)
+    it says with a {!type-scope} which task is current in a fiber, passes the
+    program's [Logs] messages to {!report}, and gives the current task what the
+    program prints on the display's terminal ({!current}). A program that opens
+    a display with {!v} can do the same. *)
 
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of messages, those of [Logs]. *)
 
 val report : t -> level -> string -> unit
-(** [report display level text] prints each line of [text] as a message of
-    [level]: in the window of the current task, if there is one, then above the
-    region after the task's label once it leaves the window; above the region at
-    once otherwise. A message of level [`Warning], [`Error] or [`Debug] comes
-    after the mark of its level, one of level [`App] or [`Info] after none. *)
+(** [report display level text] gives each line of [text], a message of [level],
+    to the current task as its output ({!output}), or prints it above the region
+    when there is none. A message of level [`Warning], [`Error] or [`Debug]
+    comes after the mark of its level, one of level [`App] or [`Info] after
+    none. *)
+
+val current : t -> task option
+(** [current display] is the task of [display] current where it is called, if it
+    still runs and is not the {!root}. A driver gives it what the program prints
+    on the display's terminal meanwhile, with {!log}. *)
 
 val scope :
   current:(unit -> task option) ->
   within:(task -> (unit -> unit) -> unit) ->
+  cancelled:(exn -> bool) ->
   scope
-(** [scope ~current ~within] is the scope in which [current ()] is the task
-    current where it is called, and [within task f] calls [f] with [task]
-    current there and in what [f] starts. *)
+(** [scope ~current ~within ~cancelled] is the scope in which [current ()] is
+    the task current where it is called, [within task f] calls [f] with [task]
+    current there and in what [f] starts, and [cancelled e] is [true] iff [e]
+    says that the fiber raising it was cancelled: a {!with_task} whose function
+    raises it cancels its task rather than failing it. *)

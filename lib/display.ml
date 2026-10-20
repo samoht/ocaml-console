@@ -11,7 +11,7 @@ type task = row
 type nonrec scope = scope
 type nonrec level = level
 
-let scope ~current ~within = { current; within }
+let scope ~current ~within ~cancelled = { current; within; cancelled }
 
 (* Without a driver, the current task is that of the innermost [with_task]
    that runs. *)
@@ -24,6 +24,7 @@ let local () =
         let saved = !stack in
         stack := r :: saved;
         Fun.protect f ~finally:(fun () -> stack := saved));
+    cancelled = (fun _ -> false);
   }
 
 let pp = Display_state.pp
@@ -105,6 +106,7 @@ let v ?(layout = Layout.default) ?header ?size ?scope ~now ppf =
       suspended = 0;
       partial = false;
       release = ignore;
+      root = None;
       scope = (match scope with Some s -> s | None -> local ());
     }
   in
@@ -171,10 +173,16 @@ let print t = function [] -> touch t | lines -> Display_region.commit t lines
 
 (* {1 Tasks} *)
 
-let current t =
-  match t.scope.current () with Some r when r.disp == t -> Some r | _ -> None
+(* The root is current where no other task is. *)
+let scoped t =
+  match t.scope.current () with
+  | Some r when r.disp == t && not (is_root r) -> Some r
+  | _ -> None
 
-(* The output a task keeps for its failure, the oldest dropped first. *)
+let current t =
+  match scoped t with Some r when is_running r -> Some r | _ -> None
+
+(* The lines a task keeps for its failure, the oldest dropped first. *)
 let output_cap = 1_048_576
 
 let keep_output r line =
@@ -186,22 +194,16 @@ let keep_output r line =
     r.dropped <- r.dropped + 1
   done
 
-(* What a line that leaves a window prints: a Logs message is kept, after
-   its task's label; output is not. *)
-let leave r (line : line) =
-  match line.kind with Logs _ -> Display_row.labelled r line | Output -> []
-
-(* The line a window lets go of, once it holds more than its task shows. *)
+(* A window holds the latest lines its task shows. *)
 let push r line =
-  if r.log_lines = 0 then Some line
-  else begin
+  if r.log_lines > 0 then begin
     Queue.add line r.window;
-    if Queue.length r.window > r.log_lines then Some (Queue.take r.window)
-    else None
+    if Queue.length r.window > r.log_lines then ignore (Queue.take r.window)
   end
 
-(* A running task takes each line in its window; without a terminal, and
-   for a task that ended, a line is printed at once after its label. *)
+(* A running task takes each line in its window and, on a terminal, keeps
+   it for its failure; without a terminal, and for a task that ended, a
+   line is printed at once after its label. *)
 let add r kind text =
   let t = r.disp in
   let line text =
@@ -209,21 +211,30 @@ let add r kind text =
     let line = { gap = now -. r.log_prev; kind; text } in
     r.log_prev <- now;
     if not (is_running r) then Display_row.labelled r line
-    else
-      let left = push r line in
+    else begin
+      push r line;
       if is_live t then begin
-        (match kind with Output -> keep_output r line | Logs _ -> ());
-        match left with Some l -> leave r l | None -> []
+        keep_output r line;
+        []
       end
       else Display_row.labelled r line
+    end
   in
   print t (List.concat_map line (Display_text.lines text))
 
-let log r text = if is_running r && not r.disp.closed then add r Output text
+(* A line of the root goes above the region at once, as a message of no
+   task does. *)
+let log r text =
+  let t = r.disp in
+  if t.closed then ()
+  else if is_root r then
+    print t
+      (List.concat_map (Display_row.message t `App) (Display_text.lines text))
+  else if is_running r then add r Output text
 
 let report t level text =
   if not t.closed then
-    match current t with
+    match scoped t with
     | Some r -> add r (Logs level) text
     | None ->
         print t
@@ -231,27 +242,22 @@ let report t level text =
              (Display_row.message t level)
              (Display_text.lines text))
 
-(* What a task prints when it ends: on a terminal, the Logs messages its
-   window still holds, its line, then its output if it failed, or what its
-   window holds of it if it was cancelled; without one, its line, then its
+(* What a task prints when it ends: on a terminal, its line, then all its
+   lines if it failed or was cancelled; without one, its line, then its
    window again if it failed. *)
 let ending r outcome window =
   let t = r.disp in
-  let output l = match l.kind with Output -> true | Logs _ -> false in
-  if is_live t then
+  if r.transient then []
+  else if is_live t then
     let block =
       match outcome with
       | `Succeeded -> []
-      | `Failed ->
+      | `Failed | `Cancelled ->
           let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
           (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
           @ List.concat_map (Display_row.under r) (List.rev all)
-      | `Cancelled ->
-          List.concat_map (Display_row.under r) (List.filter output window)
     in
-    List.concat_map (leave r) window
-    @ if r.transient then [] else Display_row.committed t r @ block
-  else if r.transient then []
+    Display_row.committed t r @ block
   else
     Display_row.appended r
     ::
@@ -262,7 +268,7 @@ let ending r outcome window =
 (* The tasks under one that ends end first: they succeed with it, and are
    cancelled when it fails or is cancelled. *)
 let rec finish outcome ?message r =
-  if not (is_running r) then []
+  if is_root r || not (is_running r) then []
   else begin
     let t = r.disp in
     let child_outcome =
@@ -293,10 +299,8 @@ let rec finish outcome ?message r =
     children @ lines
   end
 
-let row t ?key ?parent ~log_lines ~transient label =
+let row t ~id ?key ?parent ~log_lines ~transient label =
   let now = t.now () in
-  let id = t.next_id in
-  t.next_id <- id + 1;
   {
     id;
     key;
@@ -356,8 +360,15 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
   match Option.bind key (Hashtbl.find_opt t.by_key) with
   | Some r -> r
   | None ->
-      let parent = match parent with Some _ -> parent | None -> current t in
-      let r = row t ?key ?parent ~log_lines ~transient label in
+      let parent =
+        match parent with
+        | Some p when is_root p -> None
+        | Some _ -> parent
+        | None -> scoped t
+      in
+      let id = t.next_id in
+      t.next_id <- id + 1;
+      let r = row t ~id ?key ?parent ~log_lines ~transient label in
       if t.closed then begin
         (* A task of a closed display has already ended, so it ignores all. *)
         r.ended_at <- Some r.started_at;
@@ -365,6 +376,19 @@ let task ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
       end
       else start t r;
       r
+
+let root t =
+  match t.root with
+  | Some r -> r
+  | None ->
+      let r = row t ~id:(-1) ~log_lines:0 ~transient:true "" in
+      t.root <- Some r;
+      r
+
+let within r f =
+  let value = ref None in
+  r.disp.scope.within r (fun () -> value := Some (f ()));
+  Option.get !value
 
 let succeed ?message r = print r.disp (finish `Succeeded ?message r)
 let fail ?message r = print r.disp (finish `Failed ?message r)
@@ -379,11 +403,11 @@ let with_task ?key ?parent ?log_lines ?transient t label f =
       Option.get !value
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      fail r;
+      if t.scope.cancelled e then cancel r else fail r;
       Printexc.raise_with_backtrace e bt
 
 let set_label r label =
-  if is_running r then begin
+  if is_running r && not (is_root r) then begin
     r.label <- Display_text.clean label;
     touch r.disp
   end
@@ -396,7 +420,7 @@ let set_metric r metric =
 let set_count r ~cur ~total =
   if cur < 0 || total < 0 then
     invalid_arg "Console.Display.set_count: negative progress";
-  if is_running r then
+  if is_running r && not (is_root r) then
     match r.metric with
     | Bytes _ -> invalid_arg "Console.Display.set_count: the task counts bytes"
     | Spin -> set_metric r (Count (cur, max cur total))
@@ -417,7 +441,7 @@ let iter t label f items =
 let set_bytes r ~cur ~total =
   if cur < 0L || total < 0L then
     invalid_arg "Console.Display.set_bytes: negative progress";
-  if is_running r then begin
+  if is_running r && not (is_root r) then begin
     let cur, total =
       match r.metric with
       | Count _ ->

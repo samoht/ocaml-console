@@ -115,14 +115,12 @@ let run_all ~clock suites =
 ]}
 
 [Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites that
-wait, on a child process say, run side by side, one row each. A [Logs]
-message logged inside a task, as here, goes to the task's window under its
-row while it runs and then stays, after the task's name. The output of a
-command the task runs goes to {!Console.Display.log} instead: it shows in the
-window while the task runs, goes when the task succeeds and is printed whole
-when it fails. What the program prints on standard output with [Fmt.pr] is
-its result, which console prints above the rows and never hides. The section
-{{!Console_eio.output}where text goes} has the whole table.
+wait, on a child process say, run side by side, one row each. A task's
+output shows under it while it runs, and stays if the task fails: the
+[Logs] message logged inside a task, as here, the lines it prints with
+[Fmt.pr] and those it hands to {!Console.Display.log}. Outside a task, output
+goes above the rows. The section {{!Console_eio.output}where text goes} says
+more.
 
 {1:program The whole program}
 

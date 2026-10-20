@@ -36,14 +36,17 @@ Initial release of `console` and `console-eio`.
   or a bar, a count or bytes and a rate, and redraws only those rows; a task
   that ends leaves one line in the scrollback. `Display.with_task` runs a
   function as a task, current in the fibers it forks, that succeeds when the
-  function returns and fails when it raises. `Logs` messages are kept, after
-  the name of the task they were logged in; the output given to
-  `Display.log` shows in the task's window, goes when it succeeds and is
-  printed whole when it fails (up to 1 MiB). In a pipe or a CI log, every
-  line is printed once, in order with standard output under `2>&1`.
+  function returns and fails when it raises. A task's output shows under it
+  while it runs, and stays if the task fails: its `Logs` messages, its
+  `Display.log` lines and its standard output on the display's terminal
+  alike, printed whole (up to 1 MiB) under the line of a failure or a
+  cancellation. `Display.within` makes a task current again, and output
+  within `Display.root` goes above the rows, from inside a task too. In a
+  pipe or a CI log, every line is printed once, in order with standard
+  output under `2>&1`.
 - `console-eio`. `Console_eio.run ~clock` runs a display on standard error
-  with Eio: it passes it the `Logs` messages, those of other Eio domains
-  included, prints the program's output above the rows, and gives the
+  with Eio: it gives it the `Logs` messages, those of other Eio domains
+  included, and the program's output on its terminal, and gives the
   terminal back when the function returns or raises, when its fiber is
   cancelled, at exit and on SIGINT or SIGTERM. A `run` inside another gets
   the same display. `~plain:true` prints the lines a pipe gets on a terminal
