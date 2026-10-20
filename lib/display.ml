@@ -490,6 +490,8 @@ let set_result ?detail t result =
 
 let close ?(running = `Cancel) t =
   if not t.closed then begin
+    (* The scene goes with the display, and cannot keep it from closing. *)
+    t.scene <- None;
     finish_running
       (match running with `Succeed -> `Succeeded | `Cancel -> `Cancelled)
       t;

@@ -142,6 +142,17 @@ let frame t =
         |> List.map (Widget.truncate look width)
         |> fun scene -> scene @ rows
 
+(* A scene that raises is dropped: what was to be written is written with
+   the frame drawn without it, then the exception is raised again. *)
+let framed t k =
+  match frame t with
+  | spans -> k spans
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      t.scene <- None;
+      k (frame t);
+      Printexc.raise_with_backtrace e bt
+
 (* {1 Drawing} *)
 
 let add_up buf n =
@@ -185,8 +196,7 @@ let refresh_size t =
    scroll the region up on every redraw. A line is erased before it is
    written, at the first column, where erasing to the end of the line cannot
    take the last cell of a full line. *)
-let draw buf t ~resized =
-  let spans = frame t in
+let draw buf t ~resized spans =
   let lines = Array.of_list (List.map (render t) spans) in
   if lines <> t.frame || resized then begin
     let n = Array.length lines in
@@ -233,10 +243,11 @@ let paint t =
       t.painted_at <- t.now ();
       (* A narrower terminal has reflowed the old frame: it is cleared with
        the old frame's rows counted at the new width. *)
-      let buf = Buffer.create 256 in
-      if resized then clear buf t;
-      draw buf t ~resized;
-      write t (Buffer.contents buf)
+      framed t (fun spans ->
+          let buf = Buffer.create 256 in
+          if resized then clear buf t;
+          draw buf t ~resized spans;
+          write t (Buffer.contents buf))
     end
   end
 
@@ -248,18 +259,24 @@ let commit t lines =
   t.changes <- t.changes + 1;
   if is_live t then begin
     ignore (refresh_size t);
-    let buf = Buffer.create 256 in
-    clear buf t;
-    List.iter
-      (fun line ->
-        Buffer.add_string buf (render t line);
-        Buffer.add_string buf "\r\n")
-      lines;
-    if t.suspended = 0 && not t.closed then begin
-      t.painted_at <- t.now ();
-      draw buf t ~resized:false
-    end;
-    write t (Buffer.contents buf)
+    let commit spans =
+      let buf = Buffer.create 256 in
+      clear buf t;
+      List.iter
+        (fun line ->
+          Buffer.add_string buf (render t line);
+          Buffer.add_string buf "\r\n")
+        lines;
+      Option.iter
+        (fun spans ->
+          t.painted_at <- t.now ();
+          draw buf t ~resized:false spans)
+        spans;
+      write t (Buffer.contents buf)
+    in
+    if t.suspended = 0 && not t.closed then
+      framed t (fun spans -> commit (Some spans))
+    else commit None
   end
   else
     write t

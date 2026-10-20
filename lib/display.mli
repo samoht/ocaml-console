@@ -203,7 +203,9 @@ val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
     is the width of the rows, so that a {!Table.pp} or a {!Panel.pp} printed on
     it fits. A span printed on [ppf] keeps its styles, and other text is plain.
     [height] is the number of lines the header and the rows leave: the lines
-    after them are not drawn, and a line wider than the rows is cut.
+    after them are not drawn, and a line wider than the rows is cut. A [scene]
+    that raises is dropped: the call that was drawing it, such as {!redraw} or
+    {!set_count}, draws the region without it, then raises the exception again.
 
     While [display] draws in colour, a frame drawn in a theme with a
     {!Theme.val-motion} moves, by the time since [display] started; on a
