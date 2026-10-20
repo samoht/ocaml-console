@@ -490,6 +490,22 @@ let test_colours () =
   Alcotest.(check bool) "red failure" true (contains "\027[1;38;5;160m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
+(* On a terminal wider than 100 columns, the rows and the lines of ended
+   tasks keep to 100, so that a count and a timer stay near their label. *)
+let test_wide () =
+  let t = terminal ~width:160 ~height:8 () in
+  let task = Display.task t.display "compile" in
+  Display.set_count task ~cur:1 ~total:3;
+  Display.log task "a log line";
+  Display.redraw t.display;
+  let widths () = List.map Width.string_width (lines t) in
+  Alcotest.(check int) "the live row" 100 (List.fold_left max 0 (widths ()));
+  Display.succeed task;
+  Display.close t.display;
+  Alcotest.(check int)
+    "the line it ends on" 100
+    (List.fold_left max 0 (widths ()))
+
 let suite =
   ( "display",
     [
@@ -515,6 +531,7 @@ let suite =
         test_with_output_partial;
       Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
       Alcotest.test_case "narrowing" `Quick test_narrowing;
+      Alcotest.test_case "wide" `Quick test_wide;
       Alcotest.test_case "height changes" `Quick test_height_changes;
       Alcotest.test_case "nested" `Quick test_nested;
       Alcotest.test_case "keys and transient" `Quick test_keys_and_transient;

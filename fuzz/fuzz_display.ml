@@ -547,6 +547,28 @@ let test_extreme_terminals n styled =
       check_eq ~pp:Fmt.int 0 (snd (Vte.cursor_pos t.vte)))
     [ (1, 1); (2, 80); (300, 10) ]
 
+(* On a terminal of any width above 100 columns, no row the display draws
+   nor line it prints for a task is wider than 100. *)
+let test_wide n label =
+  let width = 101 + (n land 0xff) in
+  let t = terminal ~width ~height:10 ~styled:true () in
+  let d = display t in
+  let task = Display.task ~log_lines:2 d label in
+  Display.set_bytes task ~cur:(Int64.of_int (n land 0xffff)) ~total:1_000_000L;
+  Display.log task label;
+  let child = Display.task ~parent:task d label in
+  Display.set_count child ~cur:1 ~total:(1 + (n land 0xfff));
+  redraw_twice t;
+  Display.succeed child;
+  Display.fail task;
+  Display.close d;
+  List.iter
+    (fun l ->
+      if Width.string_width l > 100 then
+        failf "a line of %d cells on %d columns: %S" (Width.string_width l)
+          width l)
+    (List.map rstrip (Vte.scrollback_lines t.vte) @ screen t.vte)
+
 (* [n] running tasks with [l] log lines each, on a screen [h] rows high: the
    region is at most [h - 1] lines, and a marker counts exactly the lines
    it hides. *)
@@ -576,6 +598,8 @@ let test_marker_counts n l h =
 let suite =
   ( "display",
     [
+      test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
+        test_wide;
       test_case "extreme terminal sizes keep region width and height bounded"
         [ uint8; bool ] test_extreme_terminals;
       test_case "untrusted display arguments behave like sanitized text"
