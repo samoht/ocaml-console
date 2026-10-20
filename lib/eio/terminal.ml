@@ -19,12 +19,7 @@ let dimension_of_env name usable =
       Option.bind (int_of_string_opt value) usable)
 
 let first ~default sources =
-  let rec loop = function
-    | [] -> default
-    | source :: rest -> (
-        match source () with Some w -> w | None -> loop rest)
-  in
-  loop sources
+  Option.value ~default (List.find_map (fun source -> source ()) sources)
 
 (* The ioctl answers whenever [fd] has a terminal behind it, $COLUMNS and
    $LINES answer when the shell exported them, and 80 by 24 is what everyone

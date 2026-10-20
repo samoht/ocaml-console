@@ -84,8 +84,8 @@ let run ~clock ?(ppf = Fmt.stderr) ?theme ?layout ?header f =
               Console.Display.v ?theme ?layout ?header ~size ~now (own ppf)
             in
             let routed =
-              List.filter_map
-                (fun std -> Option.map (fun _ -> std) (terminal std))
+              List.filter
+                (fun std -> Option.is_some (terminal std))
                 [ Fmt.stdout; Fmt.stderr ]
             in
             (display, routed)
