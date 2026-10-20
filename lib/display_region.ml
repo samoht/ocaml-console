@@ -43,8 +43,6 @@ let marker t hidden =
     (Span.styled Style.faint
        ("  \xe2\x80\xa6 " ^ string_of_int hidden ^ " more lines"))
 
-let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
-
 (* The region: the header, then each running row and its log tail, within
    {!capacity}. When they do not fit, log lines go first, the oldest first;
    then the rows between the first and the most recent; a marker counts what
@@ -77,7 +75,7 @@ let frame t =
             let tail = Display_row.tail t ~lasts r in
             let k = min !to_drop (List.length tail) in
             to_drop := !to_drop - k;
-            live row :: drop k tail)
+            live row :: List.drop k tail)
           rows
       in
       header @ (marker t hidden :: body)
@@ -90,7 +88,7 @@ let frame t =
           if budget = 1 then header @ [ live last ]
           else if budget = 2 then header @ [ live first; live last ]
           else
-            let shown = drop (n - (budget - 2)) rows in
+            let shown = List.drop (n - (budget - 2)) rows in
             header
             @ live first
               :: marker t (total - 1 - List.length shown)
