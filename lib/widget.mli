@@ -86,6 +86,13 @@ val pad_glyph : int -> string -> string
 val pad : int -> Span.t
 (** [pad n] is [n] spaces, none if [n] is not positive. *)
 
+val to_span :
+  (look -> margin:int -> 'a -> Span.t list) -> ?width:int -> 'a -> Span.t
+(** [to_span lines ~width v] is the [lines] of [v] at a margin of [width]
+    (defaults to [max_int]: its natural width) as a span, laid out when it is
+    printed in the look of the formatter it is printed on, each line in the
+    cells it takes in {!default_look}: cut or padded to them in another look. *)
+
 val pp : (look -> margin:int -> 'a -> Span.t list) -> 'a Fmt.t
 (** [pp lines] formats the [lines] of a widget in the formatter's {!look} and at
     its margin, one per line, with no line end after the last. *)

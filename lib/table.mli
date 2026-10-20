@@ -74,6 +74,15 @@ val v :
 
 (** {1:converting Converting} *)
 
+val to_span : ?width:int -> t -> Span.t
+(** [to_span ~width table] is [table] as a span, to put in a cell, a panel, a
+    tree or beside other text: when it is printed, it is laid out as {!pp} lays
+    it out at a margin of [width] (defaults to its natural width), in the theme
+    and the [Fmt.utf_8] of the formatter it is printed on. Each of its lines
+    takes the cells it takes in {!Theme.default} in UTF-8: where the formatter's
+    look lays a line out wider or narrower, as a frame of glyphs two cells wide
+    does, the line is cut or padded to those cells. *)
+
 val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string table] is [table] as {!pp} formats it at a margin of [width], or
     at its natural width without [width], with colours iff [styled] (defaults to

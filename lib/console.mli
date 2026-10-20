@@ -12,8 +12,11 @@
 
     A {!Span.t} is text in a {!Style.t}: colours, bold, italic and so on. The
     widgets, {!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}, lay out spans and
-    print with {!Format}, and a {!Theme} gives them one look. [Console_eio.run]
-    runs a {!Display}.
+    print with {!Format}, and a {!Theme} gives them one look. Every widget is a
+    span too, by its [to_span], laid out when it is printed: a table goes in a
+    panel, the panel in a cell of another table, beside a tree in {!hcat} and in
+    a display's scene, all drawn in the theme of the formatter that prints them.
+    [Console_eio.run] runs a {!Display}.
 
     {b Guarantees.} Widths are counted in terminal cells, as the terminal draws
     the text: a wide character, such as a Chinese one or an emoji, takes two

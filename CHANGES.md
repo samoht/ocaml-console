@@ -11,12 +11,14 @@ Initial release of `console` and `console-eio`.
   prints, and `Style.styled` styles any `Fmt` printer.
 - Widgets. `Table` (headers and cells are spans, columns that wrap or
   truncate, rules between rows with `~rules:true`, a frameless
-  `Border.simple`), `Tree`, `Panel`, `Rule` and `Bar`, which `Bar.to_span`
-  puts in a cell; `Console.hcat` prints blocks
-  side by side. Widths are counted in terminal cells, wide characters and
-  emoji included, a widget is no wider than its formatter's margin, and
-  every widget is drawn in ASCII on a formatter that is not UTF-8. Each has a
-  `pp` and a `to_string ?styled`.
+  `Border.simple`), `Tree`, `Panel`, `Rule` and `Bar`; `Console.hcat` prints
+  blocks side by side. Every widget is a span too, by its `to_span`, laid
+  out when it is printed in the theme of the formatter that prints it, so
+  widgets nest: a bar or a table in a cell, a table in a panel. Widths are
+  counted in terminal cells, wide characters and emoji included, a widget is
+  no wider than its formatter's margin, and every widget is drawn in ASCII
+  on a formatter that is not UTF-8. Each has a `pp`, a `to_span` and a
+  `to_string ?styled`.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
   gives every widget its colours, marks, frames, tree lines, bars and
   spinner. Eighteen are predefined: `Theme.default`, which reads on any

@@ -56,6 +56,10 @@ val truncate : ?ellipsis:string -> int -> t -> t
 val wrap : int -> t -> t list
 (** See {!Span.wrap}. *)
 
+val fit : int -> t -> t
+(** [fit w line] is the line [line] cut to its first [w] cells, between two
+    clusters, then padded with spaces to exactly [w] cells. *)
+
 val pp : t Fmt.t
 (** See {!Span.pp}. *)
 

@@ -242,6 +242,15 @@ let owner l i =
   done;
   l.parts.(!k)
 
+(* The number of first clusters of a line that fit in [room] cells. *)
+let fitting l room =
+  let rec take i room =
+    if i < l.n && cell_width l i <= room then
+      take (i + 1) (room - cell_width l i)
+    else i
+  in
+  take 0 room
+
 (* The cluster that starts [cells] cells into a line, or [l.n]. *)
 let at_cell l cells =
   let rec go i c =
@@ -332,12 +341,7 @@ let truncate_line ~ellipsis w line =
       else String.sub ellipsis 0 w
     in
     let l = layout line in
-    let rec take i room =
-      if i < l.n && cell_width l i <= room then
-        take (i + 1) (room - cell_width l i)
-      else i
-    in
-    let k = take 0 (w - Width.string_width ellipsis) in
+    let k = fitting l (w - Width.string_width ellipsis) in
     let style = if k < l.n then (owner l k).style else Style.none in
     let draw =
       if k < l.n && is_drawn (owner l k) then
@@ -357,6 +361,19 @@ let truncate_line ~ellipsis w line =
 let truncate ?(ellipsis = ellipsis) w t =
   if w <= 0 then empty
   else unlines (List.map (truncate_line ~ellipsis w) (lines t))
+
+(* The clusters that fit go; a wide one cut by the edge leaves its cell
+   blank. *)
+let fit w line =
+  let line =
+    if line_width line <= w then line
+    else
+      let l = layout line in
+      sub l 0 (fitting l w)
+  in
+  match w - line_width line with
+  | n when n > 0 -> line @ text (String.make n ' ')
+  | _ -> line
 
 (* {1 Wrapping} *)
 

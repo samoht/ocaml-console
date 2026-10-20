@@ -157,5 +157,6 @@ let lines ~margin panel =
     (bottom, bottom_gap)
 
 let lines look ~margin t = lines ~margin (t look)
+let to_span = Widget.to_span lines
 let pp = Widget.pp lines
 let to_string = Widget.to_string lines

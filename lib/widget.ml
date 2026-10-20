@@ -128,6 +128,33 @@ let branch g = function
 let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
 let pad n = Span.text (String.make (max 0 n) ' ')
 
+(* A widget as a span is a part drawn when printed for each of its lines in
+   {!default_look}; drawn in another look, it is laid out once for all its
+   lines, each fitted to the cells of its line in the default look. *)
+let to_span lines ?(width = max_int) v =
+  let lines look = lines look ~margin:width v in
+  let base = lines default_look in
+  let last = ref None in
+  let laid look =
+    match !last with
+    | Some (l, lines) when l == look -> lines
+    | _ ->
+        let lines = Array.of_list (lines look) in
+        last := Some (look, lines);
+        lines
+  in
+  Span_core.concat ~sep:(Span_core.text "\n")
+    (List.mapi
+       (fun i line ->
+         let w = Span_core.width line in
+         Span_core.drawn (fun look ->
+             if look == default_look then line
+             else
+               let lines = laid look in
+               Span_core.fit w
+                 (if i < Array.length lines then lines.(i) else Span_core.empty)))
+       base)
+
 let pp lines ppf v =
   Span_core.pp_lines ppf
     (lines (look ppf) ~margin:(Format.pp_get_margin ppf ()) v)

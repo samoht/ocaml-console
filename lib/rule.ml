@@ -40,4 +40,5 @@ let pp ppf t =
   Span.pp ppf (line (Widget.look ppf) t (max 0 (Format.pp_get_margin ppf ())))
 
 let lines look ~margin t = [ line look t (max 0 margin) ]
+let to_span ~width t = Widget.to_span lines ~width t
 let to_string ?styled ~width t = Widget.to_string lines ?styled ~width t

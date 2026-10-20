@@ -246,12 +246,29 @@ label, and `Bar` a bar, here 65% full and twenty cells wide:
       [
         [ Span.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
         [ Span.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];
-      ]
-  in
-  print_endline (Table.to_string downloads);;
+      ];;
+val downloads : Table.t = <abstr>
+# print_endline (Table.to_string downloads);;
 File        Progress
 boot.img    ━━━━╺━━━━━
 rootfs.tar  ━━━━━━━━━╺
+- : unit = ()
+```
+
+Every widget is a span in the same way: `Table.to_span`, `Tree.to_span`,
+`Panel.to_span` and `Rule.to_span` lay a widget out when it is printed, in
+the theme of the formatter that prints it, so widgets nest anywhere a span
+goes:
+
+```ocaml
+# print_endline
+    (Panel.to_string
+       (Panel.v ~title:(Span.text "Downloads") (Table.to_span downloads)));;
+╭────── Downloads ───────╮
+│ File        Progress   │
+│ boot.img    ━━━━╺━━━━━ │
+│ rootfs.tar  ━━━━━━━━━╺ │
+╰────────────────────────╯
 - : unit = ()
 ```
 

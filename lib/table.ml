@@ -350,6 +350,11 @@ let lines ?max_width t =
         Border_motion.frame t.look t.border ~left:t.frame.left
           ~right:t.frame.right lines
 
+let to_span ?width t =
+  Widget.to_span
+    (fun look ~margin t -> lines ~max_width:margin (t look))
+    ?width t
+
 let pp ppf t =
   Span_core.pp_lines ppf
     (lines ~max_width:(Format.pp_get_margin ppf ()) (t (Widget.look ppf)))

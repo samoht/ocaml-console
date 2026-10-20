@@ -34,6 +34,12 @@ val v :
 
 (** {1:converting Converting} *)
 
+val to_span : width:int -> t -> Span.t
+(** [to_span ~width rule] is [rule] as a span [width] cells wide, to put in a
+    cell, a panel, a tree or beside other text: when it is printed, it is drawn
+    as {!pp} draws it at a margin of [width], in the theme and the [Fmt.utf_8]
+    of the formatter it is printed on. *)
+
 val to_string : ?styled:bool -> width:int -> t -> string
 (** [to_string ~width rule] is [rule] as {!pp} formats it at a margin of
     [width], with colours iff [styled] (defaults to [false]). *)
