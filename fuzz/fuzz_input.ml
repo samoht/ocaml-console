@@ -68,9 +68,51 @@ let test_echo_shows_the_line keys =
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
 
+(* Inserting a multi-codepoint cluster before a suffix must redraw that
+   suffix at its new column, even when the cluster changes width as typed. *)
+let test_insert_cluster k n split =
+  let clusters =
+    [|
+      "\u{2764}\u{fe0f}";
+      "\u{1f469}\u{200d}\u{1f4bb}";
+      "\u{1f44d}\u{1f3fd}";
+      "\u{1f1eb}\u{1f1f7}";
+      "e\u{0301}";
+      "a\u{093f}";
+    |]
+  in
+  let cluster = clusters.(k mod Array.length clusters) in
+  let suffix = String.make (1 + (n mod 8)) 'x' in
+  let editor = Console_input.v () in
+  let actual = Console_vte.v ~raw:true ~rows:1 ~cols:80 ()
+  and expected = Console_vte.v ~raw:true ~rows:1 ~cols:80 () in
+  let input =
+    suffix
+    ^ String.concat "" (List.init (String.length suffix) (fun _ -> "\027[D"))
+    ^ cluster
+  in
+  let feed s =
+    let echo, lines = Console_input.feed editor s in
+    check (lines = []);
+    check (not (String.contains echo '\027'));
+    Console_vte.feed actual echo
+  in
+  if split then String.iter (fun c -> feed (String.make 1 c)) input
+  else feed input;
+  check_eq ~pp:Fmt.Dump.string (cluster ^ suffix) (Console_input.pending editor);
+  Console_vte.feed expected cluster;
+  let cursor = Console_vte.cursor_pos expected in
+  Console_vte.feed expected suffix;
+  check_eq ~pp:Fmt.Dump.string
+    (Console_vte.to_string expected)
+    (Console_vte.to_string actual);
+  check (cursor = Console_vte.cursor_pos actual)
+
 let suite =
   ( "input",
     [
+      test_case "inserting a cluster redraws its suffix" [ uint8; uint8; bool ]
+        test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
       test_case "the echo shows the line" [ list key ] test_echo_shows_the_line;
     ] )
