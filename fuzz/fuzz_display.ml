@@ -1057,9 +1057,46 @@ let test_scene_exception_close n k styled =
     check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
   done
 
+(* A long-lived parent must not retain the tasks and output of completed
+   children, including keyed failures and cancellations. The output sink
+   deliberately retains no transcript, so this measures the display alone. *)
+let test_finished_children_heap n terminal =
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
+  let size = if terminal then Some (fun () -> (80, 10)) else None in
+  let d = Display.v ?size ~now:(fun () -> 0.) ppf in
+  let parent = Display.task d "long lived parent" in
+  let serial = ref 0 in
+  let batch () =
+    for i = 0 to 99 + (n mod 100) do
+      incr serial;
+      let child = Display.task ~parent ~key:(string_of_int !serial) d "child" in
+      Display.log child (String.make 256 'x');
+      match i mod 3 with
+      | 0 -> Display.succeed child
+      | 1 -> Display.fail child
+      | _ -> Display.cancel child
+    done;
+    Display.redraw d;
+    Gc.full_major ();
+    (Gc.stat ()).live_words
+  in
+  Fun.protect
+    (fun () ->
+      ignore (batch ());
+      ignore (batch ());
+      let warm = batch () in
+      for _ = 1 to 3 do
+        let retained = batch () in
+        if retained > warm + 4096 then
+          failf "completed children retained: %d to %d words" warm retained
+      done)
+    ~finally:(fun () -> Display.close d)
+
 let suite =
   ( "display",
     [
+      test_case "a running parent releases completed children" [ uint8; bool ]
+        test_finished_children_heap;
       test_case "scene exceptions leave the terminal usable"
         [ uint8; uint8; bool ] test_scene_exception_close;
       test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
