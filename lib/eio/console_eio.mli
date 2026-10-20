@@ -81,7 +81,11 @@ val run :
     ends. A message logged in another domain that Eio runs, such as one of an
     [Eio.Executor_pool], is passed to the domain that runs [f] and goes above
     the rows; the display itself is for that domain alone
-    ({{!Console.Display.displays}Displays}).
+    ({{!Console.Display.displays}Displays}). A message the display cannot take
+    goes to the reporter installed before [run], so that a log call never fails:
+    one logged once the display closed, through a reporter kept from [f], one
+    still waiting for the display when it closes, and one from a domain that Eio
+    does not run.
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing

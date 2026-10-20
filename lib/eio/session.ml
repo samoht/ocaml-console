@@ -149,46 +149,63 @@ let level : Logs.level -> Display_driver.level = function
   | Logs.Info -> `Info
   | Logs.Debug -> `Debug
 
+(* A message is answered once the display wrote it, or once the display
+   closed without writing it. *)
 type request = {
   level : Display_driver.level;
   message : string;
-  reply : (unit, exn) result Eio.Promise.t Eio.Promise.u;
+  reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
 }
 
-let closed_reporter () =
-  invalid_arg "Console_eio: the display reporter is closed"
-
-(* A message from another domain is handed to the display's own, which is the
-   only one that writes on it. *)
-let reporter ~owner ~closed ~requests display =
-  let emit level message =
-    if Option.is_some (Eio.Promise.peek closed) then closed_reporter ();
-    if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
-      Display_driver.report display level message
-    else
+(* A message for the display, from the domain that runs it or handed to
+   that domain: [`Closed] if the display closes first. A domain that Eio
+   does not run cannot wait for the answer, so its message is not taken. *)
+let deliver ~owner ~closed ~requests display level message =
+  if Option.is_some (Eio.Promise.peek closed) then `Closed
+  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then begin
+    Display_driver.report display level message;
+    `Written
+  end
+  else
+    try
       Eio.Fiber.first
         (fun () ->
           let answer, reply = Eio.Promise.create () in
           Eio.Stream.add requests { level; message; reply };
-          Eio.Promise.await answer |> Eio.Promise.await_exn)
+          Eio.Promise.await_exn (Eio.Promise.await answer))
         (fun () ->
           Eio.Promise.await closed;
-          closed_reporter ())
-  in
-  (* A message from a source of its own is prefixed with the source's name,
-     as the reporter of the Logs documentation does. *)
+          `Closed)
+    with Effect.Unhandled _ -> `Closed
+
+(* A message the display cannot take goes to the reporter it replaced, so
+   that a log call never fails. A message from a source of its own is
+   prefixed with the source's name, as the reporter of the Logs
+   documentation does. *)
+let reporter ~previous ~owner ~closed ~requests display =
   let report src l ~over k msgf =
-    msgf (fun ?header:_ ?tags:_ fmt ->
-        Fmt.kstr
-          (fun message ->
-            let message =
-              if src == Logs.default || message = "" then message
-              else "[" ^ Logs.Src.name src ^ "] " ^ message
-            in
-            if message <> "" then emit (level l) message;
-            over ();
-            k ())
-          fmt)
+    if Option.is_some (Eio.Promise.peek closed) then
+      previous.Logs.report src l ~over k msgf
+    else
+      msgf (fun ?header ?tags fmt ->
+          Fmt.kstr
+            (fun message ->
+              let shown =
+                if src == Logs.default || message = "" then message
+                else "[" ^ Logs.Src.name src ^ "] " ^ message
+              in
+              let delivered =
+                if shown = "" then `Written
+                else deliver ~owner ~closed ~requests display (level l) shown
+              in
+              match delivered with
+              | `Written ->
+                  over ();
+                  k ()
+              | `Closed ->
+                  previous.Logs.report src l ~over k (fun m ->
+                      m ?header ?tags "%s" message))
+            fmt)
   in
   { Logs.report }
 
@@ -199,15 +216,17 @@ let receive ~sw ~closed requests display =
       Eio.Fiber.fork_promise ~sw (fun () ->
           Eio.Fiber.first
             (fun () ->
-              if Option.is_some (Eio.Promise.peek closed) then
-                closed_reporter ();
-              Display_driver.report display level message)
+              if Option.is_some (Eio.Promise.peek closed) then `Closed
+              else begin
+                Display_driver.report display level message;
+                `Written
+              end)
             (fun () ->
               Eio.Promise.await closed;
-              closed_reporter ()))
+              `Closed))
     in
     Eio.Promise.resolve reply output;
-    ignore (Eio.Promise.await output : (unit, exn) result);
+    ignore (Eio.Promise.await output : ([ `Written | `Closed ], exn) result);
     loop ()
   in
   loop ()
@@ -248,7 +267,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
       let requests = Eio.Stream.create 1 in
       Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests display);
       Logs.set_reporter
-        (reporter ~owner:(Domain.self ()) ~closed ~requests display);
+        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests display);
       animate ~sw ~sleep display;
       Fun.protect ~finally:(fun () ->
           Logs.set_reporter previous;
