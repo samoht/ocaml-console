@@ -44,7 +44,7 @@ let feed_raw vte s =
     (String.split_on_char '\n' s)
 
 let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
-    ?(styled = false) ?(raw = false) () =
+    ?(styled = false) ?(raw = false) ?(before = "") () =
   let buffer = Buffer.create 512 in
   let vte = Vte.create ~rows:height ~cols:width () in
   let chunks = ref [] and size = ref (width, height) in
@@ -57,6 +57,7 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
       if raw then feed_raw vte s else Vte.feed_string vte s
     end
   in
+  Vte.feed_string vte before;
   let ppf = Format.make_formatter out_string out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   let now, advance = clock () in

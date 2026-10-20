@@ -185,6 +185,27 @@ let test_raw_tty () =
   check_lines "the region after a line above it" later later';
   check_lines "the final screen" final final'
 
+(* The host left "Fetching " unended. The region starts on the next row,
+   so its first line, nearly as wide as the screen, does not wrap there and
+   a repaint erases all of it. *)
+let test_after_a_partial_line () =
+  let run before =
+    let t = terminal ~theme ~width:40 ~before ~header:(String.make 28 'h') () in
+    Display.redraw t.display;
+    let a = Display.task t.display "fetch" in
+    Display.redraw t.display;
+    let first = screen t in
+    Display.succeed a;
+    Display.close t.display;
+    (first, lines t)
+  in
+  let first, final = run "" in
+  let first', final' = run "Fetching " in
+  let used rows = List.rev (List.drop_while (( = ) "") (List.rev rows)) in
+  check_lines "the region below the host's line" ("Fetching" :: used first)
+    (used first');
+  check_lines "the final screen" ("Fetching" :: final) final'
+
 let test_tail () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let a = Display.task ~log_lines:2 t.display "job" in
@@ -461,6 +482,7 @@ let suite =
         test_empty_header_pending;
       Alcotest.test_case "region" `Quick test_region;
       Alcotest.test_case "a raw tty" `Quick test_raw_tty;
+      Alcotest.test_case "after a partial line" `Quick test_after_a_partial_line;
       Alcotest.test_case "tail" `Quick test_tail;
       Alcotest.test_case "alignment" `Quick test_alignment;
       Alcotest.test_case "label truncated" `Quick test_label_truncated;

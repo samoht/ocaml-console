@@ -40,12 +40,14 @@ val terminal :
   ?theme:Theme.t ->
   ?styled:bool ->
   ?raw:bool ->
+  ?before:string ->
   unit ->
   term
 (** [terminal ()] is a display on a terminal of [width] by [height] (defaults to
     40 by 8), in colour iff [styled] (defaults to [false]). If [raw] (defaults
     to [false]) the terminal's line discipline is in raw mode: a line feed moves
-    down and keeps the column. *)
+    down and keeps the column. [before] (defaults to [""]) is what the host
+    wrote on the terminal before the display started. *)
 
 val written : term -> string
 (** [written t] is every byte the display wrote, in order. *)

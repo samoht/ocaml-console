@@ -139,7 +139,7 @@ let check_screen t =
       Fmt.(list ~sep:cut string)
       rows
 
-let terminal ~width ~height ~styled =
+let terminal ?(prefix = "") ~width ~height ~styled () =
   let t =
     {
       vte = Vte.create ~rows:height ~cols:width ();
@@ -166,6 +166,7 @@ let terminal ~width ~height ~styled =
       Vte.feed_string t.vte s
     end
   in
+  Vte.feed_string t.vte prefix;
   let ppf = Format.make_formatter (Buffer.add_substring chunk) out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   t.display <-
@@ -244,8 +245,17 @@ let apply t = function
   | Redraw -> redraw_twice t
   | Output l -> output t l
 
-let test ops w h styled =
-  let t = terminal ~width:(8 + (w mod 72)) ~height:(3 + (h mod 20)) ~styled in
+(* The host left [p] cells of a line unended: the region starts on a row of
+   its own, below it. *)
+let test ops w h styled p =
+  let width = 8 + (w mod 72) in
+  let prefix = String.make (p mod width) 'p' in
+  let t = terminal ~prefix ~width ~height:(3 + (h mod 20)) ~styled () in
+  (match Vte.scrollback_lines t.vte @ screen t.vte with
+  | _ when prefix = "" -> ()
+  | first :: _ when rstrip first = prefix -> ()
+  | first :: _ -> failf "the host's line %S became %S" prefix first
+  | [] -> fail "no screen");
   List.iter
     (fun o ->
       apply t o;
@@ -348,7 +358,7 @@ let test_pipe_attribution n =
   check (has "SUMMARY" (List.hd (List.rev nonempty)))
 
 let test_output_exception s cancel =
-  let t = terminal ~width:40 ~height:8 ~styled:true in
+  let t = terminal ~width:40 ~height:8 ~styled:true () in
   let d = display t in
   ignore (Display.task d "interrupted");
   Display.redraw d;
@@ -385,7 +395,7 @@ let test_output_exception s cancel =
   check (Grid.get_bg_r grid index = Grid.get_bg_r plain first)
 
 let test_resize_erases_old_frame n =
-  let t = terminal ~width:80 ~height:12 ~styled:true in
+  let t = terminal ~width:80 ~height:12 ~styled:true () in
   let d = display t in
   let a = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'x') in
   let b = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'y') in
@@ -414,7 +424,7 @@ let test_resize_erases_old_frame n =
   Display.close d
 
 let test_static_rows_and_idle n =
-  let t = terminal ~width:60 ~height:10 ~styled:true in
+  let t = terminal ~width:60 ~height:10 ~styled:true () in
   let d = display t in
   let task = Display.task d "moving" in
   Display.with_output d (fun ppf ->
@@ -517,7 +527,7 @@ let test_untrusted_arguments s =
 let test_extreme_terminals n styled =
   List.iter
     (fun (width, height) ->
-      let t = terminal ~width ~height ~styled in
+      let t = terminal ~width ~height ~styled () in
       let d = display t in
       for i = 0 to 20 + (n mod 20) do
         let task =
@@ -552,6 +562,6 @@ let suite =
       test_case "pipe logs retain order and task attribution" [ uint8 ]
         test_pipe_attribution;
       test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
-      test_case "screen guarantees" [ list op; uint8; uint8; bool ] test;
+      test_case "screen guarantees" [ list op; uint8; uint8; bool; uint8 ] test;
       test_case "plain output" [ list op ] test_plain;
     ] )
