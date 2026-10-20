@@ -4,8 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Console
-
-let contains sub s = Re.execp Re.(compile (str sub)) s
+open Display_harness
 
 (* The DOS preset is ASCII through and through: a blocky bar, the ASCII spinner
    and tree guide. *)

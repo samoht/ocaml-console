@@ -17,6 +17,7 @@
  (libraries
   console
   console-eio
+  display_harness
   cstruct
   eio
   eio.unix

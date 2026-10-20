@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+open Display_harness
+
 (* Console_eio driver, on a buffer: no terminal, so each task line, log line
    and the result is printed as plain text. *)
 
@@ -20,9 +22,7 @@ let capture ?header f =
   Buffer.contents buf
 
 let mem ~msg needle haystack =
-  Alcotest.(check bool)
-    msg true
-    (Astring.String.is_infix ~affix:needle haystack)
+  Alcotest.(check bool) msg true (contains needle haystack)
 
 (* A finished task commits its label; set_result `Ok prints the verdict. *)
 let test_run_banner () =

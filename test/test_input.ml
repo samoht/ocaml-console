@@ -240,8 +240,7 @@ let test_complete_lists_candidates () =
   let echo, _ = Input.feed t "co\t" in
   Alcotest.(check bool)
     "lists both candidates" true
-    (let re = Re.compile (Re.str "connections  config") in
-     Re.execp re echo)
+    (Display_harness.contains "connections  config" echo)
 
 let test_complete_last_word () =
   let complete w = if String.equal w "co" then [ "connections" ] else [] in
@@ -294,7 +293,7 @@ let test_typed_c1 () =
   let echo, submitted = Input.feed t "a\xc2\x9b2Jb\r" in
   Alcotest.(check bool)
     "no C1 control echoed" false
-    (Astring.String.is_infix ~affix:"\xc2\x9b" echo);
+    (Display_harness.contains "\xc2\x9b" echo);
   Alcotest.check lines "line" [ "a 2Jb" ] submitted
 
 (* A terminal in application cursor mode sends the arrows as ESC O A to

@@ -4,8 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Console
-
-let contains pattern str = Re.execp (Re.compile (Re.str pattern)) str
+open Display_harness
 
 let test_basic () =
   let panel = Panel.v (Span.text "content") in

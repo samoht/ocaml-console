@@ -3,7 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let contains affix s = Astring.String.is_infix ~affix s
+open Display_harness
+
 let with_clock f = Eio_main.run @@ fun env -> f (Eio.Stdenv.clock env)
 
 let buffer () =
@@ -305,7 +306,7 @@ let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
     "SIGINT still ends the program" true
-    (match status with `Signaled s -> s = Sys.sigint | _ -> false);
+    (match status with `Signaled s -> Int.equal s Sys.sigint | _ -> false);
   Alcotest.(check bool) "SIGINT during a password restores echo" true echo
 
 let suite =

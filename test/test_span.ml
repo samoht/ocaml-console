@@ -4,9 +4,9 @@
   ---------------------------------------------------------------------------*)
 
 open Console
+open Display_harness
 
 let strings = List.map Span.to_string
-let contains affix s = Re.execp (Re.compile (Re.str affix)) s
 
 let test_text () =
   Alcotest.(check int) "span width" 5 (Span.width (Span.text "hello"));

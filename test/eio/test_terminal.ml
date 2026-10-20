@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+open Display_harness
+
 (* [`Auto] draws a live region where one can be drawn, on the descriptor the
    display writes to: [Console_eio.run ~ppf:Fmt.stderr] asks standard error,
    whatever standard output is. A terminal whose [TERM] is [dumb] has no cursor
@@ -99,7 +101,7 @@ let test_auto_asks_the_formatters_own_descriptor () =
   let written = read_to_mark env pty in
   Alcotest.(check bool)
     "a live region on standard error's terminal" true
-    (Astring.String.is_infix ~affix:hide_cursor written)
+    (contains hide_cursor written)
 
 (* Standard error is a pipe and standard output a terminal: the display
    appends, and the pipe holds the task's line and no escape. An
@@ -124,9 +126,7 @@ let test_auto_appends_on_a_pipe () =
   in
   drain ();
   let written = Buffer.contents written in
-  Alcotest.(check bool)
-    "no escape" false
-    (Astring.String.is_infix ~affix:"\027[" written);
+  Alcotest.(check bool) "no escape" false (contains "\027[" written);
   Alcotest.(check string) "the task's line" "\xe2\x9c\x93 step  0.0s\n" written
 
 (* Both descriptors are the same terminal; under TERM=xterm-256color the
@@ -145,14 +145,12 @@ let test_auto_appends_under_term_dumb () =
   in
   Alcotest.(check bool)
     "a live region under xterm-256color" true
-    (Astring.String.is_infix ~affix:hide_cursor (draw "xterm-256color"));
+    (contains hide_cursor (draw "xterm-256color"));
   let dumb = draw "dumb" in
-  Alcotest.(check bool)
-    "no escape under dumb" false
-    (Astring.String.is_infix ~affix:"\027[" dumb);
+  Alcotest.(check bool) "no escape under dumb" false (contains "\027[" dumb);
   Alcotest.(check bool)
     "the task's line under dumb" true
-    (Astring.String.is_infix ~affix:"\xe2\x9c\x93 step  0.0s" dumb)
+    (contains "\xe2\x9c\x93 step  0.0s" dumb)
 
 (* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
    cursor controls a region is made of are CSIs too, with other final bytes. *)
@@ -203,14 +201,12 @@ let test_run_styles_a_terminal () =
     read_to_mark env pty
   in
   let coloured = draw "" in
-  Alcotest.(check bool)
-    "a live region" true
-    (Astring.String.is_infix ~affix:hide_cursor coloured);
+  Alcotest.(check bool) "a live region" true (contains hide_cursor coloured);
   Alcotest.(check bool) "in colour" true (has_sgr coloured);
   let plain = draw "1" in
   Alcotest.(check bool)
     "a live region under NO_COLOR" true
-    (Astring.String.is_infix ~affix:hide_cursor plain);
+    (contains hide_cursor plain);
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
 let test_small_dimensions () =

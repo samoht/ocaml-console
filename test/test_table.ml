@@ -4,11 +4,10 @@
   ---------------------------------------------------------------------------*)
 
 open Console
+open Display_harness
 
 let of_string_rows ?theme ?border columns rows =
   Table.v ?theme ?border columns (List.map (List.map Span.text) rows)
-
-let contains pattern str = Re.execp (Re.compile (Re.str pattern)) str
 
 let test_basic () =
   let table =

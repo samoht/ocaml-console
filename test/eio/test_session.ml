@@ -3,6 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+open Display_harness
 module P = Console_eio.Prompt
 
 let prompt ?interactive actions =
@@ -136,7 +137,7 @@ let test_run_clock () =
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "task output" true
-    (Astring.String.is_infix ~affix:"compile" (Buffer.contents out));
+    (contains "compile" (Buffer.contents out));
   Alcotest.(check bool)
     "no cursor codes" false
     (String.contains (Buffer.contents out) '\027')
@@ -162,8 +163,7 @@ let test_run_failure () =
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "cancelled task" true
-    (Astring.String.is_infix ~affix:"\xe2\x97\x8b abandoned"
-       (Buffer.contents out))
+    (contains "\xe2\x97\x8b abandoned" (Buffer.contents out))
 
 let test_nested_fiber () =
   Eio_mock.Backend.run @@ fun () ->
