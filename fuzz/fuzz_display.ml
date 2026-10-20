@@ -921,7 +921,9 @@ let test_scene_frames kind cells n w times =
     moving still
 
 (* A scene is never drawn on a pipe, and a widget printed on a formatter is
-   still, in colour too: the bytes of its theme without motion. *)
+   motionless: printed twice it is the same bytes, without colour those of
+   its theme without motion, and in colour too but for a sweep, which
+   colours its frame. *)
 let test_scene_pipe kind cells n m =
   let theme = pick_theme n in
   let pp = widget kind cells in
@@ -934,18 +936,25 @@ let test_scene_pipe kind cells n m =
   Display.close d;
   Format.pp_print_flush ppf ();
   if has "SCENE_SENTINEL" (Buffer.contents buf) then fail "a scene on a pipe";
-  let printed theme =
+  let printed ?(styled = true) theme =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
     Theme.set ppf theme;
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
+    if styled then begin
+      Fmt.set_style_renderer ppf `Ansi_tty;
+      Color.set_depth ppf `True_color
+    end;
     Format.pp_set_margin ppf (4 + (m mod 100));
     pp ppf;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
-  check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
+  check_eq ~pp:Fmt.Dump.string (printed theme) (printed theme);
+  check_eq ~pp:Fmt.Dump.string
+    (printed ~styled:false (Theme.still theme))
+    (printed ~styled:false theme);
+  if Theme.motion theme <> Some `Sweep then
+    check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
 
 let suite =
   ( "display",

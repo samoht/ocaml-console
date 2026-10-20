@@ -467,8 +467,10 @@ let test_still () =
     [ frame 0.; frame 0. ]
     [ frame 0.1; frame 0.55 ]
 
-(* Printed on a formatter, a frame is still: the bytes of the theme without
-   motion, in colour too. *)
+(* Printed on a formatter, a frame is motionless: its glyphs are those of
+   the theme without motion, and so are its colours, but for a sweep, which
+   colours the whole frame and prints the palette graded round it, as a
+   display draws it at its start. *)
 let test_still_printed () =
   let table =
     Table.v
@@ -476,17 +478,42 @@ let test_still_printed () =
       [ [ Span.text "1"; Span.text "2" ] ]
   in
   let panel = Panel.v ~title:(Span.text "T") (Span.text "body") in
+  let colours s =
+    let re =
+      Re.compile
+        (Re.seq [ Re.str "\027[38;"; Re.rep1 (Re.rg '0' ';'); Re.char 'm' ])
+    in
+    List.sort_uniq compare (Re.matches re s)
+  in
   List.iter
     (fun (name, t) ->
       let still = Theme.still t in
-      Alcotest.(check string)
-        (name ^ " table")
-        (printed ~theme:still ~styled:true Table.pp table)
-        (printed ~theme:t ~styled:true Table.pp table);
-      Alcotest.(check string)
-        (name ^ " panel")
-        (printed ~theme:still ~styled:true Panel.pp panel)
-        (printed ~theme:t ~styled:true Panel.pp panel))
+      let check what pp v =
+        Alcotest.(check string)
+          (name ^ " " ^ what ^ ", plain")
+          (printed ~theme:still pp v)
+          (printed ~theme:t pp v);
+        let moving = printed ~theme:t ~styled:true pp v in
+        Alcotest.(check string)
+          (name ^ " " ^ what ^ ", motionless")
+          moving
+          (printed ~theme:t ~styled:true pp v);
+        match Theme.motion t with
+        | Some `Sweep ->
+            let first = List.hd (Theme.palette t) in
+            if not (String.starts_with ~prefix:(sgr (Style.fg first)) moving)
+            then Alcotest.failf "%s %s: %S" name what moving;
+            if List.length (colours moving) < 6 then
+              Alcotest.failf "%s %s: a frame of %d colours" name what
+                (List.length (colours moving))
+        | _ ->
+            Alcotest.(check string)
+              (name ^ " " ^ what)
+              (printed ~theme:still ~styled:true pp v)
+              moving
+      in
+      check "table" Table.pp table;
+      check "panel" Panel.pp panel)
     presets
 
 (* The cells of the frame of a table drawn in a live display in [theme], as
