@@ -299,7 +299,8 @@ val all : (string * t) list
 
 val of_string : string -> (t, [ `Msg of string ]) result
 (** [of_string s] is the theme of {!all} named [s]. The error message lists the
-    names. *)
+    names. A theme {!v} makes is not in {!all}: [of_string (name t)] is an
+    [Error] for it. *)
 
 (** {1:formatters Themes of formatters} *)
 

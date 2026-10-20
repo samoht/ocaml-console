@@ -44,7 +44,9 @@ val to_span : ?width:int -> t -> Span.t
     the theme and the [Fmt.utf_8] of the formatter it is printed on. Each of its
     lines takes the cells it takes in {!Theme.default} in UTF-8: where the
     formatter's look lays a line out wider or narrower, as a frame of glyphs two
-    cells wide does, the line is cut or padded to those cells. *)
+    cells wide does, the line is cut or padded to those cells. A panel whose
+    {!v} [width] is wider than [width] has each of its lines cut to [width], as
+    {!pp} cuts it to a narrower margin. *)
 
 val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string panel] is [panel] as {!pp} formats it at a margin of [width], or

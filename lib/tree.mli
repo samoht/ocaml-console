@@ -22,6 +22,8 @@
         Console.Tree.to_string tree = "root\n+-- bin\n+-- etc\n    +-- hosts")
     ]} *)
 
+(** {1:trees Trees} *)
+
 type t
 (** The type for trees. *)
 
@@ -31,10 +33,7 @@ val v : ?guide:Guide.t -> Span.t -> t list -> t
     is printed on ({!Theme.get}); a tree drawn under another takes the lines of
     the one above it. *)
 
-val pp : t Fmt.t
-(** [pp] formats a tree, with no line end after its last line. No line is wider
-    than the formatter's margin: a label wider than the room the margin leaves
-    it wraps, the rest under its text. *)
+(** {1:converting Converting} *)
 
 val to_span : ?width:int -> t -> Span.t
 (** [to_span ~width tree] is [tree] as a span, to put in a cell, a panel, the
@@ -49,3 +48,10 @@ val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string t] is [t] as {!pp} formats it at a margin of [width], or at its
     natural width without [width], with colours iff [styled] (defaults to
     [false]). Its lines are joined by line feeds, with none after the last. *)
+
+(** {1:fmt Formatting} *)
+
+val pp : t Fmt.t
+(** [pp] formats a tree, with no line end after its last line. No line is wider
+    than the formatter's margin: a label wider than the room the margin leaves
+    it wraps, the rest under its text. *)

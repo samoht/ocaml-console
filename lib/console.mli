@@ -20,16 +20,18 @@
 
     {b Guarantees.} Widths are counted in terminal cells, as the terminal draws
     the text: a wide character, such as a Chinese one or an emoji, takes two
-    cells and an accent added to a letter takes none. A widget is no wider than
-    its formatter's margin and ends without a line end, so ["%a@."] prints it on
-    its own lines. A span holds only text that prints: a line end in it starts a
-    new line and any other control character is a space, so caller text cannot
-    move the cursor or change colours. Every style a printer turns on, it turns
-    off before the line ends. Text cut to fit is cut between two characters and
-    ends with an ellipsis. On a formatter that is not {!Fmt.utf_8}, the frames,
-    lines, bars, spinners, marks and ellipses of the widgets are ASCII. The
-    guarantees of a live region are those of {!Display}. Each guarantee and the
-    tests that check it are listed in the repository's [INVARIANTS.md].
+    cells and an accent added to a letter takes none. A widget its [pp] prints
+    is no wider than its formatter's margin, one as a span is as wide as its
+    [to_span] lays it out, and either ends without a line end, so ["%a@."]
+    prints it on its own lines. A span holds only text that prints: a line end
+    in it starts a new line and any other control character is a space, so
+    caller text cannot move the cursor or change colours. Every style a printer
+    turns on, it turns off before the line ends. Text cut to fit is cut between
+    two characters and ends with an ellipsis. On a formatter that is not
+    {!Fmt.utf_8}, the frames, lines, bars, spinners, marks and ellipses of the
+    widgets are ASCII. The guarantees of a live region are those of {!Display}.
+    Each guarantee and the tests that check it are listed in the repository's
+    [INVARIANTS.md].
 
     Text is in colour when its formatter is set to colour
     ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows;

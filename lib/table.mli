@@ -36,8 +36,9 @@ val column :
     under its own styles, such that:
 
     - [align] places the cells in the column (defaults to [`Left]);
-    - [min_width] and [max_width] bound its width, in cells; the table goes
-      below [min_width] only when nothing else fits;
+    - [min_width] and [max_width] bound its width, in cells (default to none:
+      the column is as wide as its widest cell and narrows to one cell to fit);
+      the table goes below [min_width] only when nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
       [`Wrap]);
     - [shrinkable] (defaults to [true]) at [false] makes the column the last to

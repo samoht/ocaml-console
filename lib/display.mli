@@ -127,7 +127,9 @@ module Layout : sig
   (** [text s] is [s] on one line. *)
 
   val accent : string -> piece
-  (** [accent s] is [s] in the row's colour. *)
+  (** [accent s] is [s] in bold, in the row's colour: the colour of the
+      {!Theme.palette} the row takes, which is {!Theme.accent} in a theme of one
+      colour. *)
 
   val spacer : piece
   (** [spacer] is the space that pushes the pieces after it to the right edge.
@@ -183,8 +185,9 @@ val v :
 
 val redraw : t -> unit
 (** [redraw display] draws the region again, so that the spinners turn and the
-    timers run. A driver calls it a few times a second; the display redraws
-    itself when its tasks change, at most ten times a second. *)
+    timers run. [Console_eio.run] calls it ten times a second, and a program
+    that runs a display without it calls it a few times a second; the display
+    redraws itself when its tasks change, at most ten times a second. *)
 
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] takes the region off the screen, calls [f] with the
@@ -226,10 +229,9 @@ val set_result : ?detail:string -> t -> (string, string) result -> unit
     succeed, with [Error] they are cancelled. A second call does nothing. *)
 
 val close : t -> unit
-(** [close display] cancels the tasks still running, for a task nobody ended did
-    not finish ({!set_result} with [Ok] has them succeed first), takes the
-    region off the screen, shows the cursor and prints the header, then the
-    result of {!set_result}.
+(** [close display] cancels the tasks still running ({!set_result} with [Ok] has
+    them succeed first), takes the region off the screen, shows the cursor and
+    prints the header, then the result of {!set_result}.
 
     A closed display ignores what it is told, so that a fiber that outlives it
     does not fail: closing it again, {!redraw}, {!set_scene} and {!set_result}

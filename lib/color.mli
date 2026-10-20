@@ -23,7 +23,8 @@ val rgb : int -> int -> int -> t
 
 val of_hex : string -> (t, [ `Msg of string ]) result
 (** [of_hex s] is the colour written [s] in hexadecimal: ["RRGGBB"] or ["RGB"],
-    optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled. *)
+    optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled.
+    {!hex} raises instead, for a literal known to be well formed. *)
 
 val hex : string -> t
 (** [hex s] is like {!of_hex} but raises on a malformed [s].
