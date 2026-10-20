@@ -1,0 +1,8 @@
+(documentation
+ (package console)
+ (mld_files index))
+
+(mdx
+ (package console)
+ (files index.mld)
+ (libraries console fmt))

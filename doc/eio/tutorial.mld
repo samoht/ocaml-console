@@ -1,0 +1,224 @@
+{0 A first CLI}
+
+This tutorial writes [check], a command that runs test suites, shows them as
+progress rows while they run and prints a table of their results. It takes a
+[--color] option and a [--theme] option, prints plain lines when its output
+is a pipe, and has a cram test whose output is the same on every machine.
+Each section adds to the one before it.
+
+{1:setup Setup}
+
+[check] uses the [console] and [console-eio] packages, with
+{{:https://erratique.ch/software/cmdliner}Cmdliner} for its options and
+{{:https://erratique.ch/software/logs}Logs} for its messages:
+
+{v
+opam install console console-eio cmdliner logs
+v}
+
+Its [dune] file:
+
+{v
+(executable
+ (public_name check)
+ (libraries
+  console console.tty console-eio
+  eio eio_main fmt fmt.cli cmdliner logs))
+v}
+
+{1:options Colour and theme}
+
+A program decides on colour once, before it prints. {!Console_tty.setup}
+reads the terminal and the environment ([NO_COLOR], [TERM], [COLORTERM] and
+the locale) and sets colour, colour depth and UTF-8 on the standard outputs.
+Given a style renderer, it uses that one instead: [Fmt_cli.style_renderer]
+reads it from a [--color=auto|always|never] option. A
+{{!Console.Theme}theme} is kept on the formatter too, and the progress rows
+draw on standard error, so [check] sets the theme of both outputs:
+
+{@ocaml[
+let setup color theme =
+  Console_tty.setup ?style_renderer:color ();
+  List.iter (fun ppf -> Console.Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
+  Logs.set_level (Some Logs.Info)
+
+let theme =
+  Cmdliner.Arg.(
+    value
+    & opt (enum Console.Theme.all) Console.Theme.default
+    & info [ "theme" ] ~doc:"The look of the output.")
+
+let options = Cmdliner.Term.(const setup $ Fmt_cli.style_renderer () $ theme)
+]}
+
+{!Console.Theme.all} lists the predefined themes under their names, which are
+the values [--theme] accepts:
+
+{@ocaml[
+# List.map fst Console.Theme.all;;
+- : string list =
+["default"; "ascii"; "dos"; "matrix"; "rainbow"; "dracula"; "nord";
+ "solarized-dark"; "solarized-light"; "gruvbox-dark"; "gruvbox-light";
+ "catppuccin-latte"; "catppuccin-mocha"; "tokyo-night"; "one-dark";
+ "monokai"; "github-dark"; "github-light"]
+]}
+
+{!Console.Theme.default} reads on any background. A theme named after a
+colour scheme, such as [dracula], is for a terminal that uses that scheme.
+
+{1:table A table}
+
+A table is a list of columns and rows of {{!Console.Span}spans}. It is as
+wide as its content needs, and no wider than the formatter's margin. Its
+frame, the style of its headers and its colours come from the theme of the
+formatter it is printed on:
+
+{@ocaml[
+# let suites = [ ("parser", 3); ("layout", 2) ];;
+val suites : (string * int) list = [("parser", 3); ("layout", 2)]
+# let results suites =
+    let row (name, n) =
+      [ Console.Span.text name; Console.Span.text (Int.to_string n) ]
+    in
+    Console.Table.(
+      v [ column "Suite"; column ~align:`Right "Tests" ] (List.map row suites));;
+val results : (string * int) list -> Console.Table.t = <fun>
+# Fmt.pr "%a@." Console.Table.pp (results suites);;
+╭────────┬───────╮
+│ Suite  │ Tests │
+├────────┼───────┤
+│ parser │     3 │
+│ layout │     2 │
+╰────────┴───────╯
+- : unit = ()
+]}
+
+{1:progress Progress rows}
+
+{!Console_eio.run} opens a display on standard error, passes it to a
+function and closes it when the function returns. {!Console.Display.with_task}
+runs a function as a task: its row shows while the function runs, and the
+task succeeds when the function returns and fails when it raises.
+{!Console.Display.set_count} says how much of the work is done:
+
+{@ocaml[
+let test display (name, total) =
+  Console.Display.with_task display name @@ fun task ->
+  for cur = 1 to total do
+    Console.Display.set_count task ~cur ~total
+  done;
+  Logs.info (fun m -> m "%d tests passed" total)
+
+let run_all ~clock suites =
+  Console_eio.run ~clock ~header:"Testing" (fun display ->
+      Eio.Fiber.List.iter (test display) suites)
+]}
+
+[Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites that
+wait, on a child process say, run side by side, one row each. A [Logs]
+message logged inside a task, as here, goes to the task's window under its
+row while it runs and then stays, after the task's name. The output of a
+command the task runs goes to {!Console.Display.log} instead: it shows in the
+window while the task runs, goes when the task succeeds and is printed whole
+when it fails. What the program prints on standard output with [Fmt.pr] is
+its result, which console prints above the rows and never hides. The section
+{{!Console_eio.output}where text goes} has the whole table.
+
+{1:program The whole program}
+
+[check] sets up the outputs, runs the suites, then prints the table:
+
+{@ocaml[
+let check () =
+  Eio_main.run @@ fun env ->
+  run_all ~clock:(Eio.Stdenv.mono_clock env) suites;
+  Fmt.pr "%a@." Console.Table.pp (results suites)
+
+let cmd =
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "check")
+    Cmdliner.Term.(const check $ options)
+
+let main () = exit (Cmdliner.Cmd.eval cmd)
+]}
+
+and its entry point is [let () = main ()].
+
+{1:pipe What a pipe gets}
+
+When the output is not a terminal, as in a pipe or a CI log, nothing is
+redrawn. A task prints a line when it starts, each of its messages after its
+name, and one when it ends, with its count and its time; the header comes
+last, as a summary. Without [--color=always], a pipe gets no colour. Here
+[check] runs with its output captured, and with [CONSOLE_FROZEN_CLOCK] set,
+which the {{!testing}next section} explains:
+
+{@ocaml[
+# Unix.putenv "CONSOLE_FROZEN_CLOCK" "1";;
+- : unit = ()
+# Cmdliner.Cmd.eval ~argv:[| "check"; "--theme=dos" |] cmd;;
+[-] parser
+  parser: 3 tests passed
+[+] parser  3/3  0.0s
+[-] layout
+  layout: 2 tests passed
+[+] layout  2/2  0.0s
+[+] Testing 0.0s (2/2)
+╔════════╤═══════╗
+║ Suite  │ Tests ║
+╟────────┼───────╢
+║ parser │     3 ║
+║ layout │     2 ║
+╚════════╧═══════╝
+- : int = 0
+]}
+
+The marks come from the theme, here {!Console.Theme.dos}. Console flushes
+standard output before each line it writes, so [check 2>&1 | cat] keeps the
+order of the two outputs. A [--progress=plain] option can ask for these lines
+on a terminal too, with [Console_eio.run ~plain:true].
+
+{1:testing Testing the output}
+
+An elapsed time is the one part of the output that the machine writes rather
+than the program. With [CONSOLE_FROZEN_CLOCK] set to any value but the empty
+string, {!Console_eio.run} reads a clock stopped at zero: every time reads
+[0.0s], no rate shows, and the spinners and the motion stand still. A cram
+test of [check] then reads the same on every machine. Its [dune] stanza:
+
+{v
+(cram
+ (deps %{bin:check}))
+v}
+
+and its file, [check.t]:
+
+{v
+  $ export CONSOLE_FROZEN_CLOCK=1
+  $ check 2>&1
+  • parser
+    parser: 3 tests passed
+  ✓ parser  3/3  0.0s
+  • layout
+    layout: 2 tests passed
+  ✓ layout  2/2  0.0s
+  ✓ Testing 0.0s (2/2)
+  ╭────────┬───────╮
+  │ Suite  │ Tests │
+  ├────────┼───────┤
+  │ parser │     3 │
+  │ layout │     2 │
+  ╰────────┴───────╯
+v}
+
+The widgets need no clock: [Console.Table.to_string] and the other
+[to_string] functions give the text a unit test compares, plain unless
+[~styled:true].
+
+{1:next Next}
+
+{ul
+{- {!Console.Display} has the rules of the live rows: nested tasks, byte
+   counts, results, and what the display guarantees on a terminal.}
+{- {!Console.Theme} describes each theme and makes new ones.}
+{- {!Console_eio.Prompt} asks questions on the terminal, passwords
+   included.}}

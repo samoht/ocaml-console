@@ -1,0 +1,36 @@
+{0 console-eio}
+
+Progress rows for OCaml command-line tools, run with
+{{:https://github.com/ocaml-multicore/eio}Eio}.
+
+[console-eio] runs a {!Console.Display} on the terminal. It finds whether
+the output is a terminal and its size, redraws the progress rows, prints the
+program's output and its [Logs] messages above them, and gives the terminal
+back however the program ends. On a pipe or in a CI log it prints plain
+lines instead. The smallest program:
+
+{@ocaml[
+let build display =
+  Console.Display.with_task display "compile" (fun step ->
+      Console.Display.set_count step ~cur:1 ~total:2;
+      Console.Display.log step "ocamlopt parser.ml";
+      Console.Display.set_count step ~cur:2 ~total:2)
+
+let main () =
+  Eio_main.run @@ fun env ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
+]}
+
+{!page-tutorial} builds a whole command step by step: options for colour and
+theme, a table, progress rows and a test of its output.
+
+{1:modules Modules}
+
+{ul
+{- {!Console_eio}: runs a display and decides on colour for the outputs the
+   program left alone.}
+{- {!Console_eio.Prompt}: questions asked on the terminal, a line, a yes or
+   no, or a password.}}
+
+The widgets, the themes and the rules of the display are in the [console]
+package: {!Console}.

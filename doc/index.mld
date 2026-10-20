@@ -1,0 +1,60 @@
+{0 console}
+
+Colours, tables, trees and progress rows for OCaml command-line tools.
+
+[console] prints into the terminal's normal scrollback and redraws only the
+progress rows of a {!Console.Display} while work runs. Its widgets lay out
+text in a style and print with {{:https://erratique.ch/software/fmt}Fmt}, in
+the colours and the {!Console.Theme} of the formatter they are printed on,
+and in plain text on a pipe:
+
+{@ocaml[
+# let sizes =
+    Console.Table.(
+      v
+        [ column "Package"; column ~align:`Right "Size" ]
+        [
+          [ Console.Span.text "console"; Console.Span.text "42 KiB" ];
+          [ Console.Span.text "console-eio"; Console.Span.text "9 KiB" ];
+        ]);;
+val sizes : Console.Table.t = <abstr>
+# Fmt.pr "%a@." Console.Table.pp sizes;;
+╭─────────────┬────────╮
+│ Package     │   Size │
+├─────────────┼────────┤
+│ console     │ 42 KiB │
+│ console-eio │  9 KiB │
+╰─────────────┴────────╯
+- : unit = ()
+]}
+
+The progress rows run with Eio, in the [console-eio] package. Its
+documentation opens with a tutorial, {i A first CLI}, which builds a whole
+command step by step: options for colour and theme, a table, progress rows
+and a test of its output.
+
+{1:libraries Libraries}
+
+The [console] package has four libraries:
+
+{ul
+{- [console], the module {!Console}: styles, spans, the widgets, the themes
+   and the live {!Console.Display}. It needs neither Eio nor Unix.}
+{- [console.tty], the module {!Console_tty}: colour, colour depth and UTF-8
+   for the standard outputs, decided from the terminal and the environment,
+   or from a [--color] option.}
+{- [console.text], the module {!Console_text}: untrusted text made safe to
+   print, without the rest of [console].}
+{- [console.input], the module {!Console_input}: a line editor that turns
+   the bytes typed into echo and lines and does no input or output itself.}}
+
+{1:start Where to start}
+
+{ul
+{- {!Console.Span} and {!Console.Style} for text in colour.}
+{- {!Console.Table}, {!Console.Tree}, {!Console.Panel}, {!Console.Rule} and
+   {!Console.Bar} for the widgets.}
+{- {!Console.Theme} to choose a look, and to let users choose one with a
+   [--theme] option.}
+{- {!Console.Display} for the rules of the live rows: where text goes, what
+   a pipe gets and what the display guarantees.}}
