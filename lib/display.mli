@@ -83,7 +83,9 @@
       columns, so that on a wide terminal they stay near their labels and do not
       move when it is resized wider;
     - after a resize the old frame is erased, counting the rows a terminal that
-      reflows its lines gives it;
+      reflows its lines gives it; on one that does not, such as xterm or GNU
+      screen, a narrowing below the width of the old lines also erases the lines
+      above the region that a reflow would have filled;
     - the cursor is hidden while the display runs and shown again when it
       closes, and every line the display prints ends with ["\r\n"], so a tty
       with output processing off shows the same screen as one with it on. *)
