@@ -24,7 +24,7 @@ let max_answer = 4096
    -- a string source, a pipe from a mock -- has nobody to ask. *)
 let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
-      if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
+      if Terminal.is_tty fd then Some fd else None)
 
 let v ?interactive ?(ppf = Fmt.stderr) stdin =
   let terminal = terminal stdin in
@@ -52,8 +52,9 @@ let line t question =
     let read () =
       let line = Eio.Buf_read.take_while (fun c -> c <> '\n') t.input in
       Eio.Buf_read.char '\n' t.input;
-      let n = String.length line in
-      if n > 0 && line.[n - 1] = '\r' then String.sub line 0 (n - 1) else line
+      if String.ends_with ~suffix:"\r" line then
+        String.sub line 0 (String.length line - 1)
+      else line
     in
     match read () with
     | answer -> Ok answer
