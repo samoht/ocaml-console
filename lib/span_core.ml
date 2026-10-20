@@ -579,11 +579,9 @@ let to_string ?(styled = false) t =
 
 type Format.stag += Captured of t
 
-let capturing = Slot.v ()
-
 let pp ppf t =
-  match Slot.find capturing ppf with
-  | Some () ->
+  match Capturing.is ppf with
+  | true ->
       List.iteri
         (fun i line ->
           if i > 0 then Format.pp_print_char ppf '\n';
@@ -591,7 +589,7 @@ let pp ppf t =
           Format.pp_close_stag ppf ();
           Format.pp_print_as ppf (line_width line) "")
         (lines t)
-  | None -> (
+  | false -> (
       let t = if List.exists is_drawn t then resolve (Look.v ppf) t else t in
       match Fmt.style_renderer ppf with
       | `None -> List.iter (fun a -> Format.pp_print_string ppf a.text) t
@@ -599,9 +597,40 @@ let pp ppf t =
           Format.pp_print_string ppf
             (render ~look:Look.default ~depth:(Color.depth ppf) t))
 
+(* A mark is output in its place among the text, as a print is not. The
+   styles of [Style.styled] nest, so a close goes back to the style the
+   matching open replaced. *)
+let mark ppf ~span ~style =
+  let styles = ref [] in
+  let top () = match !styles with s :: _ -> s | [] -> Style.none in
+  let mark_open_stag = function
+    | Captured t ->
+        span t;
+        ""
+    | Capturing.Styled s ->
+        styles := s :: !styles;
+        style s;
+        ""
+    | _ -> ""
+  in
+  let mark_close_stag = function
+    | Capturing.Styled _ ->
+        (styles := match !styles with _ :: rest -> rest | [] -> []);
+        style (top ());
+        ""
+    | _ -> ""
+  in
+  Format.pp_set_formatter_stag_functions ppf
+    {
+      (Format.pp_get_formatter_stag_functions ppf ()) with
+      mark_open_stag;
+      mark_close_stag;
+    }
+
 (* A formatter that gives [text] the text it writes, [span] the spans
-   printed on it and [newline] its line ends, in order. *)
-let capturing_formatter ~text ~span ~newline =
+   printed on it, [style] the style of the text from there on and [newline]
+   its line ends, in order. *)
+let capturing_formatter ~text ~span ~style ~newline =
   let out_string s o l =
     let stop = o + l in
     let rec go o =
@@ -623,30 +652,23 @@ let capturing_formatter ~text ~span ~newline =
       out_spaces = spaces;
       out_indent = spaces;
     };
-  (* A mark is output in its place among the text, as a print is not. *)
-  let mark_open_stag = function
-    | Captured t ->
-        span t;
-        ""
-    | _ -> ""
-  in
-  Format.pp_set_formatter_stag_functions ppf
-    {
-      (Format.pp_get_formatter_stag_functions ppf ()) with
-      mark_open_stag;
-      mark_close_stag = (fun _ -> "");
-    };
+  mark ppf ~span ~style;
   Format.pp_set_mark_tags ppf true;
-  Slot.set capturing ppf ();
+  Capturing.set ppf;
   ppf
 
 let capture ~look ~margin f =
   let lines = ref [] and line = ref [] and buf = Buffer.create 64 in
+  let current = ref Style.none in
   let take_text () =
     if Buffer.length buf > 0 then begin
-      line := text (Buffer.contents buf) :: !line;
+      line := styled !current (Buffer.contents buf) :: !line;
       Buffer.clear buf
     end
+  in
+  let style s =
+    take_text ();
+    current := s
   in
   let newline () =
     take_text ();
@@ -655,9 +677,11 @@ let capture ~look ~margin f =
   in
   let span t =
     take_text ();
-    line := t :: !line
+    line := with_style !current t :: !line
   in
-  let ppf = capturing_formatter ~text:(Buffer.add_string buf) ~span ~newline in
+  let ppf =
+    capturing_formatter ~text:(Buffer.add_string buf) ~span ~style ~newline
+  in
   Theme.set ppf look.Look.theme;
   Fmt.set_utf_8 ppf look.utf_8;
   Format.pp_set_margin ppf margin;

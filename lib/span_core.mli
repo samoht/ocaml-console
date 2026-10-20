@@ -104,7 +104,9 @@ val capture : look:Look.t -> margin:int -> (Format.formatter -> unit) -> t list
 (** [capture ~look ~margin f] are the lines [f ppf] prints on a formatter [ppf]
     in [look]'s theme and UTF-8, at [margin], without colours. A span printed on
     [ppf] ({!pp}) is taken whole, its styles and its parts drawn when printed
-    kept; any other text is unstyled. A line end after the last line ends it. *)
+    kept, and text printed in a {!Style.styled} keeps its style, laid under the
+    styles of such a span; any other text is unstyled. A line end after the last
+    line ends it. *)
 
 val pp_lines : t list Fmt.t
 (** [pp_lines] formats spans one per line, with no line end after the last. *)

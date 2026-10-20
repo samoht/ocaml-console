@@ -198,7 +198,8 @@ val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
     header each time the region is drawn, in place of the scene set before.
     [ppf] is in the theme and the UTF-8 of [display]'s formatter, and its margin
     is the width of the rows, so that a {!Table.pp} or a {!Panel.pp} printed on
-    it fits. A span printed on [ppf] keeps its styles, and other text is plain.
+    it fits. A span printed on [ppf] keeps its styles, and so does the text of a
+    {!Style.styled}; text outside both, that of [Fmt.styled] included, has none.
     [height] is the number of lines the header and the rows leave: the lines
     after them are not drawn, and a line wider than the rows is cut. A [scene]
     that raises is dropped: the call that was drawing it, such as {!redraw} or

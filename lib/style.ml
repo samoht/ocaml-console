@@ -60,22 +60,37 @@ let is_none style = equal style none
    inner call adds to and selects again when it ends. *)
 let current = Slot.v ~setting:false ()
 
+(* On a formatter that captures, the style goes with the text as a semantic
+   tag, which the formatter marks in its place among the text. *)
 let styled style pp_v ppf v =
-  match Fmt.style_renderer ppf with
-  | `None -> pp_v ppf v
-  | `Ansi_tty when is_none style -> pp_v ppf v
-  | `Ansi_tty ->
-      let outer = Option.value (Slot.find current ppf) ~default:none in
-      let inner = outer + style and depth = Color.depth ppf in
-      let code s = Format.pp_print_as ppf 0 s in
-      Slot.set current ppf inner;
-      code (Escape.sgr depth inner);
-      Fun.protect
-        ~finally:(fun () ->
-          Slot.set current ppf outer;
-          code Sgr.reset;
-          code (Escape.sgr depth outer))
-        (fun () -> pp_v ppf v)
+  let outer () = Option.value (Slot.find current ppf) ~default:none in
+  if is_none style then pp_v ppf v
+  else if Capturing.is ppf then begin
+    let outer = outer () in
+    let inner = outer + style in
+    Slot.set current ppf inner;
+    Format.pp_open_stag ppf (Capturing.Styled inner);
+    Fun.protect
+      ~finally:(fun () ->
+        Format.pp_close_stag ppf ();
+        Slot.set current ppf outer)
+      (fun () -> pp_v ppf v)
+  end
+  else
+    match Fmt.style_renderer ppf with
+    | `None -> pp_v ppf v
+    | `Ansi_tty ->
+        let outer = outer () in
+        let inner = outer + style and depth = Color.depth ppf in
+        let code s = Format.pp_print_as ppf 0 s in
+        Slot.set current ppf inner;
+        code (Escape.sgr depth inner);
+        Fun.protect
+          ~finally:(fun () ->
+            Slot.set current ppf outer;
+            code Sgr.reset;
+            code (Escape.sgr depth outer))
+          (fun () -> pp_v ppf v)
 
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"

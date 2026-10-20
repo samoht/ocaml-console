@@ -167,7 +167,8 @@ val hcat : ?gap:int -> unit Fmt.t list -> unit Fmt.t
     the blocks no room, is cut with an ellipsis. The spans a block prints
     ({!Span.pp}), such as the widgets', keep their colours and their parts drawn
     when printed, so blocks side by side make a scene ({!Display.set_scene})
-    whose frames move; any other text is plain. There is no line end after the
-    last line.
+    whose frames move, and the text of a {!Style.styled} keeps its style; text
+    outside both, that of [Fmt.styled] included, has none. There is no line end
+    after the last line.
 
     @raise Invalid_argument if [gap] is negative. *)

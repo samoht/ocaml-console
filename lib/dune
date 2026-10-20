@@ -12,6 +12,7 @@
  (libraries console.text fmt matrix.glyph)
  (private_modules
   border_motion
+  capturing
   widget
   width
   display_core
