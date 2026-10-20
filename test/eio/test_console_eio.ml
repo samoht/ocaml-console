@@ -147,17 +147,20 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
   let written = Buffer.create 256 and buf = Cstruct.create 4096 in
   let source = Eio_unix.Pty.source pty in
   let status = ref None in
-  (* Read until the child has exited and nothing more comes. *)
-  let rec drain () =
-    match
-      Eio.Time.with_timeout clock 0.5 (fun () ->
-          Ok (Eio.Flow.single_read source buf))
-    with
-    | Ok n ->
+  (* The reader runs on its own, never raced against a timeout that would
+     drop what a read returns as it ends; it stops once the child has exited
+     and nothing more has come for half a second. *)
+  let rec read () =
+    match Eio.Flow.single_read source buf with
+    | n ->
         Buffer.add_string written (Cstruct.to_string ~len:n buf);
-        drain ()
-    | Error `Timeout -> if Option.is_none !status then drain ()
+        read ()
     | exception (End_of_file | Eio.Io _) -> ()
+  in
+  let rec settle seen =
+    Eio.Time.sleep clock 0.5;
+    let now = Buffer.length written in
+    if now <> seen then settle now
   in
   let rec fg () =
     if continue && Option.is_none !status then begin
@@ -167,8 +170,9 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
       fg ()
     end
   in
-  Eio.Fiber.all
-    [ (fun () -> status := Some (Eio.Process.await child)); drain; fg ];
+  Eio.Fiber.first read (fun () ->
+      Eio.Fiber.both (fun () -> status := Some (Eio.Process.await child)) fg;
+      settle (Buffer.length written));
   let echo = Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr in
   (Option.get !status, Buffer.contents written, echo.Unix.c_echo)
 
