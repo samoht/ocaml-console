@@ -17,16 +17,16 @@ let reorders c =
   || (c >= 0xfff9 && c <= 0xfffb)
 
 (* [text buf ~keep_newlines ~cr u] adds what [sanitize] makes of the
-   character [u]: itself, nothing if it {!reorders}, a line end for LF or CR,
-   or a space for another control. [cr] is [true] after a CR, whose line end
-   a LF then completes. *)
+   character [u]: itself, nothing if it {!reorders}, a line end for LF, NEL
+   (U+0085) or CR, or a space for another control. [cr] is [true] after a
+   CR, whose line end a LF or a NEL then completes. *)
 let text buf ~keep_newlines ~cr u =
   let c = Uchar.to_int u in
   let line_end () = Buffer.add_char buf (if keep_newlines then '\n' else ' ') in
   let after_cr = !cr in
   cr := c = 0x0d;
   if c = 0x0d then line_end ()
-  else if c = 0x0a then (if not after_cr then line_end ())
+  else if c = 0x0a || c = 0x85 then (if not after_cr then line_end ())
   else if reorders c then ()
   else if c >= 0x20 && not (c >= 0x7f && c <= 0x9f) then
     Buffer.add_utf_8_uchar buf u
@@ -75,6 +75,7 @@ let can = 0x18
 let sub = 0x1a
 let del = 0x7f
 let is_c1 c = c >= 0x80 && c <= 0x9f
+let nel = 0x85
 
 (* The state a C1 control [c] leads to: CSI opens a control sequence (8.3.16);
    OSC (8.3.89), DCS (8.3.27), SOS (8.3.128), PM (8.3.94) and APC (8.3.2) open
@@ -128,8 +129,9 @@ type move = {
 
 let move ?(ends = []) next at from = { ends; next; at; from }
 
+(* NEL is text: {!text} makes it a line end. *)
 let in_ground ~valid ~c ~i ~len ~start =
-  if valid && (c = esc || is_c1 c) then
+  if valid && (c = esc || (is_c1 c && c <> nel)) then
     match if c = esc then Escape else c1 c with
     | Ground ->
         move
@@ -231,6 +233,9 @@ let rewrite ~keep_newlines ~keep str =
         match kind with
         | `Text ->
             sanitize_into buf ~keep_newlines ~cr token;
+            open_style
+        | `Escape when token = "\027E" ->
+            sanitize_into buf ~keep_newlines ~cr "\u{0085}";
             open_style
         | `Escape -> (
             match keep token with

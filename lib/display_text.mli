@@ -23,6 +23,6 @@ val clean : string -> string
     space. *)
 
 val lines : string -> string list
-(** [lines s] are the lines of [s], each {!clean}: a line ends at a line feed, a
-    carriage return or the two together. One trailing line end ends the last
+(** [lines s] are the lines of [s], each {!clean}, ending where
+    {!Console_text.sanitize} ends a line. One trailing line end ends the last
     line rather than starting an empty one; [lines ""] is [[]]. *)
