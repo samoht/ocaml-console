@@ -6,6 +6,7 @@
  (name fuzz)
  (libraries
   console
+  console.input
   console.text
   matrix.glyph
   matrix.grid
