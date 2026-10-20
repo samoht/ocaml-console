@@ -64,9 +64,33 @@ let test_hcat texts gap =
       got
   end
 
+(* A one-line composition of width-aware widgets must not autowrap onto
+   another terminal row, even when there is less room than its gaps. *)
+let test_hcat_margin n k =
+  let margin = 1 + (n mod 80) in
+  let gap = 1 + (k mod 5) in
+  let blocks =
+    List.init (2 + (k mod 4)) (fun _ -> Fmt.const Rule.pp (Rule.v ()))
+  in
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf margin;
+  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  hcat ~gap blocks ppf ();
+  Format.pp_print_flush ppf ();
+  let raw = Buffer.contents buf in
+  let vte = Vte.create ~rows:32 ~cols:margin () in
+  Vte.feed_string vte raw;
+  check_eq ~pp:Fmt.int 0 (fst (Vte.cursor_pos vte));
+  check (String.is_valid_utf_8 raw);
+  check (Span.width (Span.text (Console_text.strip raw)) <= margin)
+
 let suite =
   ( "console",
     [
+      test_case "hcat widgets fit without terminal autowrap" [ uint8; uint8 ]
+        test_hcat_margin;
       test_case "hcat lines are the blocks' widths and gaps"
         [ list bytes; uint8 ]
         test_hcat;
