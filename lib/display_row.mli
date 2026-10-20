@@ -52,7 +52,7 @@ val header : t -> Span.t option
     name, its time and the tasks that ended out of those started. On a terminal
     it is at most [t.width] cells, the name kept longest. *)
 
-val verdict : t -> [ `Ok of string | `Fail of string ] -> Span.t list
+val verdict : t -> (string, string) result -> Span.t list
 (** [verdict t r] is the line of the result [r], wrapped to the terminal. *)
 
 val detail : t -> string list -> Span.t list

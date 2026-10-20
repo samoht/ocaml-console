@@ -172,16 +172,15 @@ val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
           Console.Table.pp ppf (results ()))
     ]} *)
 
-val set_result :
-  ?detail:string -> t -> [ `Ok of string | `Fail of string ] -> unit
+val set_result : ?detail:string -> t -> (string, string) result -> unit
 (** [set_result display result] says how the work ended: when [display] closes,
     it prints [result]'s message after a success or failure mark, and [detail]
-    (if any) in the muted colour above it. With [`Ok] the tasks still running
-    succeed, with [`Fail] they are cancelled. A second call does nothing. *)
+    (if any) in the muted colour above it. With [Ok] the tasks still running
+    succeed, with [Error] they are cancelled. A second call does nothing. *)
 
 val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
 (** [close display] ends the tasks still running, as [running] says (defaults to
-    [`Cancel]: a task nobody ended did not finish; {!set_result} with [`Ok] has
+    [`Cancel]: a task nobody ended did not finish; {!set_result} with [Ok] has
     them succeed first), takes the region off the screen, shows the cursor and
     prints the header, then the result of {!set_result}. Closing a closed
     display does nothing. *)

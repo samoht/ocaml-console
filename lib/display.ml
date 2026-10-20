@@ -364,12 +364,11 @@ let set_result ?detail t result =
   check_open "set_result" t;
   if Option.is_none t.result then begin
     (match result with
-    | `Ok _ -> finish_running `Succeeded t
-    | `Fail _ -> finish_running `Cancelled t);
+    | Ok _ -> finish_running `Succeeded t
+    | Error _ -> finish_running `Cancelled t);
     let result =
-      match result with
-      | `Ok m -> `Ok (Display_text.clean m)
-      | `Fail m -> `Fail (Display_text.clean m)
+      Result.map Display_text.clean result
+      |> Result.map_error Display_text.clean
     in
     let detail =
       match detail with None -> [] | Some d -> Display_text.lines d

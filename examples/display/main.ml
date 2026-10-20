@@ -91,5 +91,5 @@ let () =
         (fun () -> fetch theme clock display)
         (fun () -> compile theme clock display);
       test theme clock display;
-      Display.set_result display (`Ok "build complete"));
+      Display.set_result display (Ok "build complete"));
   Fmt.pr "%a@." Table.pp (table ())

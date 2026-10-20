@@ -225,7 +225,7 @@ let message t (level : level) msg =
 let state t : Theme.mark =
   if (not t.closed) && (t.started = 0 || t.finished < t.started) then `Running
   else if
-    t.failed > 0 || match t.result with Some (`Fail _, _) -> true | _ -> false
+    t.failed > 0 || match t.result with Some (Error _, _) -> true | _ -> false
   then `Failed
   else if t.cancelled > 0 then `Cancelled
   else `Succeeded
@@ -249,7 +249,7 @@ let header t =
 
 let verdict t result =
   let m, msg =
-    match result with `Ok m -> (`Succeeded, m) | `Fail m -> (`Failed, m)
+    match result with Ok m -> (`Succeeded, m) | Error m -> (`Failed, m)
   in
   let lead = Span.(mark t m ++ text " ") in
   let msg = Span.styled Style.bold msg in

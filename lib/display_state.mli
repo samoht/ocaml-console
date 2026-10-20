@@ -50,7 +50,7 @@ type t = {
   mutable finished : int;
   mutable failed : int;
   mutable cancelled : int;
-  mutable result : ([ `Ok of string | `Fail of string ] * string list) option;
+  mutable result : ((string, string) result * string list) option;
   mutable scene : (height:int -> Format.formatter -> unit) option;
   mutable frame : string array;
   mutable frame_widths : int array;
