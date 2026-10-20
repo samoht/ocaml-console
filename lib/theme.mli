@@ -11,7 +11,8 @@
     frame of tables and panels and how it moves, the lines of a tree and the
     spinner of a {!Display}. A formatter has one theme ({!set}), in which every
     widget printed on it is drawn: with ASCII glyphs alone when the formatter is
-    not {!Fmt.utf_8}.
+    not {!Fmt.utf_8}. Text takes a colour of that theme, such as that of a
+    success, with {!Span.role}.
 
     {!default} reads on any background and is the one to keep when nothing is
     known of the terminal. A theme with a {!background}, such as {!dracula} or
@@ -33,6 +34,16 @@
     contrast of a glyph. *)
 
 (** {1:themes Themes} *)
+
+type role =
+  [ `Accent  (** The main colour, {!accent}. *)
+  | `Ok  (** The colour of a success, {!ok}. *)
+  | `Warn  (** The colour of a warning, {!warn}. *)
+  | `Fail  (** The colour of a failure, {!fail}. *)
+  | `Muted  (** The colour of what frames and annotates, {!muted}. *)
+  | `Header  (** The style of headers, {!header}. *) ]
+(** The type for the parts of a theme that style text: a {!Span.role} takes one
+    from the theme of the formatter it is printed on. *)
 
 type mark =
   [ `Running  (** Work still going on, in a display's header. *)

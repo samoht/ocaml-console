@@ -45,6 +45,15 @@ val link : ?style:Style.t -> uri:string -> string -> t
     percent-encoded, and the other bytes, escapes included, as they are. An
     empty [uri] links nowhere: the span is [label] in [style]. *)
 
+val role : Theme.role -> string -> t
+(** [role r s] is [s] in the part [r] of the theme of the formatter it is
+    printed on ({!Theme.get}), taken when it is printed: [role `Ok "passed"] is
+    green in {!Theme.default} and Nord's green in {!Theme.nord}. It is as wide
+    as [s], printed in colours at the formatter's {!Color.val-depth} and as the
+    text of [s] without colour; {!to_string} styles it in {!Theme.default}.
+    {!with_style} adds a style under it, as
+    [with_style Style.bold (role `Ok "passed")] makes it bold. *)
+
 val gradient : ?colors:Color.t list -> string -> t
 (** [gradient ~colors s] is [s] in colours graded along each of its lines: each
     grapheme cluster takes the {!Color.blend} of the two stops around its place,

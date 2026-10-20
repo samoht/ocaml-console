@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+type role = [ `Accent | `Ok | `Warn | `Fail | `Muted | `Header ]
+
 type mark =
   [ `Running
   | `Succeeded

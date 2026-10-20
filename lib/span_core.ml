@@ -128,6 +128,24 @@ let gradient ?(colors = []) s =
   concat ~sep:(atom Style.none "\n")
     (List.map line (String.split_on_char '\n' (clean s)))
 
+(* {1 Roles} *)
+
+let role_style theme = function
+  | `Accent -> Style.fg (Theme.accent theme)
+  | `Ok -> Style.fg (Theme.ok theme)
+  | `Warn -> Style.fg (Theme.warn theme)
+  | `Fail -> Style.fg (Theme.fail theme)
+  | `Muted -> Style.fg (Theme.muted theme)
+  | `Header -> Theme.header theme
+
+(* Each line is a part of its own: {!lines} splits text, not a drawing. *)
+let role r s =
+  let line text =
+    drawn (fun look -> atom (role_style look.Look.theme r) text)
+  in
+  concat ~sep:(atom Style.none "\n")
+    (List.map line (String.split_on_char '\n' (clean s)))
+
 (* {1 Lines} *)
 
 let lines t =
@@ -308,7 +326,8 @@ let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
 
 let ellipsis = "\xe2\x80\xa6"
 
-(* An ellipsis wider than [w], ASCII dots, is cut to [w]. *)
+(* An ellipsis wider than [w], ASCII dots, is cut to [w]. It takes the
+   style of the cluster it replaces, as that cluster is drawn. *)
 let truncate_line ~ellipsis w line =
   if line_width line <= w then line
   else
@@ -324,7 +343,20 @@ let truncate_line ~ellipsis w line =
     in
     let k = take 0 (w - Width.string_width ellipsis) in
     let style = if k < l.n then (owner l k).style else Style.none in
-    sub l 0 k @ [ { style; link = None; text = ellipsis; draw = None } ]
+    let draw =
+      if k < l.n && is_drawn (owner l k) then
+        let cut =
+          List.map (fun a -> { a with style = Style.none }) (sub l k (k + 1))
+        in
+        Some
+          (fun look ->
+            let style =
+              match resolve look cut with a :: _ -> a.style | [] -> Style.none
+            in
+            [ { style; link = None; text = ellipsis; draw = None } ])
+      else None
+    in
+    sub l 0 k @ [ { style; link = None; text = ellipsis; draw } ]
 
 let truncate ?(ellipsis = ellipsis) w t =
   if w <= 0 then empty

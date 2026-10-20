@@ -30,17 +30,17 @@ let table () =
        steps)
 
 (* What a step's row of the table says, from start to end. *)
-let started theme name =
+let started name =
   let s = List.find (fun s -> String.equal s.name name) steps in
-  s.status <- Span.styled (Style.fg (Theme.accent theme)) "running";
+  s.status <- Span.role `Accent "running";
   fun detail ->
-    s.status <- Span.styled Style.(bold + fg (Theme.ok theme)) "done";
+    s.status <- Span.with_style Style.bold (Span.role `Ok "done");
     s.detail <- detail
 
 (* What a step's commands print shows under its row while it runs, and goes
    when it succeeds; a [Logs] message inside it stays. *)
-let fetch theme clock display =
-  let finished = started theme "fetch" in
+let fetch clock display =
+  let finished = started "fetch" in
   Display.with_task ~log_lines:2 display "fetch dependencies" @@ fun t ->
   let total = Int64.mul 48L 1048576L in
   for i = 0 to 12 do
@@ -52,8 +52,8 @@ let fetch theme clock display =
   done;
   finished "13 packages, 48 MiB"
 
-let compile theme clock display =
-  let finished = started theme "compile" in
+let compile clock display =
+  let finished = started "compile" in
   Display.with_task ~log_lines:3 display "compile" @@ fun t ->
   let files = [| "lexer.ml"; "parser.ml"; "types.ml"; "eval.ml"; "main.ml" |] in
   Array.iteri
@@ -66,8 +66,8 @@ let compile theme clock display =
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
   finished "5 files, 1 warning"
 
-let test theme clock display =
-  let finished = started theme "test" in
+let test clock display =
+  let finished = started "test" in
   Display.with_task display "test" @@ fun _ ->
   let unit = Display.task display "unit" in
   let fuzz = Display.task display "properties" in
@@ -95,8 +95,8 @@ let () =
   Console_eio.run ~clock ~header:"Building" (fun display ->
       Display.set_scene display (fun ~height:_ ppf -> scene ppf ());
       Eio.Fiber.both
-        (fun () -> fetch theme clock display)
-        (fun () -> compile theme clock display);
-      test theme clock display;
+        (fun () -> fetch clock display)
+        (fun () -> compile clock display);
+      test clock display;
       Display.set_result display (Ok "build complete"));
   Fmt.pr "%a@." scene ()

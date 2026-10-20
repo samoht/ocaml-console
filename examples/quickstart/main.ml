@@ -25,7 +25,7 @@ let main color theme =
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = Span.styled Style.(bold + fg (Theme.ok theme)) "passed" in
+  let ok = Span.role `Ok "passed" in
   let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
   let cols =
     Table.[ column "Suite"; column ~align:`Right "Tests"; column "Result" ]

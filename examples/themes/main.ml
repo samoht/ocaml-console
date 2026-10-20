@@ -11,19 +11,19 @@
 
 open Console
 
-let table theme =
-  let accent = Style.(bold + fg (Theme.accent theme)) in
+let accent s = Span.with_style Style.bold (Span.role `Accent s)
+
+let table =
   Table.v ~rules:true
     [ Table.column "Package"; Table.column ~align:`Right "Size" ]
     [
-      [ Span.styled accent "console"; Span.text "42 KiB" ];
+      [ accent "console"; Span.text "42 KiB" ];
       [ Span.text "console-eio"; Span.text "9 KiB" ];
     ]
 
-let tree theme =
-  let accent = Style.(bold + fg (Theme.accent theme)) in
+let tree =
   let leaf s = Tree.v (Span.text s) [] in
-  Tree.v (Span.styled accent "lib")
+  Tree.v (accent "lib")
     [
       Tree.v (Span.text "display") [ leaf "row.ml"; leaf "region.ml" ];
       leaf "span.ml";
@@ -56,8 +56,7 @@ let () =
       let title = Span.gradient ("Theme." ^ ocaml) in
       Fmt.pr "%a@.%a@.@." Span.pp
         (Span.with_style Style.bold title)
-        Tree.pp (tree theme);
-      let table = table theme in
+        Tree.pp tree;
       ( Eio_main.run @@ fun env ->
         progress ~clock:(Eio.Stdenv.mono_clock env) table );
       Fmt.pr "@.%a@." Table.pp table

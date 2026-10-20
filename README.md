@@ -31,7 +31,7 @@ let main color theme =
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock ~header:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = Span.styled Style.(bold + fg (Theme.ok theme)) "passed" in
+  let ok = Span.role `Ok "passed" in
   let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
   let cols =
     Table.[ column "Suite"; column ~align:`Right "Tests"; column "Result" ]
@@ -278,8 +278,10 @@ Every widget is drawn in the theme of the formatter it is printed on, which
 `Console_tty.setup ~theme` sets it on both standard outputs. A theme holds
 the main colour, the colours of success, warning and failure, the marks,
 the frame style and how it moves, the lines of a tree, the bars and the
-spinner. `Theme.all` names the eighteen themes, so a `--theme` option is
-one line of [Cmdliner](https://erratique.ch/software/cmdliner):
+spinner. Text takes one of these colours, or the header style, with
+``Span.role `Ok "passed"``, from the theme of the formatter it is printed
+on. `Theme.all` names the eighteen themes, so a `--theme` option is one
+line of [Cmdliner](https://erratique.ch/software/cmdliner):
 
 ```ocaml
 let theme =

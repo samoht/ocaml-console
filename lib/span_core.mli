@@ -28,6 +28,9 @@ val link : ?style:Style.t -> uri:string -> string -> t
 val gradient : ?colors:Color.t list -> string -> t
 (** See {!Span.gradient}. *)
 
+val role : Theme.role -> string -> t
+(** See {!Span.role}. *)
+
 val ( ++ ) : t -> t -> t
 (** See {!Span.( ++ )}. *)
 
