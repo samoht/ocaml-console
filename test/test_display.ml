@@ -1230,9 +1230,33 @@ let test_simple_scene_stands_still () =
       Display.close t.display)
     Theme.[ matrix; rainbow; tokyo_night ]
 
+(* A broken scene must not prevent teardown from restoring the terminal. *)
+let test_scene_exception_close () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  ignore (Display.task t.display "running");
+  (match
+     Display.set_scene t.display (fun ~height:_ _ -> raise Exit);
+     Display.redraw t.display
+   with
+  | () -> Alcotest.fail "scene exception was swallowed"
+  | exception Exit -> ());
+  let raised =
+    try
+      Display.close t.display;
+      false
+    with Exit -> true
+  in
+  Alcotest.(check bool)
+    "closing does not call the broken scene again" false raised;
+  Alcotest.(check bool)
+    "cursor restored after the scene exception" true
+    (Console_vte.cursor_visible t.vte)
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "a scene exception still allows close" `Quick
+        test_scene_exception_close;
       Alcotest.test_case "a scene side by side" `Quick test_scene_hcat;
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_scene_stands_still;
