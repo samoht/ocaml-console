@@ -93,9 +93,7 @@ let piece t r ~time (p : Display_line.piece) =
   | Bar n -> bar r n
   | Percent -> (
       match percent r.metric with
-      | Some p ->
-          let p = string_of_int p in
-          faint (String.make (max 0 (3 - String.length p)) ' ' ^ p ^ "%")
+      | Some p -> Fmt.kstr faint "%3d%%" p
       | None -> Span.empty)
   | Count -> count_cell t r
   | Rate -> (
@@ -243,17 +241,9 @@ let header t =
   Option.map
     (fun h ->
       let meta =
-        faint
-          (String.concat ""
-             [
-               " ";
-               Display_text.duration (t.now () -. t.start);
-               " (";
-               string_of_int t.finished;
-               "/";
-               string_of_int t.started;
-               ")";
-             ])
+        Fmt.kstr faint " %s (%d/%d)"
+          (Display_text.duration (t.now () -. t.start))
+          t.finished t.started
       in
       let lead = Span.(mark t (state t) ++ text " ") in
       let h = Span.styled (Theme.header t.theme) h in
