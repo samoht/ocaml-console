@@ -228,6 +228,25 @@ module Report_domains = struct
           (Buffer.contents sink.buffer);
         Atomic.incr continued)
 
+  (* A reporter that keeps the messages it is given, installed while [f]
+     runs. *)
+  let recording f =
+    let kept = ref [] and lock = Mutex.create () in
+    let report _ _ ~over k msgf =
+      msgf (fun ?header:_ ?tags:_ fmt ->
+          Fmt.kstr
+            (fun s ->
+              Mutex.protect lock (fun () -> kept := s :: !kept);
+              over ();
+              k ())
+            fmt)
+    in
+    let before = Logs.reporter () in
+    Logs.set_reporter { Logs.report };
+    Fun.protect
+      (fun () -> f (fun () -> Mutex.protect lock (fun () -> List.rev !kept)))
+      ~finally:(fun () -> Logs.set_reporter before)
+
   let restored previous =
     Alcotest.(check bool)
       "teardown restores the previous reporter" true
@@ -291,16 +310,30 @@ module Report_domains = struct
 
   let stale_reporter () =
     with_runtime @@ fun env ->
+    recording @@ fun kept ->
     let sink = sink () in
     let previous = Logs.reporter () in
     let reporter = run env sink (fun _ -> Logs.reporter ()) in
-    Alcotest.check_raises "captured reporter names its closed scope"
-      (Invalid_argument "Console_eio: the display reporter is closed")
-      (fun () -> send reporter "late");
+    send reporter "late";
+    Alcotest.(check (list string))
+      "the previous reporter has the message" [ "late" ] (kept ());
     Alcotest.(check string)
       "closed reporter writes zero bytes" ""
       (Buffer.contents sink.buffer);
     restored previous
+
+  let foreign_domain () =
+    with_runtime @@ fun env ->
+    recording @@ fun kept ->
+    let sink = sink () in
+    run env sink (fun _ ->
+        let reporter = Logs.reporter () in
+        Domain.join (Domain.spawn (fun () -> send reporter "raw")));
+    Alcotest.(check (list string))
+      "the previous reporter has the message" [ "raw" ] (kept ());
+    Alcotest.(check string)
+      "the display writes nothing" ""
+      (Buffer.contents sink.buffer)
 
   let blocked_sink enter =
     let in_output = ref false in
@@ -319,6 +352,7 @@ module Report_domains = struct
 
   let close_waiting_worker ?(fail = true) () =
     with_runtime @@ fun env ->
+    recording @@ fun kept ->
     Eio.Switch.run @@ fun outer ->
     let workers = pool env outer in
     let entered, enter = Eio.Promise.create () in
@@ -341,21 +375,12 @@ module Report_domains = struct
         (Failure "close display") run
     else run ();
 
-    (* Each of the worker's writes can see the closed reporter, so on a host
-       with spare cores it may report the same error twice. *)
-    let closed =
-      Invalid_argument "Console_eio: the display reporter is closed"
-    in
-    (match Eio.Promise.await_exn (Option.get !worker) with
-    | () -> Alcotest.fail "external worker is released by closure: no error"
-    | exception e when e = closed -> ()
-    | exception Eio.Exn.Multiple exns
-      when List.for_all (fun (e, _) -> e = closed) exns ->
-        ());
+    Eio.Promise.await_exn (Option.get !worker);
     Alcotest.(check bool)
       "consumer stopped before display teardown" false !in_output;
-    Alcotest.(check int)
-      "unfinished log has zero continuations" 0 (Atomic.get continued);
+    Alcotest.(check (list string))
+      "the previous reporter has the message" [ "waiting" ] (kept ());
+    Alcotest.(check int) "the log continues once" 1 (Atomic.get continued);
     restored previous
 
   let suite =
@@ -365,8 +390,10 @@ module Report_domains = struct
           owner_domain;
         Alcotest.test_case "worker receives actual output failure" `Quick
           output_error;
-        Alcotest.test_case "captured reporter refuses after teardown" `Quick
-          stale_reporter;
+        Alcotest.test_case "a captured reporter hands over after teardown"
+          `Quick stale_reporter;
+        Alcotest.test_case "a domain Eio does not run hands over" `Quick
+          foreign_domain;
         Alcotest.test_case "scope closure releases a waiting external worker"
           `Quick
           (close_waiting_worker ~fail:true);
