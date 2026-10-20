@@ -24,5 +24,6 @@ val clean : string -> string
 
 val lines : string -> string list
 (** [lines s] are the lines of [s], each {!clean}, ending where
-    {!Console_text.sanitize} ends a line. One trailing line end ends the last
-    line rather than starting an empty one; [lines ""] is [[]]. *)
+    {!Console_text.sanitize} ends a line, a tab in them gone to the next stop of
+    eight columns. One trailing line end ends the last line rather than starting
+    an empty one; [lines ""] is [[]]. *)

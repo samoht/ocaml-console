@@ -334,12 +334,13 @@ val set_bytes : task -> cur:int64 -> total:int64 -> unit
 
 val log : task -> string -> unit
 (** [log task text] gives each line of [text] to [task] as its output
-    ({!output}), such as the lines of a command it runs: the latest show in
-    [task]'s window while it runs, and all of them under its line if it fails or
-    is cancelled. It is the one-line form of {!within}, for code where [task] is
-    not current. Without a terminal each line is printed at once, after [task]'s
-    label, and under the line of a failure the lines of the window are printed
-    again. *)
+    ({!output}), such as the lines of a command it runs, a tab in them gone to
+    the next stop of eight columns from the start of its line: the latest show
+    in [task]'s window while it runs, and all of them under its line if it fails
+    or is cancelled. It is the one-line form of {!within}, for code where [task]
+    is not current. Without a terminal each line is printed at once, after
+    [task]'s label, and under the line of a failure the lines of the window are
+    printed again. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its

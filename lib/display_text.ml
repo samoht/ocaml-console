@@ -33,8 +33,37 @@ let duration secs =
 let duration_cells = 6
 let clean = Console_text.sanitize ~keep_newlines:false
 
+(* The cells of the last line of [s]. *)
+let last_line_cells s =
+  match String.rindex_opt s '\n' with
+  | Some i ->
+      Width.string_width (String.sub s (i + 1) (String.length s - i - 1))
+  | None -> Width.string_width s
+
+(* [s] sanitized, a tab gone to the next stop of eight columns from the
+   start of its line. A tab cannot be inside a character or a line end, so
+   the text between two is sanitized alone. *)
+let expand_tabs s =
+  match String.split_on_char '\t' s with
+  | [] -> ""
+  | first :: rest ->
+      let buf = Buffer.create (String.length s + 16) in
+      let first = Console_text.sanitize first in
+      Buffer.add_string buf first;
+      ignore
+        (List.fold_left
+           (fun col piece ->
+             let stop = 8 - (col mod 8)
+             and piece = Console_text.sanitize piece in
+             Buffer.add_string buf (String.make stop ' ');
+             Buffer.add_string buf piece;
+             if String.contains piece '\n' then last_line_cells piece
+             else col + stop + Width.string_width piece)
+           (last_line_cells first) rest);
+      Buffer.contents buf
+
 let lines s =
   if s = "" then []
   else
-    let lines = String.split_on_char '\n' (Console_text.sanitize s) in
+    let lines = String.split_on_char '\n' (expand_tabs s) in
     match List.rev lines with "" :: rest -> List.rev rest | _ -> lines

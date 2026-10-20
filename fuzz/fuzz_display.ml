@@ -561,6 +561,25 @@ let capture_frames () =
   in
   (Format.make_formatter write flush, out, frames)
 
+(* A line sanitized, each tab gone to the next stop of eight columns. *)
+let sanitized_line line =
+  String.split_on_char '\t' line
+  |> List.map Console_text.sanitize
+  |> List.fold_left
+       (fun acc piece ->
+         match acc with
+         | None -> Some piece
+         | Some text ->
+             let last =
+               match String.rindex_opt text '\n' with
+               | Some i -> String.sub text (i + 1) (String.length text - i - 1)
+               | None -> text
+             in
+             let stop = 8 - (Width.string_width last mod 8) in
+             Some (text ^ String.make stop ' ' ^ piece))
+       None
+  |> Option.value ~default:""
+
 let sanitized_log_lines input =
   String.split_on_char '\n' input
   |> List.map (fun line ->
@@ -569,7 +588,7 @@ let sanitized_log_lines input =
           String.sub line 0 (String.length line - 1)
         else line
       in
-      Console_text.sanitize line)
+      sanitized_line line)
   |> String.concat "\n"
 
 let test_untrusted_arguments s =
