@@ -343,9 +343,9 @@ let cmd =
 
 ```ocaml
 # Cmdliner.Cmd.eval ~argv:[| "greet"; "--theme=dos" |] cmd;;
-+-------+
-| hello |
-+-------+
+╔═══════╗
+║ hello ║
+╚═══════╝
 - : int = 0
 ```
 

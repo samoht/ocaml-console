@@ -193,9 +193,11 @@ val ascii : t
     any. *)
 
 val dos : t
-(** [dos] is amber on black, a darker amber muted and bold amber headers, with
-    ASCII frames, tree lines and spinner, [`Block] bars and the marks [[-]],
-    [[+]], [[x]], [[~]], [#], [!], [x] and [.]. *)
+(** [dos] is amber on black, a darker amber muted and bold amber headers, drawn
+    in the box-drawing characters of code page 437 as Norton Commander drew its
+    panels: {!Border.double} frames, a double header rule across them and
+    {!Guide.unicode}'s single-line tree guides, with [`Block] bars, the ASCII
+    spinner and the marks [[-]], [[+]], [[x]], [[~]], [#], [!], [x] and [.]. *)
 
 val matrix : t
 (** [matrix] is bright green on black, a darker green muted and bold green

@@ -21,6 +21,9 @@
 - A theme names the glyphs of its bars (`Theme.bar`): heavy lines by
   default, full blocks on a light shade in `Theme.dos`, `#` on `-` in
   `Theme.ascii` and on any formatter that is not UTF-8.
+- `Theme.dos` draws in the box-drawing characters of code page 437, as
+  Norton Commander did: double-line frames with a double header rule, and
+  single-line tree guides.
 - `Bar.to_span` puts a bar in a table cell, a tree or a panel, drawn in
   the theme and the UTF-8 of the formatter it is printed on.
 - `Display.set_scene` draws what a printer prints, such as a table, above
