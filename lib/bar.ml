@@ -5,13 +5,13 @@
 
 type t = {
   style : Style.t option;
-  track : Style.t;
+  track : Style.t option;
   brackets : bool;
   width : int;
   frac : float;
 }
 
-let v ?style ?(track = Style.faint) ?(brackets = false) ~width frac =
+let v ?style ?track ?(brackets = false) ~width frac =
   if width < 0 then invalid_arg "Console.Bar.v: negative width";
   let frac =
     if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
@@ -45,11 +45,12 @@ let span ~utf_8 ~style ~track ~brackets ~width frac =
   framed ~utf_8 ~track ~brackets Span.(styled style fill ++ styled track rest)
 
 let lines look ~margin t =
-  let style = Widget.accent look t.style in
+  let style = Option.value t.style ~default:(Widget.accent look) in
+  let track = Option.value t.track ~default:(Widget.muted look) in
   [
     Widget.truncate look margin
-      (span ~utf_8:look.utf_8 ~style ~track:t.track ~brackets:t.brackets
-         ~width:t.width t.frac);
+      (span ~utf_8:look.utf_8 ~style ~track ~brackets:t.brackets ~width:t.width
+         t.frac);
   ]
 
 let pp = Widget.pp lines

@@ -152,8 +152,8 @@ val set_result :
   ?detail:string -> t -> [ `Ok of string | `Fail of string ] -> unit
 (** [set_result display result] says how the work ended: when [display] closes,
     it prints [result]'s message after a success or failure mark, and [detail]
-    (if any) faint above it. With [`Ok] the tasks still running succeed, with
-    [`Fail] they are cancelled. A second call does nothing. *)
+    (if any) in the muted colour above it. With [`Ok] the tasks still running
+    succeed, with [`Fail] they are cancelled. A second call does nothing. *)
 
 val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
 (** [close display] ends the tasks still running, as [running] says (defaults to

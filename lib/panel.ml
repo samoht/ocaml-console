@@ -44,6 +44,7 @@ let v ?border ?title ?subtitle ?(padding = 1) ?width content =
   let lines = Span_core.lines content in
   fun look ->
     let border = Widget.border look border in
+    let title = Option.map (Span.with_style (Theme.header look.theme)) title in
     { look; border; title; subtitle; padding; width; lines }
 
 let natural_width panel =

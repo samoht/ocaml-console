@@ -61,8 +61,8 @@ val v :
 (** [v columns rows] is the table of [rows] under [columns]. Its frame is
     [border] if given, else the border of the theme of the formatter it is
     printed on ({!Theme.get}); the headers are in [header_style] (defaults to
-    {!Style.bold}). A cell may hold line feeds, which start new lines inside its
-    row.
+    the theme's {!Theme.header}). A cell may hold line feeds, which start new
+    lines inside its row.
 
     A row with fewer cells than there are columns ends in a cell that spans the
     columns left. In a table without a frame ({!Border.none}) a line ends at its

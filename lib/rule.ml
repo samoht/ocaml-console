@@ -21,7 +21,7 @@ let v ?style ?(glyph = "─") ?(align = `Center) ?(label = Span.empty) () =
 let space = Span.text " "
 
 let line look t width =
-  let style = Widget.accent look t.style in
+  let style = Option.value t.style ~default:(Widget.muted look) in
   let glyph = Widget.glyph look t.glyph ~ascii:"-" in
   let fill n = Span.styled style (Widget.fill n glyph) in
   let label = Widget.truncate look width t.label in

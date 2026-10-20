@@ -7,7 +7,8 @@
 
     A bar is [width] cells filled to a fraction of its length. Its empty cells
     are the track, drawn as light shade (U+2591) in the [track] style (defaults
-    to {!Style.faint}). [brackets] (defaults to [false]) adds a right one eighth
+    to the muted colour of the theme of the formatter it is printed on,
+    {!Theme.get}). [brackets] (defaults to [false]) adds a right one eighth
     block (U+2595) before the bar and a left one eighth block (U+258F) after it,
     in the track style, which makes the bar two cells wider.
 

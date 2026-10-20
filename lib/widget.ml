@@ -11,9 +11,17 @@ let default_look = { theme = Theme.default; utf_8 = true }
 (* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
    replaced, all of a part at once so that its pieces still join. *)
 let shows look glyphs = look.utf_8 || List.for_all Width.is_ascii glyphs
+let muted look = Style.fg (Theme.muted look.theme)
+let accent look = Style.fg (Theme.accent look.theme)
 
+(* A border or a guide in no style of its own is drawn in the muted colour. *)
 let border look border =
   let border = Option.value border ~default:(Theme.border look.theme) in
+  let border =
+    if Style.is_none (Border.style border) then
+      Border.with_style (muted look) border
+    else border
+  in
   let c = Border.chars border in
   if
     shows look
@@ -37,6 +45,11 @@ let border look border =
 
 let guide look guide =
   let guide = Option.value guide ~default:(Theme.guide look.theme) in
+  let guide =
+    if Style.is_none (Guide.style guide) then
+      Guide.with_style (muted look) guide
+    else guide
+  in
   let g = Guide.[ branch guide; last guide; pipe guide; space guide ] in
   if shows look g then guide
   else Guide.with_style (Guide.style guide) Guide.ascii
@@ -53,11 +66,6 @@ let mark look m =
 
 let ellipsis look = if look.utf_8 then Span_core.ellipsis else "..."
 let truncate look w s = Span_core.truncate ~ellipsis:(ellipsis look) w s
-
-let accent look = function
-  | Some style -> style
-  | None -> Style.fg (Theme.accent look.theme)
-
 let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)
 let cells = Width.string_width
 let widest glyphs = List.fold_left (fun n g -> max n (cells g)) 0 glyphs

@@ -119,7 +119,9 @@ let test_widgets_read_it () =
       (Span.styled (Style.fg (Theme.accent Theme.dos)) s)
   in
   Alcotest.(check string)
-    "rule in the accent" (amber "-----")
+    "rule in the muted colour"
+    (Span.to_string ~styled:true
+       (Span.styled (Style.fg (Theme.muted Theme.dos)) "-----"))
     (printed ~theme:Theme.dos ~styled:true ~margin:5 Rule.pp
        (Rule.v ~glyph:"-" ()));
   Alcotest.(check bool)

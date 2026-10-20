@@ -6,18 +6,27 @@
 (** One look for every widget.
 
     A theme holds the choices the widgets share: the main colour, the colours of
-    a success, a warning and a failure, the marks that say how a task ended, the
+    a success, a warning and a failure, a muted colour for what frames and
+    annotates, the style of headers, the marks that say how a task ended, the
     frame of tables and panels, the lines of a tree and the spinner of a
     {!Display}. A formatter has one theme ({!set}), in which every widget
     printed on it is drawn: with ASCII glyphs alone when the formatter is not
     {!Fmt.utf_8}.
 
+    {!default} reads on any background and is the one to keep when nothing is
+    known of the terminal. A theme with a {!background}, such as {!dracula} or
+    {!solarized_light}, is for a terminal whose own colour scheme is that one:
+    its colours are chosen for that background, which the widgets do not paint,
+    and on another one some of them may be hard to read. A program lets its
+    users choose with a [--theme] option ({!all}).
+
     Colours are given as the scheme defines them; a terminal that shows fewer
     colours gets the nearest ones it has ({!Color.val-depth}). In every
-    predefined theme, the main colour, the colours of a success, a warning and a
-    failure and those of the progress rows have a contrast of 3:1 or more with
-    its {!background}, as WCAG 2.1 measures it, or with black and with white
-    alike when it has none. *)
+    predefined theme, as WCAG 2.1 measures contrast against its {!background},
+    or against black and white alike when it has none, the colours of text (the
+    {!muted} colour and that of the {!header}) are at 4.5:1 or more, and those
+    of glyphs alone (the main colour, the colours of a success, a warning and a
+    failure and those of the progress rows) at 3:1 or more. *)
 
 (** {1:themes Themes} *)
 
@@ -41,6 +50,7 @@ val v :
   ?ok:Color.t ->
   ?warn:Color.t ->
   ?fail:Color.t ->
+  ?muted:Color.t ->
   ?header:Style.t ->
   ?background:Color.t ->
   ?border:Border.t ->
@@ -58,7 +68,10 @@ val v :
     - [ok], [warn] and [fail] colour the marks of a success, of a warning or a
       cancellation, and of a failure or an error (default to {!default}'s green,
       amber and red);
-    - [header] is the style of a display's header (defaults to {!Style.bold});
+    - [muted] colours frames, tree lines, rules, the track of a bar and the
+      counts and timers of a display (defaults to {!default}'s grey);
+    - [header] is the style of table headers, panel titles and a display's
+      header (defaults to {!Style.bold});
     - [background] is the background the colours are chosen for, light or dark
       (defaults to none: the terminal's own). The widgets do not paint it;
     - [border], [guide] and [spinner] are the frame of tables and panels, the
@@ -85,8 +98,13 @@ val warn : t -> Color.t
 val fail : t -> Color.t
 (** [fail t] is the colour of a failure and of an error. *)
 
+val muted : t -> Color.t
+(** [muted t] is the colour of frames, tree lines, rules, the track of a bar and
+    the counts and timers of a display. *)
+
 val header : t -> Style.t
-(** [header t] is the style of a display's header. *)
+(** [header t] is the style of table headers, panel titles and a display's
+    header. *)
 
 val background : t -> Color.t option
 (** [background t] is the background the colours of [t] are chosen for, if any.
@@ -108,14 +126,18 @@ val mark : t -> mark -> string
 (** {1:predefined Predefined themes}
 
     The themes after {!rainbow} take their colours from a colour scheme, as its
-    authors define them; their {!background} is the scheme's. *)
+    authors define them; their {!background} is the scheme's, their muted colour
+    its grey for comments or secondary text, and their headers are bold in the
+    main colour unless said otherwise. A colour below its contrast is moved
+    towards the scheme's text to just above it. *)
 
 val default : t
-(** [default] is teal, with a green, an amber and a red taken from the xterm
-    256-colour palette (entries 30, 28, 136 and 160) for their contrast on dark
-    and light backgrounds alike, with rounded frames, a braille spinner and, for
-    the states of {!type-mark} in order, a bullet, a check mark, a cross, a
-    circle, a single right-pointing angle quotation mark, [!] and a cross. *)
+(** [default] is teal, with a green, an amber, a red and a grey taken from the
+    xterm 256-colour palette (entries 30, 28, 136, 160 and 243) for their
+    contrast on dark and light backgrounds alike, bold headers, rounded frames,
+    a braille spinner and, for the states of {!type-mark} in order, a bullet, a
+    check mark, a cross, a circle, a single right-pointing angle quotation mark,
+    [!] and a cross. *)
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
@@ -124,11 +146,13 @@ val ascii : t
 *)
 
 val dos : t
-(** [dos] is amber on black, with ASCII frames, tree lines and spinner and the
-    marks [[-]], [[+]], [[x]], [[~]], [#], [!] and [x]. *)
+(** [dos] is amber on black, a darker amber muted and bold amber headers, with
+    ASCII frames, tree lines and spinner and the marks [[-]], [[+]], [[x]],
+    [[~]], [#], [!] and [x]. *)
 
 val matrix : t
-(** [matrix] is bright green on black, with single-line frames. *)
+(** [matrix] is bright green on black, a darker green muted and bold green
+    headers, with single-line frames. *)
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
@@ -136,57 +160,61 @@ val rainbow : t
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background
-    [#282a36]. *)
+    [#282a36], its comment colour lightened to [#8692b7]. *)
 
 val nord : t
 (** [nord] is Nord's frost cyan, green, yellow and red, for its background
-    [#2e3440]. *)
+    [#2e3440], its comment grey lightened to [#969ead]. *)
 
 val solarized_dark : t
 (** [solarized_dark] is Solarized's blue, green, yellow and red, for its dark
-    background [#002b36]. *)
+    background [#002b36], its body text [#839496] muted and its emphasised text
+    [#93a1a1] in bold for headers. *)
 
 val solarized_light : t
 (** [solarized_light] is like {!solarized_dark} for Solarized's light background
-    [#fdf6e3], its green and yellow darkened to [#819400] and [#b18600] for
-    contrast. *)
+    [#fdf6e3], its green and yellow darkened to [#819400] and [#b18600], its
+    comment grey darkened to [#5e7379] and its emphasised text [#586e75] in bold
+    for headers. *)
 
 val gruvbox_dark : t
 (** [gruvbox_dark] is gruvbox's orange and its bright green, yellow and red, for
-    its dark background [#282828]. *)
+    its dark background [#282828], its [fg4] muted. *)
 
 val gruvbox_light : t
 (** [gruvbox_light] is gruvbox's faded orange, green, yellow and red, for its
-    light background [#fbf1c7]. *)
+    light background [#fbf1c7], its [fg3] muted. *)
 
 val catppuccin_latte : t
 (** [catppuccin_latte] is Catppuccin Latte's mauve, green, yellow and red, for
     its background [#eff1f5], its green and yellow darkened to [#3e9b2a] and
-    [#be7919] for contrast. *)
+    [#be7919], its [subtext1] muted. *)
 
 val catppuccin_mocha : t
 (** [catppuccin_mocha] is Catppuccin Mocha's mauve, green, yellow and red, for
-    its background [#1e1e2e]. *)
+    its background [#1e1e2e], its [overlay2] muted. *)
 
 val tokyo_night : t
 (** [tokyo_night] is Tokyo Night's blue, green, yellow and red, for its
-    background [#1a1b26]. *)
+    background [#1a1b26], its comment colour lightened to [#7b83ab]. *)
 
 val one_dark : t
 (** [one_dark] is One Dark's accent blue, green, yellow and red, for its
-    background [#282c34]. *)
+    background [#282c34], its comment grey lightened to [#8e95a2] and its syntax
+    blue [#61afef] in bold for headers. *)
 
 val monokai : t
 (** [monokai] is Monokai's cyan, green, yellow and pink, for its background
-    [#272822]. *)
+    [#272822], its comment colour lightened to [#939080]. *)
 
 val github_dark : t
 (** [github_dark] is GitHub Dark's accent blue, green, yellow and red, for its
-    background [#0d1117]. *)
+    background [#0d1117], its muted foreground [#8b949e] muted. *)
 
 val github_light : t
-(** [github_light] is GitHub Light's accent blue, green, yellow and red, for its
-    background [#ffffff]. *)
+(** [github_light] is GitHub Light's accent blue, green, attention yellow
+    [#9a6700] and red, for its background [#ffffff], its muted foreground
+    [#656d76] muted. *)
 
 (** {1:names Names} *)
 

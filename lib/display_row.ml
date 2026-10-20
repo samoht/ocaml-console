@@ -6,7 +6,6 @@
 open Display_state
 
 let text = Span.text
-let faint s = Span.styled Style.faint s
 let pad = Widget.pad
 
 let pad_left n span =
@@ -17,6 +16,7 @@ let pad_left n span =
 let look t = Widget.look t.ppf
 let theme t = (look t).theme
 let cut t w s = Widget.truncate (look t) w s
+let muted t s = Span.styled (Widget.muted (look t)) s
 
 (* Successive rows take the colours of the theme's palette in turn. *)
 let color r =
@@ -30,7 +30,7 @@ let mark_style t (m : Theme.mark) =
   | `Failed | `Error -> Style.(bold + fg (Theme.fail theme))
   | `Cancelled | `Warning -> Style.(bold + fg (Theme.warn theme))
   | `Running -> Style.(bold + fg (Theme.accent theme))
-  | `Info -> Style.faint
+  | `Info -> Widget.muted (look t)
 
 let mark t m = Span.styled (mark_style t m) (Widget.mark (look t) m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
@@ -74,13 +74,14 @@ let bar t r width =
       let f = Float.max f (1. /. float (max 1 (width * steps))) in
       Bar.span ~utf_8 ~brackets:true
         ~style:(Style.fg (color r))
-        ~track:Style.faint ~width f
+        ~track:(Widget.muted (look t))
+        ~width f
   | _ -> Span.empty
 
-let count_cell t r = pad_left t.count_cell (faint (count_text r.metric))
+let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))
 
-let timer d =
-  pad_left Display_text.duration_cells (faint (Display_text.duration d))
+let timer t d =
+  pad_left Display_text.duration_cells (muted t (Display_text.duration d))
 
 let piece t r ~time (p : Display_line.piece) =
   match p with
@@ -90,15 +91,15 @@ let piece t r ~time (p : Display_line.piece) =
   | Bar n -> bar t r n
   | Percent -> (
       match percent r.metric with
-      | Some p -> Fmt.kstr faint "%3d%%" p
+      | Some p -> Fmt.kstr (muted t) "%3d%%" p
       | None -> Span.empty)
   | Count -> count_cell t r
   | Rate -> (
       match r.metric with
       | Bytes _ when r.rate > 1. ->
-          faint (Display_text.bytes (Int64.of_float r.rate) ^ "/s")
+          muted t (Display_text.bytes (Int64.of_float r.rate) ^ "/s")
       | _ -> Span.empty)
-  | Elapsed -> timer (elapsed r)
+  | Elapsed -> timer t (elapsed r)
   | Text s -> text s
   | Accent s -> Span.styled Style.(bold + fg (color r)) s
 
@@ -122,7 +123,7 @@ let live t ~lasts r =
   let slack = max reserve (t.width - fixed - Span.width label) in
   let line =
     Span.concat
-      (Span.styled (Style.fg (Theme.accent (theme t))) prefix
+      (Span.styled (Guide.style (guide t)) prefix
       :: List.map
            (fun ((p : Display_line.piece), s) ->
              match p with Label -> label | Spacer -> pad slack | _ -> s)
@@ -130,8 +131,8 @@ let live t ~lasts r =
   in
   cut t t.width line
 
-let gap_suffix gap =
-  if gap >= 1. then faint ("  +" ^ Display_text.duration gap) else Span.empty
+let gap_suffix t gap =
+  if gap >= 1. then muted t ("  +" ^ Display_text.duration gap) else Span.empty
 
 let tail t ~lasts r =
   let prefix = continuation t lasts in
@@ -139,9 +140,9 @@ let tail t ~lasts r =
     (fun acc log ->
       let line =
         Span.(
-          text prefix
+          styled (Guide.style (guide t)) prefix
           ++ mark t (log.level :> Theme.mark)
-          ++ text " " ++ text log.message ++ gap_suffix log.gap)
+          ++ text " " ++ text log.message ++ gap_suffix t log.gap)
       in
       cut t t.width line :: acc)
     [] r.logs
@@ -161,7 +162,7 @@ let mark_of t r =
 let committed t r =
   let lead = Span.(text (indent r) ++ mark_of t r ++ text " ") in
   let lead_w = Span.width lead in
-  let timer = timer (elapsed r) in
+  let timer = timer t (elapsed r) in
   let meta =
     if t.count_cell = 0 then timer
     else Span.(count_cell t r ++ text "  " ++ timer)
@@ -196,7 +197,7 @@ let appended r =
     text (indent r)
     ++ mark_of t r ++ text " "
     ++ text (label_of r)
-    ++ faint (count ^ "  " ^ Display_text.duration (elapsed r)))
+    ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r)))
 
 let committed_log r log =
   let t = r.disp in
@@ -204,7 +205,7 @@ let committed_log r log =
     Span.(
       text (indent r ^ "  ")
       ++ mark t (log.level :> Theme.mark)
-      ++ text " " ++ text log.message ++ gap_suffix log.gap)
+      ++ text " " ++ text log.message ++ gap_suffix t log.gap)
 
 (* Without a terminal, lines of tasks that run at once are interleaved, so
    each says which task it is from. *)
@@ -213,8 +214,8 @@ let appended_log r log =
     text (indent r ^ "  ")
     ++ mark r.disp (log.level :> Theme.mark)
     ++ text " "
-    ++ faint (r.label ^ ": ")
-    ++ text log.message ++ gap_suffix log.gap)
+    ++ muted r.disp (r.label ^ ": ")
+    ++ text log.message ++ gap_suffix r.disp log.gap)
 
 let message t (level : level) msg =
   match level with
@@ -238,7 +239,7 @@ let header t =
   Option.map
     (fun h ->
       let meta =
-        Fmt.kstr faint " %s (%d/%d)"
+        Fmt.kstr (muted t) " %s (%d/%d)"
           (Display_text.duration (t.now () -. t.start))
           t.finished t.started
       in
@@ -266,6 +267,6 @@ let verdict t result =
 let detail t lines =
   List.concat_map
     (fun l ->
-      let l = faint l in
+      let l = muted t l in
       if is_live t then Span.wrap (max 1 t.width) l else [ l ])
     lines

@@ -18,9 +18,9 @@ val default_look : look
     in UTF-8. *)
 
 val border : look -> Border.t option -> Border.t
-(** [border look b] is [b] if given, else the border of [look]'s theme; in
-    {!Border.ascii}, in the same style, when [look] is not UTF-8 and one of its
-    glyphs is not ASCII. *)
+(** [border look b] is [b] if given, else the border of [look]'s theme, in
+    {!muted} if it has no style; in {!Border.ascii}, in the same style, when
+    [look] is not UTF-8 and one of its glyphs is not ASCII. *)
 
 val guide : look -> Guide.t option -> Guide.t
 (** [guide look g] is like {!border} for the guide of a tree. *)
@@ -43,9 +43,11 @@ val ellipsis : look -> string
 val truncate : look -> int -> Span.t -> Span.t
 (** [truncate look w s] is {!Span.truncate}[ w s] with {!ellipsis}. *)
 
-val accent : look -> Style.t option -> Style.t
-(** [accent look s] is like {!border} for a style, whose default is the accent
-    colour of [look]'s theme. *)
+val muted : look -> Style.t
+(** [muted look] is the style of the muted colour of [look]'s theme. *)
+
+val accent : look -> Style.t
+(** [accent look] is the style of the main colour of [look]'s theme. *)
 
 val one_line : Span.t -> Span.t
 (** [one_line s] is [s] with each line feed a space. *)

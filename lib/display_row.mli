@@ -56,5 +56,5 @@ val verdict : t -> [ `Ok of string | `Fail of string ] -> Span.t list
 (** [verdict t r] is the line of the result [r], wrapped to the terminal. *)
 
 val detail : t -> string list -> Span.t list
-(** [detail t lines] are the faint lines of a result's detail, wrapped to the
+(** [detail t lines] are the muted lines of a result's detail, wrapped to the
     terminal. *)

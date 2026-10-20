@@ -57,7 +57,7 @@ let frame border =
       Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
   }
 
-let v ?border ?(header_style = Style.bold) columns rows =
+let v ?border ?header_style columns rows =
   let expected = List.length columns in
   let rows =
     List.map
@@ -73,6 +73,9 @@ let v ?border ?(header_style = Style.bold) columns rows =
   let headers = Array.map (fun c -> Span_core.lines c.header) columns in
   fun look ->
     let border = Widget.border look border in
+    let header_style =
+      Option.value header_style ~default:(Theme.header look.theme)
+    in
     { look; border; frame = frame border; header_style; columns; headers; rows }
 
 (* {1 Column widths} *)
