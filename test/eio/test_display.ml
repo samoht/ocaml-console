@@ -308,6 +308,35 @@ module Report_domains = struct
       "zero foreign sink accesses" 0 (Atomic.get sink.foreign);
     restored previous
 
+  (* A logging failure must not turn successful application work into an
+     exception: an unavailable display hands the record to the prior reporter. *)
+  let output_refusal_falls_back () =
+    with_runtime @@ fun env ->
+    recording @@ fun kept ->
+    let first = ref true in
+    let sink =
+      sink
+        ~on_write:(fun () ->
+          if !first then begin
+            first := false;
+            failwith "display formatter refused"
+          end)
+        ()
+    in
+    let previous = Logs.reporter () in
+    let over_count = ref 0 and continued = ref 0 in
+    run env sink (fun _ ->
+        send (Logs.reporter ()) "application is still running"
+          ~over:(fun () -> incr over_count)
+          ~continued:(fun () -> incr continued));
+    Alcotest.(check (list string))
+      "the previous reporter receives the refused record once"
+      [ "application is still running" ]
+      (kept ());
+    Alcotest.(check int) "completion runs once" 1 !over_count;
+    Alcotest.(check int) "the caller continues once" 1 !continued;
+    restored previous
+
   let stale_reporter () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
@@ -388,6 +417,8 @@ module Report_domains = struct
       [
         Alcotest.test_case "worker logs retain formatter ownership" `Quick
           owner_domain;
+        Alcotest.test_case "a refused Logs record reaches the prior reporter"
+          `Quick output_refusal_falls_back;
         Alcotest.test_case "worker receives actual output failure" `Quick
           output_error;
         Alcotest.test_case "a captured reporter hands over after teardown"
