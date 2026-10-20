@@ -23,15 +23,15 @@ type ansi =
 
 type color = Ansi of ansi | Rgb of int * int * int | Palette of int
 
-type style = {
+type 'c style = {
   bold : bool;
   faint : bool;
   italic : bool;
   underline : bool;
   reverse : bool;
   strikethrough : bool;
-  fg : color option;
-  bg : color option;
+  fg : 'c option;
+  bg : 'c option;
 }
 
 let ansi_position = function

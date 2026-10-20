@@ -3,16 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = Sgr.style = {
-  bold : bool;
-  faint : bool;
-  italic : bool;
-  underline : bool;
-  reverse : bool;
-  strikethrough : bool;
-  fg : Color.t option;
-  bg : Color.t option;
-}
+open Sgr
+
+type t = Color.t style
 
 let none =
   {
@@ -72,10 +65,14 @@ let equal left right =
   && opt_equal Color.equal left.fg right.fg
   && opt_equal Color.equal left.bg right.bg
 
+let sgr depth style =
+  let down = Option.map (fun c -> Color.to_sgr (Color.downsample depth c)) in
+  start { style with fg = down style.fg; bg = down style.bg }
+
 let pp ppf style =
   if is_none style then Fmt.pf ppf "none"
   else
-    let parts = List.map snd (Sgr.attributes style) in
+    let parts = List.map snd (attributes style) in
     let parts =
       match style.fg with
       | Some p -> parts @ [ Fmt.str "fg(%a)" Color.pp p ]

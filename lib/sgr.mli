@@ -30,23 +30,23 @@ type ansi =
     component in \[[0];[255]\]. *)
 type color = Ansi of ansi | Rgb of int * int * int | Palette of int
 
-type style = {
+type 'c style = {
   bold : bool;
   faint : bool;
   italic : bool;
   underline : bool;
   reverse : bool;
   strikethrough : bool;
-  fg : color option;
-  bg : color option;
+  fg : 'c option;
+  bg : 'c option;
 }
-(** The type for styles. *)
+(** The type for styles, in colours of type ['c]. *)
 
-val attributes : style -> (string * string) list
+val attributes : _ style -> (string * string) list
 (** [attributes s] are the code and the name of each attribute [s] sets, in the
     order of the fields. *)
 
-val start : style -> string
+val start : color style -> string
 (** [start s] is the escape code that selects [s], its colours as given, or [""]
     if [s] sets nothing. *)
 

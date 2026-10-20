@@ -79,6 +79,36 @@ let test_downsample r g b =
       | `True_color -> ())
     [ `Ansi_256; `Ansi_16 ]
 
+(* Every colour the API builds, from any argument it accepts, writes an SGR
+   whose parameters are all in [0;255]: [Color.t] is abstract, so these
+   constructors are the only ways to make one. *)
+let test_sgr_in_range n r g b f =
+  let built =
+    List.filter_map
+      (fun make -> try Some (make ()) with Invalid_argument _ -> None)
+      [
+        (fun () -> Color.rgb r g b);
+        (fun () -> Color.palette n);
+        (fun () -> Fmt.kstr Color.hex "%x" (abs n));
+        (fun () -> Color.scale f (Color.palette (n land 255)));
+        (fun () -> Color.blend (Color.palette (n land 255)) Color.red f);
+      ]
+  in
+  List.iter
+    (fun c ->
+      List.iter
+        (fun d ->
+          let c = Color.downsample d c in
+          let s =
+            Span.to_string ~styled:true Span.(styled Style.(fg c + bg c) "x")
+          in
+          let params = String.sub s 2 (String.index s 'm' - 2) in
+          List.iter
+            (fun p -> check (int_of_string p >= 0 && int_of_string p <= 255))
+            (String.split_on_char ';' params))
+        [ `True_color; `Ansi_256; `Ansi_16 ])
+    built
+
 (* A formatter's depth is the one last set on it. *)
 let test_depth n =
   let ppf = Format.formatter_of_buffer (Buffer.create 1) in
@@ -100,4 +130,7 @@ let suite =
         test_blend_scale;
       test_case "downsample" [ int; int; int ] test_downsample;
       test_case "formatter depth" [ int ] test_depth;
+      test_case "SGR parameters in range"
+        [ int; int; int; int; float ]
+        test_sgr_in_range;
     ] )
