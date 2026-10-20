@@ -21,6 +21,9 @@ val styled : Style.t -> string -> t
 val link : ?style:Style.t -> uri:string -> string -> t
 (** See {!Span.link}. *)
 
+val gradient : ?colors:Color.t list -> string -> t
+(** See {!Span.gradient}. *)
+
 val ( ++ ) : t -> t -> t
 (** See {!Span.( ++ )}. *)
 

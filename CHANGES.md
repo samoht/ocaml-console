@@ -18,6 +18,9 @@
   table needs no Eio. `Console_eio.run` calls `Console_tty.ensure`, which
   decides only for the outputs the program left alone.
 - `Style.styled` styles any `Fmt` printer at its formatter's colour depth.
+- `Span.gradient` grades text from one colour to the next, each grapheme
+  cluster in the blend at its place, by default through the palette of
+  the theme it is printed in.
 - A theme names the glyphs of its bars (`Theme.bar`): heavy lines by
   default, full blocks on a light shade in `Theme.dos`, `#` on `-` in
   `Theme.ascii` and on any formatter that is not UTF-8.

@@ -63,6 +63,45 @@ let drawn draw =
   | "" -> empty
   | text -> [ { style = Style.none; link = None; text; draw = Some draw } ]
 
+(* {1 Gradients} *)
+
+(* The colour at [p], from 0 to 1, of stops spread evenly over that range: a
+   stop itself where it stands, so that a palette colour stays one. *)
+let at stops p =
+  let n = Array.length stops in
+  let x = p *. float_of_int (n - 1) in
+  let i = int_of_float x in
+  if i >= n - 1 then stops.(n - 1)
+  else if Float.of_int i = x then stops.(i)
+  else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
+
+let clusters s =
+  let l = ref [] in
+  Glyph.String.iter_graphemes
+    (fun ~offset ~len -> l := String.sub s offset len :: !l)
+    s;
+  List.rev !l
+
+(* Each line is graded from its first cluster to its last. *)
+let graded stops line =
+  let stops = Array.of_list stops and n = List.length line in
+  List.concat
+    (List.mapi
+       (fun i g ->
+         let p = if n = 1 then 0. else float_of_int i /. float_of_int (n - 1) in
+         atom (Style.fg (at stops p)) g)
+       line)
+
+let gradient ?(colors = []) s =
+  let line text =
+    let line = clusters text in
+    match colors with
+    | [] -> drawn (fun look -> graded (Theme.palette look.Look.theme) line)
+    | colors -> graded colors line
+  in
+  concat ~sep:(atom Style.none "\n")
+    (List.map line (String.split_on_char '\n' (clean s)))
+
 (* {1 Lines} *)
 
 let lines t =

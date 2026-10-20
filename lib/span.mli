@@ -43,6 +43,15 @@ val link : ?style:Style.t -> uri:string -> string -> t
     @raise Invalid_argument
       if [uri] is empty or holds a byte outside the printable ASCII range. *)
 
+val gradient : ?colors:Color.t list -> string -> t
+(** [gradient ~colors s] is [s] in colours graded along each of its lines: each
+    grapheme cluster takes the {!Color.blend} of the two stops around its place,
+    the stops spread evenly from the line's first cluster, in the first stop, to
+    its last, in the last one. The stops are [colors] (defaults to the
+    {!Theme.palette} of the theme of the formatter it is printed on, as is
+    [[]]). It is as wide as [s], printed in colours at the formatter's
+    {!Color.val-depth} and as the text of [s] without colour. *)
+
 val ( ++ ) : t -> t -> t
 (** [s0 ++ s1] is [s0] followed by [s1]. *)
 
