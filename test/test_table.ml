@@ -87,6 +87,66 @@ let render renderer table =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
+(* [table] printed on a formatter in [theme], in UTF-8 iff [utf_8], in
+   true colour iff [styled]. *)
+let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
+  let buf = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Fmt.set_utf_8 ppf utf_8;
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color
+  end;
+  Table.pp ppf table;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* bar.mli, to_span: a bar in a cell is drawn in the theme and the UTF-8 of
+   the formatter the table is printed on, even cut to fit its column. *)
+let test_bar_cell () =
+  let table ?overflow ?max_width bar =
+    Table.v ~border:Border.none
+      [ Table.column "task"; Table.column ?overflow ?max_width "done" ]
+      [ [ Span.text "copy"; Bar.to_span bar ] ]
+  in
+  let half = table (Bar.v ~width:4 0.5) in
+  let row s = List.nth (String.split_on_char '\n' s) 1 in
+  let check msg want got = Alcotest.(check string) msg want (row got) in
+  check "default" "copy  \u{2501}\u{2501}\u{257a}\u{2501}" (printed half);
+  check "dos" "copy  \u{2588}\u{2588}\u{2591}\u{2591}"
+    (printed ~theme:Theme.dos half);
+  check "not UTF-8" "copy  ##--" (printed ~utf_8:false half);
+  check "ascii" "copy  ##--" (printed ~theme:Theme.ascii half);
+  let cut = table ~overflow:`Truncate ~max_width:5 (Bar.v ~width:8 0.5) in
+  check "cut, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2588}\u{2026}"
+    (printed ~theme:Theme.dos cut);
+  check "cut, not UTF-8" "copy  ##..."
+    (printed ~theme:Theme.dos ~utf_8:false cut);
+  let accent t s =
+    Span.to_string ~styled:true (Span.styled (Style.fg (Theme.accent t)) s)
+  in
+  Alcotest.(check bool)
+    "in the theme's colours" true
+    (contains
+       (accent Theme.nord "\u{2501}\u{2501}")
+       (printed ~theme:Theme.nord ~styled:true half))
+
+(* bar.mli, to_span: a bar alone as a span is drawn when printed. *)
+let test_bar_span () =
+  let buf = Buffer.create 16 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf Theme.dos;
+  Span.pp ppf Span.(text "[" ++ Bar.to_span (Bar.v ~width:2 0.5) ++ text "]");
+  Format.pp_print_flush ppf ();
+  Alcotest.(check string) "dos" "[\u{2588}\u{2591}]" (Buffer.contents buf);
+  Alcotest.(check string)
+    "to_string, the default theme" "\u{2501}\u{2501}"
+    (Span.to_string (Bar.to_span (Bar.v ~width:2 1.)));
+  Alcotest.(check int)
+    "width" 6
+    (Span.width (Bar.to_span (Bar.v ~brackets:true ~width:4 0.5)))
+
 let test_formatter_gates_cell_styles () =
   let table =
     Table.v [ Table.column "A" ] [ [ Span.styled Style.(fg Color.red) "red" ] ]
@@ -442,6 +502,8 @@ let suite =
         test_every_margin_is_a_hard_limit;
       Alcotest.test_case "invalid shape" `Quick test_invalid_shape;
       Alcotest.test_case "empty" `Quick test_empty;
+      Alcotest.test_case "a bar in a cell" `Quick test_bar_cell;
+      Alcotest.test_case "a bar as a span" `Quick test_bar_span;
       Alcotest.test_case "wrap" `Quick test_wrap;
       Alcotest.test_case "wrap preserves an unbroken token" `Quick
         test_wrap_preserves_unbroken_token;
