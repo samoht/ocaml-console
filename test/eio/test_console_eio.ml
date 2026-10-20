@@ -384,6 +384,24 @@ let test_suspend () =
         "exit status" true
         (match status with `Exited 0 -> true | _ -> false)
 
+(* Output outside a task that the program never flushes is not held
+   without bound: all but the last 64 KiB of it is on the terminal before
+   the program goes on. *)
+let test_unflushed_output_is_bounded () =
+  let _, out, _ = session "unflushed" in
+  match Astring.String.find_sub ~sub:"MARK" out with
+  | None -> Alcotest.fail "no mark"
+  | Some k ->
+      let after = String.length out - k in
+      let held =
+        List.length (Astring.String.cuts ~sep:"line " (String.sub out k after))
+        - 1
+      in
+      Alcotest.(check bool)
+        (Fmt.str "at most 64 KiB held back (%d lines)" held)
+        true
+        (held * String.length "line 000000\n" <= 65536)
+
 let test_sigint_secret () =
   let status, _, echo = session "secret" in
   Alcotest.(check bool)
@@ -404,6 +422,8 @@ let suite =
         test_ascii_locale;
       Alcotest.test_case "SIGINT during a password restores echo" `Quick
         test_sigint_secret;
+      Alcotest.test_case "unflushed output is held back boundedly" `Quick
+        test_unflushed_output_is_bounded;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick

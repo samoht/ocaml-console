@@ -10,7 +10,8 @@
    or, with [widgets], it prints every widget before it; or, with [themed],
    it gave standard error a theme and chose nothing else; or, with [logs] or [logs-failed], its
    task prints and logs, then succeeds or fails; or, with [suspend], it is stopped by
-   SIGTSTP, as Ctrl-Z does, and goes on once continued. It also prints a line on standard
+   SIGTSTP, as Ctrl-Z does, and goes on once continued; or, with [unflushed], it
+   prints lines it never flushes. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 let secret env =
@@ -84,6 +85,16 @@ let suspend env =
       Console.Display.redraw display;
       Console.Display.succeed task)
 
+(* Lines printed outside a task and never flushed, then a mark written
+   straight to the terminal: what came out before the mark is what the
+   display did not hold back. *)
+let unflushed env =
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun _ ->
+      for i = 1 to 100_000 do
+        Fmt.pr "line %06d\n" i
+      done;
+      ignore (Unix.write_substring Unix.stdout "MARK\n" 0 5 : int))
+
 let display env =
   let clock = Eio.Stdenv.mono_clock env in
   let run () =
@@ -111,4 +122,5 @@ let () =
   | [| _; "logs" |] -> logs ~fails:false env
   | [| _; "logs-failed" |] -> logs ~fails:true env
   | [| _; "suspend" |] -> suspend env
+  | [| _; "unflushed" |] -> unflushed env
   | _ -> display env
