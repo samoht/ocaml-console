@@ -26,7 +26,8 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Style.( + )` | unit, associative, right colour wins | style / composition laws |
 | `Border`, `Guide` | accessors give back what was given | border / accessors; guide / accessors |
 | `Spinner.frame` | one of its frames, the first before time; refusals | spinner / frame |
-| `Theme.v`, `Theme.mark` | palette never empty, a mark is one line | theme / parts and marks |
+| `Theme.v`, `Theme.mark`, `Theme.of_string` | parts kept, the muted colour among them, headers set apart, palette never empty, a mark is one line; `of_string` reads back exactly the names of `Theme.all` | theme / parts and marks |
+| every widget, `Display` | on a formatter that is not UTF-8, ASCII alone in every theme, for any ASCII text and margin | theme / ASCII when not UTF-8 |
 | `Bar.v` | exactly `width` cells, two more with brackets | bar / width |
 | `Rule.pp` | exactly the margin; refused glyphs | rule / as wide as the margin |
 | `Panel.pp` | fits the margin; a fixed panel is a rectangle | panel / fits the margin; refuses a box too small |
@@ -36,6 +37,8 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Input.feed` | whole or in pieces alike, no escape in the echo, masked keeps no history | input / chunking and masking |
 | `Display` | header on screen exactly once after every write (no blank, half-drawn or doubled region, nothing left after a resize, never taller than the screen); a redraw changes only the region's rows; every line written fits; styles closed per line; an idle redraw writes nothing; cursor visible at the start of a line once closed | display / screen guarantees |
 | `Display` | without a terminal: no escape, header last | display / plain output |
+| `Display` | on a terminal, each write is one synchronized update, opened and closed once at its ends | display / screen guarantees |
+| `Display` | on a terminal wider than 100 columns, no row nor line of a task is wider than 100 | display / rows keep to 100 columns on a wide terminal |
 
 The display's column alignment with wide labels, its narrowing clear and its
 marks are unit tests in `test/test_display.ml`; its teardown on return,

@@ -247,7 +247,7 @@ let theme =
     & info [ "theme" ] ~doc:"The look of the output.")
 
 let greet theme =
-  Console.Theme.set Fmt.stdout theme;
+  List.iter (fun ppf -> Console.Theme.set ppf theme) [ Fmt.stdout; Fmt.stderr ];
   Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.Span.text "hello"))
 
 let cmd =
