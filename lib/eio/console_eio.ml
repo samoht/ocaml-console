@@ -10,15 +10,8 @@ let decided = Atomic.make false
 
 (* Fmt keeps what a program chose for a formatter in tag functions it
    installs on the first choice, so a formatter whose tag functions are still
-   Format's own has had nothing chosen for it. *)
-let format_marks =
-  (Format.pp_get_formatter_stag_functions
-     (Format.formatter_of_buffer (Buffer.create 0))
-     ())
-    .mark_open_stag
-
-let chosen ppf =
-  (Format.pp_get_formatter_stag_functions ppf ()).mark_open_stag != format_marks
+   Format's own, but for its theme, has had nothing chosen for it. *)
+let chosen ppf = not (Console.Theme.unset ppf)
 
 let decide ?style_renderer ~only () =
   List.iter

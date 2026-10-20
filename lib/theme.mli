@@ -240,3 +240,11 @@ val get : Format.formatter -> t
 
 val pp : t Fmt.t
 (** [pp] formats a theme for diagnostics, in an unspecified format. *)
+
+(**/**)
+
+val unset : Format.formatter -> bool
+(** [unset ppf] is [true] iff nothing but a theme was set on [ppf]: neither its
+    {!Fmt.style_renderer} nor its {!Fmt.utf_8} nor its {!Color.val-depth}. *)
+
+(**/**)

@@ -8,16 +8,40 @@ type 'a op = Get of 'a option ref | Set of 'a
 type 'a t = {
   wrap : 'a op -> Format.stag;
   unwrap : Format.stag -> 'a op option;
+  setting : bool;
 }
 
-let v (type a) () : a t =
+let v (type a) ?(setting = true) () : a t =
   let module M = struct
     type Format.stag += Op of a op
   end in
   {
     wrap = (fun op -> M.Op op);
     unwrap = (function M.Op op -> Some op | _ -> None);
+    setting;
   }
+
+type mark = Format.stag -> string
+
+(* A slot's tag function answers a probe with itself and whether nothing
+   but slots that are not settings lies under it. *)
+type Format.stag += Probe of (mark * bool) option ref
+
+let format_marks =
+  (Format.pp_get_formatter_stag_functions
+     (Format.formatter_of_buffer (Buffer.create 0))
+     ())
+    .mark_open_stag
+
+let unset_marks (f : mark) =
+  f == format_marks
+  ||
+  let r = ref None in
+  ignore (f (Probe r));
+  match !r with Some (g, unset) -> g == f && unset | None -> false
+
+let unset ppf =
+  unset_marks (Format.pp_get_formatter_stag_functions ppf ()).mark_open_stag
 
 (* What the tag function of a slot answers, which no other answers. *)
 let ack = "\000console.slot"
@@ -36,15 +60,21 @@ let set s ppf v =
     let current = ref v in
     let funs = Format.pp_get_formatter_stag_functions ppf () in
     let other = funs.mark_open_stag in
-    let mark_open_stag stag =
-      match s.unwrap stag with
-      | Some (Get r) ->
-          r := Some !current;
+    let unset = (not s.setting) && unset_marks other in
+    let rec mark_open_stag stag =
+      match stag with
+      | Probe r ->
+          r := Some (mark_open_stag, unset);
           ack
-      | Some (Set v) ->
-          current := v;
-          ack
-      | None -> other stag
+      | stag -> (
+          match s.unwrap stag with
+          | Some (Get r) ->
+              r := Some !current;
+              ack
+          | Some (Set v) ->
+              current := v;
+              ack
+          | None -> other stag)
     in
     Format.pp_set_formatter_stag_functions ppf { funs with mark_open_stag }
   end

@@ -248,7 +248,10 @@ let of_string s =
       Fmt.error_msg "unknown theme %S, expected one of: %s" s
         (String.concat ", " (List.map fst all))
 
-let slot = Slot.v ()
+(* A theme is not a choice of colours: a formatter given one alone still has
+   them decided for it. *)
+let slot = Slot.v ~setting:false ()
+let unset = Slot.unset
 let get ppf = Option.value (Slot.find slot ppf) ~default
 let set ppf t = Slot.set slot ppf t
 
