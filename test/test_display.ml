@@ -473,12 +473,34 @@ let test_invalid () =
       ignore (Display.Layout.bar (-1)));
   check_invalid "Console.Display.Layout.v: more than one label" (fun () ->
       ignore Display.Layout.(v [ label; label ]));
+  Display.close d
+
+(* A fiber that outlives the display, or a library that holds on to it,
+   is ignored once it closed: nothing raises and nothing is written. *)
+let test_closed () =
+  let t = terminal ~theme ~header:"Build" () in
+  let d = t.display in
+  let running = Display.task d "running" in
   Display.close d;
+  let before = written t in
   Display.close d;
-  check_invalid "Console.Display.task: closed display" (fun () ->
-      ignore (Display.task d "late"));
-  check_invalid "Console.Display.log: closed display" (fun () ->
-      Display.log t "late")
+  let late = Display.task d "late" in
+  List.iter
+    (fun task ->
+      Display.set_label task "renamed";
+      Display.set_count task ~cur:1 ~total:2;
+      Display.log task "late line";
+      Display.succeed task;
+      Display.fail task;
+      Display.cancel task)
+    [ running; late ];
+  Display.redraw d;
+  Display.set_scene d (fun ~height:_ ppf -> Fmt.string ppf "scene");
+  Display.set_result d (Ok "late");
+  Alcotest.(check string) "nothing written" before (written t);
+  Alcotest.(check int)
+    "with_output still calls its function" 42
+    (Display.with_output d (fun _ -> 42))
 
 let test_colours () =
   let t = terminal ~styled:true () in
@@ -612,9 +634,7 @@ let test_scene_replaced () =
   Display.redraw t.display;
   check_lines "the second scene" [ "second" ] (screen t);
   Display.close t.display;
-  check_lines "nothing left once closed" [] (lines t);
-  check_invalid "Console.Display.set_scene: closed display" (fun () ->
-      Display.set_scene t.display (fun ~height:_ _ -> ()))
+  check_lines "nothing left once closed" [] (lines t)
 
 (* Without a terminal a scene is never drawn. *)
 let test_scene_plain () =
@@ -738,6 +758,7 @@ let suite =
       Alcotest.test_case "counts" `Quick test_counts;
       Alcotest.test_case "large counts" `Quick test_large_counts;
       Alcotest.test_case "invalid" `Quick test_invalid;
+      Alcotest.test_case "a closed display ignores calls" `Quick test_closed;
       Alcotest.test_case "colours" `Quick test_colours;
       Alcotest.test_case "scene" `Quick test_scene;
       Alcotest.test_case "scene fits" `Quick test_scene_fits;
