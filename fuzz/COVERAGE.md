@@ -33,6 +33,7 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Rule.pp` | exactly the margin; refused glyphs | rule / as wide as the margin |
 | `Panel.pp` | fits the margin; a fixed panel is a rectangle | panel / fits the margin; refuses a box too small |
 | `Table.pp` | fits the margin, framed lines of one width, styles closed | table / fits the margin |
+| `Table.v ~rules` | a rule between each two rows, in the header rule's glyphs | table / a rule between each two rows |
 | `Table` | right-aligned cells line up; row shape | table / right-aligned cells line up; row shape |
 | `Tree.pp` | fits the margin | tree / fits the margin |
 | `Input.feed` | whole or in pieces alike, no escape in the echo, masked keeps no history | input / chunking and masking |

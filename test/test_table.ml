@@ -474,9 +474,46 @@ let test_wide_border () =
       Alcotest.(check bool) "frame fits requested width" true (width <= 20))
     widths
 
+(* [rules] draws a rule between each two rows, after a row's last line, in
+   the glyphs and the style of the header's rule; a table without edges has
+   none. *)
+let test_rules () =
+  let table ?rules ?border () =
+    Table.v ?rules ?border
+      [ Table.column "a" ]
+      [ [ Span.text "1" ]; [ Span.text "2\n3" ]; [ Span.text "4" ] ]
+  in
+  Alcotest.(check string)
+    "between rows"
+    "\u{256d}\u{2500}\u{2500}\u{2500}\u{256e}\n\
+     \u{2502} a \u{2502}\n\
+     \u{251c}\u{2500}\u{2500}\u{2500}\u{2524}\n\
+     \u{2502} 1 \u{2502}\n\
+     \u{251c}\u{2500}\u{2500}\u{2500}\u{2524}\n\
+     \u{2502} 2 \u{2502}\n\
+     \u{2502} 3 \u{2502}\n\
+     \u{251c}\u{2500}\u{2500}\u{2500}\u{2524}\n\
+     \u{2502} 4 \u{2502}\n\
+     \u{2570}\u{2500}\u{2500}\u{2500}\u{256f}"
+    (Table.to_string (table ~rules:true ()));
+  Alcotest.(check int)
+    "none by default" 8
+    (List.length (String.split_on_char '\n' (Table.to_string (table ()))));
+  Alcotest.(check string)
+    "none without edges"
+    (Table.to_string (table ~border:Border.none ()))
+    (Table.to_string (table ~rules:true ~border:Border.none ()));
+  let lines =
+    String.split_on_char '\n'
+      (Table.to_string ~styled:true (table ~rules:true ()))
+  in
+  Alcotest.(check string)
+    "in the header rule's style" (List.nth lines 2) (List.nth lines 4)
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "rules" `Quick test_rules;
       Alcotest.test_case "two-cell border stays rectangular" `Quick
         test_wide_border;
       Alcotest.test_case "formatter composes without a trailing newline" `Quick

@@ -823,25 +823,13 @@ let test_terminal_lines steps =
 let themes = Array.of_list (List.map snd Theme.all)
 let pick_theme n = themes.(n mod Array.length themes)
 
-let border_glyphs =
+(* The glyphs of straight lines: the only ones a frame that moves swaps, so
+   that its corners and tees stay where lines meet. *)
+let line_glyphs =
   List.concat_map
     (fun b ->
       let c = Border.chars b in
-      [
-        c.top_left;
-        c.top;
-        c.top_right;
-        c.left;
-        c.right;
-        c.bottom_left;
-        c.bottom;
-        c.bottom_right;
-        c.cross;
-        c.top_cross;
-        c.bottom_cross;
-        c.left_cross;
-        c.right_cross;
-      ])
+      [ c.top; c.left; c.right; c.bottom ])
     Border.[ ascii; single; rounded; double; heavy ]
 
 let clusters s =
@@ -860,6 +848,7 @@ let widget kind cells =
   if kind then fun ppf ->
     Table.pp ppf
       (Table.v
+         ~rules:(List.length cells mod 2 = 0)
          [ Table.column "a"; Table.column ~align:`Right "b" ]
          (List.map (fun c -> [ c; c ]) cells))
   else fun ppf ->
@@ -886,8 +875,8 @@ let scene_frames theme ~width pp times =
   Display.close d;
   frames
 
-(* In every frame of a scene in a theme with motion, only border glyphs
-   differ from the theme without motion, each from a glyph as wide: every
+(* In every frame of a scene in a theme with motion, only the glyphs of
+   straight lines differ from the theme without motion, each from a glyph as wide: every
    line keeps its width and every cell its place. The theme without motion
    draws the same frame at every time: the table as Fmt prints it. *)
 let test_scene_frames kind cells n w times =
@@ -924,7 +913,7 @@ let test_scene_frames kind cells n w times =
               if
                 a <> b
                 && not
-                     (List.mem b border_glyphs
+                     (List.mem b line_glyphs
                      && Width.string_width a = Width.string_width b)
               then failf "%S moved to %S" s m)
             a b)

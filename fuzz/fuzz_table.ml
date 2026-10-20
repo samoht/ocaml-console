@@ -217,9 +217,26 @@ let test_mixed_script_themes s n =
     themes;
   check_marker_columns mixed s
 
+(* [rules] draws a rule between each two rows, in the glyphs of the
+   header's rule: with the header's, as many rules as rows. *)
+let test_rules s n =
+  let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
+  let nrows = 1 + (abs n mod 6) in
+  let columns = List.init ncol (fun _ -> Table.column "h") in
+  let rows =
+    List.init nrows (fun r ->
+        List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))
+  in
+  let t = Table.v ~rules:true ~border:Border.rounded columns rows in
+  let _, lines = render Table.pp 1000 t in
+  let rules = List.filter (String.starts_with ~prefix:"\u{251c}") lines in
+  check_eq ~pp:Fmt.int nrows (List.length rules);
+  List.iter (fun r -> check_eq ~pp:Fmt.Dump.string (List.hd rules) r) rules
+
 let suite =
   ( "table",
     [
+      test_case "a rule between each two rows" [ bytes; int ] test_rules;
       test_case "mixed-script columns align in every theme" [ bytes; uint8 ]
         test_mixed_script_themes;
       test_case "multi-cell borders stay rectangular" [ uint8 ] test_wide_border;
