@@ -99,7 +99,8 @@ let release () =
 
    While a display draws a region on a terminal, what the program writes on
    the standard formatters of that terminal is output, a whole line at a
-   time; a line without its end waits for it. A line goes to the task
+   time; a line without its end waits for it, and outside a task a line
+   waits for a flush, up to {!max_pending} bytes. A line goes to the task
    current in the fiber that writes or flushes it, without its escape codes,
    or above the region as it is when none is. Inside {!with_terminal} the
    bytes go straight out. *)
@@ -123,37 +124,50 @@ let whole_lines pending =
       Buffer.add_substring pending s (k + 1) (String.length s - k - 1);
       Some (String.sub s 0 (k + 1))
 
+(* What [pending] holds at most, as a channel's buffer: more is written
+   out, a line too long cut where the bound falls. *)
+let max_pending = 65536
+let to_task task s = Console.Display.log task (Console_text.strip s)
+
+(* [s] for the task current in the calling fiber, or above the region. *)
+let write display i s =
+  match Display_driver.current display with
+  | Some task -> to_task task s
+  | None ->
+      Display.with_output display (fun _ ->
+          i.out.out_string s 0 (String.length s);
+          i.out.out_flush ())
+
+(* [pending] past its bound: its whole lines, or else all of it. *)
+let spill display i =
+  match whole_lines i.pending with
+  | Some s -> write display i s
+  | None ->
+      let s = Buffer.contents i.pending in
+      Buffer.clear i.pending;
+      write display i s
+
 let intercept display ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
   let i = { ppf; out; pending = Buffer.create 256 } in
-  let to_task task =
-    Option.iter
-      (fun s -> Console.Display.log task (Console_text.strip s))
-      (whole_lines i.pending)
-  in
   let add s o l =
     if Atomic.get direct > 0 then out.out_string s o l
     else begin
       Buffer.add_substring i.pending s o l;
-      match String.index_from_opt s o '\n' with
-      | Some k when k < o + l ->
-          Option.iter to_task (Display_driver.current display)
-      | _ -> ()
+      let ends_a_line =
+        match String.index_from_opt s o '\n' with
+        | Some k -> k < o + l
+        | None -> false
+      in
+      match if ends_a_line then Display_driver.current display else None with
+      | Some task -> Option.iter (to_task task) (whole_lines i.pending)
+      | None -> if Buffer.length i.pending > max_pending then spill display i
     end
   in
   let flush () =
     if Atomic.get direct > 0 then out.out_flush ()
-    else
-      match Display_driver.current display with
-      | Some task -> to_task task
-      | None ->
-          Option.iter
-            (fun s ->
-              Display.with_output display (fun _ ->
-                  out.out_string s 0 (String.length s);
-                  out.out_flush ()))
-            (whole_lines i.pending)
+    else Option.iter (write display i) (whole_lines i.pending)
   in
   Format.pp_set_formatter_out_functions ppf
     {
