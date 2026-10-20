@@ -399,7 +399,9 @@ let test_retained_heap n =
         if retained > warm + 4096 then
           failf "retained heap grew from %d to %d words" warm retained
       done)
-    ~finally:(fun () -> Display.close ~running:`Succeed d)
+    ~finally:(fun () ->
+      Display.succeed task;
+      Display.close d)
 
 (* Each call has a unique token, so duplicates, reorderings and misattribution
    are detectable even when several tasks have the same display label. *)
@@ -461,7 +463,8 @@ let test_output_exception s cancel =
   | exception Exit -> ());
   Display.redraw d;
   check_screen t;
-  Display.close ~running:(if cancel then `Cancel else `Succeed) d;
+  if not cancel then Display.set_result d (Ok "done");
+  Display.close d;
   check (Console_vte.cursor_visible t.vte);
   check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos t.vte));
   let y, _ = Console_vte.cursor_pos t.vte in

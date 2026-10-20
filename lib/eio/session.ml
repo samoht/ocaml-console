@@ -25,8 +25,7 @@ let at_exit =
   lazy
     (Stdlib.at_exit (fun () ->
          match Atomic.get running with
-         | Some d -> (
-             try Display.close ~running:`Cancel d with Sys_error _ -> ())
+         | Some d -> ( try Display.close d with Sys_error _ -> ())
          | None -> ()))
 
 (* A task is current in the fibers its function forks, as a binding is. *)
@@ -255,13 +254,13 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
           Eio.Promise.resolve close ())
       @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
-          Display.close ~running:`Cancel display)
+          Display.close display)
       @@ fun () -> Eio.Fiber.with_binding current display (fun () -> f display)
     with
     | v -> v
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
-        Display.close ~running:`Cancel display;
+        Display.close display;
         Printexc.raise_with_backtrace e bt
   in
   Display.close display;

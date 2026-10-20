@@ -488,13 +488,11 @@ let set_result ?detail t result =
 
 (* {1 Closing} *)
 
-let close ?(running = `Cancel) t =
+let close t =
   if not t.closed then begin
     (* The scene goes with the display, and cannot keep it from closing. *)
     t.scene <- None;
-    finish_running
-      (match running with `Succeed -> `Succeeded | `Cancel -> `Cancelled)
-      t;
+    finish_running `Cancelled t;
     t.closed <- true;
     let header = Option.to_list (Display_row.header t) in
     let verdict, detail =

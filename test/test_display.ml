@@ -818,7 +818,7 @@ let test_cancelled_output () =
   List.iter (Display.log job) [ "a"; "b"; "c" ];
   Display.log other "z";
   Display.cancel job;
-  Display.close ~running:`Cancel t.display;
+  Display.close t.display;
   check_lines "all of it under each line"
     [ "[~] job"; "  # a"; "  # b"; "  # c"; "[~] other"; "  # z" ]
     (List.map untimed (lines t));

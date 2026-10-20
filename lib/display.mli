@@ -225,11 +225,11 @@ val set_result : ?detail:string -> t -> (string, string) result -> unit
     (if any) in the muted colour above it. With [Ok] the tasks still running
     succeed, with [Error] they are cancelled. A second call does nothing. *)
 
-val close : ?running:[ `Succeed | `Cancel ] -> t -> unit
-(** [close display] ends the tasks still running, as [running] says (defaults to
-    [`Cancel]: a task nobody ended did not finish; {!set_result} with [Ok] has
-    them succeed first), takes the region off the screen, shows the cursor and
-    prints the header, then the result of {!set_result}.
+val close : t -> unit
+(** [close display] cancels the tasks still running, for a task nobody ended did
+    not finish ({!set_result} with [Ok] has them succeed first), takes the
+    region off the screen, shows the cursor and prints the header, then the
+    result of {!set_result}.
 
     A closed display ignores what it is told, so that a fiber that outlives it
     does not fail: closing it again, {!redraw}, {!set_scene} and {!set_result}
