@@ -52,6 +52,12 @@ let test_truncate () =
   Alcotest.(check string)
     "a wide character is not cut" "界…"
     (Span.to_string (Span.truncate 4 (Span.text "界界界")));
+  (* A VS16 stays with its letter, at whatever width they take. *)
+  let cut = Span.truncate 3 (Span.text "a\u{fe0f}bcdef") in
+  Alcotest.(check bool)
+    "a variation selector stays with its letter" true
+    (Span.width cut <= 3
+    && List.mem (Span.to_string cut) [ "a\u{fe0f}…"; "a\u{fe0f}b…" ]);
   Alcotest.(check string)
     "every line" "ab…\nc"
     (Span.to_string (Span.truncate 3 (Span.text "abcd\nc")));

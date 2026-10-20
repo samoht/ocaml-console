@@ -130,6 +130,53 @@ let test_wrap s n =
       (no_space (plain s))
       (no_space (String.concat "" (List.map plain lines)))
 
+(* Characters that change the width of the one before them, or join it:
+   VS16 and VS15, the zero-width joiner, a combining mark, the keycap mark
+   and a skin tone, with the bases they act on, a regional indicator and
+   letters. *)
+let joiners =
+  [|
+    "a";
+    "b";
+    "1";
+    "\u{fe0f}";
+    "\u{fe0e}";
+    "\u{200d}";
+    "\u{301}";
+    "\u{20e3}";
+    "\u{1f3fd}";
+    "\u{2764}";
+    "\u{1f468}";
+    "\u{1f469}";
+    "\u{754c}";
+    "\u{1f1eb}";
+    " ";
+  |]
+
+let joined s =
+  String.concat ""
+    (List.init (String.length s) (fun i ->
+         joiners.(Char.code s.[i] mod Array.length joiners)))
+
+(* The column a terminal's cursor reaches after [s]. *)
+let on_screen s =
+  let term = Console_vte.v ~rows:1 ~cols:500 () in
+  Console_vte.feed term s;
+  snd (Console_vte.cursor_pos term)
+
+(* With VS16, VS15, joiners and marks, a cut line and every wrapped line
+   fit their width, as console measures it and on the terminal. *)
+let test_joiners_fit s n =
+  let s = Span.text (joined s) and w = 1 + (abs n mod 12) in
+  let fits what l =
+    let cells = on_screen (plain l) in
+    if Span.width l > w || cells > w then
+      failf "%s to %d is %d cells, %d on the terminal: %S" what w (Span.width l)
+        cells (plain l)
+  in
+  fits "truncated" (Span.truncate w s);
+  List.iter (fits "wrapped") (Span.wrap w s)
+
 let test_wrap_bytes s n = ignore (Span.wrap (width n) (Span.text s))
 
 let test_wrap_refuses n =
@@ -330,6 +377,8 @@ let suite =
       test_case "truncate turns styles off" [ bytes; int ] test_truncate_closes;
       test_case "wrap fits and keeps the text" [ bytes; int ] test_wrap;
       test_case "wrap takes any bytes" [ bytes; int ] test_wrap_bytes;
+      test_case "cuts fit with joiners and selectors" [ bytes; int ]
+        test_joiners_fit;
       test_case "wrap refuses a non-positive width" [ int ] test_wrap_refuses;
       test_case "link" [ bytes; bytes ] test_link;
       test_case "concat" [ bytes; bytes; bytes ] test_concat;
