@@ -4,8 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (** Formatters that capture what is printed on them as spans, as
-    [Span_core.capture] makes them, for {!Console.hcat} and the scene of a
-    display. *)
+    [Span_core.capture] makes them, for the scene of a display. *)
 
 type Format.stag +=
   | Styled of Color.t Sgr.style

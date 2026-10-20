@@ -81,6 +81,22 @@ val with_style : Style.t -> t -> t
 (** [with_style base s] is [s] with [base] under each of its styles: each part
     of [s] in [style] is in [Style.(base + style)]. *)
 
+val hcat : ?gap:int -> t list -> t
+(** [hcat ~gap spans] is [spans] side by side, [gap] spaces apart (defaults to
+    [2]). Its line [i] is the line [i] of each span, each span but the last
+    padded to its {!width} and a span with fewer lines giving blank ones; a line
+    ends at its last span with text on it, so no line ends with spaces [hcat]
+    adds. A widget goes in it by its [to_span], at the width it is given, and
+    the result goes in a table cell, a panel, a tree or a scene as any span
+    does:
+
+    {[
+    let report tree panel =
+      Console.(Span.hcat [ Tree.to_span tree; Panel.to_span ~width:30 panel ])
+    ]}
+
+    @raise Invalid_argument if [gap] is negative. *)
+
 (** {1:measuring Measuring and fitting} *)
 
 type align = [ `Left | `Center | `Right ]

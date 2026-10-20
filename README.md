@@ -283,15 +283,14 @@ console
 - : unit = ()
 ```
 
-`Console.hcat` prints blocks side by side, each at its share of the margin
-and in its own colours:
+`Span.hcat` puts spans side by side, each widget at the width its
+`to_span` gives it and in its own colours; the result is one more span,
+which goes in a cell, a panel or a scene:
 
 ```ocaml
 # let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ]
   and panel = Panel.v (Span.text "2 files") in
-  Fmt.pr "%a@."
-    (Console.hcat [ Fmt.const Tree.pp tree; Fmt.const Panel.pp panel ])
-    ();;
+  Fmt.pr "%a@." Span.pp (Span.hcat [ Tree.to_span tree; Panel.to_span panel ]);;
 src      ╭─────────╮
 └── lib  │ 2 files │
          ╰─────────╯

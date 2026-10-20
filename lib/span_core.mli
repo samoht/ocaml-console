@@ -43,6 +43,9 @@ val concat : ?sep:t -> t list -> t
 val with_style : Style.t -> t -> t
 (** See {!Span.with_style}. *)
 
+val hcat : ?gap:int -> t list -> t
+(** See {!Span.hcat}. *)
+
 val width : t -> int
 (** See {!Span.width}. *)
 

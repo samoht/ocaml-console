@@ -130,38 +130,26 @@ let test_keep_styles_closes_what_it_opens () =
 
 open Console
 
-let printed ?(styled = false) ?(margin = 80) pp =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  if styled then begin
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color
-  end;
-  Format.pp_set_margin ppf margin;
-  pp ppf ();
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
-
 let lines s = String.split_on_char '\n' s
-let text s ppf () = Fmt.string ppf s
+let side ?gap spans = Span.to_string (Span.hcat ?gap spans)
+let text = Span.text
 
-(* [hcat] puts blocks side by side, [gap] spaces apart, each padded to its
+(* [hcat] puts spans side by side, [gap] spaces apart, each padded to its
    widest line and a shorter one with blank lines, a line ending at its last
-   block that has text there. *)
+   span that has text there. *)
 let test_hcat () =
   Alcotest.(check string)
     "side by side" "a    1\nbbb  2\n     3"
-    (printed (hcat [ text "a\nbbb"; text "1\n2\n3" ]));
+    (side [ text "a\nbbb"; text "1\n2\n3" ]);
   Alcotest.(check string)
     "no trailing space" "aa 1\nb\nc"
-    (printed (hcat ~gap:1 [ text "aa\nb\nc"; text "1" ]));
+    (side ~gap:1 [ text "aa\nb\nc"; text "1" ]);
   Alcotest.(check string)
-    "a blank block line" "a  1\n   2"
-    (printed (hcat [ text "a\n"; text "1\n2" ]));
-  Alcotest.(check string) "one block" "a\nb" (printed (hcat [ text "a\nb" ]));
-  Alcotest.(check string) "none" "" (printed (hcat []));
+    "a blank line" "a  1\n   2"
+    (side [ text "a\n"; text "1\n2" ]);
+  Alcotest.(check string) "one span" "a\nb" (side [ text "a\nb" ]);
+  Alcotest.(check string) "none" "" (side []);
   let panel = Panel.v (Span.text "p") and tree = Tree.v (Span.text "t") [] in
-  let pp = hcat [ Fmt.const Panel.pp panel; Fmt.const Tree.pp tree ] in
   let panel_lines = lines (Panel.to_string panel) in
   Alcotest.(check (list string))
     "widgets"
@@ -170,47 +158,39 @@ let test_hcat () =
       List.nth panel_lines 1;
       List.nth panel_lines 2;
     ]
-    (lines (printed pp));
-  Display_harness.check_invalid "Console.hcat: negative gap" (fun () ->
-      ignore (hcat ~gap:(-1) [] : unit Fmt.t))
+    (lines (side [ Panel.to_span panel; Tree.to_span tree ]));
+  Display_harness.check_invalid "Console.Span.hcat: negative gap" (fun () ->
+      ignore (Span.hcat ~gap:(-1) [] : Span.t))
 
-(* Each block is printed at its share of the margin, the gaps taken out
-   first, and keeps its colours. *)
-let test_hcat_share () =
-  let rule = Fmt.const Rule.pp (Rule.v ()) in
+(* Each widget is as wide as the width it is given, and each span keeps
+   its colours. *)
+let test_hcat_widths () =
+  let rule = Rule.to_span ~width:9 (Rule.v ()) in
   Alcotest.(check (list int))
-    "two rules in 21 columns" [ 21 ]
-    (List.map Width.string_width
-       (lines (printed ~margin:21 (hcat ~gap:3 [ rule; rule ]))));
+    "two rules of 9 cells, 3 apart" [ 21 ]
+    (List.map Width.string_width (lines (side ~gap:3 [ rule; rule ])));
   let red = Span.styled (Style.fg Color.red) "red"
   and blue = Span.styled (Style.fg Color.blue) "blue" in
   Alcotest.(check string)
     "colours"
     (Span.to_string ~styled:true red ^ "  " ^ Span.to_string ~styled:true blue)
-    (printed ~styled:true
-       (hcat [ Fmt.const Span.pp red; Fmt.const Span.pp blue ]))
+    (Span.to_string ~styled:true (Span.hcat [ red; blue ]))
 
-(* A printer in a style keeps it beside another block, nested styles and
-   the spans it prints included. *)
-let test_hcat_styled () =
-  let block ppf () =
-    Style.styled Style.bold
-      (fun ppf () ->
-        Fmt.string ppf "a ";
-        Style.styled (Style.fg Color.red) Fmt.string ppf "b";
-        Span.pp ppf (Span.text " c"))
-      ppf ()
-  in
-  let want =
-    Span.(
-      styled Style.bold "a "
-      ++ styled Style.(bold + fg Color.red) "b"
-      ++ styled Style.bold " c")
-  in
-  Alcotest.(check string)
-    "styled text keeps its styles"
-    (Span.to_string ~styled:true want ^ "  x")
-    (printed ~styled:true (hcat [ block; text "x" ]))
+(* Spans side by side are a span: they go in a panel, as any span does, in
+   the theme of the formatter that prints it. *)
+let test_hcat_nests () =
+  let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ] in
+  let inner = Span.hcat [ Tree.to_span tree; Span.text "2 files" ] in
+  let want = [ "src      2 files"; "\u{2514}\u{2500}\u{2500} lib" ] in
+  let panel = Panel.v ~border:Border.ascii inner in
+  Alcotest.(check (list string))
+    "in a panel"
+    ([ "+------------------+" ]
+    @ List.map
+        (fun l -> "| " ^ l ^ String.make (16 - Width.string_width l) ' ' ^ " |")
+        want
+    @ [ "+------------------+" ])
+    (lines (Panel.to_string panel))
 
 (* {1 Widgets as spans} *)
 
@@ -326,25 +306,12 @@ let test_to_span_cells () =
     (widths (Table.to_string steps))
     (widths (shown wide ~margin:200 (fun ppf -> Span.pp ppf span)))
 
-(* Composing widgets must retain their margin guarantee, even when the gaps
-   alone consume all the available columns. *)
-let test_hcat_narrow () =
-  let rule = Fmt.const Rule.pp (Rule.v ()) in
-  let out = printed ~margin:2 (hcat [ rule; rule ]) in
-  List.iter
-    (fun line ->
-      Alcotest.(check bool)
-        "two rules fit two columns" true
-        (Span.width (Span.text line) <= 2))
-    (lines out)
-
-(* A zero-cell block can still contain text: here its accent belongs to
-   the preceding block when there is no gap. *)
+(* A span of no cell is still text: here its accent belongs to the span
+   before it when there is no gap. *)
 let test_hcat_combining_suffix () =
-  let block s = Fmt.const Span.pp (Span.text s) in
   Alcotest.(check string)
     "the accent survives composition" "e\u{0301}"
-    (printed (hcat ~gap:0 [ block "e"; block "\u{0301}" ]))
+    (side ~gap:0 [ text "e"; text "\u{0301}" ])
 
 (* {1 Widgets put together} *)
 
@@ -389,38 +356,46 @@ let test_put_together () =
        (Panel.v ~border:Border.ascii ~padding:0
           (Span.text
              "\u{1f468}\u{200d}\u{1f469}1\u{fe0f}\u{20e3}x 1\u{fe0f}\u{20e3}")));
-  (* A table and a tree side by side at less room than they need. *)
-  let side_by_side =
-    hcat ~gap:1
-      [
-        Fmt.const Table.pp
-          (Table.v
-             [ Table.column (Span.text "h") ]
-             [ [ Span.text "\u{754c}\u{754c}" ] ]);
-        Fmt.const Tree.pp
-          (Tree.v (Span.text "root") [ Tree.v (Span.text "leaf") [] ]);
-      ]
+  (* A table and a tree side by side, each at half of less room than they
+     need. *)
+  let half m = max 1 ((m - 1) / 2) in
+  let side_by_side m =
+    Fmt.const Span.pp
+      (Span.hcat ~gap:1
+         [
+           Table.to_span ~width:(half m)
+             (Table.v
+                [ Table.column (Span.text "h") ]
+                [ [ Span.text "\u{754c}\u{754c}" ] ]);
+           Tree.to_span ~width:(half m)
+             (Tree.v (Span.text "root") [ Tree.v (Span.text "leaf") [] ]);
+         ])
   in
   List.iter
-    (fun m -> check_fits "a table by a tree" m side_by_side)
-    [ 1; 2; 5; 9 ];
+    (fun m -> check_fits "a table by a tree" m (side_by_side m))
+    [ 3; 5; 9 ];
   (* In colour, a panel with a gradient title by a rule with a bar in its
      label is its plain text with escape codes. *)
-  let scene =
-    hcat
-      [
-        Fmt.const Panel.pp
-          (Panel.v ~title:(Span.gradient "title") (Span.text emoji));
-        Fmt.const Rule.pp (Rule.v ~label:(Bar.to_span (Bar.v ~width:4 0.5)) ());
-      ]
+  let scene m =
+    Fmt.const Span.pp
+      (Span.hcat
+         [
+           Panel.to_span
+             ~width:(half (m - 1))
+             (Panel.v ~title:(Span.gradient "title") (Span.text emoji));
+           Rule.to_span
+             ~width:(half (m - 1))
+             (Rule.v ~label:(Bar.to_span (Bar.v ~width:4 0.5)) ());
+         ])
   in
   List.iter
     (fun m ->
-      check_fits "a panel by a rule" m scene;
+      check_fits "a panel by a rule" m (scene m);
       Alcotest.(check (list string))
-        "plain is styled without escapes" (lines m scene)
-        (List.map Console_text.strip (lines ~styled:true m scene)))
-    [ 3; 20; 60 ]
+        "plain is styled without escapes"
+        (lines m (scene m))
+        (List.map Console_text.strip (lines ~styled:true m (scene m))))
+    [ 4; 20; 60 ]
 
 (* The ASCII look draws a three-cell ellipsis. Splitting a deferred widget
    into spans must keep all three dots, even where its UTF-8 layout had a
@@ -457,8 +432,6 @@ let suite =
         `Quick test_nested_wrap_ascii;
       Alcotest.test_case "side by side keeps a combining suffix" `Quick
         test_hcat_combining_suffix;
-      Alcotest.test_case "side by side fits a two-column margin" `Quick
-        test_hcat_narrow;
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
@@ -466,9 +439,9 @@ let suite =
       Alcotest.test_case "widgets nest as spans" `Quick test_nested;
       Alcotest.test_case "a widget span keeps its cells" `Quick
         test_to_span_cells;
-      Alcotest.test_case "hcat keeps a printer's styles" `Quick test_hcat_styled;
-      Alcotest.test_case "side by side, shares of the margin" `Quick
-        test_hcat_share;
+      Alcotest.test_case "side by side goes in a panel" `Quick test_hcat_nests;
+      Alcotest.test_case "side by side, the widths given" `Quick
+        test_hcat_widths;
       Alcotest.test_case "sanitize" `Quick test_sanitize;
       Alcotest.test_case "strip ~keep_styles passes SGR" `Quick
         test_keep_styles_passes_sgr;

@@ -336,6 +336,33 @@ let line_width = function
 
 let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
 
+(* {1 Side by side} *)
+
+let spaces n = if n <= 0 then empty else text (String.make n ' ')
+
+(* A line ends at its last span with text on it, a mark that takes no cell
+   included: the spans before it are padded to their widths and followed by
+   the gap, and nothing follows. *)
+let hcat ?(gap = 2) spans =
+  if gap < 0 then invalid_arg "Console.Span.hcat: negative gap";
+  let blocks =
+    Array.of_list (List.map (fun s -> (Array.of_list (lines s), width s)) spans)
+  in
+  let height =
+    Array.fold_left (fun h (b, _) -> max h (Array.length b)) 0 blocks
+  in
+  let row i =
+    let cell (b, _) = if i < Array.length b then b.(i) else empty in
+    let last = ref (-1) in
+    Array.iteri (fun j b -> if not (is_empty (cell b)) then last := j) blocks;
+    List.concat
+      (List.init (!last + 1) (fun j ->
+           let ((_, w) as b) = blocks.(j) in
+           let c = cell b in
+           if j = !last then c else c @ spaces (w - line_width c + gap)))
+  in
+  unlines (List.init height row)
+
 (* {1 Truncating} *)
 
 let ellipsis = "\xe2\x80\xa6"

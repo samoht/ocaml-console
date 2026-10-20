@@ -1045,19 +1045,19 @@ let test_scene_width () =
   Display.redraw t.display;
   Alcotest.(check int) "the margin" 100 !margin
 
-(* Blocks side by side make a scene, each at its share of the rows' width. *)
+(* Widgets side by side make a scene, each at the width it is given. *)
 let test_scene_hcat () =
   let t = terminal ~theme ~width:40 ~height:12 ~header:"Build" () in
   let panel = Panel.v (Span.text "status") in
-  Display.set_scene t.display (fun ~height:_ ppf ->
-      hcat [ Fmt.const Table.pp steps; Fmt.const Panel.pp panel ] ppf ());
-  Display.redraw t.display;
-  let want =
-    printed ~margin:40
-      (fun ppf () ->
-        hcat [ Fmt.const Table.pp steps; Fmt.const Panel.pp panel ] ppf ())
-      ()
+  let side ppf =
+    let half = (Format.pp_get_margin ppf () - 2) / 2 in
+    Span.pp ppf
+      (Span.hcat
+         [ Table.to_span ~width:half steps; Panel.to_span ~width:half panel ])
   in
+  Display.set_scene t.display (fun ~height:_ ppf -> side ppf);
+  Display.redraw t.display;
+  let want = printed ~margin:40 (fun ppf () -> side ppf) () in
   let rows = screen t in
   check_lines "side by side" want
     (List.filteri (fun i _ -> i < List.length want) rows);

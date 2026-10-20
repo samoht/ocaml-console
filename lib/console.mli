@@ -14,9 +14,9 @@
     widgets, {!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}, lay out spans and
     print with {!Format}, and a {!Theme} gives them one look. Every widget is a
     span too, by its [to_span], laid out when it is printed: a table goes in a
-    panel, the panel in a cell of another table, beside a tree in {!hcat} and in
-    a display's scene, all drawn in the theme of the formatter that prints them.
-    [Console_eio.run] runs a {!Display}.
+    panel, the panel in a cell of another table, beside a tree ({!Span.hcat})
+    and in a display's scene, all drawn in the theme of the formatter that
+    prints them. [Console_eio.run] runs a {!Display}.
 
     {b Guarantees.} Widths are counted in terminal cells, as the terminal draws
     the text: a wide character, such as a Chinese one or an emoji, takes two
@@ -158,22 +158,3 @@ module Rule = Rule
 
 module Display = Display
 (** Progress rows that are redrawn in place while work runs. *)
-
-(** {1:layout Layout} *)
-
-val hcat : ?gap:int -> unit Fmt.t list -> unit Fmt.t
-(** [hcat ~gap blocks] formats [blocks] side by side, [gap] spaces apart
-    (defaults to [2]). Each block is printed in the theme and the {!Fmt.utf_8}
-    of the formatter, at its share of the formatter's margin: the margin less
-    the gaps, divided evenly among the blocks. Its lines are then laid side by
-    side, each block padded to its widest line and a shorter block with blank
-    lines; a line ends at its last block with text on it, so no line ends with
-    spaces [hcat] adds, and a line wider than the margin, as when the gaps leave
-    the blocks no room, is cut with an ellipsis. The spans a block prints
-    ({!Span.pp}), such as the widgets', keep their colours and their parts drawn
-    when printed, so blocks side by side make a scene ({!Display.set_scene})
-    whose frames move, and the text of a {!Style.styled} keeps its style; text
-    outside both, that of [Fmt.styled] included, has none. There is no line end
-    after the last line.
-
-    @raise Invalid_argument if [gap] is negative. *)

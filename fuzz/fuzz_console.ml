@@ -18,22 +18,17 @@ let text s =
 let lines s = String.split_on_char '\n' s
 let width = Width.string_width
 
-(* Each line of [hcat] is the blocks' lines up to the last block with text
-   on it, each but the last padded to its block's width and followed by
-   the gap: its width is the widths and gaps before that block plus its
-   line's, and no line is wider than the blocks' widths and gaps. *)
+(* Each line of [hcat] is the spans' lines up to the last span with text
+   on it, each but the last padded to its span's width and followed by
+   the gap: its width is the widths and gaps before that span plus its
+   line's, and no line is wider than the spans' widths and gaps. *)
 let test_hcat texts gap =
   let gap = gap mod 5 in
   let blocks = List.map (fun s -> lines (text s)) texts in
-  let pp =
-    hcat ~gap (List.map (fun s -> Fmt.const Span.pp (Span.text (text s))) texts)
+  let out =
+    Span.to_string
+      (Span.hcat ~gap (List.map (fun s -> Span.text (text s)) texts))
   in
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf 10_000;
-  pp ppf ();
-  Format.pp_print_flush ppf ();
-  let out = Buffer.contents buf in
   let widths =
     List.map (List.fold_left (fun n l -> max n (width l)) 0) blocks
   in
@@ -64,27 +59,26 @@ let test_hcat texts gap =
       got
   end
 
-(* A one-line composition of width-aware widgets must not autowrap onto
-   another terminal row, even when there is less room than its gaps. *)
+(* Widgets side by side, each at the width it is given, take on the
+   terminal the cells of those widths and gaps, in one row, in any theme. *)
 let test_hcat_margin n k =
-  let margin = 1 + (n mod 80) in
+  let width = 1 + (n mod 20) in
   let gap = 1 + (k mod 5) in
-  let blocks =
-    List.init (2 + (k mod 4)) (fun _ -> Fmt.const Rule.pp (Rule.v ()))
-  in
+  let count = 2 + (k mod 4) in
+  let margin = (count * width) + ((count - 1) * gap) in
+  let blocks = List.init count (fun _ -> Rule.to_span ~width (Rule.v ())) in
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf margin;
   Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
   Fmt.set_style_renderer ppf `Ansi_tty;
-  hcat ~gap blocks ppf ();
+  Span.pp ppf (Span.hcat ~gap blocks);
   Format.pp_print_flush ppf ();
   let raw = Buffer.contents buf in
   let vte = Console_vte.v ~rows:32 ~cols:margin () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int 0 (fst (Console_vte.cursor_pos vte));
   check (String.is_valid_utf_8 raw);
-  check (Span.width (Span.text (Console_text.strip raw)) <= margin)
+  check_eq ~pp:Fmt.int margin (Span.width (Span.text (Console_text.strip raw)))
 
 (* With no gap, a trailing block of combining marks is still text and
    must produce the same visible glyph as ordinary span concatenation. *)
@@ -97,12 +91,9 @@ let test_hcat_combining_suffix n =
   let suffix = Buffer.contents buf in
   let base = String.make 1 (Char.chr (Char.code 'a' + (n mod 26))) in
   Buffer.clear buf;
-  let ppf = Format.formatter_of_buffer buf in
-  hcat ~gap:0
-    (List.map (fun s -> Fmt.const Span.pp (Span.text s)) [ base; suffix ])
-    ppf ();
-  Format.pp_print_flush ppf ();
-  let got = Buffer.contents buf and want = base ^ suffix in
+  let got =
+    Span.to_string (Span.hcat ~gap:0 [ Span.text base; Span.text suffix ])
+  and want = base ^ suffix in
   let actual = Console_vte.v ~rows:2 ~cols:10 ()
   and expected = Console_vte.v ~rows:2 ~cols:10 () in
   Console_vte.feed actual got;
@@ -151,7 +142,7 @@ let hostile_text s =
 
 (* A span may be a widget as a span ([Nest]), and a block a printer in a
    style ([Styled]), so that every widget nests in every other: a table in a
-   panel in a cell of a table, in [hcat], in a scene. *)
+   panel in a cell of a table, side by side ([Hcat]), in a scene. *)
 type span =
   | Text of int * string
   | Gradient of string
@@ -262,7 +253,7 @@ and nested k b =
   | Tree (s, l) -> Tree.to_span ?width (tree s l)
   | Rule l -> Rule.to_span ~width:(Option.value width ~default:20) (rule l)
   | Styled (j, b) -> Span.with_style (pick styles j) (nested k b)
-  | Hcat (_, l) -> Span.concat ~sep:(Span.text " ") (List.map (nested k) l)
+  | Hcat (gap, l) -> Span.hcat ~gap (List.map (nested k) l)
 
 and table k rows =
   let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
@@ -294,7 +285,7 @@ let rec pp = function
   | Tree (s, l) -> Fmt.const Tree.pp (tree s l)
   | Rule l -> Fmt.const Rule.pp (rule l)
   | Styled (k, b) -> Style.styled (pick styles k) (pp b)
-  | Hcat (gap, l) -> hcat ~gap (List.map pp l)
+  | Hcat _ as b -> Fmt.const Span.pp (nested 0 b)
 
 (* {1 Printing} *)
 
@@ -372,10 +363,10 @@ and texts = function
   | Styled (_, b) -> texts b
   | Hcat (_, l) -> List.concat_map texts l
 
-(* A span is text, printed whole, and a rule's label wider than the margin
-   makes the rule two cells wider, alone; inside [hcat] both are cut. *)
+(* A span is text, printed whole, spans side by side included, and a rule's
+   label wider than the margin makes the rule two cells wider. *)
 let rec may_overflow = function
-  | Span _ | Rule (Some _) -> true
+  | Span _ | Rule (Some _) | Hcat _ -> true
   | Styled (_, b) -> may_overflow b
   | _ -> false
 
@@ -559,7 +550,7 @@ let suite =
         [ bytes; uint8; uint8 ] test_nested_wrap;
       test_case "hcat preserves trailing combining marks" [ uint8 ]
         test_hcat_combining_suffix;
-      test_case "hcat widgets fit without terminal autowrap" [ uint8; uint8 ]
+      test_case "hcat widgets take the cells of their widths" [ uint8; uint8 ]
         test_hcat_margin;
       test_case "any tree of widgets printed anywhere"
         [ block_gen; uint16; uint8 ]
