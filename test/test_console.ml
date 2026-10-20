@@ -189,9 +189,23 @@ let test_hcat_share () =
     (printed ~styled:true
        (hcat [ Fmt.const Span.pp red; Fmt.const Span.pp blue ]))
 
+(* Composing widgets must retain their margin guarantee, even when the gaps
+   alone consume all the available columns. *)
+let test_hcat_narrow () =
+  let rule = Fmt.const Rule.pp (Rule.v ()) in
+  let out = printed ~margin:2 (hcat [ rule; rule ]) in
+  List.iter
+    (fun line ->
+      Alcotest.(check bool)
+        "two rules fit two columns" true
+        (Span.width (Span.text line) <= 2))
+    (lines out)
+
 let suite =
   ( "console",
     [
+      Alcotest.test_case "side by side fits a two-column margin" `Quick
+        test_hcat_narrow;
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "side by side" `Quick test_hcat;
       Alcotest.test_case "side by side, shares of the margin" `Quick
