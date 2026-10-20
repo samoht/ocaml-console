@@ -36,6 +36,7 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Table.v ~rules` | a rule between each two rows, in the header rule's glyphs | table / a rule between each two rows |
 | `Table` | right-aligned cells line up; row shape | table / right-aligned cells line up; row shape |
 | `Tree.pp` | fits the margin | tree / fits the margin |
+| `Console.hcat` | each line is the widths and gaps of the blocks before its last block with text, plus that block's line; as tall as the tallest block | console / hcat lines are the blocks' widths and gaps |
 | `Input.feed` | whole or in pieces alike, no escape in the echo, masked keeps no history | input / chunking and masking |
 | `Display` | header on screen exactly once after every write (no blank, half-drawn or doubled region, nothing left after a resize, never taller than the screen); a redraw changes only the region's rows; every line written fits; styles closed per line; an idle redraw writes nothing; cursor visible at the start of a line once closed | display / screen guarantees |
 | `Display` | without a terminal: no escape, header last | display / plain output |

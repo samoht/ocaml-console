@@ -125,10 +125,77 @@ let test_sanitize_styles_closes_what_it_opens () =
     "and sanitizing twice changes nothing the first pass did not" (styles s)
     (styles (styles s))
 
+(* {1 Side by side} *)
+
+open Console
+
+let printed ?(styled = false) ?(margin = 80) pp =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  if styled then begin
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color
+  end;
+  Format.pp_set_margin ppf margin;
+  pp ppf ();
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+let lines s = String.split_on_char '\n' s
+let text s ppf () = Fmt.string ppf s
+
+(* [hcat] puts blocks side by side, [gap] spaces apart, each padded to its
+   widest line and a shorter one with blank lines, a line ending at its last
+   block that has text there. *)
+let test_hcat () =
+  Alcotest.(check string)
+    "side by side" "a    1\nbbb  2\n     3"
+    (printed (hcat [ text "a\nbbb"; text "1\n2\n3" ]));
+  Alcotest.(check string)
+    "no trailing space" "aa 1\nb\nc"
+    (printed (hcat ~gap:1 [ text "aa\nb\nc"; text "1" ]));
+  Alcotest.(check string)
+    "a blank block line" "a  1\n   2"
+    (printed (hcat [ text "a\n"; text "1\n2" ]));
+  Alcotest.(check string) "one block" "a\nb" (printed (hcat [ text "a\nb" ]));
+  Alcotest.(check string) "none" "" (printed (hcat []));
+  let panel = Panel.v (Span.text "p") and tree = Tree.v (Span.text "t") [] in
+  let pp = hcat [ Fmt.const Panel.pp panel; Fmt.const Tree.pp tree ] in
+  let panel_lines = lines (Panel.to_string panel) in
+  Alcotest.(check (list string))
+    "widgets"
+    [
+      List.nth panel_lines 0 ^ "  t";
+      List.nth panel_lines 1;
+      List.nth panel_lines 2;
+    ]
+    (lines (printed pp));
+  Display_harness.check_invalid "Console.hcat: negative gap" (fun () ->
+      ignore (hcat ~gap:(-1) [] : unit Fmt.t))
+
+(* Each block is printed at its share of the margin, the gaps taken out
+   first, and keeps its colours. *)
+let test_hcat_share () =
+  let rule = Fmt.const Rule.pp (Rule.v ()) in
+  Alcotest.(check (list int))
+    "two rules in 21 columns" [ 21 ]
+    (List.map Width.string_width
+       (lines (printed ~margin:21 (hcat ~gap:3 [ rule; rule ]))));
+  let red = Span.styled (Style.fg Color.red) "red"
+  and blue = Span.styled (Style.fg Color.blue) "blue" in
+  Alcotest.(check string)
+    "colours"
+    (Span.to_string ~styled:true red ^ "  " ^ Span.to_string ~styled:true blue)
+    (printed ~styled:true
+       (hcat [ Fmt.const Span.pp red; Fmt.const Span.pp blue ]))
+
 let suite =
   ( "console",
     [
       Alcotest.test_case "public surface" `Quick test_public_surface;
+      Alcotest.test_case "side by side" `Quick test_hcat;
+      Alcotest.test_case "side by side, shares of the margin" `Quick
+        test_hcat_share;
       Alcotest.test_case "sanitize" `Quick test_sanitize;
       Alcotest.test_case "sanitize_styles passes SGR" `Quick
         test_sanitize_styles_passes_sgr;

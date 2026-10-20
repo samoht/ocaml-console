@@ -960,6 +960,26 @@ let test_scene_width () =
   Display.redraw t.display;
   Alcotest.(check int) "the margin" 100 !margin
 
+(* Blocks side by side make a scene, each at its share of the rows' width. *)
+let test_scene_hcat () =
+  let t = terminal ~theme ~width:40 ~height:12 ~header:"Build" () in
+  let panel = Panel.v (Span.text "status") in
+  Display.set_scene t.display (fun ~height:_ ppf ->
+      hcat [ Fmt.const Table.pp steps; Fmt.const Panel.pp panel ] ppf ());
+  Display.redraw t.display;
+  let want =
+    printed ~margin:40
+      (fun ppf () ->
+        hcat [ Fmt.const Table.pp steps; Fmt.const Panel.pp panel ] ppf ())
+      ()
+  in
+  let rows = screen t in
+  check_lines "side by side" want
+    (List.filteri (fun i _ -> i < List.length want) rows);
+  Alcotest.(check bool)
+    "on one line" true
+    (contains "step" (List.nth rows 1) && contains "status" (List.nth rows 1))
+
 (* A scene replaces the one before; the display's formatter keeps its own
    margin. *)
 let test_scene_replaced () =
@@ -1064,6 +1084,7 @@ let test_scene_moves () =
 let suite =
   ( "display",
     [
+      Alcotest.test_case "a scene side by side" `Quick test_scene_hcat;
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
       Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;
