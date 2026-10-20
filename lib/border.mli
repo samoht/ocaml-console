@@ -34,7 +34,10 @@ type chars = {
     constrains another. A glyph may take any number of cells: each vertical line
     of the box is as wide as its widest glyph, a narrower one followed by
     spaces, and a horizontal line repeats its glyph over its length, cut between
-    two characters and ended with spaces where a whole copy does not fit. *)
+    two characters and ended with spaces where a whole copy does not fit.
+
+    Fields may be added to this record: a custom border starts from a predefined
+    one, as [v { (chars single) with top = "=" }] does. *)
 
 type t
 (** The type for borders. *)
