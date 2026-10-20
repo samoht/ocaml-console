@@ -14,28 +14,29 @@
     not {!Fmt.utf_8}. Text takes a colour of that theme, such as that of a
     success, with {!Span.role}.
 
-    {!default} reads on any background and is the one to keep when nothing is
-    known of the terminal. A theme with a {!background}, such as {!dracula} or
-    {!solarized_light}, is for a terminal whose own colour scheme is that one:
-    its colours are chosen for that background, which the widgets do not paint,
-    and on another one some of them may be hard to read. {!ascii} draws with
-    ASCII alone on any terminal, and {!still} takes the motion out of any theme,
-    for the users who ask for no animation. A program lets its users choose with
-    a [--theme] option ({!all}).
+    {!default} reads on any background at 256 colours or more, and is the one to
+    keep when nothing is known of the terminal. A theme with a {!background},
+    such as {!dracula} or {!solarized_light}, is for a terminal whose own colour
+    scheme is that one: its colours are chosen for that background, which the
+    widgets do not paint, and on another one some of them may be hard to read.
+    {!ascii} draws with ASCII alone on any terminal, and {!still} takes the
+    motion out of any theme, for the users who ask for no animation. A program
+    lets its users choose with a [--theme] option ({!all}).
 
-    Colours are given as the scheme defines them, but where one would be hard to
-    read; a terminal that shows fewer colours gets the nearest ones it has
-    ({!Color.val-depth}). In every predefined theme, as WCAG 2.1 measures
+    A terminal that shows fewer colours than a theme has gets the nearest ones
+    it has ({!Color.val-depth}). In every predefined theme, as WCAG 2.1 measures
     contrast against its {!background}, the colours of text (the {!muted}
     colour, that of the {!header} and those of the roles, which {!Span.role}
     gives text: the main colour and the colours of a success, a warning and a
     failure) are at 4.5:1 or more, and those of the progress rows at 3:1 or
     more. A theme without a background is read against black and white alike, at
-    4.5:1 for its muted colour and header and 3:1 for the others: 4.5:1 on both
-    asks colours as light as one another, which no amber of the 256-colour
-    palette is. A frame that moves is drawn in these colours alone, so every one
-    of its frames keeps to the contrast of a glyph. At 16 colours, the
-    terminal's own palette draws them, which console does not know. *)
+    4.5:1 for its muted colour and header and 3:1 for the others. A frame that
+    moves is drawn in these colours alone, so every one of its frames keeps to
+    the contrast of a glyph. These ratios are those of the colours as given:
+    those of {!default}, entries of the 256-colour palette, are shown as given
+    at 256 colours too. At 16 colours every theme is drawn in the terminal's
+    named colours, such as its green and its yellow, whose contrast is that of
+    the terminal's own scheme, which console does not know. *)
 
 (** {1:themes Themes} *)
 

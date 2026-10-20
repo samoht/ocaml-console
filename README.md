@@ -335,8 +335,11 @@ let cmd =
 - : int = 0
 ```
 
-`Theme.default` reads on any background and is the one to keep when
-nothing is known of the terminal. A theme named after a colour scheme, such
+`Theme.default` reads on any background on a terminal of 256 colours or
+more, and is the one to keep when nothing is known of the terminal. On a
+terminal of 16 colours, as `TERM=xterm` announces without a `COLORTERM`,
+every theme is drawn in the terminal's named colours, whose contrast is
+that of the terminal's own scheme. A theme named after a colour scheme, such
 as `Theme.dracula` or `Theme.solarized_light`, is for a terminal that uses
 that scheme: its colours are chosen for the scheme's background, which
 console does not paint, and some of them may be hard to read on another
