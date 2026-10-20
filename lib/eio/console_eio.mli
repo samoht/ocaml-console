@@ -47,6 +47,7 @@ val run :
   ?ppf:Format.formatter ->
   ?layout:Console.Display.Layout.t ->
   ?header:string ->
+  ?plain:bool ->
   (Console.Display.t -> 'a) ->
   'a
 (** [run ~clock f] is [f display] for a display on [ppf] (defaults to
@@ -61,17 +62,20 @@ val run :
     terminal and environment allow.
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
-    and that output is a terminal whose [TERM] is set and not [dumb]; then what
-    the program prints on {!Fmt.stdout} or {!Fmt.stderr} in the meantime on that
-    terminal, a whole line at a time, goes above the rows, and what it prints on
-    another output goes out as it is written. Otherwise each line is printed in
-    turn. When [f] returns, raises or its fiber is cancelled, the tasks still
-    running are cancelled, unless [f] said the work succeeded with
-    {!Console.Display.set_result}; an exception is raised again. Either way, and
-    when the program exits during [f], the display closes. So it does when
-    SIGINT or SIGTERM arrives during [f] and the program left that signal at its
-    default disposition: the display closes, then the signal ends the program as
-    it would have. A signal the program handles or ignores is left to it.
+    and that output is a terminal whose [TERM] is set and not [dumb], and
+    [plain] is [false] (the default); then what the program prints on
+    {!Fmt.stdout} or {!Fmt.stderr} in the meantime on that terminal, a whole
+    line at a time, goes above the rows, and what it prints on another output
+    goes out as it is written. Otherwise each line is printed in turn, as on a
+    pipe: [plain] at [true] asks for that on a terminal too, as a
+    [--progress=plain] option does. When [f] returns, raises or its fiber is
+    cancelled, the tasks still running are cancelled, unless [f] said the work
+    succeeded with {!Console.Display.set_result}; an exception is raised again.
+    Either way, and when the program exits during [f], the display closes. So it
+    does when SIGINT or SIGTERM arrives during [f] and the program left that
+    signal at its default disposition: the display closes, then the signal ends
+    the program as it would have. A signal the program handles or ignores is
+    left to it.
 
     While [f] runs, {!Logs} messages go to the display
     ({!Console.Display.report}): to the window of the task current in the
@@ -84,9 +88,9 @@ val run :
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
-    whether its caller already did. Its [clock], [ppf], [layout] and [header]
-    are ignored: the display keeps those of the outer [run], and closes when the
-    outer [f] ends, not the inner one.
+    whether its caller already did. Its [clock], [ppf], [layout], [header] and
+    [plain] are ignored: the display keeps those of the outer [run], and closes
+    when the outer [f] ends, not the inner one.
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
     empty string, stops the display's clock at zero: every elapsed time reads

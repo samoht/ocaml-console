@@ -59,7 +59,7 @@ let reading clock =
   | None | Some "" -> seconds clock
   | Some _ -> fun () -> 0.
 
-let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
+let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
   match Session.find () with
   | Some display -> f display
   | None -> (
@@ -67,7 +67,7 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header f =
       Session.claim ();
       let now = reading clock in
       match
-        match terminal ppf with
+        match if plain then None else terminal ppf with
         | None ->
             (Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf, [])
         | Some (fd, unix) ->

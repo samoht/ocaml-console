@@ -69,3 +69,5 @@
   redraws, so a change of the system's time moves no timer.
   `CONSOLE_FROZEN_CLOCK`, set and not empty, stops that clock at zero, so
   a test of a program's output reads `0.0s` for every elapsed time.
+- `Console_eio.run ~plain:true` prints on a terminal the lines a pipe gets,
+  for a program's `--progress=plain`.

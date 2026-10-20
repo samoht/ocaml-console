@@ -123,6 +123,8 @@ Good to know:
   `Display.set_result`. When it raises, or its fiber is cancelled, the
   exception goes on; when the program exits in the middle, or Ctrl-C stops
   it, the display still closes and shows the cursor again.
+- `Console_eio.run ~plain:true` prints the lines a pipe gets on a terminal
+  too, for a `--progress=plain` option.
 - A `Console_eio.run` inside another one gets the same display, so a library
   can start one without knowing whether its caller did.
 - `Console_eio.Prompt` asks a question, or a password without echoing it,

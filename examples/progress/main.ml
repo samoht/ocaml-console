@@ -4,7 +4,8 @@
   ---------------------------------------------------------------------------*)
 
 (* A step that counts its files, with a layer under it that counts bytes.
-   [main.exe 2>&1 | cat] shows the plain lines a pipe gets. *)
+   [main.exe 2>&1 | cat] shows the plain lines a pipe gets, and
+   [main.exe --plain] prints them on a terminal too. *)
 
 let build clock display =
   let step = Console.Display.task ~log_lines:4 display "RUN make" in
@@ -27,4 +28,5 @@ let build clock display =
 let () =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~header:"Building" (build clock)
+  let plain = Array.mem "--plain" Sys.argv in
+  Console_eio.run ~clock ~plain ~header:"Building" (build clock)
