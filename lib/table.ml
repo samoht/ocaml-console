@@ -326,7 +326,8 @@ let lines ?max_width t =
         List.map (Widget.truncate t.look w) lines
     | None when not (edged t && c.top <> "") -> lines
     | _ ->
-        Border_motion.frame t.look ~left:t.frame.left ~right:t.frame.right lines
+        Border_motion.frame t.look t.border ~left:t.frame.left
+          ~right:t.frame.right lines
 
 let pp ppf t =
   Span_core.pp_lines ppf

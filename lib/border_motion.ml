@@ -23,21 +23,26 @@ let behind ~n ~speed elapsed p =
 let recolour c style = Style.(style + fg c)
 let bright c style = Style.(style + bold + fg c)
 
-(* A blank glyph is the spacing of a frame without lines: it stays blank. *)
-let rain theme ~n ~elapsed p style glyph =
-  let d = behind ~n ~speed:15. elapsed p and trail = min 10 (n - 1) in
+(* A drop: a bold head in the main colour and two glyphs that flicker
+   behind it, then the frame's own lines fading to the muted colour. Only a
+   straight line flickers: a corner or a tee, where lines meet, keeps its
+   glyph, so the frame stays whole. *)
+let rain theme ~line ~n ~elapsed p style glyph =
+  let d = behind ~n ~speed:15. elapsed p in
+  let fade = min 12 (n - 1) in
   let glyph =
-    if d < trail && glyph <> " " then
-      rain_glyph p (Float.to_int (elapsed *. 10.))
+    if d < 3 && line glyph then rain_glyph p (Float.to_int (elapsed *. 10.))
     else glyph
   in
   if d = 0 then (bright (Theme.accent theme) style, glyph)
-  else if d <= trail / 2 then (recolour (Theme.accent theme) style, glyph)
-  else if d < trail then (recolour (Theme.muted theme) style, glyph)
+  else if d < fade then
+    let t = Float.of_int d /. Float.of_int fade in
+    ( recolour (Color.blend (Theme.accent theme) (Theme.muted theme) t) style,
+      glyph )
   else (style, glyph)
 
 (* Two rainbows round the frame, travelling clockwise. *)
-let sweep theme ~n ~elapsed p style glyph =
+let sweep theme ~line:_ ~n ~elapsed p style glyph =
   let palette = Array.of_list (Theme.palette theme) in
   let colours = Array.length palette in
   let band = max 2 (n / (2 * colours)) in
@@ -46,7 +51,7 @@ let sweep theme ~n ~elapsed p style glyph =
   (recolour palette.(i) style, glyph)
 
 (* A lap takes four seconds, at a speed the eye follows whatever the size. *)
-let shimmer theme ~n ~elapsed p style glyph =
+let shimmer theme ~line:_ ~n ~elapsed p style glyph =
   let speed = Float.min 30. (Float.max 8. (Float.of_int n /. 4.)) in
   let d = behind ~n ~speed elapsed p in
   let d = min d (n - d) in
@@ -66,7 +71,7 @@ let position ~width ~height ~left ~right ~y x =
   else if x < left then Some ((2 * width) + height - 2 + (height - 2 - y))
   else None
 
-let frame (look : Look.t) ~left ~right ?(gaps = []) lines =
+let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
   match (Theme.motion look.theme, lines) with
   | None, _ | _, ([] | [ _ ]) -> lines
   | Some motion, first :: _ ->
@@ -77,7 +82,11 @@ let frame (look : Look.t) ~left ~right ?(gaps = []) lines =
       then lines
       else
         let n = (2 * width) + (2 * (height - 2)) in
-        let draw = cell_of motion look.theme ~n in
+        let c = Border.chars border in
+        let line g =
+          g <> " " && List.mem g [ c.top; c.bottom; c.left; c.right ]
+        in
+        let draw = cell_of motion look.theme ~line ~n in
         let gap y x =
           List.exists (fun (g, a, b) -> g = y && a <= x && x < b) gaps
         in

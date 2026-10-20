@@ -113,7 +113,7 @@ let framed panel ~margin ~width ~left ~right (top, top_gap) body
           Option.map (fun (a, b) -> (List.length lines - 1, a, b)) bottom_gap;
         ]
     in
-    Border_motion.frame panel.look ~left ~right ~gaps lines
+    Border_motion.frame panel.look panel.border ~left ~right ~gaps lines
 
 let lines ~margin panel =
   let chars = Border.chars panel.border in

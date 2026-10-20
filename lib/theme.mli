@@ -55,8 +55,10 @@ type bar =
 
 type motion =
   [ `Rain
-    (** Digital rain: a bold head in the main colour runs round the frame,
-        trailing ASCII glyphs that flicker and fade to the muted colour. *)
+    (** Digital rain: a bold head in the main colour runs round the frame, two
+        ASCII glyphs flicker behind it on the frame's straight lines and the
+        lines behind them fade to the muted colour. A corner or a tee keeps its
+        glyph. *)
   | `Sweep  (** The colours of the palette travel round the frame in bands. *)
   | `Shimmer
     (** A short highlight in the main colour travels round the frame. *) ]
