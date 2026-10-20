@@ -32,6 +32,7 @@ type op =
   | Resize of int * int
   | Redraw
   | Output of int
+  | Program of int * int
 
 let op =
   let open Alcobar in
@@ -47,6 +48,7 @@ let op =
       map [ uint8; uint8 ] (fun w h -> Resize (w, h));
       const Redraw;
       map [ uint8 ] (fun l -> Output l);
+      map [ uint8; uint8 ] (fun c n -> Program (c, n));
     ]
 
 let pp_op ppf = function
@@ -60,6 +62,7 @@ let pp_op ppf = function
   | Resize (w, h) -> Fmt.pf ppf "resize %d %d" w h
   | Redraw -> Fmt.string ppf "redraw"
   | Output l -> Fmt.pf ppf "output %d" l
+  | Program (c, n) -> Fmt.pf ppf "program %d %d" c n
 
 let op = with_printer pp_op op
 let header = "HEADER"
@@ -154,7 +157,11 @@ let check_screen t =
   if n <> 1 then
     failf "the header is on the screen %d times:@.%a" n
       Fmt.(list ~sep:cut string)
-      rows
+      rows;
+  match List.find_opt (has header) rows with
+  | Some row when String.contains row 'Z' ->
+      failf "the program's bytes are in the header row: %S" row
+  | _ -> ()
 
 (* A frame drawn in place shows what the same frame drawn afresh shows:
    nothing of the frame before it is left, and nothing of its own erased. *)
@@ -257,6 +264,30 @@ let output t l =
       Fmt.pf ppf "%s@." (label l);
       t.in_output := false)
 
+(* What a program writes on the display's terminal goes out as it is: here
+   a line of [Z] with bytes that move the cursor or erase in it. *)
+let moves =
+  [|
+    "\r";
+    "\027[A";
+    "\027[3A";
+    "\027[K";
+    "\027[1K";
+    "\027[J";
+    "\027[H";
+    "\027[9C";
+    "\b";
+    "\t";
+  |]
+
+let program t c n =
+  let move = moves.(c mod Array.length moves) in
+  let z = String.make (1 + (n mod 30)) 'Z' in
+  Display.with_output (display t) (fun ppf ->
+      t.in_output := true;
+      Fmt.pf ppf "%s%s%s@." z move z;
+      t.in_output := false)
+
 let apply t = function
   | Task (l, p) ->
       let parent = Option.bind p (task t) in
@@ -280,6 +311,7 @@ let apply t = function
       Console_vte.resize t.vte ~rows:h ~cols:w
   | Redraw -> redraw_twice t
   | Output l -> output t l
+  | Program (c, n) -> program t c n
 
 (* The host left [p] cells of a line unended: the region starts on a row of
    its own, below it. *)

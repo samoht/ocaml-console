@@ -353,6 +353,26 @@ let test_with_output_partial () =
   Display.succeed a;
   Display.close t.display
 
+(* Bytes of the program's that move the cursor act above the region, and
+   the region is drawn whole below them, on rows it erases first. The tty
+   is raw, so that a line feed does not return the cursor either. *)
+let test_with_output_moves () =
+  List.iter
+    (fun move ->
+      let t = terminal ~theme ~raw:true ~width:30 () in
+      let a = Display.task t.display "job" in
+      Display.with_output t.display (fun ppf ->
+          Fmt.pf ppf "ZZZZZZZZZZ%sZZZZZZZZZZ@." move);
+      Display.redraw t.display;
+      let row = List.find (contains "job") (screen t) in
+      Alcotest.(check bool)
+        (Fmt.str "%S: the row is its own: %S" move row)
+        true
+        (String.starts_with ~prefix:"| job" row && not (String.contains row 'Z'));
+      Display.succeed a;
+      Display.close t.display)
+    [ "\027[A"; "\027[2A\r"; "\r"; "\027[K"; "\027[H" ]
+
 let test_redraw_idle () =
   let t = terminal ~theme () in
   ignore (Display.task t.display "job");
@@ -1132,6 +1152,8 @@ let suite =
       Alcotest.test_case "with_output" `Quick test_with_output;
       Alcotest.test_case "with_output without a line end" `Quick
         test_with_output_partial;
+      Alcotest.test_case "with_output moving the cursor" `Quick
+        test_with_output_moves;
       Alcotest.test_case "idle redraw writes nothing" `Quick test_redraw_idle;
       Alcotest.test_case "narrowing" `Quick test_narrowing;
       Alcotest.test_case "wide" `Quick test_wide;
