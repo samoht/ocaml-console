@@ -155,7 +155,9 @@ let test_region () =
     ]
     (lines t);
   Alcotest.(check bool) "cursor shown" true (contains "\027[?25h" (written t));
-  Alcotest.(check bool) "no CRLF" false (contains "\r\n" (written t))
+  Alcotest.(check bool)
+    "no bare line feed" false
+    (Re.execp (Re.Perl.compile_pat "(^|[^\r])\n") (written t))
 
 (* With the tty in raw mode a line feed keeps the column, so a line that
    began with a bare line feed would start where the one above it ended: the

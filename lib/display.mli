@@ -46,7 +46,8 @@
     - after a resize the old frame is erased, counting the rows a terminal that
       reflows its lines gives it;
     - the cursor is hidden while the display runs and shown again when it
-      closes, and every line the display prints ends with a line feed. *)
+      closes, and every line the display prints ends with ["\r\n"], so a tty
+      with output processing off shows the same screen as one with it on. *)
 
 (** {1:layout Row layout} *)
 

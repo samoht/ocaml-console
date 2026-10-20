@@ -18,6 +18,10 @@ val write : t -> string -> unit
 (** [write t s] writes [s] on [t]'s output and flushes it, a write error ending
     the output rather than the program. *)
 
+val eol : t -> string
+(** [eol t] is the line end [t] writes: ["\r\n"] on a terminal, ["\n"]
+    otherwise. *)
+
 val render : t -> Span.t -> string
 (** [render t s] is [s] as [t] writes it: styled at its depth, or plain. *)
 

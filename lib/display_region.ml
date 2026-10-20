@@ -23,6 +23,10 @@ let write t s =
 
 let render t span = Span_core.render ?depth:t.depth span
 
+(* On a terminal the carriage return is written, not left to the tty: with
+   output processing off a line feed keeps the column. *)
+let eol t = if is_live t then "\r\n" else "\n"
+
 (* {1 The frame} *)
 
 (* One row stays free for the cursor: a region as tall as the screen would
@@ -143,14 +147,14 @@ let draw buf t ~resized =
             Buffer.add_string buf "\027[K";
             Buffer.add_string buf line
           end;
-          if i < n - 1 then Buffer.add_char buf '\n')
+          if i < n - 1 then Buffer.add_string buf "\r\n")
         lines
     end
     else begin
       clear buf t;
       Array.iteri
         (fun i line ->
-          if i > 0 then Buffer.add_char buf '\n';
+          if i > 0 then Buffer.add_string buf "\r\n";
           Buffer.add_string buf line)
         lines
     end;
@@ -193,7 +197,7 @@ let commit t lines =
     List.iter
       (fun line ->
         Buffer.add_string buf (render t line);
-        Buffer.add_char buf '\n')
+        Buffer.add_string buf "\r\n")
       lines;
     if t.suspended = 0 && not t.closed then begin
       t.painted_at <- t.now ();

@@ -104,6 +104,16 @@ let touch t =
   t.changes <- t.changes + 1;
   if is_live t then Display_region.paint_if_stale t
 
+let end_line t (out : Format.formatter_out_functions) last =
+  try
+    Format.pp_print_flush t.ppf ();
+    if !last <> '\n' then begin
+      let eol = Display_region.eol t in
+      out.out_string eol 0 (String.length eol);
+      out.out_flush ()
+    end
+  with Sys_error _ -> ()
+
 (* What [f] writes is watched for its last byte: output that does not end
    its line is ended, so the region starts on a line of its own. *)
 let with_output t f =
@@ -137,13 +147,7 @@ let with_output t f =
     Fun.protect
       (fun () -> f t.ppf)
       ~finally:(fun () ->
-        (try
-           Format.pp_print_flush t.ppf ();
-           if !last <> '\n' then begin
-             out.out_string "\n" 0 1;
-             out.out_flush ()
-           end
-         with Sys_error _ -> ());
+        end_line t out last;
         Format.pp_set_formatter_out_functions t.ppf out;
         Format.pp_set_margin t.ppf margin)
   in
@@ -399,7 +403,7 @@ let close ?(running = `Cancel) t =
       | Some (r, d) -> (Display_row.verdict t r, Display_row.detail t d)
     in
     let lines = header @ detail @ verdict in
-    let render l = Display_region.render t l ^ "\n" in
+    let render l = Display_region.render t l ^ Display_region.eol t in
     if is_live t then begin
       ignore (Display_region.refresh_size t);
       let buf = Buffer.create 256 in
