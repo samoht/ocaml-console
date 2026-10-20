@@ -7,6 +7,20 @@ open Alcobar
 
 (* A logging transport can refuse any record. The caller still completes,
    with the record handed once to the reporter installed before the run. *)
+(* A formatter whose first write raises the exception [k] picks. *)
+let refusing k =
+  let refused = ref false in
+  Format.make_formatter
+    (fun _ _ _ ->
+      if not !refused then begin
+        refused := true;
+        match k mod 3 with
+        | 0 -> failwith "transport refused"
+        | 1 -> invalid_arg "transport refused"
+        | _ -> raise End_of_file
+      end)
+    (fun () -> ())
+
 let test_refused_record s k =
   Eio_mock.Backend.run @@ fun () ->
   let text = String.sub s 0 (min 64 (String.length s)) in
@@ -24,19 +38,7 @@ let test_refused_record s k =
   Logs.set_reporter { Logs.report };
   Fun.protect ~finally:(fun () -> Logs.set_reporter before) @@ fun () ->
   let previous = Logs.reporter () in
-  let refused = ref false in
-  let ppf =
-    Format.make_formatter
-      (fun _ _ _ ->
-        if not !refused then begin
-          refused := true;
-          match k mod 3 with
-          | 0 -> failwith "transport refused"
-          | 1 -> invalid_arg "transport refused"
-          | _ -> raise End_of_file
-        end)
-      (fun () -> ())
-  in
+  let ppf = refusing k in
   let over_count = ref 0 and continued = ref 0 in
   let clock = Eio_mock.Clock.Mono.make () in
   let failure =
@@ -54,7 +56,9 @@ let test_refused_record s k =
   (match failure with
   | None -> ()
   | Some ex -> failf "a Logs call raised %s" (Printexc.to_string ex));
-  check_eq ~pp:Fmt.(Dump.list Dump.string) [ text ] (List.rev !kept);
+  (* An empty message writes nothing, so nothing refuses it. *)
+  let expected = if text = "" then [] else [ text ] in
+  check_eq ~pp:Fmt.(Dump.list Dump.string) expected (List.rev !kept);
   check_eq ~pp:Fmt.int 1 !over_count;
   check_eq ~pp:Fmt.int 1 !continued
 
