@@ -14,8 +14,24 @@ let descriptor ppf =
 
 let terminal ppf =
   match descriptor ppf with
-  | Some (fd, unix) when Console_tty.is_terminal unix -> Some fd
+  | Some (fd, unix) when Console_tty.is_terminal unix -> Some (fd, unix)
   | _ -> None
+
+(* Two descriptors on one terminal are on one device. *)
+let device unix =
+  match Unix.fstat unix with
+  | st -> Some st.Unix.st_rdev
+  | exception Unix.Unix_error _ -> None
+
+(* The standard formatters on the display's terminal, whose lines go above
+   its region; one on another terminal goes out as it is written. *)
+let routed unix =
+  let on_display std =
+    match terminal std with
+    | Some (_, u) -> Option.equal Int.equal (device u) (device unix)
+    | None -> false
+  in
+  List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
 (* The display writes on a formatter of its own, to the same output as
    [ppf] and with the same tag functions, which hold its colours, its theme
@@ -47,18 +63,13 @@ let run ?clock ?(ppf = Fmt.stderr) ?layout ?header f =
         match terminal ppf with
         | None ->
             (Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf, [])
-        | Some fd ->
+        | Some (fd, unix) ->
             let size () = Terminal.dimensions (Some fd) in
             let display =
               Console.Display.v ?layout ?header ~size ~scope:Session.scope ~now
                 (own ppf)
             in
-            let routed =
-              List.filter
-                (fun std -> Option.is_some (terminal std))
-                [ Fmt.stdout; Fmt.stderr ]
-            in
-            (display, routed)
+            (display, routed unix)
       with
       | display, intercept -> Session.run ~sleep ~intercept display f
       | exception e ->

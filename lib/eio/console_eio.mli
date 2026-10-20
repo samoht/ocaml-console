@@ -60,8 +60,9 @@ val run :
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr}
     and that output is a terminal whose [TERM] is set and not [dumb]; then what
-    the program prints on {!Fmt.stdout} or {!Fmt.stderr} in the meantime, a
-    whole line at a time, goes above the rows. Otherwise each line is printed in
+    the program prints on {!Fmt.stdout} or {!Fmt.stderr} in the meantime on that
+    terminal, a whole line at a time, goes above the rows, and what it prints on
+    another output goes out as it is written. Otherwise each line is printed in
     turn. When [f] returns, raises or its fiber is cancelled, the tasks still
     running are cancelled, unless [f] said the work succeeded with
     {!Console.Display.set_result}; an exception is raised again. Either way, and
