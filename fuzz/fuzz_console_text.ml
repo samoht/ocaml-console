@@ -35,10 +35,27 @@ let test_styles_isolated s =
   let styled = Console_text.sanitize_styles ~keep_newlines:false s in
   check (draw styled = draw "")
 
+(* A line ends at LF, at CR LF, and at a CR alone: [sanitize] keeps one line
+   feed for each. *)
+let line_ends s =
+  let n = String.length s in
+  let count = ref 0 in
+  String.iteri
+    (fun i c ->
+      if c = '\n' || (c = '\r' && (i + 1 >= n || s.[i + 1] <> '\n')) then
+        incr count)
+    s;
+  !count
+
+let test_line_ends s =
+  let lines = String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 in
+  check_eq ~pp:Fmt.int (line_ends s) (lines (Console_text.sanitize s))
+
 let suite =
   ( "console_text",
     [
       test_case "sanitize and strip" [ bytes ] test_laws;
+      test_case "one line feed per line end" [ bytes ] test_line_ends;
       test_case "sanitize_styles leaves nothing on" [ bytes ]
         test_styles_isolated;
     ] )

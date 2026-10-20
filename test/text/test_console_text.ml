@@ -125,6 +125,28 @@ let test_truncated_colour () =
         (Console_text.sanitize_styles input))
     [ "\027[38;0m"; "\027[38;2;0;0m"; "\027[48;2;255;0m"; "\027[58;5m" ]
 
+(* A line ends at a line feed, a carriage return, or the two together, which
+   end one line: none leaves a carriage return, as a space, in a column of
+   its own. Without [keep_newlines] a line end is one space. *)
+let test_line_ends () =
+  let check what expected f input =
+    Alcotest.(check string) what expected (f input)
+  in
+  let strip = Console_text.strip ?keep_newlines:None in
+  check "CR LF" "a\nb" strip "a\r\nb";
+  check "CR" "a\nb" strip "a\rb";
+  check "CR CR LF" "a\n\nb" strip "a\r\r\nb";
+  check "LF CR" "a\n\nb" strip "a\n\rb";
+  check "CR, an escape, LF" "a\nb" strip "a\r\027[K\nb";
+  check "sanitize, CR LF" "a\nb" Console_text.sanitize "a\r\nb";
+  check "sanitize_styles, CR LF" "a\nb" Console_text.sanitize_styles "a\r\nb";
+  check "CR LF without keep_newlines" "a b"
+    (Console_text.sanitize ~keep_newlines:false)
+    "a\r\nb";
+  check "CR without keep_newlines" "a b"
+    (Console_text.strip ~keep_newlines:false)
+    "a\rb"
+
 (* Characters that reorder or hide the text around them are removed: the
    bidirectional embeddings, overrides, isolates and marks, and the
    interlinear annotation characters. *)
@@ -151,11 +173,11 @@ let test_reordering () =
   List.iter
     (fun c ->
       Alcotest.(check string)
-        (Printf.sprintf "%S removed" c)
+        (String.escaped c ^ " removed")
         "ab"
         (Console_text.sanitize ("a" ^ c ^ "b"));
       Alcotest.(check string)
-        (Printf.sprintf "%S removed by strip" c)
+        (String.escaped c ^ " removed by strip")
         "ab"
         (Console_text.strip ("a" ^ c ^ "b")))
     hidden;
@@ -171,6 +193,7 @@ let suite =
         test_truecolour_reset;
       Alcotest.test_case "a truncated colour is no reset" `Quick
         test_truncated_colour;
+      Alcotest.test_case "line ends" `Quick test_line_ends;
       Alcotest.test_case "strip" `Quick test_strip;
       Alcotest.test_case "strip leaves no control" `Quick
         test_strip_leaves_no_control;
