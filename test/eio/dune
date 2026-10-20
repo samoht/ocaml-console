@@ -1,13 +1,11 @@
-; Exercise the private geometry and colour rules, as the Width tests do.
+; Exercise the private geometry, as the Width tests do.
 
 (copy_files ../../lib/eio/terminal.{ml,mli})
-
-(copy_files ../../lib/eio/colour.{ml,mli})
 
 (executable
  (name teardown)
  (modules teardown)
- (libraries console console-eio eio eio_main fmt unix))
+ (libraries console console.tty console-eio eio eio_main fmt unix))
 
 (test
  (name test)
@@ -16,6 +14,7 @@
  (deps teardown.exe)
  (libraries
   console
+  console.tty
   console-eio
   display_harness
   cstruct

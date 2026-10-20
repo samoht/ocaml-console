@@ -82,74 +82,6 @@ let test_dimensions_read_the_environment () =
   check "zero is no answer" "0" "0" (80, 24);
   check "nor is none" "" "" (80, 24)
 
-(* The rules of cmdliner and fmt, and the depth the environment announces. *)
-let test_colour_rules () =
-  let env pairs name = List.assoc_opt name pairs in
-  let renderer ~is_tty pairs =
-    match Colour.renderer ~getenv:(env pairs) ~is_tty with
-    | `Ansi_tty -> "ansi"
-    | `None -> "none"
-  in
-  let term = ("TERM", "xterm-256color") in
-  let check label expected got = Alcotest.(check string) label expected got in
-  check "terminal" "ansi" (renderer ~is_tty:true [ term ]);
-  check "pipe" "none" (renderer ~is_tty:false [ term ]);
-  check "NO_COLOR" "none" (renderer ~is_tty:true [ term; ("NO_COLOR", "1") ]);
-  check "empty NO_COLOR" "ansi"
-    (renderer ~is_tty:true [ term; ("NO_COLOR", "") ]);
-  check "TERM dumb" "none" (renderer ~is_tty:true [ ("TERM", "dumb") ]);
-  check "TERM empty" "none" (renderer ~is_tty:true [ ("TERM", "") ]);
-  check "TERM unset" "none" (renderer ~is_tty:true []);
-  let depth pairs =
-    match Colour.depth ~getenv:(env pairs) with
-    | `True_color -> "24"
-    | `Ansi_256 -> "256"
-    | `Ansi_16 -> "16"
-  in
-  check "COLORTERM truecolor" "24"
-    (depth [ ("COLORTERM", "truecolor"); ("TERM", "xterm") ]);
-  check "COLORTERM 24bit" "24" (depth [ ("COLORTERM", "24bit") ]);
-  check "TERM direct" "24" (depth [ ("TERM", "xterm-direct") ]);
-  check "TERM 256color" "256" (depth [ ("TERM", "screen-256color") ]);
-  check "other COLORTERM" "256"
-    (depth [ ("COLORTERM", "yes"); ("TERM", "xterm-256color") ]);
-  check "plain xterm" "16" (depth [ ("TERM", "xterm") ]);
-  let utf_8 pairs = Colour.utf_8 ~getenv:(env pairs) in
-  let check_utf_8 label expected pairs =
-    Alcotest.(check bool) label expected (utf_8 pairs)
-  in
-  check_utf_8 "LANG" true [ ("LANG", "en_US.UTF-8") ];
-  check_utf_8 "lower case" true [ ("LANG", "fr_FR.utf8") ];
-  check_utf_8 "C" false [ ("LANG", "C") ];
-  check_utf_8 "unset" false [];
-  check_utf_8 "LC_ALL first" false
-    [ ("LC_ALL", "POSIX"); ("LANG", "en_US.UTF-8") ];
-  check_utf_8 "empty LC_ALL skipped" true
-    [ ("LC_ALL", ""); ("LC_CTYPE", "C.UTF-8") ];
-  check "nothing" "16" (depth [])
-
-(* [setup]'s override is the program's: it wins over the environment. *)
-let test_setup () =
-  let restore () =
-    Fmt.set_style_renderer Fmt.stdout `None;
-    Fmt.set_style_renderer Fmt.stderr `None
-  in
-  Fun.protect ~finally:restore (fun () ->
-      with_env
-        [ ("NO_COLOR", "1"); ("TERM", "xterm-256color"); ("COLORTERM", "") ]
-        (fun () ->
-          Console_eio.setup ~style_renderer:`Ansi_tty ();
-          Alcotest.(check bool)
-            "--color=always wins over NO_COLOR" true
-            (Fmt.style_renderer Fmt.stdout = `Ansi_tty);
-          Alcotest.(check bool)
-            "the depth of TERM" true
-            (Console.Color.depth Fmt.stdout = `Ansi_256);
-          Console_eio.setup ();
-          Alcotest.(check bool)
-            "NO_COLOR" true
-            (Fmt.style_renderer Fmt.stdout = `None)))
-
 (* {1 On a terminal} *)
 
 let open_pty ~sw =
@@ -341,7 +273,5 @@ let suite =
         test_second_display_refused;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
-      Alcotest.test_case "colour rules" `Quick test_colour_rules;
-      Alcotest.test_case "setup" `Quick test_setup;
       Alcotest.test_case "teardown on a terminal" `Quick test_teardown;
     ] )

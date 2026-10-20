@@ -192,7 +192,7 @@ let test_run_styles_a_terminal () =
     let ppf = Fmt.stderr in
     with_no_color no_color (fun () ->
         with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
-            Console_eio.setup ();
+            Console_tty.setup ();
             let mock = Eio_mock.Clock.make () in
             let clock = (mock :> float Eio.Time.clock_ty Eio.Resource.t) in
             Console_eio.run ~clock ~ppf (fun display ->

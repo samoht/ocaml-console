@@ -31,7 +31,7 @@ let colourless env =
    then a display with a bar. *)
 let widgets env =
   let open Console in
-  Console_eio.setup ();
+  Console_tty.setup ();
   let long = Span.text (String.concat " " (List.init 20 (Fun.const "word"))) in
   let leaf = Tree.v long [] in
   Fmt.pr "%a@.%a@.%a@.%a@.%a@." Table.pp

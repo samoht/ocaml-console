@@ -195,7 +195,7 @@ let test_setup () =
     (fun () ->
       List.iter
         (fun renderer ->
-          Console_eio.setup ~style_renderer:renderer ();
+          Console_tty.setup ~style_renderer:renderer ();
           Alcotest.(check bool)
             "stdout" true
             (renderer_equal (Fmt.style_renderer Fmt.stdout) renderer);
@@ -203,7 +203,7 @@ let test_setup () =
             "stderr" true
             (renderer_equal (Fmt.style_renderer Fmt.stderr) renderer))
         [ `None; `Ansi_tty ];
-      Console_eio.setup ())
+      Console_tty.setup ())
 
 (* Lines logged from nested runs in fibers and from other domains all reach
    the output, each source's in the order it logged them. *)

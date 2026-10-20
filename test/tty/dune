@@ -1,0 +1,15 @@
+; Exercise the private colour rules, as the Width tests do.
+
+(copy_files ../../lib/tty/colour.{ml,mli})
+
+(executable
+ (name probe)
+ (modules probe)
+ (libraries console console.tty fmt))
+
+(test
+ (name test)
+ (modules :standard \ probe)
+ (package console)
+ (deps probe.exe)
+ (libraries console console.tty alcotest fmt unix))
