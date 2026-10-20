@@ -104,10 +104,7 @@ let fill n glyph =
       let part = Buffer.create rest and used = ref 0 and full = ref false in
       Glyph.String.iter_graphemes
         (fun ~offset ~len ->
-          let w =
-            Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 glyph
-              ~pos:offset ~len
-          in
+          let w = Width.sub_width glyph ~pos:offset ~len in
           if (not !full) && !used + w <= rest then begin
             Buffer.add_substring part glyph offset len;
             used := !used + w

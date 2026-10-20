@@ -203,10 +203,7 @@ let layout line =
     Glyph.String.iter_graphemes
       (fun ~offset ~len ->
         starts := offset :: !starts;
-        widths :=
-          Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 text
-            ~pos:offset ~len
-          :: !widths;
+        widths := Width.sub_width text ~pos:offset ~len :: !widths;
         incr n)
       text;
     let starts = Array.of_list (List.rev !starts) in
