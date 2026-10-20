@@ -11,22 +11,20 @@ type task = row
 
 let pp = Display_state.pp
 
-(* Without a terminal, what the program and the display write on [ppf] is
-   watched for its last byte, so that a line the display prints starts at
-   the first column. *)
-let watch_lines t =
-  Format.pp_print_flush t.ppf ();
-  let out = Format.pp_get_formatter_out_functions t.ppf () in
+(* [tap ppf note] makes [ppf] call [note] with the last byte of each write, a
+   space for blanks, and is the out functions [ppf] had and those it has. *)
+let tap ppf note =
+  let out = Format.pp_get_formatter_out_functions ppf () in
   let out_string s o l =
-    if l > 0 then t.partial <- s.[o + l - 1] <> '\n';
+    if l > 0 then note s.[o + l - 1];
     out.out_string s o l
   in
   let out_newline () =
-    t.partial <- false;
+    note '\n';
     out.out_newline ()
   in
   let blank write n =
-    if n > 0 then t.partial <- true;
+    if n > 0 then note ' ';
     write n
   in
   let ours =
@@ -38,7 +36,15 @@ let watch_lines t =
       out_indent = blank out.out_indent;
     }
   in
-  Format.pp_set_formatter_out_functions t.ppf ours;
+  Format.pp_set_formatter_out_functions ppf ours;
+  (out, ours)
+
+(* Without a terminal, what the program and the display write on [ppf] is
+   watched for its last byte, so that a line the display prints starts at
+   the first column. *)
+let watch_lines t =
+  Format.pp_print_flush t.ppf ();
+  let out, ours = tap t.ppf (fun c -> t.partial <- c <> '\n') in
   t.release <-
     (fun () ->
       let now = Format.pp_get_formatter_out_functions t.ppf () in
@@ -122,28 +128,8 @@ let with_output t f =
   let call () =
     Format.pp_print_flush t.ppf ();
     let margin = Format.pp_get_margin t.ppf () in
-    let out = Format.pp_get_formatter_out_functions t.ppf () in
     let last = ref '\n' in
-    let out_string s o l =
-      if l > 0 then last := s.[o + l - 1];
-      out.out_string s o l
-    in
-    let out_newline () =
-      last := '\n';
-      out.out_newline ()
-    in
-    let blank write n =
-      if n > 0 then last := ' ';
-      write n
-    in
-    Format.pp_set_formatter_out_functions t.ppf
-      {
-        out with
-        out_string;
-        out_newline;
-        out_spaces = blank out.out_spaces;
-        out_indent = blank out.out_indent;
-      };
+    let out, _ = tap t.ppf (( := ) last) in
     Format.pp_set_margin t.ppf t.width;
     Fun.protect
       (fun () -> f t.ppf)
