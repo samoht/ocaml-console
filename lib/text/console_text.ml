@@ -49,10 +49,8 @@ let sanitize_into buf ~keep_newlines ~cr str =
   in
   go 0
 
-let printable c = Char.code c >= 0x20 && Char.code c < 0x7f
-
 let sanitize ?(keep_newlines = true) str =
-  if String.for_all printable str then str
+  if String.for_all Char.Ascii.is_print str then str
   else
     let buf = Buffer.create (String.length str) in
     sanitize_into buf ~keep_newlines ~cr:(ref false) str;

@@ -3,8 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let is_ascii s =
-  String.for_all (fun c -> Char.code c >= 0x20 && Char.code c < 0x7f) s
+let is_ascii s = String.for_all Char.Ascii.is_print s
 
 let string_width s =
   if is_ascii s then String.length s
