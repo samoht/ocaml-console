@@ -75,9 +75,39 @@ let test_silent_discarded s p k =
   let with_c = String.sub s 0 i ^ c ^ String.sub s i (String.length s - i) in
   check_eq ~pp:Fmt.Dump.string s (Console_text.strip with_c)
 
+(* Zeros inside an extended colour are components or palette indices,
+   not resets. Relaying a tool's colours keeps those colours on its text
+   and restores the default style for the caller's next character. *)
+let test_extended_colours r g k =
+  let sequence =
+    match k mod 4 with
+    | 0 -> Fmt.str "\027[1;38;2;%d;%d;0m" r g
+    | 1 -> Fmt.str "\027[48;2;%d;%d;0m" r g
+    | 2 -> "\027[38;5;0m"
+    | _ -> "\027[48;5;0m"
+  in
+  let source = sequence ^ "x" in
+  let output = Console_text.strip ~keep_styles:true source in
+  let expected = Console_vte.v ~rows:1 ~cols:4 ()
+  and actual = Console_vte.v ~rows:1 ~cols:4 () in
+  Console_vte.feed expected (source ^ "\027[0m!");
+  Console_vte.feed actual (output ^ "!");
+  for i = 0 to 1 do
+    if
+      not
+        (Grid.cells_equal
+           (Console_vte.grid expected)
+           i (Console_vte.grid actual) i)
+    then failf "extended colour changed cell %d or leaked after %S" i source
+  done;
+  check_eq ~pp:Fmt.Dump.string output
+    (Console_text.strip ~keep_styles:true output)
+
 let suite =
   ( "console_text",
     [
+      test_case "extended colours survive and leave the next cell plain"
+        [ uint8; uint8; uint8 ] test_extended_colours;
       test_case "sanitize and strip" [ bytes ] test_laws;
       test_case "one line feed per line end" [ bytes ] test_line_ends;
       test_case "silent controls print nothing" [ bytes; uint8; uint8 ]
