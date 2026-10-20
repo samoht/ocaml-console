@@ -422,9 +422,39 @@ let test_put_together () =
         (List.map Console_text.strip (lines ~styled:true m scene)))
     [ 3; 20; 60 ]
 
+(* The ASCII look draws a three-cell ellipsis. Splitting a deferred widget
+   into spans must keep all three dots, even where its UTF-8 layout had a
+   space after a one-cell ellipsis. *)
+let test_nested_wrap_ascii () =
+  let open Console in
+  let rule =
+    Rule.to_span ~width:4 (Rule.v ~label:(Span.text "\u{754c}\n\u{754c}") ())
+  in
+  let source =
+    Table.to_span (Table.v [ Table.column (Span.text "h") ] [ [ rule ] ])
+  in
+  let render span =
+    shown ~utf_8:false Theme.default ~margin:80 (fun ppf -> Span.pp ppf span)
+  in
+  let compact s =
+    String.to_seq s
+    |> Seq.filter (fun c -> c <> ' ' && c <> '\n')
+    |> String.of_seq
+  in
+  let expected = "+------+|h|+------+|...|+------+" in
+  Alcotest.(check string)
+    "the unwrapped widget has three ellipsis dots" expected
+    (compact (render source));
+  let pieces = Span.wrap 2 source in
+  Alcotest.(check string)
+    "wrapping preserves every non-space character" expected
+    (compact (String.concat "" (List.map render pieces)))
+
 let suite =
   ( "console",
     [
+      Alcotest.test_case "wrapping nested widgets keeps an ASCII ellipsis"
+        `Quick test_nested_wrap_ascii;
       Alcotest.test_case "side by side keeps a combining suffix" `Quick
         test_hcat_combining_suffix;
       Alcotest.test_case "side by side fits a two-column margin" `Quick
