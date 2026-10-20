@@ -95,8 +95,9 @@ val v :
 
     - [name] is its {!name} (defaults to ["custom"]);
     - [accent] is the main colour (defaults to {!default}'s teal);
-    - [palette] are the colours successive progress rows take in turn (defaults
-      to [[accent]], as does [[]]);
+    - [palette] are the colours successive progress rows take in turn, and that
+      a bar spreads along its length when there are several (defaults to
+      [[accent]], as does [[]]);
     - [ok], [warn] and [fail] colour the marks of a success, of a warning or a
       cancellation, and of a failure or an error (default to {!default}'s green,
       amber and red);
@@ -122,7 +123,8 @@ val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
 
 val palette : t -> Color.t list
-(** [palette t] are the colours successive progress rows take in turn. It is
+(** [palette t] are the colours successive progress rows take in turn, spread
+    along each bar without a style ({!Bar.v}) when there are several. It is
     never empty. *)
 
 val ok : t -> Color.t
@@ -205,8 +207,8 @@ val matrix : t
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
-    from the xterm 256-colour palette as {!default}'s are, and sweeps them round
-    its frames ([`Sweep]). *)
+    from the xterm 256-colour palette as {!default}'s are, spreads them along
+    its bars and sweeps them round its frames ([`Sweep]). *)
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background

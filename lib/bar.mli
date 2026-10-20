@@ -29,10 +29,13 @@ type t
 
 val v :
   ?style:Style.t -> ?track:Style.t -> ?brackets:bool -> width:int -> float -> t
-(** [v ~width frac] is a [width]-cell bar filled to [frac] of its length,
-    rounded to the nearest half cell, in [style] (defaults to the main colour of
-    the theme of the formatter it is printed on). [frac] is clamped to the range
-    0 to 1, NaN being 0.
+(** [v ~style ~width frac] is a [width]-cell bar filled to [frac] of its length,
+    rounded to the nearest half cell, in [style]. Without [style], the bar takes
+    the {!Theme.palette} of the theme of the formatter it is printed on: a
+    palette of several colours is spread along its whole length, each filled
+    cell in the colour of its place, so the fill uncovers the colours as it
+    grows; a palette of one colour gives the main colour of the theme. [frac] is
+    clamped to the range 0 to 1, NaN being 0.
 
     @raise Invalid_argument if [width] is negative. *)
 

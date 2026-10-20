@@ -63,6 +63,13 @@ let percent m =
     (fun f -> if f >= 1. then 100 else int_of_float (100. *. f))
     (fraction m)
 
+(* A row's bar is in the row's colour, unless the palette has several
+   colours: each bar then spreads them all. *)
+let bar_style r =
+  match Theme.palette (theme r.disp) with
+  | [ _ ] -> Some (Style.fg (color r))
+  | _ -> None
+
 (* No bar is drawn before work advances, since an empty track reads as an
    input field; once it has, the bar shows the least it can. *)
 let bar t r width =
@@ -71,7 +78,7 @@ let bar t r width =
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
       Span_core.resolve (look t)
-        (Bar.to_span (Bar.v ~style:(Style.fg (color r)) ~width f))
+        (Bar.to_span (Bar.v ?style:(bar_style r) ~width f))
   | _ -> Span.empty
 
 let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))

@@ -65,15 +65,16 @@ let drawn draw =
 
 (* {1 Gradients} *)
 
-(* The colour at [p], from 0 to 1, of stops spread evenly over that range: a
-   stop itself where it stands, so that a palette colour stays one. *)
+(* A stop itself where it stands, so that a palette colour stays one. *)
 let at stops p =
   let n = Array.length stops in
-  let x = p *. float_of_int (n - 1) in
+  let x = Float.max 0. (Float.min 1. p) *. float_of_int (n - 1) in
   let i = int_of_float x in
   if i >= n - 1 then stops.(n - 1)
   else if Float.of_int i = x then stops.(i)
   else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
+
+let color_at stops p = at (Array.of_list stops) p
 
 let clusters s =
   let l = ref [] in

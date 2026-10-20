@@ -27,6 +27,9 @@
 - `Theme.dos` draws in the box-drawing characters of code page 437, as
   Norton Commander did: double-line frames with a double header rule, and
   single-line tree guides.
+- A bar given no style spreads a palette of several colours along its
+  length, each cell in the colour of its place: `Theme.rainbow`'s bars,
+  its progress rows' included, are rainbows.
 - `Bar.to_span` puts a bar in a table cell, a tree or a panel, drawn in
   the theme and the UTF-8 of the formatter it is printed on.
 - `Display.set_scene` draws what a printer prints, such as a table, above

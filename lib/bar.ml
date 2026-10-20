@@ -49,15 +49,27 @@ let cells ~glyphs ~width frac =
       in
       (fill, track)
 
-let span ~glyphs ~style ~track ~brackets ~width frac =
-  let fill, rest = cells ~glyphs ~width frac in
-  framed ~glyphs ~track ~brackets Span.(styled style fill ++ styled track rest)
+(* A palette of several colours is spread along the whole bar, each filled
+   cell in the colour of its place: the fill uncovers the colours as it
+   grows rather than recolouring the cells it has. *)
+let fill ~style ~width look glyphs =
+  match (style, Theme.palette look.Widget.theme) with
+  | Some style, _ -> Span.styled style glyphs
+  | None, ([] | [ _ ]) -> Span.styled (Widget.accent look) glyphs
+  | None, palette ->
+      let last = float_of_int (max 1 (width - 1)) in
+      Span_core.recell
+        (fun ~cell ->
+          let c = Span_core.color_at palette (float_of_int cell /. last) in
+          Some (fun style glyph -> (Style.(style + fg c), glyph)))
+        (Span.text glyphs)
 
 let draw t look =
-  let style = Option.value t.style ~default:(Widget.accent look) in
   let track = Option.value t.track ~default:(Widget.muted look) in
-  span ~glyphs:(Widget.bar look) ~style ~track ~brackets:t.brackets
-    ~width:t.width t.frac
+  let glyphs = Widget.bar look in
+  let filled, rest = cells ~glyphs ~width:t.width t.frac in
+  framed ~glyphs ~track ~brackets:t.brackets
+    Span.(fill ~style:t.style ~width:t.width look filled ++ styled track rest)
 
 let to_span t = Span_core.drawn (draw t)
 let lines look ~margin t = [ Widget.truncate look margin (draw t look) ]
