@@ -4,44 +4,25 @@
   ---------------------------------------------------------------------------*)
 
 (* The tape that screenshots the theme demo in the theme its argument names,
-   on that theme's background. *)
-
-let backgrounds =
-  [
-    ("unicode", None);
-    ("dos", Some "#000000");
-    ("matrix", Some "#000000");
-    ("rainbow", None);
-    ("dracula", Some "#282a36");
-    ("nord", Some "#2e3440");
-    ("solarized-dark", Some "#002b36");
-    ("solarized-light", Some "#fdf6e3");
-    ("gruvbox-dark", Some "#282828");
-    ("gruvbox-light", Some "#fbf1c7");
-    ("catppuccin-latte", Some "#eff1f5");
-    ("catppuccin-mocha", Some "#1e1e2e");
-    ("tokyo-night", Some "#1a1b26");
-    ("one-dark", Some "#282c34");
-    ("monokai", Some "#272822");
-    ("github-dark", Some "#0d1117");
-    ("github-light", Some "#ffffff");
-  ]
+   on that theme's background: the one place that says how the gallery is
+   recorded. *)
 
 (* Text that reads on the background: dark on a light one, light on a dark
    one. *)
-let vhs_theme = function
+let vhs_theme theme =
+  match Console.Theme.background theme with
   | None -> "Builtin Dark"
   | Some bg ->
-      let c i = int_of_string ("0x" ^ String.sub bg i 2) in
-      let light = (c 1 * 299) + (c 3 * 587) + (c 5 * 114) > 128_000 in
+      let r, g, b = Console.Color.to_rgb bg in
+      let light = (r * 299) + (g * 587) + (b * 114) > 128_000 in
       let fg = if light then "#333333" else "#dddddd" in
       Fmt.str
-        {|{ "name": "demo", "background": "%s", "foreground": "%s", "cursor": "%s", "selection": "%s" }|}
-        bg fg fg fg
+        {|{ "name": "demo", "background": "#%02x%02x%02x", "foreground": "%s", "cursor": "%s", "selection": "%s" }|}
+        r g b fg fg fg
 
 let () =
   let name = Sys.argv.(1) in
-  let bg = List.assoc name backgrounds in
+  let theme = List.assoc name Console.Theme.all in
   match
     Vhs.tape
       ~settings:
@@ -52,7 +33,7 @@ let () =
           Height 520;
           Padding 20;
           Typing_speed (Ms 5);
-          Theme (vhs_theme bg);
+          Theme (vhs_theme theme);
         ]
       ~outputs:[ "_build/themes/" ^ name ^ ".txt" ]
       [

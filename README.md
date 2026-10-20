@@ -19,7 +19,8 @@ It has:
   pipe or a CI log;
 - correct alignment for wide characters, such as Chinese, Japanese, Korean
   and emoji, which take two columns on screen;
-- seventeen themes, from the colour schemes you may already use.
+- eighteen themes, from the colour schemes you may already use, chosen
+  with one `--theme` option.
 
 ## Installation
 
@@ -343,11 +344,20 @@ with the `console` package; add `console.text` to the `libraries` of your
 ## Themes
 
 Each picture is [the same program](examples/themes/main.ml) in one theme,
-recorded by [its tape](examples/themes/tape.ml).
+recorded by [its tape](examples/themes/tape.ml), on the background the
+theme is made for. `Theme.default` reads on any background; a theme named
+after a colour scheme is for a terminal that uses that scheme, and its
+colours may be hard to read on another background. Every theme falls back
+to ASCII on a terminal whose locale is not UTF-8, as `Theme.ascii` always
+does.
 
 ### `Theme.default`
 
-![The theme demo in unicode](examples/themes/unicode.png)
+![The theme demo in default](examples/themes/default.png)
+
+### `Theme.ascii`
+
+![The theme demo in ascii](examples/themes/ascii.png)
 
 ### `Theme.dos`
 
@@ -412,7 +422,3 @@ recorded by [its tape](examples/themes/tape.ml).
 ### `Theme.github_light`
 
 ![The theme demo in github-light](examples/themes/github-light.png)
-
-## License
-
-ISC. See [LICENSE.md](LICENSE.md).

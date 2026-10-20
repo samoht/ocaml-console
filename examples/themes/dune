@@ -7,21 +7,35 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries vhs fmt))
+ (libraries console vhs fmt))
 
 (rule
  (enabled_if %{lib-available:vhs})
- (target unicode.generated.tape)
+ (target default.generated.tape)
  (action
   (with-stdout-to
    %{target}
-   (run ./tape.exe unicode))))
+   (run ./tape.exe default))))
 
 (rule
  (alias runtest)
  (enabled_if %{lib-available:vhs})
  (action
-  (diff unicode.tape unicode.generated.tape)))
+  (diff default.tape default.generated.tape)))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target ascii.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe ascii))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff ascii.tape ascii.generated.tape)))
 
 (rule
  (enabled_if %{lib-available:vhs})
