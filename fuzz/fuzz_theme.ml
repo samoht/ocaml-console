@@ -14,7 +14,9 @@ let marks =
 let test_theme s n =
   let c = Color.palette (abs n land 255) in
   let palette = if n land 1 = 0 then [] else [ c; Color.red ] in
-  let t = Theme.v ~accent:c ~palette ~ok:c ~marks:(fun _ -> s) () in
+  let t = Theme.v ~accent:c ~palette ~ok:c ~muted:c ~marks:(fun _ -> s) () in
+  check (Color.equal (Theme.muted t) c);
+  check (not (Style.is_none (Theme.header (Theme.v ()))));
   check (Theme.palette t <> []);
   check (Color.equal (Theme.accent t) c && Color.equal (Theme.ok t) c);
   (match Theme.of_string s with

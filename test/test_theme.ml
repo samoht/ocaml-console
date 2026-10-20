@@ -182,8 +182,11 @@ let presets =
       ("github_light", github_light);
     ]
 
-(* The text a theme colours stands out from its background at 3:1 or more;
-   a theme without a background is read on black and on white alike. *)
+(* Text a theme colours reads on its background at 4.5:1 or more, and a
+   glyph it colours alone at 3:1 or more, as WCAG 2.1 asks of text and of
+   graphics; a theme without a background is read on black and on white
+   alike. The muted colour and the header's are text: counts, timers and
+   headings. *)
 let test_contrast () =
   List.iter
     (fun (name, t) ->
@@ -192,7 +195,7 @@ let test_contrast () =
         | Some bg -> [ bg ]
         | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
       in
-      let colours =
+      let glyphs =
         [
           ("accent", Theme.accent t);
           ("ok", Theme.ok t);
@@ -201,17 +204,69 @@ let test_contrast () =
         ]
         @ List.mapi (fun i c -> (Fmt.str "palette %d" i, c)) (Theme.palette t)
       in
+      let text =
+        ("muted", Theme.muted t)
+        :: Option.to_list
+             (Option.map
+                (fun c -> ("header", c))
+                (Style.foreground (Theme.header t)))
+      in
       List.iter
         (fun bg ->
           List.iter
-            (fun (what, c) ->
-              let ratio = contrast c bg in
-              if ratio < 3. then
-                Alcotest.failf "%s: %s %a on %a is %.2f:1" name what Color.pp c
-                  Color.pp bg ratio)
-            colours)
+            (fun (least, colours) ->
+              List.iter
+                (fun (what, c) ->
+                  let ratio = contrast c bg in
+                  if ratio < least then
+                    Alcotest.failf "%s: %s %a on %a is %.2f:1, below %.1f:1"
+                      name what Color.pp c Color.pp bg ratio least)
+                colours)
+            [ (3., glyphs); (4.5, text) ])
         backgrounds)
     presets
+
+(* Every theme sets its own headers apart. *)
+let test_header () =
+  List.iter
+    (fun (name, t) ->
+      if Style.is_none (Theme.header t) then
+        Alcotest.failf "%s: plain headers" name)
+    presets
+
+let sgr style = Style.sgr `True_color style
+
+(* Frames, guides, rules, the track of a bar and the counts and timers of a
+   display are in the theme's muted colour; table headers, panel titles and
+   the display's header in its header style. *)
+let test_roles () =
+  let t = Theme.nord in
+  let muted = sgr (Style.fg (Theme.muted t))
+  and header = sgr (Theme.header t) in
+  let print pp v = printed ~theme:t ~styled:true pp v in
+  let check what affix s =
+    if not (contains affix s) then Alcotest.failf "%s: no %S in %S" what affix s
+  in
+  let table =
+    print Table.pp (Table.v [ Table.column "a" ] [ [ Span.text "1" ] ])
+  in
+  check "table frame" (muted ^ "\u{256d}") table;
+  check "table header" (header ^ "a") table;
+  let panel = print Panel.pp (Panel.v ~title:(Span.text "T") (Span.text "1")) in
+  check "panel frame" (muted ^ "\u{256d}") panel;
+  check "panel title" (header ^ "T") panel;
+  check "tree guide" (muted ^ "\u{2514}")
+    (print Tree.pp (Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ]));
+  check "rule" (muted ^ "\u{2500}") (print Rule.pp (Rule.v ()));
+  check "bar track" muted (print Bar.pp (Bar.v ~width:4 0.5));
+  let term = terminal ~theme:t ~styled:true ~header:"Build" () in
+  let task = Display.task term.display "compile" in
+  Display.set_count task ~cur:1 ~total:3;
+  Display.redraw term.display;
+  let out = written term in
+  check "display count" (muted ^ "1/3") out;
+  check "display timer" (muted ^ "0.0s") out;
+  check "display header" (header ^ "Build") out
 
 (* A command line chooses a theme by name: [all] holds every predefined
    theme once, under the name [of_string] reads back. *)
@@ -328,5 +383,7 @@ let suite =
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
       Alcotest.test_case "ASCII when not UTF-8" `Quick test_ascii_fallback;
       Alcotest.test_case "names" `Quick test_names;
+      Alcotest.test_case "header" `Quick test_header;
+      Alcotest.test_case "roles" `Quick test_roles;
       Alcotest.test_case "contrast" `Quick test_contrast;
     ] )
