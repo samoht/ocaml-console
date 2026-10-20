@@ -100,13 +100,7 @@ let at stops p =
   else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
 
 let color_at stops p = at (Array.of_list stops) p
-
-let clusters s =
-  let l = ref [] in
-  Glyph.String.iter_graphemes
-    (fun ~offset ~len -> l := String.sub s offset len :: !l)
-    s;
-  List.rev !l
+let clusters = Width.clusters
 
 (* Each line is graded from its first cluster to its last. *)
 let graded stops line =

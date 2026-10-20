@@ -15,11 +15,12 @@
     [Console_eio.Prompt], which reads the answer and uses an editor to hide a
     password.
 
-    Editing is by whole UTF-8 character at the cursor: a printable character,
-    even one whose bytes arrive across separate {!feed} calls, is inserted,
-    backspace erases the character before the cursor, and the left and right
-    arrows step over one character. A character takes the cells a terminal draws
-    it in, two for a wide character or an emoji, so cursor motion is exact for
+    Editing is by grapheme cluster (UAX #29) at the cursor, a character with its
+    marks: a printable character, even one whose bytes arrive across separate
+    {!feed} calls, is inserted, joining the cluster before the cursor if it is a
+    mark; backspace erases the cluster before the cursor, and the left and right
+    arrows step over one cluster. A cluster takes the cells a terminal draws it
+    in, two for a wide character or an emoji, so cursor motion is exact for
     them.
 
     The keys, the history and the completion follow those of the
@@ -47,9 +48,9 @@ val v :
       line, when Tab is pressed. The editor extends [word] to the longest prefix
       the completions share and lists them when more than one is left. Without
       [complete], Tab does nothing;
-    - [mask], if given, is echoed once for each character typed, in place of the
-      character, while {!pending} and the lines of {!feed} hold the text typed.
-      A masked editor, for a password or a token, completes nothing, recalls
+    - [mask], if given, is echoed once for each cluster typed, in place of the
+      cluster, while {!pending} and the lines of {!feed} hold the text typed. A
+      masked editor, for a password or a token, completes nothing, recalls
       nothing and keeps no line in its {!history}.
 
     A control character in [prompt], [history], [mask] or a completion is echoed
@@ -63,19 +64,20 @@ val feed : t -> string -> string * string list
 
     - a printable character, ASCII \[[0x20];[0x7E]\] or a UTF-8 character of
       several bytes that may arrive across several [feed] calls, is inserted at
-      the cursor and echoed. A byte sequence that decodes to no character is the
-      replacement character U+FFFD, and a C1 control (U+0080 to U+009F), which a
-      terminal acts on, is a space, so what is echoed and kept is text that only
-      prints;
-    - [\127] (DEL) and [\008] (BS) erase the character before the cursor,
-      echoing ["\b \b"] at the end of the line;
+      the cursor and echoed; a mark of no width with nothing before it in the
+      line to join is dropped, as a terminal drops it in the first column. A
+      byte sequence that decodes to no character is the replacement character
+      U+FFFD, and a C1 control (U+0080 to U+009F), which a terminal acts on, is
+      a space, so what is echoed and kept is text that only prints;
+    - [\127] (DEL) and [\008] (BS) erase the cluster before the cursor, echoing
+      ["\b \b"] at the end of the line;
     - ['\r'] and ['\n'] submit the line, but a ['\n'] right after a ['\r'], the
       second half of a CRLF, submits nothing;
     - [\t] completes the current word ({!v});
     - [ESC \[ A] and [ESC \[ B] recall the previous and the next line of the
       history, and [ESC \[ C] and [ESC \[ D] move the cursor right and left over
-      one character, as do [ESC O A] to [ESC O D], which a terminal in
-      application cursor mode sends;
+      one cluster, as do [ESC O A] to [ESC O D], which a terminal in application
+      cursor mode sends;
     - any other byte is ignored.
 
     Feeding [input] at once or in pieces gives the same echo and lines, and the

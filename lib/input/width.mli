@@ -25,5 +25,8 @@ val string_width : string -> int
 val sub_width : string -> pos:int -> len:int -> int
 (** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)
 
+val clusters : string -> string list
+(** [clusters s] are the grapheme clusters (UAX #29) of [s], in order. *)
+
 val is_ascii : string -> bool
 (** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)

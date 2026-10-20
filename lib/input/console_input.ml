@@ -7,10 +7,10 @@
    before an arrow's letter. *)
 type esc = Normal | Esc | Csi | Ss3
 
-(* The line is a zipper of whole UTF-8 characters split at the cursor: [left]
-   holds the characters before the cursor nearest-first (reversed), [right]
-   those at and after it in order. Editing a whole character at a time -- rather
-   than a byte -- is what keeps multi-byte input intact. *)
+(* The line is a zipper of grapheme clusters split at the cursor: [left]
+   holds the clusters before the cursor nearest-first (reversed), [right]
+   those at and after it in order. Editing a whole cluster at a time keeps a
+   character and its marks together, on the screen as in the line. *)
 type t = {
   mutable left : string list;
   mutable right : string list;
@@ -54,19 +54,9 @@ let utf8_len c =
   let b = Char.code c in
   if b < 0xc0 then 1 else if b < 0xe0 then 2 else if b < 0xf0 then 3 else 4
 
-(* Split a complete UTF-8 string into one entry per character. *)
-let chars s =
-  let n = String.length s in
-  let rec go i acc =
-    if i >= n then List.rev acc
-    else
-      let len = min (utf8_len s.[i]) (n - i) in
-      go (i + len) (String.sub s i len :: acc)
-  in
-  go 0 []
-
+let clusters = Width.clusters
 let display_char t c = match t.mask with Some mask -> mask | None -> c
-let display t s = String.concat "" (List.map (display_char t) (chars s))
+let display t s = String.concat "" (List.map (display_char t) (clusters s))
 
 (* A masked editor measures the replacement glyphs, never the secret
    characters they conceal. *)
@@ -80,12 +70,30 @@ let reposition t echo =
   let tail = cols t t.right in
   if tail > 0 then add echo (String.make tail '\b')
 
-(* Insert [s] (one or more whole characters) at the cursor: write it, redraw the
-   tail it pushed right, then step the cursor back to just after [s]. *)
+(* Insert [s] (one or more whole characters) at the cursor, its first joining
+   the cluster before the cursor if it extends it: write the clusters it
+   adds, redraw the tail it pushed right, then step the cursor back to just
+   after [s]. A cluster of no width with nothing before it to join is
+   dropped, as a terminal drops it in the first column. *)
 let insert t echo s =
   t.pos <- None;
-  t.left <- List.rev_append (chars s) t.left;
-  add echo (display t s);
+  let prev, rest = match t.left with c :: l -> (c, l) | [] -> ("", []) in
+  let kept =
+    match clusters (prev ^ s) with
+    | c :: cs when prev = "" && Width.string_width c = 0 -> cs
+    | cs -> cs
+  in
+  t.left <- List.rev_append kept rest;
+  (match t.mask with
+  | None ->
+      let all = String.concat "" kept in
+      let n = String.length prev in
+      add echo (String.sub all n (String.length all - n))
+  | Some mask ->
+      let added = List.length kept - if prev = "" then 0 else 1 in
+      for _ = 1 to added do
+        add echo mask
+      done);
   add echo (display_chars t t.right);
   reposition t echo
 
@@ -140,7 +148,7 @@ let recall t echo s =
   for _ = 1 to width t (line t) do
     add echo "\b \b"
   done;
-  t.left <- List.rev (chars s);
+  t.left <- List.rev (clusters s);
   t.right <- [];
   add echo (display t s)
 
@@ -166,7 +174,7 @@ let hist_next t echo =
       t.pos <- Some (i - 1);
       recall t echo (List.nth t.hist (i - 1))
 
-(* The longest run of whole characters every candidate starts with. *)
+(* The longest run of whole clusters every candidate starts with. *)
 let common_prefix = function
   | [] -> ""
   | first :: rest ->
@@ -176,7 +184,9 @@ let common_prefix = function
         | _ -> List.rev acc
       in
       String.concat ""
-        (List.fold_left (fun p s -> common [] p (chars s)) (chars first) rest)
+        (List.fold_left
+           (fun p s -> common [] p (clusters s))
+           (clusters first) rest)
 
 (* The word completion acts on is the run after the last space before the
    cursor. *)

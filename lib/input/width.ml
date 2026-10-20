@@ -3,6 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+let clusters s =
+  let l = ref [] in
+  Glyph.String.iter_graphemes
+    (fun ~offset ~len -> l := String.sub s offset len :: !l)
+    s;
+  List.rev !l
+
 let is_ascii s = String.for_all Char.Ascii.is_print s
 
 (* The characters VS16 can show as an emoji, the bases of
