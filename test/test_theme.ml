@@ -181,6 +181,24 @@ let test_display_reads_it () =
     "dos bars" true
     (contains "\u{2588}\u{2591}" (written term))
 
+(* The progress rows of a theme whose palette has several colours take
+   their bars in the whole palette, from its first colour to its last. *)
+let test_display_palette () =
+  let term = terminal ~theme:Theme.rainbow ~styled:true () in
+  let task = Display.task term.display "copy" in
+  Display.set_count task ~cur:1 ~total:1;
+  Display.redraw term.display;
+  let written = written term in
+  List.iter
+    (fun c ->
+      let sgr =
+        Span.to_string ~styled:true (Span.styled (Style.fg c) "\u{2501}")
+      in
+      let sgr = String.sub sgr 0 (String.index sgr 'm' + 1) ^ "\u{2501}" in
+      Alcotest.(check bool)
+        (Fmt.str "%a" Color.pp c) true (contains sgr written))
+    [ List.hd (Theme.palette Theme.rainbow); Theme.accent Theme.rainbow ]
+
 let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in
   Alcotest.(check bool) "mentions the done marker" true (contains "[+]" s)
@@ -572,6 +590,8 @@ let suite =
       Alcotest.test_case "on the formatter" `Quick test_on_formatter;
       Alcotest.test_case "widgets read it" `Quick test_widgets_read_it;
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
+      Alcotest.test_case "a display's bars in the palette" `Quick
+        test_display_palette;
       Alcotest.test_case "ASCII when not UTF-8" `Quick test_ascii_fallback;
       Alcotest.test_case "names" `Quick test_names;
       Alcotest.test_case "header" `Quick test_header;

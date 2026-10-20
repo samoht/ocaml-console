@@ -117,6 +117,48 @@ let test_theme_glyphs () =
     && Theme.bar Theme.default = `Line
     && Theme.bar (Theme.v ~bar:`Block ()) = `Block)
 
+(* theme.mli, palette: a bar given no style spreads a palette of several
+   colours along its length, each cell in the colour of its place, so the
+   fill uncovers the colours as it grows; a bar given a style, or in a
+   theme of one colour, is in one colour. *)
+let test_palette () =
+  let styled theme bar =
+    let buf = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color;
+    Bar.pp ppf bar;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  let palette = Array.of_list (Theme.palette Theme.rainbow) in
+  let muted = Style.fg (Theme.muted Theme.rainbow) in
+  let cells n =
+    List.init n (fun i -> Span.styled (Style.fg palette.(i)) "\u{2501}")
+  in
+  let want spans = Span.to_string ~styled:true (Span.concat spans) in
+  Alcotest.(check string)
+    "full"
+    (want (cells 6))
+    (styled Theme.rainbow (Bar.v ~width:6 1.));
+  Alcotest.(check string)
+    "half"
+    (want (cells 3 @ [ Span.styled muted "\u{257a}\u{2501}\u{2501}" ]))
+    (styled Theme.rainbow (Bar.v ~width:6 0.5));
+  Alcotest.(check string)
+    "a style given"
+    (want [ Span.styled red "\u{2501}\u{2501}" ])
+    (styled Theme.rainbow (Bar.v ~style:red ~width:2 1.));
+  Alcotest.(check string)
+    "one colour"
+    (want
+       [ Span.styled (Style.fg (Theme.accent Theme.nord)) "\u{2501}\u{2501}" ])
+    (styled Theme.nord (Bar.v ~width:2 1.));
+  Alcotest.(check string)
+    "plain" "\u{2501}\u{2501}\u{2501}\u{257a}\u{2501}\u{2501}"
+    (in_theme Theme.rainbow (Bar.v ~width:6 0.5))
+
 let test_span_invalid () =
   Alcotest.check_raises "v width"
     (Invalid_argument "Console.Bar.v: negative width") (fun () ->
@@ -132,5 +174,6 @@ let suite =
       Alcotest.test_case "v styles" `Quick test_v_styles;
       Alcotest.test_case "ASCII" `Quick test_ascii;
       Alcotest.test_case "glyphs of the theme" `Quick test_theme_glyphs;
+      Alcotest.test_case "a palette along the bar" `Quick test_palette;
       Alcotest.test_case "span invalid" `Quick test_span_invalid;
     ] )
