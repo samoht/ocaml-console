@@ -122,24 +122,6 @@ let gradient ?(colors = []) s =
   concat ~sep:(atom Style.none "\n")
     (List.map line (String.split_on_char '\n' (clean s)))
 
-(* {1 Roles} *)
-
-let role_style theme = function
-  | `Accent -> Style.fg (Theme.accent theme)
-  | `Ok -> Style.fg (Theme.ok theme)
-  | `Warn -> Style.fg (Theme.warn theme)
-  | `Fail -> Style.fg (Theme.fail theme)
-  | `Muted -> Style.fg (Theme.muted theme)
-  | `Header -> Theme.header theme
-
-(* Each line is a part of its own: {!lines} splits text, not a drawing. *)
-let role r s =
-  let line text =
-    drawn (fun look -> atom (role_style look.Look.theme r) text)
-  in
-  concat ~sep:(atom Style.none "\n")
-    (List.map line (String.split_on_char '\n' (clean s)))
-
 (* {1 Lines} *)
 
 let lines t =
@@ -168,6 +150,26 @@ let lines t =
 let unlines = function
   | [] -> empty
   | l :: ls -> List.concat (l :: List.map (fun l -> text "\n" @ l) ls)
+
+(* {1 Roles} *)
+
+let role_style theme = function
+  | `Accent -> Style.fg (Theme.accent theme)
+  | `Ok -> Style.fg (Theme.ok theme)
+  | `Warn -> Style.fg (Theme.warn theme)
+  | `Fail -> Style.fg (Theme.fail theme)
+  | `Muted -> Style.fg (Theme.muted theme)
+  | `Header -> Theme.header theme
+
+(* Each line is a part of its own: {!lines} splits text, not a drawing. *)
+let with_role r t =
+  unlines
+    (List.map
+       (fun line ->
+         drawn (fun look -> with_style (role_style look.Look.theme r) line))
+       (lines t))
+
+let role r s = with_role r (text s)
 
 (* {1 Layout}
 

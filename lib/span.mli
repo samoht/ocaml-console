@@ -52,7 +52,14 @@ val role : Theme.role -> string -> t
     as [s], printed in colours at the formatter's {!Color.val-depth} and as the
     text of [s] without colour; {!to_string} styles it in {!Theme.default}.
     {!with_style} adds a style under it, as
-    [with_style Style.bold (role `Ok "passed")] makes it bold. *)
+    [with_style Style.bold (role `Ok "passed")] makes it bold. It is
+    [with_role r (text s)]. *)
+
+val with_role : Theme.role -> t -> t
+(** [with_role r s] is [s] with the part [r] of the theme of the formatter it is
+    printed on under each of its styles, as {!with_style} lays a style:
+    [with_role `Ok (link ~uri "report")] is a link in the success colour, and a
+    part of [s] in a colour of its own keeps it. *)
 
 val gradient : ?colors:Color.t list -> string -> t
 (** [gradient ~colors s] is [s] in colours graded along each of its lines: each

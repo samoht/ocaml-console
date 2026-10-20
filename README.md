@@ -289,7 +289,9 @@ the main colour, the colours of success, warning and failure, the marks,
 the frame style and how it moves, the lines of a tree, the bars and the
 spinner. Text takes one of these colours, or the header style, with
 ``Span.role `Ok "passed"``, from the theme of the formatter it is printed
-on. `Theme.all` names the eighteen themes, so a `--theme` option is one
+on: the roles are `` `Accent ``, `` `Ok ``, `` `Warn ``, `` `Fail ``,
+`` `Muted `` and `` `Header ``, and `Span.with_role` lays one under any
+span, a link say. `Theme.all` names the eighteen themes, so a `--theme` option is one
 line of [Cmdliner](https://erratique.ch/software/cmdliner):
 
 ```ocaml

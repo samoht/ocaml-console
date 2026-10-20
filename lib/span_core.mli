@@ -31,6 +31,9 @@ val gradient : ?colors:Color.t list -> string -> t
 val role : Theme.role -> string -> t
 (** See {!Span.role}. *)
 
+val with_role : Theme.role -> t -> t
+(** See {!Span.with_role}. *)
+
 val ( ++ ) : t -> t -> t
 (** See {!Span.( ++ )}. *)
 
