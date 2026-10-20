@@ -157,7 +157,10 @@ let test_depth () =
     Buffer.contents buf
   in
   Alcotest.(check string)
-    "true colour by default" "\027[38;2;255;0;0mx\027[0m" (render None);
+    "16 colours by default" "\027[91mx\027[0m" (render None);
+  Alcotest.(check string)
+    "true colour" "\027[38;2;255;0;0mx\027[0m"
+    (render (Some `True_color));
   Alcotest.(check string)
     "256 colours" "\027[38;5;196mx\027[0m" (render (Some `Ansi_256));
   Alcotest.(check string)

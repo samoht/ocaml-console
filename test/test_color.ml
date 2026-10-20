@@ -90,19 +90,20 @@ let depth =
         | `True_color -> "true colour"))
     ( = )
 
-(* A formatter keeps its own depth, true colour until it is set. *)
+(* A formatter keeps its own depth, 16 colours until it is set: the colours
+   every terminal shows. *)
 let test_formatter_depth () =
   let a = Format.formatter_of_buffer (Buffer.create 1) in
   let b = Format.formatter_of_buffer (Buffer.create 1) in
-  Alcotest.check depth "default" `True_color (Color.depth a);
+  Alcotest.check depth "default" `Ansi_16 (Color.depth a);
   Color.set_depth a `Ansi_256;
   Fmt.set_style_renderer a `Ansi_tty;
   Alcotest.check depth "set" `Ansi_256 (Color.depth a);
   Alcotest.check depth "kept across Fmt's own settings" `Ansi_256
     (Color.depth a);
-  Color.set_depth a `Ansi_16;
-  Alcotest.check depth "set again" `Ansi_16 (Color.depth a);
-  Alcotest.check depth "another formatter" `True_color (Color.depth b)
+  Color.set_depth a `True_color;
+  Alcotest.check depth "set again" `True_color (Color.depth a);
+  Alcotest.check depth "another formatter" `Ansi_16 (Color.depth b)
 
 (* xterm-256 entries whose RGB values are the palette's own: the cube, the grey
    ramp, and a colour nearer a grey than any cube entry. *)
