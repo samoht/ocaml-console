@@ -387,7 +387,9 @@ let test_output_exception s cancel =
            (fun () ->
              Fmt.pf ppf "%s" partial;
              raise Exit)
-           ~finally:(fun () -> t.in_output := false))
+           ~finally:(fun () ->
+             Format.pp_print_flush ppf ();
+             t.in_output := false))
    with
   | _ -> fail "callback exception swallowed"
   | exception Exit -> ());

@@ -13,14 +13,22 @@ let show_cursor = "\027[?25h"
    carriage return then goes to the first column. *)
 let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
-(* Everything the display writes goes out in one piece per operation, so a
-   terminal never shows a region half erased or half drawn. A write error
-   (a closed pipe) is the end of the output, not of the program. *)
+(* Everything the display writes goes out in one piece per operation, on a
+   terminal as one synchronized update (mode 2026), so that a terminal never
+   shows a region half erased or half drawn. A write error (a closed pipe)
+   is the end of the output, not of the program. *)
+let synchronized t s =
+  if is_live t then "\027[?2026h" ^ s ^ "\027[?2026l" else s
+
 let write t s =
   if s <> "" then
     try
       Format.pp_print_flush t.ppf ();
-      let s = if t.partial && not (is_live t) then "\n" ^ s else s in
+      let s =
+        if is_live t then synchronized t s
+        else if t.partial then "\n" ^ s
+        else s
+      in
       let out = Format.pp_get_formatter_out_functions t.ppf () in
       out.out_string s 0 (String.length s);
       out.out_flush ()

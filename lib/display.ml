@@ -113,7 +113,7 @@ let end_line t (out : Format.formatter_out_functions) last =
   try
     Format.pp_print_flush t.ppf ();
     if !last <> '\n' then begin
-      let eol = Display_region.eol t in
+      let eol = Display_region.(synchronized t (eol t)) in
       out.out_string eol 0 (String.length eol);
       out.out_flush ()
     end

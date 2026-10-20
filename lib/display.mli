@@ -37,9 +37,10 @@
       and the region is never taller than [h - 1] lines;
     - the region starts at the first column of a row of its own, below a line
       the program left unended before the display started;
-    - each change is written in one piece: the region is never shown half erased
-      or half drawn, and only the region's rows change between two of its
-      frames;
+    - each change is written in one piece, as one synchronized update (mode
+      2026) that a terminal supporting it shows whole: the region is never shown
+      half erased or half drawn, and only the region's rows change between two
+      of its frames; on a pipe no such escape is written;
     - a redraw that would change nothing writes nothing;
     - a label cut to fit is cut between two characters, never inside an escape
       code, ends with an ellipsis and turns its style off;

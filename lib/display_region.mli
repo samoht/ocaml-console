@@ -19,9 +19,13 @@ val fresh_row : t -> string
     of a blank row: the row it is on if that is the first column, the next one
     otherwise. *)
 
+val synchronized : t -> string -> string
+(** [synchronized t s] is [s] as one synchronized update (mode 2026) on a
+    terminal, and [s] otherwise. *)
+
 val write : t -> string -> unit
-(** [write t s] writes [s] on [t]'s output and flushes it, a write error ending
-    the output rather than the program. *)
+(** [write t s] writes [s] on [t]'s output and flushes it, {!synchronized}, a
+    write error ending the output rather than the program. *)
 
 val eol : t -> string
 (** [eol t] is the line end [t] writes: ["\r\n"] on a terminal, ["\n"]
