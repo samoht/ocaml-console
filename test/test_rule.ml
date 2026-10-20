@@ -34,6 +34,24 @@ let test_long_label_is_cut () =
     "cut to the margin" "lo…"
     (at 3 (Rule.v ~label:(Span.text "long") ()))
 
+(* [to_string] draws a rule as [pp] does at a margin of [width], in
+   {!Theme.default} and UTF-8. *)
+let test_to_string () =
+  let rule = Rule.v ~label:(Span.text "Build") () in
+  Alcotest.(check string)
+    "plain"
+    "\u{2500}\u{2500}\u{2500}\u{2500} Build \u{2500}\u{2500}\u{2500}\u{2500}"
+    (Rule.to_string ~width:15 rule);
+  Alcotest.(check string)
+    "as pp"
+    (at 15 (Rule.v ~glyph:"=" ()))
+    (Rule.to_string ~width:15 (Rule.v ~glyph:"=" ()));
+  Alcotest.(check string) "no room" "" (Rule.to_string ~width:0 rule);
+  let styled = Rule.to_string ~styled:true ~width:5 (Rule.v ()) in
+  Alcotest.(check bool)
+    "in the theme's muted colour" true
+    (String.starts_with ~prefix:"\027[" styled)
+
 let test_invalid () =
   Alcotest.check_raises "wide glyph"
     (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
@@ -45,6 +63,7 @@ let test_invalid () =
 let suite =
   ( "rule",
     [
+      Alcotest.test_case "to_string" `Quick test_to_string;
       Alcotest.test_case "plain" `Quick test_plain;
       Alcotest.test_case "label" `Quick test_label;
       Alcotest.test_case "long label is cut" `Quick test_long_label_is_cut;
