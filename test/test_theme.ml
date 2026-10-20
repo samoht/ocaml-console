@@ -384,6 +384,128 @@ let test_ascii_fallback () =
     (printed ~utf_8:false ~margin:11 Rule.pp
        (Rule.v ~align:`Left ~label:long ()))
 
+(* {1 Motion} *)
+
+(* matrix's frames rain, rainbow's sweep its colours round and the themes of
+   colour schemes shimmer in their main colour; the others stand still. *)
+let test_motion () =
+  List.iter
+    (fun (name, t) ->
+      let want =
+        match name with
+        | "default" | "ascii" | "dos" -> None
+        | "matrix" -> Some `Rain
+        | "rainbow" -> Some `Sweep
+        | _ -> Some `Shimmer
+      in
+      if Theme.motion t <> want then Alcotest.failf "%s: the wrong motion" name)
+    presets;
+  Alcotest.(check bool) "v: none" true (Theme.motion (Theme.v ()) = None);
+  Alcotest.(check bool)
+    "v: the one given" true
+    (Theme.motion (Theme.v ~motion:`Sweep ()) = Some `Sweep)
+
+(* [still] keeps a theme's look and stops what moves: its frames and its
+   spinner. *)
+let test_still () =
+  let t = Theme.still Theme.matrix in
+  Alcotest.(check bool) "no motion" true (Theme.motion t = None);
+  Alcotest.(check string) "its name" "matrix" (Theme.name t);
+  Alcotest.(check bool)
+    "its colours" true
+    (Color.equal (Theme.accent t) (Theme.accent Theme.matrix));
+  let frame elapsed = Spinner.frame (Theme.spinner t) ~elapsed in
+  Alcotest.(check (list string))
+    "a spinner that does not turn"
+    [ frame 0.; frame 0. ]
+    [ frame 0.1; frame 0.55 ]
+
+(* Printed on a formatter, a frame is still: the bytes of the theme without
+   motion, in colour too. *)
+let test_still_printed () =
+  let table =
+    Table.v
+      [ Table.column "a"; Table.column "b" ]
+      [ [ Span.text "1"; Span.text "2" ] ]
+  in
+  let panel = Panel.v ~title:(Span.text "T") (Span.text "body") in
+  List.iter
+    (fun (name, t) ->
+      let still = Theme.still t in
+      Alcotest.(check string)
+        (name ^ " table")
+        (printed ~theme:still ~styled:true Table.pp table)
+        (printed ~theme:t ~styled:true Table.pp table);
+      Alcotest.(check string)
+        (name ^ " panel")
+        (printed ~theme:still ~styled:true Panel.pp panel)
+        (printed ~theme:t ~styled:true Panel.pp panel))
+    presets
+
+(* The cells of the frame of a table drawn in a live display in [theme], as
+   (glyph, colour) pairs, at each of [times] seconds. *)
+let frames theme times =
+  let term = terminal ~theme ~styled:true ~width:40 ~height:12 () in
+  let table =
+    Table.v
+      [ Table.column "step"; Table.column ~align:`Right "time" ]
+      [ [ Span.text "fetch"; Span.text "1.2s" ] ]
+  in
+  Display.set_scene term.display (fun ~height:_ ppf -> Table.pp ppf table);
+  let now = ref 0. in
+  List.map
+    (fun time ->
+      term.advance (time -. !now);
+      now := time;
+      Display.redraw term.display;
+      let rows = screen term in
+      let height = 5 and width = Width.string_width (List.hd rows) in
+      let grid = Vte.grid term.vte in
+      let cell x y =
+        let i = Grid.idx grid ~x ~y in
+        let c f = int_of_float (Float.round (f grid i *. 255.)) in
+        ( Grid.get_text grid i,
+          Color.rgb (c Grid.get_fg_r) (c Grid.get_fg_g) (c Grid.get_fg_b) )
+      in
+      List.concat
+        (List.init height (fun y ->
+             if y = 0 || y = height - 1 then List.init width (fun x -> cell x y)
+             else [ cell 0 y; cell (width - 1) y ])))
+    times
+
+let same_frame f0 f1 =
+  List.for_all2 (fun (g0, c0) (g1, c1) -> g0 = g1 && Color.equal c0 c1) f0 f1
+
+(* Every frame of a theme with motion is drawn in colours at 3:1 or more on
+   its background, as a glyph is, and the frames change; a theme without
+   motion draws the same frame at every time. *)
+let test_frame_contrast () =
+  let times = List.init 40 (fun i -> float_of_int i *. 0.1) in
+  List.iter
+    (fun (name, t) ->
+      let frames = frames t times in
+      let first = List.hd frames in
+      let moves = List.exists (fun f -> not (same_frame first f)) frames in
+      if moves <> Option.is_some (Theme.motion t) then
+        Alcotest.failf "%s: %s" name
+          (if moves then "a still theme moves" else "its frame does not move");
+      let backgrounds =
+        match Theme.background t with
+        | Some bg -> [ bg ]
+        | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
+      in
+      List.iter
+        (List.iter (fun (glyph, c) ->
+             List.iter
+               (fun bg ->
+                 let ratio = contrast c bg in
+                 if ratio < 3. then
+                   Alcotest.failf "%s: %S in %a on %a is %.2f:1" name glyph
+                     Color.pp c Color.pp bg ratio)
+               backgrounds))
+        frames)
+    presets
+
 let suite =
   ( "theme",
     [
@@ -401,4 +523,8 @@ let suite =
       Alcotest.test_case "header" `Quick test_header;
       Alcotest.test_case "roles" `Quick test_roles;
       Alcotest.test_case "contrast" `Quick test_contrast;
+      Alcotest.test_case "motion" `Quick test_motion;
+      Alcotest.test_case "still" `Quick test_still;
+      Alcotest.test_case "printed still" `Quick test_still_printed;
+      Alcotest.test_case "every frame in contrast" `Quick test_frame_contrast;
     ] )

@@ -154,7 +154,7 @@ let check_screen t =
       Fmt.(list ~sep:cut string)
       rows
 
-let terminal ?(prefix = "") ~width ~height ~styled () =
+let terminal ?(prefix = "") ?theme ~width ~height ~styled () =
   let t =
     {
       vte = Vte.create ~rows:height ~cols:width ();
@@ -185,6 +185,7 @@ let terminal ?(prefix = "") ~width ~height ~styled () =
   Vte.feed_string t.vte prefix;
   let ppf = Format.make_formatter (Buffer.add_substring chunk) out_flush in
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
+  Option.iter (Theme.set ppf) theme;
   t.display <-
     Some
       (Display.v ~header
@@ -613,6 +614,146 @@ let test_marker_counts n l h =
   | None -> if budget >= 3 then check_eq ~pp:Fmt.int total (shown - 1));
   Display.close d
 
+(* {1 Scenes} *)
+
+let themes = Array.of_list (List.map snd Theme.all)
+let pick_theme n = themes.(n mod Array.length themes)
+
+let border_glyphs =
+  List.concat_map
+    (fun b ->
+      let c = Border.chars b in
+      [
+        c.top_left;
+        c.top;
+        c.top_right;
+        c.left;
+        c.right;
+        c.bottom_left;
+        c.bottom;
+        c.bottom_right;
+        c.cross;
+        c.top_cross;
+        c.bottom_cross;
+        c.left_cross;
+        c.right_cross;
+      ])
+    Border.[ ascii; single; rounded; double; heavy ]
+
+let clusters s =
+  let l = ref [] in
+  Glyph.String.iter_graphemes
+    (fun ~offset ~len -> l := String.sub s offset len :: !l)
+    s;
+  List.rev !l
+
+(* A table of [cells] from [labels], or a panel with them as its title and
+   its lines. *)
+let widget kind cells =
+  let cells = List.filteri (fun i _ -> i < 4) cells in
+  let cells = List.map (fun c -> Span.text (label c)) cells in
+  let cells = if cells = [] then [ Span.text "x" ] else cells in
+  if kind then fun ppf ->
+    Table.pp ppf
+      (Table.v
+         [ Table.column "a"; Table.column ~align:`Right "b" ]
+         (List.map (fun c -> [ c; c ]) cells))
+  else fun ppf ->
+    Panel.pp ppf
+      (Panel.v ~title:(List.hd cells) (Span.concat ~sep:(Span.text "\n") cells))
+
+(* The rows above the header, at each of [times] in tenths of a second. *)
+let scene_frames theme ~width pp times =
+  let t = terminal ~theme ~width ~height:600 ~styled:true () in
+  let d = display t in
+  Display.set_scene d (fun ~height:_ ppf -> pp ppf);
+  let frames =
+    List.map
+      (fun dt ->
+        t.time := !(t.time) +. (Float.of_int dt /. 10.);
+        Display.redraw d;
+        let rec above = function
+          | [] -> []
+          | r :: rs -> if has header r then [] else r :: above rs
+        in
+        above (screen t.vte))
+      times
+  in
+  Display.close d;
+  frames
+
+(* In every frame of a scene in a theme with motion, only border glyphs
+   differ from the theme without motion, each from a glyph as wide: every
+   line keeps its width and every cell its place. The theme without motion
+   draws the same frame at every time: the table as Fmt prints it. *)
+let test_scene_frames kind cells n w times =
+  let theme = pick_theme n and width = 8 + (w mod 113) in
+  let pp = widget kind cells in
+  let times = 0 :: times in
+  let moving = scene_frames theme ~width pp times in
+  let still = scene_frames (Theme.still theme) ~width pp times in
+  (* As the same emulator shows it. *)
+  let printed =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Format.pp_set_margin ppf (min width 100);
+    pp ppf;
+    Format.pp_print_flush ppf ();
+    let vte = Vte.create ~rows:600 ~cols:width () in
+    Vte.feed_string vte
+      (String.concat "\r\n" (String.split_on_char '\n' (Buffer.contents buf)));
+    List.filter (( <> ) "") (screen vte)
+  in
+  List.iter (fun rows -> check_eq ~pp:Fmt.(Dump.list string) printed rows) still;
+  List.iter2
+    (fun moving still ->
+      if List.length moving <> List.length still then
+        failf "%d rows moving, %d still" (List.length moving)
+          (List.length still);
+      List.iter2
+        (fun m s ->
+          let a = clusters m and b = clusters s in
+          if List.length a <> List.length b then failf "%S moved to %S" s m;
+          List.iter2
+            (fun a b ->
+              if
+                a <> b
+                && not
+                     (List.mem b border_glyphs
+                     && Width.string_width a = Width.string_width b)
+              then failf "%S moved to %S" s m)
+            a b)
+        moving still)
+    moving still
+
+(* A scene is never drawn on a pipe, and a widget printed on a formatter is
+   still, in colour too: the bytes of its theme without motion. *)
+let test_scene_pipe kind cells n m =
+  let theme = pick_theme n in
+  let pp = widget kind cells in
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  let d = Display.v ~header ~now:(fun () -> 1.5) ppf in
+  Display.set_scene d (fun ~height:_ ppf -> Fmt.string ppf "SCENE_SENTINEL");
+  Display.succeed (Display.task d "t");
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  if has "SCENE_SENTINEL" (Buffer.contents buf) then fail "a scene on a pipe";
+  let printed theme =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color;
+    Format.pp_set_margin ppf (4 + (m mod 100));
+    pp ppf;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
+
 let suite =
   ( "display",
     [
@@ -635,4 +776,10 @@ let suite =
       test_case "plain output" [ list op ] test_plain;
       test_case "the marker counts what the region hides"
         [ uint8; uint8; uint8 ] test_marker_counts;
+      test_case "a scene's frames move only its border"
+        [ bool; list uint8; uint8; uint8; list uint8 ]
+        test_scene_frames;
+      test_case "a scene is still off a live display"
+        [ bool; list uint8; uint8; uint8 ]
+        test_scene_pipe;
     ] )

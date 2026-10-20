@@ -532,6 +532,179 @@ let test_synchronized () =
   let (), out = plain (fun d _ -> Display.succeed (Display.task d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
 
+(* {1 Scenes} *)
+
+let steps =
+  Table.v
+    [ Table.column "step"; Table.column ~align:`Right "time" ]
+    [
+      [ Span.text "fetch"; Span.text "1.2s" ];
+      [ Span.text "compile"; Span.text "3.4s" ];
+    ]
+
+(* [pp v] printed on a formatter in [theme], at [margin]. *)
+let printed ?(theme = theme) ~margin pp v =
+  let buf = Buffer.create 128 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Format.pp_set_margin ppf margin;
+  pp ppf v;
+  Format.pp_print_flush ppf ();
+  String.split_on_char '\n' (Buffer.contents buf)
+
+(* A scene is what its printer prints, drawn above the header in the
+   display's theme, at the width of the rows; it is given the lines the
+   header and the rows leave. *)
+let test_scene () =
+  let t = terminal ~theme ~width:40 ~height:12 ~header:"Build" () in
+  let heights = ref [] in
+  Display.set_scene t.display (fun ~height ppf ->
+      heights := height :: !heights;
+      Table.pp ppf steps);
+  ignore (Display.task t.display "compile");
+  Display.redraw t.display;
+  let table = printed ~margin:40 Table.pp steps in
+  let rows = screen t in
+  let n = List.length table in
+  check_lines "the table first" table (List.filteri (fun i _ -> i < n) rows);
+  Alcotest.(check bool)
+    "the header" true
+    (contains "[-] Build" (List.nth rows n));
+  Alcotest.(check bool)
+    "the row" true
+    (contains "compile" (List.nth rows (n + 1)));
+  Alcotest.(check int) "the room left" 9 (List.hd !heights)
+
+(* A scene line wider than the rows is cut, and a scene taller than the room
+   loses its last lines; the rows keep their place. *)
+let test_scene_fits () =
+  let t = terminal ~theme ~width:20 ~height:6 ~header:"Build" () in
+  Display.set_scene t.display (fun ~height:_ ppf ->
+      Fmt.pf ppf "a scene line much wider than twenty@\nb@\nc@\nd@\ne@\nf");
+  ignore (Display.task t.display "compile");
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check int) "within the screen less one" 5 (List.length rows);
+  Alcotest.(check string) "cut" "a scene line much w\u{2026}" (List.nth rows 0);
+  check_lines "the first lines" [ "b"; "c" ]
+    [ List.nth rows 1; List.nth rows 2 ];
+  Alcotest.(check bool)
+    "the header" true
+    (contains "[-] Build" (List.nth rows 3));
+  Alcotest.(check bool) "the row" true (contains "compile" (List.nth rows 4))
+
+(* On a wide terminal a scene is as wide as the rows: 100 columns. *)
+let test_scene_width () =
+  let t = terminal ~theme ~width:160 () in
+  let margin = ref 0 in
+  Display.set_scene t.display (fun ~height:_ ppf ->
+      margin := Format.pp_get_margin ppf ());
+  Display.redraw t.display;
+  Alcotest.(check int) "the margin" 100 !margin
+
+(* A scene replaces the one before; the display's formatter keeps its own
+   margin. *)
+let test_scene_replaced () =
+  let t = terminal ~theme ~width:30 () in
+  Display.set_scene t.display (fun ~height:_ ppf -> Fmt.string ppf "first");
+  Display.redraw t.display;
+  Display.set_scene t.display (fun ~height:_ ppf -> Fmt.string ppf "second");
+  Display.redraw t.display;
+  check_lines "the second scene" [ "second" ] (screen t);
+  Display.close t.display;
+  check_lines "nothing left once closed" [] (lines t);
+  check_invalid "Console.Display.set_scene: closed display" (fun () ->
+      Display.set_scene t.display (fun ~height:_ _ -> ()))
+
+(* Without a terminal a scene is never drawn. *)
+let test_scene_plain () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        Display.set_scene d (fun ~height:_ ppf -> Table.pp ppf steps);
+        Display.succeed (Display.task d "compile"))
+  in
+  Alcotest.(check bool) "no scene" false (contains "fetch" out)
+
+let border_glyphs =
+  List.concat_map
+    (fun b ->
+      let c = Border.chars b in
+      [
+        c.top_left;
+        c.top;
+        c.top_right;
+        c.left;
+        c.right;
+        c.bottom_left;
+        c.bottom;
+        c.bottom_right;
+        c.cross;
+        c.top_cross;
+        c.bottom_cross;
+        c.left_cross;
+        c.right_cross;
+      ])
+    Border.[ ascii; single; rounded; double; heavy ]
+
+let clusters s =
+  let l = ref [] in
+  Glyph.String.iter_graphemes
+    (fun ~offset ~len -> l := String.sub s offset len :: !l)
+    s;
+  List.rev !l
+
+(* A table's frame moves in a live display drawn in a theme with motion:
+   from one frame to the next, only its border cells change, each to a glyph
+   as wide, so that every line keeps its width and its cells their place. *)
+let test_scene_moves () =
+  let run theme ~styled =
+    let t = terminal ~theme ~styled ~width:40 ~height:12 () in
+    Display.set_scene t.display (fun ~height:_ ppf -> Table.pp ppf steps);
+    Display.redraw t.display;
+    let frames =
+      List.init 12 (fun _ ->
+          let before = List.length !(t.chunks) in
+          t.advance 0.25;
+          Display.redraw t.display;
+          (List.length !(t.chunks) > before, screen t))
+    in
+    Display.close t.display;
+    frames
+  in
+  let still = printed ~theme:Theme.matrix ~margin:40 Table.pp steps in
+  let frames = run Theme.matrix ~styled:true in
+  Alcotest.(check bool)
+    "frames are drawn" true
+    (List.exists (fun (wrote, _) -> wrote) frames);
+  List.iter
+    (fun (_, rows) ->
+      List.iteri
+        (fun i (still, row) ->
+          let a = clusters still and b = clusters row in
+          if List.length a <> List.length b then
+            Alcotest.failf "row %d: %S became %S" i still row;
+          List.iter2
+            (fun a b ->
+              if
+                a <> b
+                && not
+                     (List.mem a border_glyphs
+                     && Width.string_width a = Width.string_width b)
+              then Alcotest.failf "row %d: %S became %S" i still row)
+            a b)
+        (List.combine still
+           (List.filteri (fun i _ -> i < List.length still) rows)))
+    frames;
+  let unmoved frames =
+    List.for_all (fun (wrote, rows) -> (not wrote) && rows = still) frames
+  in
+  Alcotest.(check bool)
+    "still without colour" true
+    (unmoved (run Theme.matrix ~styled:false));
+  Alcotest.(check bool)
+    "still once stilled" true
+    (unmoved (run (Theme.still Theme.matrix) ~styled:true))
+
 let suite =
   ( "display",
     [
@@ -566,4 +739,10 @@ let suite =
       Alcotest.test_case "large counts" `Quick test_large_counts;
       Alcotest.test_case "invalid" `Quick test_invalid;
       Alcotest.test_case "colours" `Quick test_colours;
+      Alcotest.test_case "scene" `Quick test_scene;
+      Alcotest.test_case "scene fits" `Quick test_scene_fits;
+      Alcotest.test_case "scene width" `Quick test_scene_width;
+      Alcotest.test_case "scene replaced" `Quick test_scene_replaced;
+      Alcotest.test_case "scene on a pipe" `Quick test_scene_plain;
+      Alcotest.test_case "scene moves" `Quick test_scene_moves;
     ] )
