@@ -108,9 +108,50 @@ let test_insert_cluster k n split =
     (Console_vte.to_string actual);
   check (cursor = Console_vte.cursor_pos actual)
 
+(* A password mask counts clusters rather than their codepoints, including
+   when a multibyte character arrives one byte at a time. *)
+let test_masked_clusters data split =
+  let clusters =
+    [|
+      "a";
+      "e\u{0301}";
+      "\u{754c}";
+      "\u{2764}\u{fe0f}";
+      "\u{1f469}\u{200d}\u{1f4bb}";
+      "\u{1f44d}\u{1f3fd}";
+      "\u{1f1eb}\u{1f1f7}";
+      "a\u{093f}";
+    |]
+  in
+  let count = min 32 (String.length data) in
+  let secret =
+    String.concat ""
+      (List.init count (fun i ->
+           clusters.(Char.code data.[i] mod Array.length clusters)))
+  in
+  let editor = Console_input.v ~mask:"*" () in
+  let echo = Buffer.create 64 in
+  let feed input =
+    let out, lines = Console_input.feed editor input in
+    check (lines = []);
+    Buffer.add_string echo out
+  in
+  if split then String.iter (fun c -> feed (String.make 1 c)) secret
+  else feed secret;
+  check_eq ~pp:Fmt.Dump.string (String.make count '*') (Buffer.contents echo);
+  check_eq ~pp:Fmt.Dump.string secret (Console_input.pending editor);
+  let out, lines = Console_input.feed editor "\r" in
+  check_eq ~pp:Fmt.Dump.string "\r\n" out;
+  check_eq
+    ~pp:Fmt.(Dump.list Dump.string)
+    ~eq:(List.equal String.equal) [ secret ] lines;
+  check (Console_input.history editor = [])
+
 let suite =
   ( "input",
     [
+      test_case "passwords echo one mask per grapheme cluster" [ bytes; bool ]
+        test_masked_clusters;
       test_case "inserting a cluster redraws its suffix" [ uint8; uint8; bool ]
         test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
