@@ -113,6 +113,18 @@ let test_truecolour_reset () =
     "red must not leak into subsequent output" (input ^ "\027[0m")
     (Console_text.sanitize_styles input)
 
+(* 8.3.117: 38, 48 and 58 take their colour as the parameters after them. A
+   head with too few of them is no reset, so what came before it is still on
+   and is turned off at the end. *)
+let test_truncated_colour () =
+  List.iter
+    (fun tail ->
+      let input = "\027[31mred" ^ tail in
+      Alcotest.(check string)
+        (String.escaped tail) (input ^ "\027[0m")
+        (Console_text.sanitize_styles input))
+    [ "\027[38;0m"; "\027[38;2;0;0m"; "\027[48;2;255;0m"; "\027[58;5m" ]
+
 (* Characters that reorder or hide the text around them are removed: the
    bidirectional embeddings, overrides, isolates and marks, and the
    interlinear annotation characters. *)
@@ -157,6 +169,8 @@ let suite =
       Alcotest.test_case "reordering characters" `Quick test_reordering;
       Alcotest.test_case "truecolour is reset after text" `Quick
         test_truecolour_reset;
+      Alcotest.test_case "a truncated colour is no reset" `Quick
+        test_truncated_colour;
       Alcotest.test_case "strip" `Quick test_strip;
       Alcotest.test_case "strip leaves no control" `Quick
         test_strip_leaves_no_control;
