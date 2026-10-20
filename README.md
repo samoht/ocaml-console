@@ -160,15 +160,16 @@ A table is as wide as its content needs, unless you give it a `~width`:
 
 ```ocaml
 open Console
+open Span
 
 let print_files () =
   let table = Table.(
     v ~border:Border.rounded
       [ column "Name"; column ~align:`Right "Size"; column "Modified" ]
       [
-        [ Span.text "README.md"; Span.text "2.4K"; Span.text "2 hours ago" ];
-        [ Span.text "src/"; Span.text "4.0K"; Span.text "yesterday" ];
-        [ Span.text "Makefile"; Span.text "892"; Span.text "3 days ago" ];
+        [ text "README.md"; text "2.4K"; text "2 hours ago" ];
+        [ text "src/"; text "4.0K"; text "yesterday" ];
+        [ text "Makefile"; text "892"; text "3 days ago" ];
       ]
   ) in
   Fmt.pr "%a@." Table.pp table
