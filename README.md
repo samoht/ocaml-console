@@ -531,8 +531,12 @@ bytes and writes the echo back:
 ```
 
 The `console.text` library has one module, `Console_text`, which makes text
-you do not trust safe to print: it removes escape codes, control characters
-and the characters that reorder text, without the rest of console:
+you do not trust safe to print, without the rest of console. `strip` gives
+the text a terminal would show, each escape code removed whole
+(`~keep_styles:true` keeps those that only set colours, to relay a tool's
+coloured output); `sanitize` keeps every byte in sight, an escape code
+printed as text, to show what was received. Neither leaves a control
+character a terminal acts on, nor a character that reorders text:
 
 ```ocaml
 # Console_text.strip "\027[31mred\027[0m and \027]0;title\007plain";;

@@ -150,7 +150,7 @@ let test_truecolour_reset () =
   let input = "\027[38;2;255;0;0mX" in
   Alcotest.(check string)
     "red must not leak into subsequent output" (input ^ "\027[0m")
-    (Console_text.sanitize_styles input)
+    (Console_text.strip ~keep_styles:true input)
 
 (* 8.3.117: 38, 48 and 58 take their colour as the parameters after them. A
    head with too few of them is no reset, so what came before it is still on
@@ -161,7 +161,7 @@ let test_truncated_colour () =
       let input = "\027[31mred" ^ tail in
       Alcotest.(check string)
         (String.escaped tail) (input ^ "\027[0m")
-        (Console_text.sanitize_styles input))
+        (Console_text.strip ~keep_styles:true input))
     [ "\027[38;0m"; "\027[38;2;0;0m"; "\027[48;2;255;0m"; "\027[58;5m" ]
 
 (* A line ends at a line feed, a carriage return, or the two together, which
@@ -188,7 +188,9 @@ let test_line_ends () =
     (Console_text.strip ~keep_newlines:false)
     "a\u{0085}b";
   check "sanitize, CR LF" "a\nb" Console_text.sanitize "a\r\nb";
-  check "sanitize_styles, CR LF" "a\nb" Console_text.sanitize_styles "a\r\nb";
+  check "strip ~keep_styles, CR LF" "a\nb"
+    (Console_text.strip ~keep_styles:true)
+    "a\r\nb";
   check "CR LF without keep_newlines" "a b"
     (Console_text.sanitize ~keep_newlines:false)
     "a\r\nb";

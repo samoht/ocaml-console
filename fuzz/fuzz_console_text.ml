@@ -13,7 +13,7 @@ let printable s =
           s)
 
 (* [sanitize] and [strip] give printable UTF-8 and are idempotent; [strip]
-   leaves no escape; [sanitize_styles] leaves nothing on after it: text
+   leaves no escape; [strip ~keep_styles] leaves nothing on after it: text
    printed after it is drawn as it would be on its own. *)
 let test_laws s =
   let san = Console_text.sanitize s and str = Console_text.strip s in
@@ -32,7 +32,7 @@ let test_styles_isolated s =
     let i = Grid.idx g ~x:0 ~y:1 in
     (Grid.get_fg_r g i, Grid.get_fg_g g i, Grid.get_fg_b g i, Grid.get_bg_r g i)
   in
-  let styled = Console_text.sanitize_styles ~keep_newlines:false s in
+  let styled = Console_text.strip ~keep_newlines:false ~keep_styles:true s in
   check (draw styled = draw "")
 
 (* A line ends at LF, VT, FF, at NEL (U+0085, which UTF-8 writes C2 85),
@@ -82,6 +82,6 @@ let suite =
       test_case "one line feed per line end" [ bytes ] test_line_ends;
       test_case "silent controls print nothing" [ bytes; uint8; uint8 ]
         test_silent_discarded;
-      test_case "sanitize_styles leaves nothing on" [ bytes ]
+      test_case "strip ~keep_styles leaves nothing on" [ bytes ]
         test_styles_isolated;
     ] )

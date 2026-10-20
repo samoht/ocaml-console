@@ -50,14 +50,14 @@ let test_sanitize () =
    subset of the parameter bytes ECMA-48 5.4 allows -- the digits and ';' -- so
    the private forms reserved there and the ':' sub-parameter of ITU-T T.416
    are refused rather than forwarded on a guess. *)
-let styles s = Console_text.sanitize_styles s
+let styles s = Console_text.strip ~keep_styles:true s
 
 (* Everything that is not a strictly-parsed SGR is removed, as
    {!Console_text.strip} removes it, and one scanner decides that for both. *)
 let neutralised what s =
   Alcotest.(check string) what (Console_text.strip s) (styles s)
 
-let test_sanitize_styles_passes_sgr () =
+let test_keep_styles_passes_sgr () =
   Alcotest.(check string)
     "a colour and its reset survive byte for byte" "\027[31mred\027[0m"
     (styles "\027[31mred\027[0m");
@@ -73,11 +73,12 @@ let test_sanitize_styles_passes_sgr () =
     (styles "\027[31ma\tb\027[0m");
   Alcotest.(check string)
     "and a newline still goes when it is not wanted" "\027[31ma b\027[0m"
-    (Console_text.sanitize_styles ~keep_newlines:false "\027[31ma\nb\027[0m")
+    (Console_text.strip ~keep_newlines:false ~keep_styles:true
+       "\027[31ma\nb\027[0m")
 
 (* The parameter run is bounded, because an unbounded scan over untrusted bytes
    is a scan whoever wrote the bytes sizes. *)
-let test_sanitize_styles_bounds_the_parameters () =
+let test_keep_styles_bounds_the_parameters () =
   let params n = String.make n '1' in
   Alcotest.(check string)
     "sixty-four parameter bytes are within the bound"
@@ -87,7 +88,7 @@ let test_sanitize_styles_bounds_the_parameters () =
   neutralised "nor does a sequence the string ends in the middle of"
     "tail\027[31"
 
-let test_sanitize_styles_neutralises_the_rest () =
+let test_keep_styles_neutralises_the_rest () =
   neutralised "erase in display moves nothing through" "\027[2Jgone";
   neutralised "nor does cursor position" "\027[10;20Hgone";
   neutralised "nor a private parameter byte, whatever its final byte"
@@ -107,7 +108,7 @@ let test_sanitize_styles_neutralises_the_rest () =
    still keep. SGR parameters apply left to right and 0 turns every attribute
    off, so a last parameter of 0 -- or an empty one, which SGR reads as 0 --
    already leaves the terminal in its default state and nothing is appended. *)
-let test_sanitize_styles_closes_what_it_opens () =
+let test_keep_styles_closes_what_it_opens () =
   Alcotest.(check string)
     "an unterminated colour is closed" "\027[31mred\027[0m"
     (styles "\027[31mred");
@@ -298,12 +299,12 @@ let suite =
       Alcotest.test_case "side by side, shares of the margin" `Quick
         test_hcat_share;
       Alcotest.test_case "sanitize" `Quick test_sanitize;
-      Alcotest.test_case "sanitize_styles passes SGR" `Quick
-        test_sanitize_styles_passes_sgr;
-      Alcotest.test_case "sanitize_styles bounds the parameters" `Quick
-        test_sanitize_styles_bounds_the_parameters;
-      Alcotest.test_case "sanitize_styles neutralises the rest" `Quick
-        test_sanitize_styles_neutralises_the_rest;
-      Alcotest.test_case "sanitize_styles closes what it opens" `Quick
-        test_sanitize_styles_closes_what_it_opens;
+      Alcotest.test_case "strip ~keep_styles passes SGR" `Quick
+        test_keep_styles_passes_sgr;
+      Alcotest.test_case "strip ~keep_styles bounds the parameters" `Quick
+        test_keep_styles_bounds_the_parameters;
+      Alcotest.test_case "strip ~keep_styles neutralises the rest" `Quick
+        test_keep_styles_neutralises_the_rest;
+      Alcotest.test_case "strip ~keep_styles closes what it opens" `Quick
+        test_keep_styles_closes_what_it_opens;
     ] )

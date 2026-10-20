@@ -258,8 +258,5 @@ let rewrite ~keep_newlines ~keep str =
   if open_style then Buffer.add_string buf "\027[0m";
   Buffer.contents buf
 
-let strip ?(keep_newlines = true) str =
-  rewrite ~keep_newlines ~keep:(fun _ -> None) str
-
-let sanitize_styles ?(keep_newlines = true) str =
-  rewrite ~keep_newlines ~keep:sgr str
+let strip ?(keep_newlines = true) ?(keep_styles = false) str =
+  rewrite ~keep_newlines ~keep:(if keep_styles then sgr else fun _ -> None) str
