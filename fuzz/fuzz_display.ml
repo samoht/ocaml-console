@@ -163,12 +163,21 @@ let check_screen t =
       failf "the program's bytes are in the header row: %S" row
   | _ -> ()
 
-(* A frame drawn in place shows what the same frame drawn afresh shows:
-   nothing of the frame before it is left, and nothing of its own erased. *)
+(* A frame drawn in place shows what the same frame drawn afresh shows, down
+   to its last row: nothing of the frame before it is left, and nothing of
+   its own erased. Below the region, rows a program's cursor moves left
+   behind are erased by the fresh draw only. *)
 let check_in_place t =
   let before = screen t.vte in
   Option.iter (fun d -> Display.with_output d ignore) t.display;
   let after = screen t.vte in
+  let rec upto i last = function
+    | [] -> last
+    | r :: rs -> upto (i + 1) (if r = "" then last else i + 1) rs
+  in
+  let n = upto 0 0 after in
+  let before = List.filteri (fun i _ -> i < n) before
+  and after = List.filteri (fun i _ -> i < n) after in
   if before <> after then
     failf "drawn in place:@.%a@.drawn afresh:@.%a"
       Fmt.(list ~sep:cut string)
