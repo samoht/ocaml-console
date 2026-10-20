@@ -207,6 +207,46 @@ let test_linked_unicode_cuts s n =
   Vte.feed_string vte raw;
   check_eq ~pp:Fmt.int (Span.width fitted) (snd (Vte.cursor_pos vte))
 
+(* A gradient is as wide as its text, which it is without colour; in
+   colour, at any depth and in any theme, it is that text and escape codes. *)
+let test_gradient s k =
+  let s = if k land 1 = 0 then text s else s in
+  let colors =
+    match k / 2 mod 4 with
+    | 0 -> None
+    | n ->
+        Some
+          (List.init n (fun i ->
+               if i = 0 then Color.palette k
+               else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
+  in
+  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let g = Span.gradient ?colors s and t = Span.text s in
+  check_eq ~pp:Fmt.int (Span.width t) (Span.width g);
+  check_eq ~pp:Fmt.Dump.string (plain t) (plain g);
+  let printed depth =
+    let buf = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Option.iter
+      (fun depth ->
+        Fmt.set_style_renderer ppf `Ansi_tty;
+        Color.set_depth ppf depth)
+      depth;
+    Span.pp ppf g;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  check_eq ~pp:Fmt.Dump.string (plain t) (printed None);
+  let sgr =
+    Re.compile (Re.seq [ Re.str "\027["; Re.rep (Re.rg '0' ';'); Re.char 'm' ])
+  in
+  List.iter
+    (fun depth ->
+      check_eq ~pp:Fmt.Dump.string (plain t)
+        (Re.replace_string sgr ~by:"" (printed (Some depth))))
+    [ `Ansi_16; `Ansi_256; `True_color ]
+
 let suite =
   ( "span",
     [
@@ -225,4 +265,5 @@ let suite =
       test_case "wrap refuses a non-positive width" [ int ] test_wrap_refuses;
       test_case "link" [ bytes; bytes ] test_link;
       test_case "concat" [ bytes; bytes; bytes ] test_concat;
+      test_case "a gradient is its text, as wide" [ bytes; uint8 ] test_gradient;
     ] )

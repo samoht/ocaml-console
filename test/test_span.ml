@@ -177,6 +177,90 @@ let test_zero_width_blank_lines () =
     "zero width returns empty even for blank lines" ""
     (Span.to_string (Span.truncate 0 (Span.text "\n")))
 
+(* [span] printed on a formatter in [theme] at [depth], in colour iff
+   [depth] is given. *)
+let printed ?(theme = Theme.default) ?depth span =
+  let buf = Buffer.create 16 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Option.iter
+    (fun depth ->
+      Fmt.set_style_renderer ppf `Ansi_tty;
+      Color.set_depth ppf depth)
+    depth;
+  Span.pp ppf span;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+let fg c s = Span.styled (Style.fg c) s
+
+(* Each grapheme cluster of a line takes the blend of the stops at its
+   place, the first cluster the first stop and the last the last one. *)
+let test_gradient () =
+  let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
+  let check what want got =
+    Alcotest.(check string)
+      what
+      (printed ~depth:`True_color want)
+      (printed ~depth:`True_color got)
+  in
+  check "three stops of two colours"
+    Span.(fg red "a" ++ fg (Color.blend red blue 0.5) "b" ++ fg blue "c")
+    (Span.gradient ~colors:[ red; blue ] "abc");
+  let green = Color.rgb 0 255 0 in
+  check "five clusters, three stops"
+    Span.(
+      concat
+        [
+          fg red "a";
+          fg (Color.blend red green 0.5) "b";
+          fg green "c";
+          fg (Color.blend green blue 0.5) "d";
+          fg blue "e";
+        ])
+    (Span.gradient ~colors:[ red; green; blue ] "abcde");
+  check "a cluster is one colour"
+    Span.(fg red "e\u{301}" ++ fg blue "\u{754c}")
+    (Span.gradient ~colors:[ red; blue ] "e\u{301}\u{754c}");
+  check "one colour" (fg red "ab") (Span.gradient ~colors:[ red ] "ab");
+  check "each line its own gradient"
+    Span.(fg red "a" ++ fg blue "b" ++ text "\n" ++ fg red "c" ++ fg blue "d")
+    (Span.gradient ~colors:[ red; blue ] "ab\ncd");
+  Alcotest.(check int)
+    "as wide as its text" 5
+    (Span.width (Span.gradient ~colors:[ red; blue ] "x\u{754c}e\u{301}y"));
+  Alcotest.(check string)
+    "plain without colour" "x\u{754c}y"
+    (printed (Span.gradient ~colors:[ red; blue ] "x\u{754c}y"));
+  Alcotest.(check string)
+    "sanitized" "a b"
+    (Span.to_string (Span.gradient "a\027b"));
+  Alcotest.(check int) "empty" 0 (Span.width (Span.gradient ""))
+
+(* Without colours, a gradient takes the palette of the theme it is printed
+   in, at the formatter's depth. *)
+let test_gradient_theme () =
+  let span = Span.gradient "abcdef" in
+  let palette = Theme.palette Theme.rainbow in
+  let want =
+    Span.concat
+      (List.mapi (fun i c -> fg c (String.make 1 "abcdef".[i])) palette)
+  in
+  List.iter
+    (fun depth ->
+      Alcotest.(check string)
+        "the rainbow's palette"
+        (printed ~theme:Theme.rainbow ~depth want)
+        (printed ~theme:Theme.rainbow ~depth span))
+    [ `Ansi_16; `Ansi_256; `True_color ];
+  Alcotest.(check string)
+    "a theme of one colour"
+    (printed ~depth:`True_color (fg (Theme.accent Theme.default) "abcdef"))
+    (printed ~depth:`True_color span);
+  Alcotest.(check string)
+    "plain without colour" "abcdef"
+    (printed ~theme:Theme.rainbow span)
+
 let suite =
   ( "span",
     [
@@ -201,4 +285,7 @@ let suite =
       Alcotest.test_case "link" `Quick test_link;
       Alcotest.test_case "runs" `Quick test_runs;
       Alcotest.test_case "depth" `Quick test_depth;
+      Alcotest.test_case "gradient" `Quick test_gradient;
+      Alcotest.test_case "gradient in the theme's palette" `Quick
+        test_gradient_theme;
     ] )

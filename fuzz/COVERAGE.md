@@ -15,6 +15,7 @@ Each invariant an interface states, and the Alcobar property that checks it
 | `Span.wrap` | refuses a non-positive width; any bytes | span / wrap refuses a non-positive width; wrap takes any bytes |
 | `Span.link` | refuses an unsafe URI; prints its label alone | span / link |
 | `Span.concat` | `sep` between each two | span / concat |
+| `Span.gradient` | as wide as its text, which it is without colour and, escape codes aside, at every depth and in every theme | span / a gradient is its text, as wide |
 | `Width` (private) | the width is the column a terminal reaches | width / matches the terminal |
 | `Console_text.sanitize`, `strip` | printable result, idempotent, `strip` leaves no escape | console_text / sanitize and strip |
 | `Console_text.sanitize_styles` | leaves no colour on after it | console_text / sanitize_styles leaves nothing on |
