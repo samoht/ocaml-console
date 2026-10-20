@@ -46,6 +46,12 @@ let own ppf =
     (Format.pp_get_formatter_stag_functions ppf ());
   own
 
+(* The cursor of the terminal on [unix], shown or hidden. *)
+let cursor unix visible =
+  let s = if visible then "\027[?25h" else "\027[?25l" in
+  try ignore (Unix.write_substring unix s 0 (String.length s))
+  with Unix.Unix_error _ -> ()
+
 (* The seconds since the display started, on [clock]. *)
 let seconds clock =
   let start = Eio.Time.Mono.now clock in
@@ -69,17 +75,21 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
       match
         match if plain then None else terminal ppf with
         | None ->
-            (Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf, [])
+            ( Console.Display.v ?layout ?header ~scope:Session.scope ~now ppf,
+              [],
+              ignore )
         | Some (fd, unix) ->
             let size () = Terminal.dimensions (Some fd) in
             let display =
               Console.Display.v ?layout ?header ~size ~scope:Session.scope ~now
                 (own ppf)
             in
-            (display, routed unix)
+            (display, routed unix, cursor unix)
       with
-      | display, intercept ->
-          Session.run ~sleep:(Eio.Time.Mono.sleep clock) ~intercept display f
+      | display, intercept, cursor ->
+          Session.run ~cursor
+            ~sleep:(Eio.Time.Mono.sleep clock)
+            ~intercept display f
       | exception e ->
           Session.release ();
           raise e)

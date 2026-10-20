@@ -29,6 +29,7 @@ val with_terminal : (unit -> 'a) -> 'a
     straight out. *)
 
 val run :
+  ?cursor:(bool -> unit) ->
   sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   Console.Display.t ->
@@ -38,5 +39,8 @@ val run :
     fiber's and the program's one, redrawn ten times a second, waiting with
     [sleep], {!Logs} messages and each whole line written on the formatters of
     [intercept] printed above its region, and closed when [f] returns, raises,
-    is cancelled, the program exits or a signal ends it ({!Interrupt}). A
-    {!claim} must be held; it is released. *)
+    is cancelled, the program exits or a signal ends it ({!Interrupt}). While
+    SIGTSTP stops the program, the region is off the screen and the cursor shown
+    with [cursor true] (default does nothing); once continued, [cursor false]
+    hides it and the region is drawn again. A {!claim} must be held; it is
+    released. *)

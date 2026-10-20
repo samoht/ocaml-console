@@ -211,7 +211,15 @@ let animate ~sw ~sleep display =
       in
       loop ())
 
-let run ~sleep ~intercept:formatters display f =
+(* Stopped, the program gives the terminal back as it is without a region,
+   the cursor shown; continued, it hides the cursor and draws the region
+   again. *)
+let suspend ~cursor display stop =
+  Display.with_output display (fun _ ->
+      cursor true;
+      Fun.protect stop ~finally:(fun () -> cursor false))
+
+let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
   Atomic.set running (Some display);
   Fun.protect ~finally:(fun () ->
       restore ();
@@ -232,7 +240,7 @@ let run ~sleep ~intercept:formatters display f =
           Logs.set_reporter previous;
           Eio.Promise.resolve close ())
       @@ fun () ->
-      Interrupt.protect ~restore:(fun () ->
+      Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
           Display.close ~running:`Cancel display)
       @@ fun () -> Eio.Fiber.with_binding current display (fun () -> f display)
     with
