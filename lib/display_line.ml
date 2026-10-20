@@ -65,7 +65,7 @@ let default =
       text " ";
       label;
       spacer;
-      bar 10;
+      bar 12;
       text " ";
       count;
       text " ";

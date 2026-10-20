@@ -68,11 +68,9 @@ let percent m =
 let bar t r width =
   match fraction r.metric with
   | Some f when f > 0. ->
-      let utf_8 = (look t).utf_8 in
-      (* An ASCII cell is drawn from half of it on. *)
-      let steps = if utf_8 then 8 else 2 in
-      let f = Float.max f (1. /. float (max 1 (width * steps))) in
-      Bar.span ~utf_8 ~brackets:true
+      (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
+      let f = Float.max f (1. /. float (max 1 (width * 2))) in
+      Bar.span ~utf_8:(look t).utf_8 ~brackets:false
         ~style:(Style.fg (color r))
         ~track:(Widget.muted (look t))
         ~width f

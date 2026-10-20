@@ -66,7 +66,7 @@ module Line : sig
       is cut to it with an ellipsis. *)
 
   val bar : int -> piece
-  (** [bar width] is a progress bar [width] cells wide, between brackets.
+  (** [bar width] is a progress bar [width] cells wide ({!Bar}).
 
       @raise Invalid_argument if [width] is negative. *)
 

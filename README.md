@@ -225,8 +225,8 @@ src
 `Bar.v` draws a bar on its own, here 65% full and twenty columns wide:
 
 ```ocaml
-# print_endline (Bar.to_string (Bar.v ~brackets:true ~width:20 0.65));;
-▕█████████████░░░░░░░▏
+# print_endline (Bar.to_string (Bar.v ~width:20 0.65));;
+━━━━━━━━━━━━━╺━━━━━━
 - : unit = ()
 ```
 
