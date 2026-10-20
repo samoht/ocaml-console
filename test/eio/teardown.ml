@@ -6,8 +6,9 @@
 (* A command that ends inside a live display the way its argument says: it
    returns, calls [exit] (a CLI's error path), raises to the toplevel, or has
    its fiber cancelled; or, with [secret], it is interrupted while it reads
-   a password; or, with [colourless], it chose no colour before the display. It also prints a line on standard output, which goes
-   above the region. *)
+   a password; or, with [colourless], it chose no colour before the display;
+   or, with [widgets], it prints every widget before it. It also prints a line
+   on standard output, which goes above the region. *)
 
 let secret env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
@@ -24,6 +25,27 @@ let colourless env =
   Fmt.set_style_renderer Fmt.stderr `None;
   Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
       Console.Display.succeed (Console.Display.task display "plain"))
+
+(* Every widget, on standard output once [setup] has looked at the locale,
+   then a display with a bar. *)
+let widgets env =
+  let open Console in
+  Console_eio.setup ();
+  let long = Span.text (String.concat " " (List.init 20 (Fun.const "word"))) in
+  let leaf = Tree.v long [] in
+  Fmt.pr "%a@.%a@.%a@.%a@.%a@." Table.pp
+    (Table.v
+       [ Table.column "a"; Table.column ~overflow:`Truncate "b" ]
+       [ [ Span.text "1"; long ] ])
+    Panel.pp (Panel.v ~title:long long) Tree.pp
+    (Tree.v long [ Tree.v long [ leaf ]; leaf ])
+    Rule.pp (Rule.v ~label:long ()) Bar.pp
+    (Bar.v ~brackets:true ~width:10 0.55);
+  Console_eio.run ~clock:(Eio.Stdenv.clock env) (fun display ->
+      let task = Display.task display "counting" in
+      Display.set_count task ~cur:1 ~total:3;
+      Display.redraw display;
+      Display.succeed task)
 
 let display env =
   let clock = Eio.Stdenv.clock env in
@@ -46,4 +68,5 @@ let () =
   match Sys.argv with
   | [| _; "secret" |] -> secret env
   | [| _; "colourless" |] -> colourless env
+  | [| _; "widgets" |] -> widgets env
   | _ -> display env

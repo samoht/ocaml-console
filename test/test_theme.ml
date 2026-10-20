@@ -84,10 +84,11 @@ let test_on_formatter () =
     (Fmt.style_renderer ppf = `Ansi_tty);
   check "another formatter" Theme.default other
 
-let printed ?theme ?(styled = false) ?(margin = 40) pp v =
+let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
   Option.iter (Theme.set ppf) theme;
+  Fmt.set_utf_8 ppf utf_8;
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   Format.pp_set_margin ppf margin;
   pp ppf v;
@@ -212,6 +213,62 @@ let test_contrast () =
         backgrounds)
     presets
 
+let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
+
+(* A display on a terminal that is not UTF-8, with a spinner, a bar, a
+   nested row, a log line, a label cut to fit and rows hidden behind a
+   marker. *)
+let display_bytes theme =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Theme.set ppf theme;
+  Fmt.set_utf_8 ppf false;
+  let d =
+    Display.v ~header:"Build" ~size:(fun () -> (24, 6)) ~now:(fun () -> 0.3) ppf
+  in
+  let parent = Display.task d "a label much wider than the terminal" in
+  let child = Display.task ~parent d "child" in
+  Display.set_count child ~cur:1 ~total:3;
+  Display.log ~level:`Warning parent "careful";
+  List.iter (fun l -> ignore (Display.task d l)) [ "b"; "c"; "d"; "e" ];
+  Display.succeed child;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* A formatter that is not UTF-8 gets ASCII alone from every widget, in
+   every theme, a line cut to fit included. *)
+let test_ascii_fallback () =
+  let long = Span.text "a label much wider than the margin" in
+  let widgets theme =
+    let print pp v = printed ~theme ~utf_8:false ~margin:12 pp v in
+    [
+      ( "table",
+        print Table.pp
+          (Table.v
+             [ Table.column "a"; Table.column ~overflow:`Truncate "b" ]
+             [ [ Span.text "1"; long ] ]) );
+      ("panel", print Panel.pp (Panel.v ~title:long long));
+      ( "tree",
+        print Tree.pp
+          (Tree.v long [ Tree.v long [ Tree.v long [] ]; Tree.v long [] ]) );
+      ("rule", print Rule.pp (Rule.v ~label:long ()));
+      ("bar", print Bar.pp (Bar.v ~brackets:true ~width:10 0.55));
+      ("display", display_bytes theme);
+    ]
+  in
+  List.iter
+    (fun (name, theme) ->
+      List.iter
+        (fun (what, s) ->
+          if not (is_ascii s) then Alcotest.failf "%s: %s: %S" name what s)
+        (widgets theme))
+    presets;
+  Alcotest.(check string)
+    "a cut line ends with dots" "a label ..."
+    (printed ~utf_8:false ~margin:11 Rule.pp
+       (Rule.v ~align:`Left ~label:long ()))
+
 let suite =
   ( "theme",
     [
@@ -224,5 +281,6 @@ let suite =
       Alcotest.test_case "on the formatter" `Quick test_on_formatter;
       Alcotest.test_case "widgets read it" `Quick test_widgets_read_it;
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
+      Alcotest.test_case "ASCII when not UTF-8" `Quick test_ascii_fallback;
       Alcotest.test_case "contrast" `Quick test_contrast;
     ] )

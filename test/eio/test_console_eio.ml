@@ -288,9 +288,9 @@ let test_usable_after () =
        [ "ok"; "raise"; "cancel"; "exit"; "sigint" ])
 
 (* A terminal whose locale is not UTF-8 shows other characters as garbage:
-   the default look is then drawn with ASCII alone. *)
+   every widget and the display are then drawn with ASCII alone. *)
 let test_ascii_locale () =
-  let _, out, _ = session ~lang:"C" "ok" in
+  let _, out, _ = session ~lang:"C" "widgets" in
   Alcotest.(check bool) "drew a region" true (contains hide out);
   Alcotest.(check bool)
     "ASCII only" true
