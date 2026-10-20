@@ -89,6 +89,24 @@ let test_setup () =
             (Fmt.style_renderer Fmt.stdout = `None);
           Alcotest.(check bool) "the locale" true (Fmt.utf_8 Fmt.stderr)))
 
+(* [setup ~theme] gives both outputs the theme, and [setup] without one
+   keeps it. *)
+let test_setup_theme () =
+  let theme ppf = Console.Theme.name (Console.Theme.get ppf) in
+  let restore () =
+    List.iter
+      (fun ppf ->
+        Fmt.set_style_renderer ppf `None;
+        Console.Theme.set ppf Console.Theme.default)
+      [ Fmt.stdout; Fmt.stderr ]
+  in
+  Fun.protect ~finally:restore (fun () ->
+      Console_tty.setup ~theme:Console.Theme.nord ();
+      Alcotest.(check string) "standard output" "nord" (theme Fmt.stdout);
+      Alcotest.(check string) "standard error" "nord" (theme Fmt.stderr);
+      Console_tty.setup ();
+      Alcotest.(check string) "kept" "nord" (theme Fmt.stderr))
+
 (* What [probe.exe mode] prints, in an environment that announces 256
    colours. *)
 let probe mode =
@@ -135,6 +153,7 @@ let suite =
     [
       Alcotest.test_case "colour rules" `Quick test_colour_rules;
       Alcotest.test_case "setup" `Quick test_setup;
+      Alcotest.test_case "setup with a theme" `Quick test_setup_theme;
       Alcotest.test_case "ensure" `Quick test_ensure;
       Alcotest.test_case "is_terminal" `Quick test_is_terminal;
     ] )
