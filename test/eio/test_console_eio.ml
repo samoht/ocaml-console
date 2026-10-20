@@ -21,22 +21,39 @@ let test_run_returns () =
 
 let seconds s = Mtime.of_uint64_ns (Int64.of_float (s *. 1e9))
 
-(* A display reads the time on its monotonic clock: a task that waits two
-   seconds on a mock one, moved by hand, took two seconds. *)
-let test_run_on_a_monotonic_clock () =
+(* What a task that waits two seconds on a mock monotonic clock prints. *)
+let nap () =
   Eio_main.run @@ fun _ ->
   let clock = Eio_mock.Clock.Mono.make () in
-  Eio_mock.Clock.Mono.set_time clock (seconds 100.);
   let buf, ppf = buffer () in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Display.with_task display "nap" (fun _ ->
           Eio.Fiber.both
             (fun () -> Eio.Time.Mono.sleep clock 2.)
-            (fun () -> Eio_mock.Clock.Mono.set_time clock (seconds 102.))));
+            (fun () -> Eio_mock.Clock.Mono.set_time clock (seconds 2.))));
   Format.pp_print_flush ppf ();
-  Alcotest.(check bool)
-    "the time it took" true
-    (contains "\u{2713} nap  2.0s" (Buffer.contents buf))
+  Buffer.contents buf
+
+let took s out = contains ("\u{2713} nap  " ^ s) out
+
+(* A display reads the time on its monotonic clock. *)
+let test_run_on_a_monotonic_clock () =
+  Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
+
+let with_env bindings f =
+  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
+  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
+  Fun.protect f ~finally:(fun () ->
+      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
+
+(* CONSOLE_FROZEN_CLOCK, set and not empty, stops the display's clock at
+   zero; the waits still run on [clock]. *)
+let test_frozen_clock () =
+  Alcotest.(check bool) "a moving clock" true (took "2.0s" (nap ()));
+  let frozen = with_env [ ("CONSOLE_FROZEN_CLOCK", "1") ] (fun () -> nap ()) in
+  Alcotest.(check bool) "a frozen clock" true (took "0.0s" frozen);
+  let empty = with_env [ ("CONSOLE_FROZEN_CLOCK", "") ] (fun () -> nap ()) in
+  Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
 let test_run_raises () =
   with_clock (fun clock ->
@@ -83,12 +100,6 @@ let test_second_display_refused () =
             (fun () -> Console_eio.run ~clock ~ppf ignore);
           Eio.Promise.resolve finished ());
       Console_eio.run ~clock ~ppf ignore)
-
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
 let test_dimensions_read_the_environment () =
   let check msg columns lines expected =
@@ -333,6 +344,7 @@ let suite =
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
+      Alcotest.test_case "frozen clock" `Quick test_frozen_clock;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;

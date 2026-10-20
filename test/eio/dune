@@ -7,9 +7,21 @@
  (modules teardown)
  (libraries console console.tty console-eio eio eio_main fmt logs unix))
 
+; Runs a program on a terminal and prints the screen it leaves, for the
+; cram tests.
+
+(executable
+ (name tty)
+ (modules tty)
+ (libraries console_vte cstruct eio eio.unix eio_main matrix.vte unix))
+
+(cram
+ (package console-eio)
+ (deps tty.exe ../../examples/progress/main.exe))
+
 (test
  (name test)
- (modules :standard \ teardown)
+ (modules :standard \ teardown tty)
  (package console-eio)
  (deps teardown.exe)
  (libraries
