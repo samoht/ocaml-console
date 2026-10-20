@@ -44,7 +44,7 @@
    passwords included.")
  (depends
   (ocaml (>= 5.4))
-  console
+  (console (= :version))
   (eio (>= 1.4))
   fmt
   logs

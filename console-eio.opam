@@ -16,7 +16,7 @@ bug-reports: "https://github.com/samoht/ocaml-console/issues"
 depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "5.4"}
-  "console"
+  "console" {= version}
   "eio" {>= "1.4"}
   "fmt"
   "logs"
