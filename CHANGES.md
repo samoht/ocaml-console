@@ -1,84 +1,61 @@
 ## 1.0.0
 
-- Initial version.
-- Eighteen themes (`Console.Theme`), from `Theme.default`, which reads on
-  any background, to the colour schemes of Dracula, Nord, Solarized,
-  gruvbox, Catppuccin, Tokyo Night, One Dark, Monokai and GitHub. A theme
-  is kept on the formatter (`Theme.set`), as its colour depth is, and every
-  widget is drawn in it; `Theme.all` and `Theme.of_string` give a
-  `--theme` option in one line. Text colours are at 4.5:1 contrast on the
-  theme's background and glyph colours at 3:1, and every widget falls back
-  to ASCII on a formatter that is not UTF-8.
-- Colours are written at the colour depth of their formatter
-  (`Color.set_depth`), 16 colours until one is set: a program that turns
-  colour on with Fmt alone sends codes that every terminal reads.
-- `console.tty` (`Console_tty.setup`) decides colour, its depth and UTF-8
-  for the standard outputs from the terminal, `NO_COLOR`, `TERM`,
-  `COLORTERM` and the locale, with Unix alone: a program that prints a
-  table needs no Eio. `Console_eio.run` calls `Console_tty.ensure`, which
-  decides only for the outputs the program left alone.
-- `Style.styled` styles any `Fmt` printer at its formatter's colour depth.
-- `Span.gradient` grades text from one colour to the next, each grapheme
-  cluster in the blend at its place, by default through the palette of
-  the theme it is printed in.
-- A theme names the glyphs of its bars (`Theme.bar`): heavy lines by
-  default, full blocks on a light shade in `Theme.dos`, `#` on `-` in
-  `Theme.ascii` and on any formatter that is not UTF-8.
-- `Theme.dos` draws in the box-drawing characters of code page 437, as
-  Norton Commander did: frames of double lines divided by single ones
-  (`Border.dos`), and single-line tree guides. A border names the line
-  between two columns and the line of a rule across the box
-  (`Border.chars`), which `Border.dos` draws apart from its frame.
-- A bar given no style spreads a palette of several colours along its
-  length, each cell in the colour of its place: `Theme.rainbow`'s bars,
-  its progress rows' included, are rainbows.
-- `Bar.to_span` puts a bar in a table cell, a tree or a panel, drawn in
-  the theme and the UTF-8 of the formatter it is printed on.
-- `Table.v ~rules:true` separates the rows of a table with rules.
-- `Console.hcat` prints blocks side by side, such as a table beside a
-  tree, each at its share of the margin and in its colours; a scene can
-  be one.
-- `Display.set_scene` draws what a printer prints, such as a table, above
-  the rows of a live display, at their width and in the display's theme.
-- A theme's frames move (`Theme.motion`) in a scene: digital rain running
-  along an intact frame in `Theme.matrix`, a rainbow graded round them and
-  sweeping in `Theme.rainbow`, a shimmer of the main colour in the themes
-  of colour schemes. Only colours and the glyphs of straight lines change,
-  never a width; printed with `Fmt`, on a pipe or without colour, a frame
-  is still, a sweep keeping its colours. `Theme.still` stops every motion,
-  the spinner's too.
-- A display keeps two kinds of lines apart: `Logs` messages, the program's
-  diagnostics, are always kept, printed after the name of the task they
-  were logged in; the output of a task, given to `Display.log`, shows in
-  its window while it runs, goes when it succeeds, is printed whole under
-  its line when it fails (up to 1 MiB, the oldest lines dropped and
-  counted) and stays in its window when it is cancelled, Ctrl-C included.
-  On a pipe a task prints a line when it starts, every line at once after
-  its name, and repeats its window under a failure. `Display.with_task`
-  makes a task current for a function and the fibers it forks, and ends it
-  when the function returns or raises; `Display.iter` counts a list.
-  `Display.report` and `Display.scope` are for drivers such as
-  `Console_eio.run`; `Display.message` is gone, and `Display.log` has no
-  level.
-- `Display.set_result` takes a `(string, string) result`, the row layout is
-  `Display.Layout`, and a closed display ignores what it is told rather
-  than raising, so a fiber that outlives `Console_eio.run` is harmless.
-- `Theme.mark` has a `` `Debug `` mark for debug messages.
-- `Console_eio.run ~clock` takes a monotonic clock
-  (`Eio.Stdenv.mono_clock env`), which times the display and paces its
-  redraws, so a change of the system's time moves no timer.
-  `CONSOLE_FROZEN_CLOCK`, set and not empty, stops that clock at zero, so
-  a test of a program's output reads `0.0s` for every elapsed time.
-- `Console_eio.run ~plain:true` prints on a terminal the lines a pipe gets,
-  for a program's `--progress=plain`.
-- The line editor is `Console_input`, in a `console.input` library of its
-  own, rather than `Console.Input`: a program that drives a serial line or
-  a network channel links it without the widgets.
-- `Span.link` percent-encodes the bytes a URI may not hold rather than
-  raising, and an empty URI links nowhere.
-- `Rule.to_string ~width` draws a rule as a string, as the other widgets'
-  `to_string` do.
-- `Span.align` is the one alignment type, of `Table.column ~align` and
-  `Rule.v ~align`, which no longer define their own.
-- `Border.simple` draws a table without a frame, a rule under its header
-  alone, `-` on a formatter that is not UTF-8.
+Initial release of `console` and `console-eio`.
+
+- Styled text. `Style` combines bold, italic, underline and colours with
+  `+`; `Color` names the 16 ANSI colours, the xterm 256-colour palette and
+  RGB, written at the colour depth of their formatter (`Color.set_depth`, 16
+  colours until one is set). A `Span.t` is text in one or more styles, with
+  links (`Span.link`, percent-encoding the bytes a URI may not hold) and
+  colours graded along it (`Span.gradient`). A span holds only text that
+  prints, and `Style.styled` styles any `Fmt` printer.
+- Widgets. `Table` (columns that wrap or truncate, rules between rows with
+  `~rules:true`, a frameless `Border.simple`), `Tree`, `Panel`, `Rule` and
+  `Bar`, which `Bar.to_span` puts in a cell; `Console.hcat` prints blocks
+  side by side. Widths are counted in terminal cells, wide characters and
+  emoji included, a widget is no wider than its formatter's margin, and
+  every widget is drawn in ASCII on a formatter that is not UTF-8. Each has a
+  `pp` and a `to_string ?styled`.
+- Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
+  gives every widget its colours, marks, frames, tree lines, bars and
+  spinner. Eighteen are predefined: `Theme.default`, which reads on any
+  background, `ascii`, `dos`, `matrix`, `rainbow`, and the colour schemes of
+  Dracula, Nord, Solarized, gruvbox, Catppuccin, Tokyo Night, One Dark,
+  Monokai and GitHub. Text colours are at 4.5:1 contrast on the theme's
+  background and glyph colours at 3:1. `Theme.all` and `Theme.of_string`
+  make a `--theme` option one line of Cmdliner.
+- Motion. In a live display the frame of a table or a panel drawn above the
+  rows (`Display.set_scene`) moves in the theme's way (`Theme.motion`):
+  digital rain in `Theme.matrix`, a rainbow sweep in `Theme.rainbow`, a
+  shimmer in the colour schemes. Only colours and glyphs of one width
+  change; printed with `Fmt`, on a pipe or without colour, a frame is still,
+  and `Theme.still` stops every motion and the spinner.
+- Live progress. `Display` shows one row per running task, with a spinner
+  or a bar, a count or bytes and a rate, and redraws only those rows; a task
+  that ends leaves one line in the scrollback. `Display.with_task` runs a
+  function as a task, current in the fibers it forks, that succeeds when the
+  function returns and fails when it raises. `Logs` messages are kept, after
+  the name of the task they were logged in; the output given to
+  `Display.log` shows in the task's window, goes when it succeeds and is
+  printed whole when it fails (up to 1 MiB). In a pipe or a CI log, every
+  line is printed once, in order with standard output under `2>&1`.
+- `console-eio`. `Console_eio.run ~clock` runs a display on standard error
+  with Eio: it passes it the `Logs` messages, those of other Eio domains
+  included, prints the program's output above the rows, and gives the
+  terminal back when the function returns or raises, when its fiber is
+  cancelled, at exit and on SIGINT or SIGTERM. A `run` inside another gets
+  the same display. `~plain:true` prints the lines a pipe gets on a terminal
+  too. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
+  the rows off the screen while it asks.
+- Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
+  depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
+  `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix
+  alone. `Console_eio.run` decides only for the outputs the program left
+  alone (`Console_tty.ensure`).
+- Tests. `CONSOLE_FROZEN_CLOCK`, set and not empty, stops the display's
+  clock at zero, so a cram test of a program's progress reads the same on
+  every machine.
+- Two small libraries in the `console` package: `console.text`
+  (`Console_text`) makes untrusted text safe to print, and `console.input`
+  (`Console_input`) is a line editor, with history and completion, that does
+  no input or output itself.
