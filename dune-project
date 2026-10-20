@@ -25,7 +25,7 @@
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
-  matrix
+  (matrix (and (>= 0.1.0) (< 0.2.0)))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
