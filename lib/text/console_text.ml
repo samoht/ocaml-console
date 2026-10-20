@@ -197,12 +197,14 @@ let sgr seq =
   else
     (* Parameters apply left to right and 0, or an empty one, turns every
        attribute off. 38, 48 and 58 take a colour as the parameters after
-       them, [5;n] or [2;r;g;b], which are values rather than commands. *)
+       them, [5;n] or [2;r;g;b], which are values rather than commands; with
+       fewer, every one left is a value. *)
     let params = String.split_on_char ';' (String.sub seq 2 (n - 3)) in
     let rec state acc = function
       | [] -> acc
       | ("38" | "48" | "58") :: "5" :: _ :: rest -> state `Set rest
       | ("38" | "48" | "58") :: "2" :: _ :: _ :: _ :: rest -> state `Set rest
+      | ("38" | "48" | "58") :: _ -> `Set
       | p :: rest ->
           let acc =
             if p = "" || int_of_string_opt p = Some 0 then `Reset else `Set
