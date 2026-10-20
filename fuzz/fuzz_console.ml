@@ -86,9 +86,35 @@ let test_hcat_margin n k =
   check (String.is_valid_utf_8 raw);
   check (Span.width (Span.text (Console_text.strip raw)) <= margin)
 
+(* With no gap, a trailing block of combining marks is still text and
+   must produce the same visible glyph as ordinary span concatenation. *)
+let test_hcat_combining_suffix n =
+  let marks = [| 0x0300; 0x0301; 0x0308; 0x0327 |] in
+  let buf = Buffer.create 16 in
+  for i = 0 to n mod 4 do
+    Buffer.add_utf_8_uchar buf (Uchar.of_int marks.((n + i) mod 4))
+  done;
+  let suffix = Buffer.contents buf in
+  let base = String.make 1 (Char.chr (Char.code 'a' + (n mod 26))) in
+  Buffer.clear buf;
+  let ppf = Format.formatter_of_buffer buf in
+  hcat ~gap:0
+    (List.map (fun s -> Fmt.const Span.pp (Span.text s)) [ base; suffix ])
+    ppf ();
+  Format.pp_print_flush ppf ();
+  let got = Buffer.contents buf and want = base ^ suffix in
+  let actual = Vte.create ~rows:2 ~cols:10 ()
+  and expected = Vte.create ~rows:2 ~cols:10 () in
+  Vte.feed_string actual got;
+  Vte.feed_string expected want;
+  check_eq ~pp:Fmt.Dump.string (Vte.to_string expected) (Vte.to_string actual);
+  check_eq ~pp:Fmt.Dump.string want got
+
 let suite =
   ( "console",
     [
+      test_case "hcat preserves trailing combining marks" [ uint8 ]
+        test_hcat_combining_suffix;
       test_case "hcat widgets fit without terminal autowrap" [ uint8; uint8 ]
         test_hcat_margin;
       test_case "hcat lines are the blocks' widths and gaps"
