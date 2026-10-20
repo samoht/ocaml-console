@@ -24,6 +24,8 @@
     [brackets] (defaults to [false]) frames the bar in the track style, which
     makes it two cells wider. *)
 
+(** {1:bars Bars} *)
+
 type t
 (** The type for bars. *)
 

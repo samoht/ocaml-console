@@ -62,7 +62,7 @@ val v :
     the theme's {!Theme.header}). A cell may hold line feeds, which start new
     lines inside its row. If [rules] (defaults to [false]), a rule in the glyphs
     and the style of the header's rule separates each two rows; a frame that
-    moves ({!Theme.motion}) moves its ends with its edges.
+    moves ({!Theme.val-motion}) moves its ends with its edges.
 
     A row with fewer cells than there are columns ends in a cell that spans the
     columns left. In a table without a frame ({!Border.none}) a line ends at its

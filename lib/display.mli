@@ -142,7 +142,12 @@ module Layout : sig
       and the elapsed time. *)
 end
 
-(** {1:displays Displays} *)
+(** {1:displays Displays}
+
+    A display belongs to the domain that runs it: call its functions, and those
+    of its tasks, from that domain alone. [Console_eio.run] passes it the [Logs]
+    messages logged in the other domains Eio runs, such as those of an
+    [Eio.Executor_pool], and they go above the rows. *)
 
 type t
 (** The type for displays. *)

@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** A line editor.
+(** A line editor that does no input or output.
 
     An editor turns the bytes a user types into what to echo and the lines
     entered: it keeps the line being typed, inserts and erases at a cursor moved
@@ -15,15 +15,15 @@
     [Console_eio.Prompt], which reads the answer and uses an editor to hide a
     password.
 
-    Editing is by whole UTF-8 character at the cursor: a printable character (or
-    a multi-byte one, even when its bytes arrive across separate {!feed} calls)
-    is inserted, backspace erases the character before the cursor, and the left
-    and right arrows step over one character. A character takes the cells a
-    terminal draws it in, two for a wide character or an emoji, so cursor motion
-    is exact for them.
+    Editing is by whole UTF-8 character at the cursor: a printable character,
+    even one whose bytes arrive across separate {!feed} calls, is inserted,
+    backspace erases the character before the cursor, and the left and right
+    arrows step over one character. A character takes the cells a terminal draws
+    it in, two for a wide character or an emoji, so cursor motion is exact for
+    them.
 
-    The keys, the history and the completion follow those of the [down] toplevel
-    line editor. *)
+    The keys, the history and the completion follow those of the
+    {{:https://erratique.ch/software/down}down} toplevel line editor. *)
 
 type t
 (** The type for line editors: the current line and the history of submitted
@@ -36,46 +36,47 @@ val v :
   ?mask:string ->
   unit ->
   t
-(** [v ?prompt ?history ?complete ?mask ()] is a line editor.
+(** [v ()] is a line editor with an empty line, such that:
 
-    [prompt] (default empty) is reprinted before the current line after Tab
-    lists several completion candidates, so the redrawn line keeps its prompt;
-    leave it empty when the caller writes no prompt.
+    - [prompt] (defaults to [""]) is written again before the current line after
+      Tab lists several completions, so that the line is redrawn behind its
+      prompt. It stays empty when the caller writes no prompt;
+    - [history] are the lines the up arrow recalls, oldest first (defaults to
+      [[]]);
+    - [complete word] is the list of completions of [word], the last word of the
+      line, when Tab is pressed. The editor extends [word] to the longest prefix
+      the completions share and lists them when more than one is left. Without
+      [complete], Tab does nothing;
+    - [mask], if given, is echoed once for each character typed, in place of the
+      character, while {!pending} and the lines of {!feed} hold the text typed.
+      A masked editor, for a password or a token, completes nothing, recalls
+      nothing and keeps no line in its {!history}.
 
-    [history] seeds the recallable lines, oldest first.
-
-    [complete word] returns the candidate completions of the last whitespace-
-    delimited [word] of the line when Tab is pressed. The editor extends the
-    word to the candidates' longest common prefix and, when more than one
-    remains, lists them. With no [complete], Tab does nothing.
-
-    A control character in [prompt], [history], [mask] or a candidate is echoed
-    as a space, so none of them can move the cursor or change colours.
-
-    [mask], when provided, is echoed once for each typed character while the
-    real line remains available through {!pending} and {!feed}. Masked editors
-    disable completion and history navigation, and never retain submitted lines
-    in {!history}; this mode is intended for passwords and tokens. *)
+    A control character in [prompt], [history], [mask] or a completion is echoed
+    as a space, so none of them can move the cursor or change colours. *)
 
 val feed : t -> string -> string * string list
-(** [feed t input] processes [input] one byte at a time and returns
-    [(echo, lines)]. [echo] is the bytes to write back to the terminal and
-    [lines] are the lines completed by this input, in order, each without its
-    terminator.
+(** [feed t input] is [(echo, lines)] once each byte of [input] is read in turn:
+    [echo] is the bytes to write back to the terminal and [lines] the lines
+    [input] completes, in order, each without its terminator. The bytes act as
+    follows:
 
-    A printable character -- ASCII [0x20..0x7e], or a multi-byte UTF-8 character
-    whose lead and continuation bytes may span several [feed] calls -- is
-    inserted at the cursor and echoed; a byte sequence that decodes to no
-    character is the replacement character U+FFFD, and a character a terminal
-    acts on (a C1 control, U+0080 to U+009F) is a space, so what is echoed and
-    kept is text that only prints. [\127] (DEL) and [\008] (BS) erase the
-    character before the cursor, echoing ["\b \b"] at end of line; ['\r'] and
-    ['\n'] submit the line (a ['\n'] right after a ['\r'] is the trailing half
-    of a CRLF and submits nothing); [\t] runs completion. The arrows ([ESC \[ A]
-    / [ESC \[ B]) recall the previous and next history entries and ([ESC \[ C] /
-    [ESC \[ D]) move the cursor right and left over one character; so do
-    [ESC O A] to [ESC O D], which a terminal in application cursor mode sends.
-    Any other byte is ignored.
+    - a printable character, ASCII \[[0x20];[0x7E]\] or a UTF-8 character of
+      several bytes that may arrive across several [feed] calls, is inserted at
+      the cursor and echoed. A byte sequence that decodes to no character is the
+      replacement character U+FFFD, and a C1 control (U+0080 to U+009F), which a
+      terminal acts on, is a space, so what is echoed and kept is text that only
+      prints;
+    - [\127] (DEL) and [\008] (BS) erase the character before the cursor,
+      echoing ["\b \b"] at the end of the line;
+    - ['\r'] and ['\n'] submit the line, but a ['\n'] right after a ['\r'], the
+      second half of a CRLF, submits nothing;
+    - [\t] completes the current word ({!v});
+    - [ESC \[ A] and [ESC \[ B] recall the previous and the next line of the
+      history, and [ESC \[ C] and [ESC \[ D] move the cursor right and left over
+      one character, as do [ESC O A] to [ESC O D], which a terminal in
+      application cursor mode sends;
+    - any other byte is ignored.
 
     Feeding [input] at once or in pieces gives the same echo and lines, and the
     echo holds no escape code: the cursor moves by backspaces. *)

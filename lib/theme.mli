@@ -17,8 +17,10 @@
     known of the terminal. A theme with a {!background}, such as {!dracula} or
     {!solarized_light}, is for a terminal whose own colour scheme is that one:
     its colours are chosen for that background, which the widgets do not paint,
-    and on another one some of them may be hard to read. A program lets its
-    users choose with a [--theme] option ({!all}).
+    and on another one some of them may be hard to read. {!ascii} draws with
+    ASCII alone on any terminal, and {!still} takes the motion out of any theme,
+    for the users who ask for no animation. A program lets its users choose with
+    a [--theme] option ({!all}).
 
     Colours are given as the scheme defines them; a terminal that shows fewer
     colours gets the nearest ones it has ({!Color.val-depth}). In every

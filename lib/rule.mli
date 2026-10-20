@@ -3,7 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Horizontal lines with an optional label. *)
+(** Horizontal lines with an optional label.
+
+    A rule separates the parts of a program's output: a line as wide as the
+    formatter's margin, in the muted colour of its theme ({!Theme.get}), with an
+    optional label set in it. *)
 
 (** {1:rules Rules} *)
 

@@ -84,7 +84,10 @@ val run :
     none. A message from a source other than {!Logs.default} comes after the
     source's name in brackets, as in [[http] connected]. A fiber cancelled
     inside a {!Console.Display.with_task} cancels its task. The reporter
-    installed before [run] is put back when [f] ends.
+    installed before [run] is put back when [f] ends. A message logged in
+    another domain that Eio runs, such as one of an [Eio.Executor_pool], is
+    passed to the domain that runs [f] and goes above the rows; the display
+    itself is for that domain alone ({{!Console.Display.displays}Displays}).
 
     A [run] called inside [f], or in a fiber [f] started, passes its own
     function the same display, so a library can call [run] without knowing
