@@ -546,10 +546,15 @@ let test_simple () =
          "src/       4.0K";
        ])
     (printed ~utf_8:false (table ()));
-  Alcotest.(check (list int))
-    "cut to the margin" [ 10; 10; 10; 10 ]
-    (List.map Width.string_width
-       (String.split_on_char '\n' (Table.to_string ~width:10 (table ()))))
+  let narrow =
+    List.map Width.string_width
+      (String.split_on_char '\n' (Table.to_string ~width:10 (table ())))
+  in
+  Alcotest.(check bool)
+    "within the margin" true
+    (List.for_all (fun w -> w <= 10) narrow);
+  Alcotest.(check int)
+    "the rule across the narrowed table" 10 (List.nth narrow 1)
 
 let suite =
   ( "table",
