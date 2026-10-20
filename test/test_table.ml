@@ -143,10 +143,7 @@ let test_formatter_margin_never_wraps_border () =
     logical_rows;
   let vte = Vte.create ~rows:12 ~cols:width () in
   Vte.feed_string vte raw;
-  let rows =
-    Vte.to_string vte |> String.split_on_char '\n' |> List.map String.trim
-    |> List.filter (fun row -> row <> "")
-  in
+  let rows = List.filter (( <> ) "") (Console_vte.screen vte) in
   let left_edge row =
     List.exists
       (fun prefix -> String.starts_with ~prefix row)
@@ -224,10 +221,7 @@ let test_every_margin_is_a_hard_limit () =
       logical_rows;
     let vte = Vte.create ~rows:(List.length logical_rows + 2) ~cols:width () in
     Vte.feed_string vte raw;
-    let visual_rows =
-      Vte.to_string vte |> String.split_on_char '\n'
-      |> List.filter (fun row -> String.trim row <> "")
-    in
+    let visual_rows = List.filter (( <> ) "") (Console_vte.screen vte) in
     Alcotest.(check int)
       (Fmt.str "physical row count at width %d" width)
       (List.length logical_rows) (List.length visual_rows);

@@ -72,19 +72,8 @@ let resize t ~width ~height =
   t.size := (width, height);
   Vte.resize t.vte ~rows:height ~cols:width
 
-let rstrip s =
-  let n = ref (String.length s) in
-  while !n > 0 && s.[!n - 1] = ' ' do
-    decr n
-  done;
-  String.sub s 0 !n
-
-let screen t = List.map rstrip (String.split_on_char '\n' (Vte.to_string t.vte))
-
-let lines t =
-  let rows = Vte.scrollback_lines t.vte @ screen t in
-  let rec drop_blank = function "" :: l -> drop_blank l | l -> l in
-  List.rev (drop_blank (List.rev (List.map rstrip rows)))
+let screen t = Console_vte.screen t.vte
+let lines t = Console_vte.screen ~scrollback:true t.vte
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f

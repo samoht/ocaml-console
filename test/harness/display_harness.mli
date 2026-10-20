@@ -56,7 +56,8 @@ val resize : term -> width:int -> height:int -> unit
 (** [resize t ~width ~height] resizes the terminal and its emulator. *)
 
 val screen : term -> string list
-(** [screen t] are the rows of the screen, trailing blanks removed. *)
+(** [screen t] are the rows of the screen, trailing blanks and blank rows at the
+    bottom removed. *)
 
 val lines : term -> string list
 (** [lines t] are the scrollback and screen rows, trailing blanks and blank rows
