@@ -96,6 +96,37 @@ let test_strip () =
     "a line feed becomes a space without keep_newlines" "a b"
     (Console_text.strip ~keep_newlines:false "a\027[3\n1mb")
 
+(* A terminal acts on the C0 controls other than the line ends, HT and ESC,
+   and on DEL, without printing anything, in a sequence or not; a tab leaves
+   blank cells. [strip] keeps what is printed; [sanitize] keeps a cell for
+   each. *)
+let test_strip_silent () =
+  let silent =
+    List.filter
+      (fun c -> not (List.mem c [ 0x09; 0x0a; 0x0b; 0x0c; 0x0d; 0x1b ]))
+      (List.init 0x20 Fun.id)
+    @ [ 0x7f ]
+  in
+  List.iter
+    (fun c ->
+      let c = String.make 1 (Char.chr c) in
+      let what = String.escaped c in
+      Alcotest.(check string) what "ab" (Console_text.strip ("a" ^ c ^ "b"));
+      (* CAN and SUB end the sequence instead. *)
+      if c <> "\024" && c <> "\026" then
+        Alcotest.(check string)
+          (what ^ " inside CSI") "ab"
+          (Console_text.strip ("a\027[3" ^ c ^ "1mb"));
+      Alcotest.(check string)
+        (what ^ " between CR and LF")
+        "a\nb"
+        (Console_text.strip ("a\r" ^ c ^ "\nb"));
+      Alcotest.(check string)
+        (what ^ ", sanitize") "a b"
+        (Console_text.sanitize ("a" ^ c ^ "b")))
+    silent;
+  Alcotest.(check string) "tab" "a b" (Console_text.strip "a\tb")
+
 (* Whatever the input, no ESC and no C1 control reaches the output, and it is
    UTF-8. *)
 let test_strip_leaves_no_control () =
@@ -213,6 +244,8 @@ let suite =
         test_truncated_colour;
       Alcotest.test_case "line ends" `Quick test_line_ends;
       Alcotest.test_case "strip" `Quick test_strip;
+      Alcotest.test_case "strip drops what prints nothing" `Quick
+        test_strip_silent;
       Alcotest.test_case "strip leaves no control" `Quick
         test_strip_leaves_no_control;
     ] )
