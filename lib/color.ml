@@ -17,24 +17,16 @@ let rgb r g b =
 
 let of_hex s =
   let s =
-    if String.length s > 0 && s.[0] = '#' then
-      String.sub s 1 (String.length s - 1)
+    if String.starts_with ~prefix:"#" s then String.sub s 1 (String.length s - 1)
     else s
   in
-  let digit = function
-    | '0' .. '9' as c -> Some (Char.code c - Char.code '0')
-    | 'a' .. 'f' as c -> Some (Char.code c - Char.code 'a' + 10)
-    | 'A' .. 'F' as c -> Some (Char.code c - Char.code 'A' + 10)
-    | _ -> None
-  in
-  let digits = List.filter_map digit (List.of_seq (String.to_seq s)) in
-  if List.length digits <> String.length s then
+  if not (String.for_all Char.Ascii.is_hex_digit s) then
     Error (`Msg "invalid hex character")
   else
-    match digits with
-    | [ r1; r0; g1; g0; b1; b0 ] ->
-        Ok (Rgb ((r1 * 16) + r0, (g1 * 16) + g0, (b1 * 16) + b0))
-    | [ r; g; b ] -> Ok (Rgb (r * 17, g * 17, b * 17))
+    let d i = Char.Ascii.hex_digit_to_int s.[i] in
+    match String.length s with
+    | 6 -> Ok (Rgb ((d 0 * 16) + d 1, (d 2 * 16) + d 3, (d 4 * 16) + d 5))
+    | 3 -> Ok (Rgb (d 0 * 17, d 1 * 17, d 2 * 17))
     | _ -> Error (`Msg "expected 3 or 6 hex digits")
 
 let hex s =
@@ -125,7 +117,11 @@ let cube = [| 0; 95; 135; 175; 215; 255 |]
 
 let to_rgb = function
   | Rgb (r, g, b) -> (r, g, b)
-  | Ansi a -> snd (List.find (fun (a', _) -> a' = a) (Array.to_list named))
+  | Ansi a ->
+      Option.get
+        (Array.find_map
+           (fun (a', rgb) -> if a' = a then Some rgb else None)
+           named)
   | Palette n when n < 16 -> snd named.(n)
   | Palette n when n < 232 ->
       let n = n - 16 in
