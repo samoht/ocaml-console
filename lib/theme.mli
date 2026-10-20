@@ -35,6 +35,7 @@ type t
 (** The type for themes. *)
 
 val v :
+  ?name:string ->
   ?accent:Color.t ->
   ?palette:Color.t list ->
   ?ok:Color.t ->
@@ -50,6 +51,7 @@ val v :
   t
 (** [v ()] is {!default} with the given parts replaced:
 
+    - [name] is its {!name} (defaults to ["custom"]);
     - [accent] is the main colour (defaults to {!default}'s teal);
     - [palette] are the colours successive progress rows take in turn (defaults
       to [[accent]], as does [[]]);
@@ -63,6 +65,9 @@ val v :
       lines of a tree and the spinner of a running task (default to
       {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
     - [marks] gives the mark of each state (defaults to those of {!default}). *)
+
+val name : t -> string
+(** [name t] is the name of [t]: that of {!all} for a predefined theme. *)
 
 val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
@@ -182,6 +187,16 @@ val github_dark : t
 val github_light : t
 (** [github_light] is GitHub Light's accent blue, green, yellow and red, for its
     background [#ffffff]. *)
+
+(** {1:names Names} *)
+
+val all : (string * t) list
+(** [all] is every predefined theme under its {!name}, {!default} first: the
+    choices of a [--theme] option, as [Cmdliner.Arg.enum all] reads them. *)
+
+val of_string : string -> (t, [ `Msg of string ]) result
+(** [of_string s] is the theme of {!all} named [s]. The error message lists the
+    names. *)
 
 (** {1:formatters Themes of formatters} *)
 

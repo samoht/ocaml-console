@@ -29,50 +29,9 @@ let test_theme s n =
           check (not (String.exists (fun c -> c = '\n' || c = '\027') m)))
         marks;
       Fmt.kstr ignore "%a" Theme.pp t)
-    [
-      t;
-      Theme.default;
-      Theme.dos;
-      Theme.matrix;
-      Theme.rainbow;
-      Theme.dracula;
-      Theme.nord;
-      Theme.solarized_dark;
-      Theme.solarized_light;
-      Theme.gruvbox_dark;
-      Theme.gruvbox_light;
-      Theme.catppuccin_latte;
-      Theme.catppuccin_mocha;
-      Theme.tokyo_night;
-      Theme.one_dark;
-      Theme.monokai;
-      Theme.github_dark;
-      Theme.github_light;
-    ]
+    (t :: List.map snd Theme.all)
 
-let themes =
-  Theme.
-    [
-      default;
-      ascii;
-      dos;
-      matrix;
-      rainbow;
-      dracula;
-      nord;
-      solarized_dark;
-      solarized_light;
-      gruvbox_dark;
-      gruvbox_light;
-      catppuccin_latte;
-      catppuccin_mocha;
-      tokyo_night;
-      one_dark;
-      monokai;
-      github_dark;
-      github_light;
-    ]
-
+let themes = List.map snd Theme.all
 let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 
 (* On a formatter that is not UTF-8, every widget and a live display print

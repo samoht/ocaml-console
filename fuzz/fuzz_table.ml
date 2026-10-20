@@ -162,27 +162,7 @@ let test_wide_border n =
   let widths = List.map cells lines in
   List.iter (fun w -> check_eq ~pp:Fmt.int (List.hd widths) w) widths
 
-let themes =
-  Theme.
-    [
-      default;
-      dos;
-      matrix;
-      rainbow;
-      dracula;
-      nord;
-      solarized_dark;
-      solarized_light;
-      gruvbox_dark;
-      gruvbox_light;
-      catppuccin_latte;
-      catppuccin_mocha;
-      tokyo_night;
-      one_dark;
-      monokai;
-      github_dark;
-      github_light;
-    ]
+let themes = List.map snd Theme.all
 
 let check_marker_columns mixed s =
   (* A marker in the next column gives an observable column boundary. *)

@@ -234,7 +234,32 @@ Every widget is drawn in the theme of the formatter it is printed on, which
 `Theme.set` chooses, as `Fmt.set_style_renderer` chooses its colours: the
 main colour, the colours of success, warning and failure, the marks, the
 frame style, the lines that connect tree branches and the spinner. The
-themes are shown [at the end](#themes).
+themes are shown [at the end](#themes). `Theme.all` names them all, so a
+`--theme` option is one line of
+[Cmdliner](https://erratique.ch/software/cmdliner):
+
+```ocaml
+let theme =
+  Cmdliner.Arg.(
+    value
+    & opt (enum Console.Theme.all) Console.Theme.default
+    & info [ "theme" ] ~doc:"The look of the output.")
+
+let greet theme =
+  Console.Theme.set Fmt.stdout theme;
+  Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.Span.text "hello"))
+
+let cmd =
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "greet") Cmdliner.Term.(const greet $ theme)
+```
+
+```ocaml
+# Cmdliner.Cmd.eval ~argv:[| "greet"; "--theme=dos" |] cmd;;
++-------+
+| hello |
++-------+
+- : int = 0
+```
 
 ## API
 
