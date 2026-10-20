@@ -152,3 +152,19 @@ module Display = Display
 
 module Input = Input
 (** A line editor, with history and completion. *)
+
+(** {1:layout Layout} *)
+
+val hcat : ?gap:int -> unit Fmt.t list -> unit Fmt.t
+(** [hcat ~gap blocks] formats [blocks] side by side, [gap] spaces apart
+    (defaults to [2]). Each block is printed in the theme and the {!Fmt.utf_8}
+    of the formatter, at its share of the formatter's margin: the margin less
+    the gaps, divided evenly among the blocks. Its lines are then laid side by
+    side, each block padded to its widest line and a shorter block with blank
+    lines; a line ends at its last block with text on it, so no line ends with
+    spaces [hcat] adds. The spans a block prints ({!Span.pp}), such as the
+    widgets', keep their colours and their parts drawn when printed, so blocks
+    side by side make a scene ({!Display.set_scene}) whose frames move; any
+    other text is plain. There is no line end after the last line.
+
+    @raise Invalid_argument if [gap] is negative. *)
