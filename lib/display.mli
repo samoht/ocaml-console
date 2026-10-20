@@ -35,21 +35,21 @@
       gives it a line from where it is not.
 
     Output is what the program prints while a task is current ({!tasks}): its
-    {!log} lines, its [Logs] messages and, under [Console_eio.run], the lines it
-    prints with [Fmt.pr] or [Fmt.epr] on the display's terminal, without their
-    escape codes. A task that succeeds leaves its line alone; one that fails or
-    is cancelled prints its output under its line, up to 1 MiB, its oldest lines
-    dropped first and counted on a line of their own. A line too wide for the
-    terminal is cut under a running task and nowhere else. [Console_eio.run]
-    sees standard output through {!Fmt.stdout} and [Logs] messages through its
-    reporter: what [print_string], [Printf] or a child process writes on the
-    terminal is not seen and garbles the rows, so print it with {!with_output}.
-    Without a terminal, console flushes {!Fmt.stdout} before each line it
-    writes, so that [2>&1] keeps the order of the two outputs. A write error on
-    the display's output, such as a reader that closed its pipe in
-    [prog 2>&1 | head -1], ends the display's output and nothing else. One on
-    standard output is the program's: console stops flushing it, and the
-    program's own writes meet the error as they would without console.
+    {!log} lines and, under [Console_eio.run], its [Logs] messages and the lines
+    it prints with [Fmt.pr] or [Fmt.epr] on the display's terminal, without
+    their escape codes. A task that succeeds leaves its line alone; one that
+    fails or is cancelled prints its output under its line, up to 1 MiB, its
+    oldest lines dropped first and counted on a line of their own. A line too
+    wide for the terminal is cut under a running task and nowhere else.
+    [Console_eio.run] sees standard output through {!Fmt.stdout} and [Logs]
+    messages through its reporter: what [print_string], [Printf] or a child
+    process writes on the terminal is not seen and garbles the rows, so print it
+    with {!with_output}. Without a terminal, console flushes {!Fmt.stdout}
+    before each line it writes, so that [2>&1] keeps the order of the two
+    outputs. A write error on the display's output, such as a reader that closed
+    its pipe in [prog 2>&1 | head -1], ends the display's output and nothing
+    else. One on standard output is the program's: console stops flushing it,
+    and the program's own writes meet the error as they would without console.
 
     What the program prints outside a task goes out as it is, escape codes
     included: console does not read it, so that the terminal shows what a pipe
