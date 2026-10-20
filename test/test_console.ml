@@ -201,9 +201,19 @@ let test_hcat_narrow () =
         (Span.width (Span.text line) <= 2))
     (lines out)
 
+(* A zero-cell block can still contain text: here its accent belongs to
+   the preceding block when there is no gap. *)
+let test_hcat_combining_suffix () =
+  let block s = Fmt.const Span.pp (Span.text s) in
+  Alcotest.(check string)
+    "the accent survives composition" "e\u{0301}"
+    (printed (hcat ~gap:0 [ block "e"; block "\u{0301}" ]))
+
 let suite =
   ( "console",
     [
+      Alcotest.test_case "side by side keeps a combining suffix" `Quick
+        test_hcat_combining_suffix;
       Alcotest.test_case "side by side fits a two-column margin" `Quick
         test_hcat_narrow;
       Alcotest.test_case "public surface" `Quick test_public_surface;
