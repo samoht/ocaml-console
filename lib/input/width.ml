@@ -178,14 +178,17 @@ let contains_vs16 s ~pos ~len =
   in
   go pos
 
-(* The code points of [s] from [i] to [stop] that are spacing marks. *)
+(* The cells the spacing marks of [s] from [i] to [stop] take alone, two for
+   a wide one. *)
 let rec marks s i stop =
   if i >= stop then 0
   else
     let d = String.get_utf_8_uchar s i in
     let next = i + Uchar.utf_decode_length d in
     if is_spacing_mark (Uchar.to_int (Uchar.utf_decode_uchar d)) then
-      1 + marks s next stop
+      Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos:i
+        ~len:(next - i)
+      + marks s next stop
     else marks s next stop
 
 (* The first spacing mark is U+0903, three bytes long. *)
@@ -194,8 +197,8 @@ let may_have_marks s ~pos ~len =
   go pos
 
 (* The cells the spacing marks of [s] add to its clusters': xterm, VTE and
-   Ghostty draw a cluster with one cell more for each spacing mark after
-   its first code point. *)
+   Ghostty draw a cluster with the cells of each spacing mark after its
+   first code point. *)
 let mark_cells s ~pos ~len =
   if not (may_have_marks s ~pos ~len) then 0
   else
