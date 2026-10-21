@@ -4,9 +4,14 @@ Colours, tables, trees and progress rows for OCaml command-line tools.
 
 ![check, then check --theme=rainbow: three progress rows, then a table of the results](examples/quickstart/quickstart.gif)
 
-console prints into the terminal's normal scrollback and redraws only its
-progress rows, as Rich and indicatif do. For a program that takes over the
-whole screen, use [notty](https://github.com/pqwy/notty) or
+console prints into the terminal's normal scrollback, as
+[Rich](https://github.com/Textualize/rich) does in Python and
+[indicatif](https://github.com/console-rs/indicatif) in Rust, and redraws
+only its progress rows, so what a run printed stays in the scrollback after
+it ends.
+
+Programs that take over the whole screen are better served by
+[notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term). Windows
 consoles are not supported.
 
@@ -20,21 +25,21 @@ consoles are not supported.
 - [Widgets inside widgets](#widgets-inside-widgets)
 - [Themes](#themes)
 - [Progress rows](#progress-rows)
-- [A --progress option](#a---progress-option)
-- [Scenes and motion](#scenes-and-motion)
-- [Pipes and CI](#pipes-and-ci)
-- [Colour](#colour)
-- [Testing](#testing)
-- [Line editing](#line-editing)
-- [Untrusted text](#untrusted-text)
+  - [Choosing how progress is shown](#choosing-how-progress-is-shown)
+  - [A live table above the rows](#a-live-table-above-the-rows)
+- [Output on pipes and in CI logs](#output-on-pipes-and-in-ci-logs)
+- [Deciding on colour](#deciding-on-colour)
+- [Testing the output](#testing-the-output)
+- [A line editor](#a-line-editor)
+- [Printing untrusted text](#printing-untrusted-text)
 - [Documentation](#documentation)
 - [Related work](#related-work)
 - [License](#license)
 
 ## Quick start
 
-This is the program in the recording above. It runs three test suites side
-by side as progress rows, then prints their results in a table:
+The recording above shows this program, which runs three test suites side
+by side as progress rows and then prints their results in a table:
 
 <!-- $MDX file=examples/quickstart/main.ml,part=main -->
 ```ocaml
@@ -78,15 +83,15 @@ let cmd =
 let () = exit (Cmdliner.Cmd.eval cmd)
 ```
 
-- `--theme` picks one of eighteen themes.
-- `--color=auto|always|never` says when to use colour.
-- On a terminal the rows are redrawn in place. Each suite leaves one line
-  when it ends.
-- The rows are drawn on standard error. When that is a pipe or a CI log, as
-  in `check 2>&1 | cat`, nothing is redrawn and `check` prints plain lines,
-  without colour unless `--color=always` asks for it.
+Its `--theme` option picks one of eighteen themes, and its
+`--color=auto|always|never` option says when to use colour. On a terminal
+the rows are redrawn in place, and each suite leaves a single line behind
+when it ends.
 
-The program is [examples/quickstart/main.ml](examples/quickstart/main.ml).
+The rows are drawn on standard error. When that is a pipe or a CI log, as
+in `check 2>&1 | cat`, nothing is redrawn and `check` prints plain lines
+instead, without colour unless `--color=always` asks for it. The whole
+program is in [examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 ## Installation
 
@@ -95,29 +100,31 @@ The program is [examples/quickstart/main.ml](examples/quickstart/main.ml).
 $ opam install console console-eio eio_main cmdliner
 ```
 
-Until console is in the opam repository, pin it from GitHub:
+Until console is published in the opam repository, pin it from GitHub
+instead:
 
 <!-- $MDX skip -->
 ```sh
 $ opam pin add https://github.com/samoht/ocaml-console.git
 ```
 
-The quick start uses `eio_main` to run Eio and
-[Cmdliner](https://erratique.ch/software/cmdliner) to read its options.
-console needs neither. It comes as two packages and five libraries:
+The quick start needs `eio_main` to run
+[Eio](https://github.com/ocaml-multicore/eio) and
+[Cmdliner](https://erratique.ch/software/cmdliner) to read its options, but
+console itself depends on neither. It comes as two packages and five
+libraries:
 
 - `console`: the styles, the widgets, the themes and the display. It needs
   neither Eio nor Unix.
 - `console.tty`: decides on colour for the standard outputs.
 - `console.text`: makes untrusted text safe to print.
 - `console.input`: a line editor that does no input or output.
-- `console-eio`: runs the progress rows with
-  [Eio](https://github.com/ocaml-multicore/eio).
+- `console-eio`: runs the progress rows with Eio.
 
 ## Styled text
 
-Styles combine with `+`. Text in a style is a `Span.t`, printed by a
-[Fmt](https://erratique.ch/software/fmt) printer:
+Styles combine with `+`, and text in a style is a `Span.t`, which a
+[Fmt](https://erratique.ch/software/fmt) printer prints:
 
 ```ocaml
 open Console
@@ -131,23 +138,24 @@ let () =
   Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
 ```
 
-`Console_tty.setup` turns colour on when the output is a terminal.
-`Console_eio.run` does the same for the outputs the program left alone.
-Without either, everything prints plain.
+`Console_tty.setup` turns colour on when the output is a terminal, and
+`Console_eio.run` does the same for any output the program left alone.
+Without either of them, everything prints plain.
 
-`Style.styled` styles any `Fmt` printer, so a value keeps its own printer:
+`Style.styled` styles any `Fmt` printer, so a value can keep its own
+printer:
 
 ```ocaml
 let () = Fmt.pr "%a tests passed@." Console.Style.(styled bold Fmt.int) 42
 ```
 
-Spans also hold links and take the colours of the theme. The
-[manual](doc/widgets.mld) shows both.
+Spans can also hold links and take their colours from the theme, as the
+[manual](doc/widgets.mld) shows.
 
 ## Tables
 
-The widgets take their text as spans. A table is as wide as its content
-needs, and no wider than the formatter's margin:
+All the widgets take their text as spans. A table is as wide as its
+content needs, but never wider than the formatter's margin:
 
 ```ocaml
 open Console
@@ -179,9 +187,10 @@ let print_files () =
 - : unit = ()
 ```
 
-Widths are counted in terminal cells. A column of Chinese text or of emoji,
-which take two cells each, stays aligned. The [manual](doc/widgets.mld)
-shows the other borders and the rules between rows.
+Widths are counted in terminal cells, so a column of Chinese text or of
+emoji, which take two cells each, stays aligned. The
+[manual](doc/widgets.mld) shows the other borders, and how to draw rules
+between the rows.
 
 ## Trees, panels, rules and bars
 
@@ -210,8 +219,8 @@ src
 - : unit = ()
 ```
 
-A rule is a line as wide as the output, with an optional label. A bar is
-filled to a fraction, here 65% of twenty cells:
+A rule draws a line as wide as the output, with an optional label in it,
+and a bar shows a fraction, here 65% of twenty cells:
 
 ```ocaml
 # Format.set_margin 40;;
@@ -226,9 +235,10 @@ filled to a fraction, here 65% of twenty cells:
 
 ## Widgets inside widgets
 
-Every widget is also a span, by its `to_span`. It is laid out when it is
-printed, in the theme of the formatter that prints it. So widgets nest
-anywhere a span goes, here bars in a table and the table in a panel:
+Every widget can also become a span, with its `to_span`. That span is laid
+out only when it is printed, in the theme of the formatter that prints it,
+so a widget can go wherever a span goes. Here two bars sit in a table, and
+the table sits in a panel:
 
 ```ocaml
 # let downloads =
@@ -250,19 +260,20 @@ anywhere a span goes, here bars in a table and the table in a panel:
 - : unit = ()
 ```
 
-`Span.hcat` puts widgets side by side. The [manual](doc/widgets.mld) has an
-example.
+`Span.hcat` puts widgets side by side in the same way, and the
+[manual](doc/widgets.mld) has an example.
 
 ## Themes
 
 ![The eighteen themes, each drawing the same tree, table and progress rows](examples/themes/gallery.png)
 
-A theme holds the colours and glyphs that every widget shares. `Theme.set` gives a formatter its theme, and
-`Console_tty.setup ~theme` sets it on both standard outputs. Text takes a
-colour of the theme with `Span.role`, as ``Span.role `Ok "passed"`` does in
-the quick start.
+A theme holds the colours and glyphs that every widget shares. `Theme.set`
+gives a formatter its theme, and `Console_tty.setup ~theme` sets the same
+theme on both standard outputs. Text can take one of the theme's colours
+with `Span.role`, as ``Span.role `Ok "passed"`` does in the quick start.
 
-`Theme.all` names the eighteen themes, for a `--theme` option:
+`Theme.all` lists the eighteen themes by name, in the form a `--theme`
+option reads:
 
 ```ocaml
 let theme =
@@ -287,26 +298,24 @@ let cmd =
 - : int = 0
 ```
 
-- `Theme.default` reads on any background, at 256 colours or more.
-- A theme named after a colour scheme, such as `Theme.dracula`, is for a
-  terminal that uses that scheme.
-- Every theme falls back to ASCII when the locale is not UTF-8.
+`Theme.default` reads well on any background at 256 colours or more. A
+theme named after a colour scheme, such as `Theme.dracula`, is meant for a
+terminal that uses that scheme. Every theme falls back to ASCII when the
+locale is not UTF-8.
 
-Each tile of the gallery is [the same program](examples/themes/main.ml) in
-one theme, on the background the theme is made for.
-[Its tape](examples/themes/tape.ml) recorded it with
-[VHS](https://github.com/charmbracelet/vhs).
-
-The [manual](doc/widgets.mld) says more about roles, contrast and terminals
-of 16 colours.
+Each tile of the gallery shows [the same program](examples/themes/main.ml)
+in one theme, on the background that theme is made for, and
+[its tape](examples/themes/tape.ml) recorded them all with
+[VHS](https://github.com/charmbracelet/vhs). The [manual](doc/widgets.mld)
+says more about roles, contrast and terminals of 16 colours.
 
 ## Progress rows
 
 ![A build whose running steps are redrawn in place](examples/display/display.gif)
 
 A display shows one row for each running task and redraws those rows in
-place. When a task ends, its line is printed once above them and stays.
-The smallest program:
+place. When a task ends, its line is printed once above the rows and stays
+in the scrollback. The smallest program looks like this:
 
 ```ocaml
 let build display =
@@ -320,35 +329,39 @@ let main () =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
 ```
 
-- `with_task` succeeds its task when the function returns and fails it when
-  the function raises.
-- A task started inside it, or in a fiber it forks, goes under it.
-- A task's output shows under its row while it runs. If the task fails or
-  is cancelled, up to 1 MiB of it stays under its line.
-- Output is what the program prints while a task is current: its `Logs`
-  messages, its `Display.log` lines and its `Fmt.pr` lines on the terminal.
-- Output outside a task goes above the rows.
-- The rows are drawn on standard error, so standard output stays the
-  program's.
+`with_task` runs a function as a task, which succeeds when the function
+returns and fails when it raises. A task started inside that function, or
+in a fiber it forks, is drawn under it.
 
-What `print_string`, `Printf` or a child process writes on the terminal is
-not seen and garbles the rows. Print it with `Display.with_output`.
-[console-eio's manual](doc/eio/index.mld) gives the other rules, for
-cancelled tasks, nested displays, domains and prompts.
+While a task runs, its output shows under its row. That output is what the
+program prints while the task is current: its
+[Logs](https://erratique.ch/software/logs) messages, its `Display.log` lines
+and the lines it prints on the terminal with `Fmt.pr`.
 
-## A `--progress` option
+If the task fails or is cancelled, up to 1 MiB of its output stays under
+its line. Output from outside any task goes above the rows.
 
-A `--progress` option, like that of `docker build`, lets users choose how
-progress shows. `Console_eio.progress` names its five values:
+The rows are drawn on standard error, which leaves standard output to the
+program. What `print_string`, `Printf` or a child process writes on the
+terminal goes past console and garbles the rows, so print it through
+`Display.with_output`. [console-eio's manual](doc/eio/index.mld) gives the
+remaining rules, for cancelled tasks, nested displays, domains and prompts.
+
+### Choosing how progress is shown
+
+Users can choose how progress is shown with a `--progress` option, as they
+can with [`docker build`](https://github.com/docker/buildx).
+`Console_eio.progress` lists the option's five values:
 
 - `auto`, the default, redraws the rows on a terminal and prints lines
-  elsewhere.
-- `tty` redraws the rows on any output, such as a pipe that a terminal
-  recorder reads.
-- `plain` prints lines, as on a CI log, in colour.
+  everywhere else.
+- `tty` redraws the rows even on an output that is not a terminal, such as
+  a pipe read by a terminal recorder.
+- `plain` prints lines, as on a CI log, but keeps the colour.
 - `quiet` prints only what fails.
-- `json` writes one JSON object for each event, one to a line.
-  `Console_eio` documents the fields, which stay for 1.0.
+- `json` writes one JSON object per line for each event. Its fields are
+  documented in `Console_eio`, and keep their meaning as new ones are
+  added.
 
 ```ocaml
 let progress =
@@ -365,16 +378,16 @@ let run_build progress build =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~progress build
 ```
 
-Without the option, `TERM=dumb` or a pipe gets the lines of `plain`, without
-colour.
+Without the option, `TERM=dumb` or a pipe gets the lines of `plain`, but
+without colour.
 
-## Scenes and motion
+### A live table above the rows
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
 
-`Display.set_scene` draws what a printer prints above the header and the
-rows, each time they are redrawn. Here the scene is a table of results that
-fills in while the work runs:
+`Display.set_scene` draws whatever a printer prints above the header and
+the rows, each time they are redrawn. A program can use it to keep a table
+of results on screen and fill it in as the work runs:
 
 ```ocaml
 let watch display (results : unit -> Console.Table.t) =
@@ -382,11 +395,12 @@ let watch display (results : unit -> Console.Table.t) =
       Console.Table.pp ppf (results ()))
 ```
 
-A scene is as wide as the rows and drawn in the display's theme. It shows
-only on a terminal and goes when the display closes. Print the table again
-once the work is done, as [the example](examples/display/main.ml) does.
+This scene is as wide as the rows and drawn in the display's theme. It
+shows only on a terminal and disappears when the display closes, so the
+program prints the table again once the work is done, as
+[the example](examples/display/main.ml) does.
 
-In a theme with motion, the frame of a table or a panel in a scene moves:
+In a theme with motion, the frame of a table or a panel in the scene moves:
 
 - `Theme.matrix` runs digital rain round it (`` `Rain ``, above).
 - `Theme.rainbow` sweeps its palette round it (`` `Sweep ``,
@@ -396,23 +410,24 @@ In a theme with motion, the frame of a table or a panel in a scene moves:
   [Tokyo Night](examples/display/tokyo-night.gif)).
 - `Theme.default`, `Theme.ascii` and `Theme.dos` stand still.
 
-Only colours and the glyphs of straight lines change, so the columns stay
-aligned in every frame. `Theme.still` stops all motion, the spinner
-included, for the users who ask for no animation:
+Only the colours and the glyphs of straight lines change, so the columns
+stay aligned in every frame. For users who ask for no animation,
+`Theme.still` stops all motion, the spinner included:
 
 ```ocaml
 let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 ```
 
-## Pipes and CI
+## Output on pipes and in CI logs
 
-When the output is not a terminal, nothing is redrawn. A task prints a line
-when it starts and one when it ends. Each line of its output comes in
-between, after the task's name. The header comes last, as a summary.
+When the output is not a terminal, nothing is redrawn. Each task prints a
+line when it starts and another when it ends, with the lines of its output
+in between, each after the task's name. The header comes last, as a
+summary.
 
-`Display.v` opens a display on any formatter. Here it writes to a buffer,
-with a clock that stays at zero, to show what `build` above prints in a
-pipe:
+`Display.v` opens a display on any formatter. Here it writes into a buffer,
+with a clock that stays at zero, to show what the `build` function above
+prints in a pipe:
 
 ```ocaml
 # let pipe = Buffer.create 256 in
@@ -431,8 +446,8 @@ pipe:
 ```
 
 The line a task ends with starts with a mark from the theme. A task that
-did not succeed also says so in words, as `✗ compile  2/2  0.1s  failed`
-does, so a log read without colour still tells a failure from a success:
+did not succeed also says so in words, as in `✗ compile  2/2  0.1s  failed`,
+so that a log read without colour still tells a failure from a success:
 
 | Task | `Theme.default` | `Theme.dos` |
 |---|---|---|
@@ -441,23 +456,24 @@ does, so a log read without colour still tells a failure from a success:
 | cancelled | `○` | `[~]` |
 
 On a pipe, console flushes standard output before each line it writes, so
-`2>&1` keeps the order of the two outputs. With
-``Console_eio.run ~progress:`Plain``, a terminal gets the same lines.
+`2>&1` keeps the two outputs in the order they were written. On a
+terminal, ``Console_eio.run ~progress:`Plain`` prints the same lines.
 
-## Colour
+## Deciding on colour
 
-A program decides on colour once, with `Console_tty.setup` from
-`console.tty`:
+A program decides on colour once, with `Console_tty.setup` from the
+`console.tty` library. There is no colour when
+[`NO_COLOR`](https://github.com/jcs/no_color) is set and not empty, or when
+`TERM` is unset, empty or `dumb`.
 
-- With `NO_COLOR` set and not empty, or `TERM` unset, empty or `dumb`,
-  there is no colour.
-- Otherwise an output is in colour when it is a terminal.
-- The number of colours is what `COLORTERM` and `TERM` announce.
-- The output is in UTF-8 when the locale is.
+Otherwise an output is in colour when it is a terminal, with as many
+colours as `COLORTERM` and `TERM` announce, and it shows UTF-8 when the
+locale does.
 
 A `--color=auto|always|never` option from `fmt.cli`, passed to `setup` as
-its `?style_renderer`, decides instead. If the program does not call
-`setup`, `Console_eio.run` does, for the outputs the program left alone:
+its `?style_renderer`, overrides that choice. A program that never calls
+`setup` still gets the same choice from `Console_eio.run`, for the outputs
+it left alone:
 
 ```ocaml
 let ready style_renderer =
@@ -475,18 +491,19 @@ ready
 - : int = 0
 ```
 
-## Testing
+## Testing the output
 
-An elapsed time is the one part of the output that depends on the machine.
-With `CONSOLE_FROZEN_CLOCK` set to a value other than the empty string,
-`Console_eio.run` reads a clock stopped at zero:
+The elapsed times are the only part of the output that changes from one
+machine to another. When `CONSOLE_FROZEN_CLOCK` is set to a value other
+than the empty string, `Console_eio.run` reads a clock stopped at zero:
 
 - every elapsed time reads `0.0s`;
-- no rate shows;
+- no rate is shown;
 - the spinners and the motion stand still.
 
-A cram test of the output then reads the same on every machine. Here it
-runs `build`, from [Progress rows](#progress-rows), as an executable:
+A [Dune](https://github.com/ocaml/dune) cram test of the program's output
+then reads the same on every machine. This one runs the `build` function
+from [Progress rows](#progress-rows), compiled as an executable:
 
 <!-- $MDX skip -->
 ```sh
@@ -498,18 +515,17 @@ runs `build`, from [Progress rows](#progress-rows), as an executable:
   ✓ Building 0.0s (1/1)
 ```
 
-The widgets need no clock. `to_string` on a table, a tree, a panel, a rule
-or a bar gives the text a test compares, plain unless `~styled:true`.
+The widgets need no clock at all. `to_string` on a table, a tree, a panel,
+a rule or a bar returns the text a test compares, without escape codes
+unless `~styled:true` asks for them.
 
-## Line editing
+## A line editor
 
-The `console.input` library has one module, `Console_input`. It is a line
-editor for a serial line, a network channel or a terminal in raw mode, with
-a cursor, history and completion.
-
-The editor turns the bytes typed into what to echo and the lines entered.
-It does no input or output itself: the program reads the bytes and writes
-the echo back.
+The `console.input` library has a single module, `Console_input`, a line
+editor with a cursor, history and completion for a serial line, a network
+channel or a terminal in raw mode. The editor does no input or output
+itself. The program reads the bytes the user types and feeds them to the
+editor, which returns what to echo and the lines entered:
 
 ```ocaml
 # let editor = Console_input.v () in
@@ -517,19 +533,20 @@ the echo back.
 - : string * string list = ("ls\r\n", ["ls"])
 ```
 
-## Untrusted text
+## Printing untrusted text
 
-The `console.text` library has one module, `Console_text`. It makes text
-you do not trust safe to print, without the rest of console.
+The `console.text` library has a single module, `Console_text`, which makes
+text you do not trust safe to print. It does not depend on the rest of
+console, and it offers two ways to clean text:
 
-- `strip` gives the text a terminal would show, each escape code removed
-  whole. With `~keep_styles:true` it keeps the codes that only set colours,
-  to relay a tool's coloured output.
-- `sanitize` keeps every byte in sight and prints an escape code as text,
-  to show what was received.
+- `strip` returns the text a terminal would show, with each escape code
+  removed whole. With `~keep_styles:true` it keeps the codes that only set
+  colours, so a program can relay another tool's coloured output.
+- `sanitize` keeps every byte visible and prints an escape code as text, so
+  a program can show exactly what it received.
 
-Neither leaves a control character that a terminal acts on, nor a character
-that reorders text:
+Neither leaves a control character that a terminal would act on, nor a
+character that reorders the text around it:
 
 ```ocaml
 # Console_text.strip "\027[31mred\027[0m and \027]0;title\007plain";;
