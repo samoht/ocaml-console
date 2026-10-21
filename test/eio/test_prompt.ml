@@ -144,12 +144,11 @@ let with_stdin ~stdin f =
   Unix.dup2 stdin Unix.stdin;
   f ()
 
-(* [secret] waits for the terminal the way a fiber waits, so the rest of the
-   domain runs meanwhile: the answer is typed by another fiber of the same
-   domain, which only runs if the read let it. A watchdog domain types it
-   after a while so that a read that parks the domain fails the test rather
-   than hanging it. *)
-let test_secret_leaves_the_domain_running () =
+(* [secret t] answered on a pseudo-terminal with [typed], by another fiber
+   of the domain if the read lets it run, or else by a watchdog domain, so
+   that a read that parks the domain fails rather than hangs. It is the
+   answer and whether the fiber typed it. *)
+let secret_typed typed =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty =
@@ -162,15 +161,17 @@ let test_secret_leaves_the_domain_running () =
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
   Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
   @@ fun () ->
-  let typed = Atomic.make false in
+  let typed_once = Atomic.make false in
   let type_answer () =
-    if Atomic.compare_and_set typed false true then
-      ignore (Unix.write_substring master "abc\n" 0 4 : int)
+    if Atomic.compare_and_set typed_once false true then
+      ignore (Unix.write_substring master typed 0 (String.length typed) : int)
   in
   let watchdog =
     Domain.spawn (fun () ->
         let deadline = Unix.gettimeofday () +. 10. in
-        while (not (Atomic.get typed)) && Unix.gettimeofday () < deadline do
+        while
+          (not (Atomic.get typed_once)) && Unix.gettimeofday () < deadline
+        do
           Unix.sleepf 0.01
         done;
         type_answer ())
@@ -188,14 +189,28 @@ let test_secret_leaves_the_domain_running () =
           result := Prompt.secret t "secret: ")
         (fun () ->
           Eio.Fiber.yield ();
-          if not (Atomic.get typed) then begin
+          if not (Atomic.get typed_once) then begin
             by_fiber := true;
             type_answer ()
           end));
   Domain.join watchdog;
-  Alcotest.check string_answer "the typed line" (Got "abc") (seen !result);
+  (seen !result, !by_fiber)
+
+(* [secret] waits for the terminal the way a fiber waits, so the rest of the
+   domain runs meanwhile: the answer is typed by another fiber of the same
+   domain, which only runs if the read let it. *)
+let test_secret_leaves_the_domain_running () =
+  let answer, by_fiber = secret_typed "abc\n" in
+  Alcotest.check string_answer "the typed line" (Got "abc") answer;
   Alcotest.(check bool)
-    "the domain ran while the terminal was awaited" true !by_fiber
+    "the domain ran while the terminal was awaited" true by_fiber
+
+(* A password is the bytes typed: a bidi mark, a C1 control and a byte
+   that is no UTF-8 come back as they were typed. *)
+let test_secret_keeps_bytes () =
+  let password = "\u{202e}p\xc2\x85w\xff" in
+  let answer, _ = secret_typed (password ^ "\n") in
+  Alcotest.check string_answer "the bytes typed" (Got password) answer
 
 (* What is typed before [secret] masks the terminal is echoed, as it is
    under getpass(3), but it is not the answer: [secret] discards it and
@@ -275,4 +290,6 @@ let suite =
         test_secret_leaves_the_domain_running;
       Alcotest.test_case "secret drops what was typed before it masks" `Quick
         test_secret_drops_typeahead;
+      Alcotest.test_case "a password is the bytes typed" `Quick
+        test_secret_keeps_bytes;
     ] )

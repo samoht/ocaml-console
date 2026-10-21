@@ -81,6 +81,38 @@ let test_masked_input () =
   Alcotest.(check (list string))
     "secrets are never retained in history" [] (Console_input.history t)
 
+(* A secret is the bytes typed, whatever they are: a bidi mark, a C1
+   control, a byte that is no UTF-8, a mark with nothing to join, or a
+   character cut short. Only masks are echoed, the cursor moved by
+   backspaces. *)
+let test_masked_keeps_bytes () =
+  let secret typed =
+    let t = Console_input.v ~mask:"*" () in
+    let echo, ls = Console_input.feed t (typed ^ "\r") in
+    String.iter
+      (fun c ->
+        if not (String.contains "*\b \r\n" c) then
+          Alcotest.failf "%S echoes %C" typed c)
+      echo;
+    ls
+  in
+  List.iter
+    (fun typed ->
+      Alcotest.(check lines) (Fmt.str "%S" typed) [ typed ] (secret typed))
+    [
+      "p\u{202e}w";
+      "\u{200f}pw";
+      "p\xc2\x85w";
+      "\xffpw\xfe";
+      "p\x80\xbfw";
+      "\u{0301}pw";
+      "pw\xe2\x82";
+      "p\xe2\x82w";
+      "\xed\xa0\x80";
+    ];
+  Alcotest.(check lines)
+    "backspace erases what was typed" [ "p\xff" ] (secret "p\xff\xfe\127")
+
 (* ---- Feed boundaries --------------------------------------------------- *)
 
 let test_split_across_feeds () =
@@ -397,6 +429,8 @@ let suite =
       Alcotest.test_case "control chars ignored" `Quick
         test_control_chars_ignored;
       Alcotest.test_case "masked secret input" `Quick test_masked_input;
+      Alcotest.test_case "a secret is the bytes typed" `Quick
+        test_masked_keeps_bytes;
       Alcotest.test_case "split across feeds" `Quick test_split_across_feeds;
       Alcotest.test_case "split CRLF across feeds" `Quick
         test_split_crlf_across_feeds;
