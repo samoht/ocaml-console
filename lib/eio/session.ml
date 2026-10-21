@@ -16,7 +16,7 @@ module Display = Console.Display
 let current : Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
 let task : Display.task Eio.Fiber.key = Eio.Fiber.create_key ()
 let busy = Atomic.make false
-let running : Display.t option Atomic.t = Atomic.make None
+let ending : (unit -> unit) option Atomic.t = Atomic.make None
 
 (* The runs that share the display of a domain: the one that opened it and
    those that joined it. It closes once the last of them ends. *)
@@ -72,15 +72,11 @@ let last_out s =
     Eio.Promise.await idle
   end
 
-(* [exit] runs the [at_exit] functions but no [finally]: the display is
-   closed there, its tasks cancelled, so the cursor is shown again and the
-   terminal left at the start of a line. *)
+(* [exit] runs the [at_exit] functions but no [finally]: the run's ending
+   is run there. *)
 let at_exit =
   lazy
-    (Stdlib.at_exit (fun () ->
-         match Atomic.get running with
-         | Some d -> ( try Display.close d with Sys_error _ -> ())
-         | None -> ()))
+    (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
 
 (* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
@@ -98,7 +94,7 @@ let release () =
   Option.iter
     (fun s -> ignore (Eio.Promise.try_resolve (snd s.released) ()))
     (Atomic.exchange shared None);
-  Atomic.set running None;
+  Atomic.set ending None;
   Atomic.set busy false
 
 (* {1 The program's output}
@@ -343,8 +339,8 @@ let first_run s f =
       (try last_out s with Eio.Cancel.Cancelled _ -> ());
       Printexc.raise_with_backtrace e bt
 
-let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
-  Atomic.set running (Some display);
+(* [display] as the domain's, for the runs that join it. *)
+let share display =
   let s =
     {
       display;
@@ -356,13 +352,29 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
     }
   in
   Atomic.set shared (Some s);
+  s
+
+let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
+  let previous = Logs.reporter () in
+  let closed, close = Eio.Promise.create () in
+  let give_back () =
+    Logs.set_reporter previous;
+    ignore (Eio.Promise.try_resolve close ())
+  in
+  (* What a return, a raise or a cancellation does, [exit] does too, so that
+     what a later [at_exit] function logs or prints goes out as before. *)
+  Atomic.set ending
+    (Some
+       (fun () ->
+         (try Display.close display with Sys_error _ -> ());
+         give_back ();
+         restore ()));
+  let s = share display in
   Fun.protect ~finally:(fun () ->
       restore ();
       release ())
   @@ fun () ->
   List.iter (intercept display) formatters;
-  let previous = Logs.reporter () in
-  let closed, close = Eio.Promise.create () in
   let value =
     match
       Eio.Switch.run @@ fun sw ->
@@ -371,10 +383,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
       Logs.set_reporter
         (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests display);
       animate ~sw ~sleep display;
-      Fun.protect ~finally:(fun () ->
-          Logs.set_reporter previous;
-          Eio.Promise.resolve close ())
-      @@ fun () ->
+      Fun.protect ~finally:give_back @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
           Display.close display)
       @@ fun () -> first_run s f

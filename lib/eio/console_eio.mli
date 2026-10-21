@@ -78,14 +78,15 @@ val run :
     than {!Logs.default} comes after the source's name in brackets, as in
     [[http] connected]. A fiber cancelled inside a {!Console.Display.with_task}
     cancels its task. The reporter installed before [run] is put back when [f]
-    ends. A message logged in another domain that Eio runs, such as one of an
-    [Eio.Executor_pool], is passed to the domain that runs [f] and goes above
-    the rows; the display itself is for that domain alone
-    ({{!Console.Display.displays}Displays}). A message the display cannot take
-    goes to the reporter installed before [run], so that a log call never fails:
-    one logged once the display closed, through a reporter kept from [f], one
-    still waiting for the display when it closes, and one from a domain that Eio
-    does not run.
+    ends, and when the program exits during [f], so that what an [at_exit]
+    function logs after the display closed goes to it. A message logged in
+    another domain that Eio runs, such as one of an [Eio.Executor_pool], is
+    passed to the domain that runs [f] and goes above the rows; the display
+    itself is for that domain alone ({{!Console.Display.displays}Displays}). A
+    message the display cannot take goes to the reporter installed before [run],
+    so that a log call never fails: one logged once the display closed, through
+    a reporter kept from [f], one still waiting for the display when it closes,
+    and one from a domain that Eio does not run.
 
     A [run] called while another runs in the same domain, inside [f], in a fiber
     [f] started or in a fiber beside it, passes its own function the same
