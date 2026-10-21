@@ -43,6 +43,7 @@
   eio.mock
   mtime
   eio_main
+  matrix.ansi
   matrix.grid
   matrix.vte
   alcotest

@@ -5,4 +5,4 @@
  (name console_input)
  (public_name console.input)
  (private_modules width)
- (libraries console.text matrix.glyph))
+ (libraries console.text matrix.text))

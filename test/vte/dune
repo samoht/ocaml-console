@@ -1,5 +1,8 @@
 ; An emulated terminal that reads its bytes as xterm does, for the tests.
+; Width is private to console.input; the emulator compiles it in.
+
+(copy_files ../../lib/input/width.{ml,mli})
 
 (library
  (name console_vte)
- (libraries fmt matrix.ansi matrix.glyph matrix.grid matrix.vte))
+ (libraries matrix.ansi matrix.grid matrix.text matrix.vte))

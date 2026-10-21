@@ -12,7 +12,8 @@
   console
   console.input
   console.text
-  matrix.glyph
+  matrix.ansi
+  matrix.text
   matrix.grid
   console_vte
   display_harness

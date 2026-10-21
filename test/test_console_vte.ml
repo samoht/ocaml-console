@@ -133,15 +133,14 @@ let test_backspace_moves () =
 
 let foreground t ~x ~y =
   let g = Console_vte.grid t in
-  let i = Grid.idx g ~x ~y in
-  (Grid.get_fg_r g i, Grid.get_fg_g g i, Grid.get_fg_b g i)
+  let i = Matrix_grid.idx g ~x ~y in
+  Ansi.Color.to_rgb (Matrix_grid.get_fg g i)
 
 (* SGR 39 and 49 give back the terminal's own colours. *)
 let test_default_colours () =
   let plain = foreground (read [ "X" ]) ~x:0 ~y:0 in
   let reset = foreground (read [ "\027[31;41m\027[39;49mX" ]) ~x:0 ~y:0 in
-  Alcotest.(check (triple (float 0.) (float 0.) (float 0.)))
-    "the default foreground" plain reset;
+  Alcotest.(check (triple int int int)) "the default foreground" plain reset;
   let palette = foreground (read [ "\027[38;5;39mX" ]) ~x:0 ~y:0 in
   Alcotest.(check bool)
     "colour 39 of the palette is a colour" false (palette = plain)

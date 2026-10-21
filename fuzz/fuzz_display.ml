@@ -472,15 +472,16 @@ let test_output_exception s cancel =
   Console_vte.feed t.vte "AFTER";
   check (has "AFTER" (List.nth (screen t.vte) y));
   let grid = Console_vte.grid t.vte in
-  let index = Grid.idx grid ~x:0 ~y in
+  let index = Matrix_grid.idx grid ~x:0 ~y in
   let reference = Console_vte.v ~rows:8 ~cols:40 () in
   Console_vte.feed reference "AFTER";
   let plain = Console_vte.grid reference in
-  let first = Grid.idx plain ~x:0 ~y:0 in
-  check (Grid.get_fg_r grid index = Grid.get_fg_r plain first);
-  check (Grid.get_fg_g grid index = Grid.get_fg_g plain first);
-  check (Grid.get_fg_b grid index = Grid.get_fg_b plain first);
-  check (Grid.get_bg_r grid index = Grid.get_bg_r plain first)
+  let first = Matrix_grid.idx plain ~x:0 ~y:0 in
+  let colours g i =
+    Ansi.Color.
+      (to_rgba (Matrix_grid.get_fg g i), to_rgba (Matrix_grid.get_bg g i))
+  in
+  check (colours grid index = colours plain first)
 
 let test_resize_erases_old_frame n =
   let t = terminal ~width:80 ~height:12 ~styled:true () in
@@ -924,7 +925,7 @@ let line_glyphs =
 
 let clusters s =
   let l = ref [] in
-  Glyph.String.iter_graphemes
+  Matrix_text.iter_graphemes
     (fun ~offset ~len -> l := String.sub s offset len :: !l)
     s;
   List.rev !l
@@ -1082,7 +1083,7 @@ let test_scene_exception_close n k styled =
   Console_vte.feed reference "AFTER";
   for x = 0 to 4 do
     let grid = Console_vte.grid term and plain = Console_vte.grid reference in
-    check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
+    check (Matrix_grid.cells_equal grid (Matrix_grid.idx grid ~x ~y) plain x)
   done
 
 (* A long-lived parent must not retain the tasks and output of completed

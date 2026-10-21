@@ -9,7 +9,7 @@
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt matrix.glyph)
+ (libraries console.text fmt matrix.text)
  (private_modules
   border_motion
   capturing

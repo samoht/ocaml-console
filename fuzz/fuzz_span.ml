@@ -123,7 +123,7 @@ let test_truncate_closes s n =
 (* The cells of the widest cluster of [s]. *)
 let widest s =
   let w = ref 0 in
-  Glyph.String.iter_graphemes
+  Matrix_text.iter_graphemes
     (fun ~offset ~len ->
       w := max !w (Width.string_width (String.sub s offset len)))
     s;
@@ -380,7 +380,7 @@ let test_gradient_wrap s k =
   for i = 0 to cols - 1 do
     if
       not
-        (Grid.cells_equal
+        (Matrix_grid.cells_equal
            (Console_vte.grid expected)
            i (Console_vte.grid actual) i)
     then failf "wrapping changed the glyph or colour at column %d" i

@@ -1143,7 +1143,7 @@ let border_glyphs =
 
 let clusters s =
   let l = ref [] in
-  Glyph.String.iter_graphemes
+  Matrix_text.iter_graphemes
     (fun ~offset ~len -> l := String.sub s offset len :: !l)
     s;
   List.rev !l

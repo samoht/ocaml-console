@@ -6,12 +6,9 @@
 (** An emulated terminal, and what a terminal recording put on its screen.
 
     The tests read console's output on the screen of an emulator, matrix's
-    [Vte]. Version 0.1.0 of it departs from xterm where console's guarantees are
-    decided: a backspace erases the cell it moves over, SGR 39 and 49 set no
-    default colour, characters of no width are dropped, and after a character in
-    the last column its cursor controls act one column off. A {!t} reads the
-    bytes itself and hands the emulator only what it reads as xterm does, so
-    that a test passes or fails as it would on xterm.
+    [Vte], which reads its bytes as xterm does. One choice of console's widths
+    holds on it too: a spacing mark takes a cell of its own, as in xterm and
+    VTE.
 
     A recording of a program that redraws lines in place holds every redraw, so
     reading it as text does not say what the screen showed. {!frames} replays a
@@ -61,7 +58,7 @@ val scrollback_lines : t -> string list
 val scrollback_size : t -> int
 (** [scrollback_size t] is the number of {!scrollback_lines}. *)
 
-val grid : t -> Grid.t
+val grid : t -> Matrix_grid.t
 (** [grid t] is the visible screen's cells. *)
 
 val screen : ?scrollback:bool -> t -> string list
