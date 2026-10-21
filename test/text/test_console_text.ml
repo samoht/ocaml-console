@@ -177,6 +177,8 @@ let test_line_ends () =
   check "CR CR LF" "a\n\nb" strip "a\r\r\nb";
   check "LF CR" "a\n\nb" strip "a\n\rb";
   check "CR, an escape, LF" "a\nb" strip "a\r\027[K\nb";
+  check "CR, a bidirectional mark, LF" "a\nb" Console_text.sanitize
+    "a\r\u{200F}\nb";
   check "NEL" "a\nb" Console_text.sanitize "a\u{0085}b";
   (* 8.3.161 VT and 8.3.51 FF move to the next line, as a terminal's LF. *)
   check "VT" "a\nb" strip "a\011b";
