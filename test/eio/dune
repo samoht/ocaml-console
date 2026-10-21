@@ -20,7 +20,7 @@
 (executable
  (name piped)
  (modules piped)
- (libraries console console-eio eio eio.mock eio_main fmt logs))
+ (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt))
 
 (cram
  (package console-eio)

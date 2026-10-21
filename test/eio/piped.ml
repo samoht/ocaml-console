@@ -7,7 +7,8 @@
     its display and Logs messages on standard error. Given a count, it does that
     many steps, enough to write far more than a pipe holds, so that a reader
     that stops early closes the pipe under it; with [bare], it prints the
-    results alone, without console. *)
+    results alone, without console; with [exit], it calls [exit] inside a task,
+    and an [at_exit] function it registered first logs and prints. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -33,6 +34,16 @@ let () =
             Logs.warn (fun m -> m "after %d" i);
             Fmt.epr "note %d@." i
           done)
+  | [| _; "exit" |] ->
+      Logs.set_reporter (Logs_fmt.reporter ());
+      at_exit (fun () ->
+          Logs.warn (fun m -> m "logged at exit");
+          Fmt.epr "printed at exit@.";
+          Fmt.pr "result at exit@.");
+      Console_eio.run ~clock (fun display ->
+          Console.Display.with_task display "work" (fun _ ->
+              Fmt.pr "result 1@.";
+              exit 3))
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do
