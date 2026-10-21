@@ -36,7 +36,7 @@ let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
     prompt = clean prompt;
     complete;
     mask = Option.map clean mask;
-    hist = List.rev_map clean history;
+    hist = (if Option.is_some mask then [] else List.rev_map clean history);
     pos = None;
     draft = "";
     esc = Normal;

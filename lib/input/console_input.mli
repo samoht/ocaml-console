@@ -53,8 +53,8 @@ val v :
       they are, other than the keys: the replacement character, the space for a
       C1 control and the dropped mark of {!feed} are for an echo, and a byte
       above [0x7F] that is no character is kept. A masked editor, for a password
-      or a token, completes nothing, recalls nothing and keeps no line in its
-      {!history}.
+      or a token, completes nothing, recalls nothing and its {!history} is
+      empty: it drops the [history] seed and keeps no line it submits.
 
     A control character in [prompt], [history], [mask] or a completion is echoed
     as a space, so none of them can move the cursor or change colours. *)
