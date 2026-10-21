@@ -168,9 +168,48 @@ let test_within_fiber () =
   mem ~msg:"a succeeds" "\u{2713} a" out;
   absent ~msg:"not cancelled" "\u{25cb} a" out
 
+(* An Eio output formatter can suspend between writes to its destination.
+   Concurrent tasks must still emit complete JSON records. *)
+let test_json_concurrent_writes () =
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter
+      (fun text offset length ->
+        let first = length / 2 in
+        Buffer.add_substring out text offset first;
+        Eio.Fiber.yield ();
+        Buffer.add_substring out text (offset + first) (length - first))
+      (fun () -> ())
+  in
+  Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
+      Eio.Fiber.List.iter
+        (fun label ->
+          D.with_task d label (fun task ->
+              D.log task "line";
+              D.set_count task ~cur:1 ~total:1))
+        [ "1"; "2"; "3" ]);
+  Format.pp_print_flush ppf ();
+  let lines =
+    String.split_on_char '\n' (Buffer.contents out)
+    |> List.filter (fun line -> line <> "")
+  in
+  List.iter
+    (fun line ->
+      match Yojson.Safe.from_string line with
+      | `Assoc _ -> ()
+      | _ -> Alcotest.failf "not a JSON object: %S" line
+      | exception Yojson.Json_error error ->
+          Alcotest.failf "interleaved JSON record %S: %s" line error)
+    lines;
+  Alcotest.(check int) "four events per task" 12 (List.length lines)
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "concurrent JSON writes remain whole" `Quick
+        test_json_concurrent_writes;
       ("run banner", `Quick, test_run_banner);
       ("run fail", `Quick, test_run_fail);
       ("run raises", `Quick, test_run_raises);
