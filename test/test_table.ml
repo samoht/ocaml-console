@@ -585,9 +585,25 @@ let test_simple () =
   Alcotest.(check int)
     "the rule across the narrowed table" 10 (List.nth narrow 1)
 
+(* Empty edge glyphs do not remove the other pieces of a custom frame. *)
+let test_empty_left_edge () =
+  let border = Border.v { (Border.chars Border.single) with left = "" } in
+  let table =
+    Table.v ~border
+      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
+      [ [ Span.text "x"; Span.text "y" ] ]
+  in
+  Alcotest.(check string)
+    "the empty left edge is padded to the corners' width"
+    (String.concat "\n"
+       [ "┌───┬───┐"; "  A │ B │"; "├───┼───┤"; "  x │ y │"; "└───┴───┘" ])
+    (Table.to_string ~width:30 table)
+
 let suite =
   ( "table",
     [
+      Alcotest.test_case "an empty edge keeps the rest of the frame" `Quick
+        test_empty_left_edge;
       Alcotest.test_case "rules" `Quick test_rules;
       Alcotest.test_case "two-cell border stays rectangular" `Quick
         test_wide_border;
