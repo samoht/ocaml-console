@@ -71,6 +71,40 @@ let test_plain_unfinished () =
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
     (String.split_on_char '\n' out)
 
+(* Without a terminal no colour may tell a failure from a success: the
+   closing line of a task that did not succeed says how it ended, in the
+   muted style of its time. *)
+let test_plain_outcome_word () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        Display.succeed (Display.task d "ok");
+        let a = Display.task d "a" in
+        Display.set_count a ~cur:2 ~total:2;
+        Display.fail a;
+        Display.cancel (Display.task d "b"))
+  in
+  check_lines "the outcome after the time"
+    [
+      "[-] ok";
+      "[+] ok  0.0s";
+      "[-] a";
+      "[x] a  2/2  0.0s  failed";
+      "[-] b";
+      "[~] b  0.0s  cancelled";
+      "";
+    ]
+    (String.split_on_char '\n' out);
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  let d = Display.v ~now:(fun () -> 0.) ppf in
+  Display.fail (Display.task d "a");
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "muted with the time" true
+    (contains "0.0s  failed\027[" (Buffer.contents buffer))
+
 let test_plain_attribution () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -1227,6 +1261,8 @@ let suite =
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
       Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;
+      Alcotest.test_case "a plain closing line says how it ended" `Quick
+        test_plain_outcome_word;
       Alcotest.test_case "plain lines start a line" `Quick test_plain_column;
       Alcotest.test_case "plain sanitizes" `Quick test_plain_sanitizes;
       Alcotest.test_case "plain result" `Quick test_plain_result;
