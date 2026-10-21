@@ -93,7 +93,9 @@ val run :
     already did. Its [clock], [ppf], [layout], [header] and [plain] are ignored:
     the display keeps those of the first [run], and closes once the last of
     their functions ends; the first [run] waits for the others. A [run] that
-    starts while that display closes opens its own once it is gone.
+    starts while that display closes opens its own once it is gone, and so does
+    one from a fiber that outlived the display it was started under, unless
+    another display runs then, which it joins.
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
     empty string, stops the display's clock at zero: every elapsed time reads

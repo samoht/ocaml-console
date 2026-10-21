@@ -7,7 +7,8 @@
     {!Logs} messages, the redraws, and its closing however the program ends. *)
 
 val find : unit -> Console.Display.t option
-(** [find ()] is the display of the calling fiber, if any. *)
+(** [find ()] is the display of the calling fiber, if any and it does not close
+    yet. *)
 
 val scope : Display_driver.scope
 (** [scope] is the scope in which the current task is that of the innermost

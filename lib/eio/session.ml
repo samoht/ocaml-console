@@ -17,7 +17,6 @@ let current : Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
 let task : Display.task Eio.Fiber.key = Eio.Fiber.create_key ()
 let busy = Atomic.make false
 let running : Display.t option Atomic.t = Atomic.make None
-let find () = Eio.Fiber.get current
 
 (* The runs that share the display of a domain: the one that opened it and
    those that joined it. It closes once the last of them ends. *)
@@ -31,6 +30,13 @@ type shared = {
 }
 
 let shared : shared option Atomic.t = Atomic.make None
+
+(* A fiber that outlives its run keeps the binding of a display that
+   closed: that one is no longer found. *)
+let find () =
+  match (Eio.Fiber.get current, Atomic.get shared) with
+  | Some d, Some s when d == s.display && not s.closing -> Some d
+  | _ -> None
 
 let join f =
   match Atomic.get shared with
