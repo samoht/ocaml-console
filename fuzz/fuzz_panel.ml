@@ -112,18 +112,19 @@ let test_wide_border n =
     (fun l -> check_eq ~pp:Fmt.int width (cells l))
     (String.split_on_char '\n' out)
 
-(* Compare before multiplying: no finite box can hold padding this large. *)
-let test_overflowing_padding n =
+(* Compare before multiplying: no finite box can hold padding this large,
+   whether its width is fixed or follows its content. *)
+let test_overflowing_padding n fixed =
   let padding = max_int - (n mod 1024) in
-  let width = 4 + (n mod 77) in
-  match Panel.v ~padding ~width Span.empty with
-  | _ -> failf "accepted padding %d in width %d" padding width
+  let width = if fixed then Some (4 + (n mod 77)) else None in
+  match Panel.v ~padding ?width Span.empty with
+  | _ -> failf "accepted padding %d" padding
   | exception Invalid_argument _ -> ()
 
 let suite =
   ( "panel",
     [
-      test_case "overflowing padding is refused at construction" [ uint8 ]
+      test_case "overflowing padding is refused at construction" [ uint8; bool ]
         test_overflowing_padding;
       test_case "multi-cell borders respect fixed width" [ uint8 ]
         test_wide_border;

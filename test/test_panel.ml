@@ -183,7 +183,10 @@ let test_to_string_width () =
 let test_overflowing_padding () =
   Alcotest.check_raises "padding cannot fit a twenty-cell panel"
     (Invalid_argument "Console.Panel.v: width too small for padding") (fun () ->
-      ignore (Panel.v ~padding:max_int ~width:20 (Span.text "x")))
+      ignore (Panel.v ~padding:max_int ~width:20 (Span.text "x")));
+  Alcotest.check_raises "no line can hold this padding"
+    (Invalid_argument "Console.Panel.v: padding too large") (fun () ->
+      ignore (Panel.v ~padding:max_int (Span.text "x")))
 
 let suite =
   ( "panel",
