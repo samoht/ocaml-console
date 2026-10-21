@@ -42,6 +42,8 @@ let v ?border ?title ?subtitle ?(padding = 1) ?width content =
   | Some width when width < edges || padding > (width - edges) / 2 ->
       invalid_arg "Console.Panel.v: width too small for padding"
   | _ -> ());
+  if padding > (Sys.max_string_length - edges) / 2 then
+    invalid_arg "Console.Panel.v: padding too large";
   let title = Option.map Widget.one_line title
   and subtitle = Option.map Widget.one_line subtitle in
   let lines = Span_core.lines content in

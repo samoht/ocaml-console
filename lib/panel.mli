@@ -32,8 +32,9 @@ val v :
       rectangle; by default it is sized to the content.
 
     @raise Invalid_argument
-      if [padding] is negative or [width] cannot hold the padding and [border],
-      or without [border] a frame one cell wide on each side. *)
+      if [padding] is negative, if [width] cannot hold the padding and [border]
+      (without [border], a frame one cell wide on each side), or if the padding
+      and border are wider than a string can hold ({!Sys.max_string_length}). *)
 
 (** {1:converting Converting} *)
 
