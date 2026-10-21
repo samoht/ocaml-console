@@ -100,7 +100,9 @@
     it ends is its mark, its label, its count and its elapsed time, then,
     without a terminal, [failed] or [cancelled] when it did not succeed; and
     without a terminal the line it prints when it starts is its mark and its
-    label. No bar, rate or percentage shows on them. *)
+    label. No bar, rate or percentage shows on them. With the [`Quiet] progress
+    of [Console_eio.run], only a task that fails or is cancelled prints its
+    line, and with [`Json] none does: JSON events take their place. *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)

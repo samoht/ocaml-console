@@ -165,9 +165,73 @@ let test_surviving_fiber k =
     (List.init count (fun i -> Fmt.str "  \u{203a} later: record-%d" i))
     records
 
+(* With [`Json], each line the display writes is a JSON object with a time
+   and an event, and the labels and lines of output read back as the
+   display shows them, whatever bytes they were given. *)
+(* The objects of the lines of [out], each checked to be valid UTF-8 and
+   to have a time. *)
+let events out =
+  String.split_on_char '\n' out
+  |> List.filter (fun l -> l <> "")
+  |> List.map (fun line ->
+      check (String.is_valid_utf_8 line);
+      match Yojson.Safe.from_string line with
+      | `Assoc fields ->
+          (match List.assoc_opt "time" fields with
+          | Some (`Float _ | `Int _) -> ()
+          | _ -> failf "no time in %s" line);
+          fields
+      | _ -> failf "not an object: %s" line
+      | exception Yojson.Json_error e -> failf "%s does not parse: %s" line e)
+
+let test_json_events label text =
+  (* A tab goes to a tab stop, which a space does not need. *)
+  let text = String.map (fun c -> if c = '\t' then ' ' else c) text in
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer out in
+  Console_eio.run ~clock ~ppf ~progress:`Json (fun display ->
+      Console.Display.with_task display label (fun task ->
+          Console.Display.set_count task ~cur:1 ~total:2;
+          Console.Display.log task text;
+          Console.Display.set_label task label;
+          Console.Display.fail task));
+  Format.pp_print_flush ppf ();
+  let events = events (Buffer.contents out) in
+  let string name fields =
+    match List.assoc_opt name fields with Some (`String s) -> s | _ -> ""
+  in
+  let of_event e = List.filter (fun f -> string "event" f = e) events in
+  let shown = Console_text.sanitize ~keep_newlines:false label in
+  List.iter
+    (fun fields ->
+      check_eq
+        ~pp:Fmt.(Dump.option Dump.string)
+        (Some shown)
+        (match List.assoc_opt "task" fields with
+        | Some (`List [ `String l ]) -> Some l
+        | _ -> None))
+    (of_event "start" @ of_event "end");
+  let expected =
+    match
+      String.split_on_char '\n' (Console_text.sanitize text) |> List.rev
+    with
+    | "" :: rest -> List.rev rest
+    | lines -> List.rev lines
+  in
+  let expected = if text = "" then [] else expected in
+  check_eq
+    ~pp:Fmt.(Dump.list Dump.string)
+    expected
+    (List.map (string "text") (of_event "output"));
+  check_eq ~pp:Fmt.Dump.string "failed"
+    (string "status" (List.hd (of_event "end")))
+
 let suite =
   ( "console_eio",
     [
+      test_case "JSON events read back" [ bytes; bytes ] test_json_events;
       test_case "a surviving fiber uses a live display" [ uint8 ]
         test_surviving_fiber;
       test_case "a refused record falls back and completes once"

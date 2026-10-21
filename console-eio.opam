@@ -28,6 +28,7 @@ depends: [
   "cstruct" {with-test}
   "eio_main" {with-test}
   "alcobar" {with-test}
+  "yojson" {with-test}
   "odoc" {with-doc}
 ]
 build: [

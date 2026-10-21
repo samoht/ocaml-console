@@ -3,7 +3,8 @@
 This tutorial writes [check], a command that runs test suites, shows them as
 progress rows while they run and prints a table of their results. It takes a
 [--color] option, a [--theme] option and a [--progress] option, prints plain
-lines when its output is a pipe or on [--progress=plain], and has a cram test whose output is the same on every machine.
+lines when its output is a pipe or on [--progress=plain], and has a cram test
+whose output is the same on every machine.
 Each section adds to the one before it.
 
 {1:setup Setup}
@@ -114,8 +115,8 @@ let test display (name, total) =
   done;
   Logs.info (fun m -> m "%d tests passed" total)
 
-let run_all ~clock ~plain suites =
-  Console_eio.run ~clock ~plain ~header:"Testing" (fun display ->
+let run_all ~clock ~progress suites =
+  Console_eio.run ~clock ~progress ~header:"Testing" (fun display ->
       Eio.Fiber.List.iter (test display) suites)
 ]}
 
@@ -130,20 +131,26 @@ more.
 {1:program The whole program}
 
 [check] sets up the outputs, runs the suites, then prints the table. A
-[--progress=plain] option prints the progress as lines in turn, as on a
-pipe, on a terminal too: {!Console_eio.progress} names its values, [auto]
-and [plain], for the [plain] argument of {!Console_eio.run}:
+[--progress] option says how the progress shows, as [docker build]'s does:
+[auto], the default, redraws the rows on a terminal; [tty] redraws them on
+any output; [plain] prints lines in turn, as on a pipe, on a terminal too;
+[quiet] prints only what fails; and [json] writes one JSON object for each
+event ({{!Console_eio.json}JSON events}). {!Console_eio.val-progress} names
+the values for the [progress] argument of {!Console_eio.run}:
 
 {@ocaml[
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) false
-    & info [ "progress" ] ~doc:"How progress shows: $(b,auto) or $(b,plain).")
+    & opt (enum Console_eio.progress) `Auto
+    & info [ "progress" ]
+        ~doc:
+          "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \
+           $(b,json).")
 
-let check () plain =
+let check () progress =
   Eio_main.run @@ fun env ->
-  run_all ~clock:(Eio.Stdenv.mono_clock env) ~plain suites;
+  run_all ~clock:(Eio.Stdenv.mono_clock env) ~progress suites;
   Fmt.pr "%a@." Console.Table.pp (results suites)
 
 let cmd =
@@ -188,7 +195,22 @@ which the {{!testing}next section} explains:
 The marks come from the theme, here {!Console.Theme.dos}. Console flushes
 standard output before each line it writes, so [check 2>&1 | cat] keeps the
 order of the two outputs. [check --progress=plain] prints these lines on a
-terminal too.
+terminal too. [check --progress=quiet] prints none of them, since no suite
+fails, only the table:
+
+{@ocaml[
+# Cmdliner.Cmd.eval ~argv:[| "check"; "--progress=quiet" |] cmd;;
+╭────────┬───────╮
+│ Suite  │ Tests │
+├────────┼───────┤
+│ parser │     3 │
+│ layout │     2 │
+╰────────┴───────╯
+- : int = 0
+]}
+
+and [check --progress=json] writes the events another program reads, one
+JSON object on each line ({{!Console_eio.json}JSON events}).
 
 {1:testing Testing the output}
 

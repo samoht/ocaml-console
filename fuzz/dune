@@ -49,7 +49,16 @@
 (executable
  (name fuzz_eio)
  (modules fuzz_eio fuzz_console_eio)
- (libraries console console-eio eio eio.mock logs fmt alcobar))
+ (libraries
+  console
+  console-eio
+  console.text
+  eio
+  eio.mock
+  logs
+  fmt
+  yojson
+  alcobar))
 
 (rule
  (alias runtest)

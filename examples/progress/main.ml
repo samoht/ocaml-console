@@ -4,10 +4,12 @@
   ---------------------------------------------------------------------------*)
 
 (* A step that counts its files, with a layer under it that counts bytes.
-   [main.exe 2>&1 | cat] shows the plain lines a pipe gets, and
-   [main.exe --progress=plain] prints them on a terminal too. *)
+   [main.exe 2>&1 | cat] shows the plain lines a pipe gets,
+   [main.exe --progress=plain] prints them on a terminal too, and
+   [--progress=tty], [quiet] and [json] show the other modes. With [fail],
+   the layer fails. *)
 
-let build clock display =
+let build ~fail clock display =
   let step = Console.Display.task ~log_lines:4 display "RUN make" in
   let layer = Console.Display.task ~parent:step display "sha256:abcd..." in
   for i = 0 to 5 do
@@ -22,19 +24,30 @@ let build clock display =
       ~total;
     Eio.Time.Mono.sleep clock 0.2
   done;
-  Console.Display.succeed layer;
+  if fail then begin
+    Console.Display.log layer "checksum mismatch";
+    Console.Display.fail layer
+  end
+  else Console.Display.succeed layer;
   Console.Display.succeed step
 
-let main plain =
+let main progress fail =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~plain ~header:"Building" (build clock)
+  Console_eio.run ~clock ~progress ~header:"Building" (build ~fail clock)
 
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) false
-    & info [ "progress" ] ~doc:"How progress shows: $(b,auto) or $(b,plain).")
+    & opt (enum Console_eio.progress) `Auto
+    & info [ "progress" ]
+        ~doc:
+          "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \
+           $(b,json).")
 
-let cmd = Cmdliner.Cmd.(v (info "build") Cmdliner.Term.(const main $ progress))
+let fail = Cmdliner.Arg.(value & flag & info [ "fail" ] ~doc:"Fail the layer.")
+
+let cmd =
+  Cmdliner.Cmd.(v (info "build") Cmdliner.Term.(const main $ progress $ fail))
+
 let () = exit (Cmdliner.Cmd.eval cmd)

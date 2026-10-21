@@ -400,27 +400,42 @@ who ask for no animation:
 let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 ```
 
-A program with a `--progress=plain` option lets its users stop all motion:
-the display then prints its lines in turn, as on a CI log, without spinner
-or scene but in colour. `Console_eio.progress` names the two values, `auto`
-(the default) and `plain`, for the `plain` argument of `Console_eio.run`,
-as `Theme.all` names the themes, so the option is one more line beside
+A program with a `--progress` option, as `docker build` has, lets its
+users choose how progress shows, and stop all motion. `Console_eio.progress`
+names the five values for the `progress` argument of `Console_eio.run`, as
+`Theme.all` names the themes, so the option is one more line beside
 `--theme`:
+
+- `auto`, the default, redraws the rows in place on a terminal and prints
+  lines in turn elsewhere;
+- `tty` redraws them in place even on an output not found to be a terminal,
+  such as a pipe a terminal recorder reads, `$COLUMNS` wide and `$LINES`
+  tall, or 80 by 24;
+- `plain` prints the lines in turn, as on a CI log, without spinner or scene
+  but in colour;
+- `quiet` prints only what fails: a failed or cancelled task's line and its
+  output, as on a terminal, and what goes above the rows;
+- `json` writes one JSON object on each line for each event: a task that
+  starts, a count, a line of output, a task that ends and how, and the
+  result. `Console_eio` documents the fields, which stay for 1.0.
 
 ```ocaml
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) false
-    & info [ "progress" ] ~doc:"How progress shows: $(b,auto) or $(b,plain).")
+    & opt (enum Console_eio.progress) `Auto
+    & info [ "progress" ]
+        ~doc:
+          "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \
+           $(b,json).")
 
-let build plain =
+let run_build progress build =
   Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~plain ignore
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~progress build
 ```
 
-Without the option, `TERM=dumb` or a pipe gives the same lines, without
-colour.
+Without the option, `TERM=dumb` or a pipe gives the lines of `plain`,
+without colour.
 
 A scene is drawn only on a terminal and goes when the display closes:
 print the table again once the work is done, as
@@ -512,8 +527,8 @@ what `build` above prints in a pipe:
 
 On a pipe, console flushes standard output before each line it writes, so
 that `2>&1` keeps the order of the two outputs. `Console_eio.run
-~plain:true` prints these lines on a terminal too, as a `--progress=plain`
-option asks ([Motion](#motion)). The line a task ends with starts with a
+~progress:`Plain` prints these lines on a terminal too, as a
+`--progress=plain` option asks ([Motion](#motion)). The line a task ends with starts with a
 mark that says how it ended, which the theme chooses, and says it in words
 too when the task did not succeed, so that a log read without colour tells
 a failure from a success, as `✗ compile  2/2  0.1s  failed` does:

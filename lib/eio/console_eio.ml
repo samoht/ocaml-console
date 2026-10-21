@@ -65,26 +65,57 @@ let reading clock =
   | None | Some "" -> seconds clock
   | Some _ -> fun () -> 0.
 
+type progress = [ `Auto | `Tty | `Plain | `Quiet | `Json ]
+
+(* The display, the formatters whose lines it takes and what shows or hides
+   the cursor. On a terminal it takes the standard formatters on that
+   terminal; drawn on another output, or as events, [ppf] alone. *)
+let display ~progress ~now ?layout ?header ppf =
+  let scope = Session.scope in
+  let live ~size ~intercept ~cursor =
+    ( Display_driver.v ?layout ?header ~size ~scope ~now (own ppf),
+      intercept,
+      cursor )
+  in
+  let on_terminal () =
+    Option.map
+      (fun (fd, unix) ->
+        live
+          ~size:(fun () -> Terminal.dimensions (Some fd))
+          ~intercept:(routed unix) ~cursor:(cursor unix))
+      (terminal ppf)
+  in
+  let std = match descriptor ppf with Some _ -> [ ppf ] | None -> [] in
+  let lines form =
+    match (form, std) with
+    | `Json, _ :: _ ->
+        ( Display_driver.v ?layout ?header ~form ~scope ~now (own ppf),
+          std,
+          ignore )
+    | _ -> (Display_driver.v ?layout ?header ~form ~scope ~now ppf, [], ignore)
+  in
+  match progress with
+  | `Auto -> ( match on_terminal () with Some d -> d | None -> lines `Plain)
+  | `Tty -> (
+      match on_terminal () with
+      | Some d -> d
+      | None ->
+          let cursor =
+            match descriptor ppf with
+            | Some (_, unix) -> cursor unix
+            | None -> ignore
+          in
+          live ~size:(fun () -> Terminal.dimensions None) ~intercept:std ~cursor
+      )
+  | (`Plain | `Quiet | `Json) as form -> lines form
+
 (* A display of its own, which [f] is given. *)
-let open_display ~clock ~ppf ?layout ?header ~plain f =
+let open_display ~clock ~ppf ?layout ?header ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
   let now = reading clock in
-  match
-    match if plain then None else terminal ppf with
-    | None ->
-        ( Display_driver.v ?layout ?header ~scope:Session.scope ~now ppf,
-          [],
-          ignore )
-    | Some (fd, unix) ->
-        let size () = Terminal.dimensions (Some fd) in
-        let display =
-          Display_driver.v ?layout ?header ~size ~scope:Session.scope ~now
-            (own ppf)
-        in
-        (display, routed unix, cursor unix)
-  with
+  match display ~progress ~now ?layout ?header ppf with
   | display, intercept, cursor ->
       Session.run ~cursor
         ~sleep:(Eio.Time.Mono.sleep clock)
@@ -93,12 +124,19 @@ let open_display ~clock ~ppf ?layout ?header ~plain f =
       Session.release ();
       raise e
 
-let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
+let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(progress = `Auto) f =
   match Session.find () with
   | Some display -> f display
   | None -> (
       match Session.join f with
       | Some v -> v
-      | None -> open_display ~clock ~ppf ?layout ?header ~plain f)
+      | None -> open_display ~clock ~ppf ?layout ?header ~progress f)
 
-let progress = [ ("auto", false); ("plain", true) ]
+let progress =
+  [
+    ("auto", `Auto);
+    ("tty", `Tty);
+    ("plain", `Plain);
+    ("quiet", `Quiet);
+    ("json", `Json);
+  ]

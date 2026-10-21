@@ -56,4 +56,5 @@
   (cmdliner :with-test)
   (cstruct :with-test)
   (eio_main :with-test)
-  (alcobar :with-test)))
+  (alcobar :with-test)
+  (yojson :with-test)))

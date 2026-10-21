@@ -143,12 +143,14 @@ let send_held display i =
   end
 
 (* [s], written in the calling fiber: the current task's output, or held
-   for above the region; either way after the lines held before it. *)
+   for above the region, after the lines held before it; as events, the
+   output of the current task or of none. *)
 let write display i s =
   match Display_driver.current display with
   | Some task ->
       send_held display i;
       to_task task s
+  | None when Display_driver.is_json display -> to_task (Display.root display) s
   | None ->
       Buffer.add_string i.held s;
       if Buffer.length i.held > max_pending then send_held display i
@@ -195,6 +197,24 @@ let intercept display ppf =
     if not (Atomic.compare_and_set intercepted l (i :: l)) then remember ()
   in
   remember ()
+
+(* As events, what the formatters still hold is output before the display
+   closes, so that every line it wrote is an event. *)
+let settle display =
+  if Display_driver.is_json display then
+    List.iter
+      (fun i ->
+        (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
+        if Buffer.length i.pending > 0 then begin
+          let s = Buffer.contents i.pending in
+          Buffer.clear i.pending;
+          write display i s
+        end)
+      (Atomic.get intercepted)
+
+let close_display display =
+  settle display;
+  Display.close display
 
 let restore () =
   List.iter
@@ -376,7 +396,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
   Atomic.set ending
     (Some
        (fun () ->
-         (try Display.close display with Sys_error _ -> ());
+         (try close_display display with Sys_error _ -> ());
          give_back ();
          restore ()));
   let s = share display in
@@ -395,14 +415,14 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
       animate ~sw ~sleep display;
       Fun.protect ~finally:give_back @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
-          Display.close display)
+          close_display display)
       @@ fun () -> first_run s f
     with
     | v -> v
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
-        Display.close display;
+        close_display display;
         Printexc.raise_with_backtrace e bt
   in
-  Display.close display;
+  close_display display;
   value
