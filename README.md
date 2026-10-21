@@ -57,9 +57,11 @@ let () = exit (Cmdliner.Cmd.eval cmd)
 ![check, then check --theme=rainbow: three progress rows, then a table of the results](examples/quickstart/quickstart.gif)
 
 On a terminal the rows are redrawn in place and each suite leaves one line
-when it ends. In a pipe or a CI log nothing is redrawn: the same program
-prints plain lines, without colour unless `--color=always` asks for it. The
-program is [examples/quickstart/main.ml](examples/quickstart/main.ml).
+when it ends. The rows are drawn on standard error, so when standard error
+goes to a pipe or a CI log, as in `check 2>&1 | cat`, nothing is redrawn:
+the same program prints plain lines, without colour unless `--color=always`
+asks for it. The program is
+[examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 ## Installation
 
@@ -554,7 +556,9 @@ An elapsed time is the one part of the output that the machine writes rather
 than the program. With `CONSOLE_FROZEN_CLOCK` set to any value but the empty
 string, `Console_eio.run` reads a clock stopped at zero: every elapsed time
 reads `0.0s`, no rate shows, and the spinners and the motion stand still, so
-a cram test of the program's output reads the same on every machine:
+a cram test of the output of a program, here the `build` of
+[Live progress](#live-progress) as an executable, reads the same on every
+machine:
 
 <!-- $MDX skip -->
 ```sh
