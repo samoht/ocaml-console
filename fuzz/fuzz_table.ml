@@ -272,9 +272,39 @@ let test_rules s n =
   check_eq ~pp:Fmt.int nrows (List.length rules);
   List.iter (fun r -> check_eq ~pp:Fmt.Dump.string (List.hd rules) r) rules
 
+(* Border fields are independent: even an empty body edge occupies the
+   column of its nonempty corners and crossings. *)
+let test_independent_edges a b empty_right =
+  let a = 1 + (a mod 8) and b = 1 + (b mod 8) in
+  let border =
+    Border.v
+      {
+        (Border.chars Border.single) with
+        left = "";
+        right = (if empty_right then "" else "│");
+      }
+  in
+  let table =
+    Table.v ~border
+      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
+      [ [ Span.text (String.make a 'x'); Span.text (String.make b 'y') ] ]
+  in
+  let expected_width = a + b + 7 in
+  let raw, lines = render Table.pp 80 table in
+  check_closed raw;
+  List.iter
+    (fun line ->
+      let term = Console_vte.v ~raw:true ~rows:2 ~cols:80 () in
+      Console_vte.feed term line;
+      check_eq ~pp:Fmt.int expected_width (snd (Console_vte.cursor_pos term));
+      check_eq ~pp:Fmt.int expected_width (cells line))
+    lines
+
 let suite =
   ( "table",
     [
+      test_case "independent empty edges keep a rectangular frame"
+        [ uint8; uint8; bool ] test_independent_edges;
       test_case "a rule between each two rows" [ bytes; int ] test_rules;
       test_case "mixed-script columns align in every theme" [ bytes; uint8 ]
         test_mixed_script_themes;
