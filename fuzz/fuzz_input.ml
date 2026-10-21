@@ -147,9 +147,45 @@ let test_masked_clusters data split =
     ~eq:(List.equal String.equal) [ secret ] lines;
   check (Console_input.history editor = [])
 
+(* A secret is byte data, including malformed and unfinished UTF-8. The
+   read buffer's chunk boundaries must not change either it or the masking. *)
+let test_secret_bytes data =
+  let data = String.sub data 0 (min 256 (String.length data)) in
+  let secret =
+    "\255"
+    ^ String.map
+        (fun c -> if Char.code c < 32 || c = '\127' then 'x' else c)
+        data
+    ^ "\195"
+  in
+  let whole = Console_input.v ~mask:"*" ()
+  and pieces = Console_input.v ~mask:"*" () in
+  let echo, lines = Console_input.feed whole (secret ^ "\r\n") in
+  let output = Buffer.create 64 and submitted = ref [] in
+  String.iter
+    (fun c ->
+      let out, lines = Console_input.feed pieces (String.make 1 c) in
+      Buffer.add_string output out;
+      submitted := List.rev_append lines !submitted)
+    (secret ^ "\r\n");
+  check_eq ~pp:Fmt.Dump.string echo (Buffer.contents output);
+  List.iter
+    (fun actual ->
+      check_eq
+        ~pp:Fmt.(Dump.list Dump.string)
+        ~eq:(List.equal String.equal) [ secret ] actual)
+    [ lines; List.rev !submitted ];
+  List.iter
+    (fun editor ->
+      check_eq ~pp:Fmt.Dump.string "" (Console_input.pending editor);
+      check (Console_input.history editor = []))
+    [ whole; pieces ]
+
 let suite =
   ( "input",
     [
+      test_case "masked arbitrary bytes survive every chunk boundary" [ bytes ]
+        test_secret_bytes;
       test_case "passwords echo one mask per grapheme cluster" [ bytes; bool ]
         test_masked_clusters;
       test_case "inserting a cluster redraws its suffix" [ uint8; uint8; bool ]
