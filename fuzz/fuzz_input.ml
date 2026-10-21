@@ -181,9 +181,23 @@ let test_secret_bytes data =
       check (Console_input.history editor = []))
     [ whole; pieces ]
 
+(* Masking disables history, including history supplied by shared editor
+   configuration before the prompt is chosen to be secret. *)
+let test_masked_history_seed data =
+  let editor =
+    Console_input.v ~mask:"*" ~history:[ "previous answer"; data ] ()
+  in
+  ignore (Console_input.feed editor "new answer\r");
+  check_eq
+    ~pp:Fmt.(Dump.list Dump.string)
+    ~eq:(List.equal String.equal) []
+    (Console_input.history editor)
+
 let suite =
   ( "input",
     [
+      test_case "masked editors retain no seeded history" [ bytes ]
+        test_masked_history_seed;
       test_case "masked arbitrary bytes survive every chunk boundary" [ bytes ]
         test_secret_bytes;
       test_case "passwords echo one mask per grapheme cluster" [ bytes; bool ]
