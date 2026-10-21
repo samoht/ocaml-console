@@ -53,6 +53,7 @@
  (libraries
   console
   console-eio
+  console_vte
   console.text
   eio
   eio.mock

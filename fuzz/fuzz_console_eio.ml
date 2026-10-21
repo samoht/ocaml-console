@@ -434,6 +434,72 @@ let test_json_lifecycle k =
   check (field "text" result = Some (`String "result"));
   check (field "detail" result = Some (`String "detail"))
 
+(* Forced tty mode must keep the display's screen guarantees even when the
+   destination has no terminal, using COLUMNS and LINES for its geometry. *)
+let test_forced_tty_screen k label =
+  let width, height = [| (1, 1); (80, 2); (300, 10); (20, 8) |].(k mod 4) in
+  let bindings =
+    [ ("COLUMNS", string_of_int width); ("LINES", string_of_int height) ]
+  in
+  let saved =
+    List.map (fun (name, _) -> (name, Sys.getenv_opt name)) bindings
+  in
+  List.iter (fun (name, value) -> Unix.putenv name value) bindings;
+  Fun.protect
+    ~finally:(fun () ->
+      List.iter
+        (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
+        saved)
+    (fun () ->
+      Eio_mock.Backend.run @@ fun () ->
+      let clock = Eio_mock.Clock.Mono.make () in
+      let screen = Console_vte.v ~raw:true ~rows:height ~cols:width () in
+      let written = Buffer.create 256 in
+      let ppf =
+        Format.make_formatter
+          (fun text offset length ->
+            let chunk = String.sub text offset length in
+            check (String.is_valid_utf_8 chunk);
+            String.split_on_char '\n' (Console_text.strip chunk)
+            |> List.iter (fun line ->
+                check (Console.Span.width (Console.Span.text line) <= width));
+            Buffer.add_string written chunk;
+            Console_vte.feed screen chunk)
+          (fun () -> ())
+      in
+      Fmt.set_utf_8 ppf true;
+      Fmt.set_style_renderer ppf `Ansi_tty;
+      let _, theme =
+        List.nth Console.Theme.all (k mod List.length Console.Theme.all)
+      in
+      Console.Theme.set ppf (Console.Theme.still theme);
+      let raises = k land 4 <> 0 in
+      let raised =
+        try
+          Console_eio.run ~clock ~ppf ~progress:`Tty (fun d ->
+              check (not (Console_vte.cursor_visible screen));
+              for i = 0 to k mod 32 do
+                let task = Console.Display.task d (string_of_int i ^ label) in
+                Console.Display.set_count task ~cur:1 ~total:2
+              done;
+              Console.Display.redraw d;
+              let before = Buffer.length written in
+              Console.Display.redraw d;
+              check_eq ~pp:Fmt.int before (Buffer.length written);
+              if raises then failwith "body failed");
+          false
+        with Failure message when message = "body failed" -> true
+      in
+      check_eq ~pp:Fmt.bool raises raised;
+      check (Console_vte.cursor_visible screen);
+      check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos screen));
+      (* A subsequent ordinary write remains on the main screen in order. *)
+      Console_vte.feed screen "Z\r\n";
+      check
+        (List.exists
+           (fun line -> String.contains line 'Z')
+           (Console_vte.screen ~scrollback:true screen)))
+
 let suite =
   ( "console_eio",
     [
@@ -443,6 +509,8 @@ let suite =
         test_quiet_terminal_records;
       test_case "JSON lifecycles keep counts parents levels and endings"
         [ uint8 ] test_json_lifecycle;
+      test_case "forced tty keeps screen guarantees without a terminal"
+        [ uint8; bytes ] test_forced_tty_screen;
       test_case "JSON events read back" [ bytes; bytes ] test_json_events;
       test_case "a surviving fiber uses a live display" [ uint8 ]
         test_surviving_fiber;
