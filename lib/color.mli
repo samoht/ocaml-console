@@ -95,8 +95,8 @@ val to_rgb : t -> int * int * int
     redefine. *)
 
 val blend : t -> t -> float -> t
-(** [blend c0 c1 f] is the RGB colour [f] of the way from [c0] to [c1], [f]
-    clamped to 0 to 1 and NaN being 0: each component is
+(** [blend c0 c1 f] is the RGB colour [f] of the way from [c0] to [c1]. [f] is
+    clamped to 0 to 1, and NaN is 0. Each component is
     [a + round (f * (b - a))]. [blend c0 c1 0.] is [c0] and [blend c0 c1 1.] is
     [c1], as RGB. *)
 
@@ -120,10 +120,10 @@ type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
     xterm-256 palette, or any 24-bit colour. *)
 
 val depth : Format.formatter -> depth
-(** [depth ppf] is the colour depth of [ppf]: the colours every printer of this
-    library writes on [ppf] are {!downsample}d to it. If {!set_depth} has never
-    been called on [ppf] this is [`Ansi_16], the colours every terminal shows;
-    [Console_tty.setup] sets it from the environment. *)
+(** [depth ppf] is the colour depth of [ppf]. Every printer of this library
+    {!downsample}s the colours it writes on [ppf] to it. If {!set_depth} has
+    never been called on [ppf], this is [`Ansi_16], the colours every terminal
+    shows. [Console_tty.setup] sets it from the environment. *)
 
 val set_depth : Format.formatter -> depth -> unit
 (** [set_depth ppf d] sets the colour depth of [ppf] to [d]. *)

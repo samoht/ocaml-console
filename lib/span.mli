@@ -8,18 +8,21 @@
     A span is text in one or more {!Style.t}s, parts of it possibly a link. It
     is the text every widget lays out.
 
-    A span only holds text that prints: the constructors replace each control
-    character with a space, a line end ({!Console_text.sanitize}'s) with a line
-    feed and each malformed UTF-8 sequence with U+FFFD, and remove the
-    characters that reorder or hide the text around them (the bidirectional
-    controls), so no span can move the cursor, change the colours of what
-    follows it or show its text in another order. A line feed starts a new line,
-    and the functions below work line by line.
+    A span only holds text that prints. The constructors:
+    - replace each control character with a space;
+    - replace a line end ({!Console_text.sanitize}'s) with a line feed;
+    - replace each malformed UTF-8 sequence with U+FFFD;
+    - remove the characters that reorder or hide the text around them, the
+      bidirectional controls.
 
-    Widths are counted in terminal cells, as a terminal draws the text: a wide
-    character, such as a Chinese one or an emoji, takes two cells and an accent
-    added to a letter takes none, even when the accent is in another style than
-    the letter. *)
+    So no span can move the cursor, change the colours of what follows it, or
+    show its text in another order. A line feed starts a new line, and the
+    functions below work line by line.
+
+    Widths are counted in terminal cells, as a terminal draws the text. A wide
+    character, such as a Chinese one or an emoji, takes two cells. An accent
+    added to a letter takes none, even when it is in another style than the
+    letter. *)
 
 (** {1:spans Spans} *)
 
@@ -37,36 +40,40 @@ val styled : Style.t -> string -> t
 
 val link : ?style:Style.t -> uri:string -> string -> t
 (** [link ~style ~uri label] is [label] drawn in [style] (defaults to
-    {!Style.none}) as a link to [uri], which a terminal that supports links
-    opens on a click. Printed without colours, it is [label] alone. Each byte of
-    [uri] that a URI may not hold
-    ({{:https://www.rfc-editor.org/rfc/rfc3986#section-2}RFC 3986}), such as a
-    control character, a space or a byte of a non-ASCII character, is written
-    percent-encoded, and the other bytes, escapes included, as they are. An
-    empty [uri] links nowhere: the span is [label] in [style]. *)
+    {!Style.none}) as a link to [uri]. A terminal that supports links opens it
+    on a click. Printed without colours, it is [label] alone.
+
+    Each byte of [uri] that a URI may not hold
+    ({{:https://www.rfc-editor.org/rfc/rfc3986#section-2}RFC 3986}) is written
+    percent-encoded. Control characters, spaces and the bytes of non-ASCII
+    characters are such bytes. The other bytes, escapes included, are written as
+    they are. An empty [uri] links nowhere: the span is [label] in [style]. *)
 
 val role : Theme.role -> string -> t
-(** [role r s] is [with_role r (text s)]: [s] in the part [r] of the theme of
-    the formatter it is printed on ({!Theme.get}), taken when it is printed.
-    [role `Ok "passed"] is green in {!Theme.default} and Nord's green in
-    {!Theme.nord}. It is as wide as [s], printed in colours at the formatter's
-    {!Color.val-depth} and as the text of [s] without colour; {!to_string}
+(** [role r s] is [with_role r (text s)]: [s] in the part [r] of the formatter's
+    theme ({!Theme.get}), taken when it is printed. [role `Ok "passed"] is green
+    in {!Theme.default} and Nord's green in {!Theme.nord}.
+
+    It is as wide as [s]. It prints in colours at the formatter's
+    {!Color.val-depth}, and as the text of [s] without colour. {!to_string}
     styles it in {!Theme.default}. *)
 
 val with_role : Theme.role -> t -> t
-(** [with_role r s] is [s] with the part [r] of the theme of the formatter it is
-    printed on under each of its styles, as {!with_style} lays a style:
-    [with_role `Ok (link ~uri "report")] is a link in the success colour, and a
-    part of [s] in a colour of its own keeps it. *)
+(** [with_role r s] is [s] with the part [r] of the formatter's theme under each
+    of its styles, as {!with_style} lays a style. A part of [s] in a colour of
+    its own keeps it. [with_role `Ok (link ~uri "report")] is a link in the
+    success colour. *)
 
 val gradient : ?colors:Color.t list -> string -> t
-(** [gradient ~colors s] is [s] in colours graded along each of its lines: each
-    grapheme cluster takes the {!Color.blend} of the two stops around its place,
-    the stops spread evenly from the line's first cluster, in the first stop, to
-    its last, in the last one. The stops are [colors] (defaults to the
-    {!Theme.palette} of the theme of the formatter it is printed on, as is
-    [[]]). It is as wide as [s], printed in colours at the formatter's
-    {!Color.val-depth} and as the text of [s] without colour. *)
+(** [gradient ~colors s] is [s] in colours graded along each of its lines. The
+    stops are [colors] (defaults to the {!Theme.palette} of the formatter's
+    theme, as is [[]]).
+
+    The stops spread evenly along a line, the first on its first grapheme
+    cluster and the last on its last. Each cluster takes the {!Color.blend} of
+    the two stops around its place. The span is as wide as [s]. It prints in
+    colours at the formatter's {!Color.val-depth}, and as the text of [s]
+    without colour. *)
 
 val ( ++ ) : t -> t -> t
 (** [s0 ++ s1] is [s0] followed by [s1]. *)
@@ -81,12 +88,15 @@ val with_style : Style.t -> t -> t
 
 val hcat : ?gap:int -> t list -> t
 (** [hcat ~gap spans] is [spans] side by side, [gap] spaces apart (defaults to
-    [2]). Its line [i] is the line [i] of each span, each span but the last
-    padded to its {!width} and a span with fewer lines giving blank ones; a line
-    ends at its last span with text on it, so no line ends with spaces [hcat]
-    adds. A widget goes in it by its [to_span], at the width it is given, and
-    the result goes in a table cell, a panel, a tree or a scene as any span
-    does:
+    [2]).
+
+    - Its line [i] is the line [i] of each span. Each span but the last is
+      padded to its {!width}, and a span with fewer lines gives blank ones.
+    - A line ends at its last span with text on it, so no line ends with spaces
+      that [hcat] adds.
+
+    A widget goes in it by its [to_span], at the width it is given. The result
+    goes in a table cell, a panel, a tree or a scene, as any span does:
 
     {[
     let report tree panel =
@@ -98,9 +108,9 @@ val hcat : ?gap:int -> t list -> t
 (** {1:measuring Measuring and fitting} *)
 
 type align = [ `Left | `Center | `Right ]
-(** The type for the places of a span in a room wider than it: at its left edge,
-    in its middle or at its right edge, as a {!Table} column or a {!Rule} label
-    sits. *)
+(** The type for the place of a span in a room wider than it: at its left edge,
+    in its middle or at its right edge. A {!Table} column or a {!Rule} label
+    sits so. *)
 
 val width : t -> int
 (** [width s] is the number of cells the widest line of [s] takes. The invariant
@@ -116,14 +126,20 @@ val truncate : int -> t -> t
 
 val wrap : int -> t -> t list
 (** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.
-    A line breaks at a run of spaces, which the break removes, or after a slash;
-    the spaces inside a line and its leading ones are kept. A part drawn when
-    printed, such as a widget's, breaks only where the room ends, its spaces
-    kept. A word wider than [w] goes on over the next lines, broken where the
-    room ends. A character wider than [w] (a wide one when [w] is [1], or one
-    with a spacing mark when [w] is its width less one) cannot be drawn and is
-    left out. The result is never empty, and every other non-space character of
-    [s] is in it, in order, styles and links kept.
+    The result is never empty.
+
+    - A line breaks at a run of spaces, which the break removes, or after a
+      slash. The spaces inside a line and its leading ones are kept.
+    - A part drawn when printed, such as a widget's, breaks only where the room
+      ends, and keeps its spaces.
+    - A word wider than [w] goes on over the next lines, broken where the room
+      ends.
+    - A character wider than [w] cannot be drawn and is left out: a wide one
+      when [w] is [1], or one with a spacing mark when [w] is its width less
+      one.
+
+    Every other non-space character of [s] is in the result, in order, with its
+    styles and links.
 
     @raise Invalid_argument if [w] is not positive. *)
 
@@ -131,19 +147,19 @@ val wrap : int -> t -> t list
 
 val pp : t Fmt.t
 (** [pp] formats a span with its styles and links iff the formatter's style
-    renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
-    formatter's {!Color.val-depth} shows them. Each style that is turned on is
-    turned off after the text it covers, and before each line feed. A part drawn
-    when printed, such as a [Bar.to_span], is drawn in the formatter's theme
+    renderer ({!Fmt.style_renderer}) is [`Ansi_tty]. Its colours are those the
+    formatter's {!Color.val-depth} shows. Each style that is turned on is turned
+    off after the text it covers, and before each line feed. A part drawn when
+    printed, such as a [Bar.to_span], is drawn in the formatter's theme
     ({!Theme.get}) and {!Fmt.utf_8}.
 
-    The formatter's margin does not apply: each line is printed whole, and
+    The formatter's margin does not apply: each line is printed whole.
     {!truncate} or {!wrap} fit a span to a width first. A line feed is printed
     as it is, not as a break of the enclosing box, so the box's indentation does
-    not apply to the next line; print a span of several lines on lines of its
+    not apply to the next line. Print a span of several lines on lines of its
     own, as ["%a@."] does. *)
 
 val to_string : ?styled:bool -> t -> string
-(** [to_string s] is [s] with its styles and links iff [styled] (defaults to
-    [false]), in 24-bit colour, a part drawn when printed (such as a
-    [Bar.to_span]) drawn in {!Theme.default} in UTF-8. *)
+(** [to_string s] is [s], with its styles and links in 24-bit colour iff
+    [styled] (defaults to [false]). A part drawn when printed, such as a
+    [Bar.to_span], is drawn in {!Theme.default} in UTF-8. *)

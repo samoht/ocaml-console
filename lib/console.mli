@@ -6,37 +6,42 @@
 (** Colours, tables, trees and progress rows for command-line tools.
 
     [Console] prints into the terminal's normal scrollback, as [make] or [ls]
-    do, and redraws only the rows of a {!Display} while work runs; a program
+    do. While work runs, it redraws only the rows of a {!Display}. A program
     that takes over the whole screen is better served by a full-screen library.
     Windows consoles are not supported.
 
     A {!Span.t} is text in a {!Style.t}: colours, bold, italic and so on. The
-    widgets, {!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}, lay out spans and
-    print with {!Format}, and a {!Theme} gives them one look. Every widget is a
-    span too, by its [to_span], laid out when it is printed: a table goes in a
-    panel, the panel in a cell of another table, beside a tree ({!Span.hcat})
-    and in a display's scene, all drawn in the theme of the formatter that
-    prints them. [Console_eio.run] runs a {!Display}.
+    widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out spans and
+    print with {!Format}. A {!Theme} gives them one look.
 
-    {b Guarantees.} Widths are counted in terminal cells, as the terminal draws
-    the text: a wide character, such as a Chinese one or an emoji, takes two
-    cells and an accent added to a letter takes none. A widget printed by its
-    [pp] is no wider than the formatter's margin, and as a span it is as wide as
-    its [to_span] lays it out; either ends without a line end, so ["%a@."]
-    prints it on its own lines. A span holds only text that prints: a line end
-    in it starts a new line and any other control character is a space, so
-    caller text cannot move the cursor or change colours. Every style a printer
-    turns on, it turns off before the line ends. Text cut to fit is cut between
-    two characters and ends with an ellipsis. On a formatter that is not
-    {!Fmt.utf_8}, the frames, lines, bars, spinners, marks and ellipses of the
-    widgets are ASCII. The guarantees of a live region are those of {!Display}.
-    Each guarantee and the tests that check it are listed in the repository's
-    [INVARIANTS.md].
+    Every widget is also a span, by its [to_span], laid out when it is printed.
+    A table goes in a panel, the panel in a cell of another table, beside a tree
+    ({!Span.hcat}) or in a display's scene. All of them are drawn in the theme
+    of the formatter that prints them. [Console_eio.run] runs a {!Display}.
+
+    {b Guarantees.}
+    - Widths are counted in terminal cells, as the terminal draws the text. A
+      wide character, such as a Chinese one or an emoji, takes two cells, and an
+      accent added to a letter takes none.
+    - A widget printed by its [pp] is no wider than the formatter's margin. As a
+      span it is as wide as its [to_span] lays it out. Either ends without a
+      line end, so ["%a@."] prints it on its own lines.
+    - A span holds only text that prints. A line end in it starts a new line and
+      any other control character is a space, so caller text cannot move the
+      cursor or change colours.
+    - Every style a printer turns on, it turns off before the line ends.
+    - Text cut to fit is cut between two characters and ends with an ellipsis.
+    - On a formatter that is not {!Fmt.utf_8}, the widgets draw their frames,
+      lines, bars, spinners, marks and ellipses in ASCII.
+    - The guarantees of a live region are those of {!Display}.
+
+    The repository's [INVARIANTS.md] lists each guarantee and the tests that
+    check it.
 
     Text is in colour when its formatter is set to colour
-    ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows;
+    ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows.
     [Console_tty.setup], in the [console.tty] library, sets both for standard
-    output and standard error, as the terminal and the environment say.
+    output and standard error, from the terminal and the environment.
 
     {1:quickstart Quick start}
 
@@ -114,9 +119,9 @@
           Display.set_count step ~cur:2 ~total:2)
     ]}
 
-    run with [Console_eio.run ~clock ~header:"Building" build_step], [clock]
-    being [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run]
-    itself: inside another one, it gets the same display. *)
+    [Console_eio.run ~clock ~header:"Building" build_step] runs it, with [clock]
+    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself.
+    Inside another one, it gets the same display. *)
 
 (** {1:modules Modules} *)
 

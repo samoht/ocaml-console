@@ -7,14 +7,14 @@
 
     A table is a list of {!type-column}s and rows of cells, drawn in a
     {!Border}. A table wider than the room it is given narrows its columns until
-    it fits; when even the narrowest columns and the frame do not fit, each line
-    is cut with an ellipsis rather than a column left out. *)
+    it fits. When even the narrowest columns and the frame do not fit, each line
+    is cut with an ellipsis, and no column is left out. *)
 
 (** {1:columns Columns} *)
 
 type overflow = [ `Wrap | `Truncate ]
-(** The type for what a cell wider than its column does: [`Wrap] goes on over
-    several lines ({!Span.wrap}), and [`Truncate] keeps one line ended with an
+(** The type for what a cell wider than its column does. [`Wrap] goes on over
+    several lines ({!Span.wrap}). [`Truncate] keeps one line, ended with an
     ellipsis ({!Span.truncate}). *)
 
 type column
@@ -37,8 +37,8 @@ val column :
 
     - [align] places the cells in the column (defaults to [`Left]);
     - [min_width] and [max_width] bound its width, in cells (default to none:
-      the column is as wide as its widest cell and narrows to one cell to fit);
-      the table goes below [min_width] only when nothing else fits;
+      the column is as wide as its widest cell, and narrows to one cell to fit).
+      The table goes below [min_width] only when nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
       [`Wrap]);
     - [shrinkable] (defaults to [true]) at [false] makes the column the last to
@@ -58,18 +58,21 @@ val v :
   column list ->
   Span.t list list ->
   t
-(** [v ~rules columns rows] is the table of [rows] under [columns]. Its frame is
-    [border] if given, else the border of the theme of the formatter it is
-    printed on ({!Theme.get}); the headers are in [header_style] (defaults to
-    the theme's {!Theme.header}). A cell may hold line feeds, which start new
-    lines inside its row. If [rules] (defaults to [false]), a rule in the glyphs
-    and the style of the header's rule separates each two rows; a frame that
-    moves ({!Theme.val-motion}) moves its ends with its edges.
+(** [v ~rules columns rows] is the table of [rows] under [columns].
 
-    A row with fewer cells than there are columns ends in a cell that spans the
-    columns left. In a table without a frame, whose border has no glyph in its
-    vertical lines ({!Border.none}, {!Border.simple}), a line ends at its last
-    cell that is not empty.
+    - Its frame is [border] if given, else the border of the formatter's theme
+      ({!Theme.get}).
+    - The headers are in [header_style] (defaults to the theme's
+      {!Theme.header}).
+    - If [rules] (defaults to [false]), a rule separates each two rows, in the
+      glyphs and the style of the header's rule. A frame that moves
+      ({!Theme.val-motion}) moves the ends of the rules with its edges.
+
+    A cell may hold line feeds, which start new lines inside its row. A row with
+    fewer cells than there are columns ends in a cell that spans the columns
+    left. In a table without a frame, whose border has no glyph in its vertical
+    lines ({!Border.none}, {!Border.simple}), a line ends at its last cell that
+    is not empty.
 
     @raise Invalid_argument
       if a row is empty or has more cells than there are columns. *)
@@ -78,12 +81,13 @@ val v :
 
 val to_span : ?width:int -> t -> Span.t
 (** [to_span ~width table] is [table] as a span, to put in a cell, a panel, a
-    tree or beside other text: when it is printed, it is laid out as {!pp} lays
-    it out at a margin of [width] (defaults to its natural width), in the theme
-    and the [Fmt.utf_8] of the formatter it is printed on. Each of its lines
-    takes the cells it takes in {!Theme.default} in UTF-8: where the formatter's
-    look lays a line out wider or narrower, as a frame of glyphs two cells wide
-    does, the line is cut or padded to those cells. *)
+    tree or beside other text. When it is printed, it is laid out as {!pp} lays
+    it out at a margin of [width] (defaults to its natural width), in the
+    formatter's theme and [Fmt.utf_8].
+
+    Each of its lines takes the cells it takes in {!Theme.default} in UTF-8.
+    Where the formatter's look lays a line out wider or narrower, as a frame of
+    glyphs two cells wide does, the line is cut or padded to those cells. *)
 
 val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string table] is [table] as {!pp} formats it at a margin of [width], or
@@ -93,7 +97,7 @@ val to_string : ?styled:bool -> ?width:int -> t -> string
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a table, with no line end after its last line. No line is wider
-    than the formatter's margin; the lines of a framed table that fits are all
-    as wide as one another; and the cells of a right-aligned column end in the
-    same column. *)
+(** [pp] formats a table, with no line end after its last line.
+    - No line is wider than the formatter's margin.
+    - The lines of a framed table that fits are all as wide as one another.
+    - The cells of a right-aligned column end in the same column. *)

@@ -7,21 +7,22 @@
 
 val string_width : string -> int
 (** [string_width s] is the cells a terminal takes to draw [s], a text with no
-    control character: grapheme clusters (UAX #29) at their East Asian width
-    (UAX #11), so that a wide character takes two cells, a combining mark none,
-    and an emoji sequence two: a ZWJ sequence, a skin tone, a flag, a keycap,
-    and a character VS16 shows as an emoji. A spacing mark (general category Mc)
-    after the first code point of its cluster adds the cells it takes alone, as
-    xterm, VTE and Ghostty draw it, so that a consonant and its vowel sign take
-    two and a wide mark adds two. A VS16 after a character that
-    emoji-variation-sequences.txt does not list selects nothing and adds no
-    cell.
+    control character. Each grapheme cluster (UAX #29) takes its East Asian
+    width (UAX #11):
+    - a wide character takes two cells, and a combining mark none;
+    - an emoji sequence takes two cells. A ZWJ sequence, a skin tone, a flag, a
+      keycap and a character that VS16 shows as an emoji are emoji sequences;
+    - a spacing mark (general category Mc) after the first code point of its
+      cluster adds the cells it takes alone, as xterm, VTE and Ghostty draw it.
+      A consonant and its vowel sign take two, and a wide mark adds two;
+    - a VS16 after a character that emoji-variation-sequences.txt does not list
+      selects nothing and adds no cell.
 
     This is how terminals that cluster graphemes draw text, kitty and Ghostty
     among them. Terminals that give each code point its own width, xterm and VTE
-    among them, draw a ZWJ sequence or a skin tone as the sum of its emoji, and
-    an emoji that VS16 selects in one cell; the cells each takes are in
-    test/input/widths.txt. *)
+    among them, differ. They draw a ZWJ sequence or a skin tone as the sum of
+    its emoji, and an emoji that VS16 selects in one cell. The cells each takes
+    are in test/input/widths.txt. *)
 
 val sub_width : string -> pos:int -> len:int -> int
 (** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)

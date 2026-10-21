@@ -30,22 +30,24 @@ type chars = {
   right_cross : string;  (** The tee on the right edge, pointing left. *)
 }
 (** The type for the glyphs of a border, one per part of the box. It is plain
-    data the program supplies: every field is needed to draw a box and none
-    constrains another. A glyph may take any number of cells: each vertical line
-    of the box is as wide as its widest glyph, a narrower one followed by
-    spaces, and a horizontal line repeats its glyph over its length, cut between
-    two characters and ended with spaces where a whole copy does not fit.
+    data the program supplies. Every field is needed to draw a box, and none
+    constrains another.
 
-    Fields may be added to this record: a custom border starts from a predefined
-    one, as [v { (chars single) with top = "=" }] does. *)
+    A glyph may take any number of cells. Each vertical line of the box is as
+    wide as its widest glyph, and a narrower glyph is followed by spaces. A
+    horizontal line repeats its glyph over its length. Where a whole copy does
+    not fit, the glyph is cut between two characters and ended with spaces.
+
+    Fields may be added to this record, so a custom border starts from a
+    predefined one, as [v { (chars single) with top = "=" }] does. *)
 
 type t
 (** The type for borders. *)
 
 val v : ?style:Style.t -> chars -> t
 (** [v ~style chars] is the border drawn with [chars] in [style]. Without
-    [style], or with {!Style.none}, it is drawn in the muted colour of the theme
-    of the formatter it is printed on ({!Theme.muted}). *)
+    [style], or with {!Style.none}, it is drawn in the muted colour of the
+    formatter's theme ({!Theme.muted}). *)
 
 val chars : t -> chars
 (** [chars b] are the glyphs of [b], each control character in them a space. *)
@@ -64,8 +66,8 @@ val none : t
 
 val simple : t
 (** [simple] is the border drawn with a Unicode light horizontal line under a
-    table's header and between its rows, and nothing else: no frame and no line
-    between the columns. *)
+    table's header and between its rows. It has no frame and no line between the
+    columns. *)
 
 val ascii : t
 (** [ascii] is the border drawn with [+], [-] and [|]. *)

@@ -23,8 +23,8 @@ val v :
   t
 (** [v content] is a panel around [content].
 
-    - The border is [border] if given, else the border of the theme of the
-      formatter it is printed on ({!Theme.get}).
+    - The border is [border] if given, else the border of the formatter's theme
+      ({!Theme.get}).
     - [title] / [subtitle] label the top / bottom edge, the title in the theme's
       {!Theme.header}.
     - [padding] is the internal horizontal padding (defaults to [1]).
@@ -39,14 +39,15 @@ val v :
 
 val to_span : ?width:int -> t -> Span.t
 (** [to_span ~width panel] is [panel] as a span, to put in a cell, another
-    panel, a tree or beside other text: when it is printed, it is laid out as
+    panel, a tree or beside other text. When it is printed, it is laid out as
     {!pp} lays it out at a margin of [width] (defaults to its natural width), in
-    the theme and the [Fmt.utf_8] of the formatter it is printed on. Each of its
-    lines takes the cells it takes in {!Theme.default} in UTF-8: where the
-    formatter's look lays a line out wider or narrower, as a frame of glyphs two
-    cells wide does, the line is cut or padded to those cells. A panel whose
-    {!v} [width] is wider than [width] has each of its lines cut to [width], as
-    {!pp} cuts it to a narrower margin. *)
+    the formatter's theme and [Fmt.utf_8].
+
+    Each of its lines takes the cells it takes in {!Theme.default} in UTF-8.
+    Where the formatter's look lays a line out wider or narrower, as a frame of
+    glyphs two cells wide does, the line is cut or padded to those cells. A
+    panel whose {!v} [width] is wider than [width] has each of its lines cut to
+    [width], as {!pp} cuts it to a narrower margin. *)
 
 val to_string : ?styled:bool -> ?width:int -> t -> string
 (** [to_string panel] is [panel] as {!pp} formats it at a margin of [width], or
@@ -57,8 +58,11 @@ val to_string : ?styled:bool -> ?width:int -> t -> string
 
 val pp : t Fmt.t
 (** [pp] formats a panel, with no line end after its last line. No line is wider
-    than the formatter's margin, and a panel of fixed [width] that fits the
-    margin is a rectangle [width] cells wide. In a box sized to its content, a
-    line wider than the room inside the frame wraps at its words ({!Span.wrap}),
-    hanging under the text after its first word; in a box of fixed width it is
-    cut ({!Span.truncate}), and so are edge labels. *)
+    than the formatter's margin. A panel of fixed [width] that fits the margin
+    is a rectangle [width] cells wide.
+
+    A line wider than the room inside the frame:
+    - wraps at its words in a box sized to its content ({!Span.wrap}), hanging
+      under the text after its first word;
+    - is cut in a box of fixed width ({!Span.truncate}), and so are edge labels.
+*)

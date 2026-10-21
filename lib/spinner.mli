@@ -7,10 +7,12 @@
 
     A spinner is a short sequence of frames, such as braille dots or a turning
     ASCII bar, shown beside a task of unknown length. {!Display} animates one
-    per running row, ten frames a second, and a {!Theme.t} carries the one a
-    display uses. A spinner of one frame, such as {!static}, does not move: a
-    program offers it to users who prefer no animation, with [Theme.still],
-    which also stops the frames of tables and panels. *)
+    for each running row, ten frames a second. A {!Theme.t} carries the one a
+    display uses.
+
+    A spinner of one frame, such as {!static}, does not move. A program offers
+    it, with [Theme.still], to users who prefer no animation. [Theme.still] also
+    stops the frames of tables and panels. *)
 
 (** {1:spinners Spinners} *)
 
@@ -39,10 +41,10 @@ val static : t
 (** {1:frames Frames} *)
 
 val frame : ?fps:float -> t -> elapsed:float -> string
-(** [frame t ~elapsed] is the frame [t] shows [elapsed] seconds in, [fps] frames
-    a second (defaults to [10.]): frame [i] of [n] where [i] is the whole part
-    of [elapsed * fps] modulo [n]. An [elapsed] that is not positive or not
-    finite shows the first frame.
+(** [frame t ~elapsed] is the frame [t] shows [elapsed] seconds in, at [fps]
+    frames a second (defaults to [10.]). Of [n] frames, it is frame [i], where
+    [i] is the whole part of [elapsed * fps] modulo [n]. An [elapsed] that is
+    not positive or not finite shows the first frame.
 
     @raise Invalid_argument if [fps] is not finite and positive. *)
 
