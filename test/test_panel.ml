@@ -180,9 +180,16 @@ let test_to_string_width () =
        (Panel.to_string ~width:12
           (Panel.v (Span.text "a line longer than twelve cells"))))
 
+let test_overflowing_padding () =
+  Alcotest.check_raises "padding cannot fit a twenty-cell panel"
+    (Invalid_argument "Console.Panel.v: width too small for padding") (fun () ->
+      ignore (Panel.v ~padding:max_int ~width:20 (Span.text "x")))
+
 let suite =
   ( "panel",
     [
+      Alcotest.test_case "huge padding is refused before drawing" `Quick
+        test_overflowing_padding;
       Alcotest.test_case "to_string within a width" `Quick test_to_string_width;
       Alcotest.test_case "two-cell border respects fixed width" `Quick
         test_wide_border;
