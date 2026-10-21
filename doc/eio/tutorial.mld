@@ -34,7 +34,7 @@ v}
 {1:options Colour and theme}
 
 A program decides on colour once, before it prints. {!Console_tty.setup}
-reads {{:https://github.com/jcs/no_color}[NO_COLOR]}, [TERM], [COLORTERM]
+reads {{:https://no-color.org/}[NO_COLOR]}, [TERM], [COLORTERM]
 and the locale, and from them sets colour, colour depth and UTF-8 on the
 standard outputs. Given a style renderer, [setup] uses that one instead, so
 a [--color=auto|always|never] option read by [Fmt_cli.style_renderer] has
@@ -148,7 +148,7 @@ Output printed outside any task goes above the rows instead, as
 [check] sets up the outputs, runs the suites and then prints the table. It
 also takes a [--progress] option, which says how progress is shown, as the
 option of the same name does for
-{{:https://github.com/docker/buildx}[docker build]}:
+{{:https://docs.docker.com/reference/cli/docker/buildx/build/}[docker build]}:
 
 {ul
 {- [auto], the default, redraws the rows on a terminal;}
@@ -256,7 +256,7 @@ than the empty string, {!Console_eio.run} reads a clock stopped at zero:
 {- no rate shows;}
 {- the spinners and the motion stand still.}}
 
-A {{:https://github.com/ocaml/dune}Dune} cram test of [check] then reads
+A {{:https://dune.build/}Dune} cram test of [check] then reads
 the same on every machine. It needs a [dune] stanza that makes [check]
 available:
 

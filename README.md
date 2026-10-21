@@ -350,7 +350,7 @@ remaining rules, for cancelled tasks, nested displays, domains and prompts.
 ### Choosing how progress is shown
 
 Users can choose how progress is shown with a `--progress` option, as they
-can with [`docker build`](https://github.com/docker/buildx).
+can with [`docker build`](https://docs.docker.com/reference/cli/docker/buildx/build/).
 `Console_eio.progress` lists the option's five values:
 
 - `auto`, the default, redraws the rows on a terminal and prints lines
@@ -463,7 +463,7 @@ terminal, ``Console_eio.run ~progress:`Plain`` prints the same lines.
 
 A program decides on colour once, with `Console_tty.setup` from the
 `console.tty` library. There is no colour when
-[`NO_COLOR`](https://github.com/jcs/no_color) is set and not empty, or when
+[`NO_COLOR`](https://no-color.org/) is set and not empty, or when
 `TERM` is unset, empty or `dumb`.
 
 Otherwise an output is in colour when it is a terminal, with as many
@@ -501,7 +501,7 @@ than the empty string, `Console_eio.run` reads a clock stopped at zero:
 - no rate is shown;
 - the spinners and the motion stand still.
 
-A [Dune](https://github.com/ocaml/dune) cram test of the program's output
+A [Dune](https://dune.build/) cram test of the program's output
 then reads the same on every machine. This one runs the `build` function
 from [Progress rows](#progress-rows), compiled as an executable:
 
