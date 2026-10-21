@@ -49,9 +49,12 @@ val v :
       the completions share and lists them when more than one is left. Without
       [complete], Tab does nothing;
     - [mask], if given, is echoed once for each cluster typed, in place of the
-      cluster, while {!pending} and the lines of {!feed} hold the text typed. A
-      masked editor, for a password or a token, completes nothing, recalls
-      nothing and keeps no line in its {!history}.
+      cluster, while {!pending} and the lines of {!feed} hold the bytes typed as
+      they are, other than the keys: the replacement character, the space for a
+      C1 control and the dropped mark of {!feed} are for an echo, and a byte
+      above [0x7F] that is no character is kept. A masked editor, for a password
+      or a token, completes nothing, recalls nothing and keeps no line in its
+      {!history}.
 
     A control character in [prompt], [history], [mask] or a completion is echoed
     as a space, so none of them can move the cursor or change colours. *)

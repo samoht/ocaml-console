@@ -76,13 +76,14 @@ let reposition t echo =
    written after the text that follows it; then the tail [s] pushed right is
    redrawn, the cells a narrower cluster leaves are blanked, and the cursor
    steps back to just after [s]. A cluster of no width with nothing before
-   it to join is dropped, as a terminal drops it in the first column. *)
+   it to join is dropped, as a terminal drops it in the first column,
+   except from a secret. *)
 let insert t echo s =
   t.pos <- None;
   let prev, rest = match t.left with c :: l -> (c, l) | [] -> ("", []) in
   let kept =
     match clusters (prev ^ s) with
-    | c :: cs when prev = "" && Width.string_width c = 0 -> cs
+    | c :: cs when prev = "" && t.mask = None && Width.string_width c = 0 -> cs
     | cs -> cs
   in
   t.left <- List.rev_append kept rest;
@@ -221,27 +222,34 @@ let complete t echo =
           reposition t echo
         end
 
+(* The character [t.partial] holds, once its last byte is in. A surrogate,
+   an overlong form or a code point past U+10FFFF is no character: it is
+   one replacement character, and a secret keeps its bytes. *)
+let end_char t echo =
+  let d = String.get_utf_8_uchar t.partial 0 in
+  let valid =
+    Uchar.utf_decode_is_valid d
+    && Uchar.utf_decode_length d = String.length t.partial
+  in
+  let c =
+    if t.mask <> None then t.partial
+    else clean (if valid then t.partial else "\xef\xbf\xbd")
+  in
+  if c <> "" then insert t echo c;
+  t.partial <- ""
+
 let rec normal t echo lines ~after_cr c =
   let code = Char.code c in
   if t.need > 0 then
     if code >= 0x80 && code <= 0xbf then begin
       t.partial <- t.partial ^ String.make 1 c;
       t.need <- t.need - 1;
-      if t.need = 0 then begin
-        (* A surrogate, an overlong form or a code point past U+10FFFF is
-           no character: it is one replacement character. *)
-        let d = String.get_utf_8_uchar t.partial 0 in
-        let valid =
-          Uchar.utf_decode_is_valid d
-          && Uchar.utf_decode_length d = String.length t.partial
-        in
-        let c = clean (if valid then t.partial else "\xef\xbf\xbd") in
-        if c <> "" then insert t echo c;
-        t.partial <- ""
-      end
+      if t.need = 0 then end_char t echo
     end
     else begin
-      (* not a continuation byte: drop the truncated character, retry [c] *)
+      (* Not a continuation byte: the truncated character is dropped, or
+         kept as typed in a secret, and [c] is read again. *)
+      if t.mask <> None then insert t echo t.partial;
       t.partial <- "";
       t.need <- 0;
       normal t echo lines ~after_cr c
@@ -259,6 +267,7 @@ let rec normal t echo lines ~after_cr c =
         t.partial <- String.make 1 c;
         t.need <- utf8_len c - 1
     | c when code >= 0x20 && code < 0x7f -> insert t echo (String.make 1 c)
+    | c when code >= 0x80 && t.mask <> None -> insert t echo (String.make 1 c)
     | _ -> ()
 
 let arrow t echo = function
