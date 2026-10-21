@@ -97,9 +97,10 @@
 
     A layout draws the rows a display redraws on a terminal. The other lines
     have pieces of their own, whatever the layout: the line a task prints when
-    it ends is its mark, its label, its count and its elapsed time, and without
-    a terminal the line it prints when it starts is its mark and its label. No
-    bar, rate or percentage shows on them. *)
+    it ends is its mark, its label, its count and its elapsed time, then,
+    without a terminal, [failed] or [cancelled] when it did not succeed; and
+    without a terminal the line it prints when it starts is its mark and its
+    label. No bar, rate or percentage shows on them. *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
