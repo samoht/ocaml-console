@@ -404,9 +404,20 @@ let test_insert_emoji_before_text () =
     "cursor follows the two-cell emoji" 2
     (snd (Console_vte.cursor_pos actual))
 
+let test_masked_history_seed () =
+  let editor = Console_input.v ~mask:"*" ~history:[ "previous password" ] () in
+  let _, submitted = Console_input.feed editor "new password\n" in
+  Alcotest.(check lines)
+    "the typed answer is returned" [ "new password" ] submitted;
+  Alcotest.(check (list string))
+    "a masked editor keeps no history, including its seed" []
+    (Console_input.history editor)
+
 let suite =
   ( "console_input",
     [
+      Alcotest.test_case "a masked editor discards seeded history" `Quick
+        test_masked_history_seed;
       Alcotest.test_case "insert an emoji before existing text" `Quick
         test_insert_emoji_before_text;
       Alcotest.test_case "typed C1 control is a space" `Quick test_typed_c1;
