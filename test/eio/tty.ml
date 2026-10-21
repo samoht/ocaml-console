@@ -5,7 +5,8 @@
 
 (* [tty.exe program args] runs [program] on a terminal of 80 columns and 24
    rows, in the environment of [tty.exe], and prints the screen it leaves,
-   the lines scrolled off its top first. *)
+   the lines scrolled off its top first; [tty.exe -] prints the screen that
+   the bytes of its standard input leave. *)
 
 let rows = 24
 let cols = 80
@@ -55,13 +56,17 @@ let run argv =
       ignore (Eio.Process.await child : Eio.Process.exit_status);
       settle (Buffer.length written));
   ignore (Eio.Process.await child : Eio.Process.exit_status);
+  Buffer.contents written
+
+let screen bytes =
   let vte = Console_vte.v ~rows ~cols () in
-  Console_vte.feed vte (Buffer.contents written);
+  Console_vte.feed vte bytes;
   List.iter print_endline (Console_vte.screen ~scrollback:true vte)
 
 let () =
   match Array.to_list Sys.argv with
-  | _ :: (_ :: _ as argv) -> run argv
+  | [ _; "-" ] -> screen (In_channel.input_all stdin)
+  | _ :: (_ :: _ as argv) -> screen (run argv)
   | _ ->
       prerr_endline "usage: tty.exe PROGRAM [ARG...]";
       exit 2
