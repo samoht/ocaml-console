@@ -159,7 +159,8 @@ and its entry point is [let () = main ()].
 
 When the output is not a terminal, as in a pipe or a CI log, nothing is
 redrawn. A task prints a line when it starts, each of its messages after its
-name, and one when it ends, with its count and its time; the header comes
+name, and one when it ends, with its count and its time, then [failed] or
+[cancelled] if it did not succeed; the header comes
 last, as a summary. Without [--color=always], a pipe gets no colour. Here
 [check] runs with its output captured, and with [CONSOLE_FROZEN_CLOCK] set,
 which the {{!testing}next section} explains:

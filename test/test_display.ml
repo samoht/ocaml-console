@@ -60,7 +60,7 @@ let test_plain_column () =
 let test_plain_unfinished () =
   let (), out = plain ~theme (fun d _ -> ignore (Display.task d "left")) in
   check_lines "cancelled"
-    [ "[-] left"; "[~] left  0.0s"; "" ]
+    [ "[-] left"; "[~] left  0.0s  cancelled"; "" ]
     (String.split_on_char '\n' out);
   let (), out =
     plain ~theme (fun d _ ->
@@ -122,10 +122,10 @@ let test_plain_attribution () =
       "  # a: one";
       "  # b: two";
       "  # a: three";
-      "[x] a  0.0s";
+      "[x] a  0.0s  failed";
       "  # one";
       "  # three";
-      "[~] b  0.0s";
+      "[~] b  0.0s  cancelled";
       "";
     ]
     (String.split_on_char '\n' out)
@@ -145,7 +145,7 @@ let test_tabs () =
       "  # a: x       y";
       "  # a: \u{754c}      z";
       "  # a: 12345678        w";
-      "[x] a  0.0s";
+      "[x] a  0.0s  failed";
       "  # x       y";
       "  # \u{754c}      z";
       "  # 12345678        w";
@@ -173,7 +173,7 @@ let test_plain_result () =
   check_lines "running tasks cancelled, verdict last"
     [
       "[-] left running";
-      "[~] left running  0.0s";
+      "[~] left running  0.0s  cancelled";
       "[x] Work 0.0s (1/1)";
       "see the log";
       "[x] it broke";
@@ -507,8 +507,8 @@ let test_nested_plain () =
       "  [-] one";
       "  [-] two";
       "  [+] one  0.0s";
-      "  [~] two  0.0s";
-      "[x] parent  0.0s";
+      "  [~] two  0.0s  cancelled";
+      "[x] parent  0.0s  failed";
       "";
     ]
     (String.split_on_char '\n' out)
@@ -830,7 +830,7 @@ let test_failure_plain () =
   let tail = List.filteri (fun i _ -> i >= n + 1) lines in
   check_lines "the last two under the failure"
     [
-      "[x] job  0.0s";
+      "[x] job  0.0s  failed";
       "  # line1998 " ^ String.make 600 'x';
       "  # line1999 " ^ String.make 600 'x';
       "";
@@ -858,7 +858,7 @@ let test_cancelled_output () =
         Display.cancel job)
   in
   check_lines "nothing repeated on a pipe"
-    [ "[-] job"; "  # job: a"; "[~] job  0.0s"; "" ]
+    [ "[-] job"; "  # job: a"; "[~] job  0.0s  cancelled"; "" ]
     (split out)
 
 (* [root] is the display's top task: within it, output goes above the rows
@@ -988,7 +988,7 @@ let test_with_task () =
       "  [+] inner  0.0s";
       "  [-] child";
       "  [-] ended";
-      "  [x] ended  0.0s";
+      "  [x] ended  0.0s  failed";
       "    ended: after its end";
       "  [+] child  0.0s";
       "[+] outer  0.0s";

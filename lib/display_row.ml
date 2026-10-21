@@ -204,15 +204,22 @@ let committed t r =
            (Span.wrap (max 1 (width - lead_w)) l))
        rest
 
-(* Without a terminal: the same, compact, on one line. *)
+(* Without a terminal: the same, compact, on one line, which says how a
+   task that did not succeed ended, as no colour may. *)
 let appended r =
   let t = r.disp in
   let count = match count_text r.metric with "" -> "" | c -> "  " ^ c in
+  let ended =
+    match Option.value r.outcome ~default:`Cancelled with
+    | `Succeeded -> ""
+    | `Failed -> "  failed"
+    | `Cancelled -> "  cancelled"
+  in
   Span.(
     text (indent r)
     ++ mark_of t r ++ text " "
     ++ text (label_of r)
-    ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r)))
+    ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r) ^ ended))
 
 (* On a terminal a line that does not fit goes on over the lines below,
    under its start; without one it is a line of its own, as long as it is. *)

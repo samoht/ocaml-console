@@ -507,8 +507,10 @@ what `build` above prints in a pipe:
 On a pipe, console flushes standard output before each line it writes, so
 that `2>&1` keeps the order of the two outputs. `Console_eio.run
 ~plain:true` prints these lines on a terminal too, as a `--progress=plain`
-option asks ([Motion](#motion)). Each line starts with a mark that says how its task ended; the
-theme chooses the marks:
+option asks ([Motion](#motion)). The line a task ends with starts with a
+mark that says how it ended, which the theme chooses, and says it in words
+too when the task did not succeed, so that a log read without colour tells
+a failure from a success, as `✗ compile  2/2  0.1s  failed` does:
 
 | Task | `Theme.default` | `Theme.dos` |
 |---|---|---|

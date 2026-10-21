@@ -64,7 +64,7 @@ let test_logs_outside () =
   Display.close t.display;
   let (), out = plain ~theme (fun d _ -> report d) in
   check_lines "on a pipe"
-    (("[-] running" :: expected) @ [ "[~] running  0.0s"; "" ])
+    (("[-] running" :: expected) @ [ "[~] running  0.0s  cancelled"; "" ])
     (split out);
   let (), out = plain (fun d _ -> Driver.report d `Debug "debug") in
   check_lines "the default theme's debug mark" [ "\u{00b7} debug"; "" ]
@@ -104,7 +104,9 @@ let test_scope () =
   Display.close d;
   Format.pp_print_flush ppf ();
   check_lines "the scope's current task"
-    [ "[-] a"; "  a: in a"; "[-] b"; "[+] b  0.0s"; "[~] a  0.0s"; "" ]
+    [
+      "[-] a"; "  a: in a"; "[-] b"; "[+] b  0.0s"; "[~] a  0.0s  cancelled"; "";
+    ]
     (split (Buffer.contents buffer))
 
 let suite =

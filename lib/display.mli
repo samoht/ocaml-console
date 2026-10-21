@@ -10,9 +10,10 @@
     at the bottom of the terminal's normal output. When a task ends, its line is
     printed once above the region and stays in the scrollback. When the output
     is not a terminal, such as a pipe or a CI log, nothing is redrawn: a task
-    prints a line when it starts and one when it ends, and the header comes
-    last, as a summary. Each starts a line of its own: when what the program
-    wrote on the same formatter did not end its line, a line feed comes first.
+    prints a line when it starts and one when it ends, which ends with [failed]
+    or [cancelled] when the task did not succeed, and the header comes last, as
+    a summary. Each starts a line of its own: when what the program wrote on the
+    same formatter did not end its line, a line feed comes first.
 
     [Console_eio.run] opens a display, passes it to a function and closes it
     when the function returns; most programs need nothing else.
