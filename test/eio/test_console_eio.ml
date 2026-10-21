@@ -426,7 +426,9 @@ let test_sigint_secret () =
 
 let test_quiet_terminal_capture () =
   let status, out = teardown "quiet-ok" in
-  Alcotest.(check bool) "the program succeeds" true (status = `Exited 0);
+  Alcotest.(check bool)
+    "the program succeeds" true
+    (match status with `Exited 0 -> true | _ -> false);
   Alcotest.(check (list string))
     "successful task output is hidden; root output stays" [ "root line" ]
     (final_of out)

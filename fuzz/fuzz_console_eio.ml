@@ -228,6 +228,11 @@ let test_json_events label text =
   check_eq ~pp:Fmt.Dump.string "failed"
     (string "status" (List.hd (of_event "end")))
 
+let json_field_is name value fields =
+  Option.equal Yojson.Safe.equal (List.assoc_opt name fields) value
+
+let json_event event = json_field_is "event" (Some (`String event))
+
 (* A formatter backed by an Eio flow may yield after any chunk. Records
    still form a complete event stream, regardless of the task interleaving. *)
 let test_json_concurrent_records chunk tasks =
@@ -261,11 +266,7 @@ let test_json_concurrent_records chunk tasks =
   check_eq ~pp:Fmt.int (tasks * 4) (List.length records);
   List.iter
     (fun i ->
-      let own =
-        List.filter
-          (fun fields -> List.assoc_opt "id" fields = Some (`Int i))
-          records
-      in
+      let own = List.filter (json_field_is "id" (Some (`Int i))) records in
       check_eq
         ~pp:Fmt.(Dump.list Dump.string)
         [ "start"; "output"; "progress"; "end" ]
@@ -294,7 +295,10 @@ let test_quiet_terminal_records ending =
       [| "tty.exe"; helper "teardown"; mode |]
   in
   let screen = In_channel.input_all input in
-  check (Unix.close_process_in input = Unix.WEXITED 0);
+  check
+    (match Unix.close_process_in input with
+    | Unix.WEXITED 0 -> true
+    | _ -> false);
   let lines =
     String.split_on_char '\n' screen
     |> List.filter (String.ends_with ~suffix:" line")
@@ -314,130 +318,129 @@ let test_quiet_terminal_records ending =
 
 (* Consumers can pair every start with one end, follow a parent, and recover
    counts and log levels under interleaved success, failure and cancellation. *)
-let test_json_lifecycle k =
+let lifecycle_levels =
+  [|
+    (Logs.App, "app");
+    (Logs.Error, "error");
+    (Logs.Warning, "warning");
+    (Logs.Info, "info");
+    (Logs.Debug, "debug");
+  |]
+
+let lifecycle_worker k d i =
+  let label = Fmt.str "worker-%d 👩‍💻" i in
+  let ending = (k + i) mod 4 in
+  let status =
+    match ending with 0 -> "succeeded" | 1 | 3 -> "failed" | _ -> "cancelled"
+  in
+  let level, level_name =
+    lifecycle_levels.((k + i) mod Array.length lifecycle_levels)
+  in
+  let ready, announce = Eio.Promise.create () in
+  let work () =
+    Console.Display.with_task d label (fun task ->
+        Console.Display.set_bytes task ~cur:Int64.max_int ~total:Int64.max_int;
+        Eio.Fiber.yield ();
+        let reporter = Logs.reporter () in
+        reporter.Logs.report Logs.default level ~over:ignore ignore (fun m ->
+            m "line-%d" i);
+        match ending with
+        | 1 -> Console.Display.fail task
+        | 2 ->
+            Eio.Promise.resolve announce ();
+            Eio.Fiber.await_cancel ()
+        | 3 -> failwith "worker failed"
+        | _ -> ())
+  in
+  (try
+     if ending = 2 then Eio.Fiber.first work (fun () -> Eio.Promise.await ready)
+     else work ()
+   with Failure message when message = "worker failed" -> ());
+  (label, status, level_name)
+
+let capture_lifecycles k count =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
   let out = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer out in
-  let levels =
-    [|
-      (Logs.App, "app");
-      (Logs.Error, "error");
-      (Logs.Warning, "warning");
-      (Logs.Info, "info");
-      (Logs.Debug, "debug");
-    |]
-  in
-  let count = 1 + (k mod 8) in
   let expected = ref [] in
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
       Console.Display.with_task d "parent 界" (fun _ ->
           Eio.Fiber.List.iter
             (fun i ->
-              let label = Fmt.str "worker-%d 👩‍💻" i in
-              let ending = (k + i) mod 4 in
-              let status =
-                match ending with
-                | 0 -> "succeeded"
-                | 1 | 3 -> "failed"
-                | _ -> "cancelled"
-              in
-              let level, level_name =
-                levels.((k + i) mod Array.length levels)
-              in
-              expected := (label, status, level_name) :: !expected;
-              let ready, announce = Eio.Promise.create () in
-              let work () =
-                Console.Display.with_task d label (fun task ->
-                    Console.Display.set_bytes task ~cur:Int64.max_int
-                      ~total:Int64.max_int;
-                    Eio.Fiber.yield ();
-                    let reporter = Logs.reporter () in
-                    reporter.Logs.report Logs.default level ~over:ignore ignore
-                      (fun m -> m "line-%d" i);
-                    match ending with
-                    | 1 -> Console.Display.fail task
-                    | 2 ->
-                        Eio.Promise.resolve announce ();
-                        Eio.Fiber.await_cancel ()
-                    | 3 -> failwith "worker failed"
-                    | _ -> ())
-              in
-              try
-                if ending = 2 then
-                  Eio.Fiber.first work (fun () -> Eio.Promise.await ready)
-                else work ()
-              with Failure message when message = "worker failed" -> ())
+              let ending = lifecycle_worker k d i in
+              expected := ending :: !expected)
             (List.init count Fun.id));
       ignore (Console.Display.task d "left running" : Console.Display.task);
       Console.Display.log (Console.Display.root d) "root line";
       Console.Display.set_result ~detail:"detail" d (Error "result"));
   Format.pp_print_flush ppf ();
-  let records = events (Buffer.contents out) in
-  let field name fields = List.assoc_opt name fields in
-  let is_event event fields = field "event" fields = Some (`String event) in
-  let starts = List.filter (is_event "start") records in
-  let ends = List.filter (is_event "end") records in
+  (events (Buffer.contents out), !expected)
+
+let check_lifecycle_pairs count records =
+  let starts = List.filter (json_event "start") records in
+  let ends = List.filter (json_event "end") records in
   check_eq ~pp:Fmt.int (count + 2) (List.length starts);
   check_eq ~pp:Fmt.int (List.length starts) (List.length ends);
   List.iter
     (fun start ->
-      let id = field "id" start in
-      check (id <> None);
-      let own = List.filter (fun record -> field "id" record = id) records in
-      check_eq ~pp:Fmt.int 1 (List.length (List.filter (is_event "end") own));
-      check (is_event "start" (List.hd own));
-      check (is_event "end" (List.hd (List.rev own))))
+      let id = List.assoc_opt "id" start in
+      check (Option.is_some id);
+      let own = List.filter (json_field_is "id" id) records in
+      check_eq ~pp:Fmt.int 1 (List.length (List.filter (json_event "end") own));
+      check (json_event "start" (List.hd own));
+      check (json_event "end" (List.hd (List.rev own))))
     starts;
-  let parent =
-    List.find
-      (fun f -> field "task" f = Some (`List [ `String "parent 界" ]))
-      starts
+  List.find (json_field_is "task" (Some (`List [ `String "parent 界" ]))) starts
+
+let check_worker_events records parent (label, status, level) =
+  let path = Some (`List [ `String "parent 界"; `String label ]) in
+  let own = List.filter (json_field_is "task" path) records in
+  let start = List.find (json_event "start") own in
+  check (json_field_is "parent" (List.assoc_opt "id" parent) start);
+  let ending = List.find (json_event "end") own in
+  check (json_field_is "status" (Some (`String status)) ending);
+  let progress = List.find (json_event "progress") own in
+  let integer = function
+    | Some (`Int n) -> Int64.of_int n
+    | Some (`Intlit n) -> Int64.of_string n
+    | _ -> fail "missing integer count"
   in
-  List.iter
-    (fun (label, status, level) ->
-      let path = Some (`List [ `String "parent 界"; `String label ]) in
-      let own = List.filter (fun f -> field "task" f = path) records in
-      let start = List.find (is_event "start") own in
-      check (field "parent" start = field "id" parent);
-      let ending = List.find (is_event "end") own in
-      check (field "status" ending = Some (`String status));
-      let progress = List.find (is_event "progress") own in
-      let integer = function
-        | Some (`Int n) -> Int64.of_int n
-        | Some (`Intlit n) -> Int64.of_string n
-        | _ -> fail "missing integer count"
-      in
-      check (integer (field "count" progress) = Int64.max_int);
-      check (integer (field "total" progress) = Int64.max_int);
-      check (field "unit" progress = Some (`String "bytes"));
-      let output = List.filter (is_event "output") own in
-      check_eq ~pp:Fmt.int 1 (List.length output);
-      check (field "level" (List.hd output) = Some (`String level)))
-    !expected;
+  check (Int64.equal (integer (List.assoc_opt "count" progress)) Int64.max_int);
+  check (Int64.equal (integer (List.assoc_opt "total" progress)) Int64.max_int);
+  check (json_field_is "unit" (Some (`String "bytes")) progress);
+  let output = List.filter (json_event "output") own in
+  check_eq ~pp:Fmt.int 1 (List.length output);
+  check (json_field_is "level" (Some (`String level)) (List.hd output))
+
+let test_json_lifecycle k =
+  let count = 1 + (k mod 8) in
+  let records, expected = capture_lifecycles k count in
+  check_eq ~pp:Fmt.int count (List.length expected);
+  let parent = check_lifecycle_pairs count records in
+  List.iter (check_worker_events records parent) expected;
   let root =
-    List.find (fun f -> field "text" f = Some (`String "root line")) records
+    List.find (json_field_is "text" (Some (`String "root line"))) records
   in
-  check (field "task" root = Some (`List []));
-  check (field "id" root = None);
+  check (json_field_is "task" (Some (`List [])) root);
+  check (json_field_is "id" None root);
   let abandoned =
     List.find
       (fun f ->
-        is_event "end" f
-        && field "task" f = Some (`List [ `String "left running" ]))
+        json_event "end" f
+        && json_field_is "task" (Some (`List [ `String "left running" ])) f)
       records
   in
-  check (field "status" abandoned = Some (`String "cancelled"));
+  check (json_field_is "status" (Some (`String "cancelled")) abandoned);
   let result = List.hd (List.rev records) in
-  check (is_event "result" result);
-  check (field "status" result = Some (`String "error"));
-  check (field "text" result = Some (`String "result"));
-  check (field "detail" result = Some (`String "detail"))
+  check (json_event "result" result);
+  check (json_field_is "status" (Some (`String "error")) result);
+  check (json_field_is "text" (Some (`String "result")) result);
+  check (json_field_is "detail" (Some (`String "detail")) result)
 
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
-let test_forced_tty_screen k label =
-  let width, height = [| (1, 1); (80, 2); (300, 10); (20, 8) |].(k mod 4) in
+let with_dimensions width height f =
   let bindings =
     [ ("COLUMNS", string_of_int width); ("LINES", string_of_int height) ]
   in
@@ -445,34 +448,40 @@ let test_forced_tty_screen k label =
     List.map (fun (name, _) -> (name, Sys.getenv_opt name)) bindings
   in
   List.iter (fun (name, value) -> Unix.putenv name value) bindings;
-  Fun.protect
-    ~finally:(fun () ->
+  Fun.protect f ~finally:(fun () ->
       List.iter
         (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
         saved)
-    (fun () ->
+
+let tty_destination width height k =
+  let screen = Console_vte.v ~raw:true ~rows:height ~cols:width () in
+  let written = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter
+      (fun text offset length ->
+        let chunk = String.sub text offset length in
+        check (String.is_valid_utf_8 chunk);
+        String.split_on_char '\n' (Console_text.strip chunk)
+        |> List.iter (fun line ->
+            check (Console.Span.width (Console.Span.text line) <= width));
+        Buffer.add_string written chunk;
+        Console_vte.feed screen chunk)
+      (fun () -> ())
+  in
+  Fmt.set_utf_8 ppf true;
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  let _, theme =
+    List.nth Console.Theme.all (k mod List.length Console.Theme.all)
+  in
+  Console.Theme.set ppf (Console.Theme.still theme);
+  (screen, written, ppf)
+
+let test_forced_tty_screen k label =
+  let width, height = [| (1, 1); (80, 2); (300, 10); (20, 8) |].(k mod 4) in
+  with_dimensions width height (fun () ->
       Eio_mock.Backend.run @@ fun () ->
       let clock = Eio_mock.Clock.Mono.make () in
-      let screen = Console_vte.v ~raw:true ~rows:height ~cols:width () in
-      let written = Buffer.create 256 in
-      let ppf =
-        Format.make_formatter
-          (fun text offset length ->
-            let chunk = String.sub text offset length in
-            check (String.is_valid_utf_8 chunk);
-            String.split_on_char '\n' (Console_text.strip chunk)
-            |> List.iter (fun line ->
-                check (Console.Span.width (Console.Span.text line) <= width));
-            Buffer.add_string written chunk;
-            Console_vte.feed screen chunk)
-          (fun () -> ())
-      in
-      Fmt.set_utf_8 ppf true;
-      Fmt.set_style_renderer ppf `Ansi_tty;
-      let _, theme =
-        List.nth Console.Theme.all (k mod List.length Console.Theme.all)
-      in
-      Console.Theme.set ppf (Console.Theme.still theme);
+      let screen, written, ppf = tty_destination width height k in
       let raises = k land 4 <> 0 in
       let raised =
         try
