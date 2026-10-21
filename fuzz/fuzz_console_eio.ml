@@ -275,11 +275,50 @@ let test_json_concurrent_records chunk tasks =
            own))
     (List.init tasks Fun.id)
 
+(* tty.exe replays the real terminal session through matrix.vte. The same
+   capture rule applies to Display.log, Fmt on either output and Logs. *)
+let test_quiet_terminal_records ending =
+  let mode =
+    match ending mod 3 with
+    | 0 -> "quiet-ok"
+    | 1 -> "quiet-fail"
+    | _ -> "quiet-cancel"
+  in
+  let helper name =
+    Filename.concat
+      (Filename.dirname Sys.executable_name)
+      ("../test/eio/" ^ name ^ ".exe")
+  in
+  let input =
+    Unix.open_process_args_in (helper "tty")
+      [| "tty.exe"; helper "teardown"; mode |]
+  in
+  let screen = In_channel.input_all input in
+  check (Unix.close_process_in input = Unix.WEXITED 0);
+  let lines =
+    String.split_on_char '\n' screen
+    |> List.filter (String.ends_with ~suffix:" line")
+  in
+  let expected =
+    if ending mod 3 = 0 then [ "root line" ]
+    else
+      [
+        "  \u{203a} display line";
+        "  \u{203a} stdout line";
+        "  \u{203a} stderr line";
+        "  logs line";
+        "root line";
+      ]
+  in
+  check_eq ~pp:Fmt.(Dump.list Dump.string) expected lines
+
 let suite =
   ( "console_eio",
     [
       test_case "concurrent JSON records stay whole and complete"
         [ uint8; uint8 ] test_json_concurrent_records;
+      test_case "quiet captures every terminal output source" [ uint8 ]
+        test_quiet_terminal_records;
       test_case "JSON events read back" [ bytes; bytes ] test_json_events;
       test_case "a surviving fiber uses a live display" [ uint8 ]
         test_surviving_fiber;
