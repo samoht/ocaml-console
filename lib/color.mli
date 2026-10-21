@@ -110,6 +110,9 @@ val scale : float -> t -> t
 val equal : t -> t -> bool
 (** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour. *)
 
+val compare : t -> t -> int
+(** [compare] is a total order on colours, compatible with {!equal}. *)
+
 (** {1:depths Colour depth} *)
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]

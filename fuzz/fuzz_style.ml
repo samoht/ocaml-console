@@ -40,5 +40,27 @@ let test_laws a b c =
   check (Bool.equal (Style.is_none a) (Style.equal a Style.none));
   Fmt.kstr ignore "%a" Style.pp a
 
+(* [compare] is a total order that agrees with [equal], on styles and on
+   their colours. *)
+let test_order a b c =
+  let order compare equal a b c =
+    check (Bool.equal (compare a b = 0) (equal a b));
+    check
+      (Int.equal (Int.compare (compare a b) 0) (-Int.compare (compare b a) 0));
+    if compare a b <= 0 && compare b c <= 0 then check (compare a c <= 0)
+  in
+  order Style.compare Style.equal (style a) (style b) (style c);
+  let color n =
+    match n mod 3 with
+    | 0 -> Color.palette (n land 255)
+    | 1 -> Color.rgb (n land 255) ((n lsr 8) land 255) ((n lsr 16) land 255)
+    | _ -> List.nth Color.[ red; blue; bright_green ] ((n lsr 2) mod 3)
+  in
+  order Color.compare Color.equal (color a) (color b) (color c)
+
 let suite =
-  ("style", [ test_case "composition laws" [ int; int; int ] test_laws ])
+  ( "style",
+    [
+      test_case "composition laws" [ int; int; int ] test_laws;
+      test_case "compare agrees with equal" [ int; int; int ] test_order;
+    ] )

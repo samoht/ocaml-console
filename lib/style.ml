@@ -54,6 +54,9 @@ let equal left right =
   && Option.equal Color.equal left.fg right.fg
   && Option.equal Color.equal left.bg right.bg
 
+(* Booleans and colours, so the structural order is compatible with
+   [equal]. *)
+let compare (left : t) right = Stdlib.compare left right
 let is_none style = equal style none
 
 (* The style the enclosing [styled] calls of a formatter have on, which an

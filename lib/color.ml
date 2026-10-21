@@ -182,6 +182,10 @@ let equal left right =
   | Palette l, Palette r -> l = r
   | _ -> false
 
+(* A colour is plain data, so the structural order is compatible with
+   [equal]. *)
+let compare (left : t) right = Stdlib.compare left right
+
 let pp ppf = function
   | Ansi `Black -> Fmt.pf ppf "black"
   | Ansi `Red -> Fmt.pf ppf "red"
