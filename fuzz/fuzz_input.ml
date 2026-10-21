@@ -38,9 +38,11 @@ let test_chunks s =
   ignore (Console_input.feed masked "\n");
   check (Console_input.history masked = [])
 
-(* The keys that edit a line in place: characters one or two cells wide, a
-   combining mark and a spacing mark, which join the character before them,
-   both erasing keys and the arrows that move along the line. *)
+(* The keys that edit a line in place are characters one or two cells wide,
+   both erasing keys and the arrows that move along the line. A combining
+   mark, a spacing mark, a VS16 and a ZWJ join the character before them. A
+   VS16 after the heart, or a ZWJ between two emoji, makes an emoji sequence
+   two cells wide. *)
 let keys =
   [|
     "a";
@@ -49,6 +51,10 @@ let keys =
     "\u{754c}";
     "\u{0301}";
     "\u{093F}";
+    "\u{2764}";
+    "\u{fe0f}";
+    "\u{200d}";
+    "\u{1f469}";
     "\127";
     "\b";
     "\027[D";
