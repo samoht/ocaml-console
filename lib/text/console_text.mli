@@ -31,7 +31,9 @@ val strip : ?keep_newlines:bool -> ?keep_styles:bool -> string -> string
     included, but for [ESC E], the 7-bit next line, which ends a line. DEL and
     the C0 controls but a tab, ESC and the line ends, which a terminal acts on
     without printing, are removed too: [strip "a\007b"] is ["ab"]. Without
-    [keep_styles] it holds no escape and [strip (strip s) = strip s].
+    [keep_styles] it holds no escape and [strip (strip s) = strip s]. Each line
+    end is one line feed, or one space if [keep_newlines] is [false] (defaults
+    to [true]), as with {!sanitize}.
 
     If [keep_styles] (defaults to [false]), the escape codes that only set
     colours and text attributes are kept, for relaying the output of a tool that

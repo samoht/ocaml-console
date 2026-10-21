@@ -36,15 +36,32 @@ let test_styles_isolated s =
   check (draw styled = draw "")
 
 (* A line ends at LF, VT, FF, at NEL (U+0085, which UTF-8 writes C2 85),
-   and at a CR that none of them follows: [sanitize] keeps one line feed for
-   each. *)
+   and at a CR that none of them follows once the characters [sanitize]
+   removes are gone: [sanitize] keeps one line feed for each. *)
+let removed c =
+  c = 0x061c || c = 0x200e || c = 0x200f
+  || (c >= 0x202a && c <= 0x202e)
+  || (c >= 0x2066 && c <= 0x2069)
+  || (c >= 0xfff9 && c <= 0xfffb)
+
 let line_ends s =
   let n = String.length s in
   let nel i = i + 1 < n && s.[i] = '\xc2' && s.[i + 1] = '\x85' in
   let feed i = i < n && (String.contains "\n\011\012" s.[i] || nel i) in
+  let rec next i =
+    if i >= n then i
+    else
+      let d = String.get_utf_8_uchar s i in
+      if
+        Uchar.utf_decode_is_valid d
+        && removed (Uchar.to_int (Uchar.utf_decode_uchar d))
+      then next (i + Uchar.utf_decode_length d)
+      else i
+  in
   let count = ref 0 in
   String.iteri
-    (fun i c -> if feed i || (c = '\r' && not (feed (i + 1))) then incr count)
+    (fun i c ->
+      if feed i || (c = '\r' && not (feed (next (i + 1)))) then incr count)
     s;
   !count
 
