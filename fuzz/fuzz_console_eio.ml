@@ -228,9 +228,58 @@ let test_json_events label text =
   check_eq ~pp:Fmt.Dump.string "failed"
     (string "status" (List.hd (of_event "end")))
 
+(* A formatter backed by an Eio flow may yield after any chunk. Records
+   still form a complete event stream, regardless of the task interleaving. *)
+let test_json_concurrent_records chunk tasks =
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let chunk = 1 + (chunk mod 32) and tasks = 2 + (tasks mod 4) in
+  let ppf =
+    Format.make_formatter
+      (fun text offset length ->
+        let rec write offset length =
+          if length > 0 then begin
+            let n = min chunk length in
+            Buffer.add_substring out text offset n;
+            Eio.Fiber.yield ();
+            write (offset + n) (length - n)
+          end
+        in
+        write offset length)
+      (fun () -> ())
+  in
+  Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
+      Eio.Fiber.List.iter
+        (fun i ->
+          Console.Display.with_task d (string_of_int i) (fun t ->
+              Console.Display.log t "line";
+              Console.Display.set_count t ~cur:1 ~total:1))
+        (List.init tasks Fun.id));
+  Format.pp_print_flush ppf ();
+  let records = events (Buffer.contents out) in
+  check_eq ~pp:Fmt.int (tasks * 4) (List.length records);
+  List.iter
+    (fun i ->
+      let own =
+        List.filter
+          (fun fields -> List.assoc_opt "id" fields = Some (`Int i))
+          records
+      in
+      check_eq
+        ~pp:Fmt.(Dump.list Dump.string)
+        [ "start"; "output"; "progress"; "end" ]
+        (List.map
+           (fun fields ->
+             match List.assoc "event" fields with `String s -> s | _ -> "")
+           own))
+    (List.init tasks Fun.id)
+
 let suite =
   ( "console_eio",
     [
+      test_case "concurrent JSON records stay whole and complete"
+        [ uint8; uint8 ] test_json_concurrent_records;
       test_case "JSON events read back" [ bytes; bytes ] test_json_events;
       test_case "a surviving fiber uses a live display" [ uint8 ]
         test_surviving_fiber;
