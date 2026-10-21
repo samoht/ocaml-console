@@ -67,8 +67,9 @@ val v :
     moves ({!Theme.val-motion}) moves its ends with its edges.
 
     A row with fewer cells than there are columns ends in a cell that spans the
-    columns left. In a table without a frame ({!Border.none}) a line ends at its
-    last cell that is not empty.
+    columns left. In a table without a frame, whose border has no glyph in its
+    vertical lines ({!Border.none}, {!Border.simple}), a line ends at its last
+    cell that is not empty.
 
     @raise Invalid_argument
       if a row is empty or has more cells than there are columns. *)

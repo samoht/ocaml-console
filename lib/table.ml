@@ -90,10 +90,11 @@ let v ?border ?header_style ?(rules = false) columns rows =
 
 let chars t = Border.chars t.border
 
-(* A border with no glyphs has no edge: no padding outside the first and the
-   last cell, the last cell not padded out to its column, and a line ends at
-   its last cell that is not empty. *)
-let edged t = (chars t).left <> ""
+(* A border whose three columns have no glyph has no edge: no padding
+   outside the first and the last cell, the last cell not padded out to its
+   column, and a line ends at its last cell that is not empty. A column with
+   a glyph anywhere is drawn on every line, padded where its glyph is empty. *)
+let edged t = t.frame.left > 0 || t.frame.mid > 0 || t.frame.right > 0
 let separator_width t = if edged t then 2 + t.frame.mid else 2
 
 let overhead t count =
@@ -277,7 +278,7 @@ let edged_line t style cells k =
     @ [ edge t (Widget.pad_glyph t.frame.right chars.right) ])
 
 (* Without edges, a line ends at its last cell that is not empty, unpadded. *)
-let bare_line t style cells k =
+let bare_line style cells k =
   let shown = ref 0 in
   Array.iteri
     (fun i (_, _, lines) -> if Span.width (at lines k) > 0 then shown := i)
@@ -291,8 +292,7 @@ let bare_line t style cells k =
                Style.(style + col.style)
                (align_span ~pad_right:(i < !shown) col.align w (at ls k))))
   in
-  let right = (chars t).right in
-  Span.concat (parts @ if right <> "" then [ edge t right ] else [])
+  Span.concat parts
 
 let row_lines ?max_width t widths style row =
   let cells =
@@ -307,8 +307,8 @@ let row_lines ?max_width t widths style row =
   let height =
     Array.fold_left (fun h (_, _, l) -> max h (Array.length l)) 0 cells
   in
-  let line = if edged t then edged_line else bare_line in
-  List.init height (line t style cells)
+  let line = if edged t then edged_line t else bare_line in
+  List.init height (line style cells)
 
 let lines ?max_width t =
   if Array.length t.columns = 0 then []
