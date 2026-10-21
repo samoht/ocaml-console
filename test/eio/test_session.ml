@@ -232,6 +232,36 @@ let test_failing_first_run_waits () =
     "a successful sibling is not cancelled" false
     (contains "\u{25cb} sibling" (Buffer.contents out))
 
+(* A fiber may outlive the run that forked it by using an outer switch.
+   Its inherited context must not resurrect the display that already closed. *)
+let test_run_from_surviving_fiber () =
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer out in
+  Fmt.set_utf_8 ppf true;
+  let original = ref None and reused = ref false in
+  Eio.Switch.run (fun sw ->
+      let ended, finish = Eio.Promise.create () in
+      Console_eio.run ~clock ~ppf ~header:"first" (fun d ->
+          original := Some d;
+          Eio.Fiber.fork ~sw (fun () ->
+              Eio.Promise.await ended;
+              Console_eio.run ~clock ~ppf ~header:"second" (fun next ->
+                  reused :=
+                    Option.fold ~none:false ~some:(( == ) next) !original;
+                  Console.Display.with_task next "second-task" (fun task ->
+                      Console.Display.log task "hello"))));
+      Eio.Promise.resolve finish ());
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool) "a closed display is not reused" false !reused;
+  Alcotest.(check bool)
+    "the later task's output survives" true
+    (contains "second-task: hello" (Buffer.contents out));
+  Alcotest.(check bool)
+    "the later run has its own header" true
+    (contains "second 0.0s" (Buffer.contents out))
+
 let renderer_equal a b =
   match (a, b) with `Ansi_tty, `Ansi_tty | `None, `None -> true | _ -> false
 
@@ -364,6 +394,8 @@ let suite =
       Alcotest.test_case "answer limit" `Quick test_limit;
       Alcotest.test_case "run with mock clock" `Quick test_run_clock;
       Alcotest.test_case "run failure releases display" `Quick test_run_failure;
+      Alcotest.test_case "a surviving fiber opens a fresh display" `Quick
+        test_run_from_surviving_fiber;
       Alcotest.test_case "nested child fiber shares display" `Quick
         test_nested_fiber;
       Alcotest.test_case "runs in sibling fibers share a display" `Quick
