@@ -11,7 +11,8 @@
    it gave standard error a theme and chose nothing else; or, with [logs] or [logs-failed], its
    task prints and logs, then succeeds or fails; or, with [suspend], it is stopped by
    SIGTSTP, as Ctrl-Z does, and goes on once continued; or, with [unflushed], it
-   prints lines it never flushes. It also prints a line on standard
+   prints lines it never flushes; or, with [held], it prints a line outside a
+   task that it does not flush, then one in a task that fails. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 let secret env =
@@ -95,6 +96,16 @@ let unflushed env =
       done;
       ignore (Unix.write_substring Unix.stdout "MARK\n" 0 5 : int))
 
+(* A whole line outside a task, long enough that the formatter writes it,
+   waits for a flush; the task's line that comes next must not take it
+   along. *)
+let held env =
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+      Fmt.pr "a held line %s\n" (String.make 100 '.');
+      Console.Display.with_task display "work" (fun task ->
+          Fmt.pr "a task line@.";
+          Console.Display.fail task))
+
 let display env =
   let clock = Eio.Stdenv.mono_clock env in
   let run () =
@@ -123,4 +134,5 @@ let () =
   | [| _; "logs-failed" |] -> logs ~fails:true env
   | [| _; "suspend" |] -> suspend env
   | [| _; "unflushed" |] -> unflushed env
+  | [| _; "held" |] -> held env
   | _ -> display env

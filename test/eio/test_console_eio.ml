@@ -276,6 +276,24 @@ let test_task_output () =
         (List.exists (contains text) rows))
     [ "an output line"; "a result line"; "a note line"; "a forked note" ]
 
+(* A line written outside a task is not the output of the task in which
+   the next line is written, even when it waited for a flush until then. *)
+let test_held_line () =
+  let rows = final "held" in
+  let rec under = function
+    | l :: rest when contains "\u{2717} work" l -> rest
+    | _ :: rest -> under rest
+    | [] -> Alcotest.fail "no failed line"
+  in
+  let output = List.filter (contains "\u{203a}") (under rows) in
+  Alcotest.(check (list string))
+    "the task's line alone under it"
+    [ "  \u{203a} a task line" ]
+    output;
+  Alcotest.(check bool)
+    "the held line above the rows" true
+    (List.exists (String.starts_with ~prefix:"a held line") rows)
+
 let test_sigint_teardown () =
   let _, out = teardown "sigint" in
   Alcotest.(check bool)
@@ -431,6 +449,8 @@ let suite =
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
         test_sigint_output;
       Alcotest.test_case "a task's output on a terminal" `Quick test_task_output;
+      Alcotest.test_case "a held line stays outside the next task" `Quick
+        test_held_line;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
