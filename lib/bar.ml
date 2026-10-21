@@ -51,11 +51,13 @@ let cells ~glyphs ~width frac =
 
 (* A palette of several colours is spread along the whole bar, each filled
    cell in the colour of its place: the fill uncovers the colours as it
-   grows rather than recolouring the cells it has. *)
+   grows rather than recolouring the cells it has. A palette is never
+   empty. *)
 let fill ~style ~width look glyphs =
   match (style, Theme.palette look.Widget.theme) with
   | Some style, _ -> Span.styled style glyphs
-  | None, ([] | [ _ ]) -> Span.styled (Widget.accent look) glyphs
+  | None, [] -> Span.styled (Widget.accent look) glyphs
+  | None, [ c ] -> Span.styled (Style.fg c) glyphs
   | None, palette ->
       let last = float_of_int (max 1 (width - 1)) in
       Span_core.recell

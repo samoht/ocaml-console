@@ -135,8 +135,7 @@ module Layout : sig
 
   val accent : string -> piece
   (** [accent s] is [s] in bold, in the row's colour: the colour of the
-      {!Theme.palette} the row takes, which is {!Theme.accent} in a theme of one
-      colour. *)
+      {!Theme.palette} the row takes. *)
 
   val spacer : piece
   (** [spacer] is the space that pushes the pieces after it to the right edge.
