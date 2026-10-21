@@ -66,11 +66,10 @@ val styled : t -> 'a Fmt.t -> 'a Fmt.t
 (** [styled s pp_v] formats like [pp_v] in [s] iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], its colours as the
     formatter's {!Color.val-depth} shows them, and like [pp_v] otherwise; in a
-    display's scene, the text keeps [s] as the output of the formatter the scene
-    prints on shows it. In the printer of another [styled], [s] is added to the
-    outer style ({!( + )}), which is on again after it. The escape codes take no
-    room on the line, so the boxes and breaks of [pp_v] lay out as without
-    colour. *)
+    display's scene the text keeps [s], at the colours of the display's
+    formatter. In the printer of another [styled], [s] is added to the outer
+    style ({!( + )}), which is on again after it. The escape codes take no room
+    on the line, so the boxes and breaks of [pp_v] lay out as without colour. *)
 
 val pp : t Fmt.t
 (** [pp] formats a style for diagnostics, in an unspecified format. *)

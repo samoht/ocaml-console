@@ -47,11 +47,12 @@ val confirm : t -> string -> (bool, [ `Msg of string ]) result
 
 val secret : t -> string -> (string, [ `Msg of string ]) result
 (** [secret t question] is like {!line} but the answer is not shown: one [*] is
-    written for each character typed instead, then a line feed when the answer
-    ends, and the answer is never retained. The answer is the bytes typed, as
-    they were typed, less the keys that edit the line ({!Console_input.feed}).
-    Masking switches echo off on the terminal behind [t]'s input, so this is
-    [Error] when that input is not a terminal, and when [t] is not interactive
-    or the input ends. What is typed before the question is masked, which the
-    terminal shows, is discarded, as getpass(3) does. The terminal is given back
-    as it was found on return, on an exception and on SIGINT or SIGTERM. *)
+    written for each grapheme cluster typed instead, then a line feed when the
+    answer ends, and the answer is never retained. The answer is the bytes
+    typed, as they were typed, less the keys that edit the line
+    ({!Console_input.feed}). Masking switches echo off on the terminal behind
+    [t]'s input, so this is [Error] when that input is not a terminal, and when
+    [t] is not interactive or the input ends. Input typed before echo goes off,
+    which the terminal has already shown, is discarded, as getpass(3) does. The
+    terminal is given back as it was found on return, on an exception and on
+    SIGINT or SIGTERM. *)

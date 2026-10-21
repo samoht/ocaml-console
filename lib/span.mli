@@ -46,14 +46,12 @@ val link : ?style:Style.t -> uri:string -> string -> t
     empty [uri] links nowhere: the span is [label] in [style]. *)
 
 val role : Theme.role -> string -> t
-(** [role r s] is [s] in the part [r] of the theme of the formatter it is
-    printed on ({!Theme.get}), taken when it is printed: [role `Ok "passed"] is
-    green in {!Theme.default} and Nord's green in {!Theme.nord}. It is as wide
-    as [s], printed in colours at the formatter's {!Color.val-depth} and as the
-    text of [s] without colour; {!to_string} styles it in {!Theme.default}.
-    {!with_style} adds a style under it, as
-    [with_style Style.bold (role `Ok "passed")] makes it bold. It is
-    [with_role r (text s)]. *)
+(** [role r s] is [with_role r (text s)]: [s] in the part [r] of the theme of
+    the formatter it is printed on ({!Theme.get}), taken when it is printed.
+    [role `Ok "passed"] is green in {!Theme.default} and Nord's green in
+    {!Theme.nord}. It is as wide as [s], printed in colours at the formatter's
+    {!Color.val-depth} and as the text of [s] without colour; {!to_string}
+    styles it in {!Theme.default}. *)
 
 val with_role : Theme.role -> t -> t
 (** [with_role r s] is [s] with the part [r] of the theme of the formatter it is
@@ -121,12 +119,11 @@ val wrap : int -> t -> t list
     A line breaks at a run of spaces, which the break removes, or after a slash;
     the spaces inside a line and its leading ones are kept. A part drawn when
     printed, such as a widget's, breaks only where the room ends, its spaces
-    kept, for another look may draw text there. A word wider than [w] goes on
-    over the next lines, broken where the room ends. A character wider than [w]
-    (a wide one when [w] is [1], or one with a spacing mark when [w] is its
-    width less one) cannot be drawn and is left out. The result is never empty,
-    and every other non-space character of [s] is in it, in order, styles and
-    links kept.
+    kept. A word wider than [w] goes on over the next lines, broken where the
+    room ends. A character wider than [w] (a wide one when [w] is [1], or one
+    with a spacing mark when [w] is its width less one) cannot be drawn and is
+    left out. The result is never empty, and every other non-space character of
+    [s] is in it, in order, styles and links kept.
 
     @raise Invalid_argument if [w] is not positive. *)
 
