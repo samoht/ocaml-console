@@ -1,18 +1,23 @@
 # Invariants
 
 What console guarantees, and where each guarantee is checked. A reference
-is `file` "test name", then the kind of check: a unit test (Alcotest), a
-property (Alcobar, run briefly by `dune test`, explored by `dune build @fuzz
---profile=afl` and nightly in CI), a pty test (a real pseudo-terminal) or a
-cram test (a shell session). `test/invariants` fails when a named test no
-longer exists, so this file cannot silently fall behind the suite.
+is `file` "test name", then the kind of check:
+
+- unit: a unit test (Alcotest);
+- property: a property test (Alcobar), run briefly by `dune test`, explored
+  by `dune build @fuzz --profile=afl` and nightly in CI;
+- pty: a test on a real pseudo-terminal;
+- cram: a shell session.
+
+`test/invariants` fails when a named test no longer exists, so this file
+cannot silently fall behind the suite.
 
 The tests read the screen through `test/vte`, an emulator that hands
 matrix.vte only what it reads as xterm does (`test/test_console_vte.ml`
-"controls from the last column", unit), and they count cells against what
-real terminals show (`test/input/test_width.ml` "as real terminals show
-it", unit), not only against the emulator, which measures with console's
-own code.
+"controls from the last column", unit). The emulator measures with
+console's own code, so the tests also count cells against what real
+terminals show (`test/input/test_width.ml` "as real terminals show it",
+unit).
 
 ## What a user can rely on
 
