@@ -114,9 +114,62 @@ let test_sibling_lifetime k failing =
     records;
   check !returned
 
+(* A context inherited by a fiber is only a hint to a live display. Once
+   that run ended, a later call opens a fresh display or joins the current one. *)
+let test_surviving_fiber k =
+  let failing = k land 8 <> 0 and active = k land 16 <> 0 in
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let out = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer out in
+  Fmt.set_utf_8 ppf true;
+  let old = ref None and current = ref None and actual = ref None in
+  let count = 1 + (k mod 8) in
+  let before = Logs.reporter () in
+  Eio.Switch.run (fun sw ->
+      let ended, finish = Eio.Promise.create () in
+      let completed, complete = Eio.Promise.create () in
+      (try
+         Console_eio.run ~clock ~ppf (fun d ->
+             old := Some d;
+             Eio.Fiber.fork ~sw (fun () ->
+                 Eio.Promise.await ended;
+                 Console_eio.run ~clock ~ppf (fun d ->
+                     actual := Some d;
+                     Console.Display.with_task d "later" (fun task ->
+                         for i = 0 to count - 1 do
+                           Console.Display.log task (Fmt.str "record-%d" i)
+                         done));
+                 Eio.Promise.resolve complete ());
+             if failing then failwith "first callback failed")
+       with Failure message when message = "first callback failed" -> ());
+      if active then
+        Console_eio.run ~clock ~ppf (fun d ->
+            current := Some d;
+            Eio.Promise.resolve finish ();
+            Eio.Promise.await completed)
+      else Eio.Promise.resolve finish ());
+  check (Logs.reporter () == before);
+  let same a b = match (a, b) with Some a, Some b -> a == b | _ -> false in
+  if same !actual !old then fail "a surviving fiber reused its closed display";
+  if active then check (same !actual !current);
+  Format.pp_print_flush ppf ();
+  let raw = Buffer.contents out in
+  check (not (String.contains raw '\027'));
+  let records =
+    String.split_on_char '\n' raw
+    |> List.filter (String.starts_with ~prefix:"  ")
+  in
+  check_eq
+    ~pp:Fmt.(Dump.list Dump.string)
+    (List.init count (fun i -> Fmt.str "  \u{203a} later: record-%d" i))
+    records
+
 let suite =
   ( "console_eio",
     [
+      test_case "a surviving fiber uses a live display" [ uint8 ]
+        test_surviving_fiber;
       test_case "a refused record falls back and completes once"
         [ bytes; uint8 ] test_refused_record;
       test_case "a sibling keeps the display after the first callback ends"
