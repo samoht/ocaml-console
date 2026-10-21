@@ -424,9 +424,18 @@ let test_sigint_secret () =
     (match status with `Signaled s -> Int.equal s Sys.sigint | _ -> false);
   Alcotest.(check bool) "SIGINT during a password restores echo" true echo
 
+let test_quiet_terminal_capture () =
+  let status, out = teardown "quiet-ok" in
+  Alcotest.(check bool) "the program succeeds" true (status = `Exited 0);
+  Alcotest.(check (list string))
+    "successful task output is hidden; root output stays" [ "root line" ]
+    (final_of out)
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "quiet hides successful terminal output" `Quick
+        test_quiet_terminal_capture;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
       Alcotest.test_case "the program's colour choice is kept" `Quick

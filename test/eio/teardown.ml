@@ -106,6 +106,23 @@ let held env =
           Fmt.pr "a task line@.";
           Console.Display.fail task))
 
+(* Quiet mode keeps terminal output only for a failed or cancelled task. *)
+let quiet ending env =
+  Logs.set_level (Some Logs.Info);
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env)
+    ~progress:`Quiet ~header:"quiet header" (fun display ->
+      Console.Display.with_task display "quiet work" (fun task ->
+          Console.Display.log task "display line";
+          Fmt.pr "stdout line@.";
+          Fmt.epr "stderr line@.";
+          Logs.info (fun m -> m "logs line");
+          match ending with
+          | "fail" -> Console.Display.fail task
+          | "cancel" -> Console.Display.cancel task
+          | _ -> ());
+      Console.Display.within (Console.Display.root display) (fun () ->
+          Fmt.pr "root line@."))
+
 let display env =
   let clock = Eio.Stdenv.mono_clock env in
   let run () =
@@ -126,6 +143,9 @@ let display env =
 let () =
   Eio_main.run @@ fun env ->
   match Sys.argv with
+  | [| _; "quiet-ok" |] -> quiet "ok" env
+  | [| _; "quiet-fail" |] -> quiet "fail" env
+  | [| _; "quiet-cancel" |] -> quiet "cancel" env
   | [| _; "secret" |] -> secret env
   | [| _; "colourless" |] -> colourless env
   | [| _; "widgets" |] -> widgets env
