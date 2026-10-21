@@ -3,12 +3,8 @@
 Progress rows for OCaml command-line tools, run with
 {{:https://github.com/ocaml-multicore/eio}Eio}.
 
-[console-eio] runs a {!Console.Display} on the terminal. It finds whether
-the output is a terminal and its size, redraws the progress rows, gives the
-program's output and its [Logs] messages to the task current where they are
-printed, under its row, or prints them above the rows outside a task, and
-gives the terminal back however the program ends. On a pipe or in a CI log
-it prints plain lines instead. The smallest program:
+[console-eio] runs a {!Console.Display} on the terminal. On a pipe or in a
+CI log it prints plain lines instead. The smallest program:
 
 {@ocaml[
 let build display =
@@ -22,8 +18,39 @@ let main () =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
 ]}
 
-{!page-tutorial} builds a whole command step by step: options for colour and
-theme, a table, progress rows and a test of its output.
+The {!page-tutorial} builds a whole command step by step. The command has
+options for colour and theme, a table, progress rows and a test of its
+output.
+
+{1:run What [Console_eio.run] does}
+
+{ul
+{- It finds out whether the output is a terminal, and its size.}
+{- It redraws the progress rows ten times a second.}
+{- It gives each line the program prints, and each [Logs] message, to the
+   task current where it is printed. Outside a task, the line goes above
+   the rows ({{!Console_eio.output}where text goes}).}
+{- It gives the terminal back however the program ends: a return, an
+   exception, a cancellation, [exit], Ctrl-C or SIGTERM.}}
+
+{1:rules Rules of the display}
+
+{ul
+{- A task the function did not end is cancelled when the display closes,
+   unless the function said that the work succeeded with
+   {!Console.Display.set_result}. An exception the function raises goes on.}
+{- A {!Console_eio.run} inside another one, or in a fiber beside it, gets
+   the same display. A library can start one without knowing whether its
+   caller did. The display closes once the last of them ends.}
+{- Call the functions of a display from the domain that runs it. A [Logs]
+   message logged in another domain that Eio runs, such as one of an
+   [Eio.Executor_pool], is passed to that domain and printed above the
+   rows.}
+{- What [print_string], [Printf] or a child process writes on the terminal
+   is not seen and garbles the rows. Print it with
+   {!Console.Display.with_output}.}
+{- {!Console_eio.Prompt} asks a question, or a password without echoing it,
+   and takes the rows off the screen while it asks.}}
 
 {1:modules Modules}
 

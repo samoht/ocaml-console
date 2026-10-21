@@ -1,8 +1,8 @@
 (documentation
  (package console)
- (mld_files index))
+ (mld_files index widgets))
 
 (mdx
  (package console)
- (files index.mld)
+ (files index.mld widgets.mld)
  (libraries console fmt))

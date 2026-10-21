@@ -2,11 +2,13 @@
 
 Colours, tables, trees and progress rows for OCaml command-line tools.
 
-[console] prints into the terminal's normal scrollback and redraws only the
-progress rows of a {!Console.Display} while work runs. Its widgets lay out
-text in a style and print with {{:https://erratique.ch/software/fmt}Fmt}, in
-the colours and the {!Console.Theme} of the formatter they are printed on,
-and in plain text on a pipe:
+[console] prints into the terminal's normal scrollback. While work runs it
+redraws only the progress rows of a {!Console.Display}.
+
+Its widgets lay out text in a style and print with
+{{:https://erratique.ch/software/fmt}Fmt}. They are drawn in the colours
+and the {!Console.Theme} of the formatter that prints them, and as plain
+text on a pipe:
 
 {@ocaml[
 # let sizes =
@@ -31,10 +33,15 @@ val sizes : Console.Table.t = <abstr>
 - : unit = ()
 ]}
 
-The progress rows run with Eio, in the [console-eio] package. Its
-documentation opens with a tutorial, {i A first CLI}, which builds a whole
-command step by step: options for colour and theme, a table, progress rows
-and a test of its output.
+{1:manuals Manuals}
+
+{ul
+{- {{!page-widgets}Widgets and themes} shows the widgets with the text they
+   print, and how the themes draw them.}
+{- The [console-eio] package runs the progress rows with Eio. Its
+   documentation opens with a tutorial, {i A first CLI}. It builds a whole
+   command step by step, with options for colour and theme, a table,
+   progress rows and a test of its output.}}
 
 {1:libraries Libraries}
 
@@ -44,12 +51,12 @@ The [console] package has four libraries:
 {- [console], the module {!Console}: styles, spans, the widgets, the themes
    and the live {!Console.Display}. It needs neither Eio nor Unix.}
 {- [console.tty], the module {!Console_tty}: colour, colour depth and UTF-8
-   for the standard outputs, decided from the terminal and the environment,
-   or from a [--color] option.}
+   for the standard outputs. It decides from the terminal and the
+   environment, or from a [--color] option.}
 {- [console.text], the module {!Console_text}: untrusted text made safe to
    print, without the rest of [console].}
 {- [console.input], the module {!Console_input}: a line editor that turns
-   the bytes typed into echo and lines and does no input or output itself.}}
+   the bytes typed into echo and lines. It does no input or output itself.}}
 
 {1:start Where to start}
 

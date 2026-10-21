@@ -1,0 +1,181 @@
+{0 Widgets and themes}
+
+This page shows the widgets of {!Console} that the README leaves out, and
+how the themes draw them. Each example prints without colour, as on a pipe,
+so its output is the text a terminal shows.
+
+{1:text Styled text}
+
+A {{!Console.Span}span} is text in one or more styles. Parts of it can be
+links, which a terminal that supports them opens on a click. Without colour
+a link prints as its label:
+
+{@ocaml[
+# let docs =
+    Console.Span.(
+      styled Console.Style.bold "Read "
+      ++ link ~style:Console.Style.underline ~uri:"https://ocaml.org/docs"
+           "the manual");;
+val docs : Console.Span.t = <abstr>
+# Fmt.pr "%a@." Console.Span.pp docs;;
+Read the manual
+- : unit = ()
+]}
+
+A role takes one of the colours of the theme, when the span is printed:
+
+{ul
+{- {!Console.Span.role} styles a string, as [Span.role `Ok "passed"] does.}
+{- {!Console.Span.with_role} lays a role under any span, a link for
+   example.}
+{- The roles are [`Accent], [`Ok], [`Warn], [`Fail], [`Muted] and
+   [`Header] ({!Console.Theme.type-role}).}}
+
+{!Console.Span.gradient} grades text through the colours it is given, or
+through the theme's palette, one grapheme cluster at a time. Without colour
+it is its text:
+
+{@ocaml[
+# Fmt.pr "%a@." Console.Span.pp
+    (Console.Span.gradient ~colors:Console.Color.[ red; blue ] "console");;
+console
+- : unit = ()
+]}
+
+{1:tables Tables}
+
+{!Console.Border.simple} draws no frame, only a rule under the header:
+
+{@ocaml[
+# print_endline
+    (Console.Table.to_string
+       (Console.Table.v ~border:Console.Border.simple
+          [
+            Console.Table.column (Console.Span.text "Name");
+            Console.Table.column ~align:`Right (Console.Span.text "Size");
+          ]
+          [
+            [ Console.Span.text "README.md"; Console.Span.text "2.4K" ];
+            [ Console.Span.text "src/"; Console.Span.text "4.0K" ];
+          ]));;
+Name       Size
+───────────────
+README.md  2.4K
+src/       4.0K
+- : unit = ()
+]}
+
+[~rules:true] separates the rows. It helps when cells hold several lines:
+
+{@ocaml[
+# print_endline
+    (Console.Table.to_string
+       (Console.Table.v ~rules:true
+          [
+            Console.Table.column (Console.Span.text "Step");
+            Console.Table.column (Console.Span.text "Status");
+          ]
+          [
+            [ Console.Span.text "fetch"; Console.Span.text "done" ];
+            [ Console.Span.text "compile"; Console.Span.text "2 warnings\n1 error" ];
+          ]));;
+╭─────────┬────────────╮
+│ Step    │ Status     │
+├─────────┼────────────┤
+│ fetch   │ done       │
+├─────────┼────────────┤
+│ compile │ 2 warnings │
+│         │ 1 error    │
+╰─────────┴────────────╯
+- : unit = ()
+]}
+
+{1:nesting Widgets side by side}
+
+Every widget is a span by its [to_span], laid out when it is printed.
+{!Console.Span.hcat} puts spans side by side, each at the width its
+[to_span] gives it and in its own colours. The result is one more span, for
+a cell, a panel or a scene:
+
+{@ocaml[
+# let tree =
+    Console.Tree.v (Console.Span.text "src")
+      [ Console.Tree.v (Console.Span.text "lib") [] ]
+  and panel = Console.Panel.v (Console.Span.text "2 files") in
+  Fmt.pr "%a@." Console.Span.pp
+    (Console.Span.hcat
+       [ Console.Tree.to_span tree; Console.Panel.to_span panel ]);;
+src      ╭─────────╮
+└── lib  │ 2 files │
+         ╰─────────╯
+- : unit = ()
+]}
+
+{1:themes Themes}
+
+A {{!Console.Theme}theme} holds the choices the widgets share:
+
+{ul
+{- the main colour, and the colours of a success, a warning and a failure;}
+{- a muted colour for frames and annotations, and the style of headers;}
+{- the marks that say how a task ended;}
+{- the frame of tables and panels, and how it moves;}
+{- the lines of a tree, the glyphs of a bar and the spinner.}}
+
+A formatter has one theme, which {!Console.Theme.set} chooses, much as
+[Fmt.set_style_renderer] chooses its colours. Every widget printed on it is
+drawn in that theme.
+
+{2:choosing Choosing a theme}
+
+{ul
+{- {!Console.Theme.default} reads on any background, at 256 colours or
+   more. Keep it when nothing is known of the terminal.}
+{- A theme named after a colour scheme, such as {!Console.Theme.dracula},
+   is for a terminal that uses that scheme. Its colours are chosen for the
+   scheme's background, which console does not paint, so some of them may
+   be hard to read on another one.}
+{- On a terminal of 16 colours, as [TERM=xterm] announces without a
+   [COLORTERM], every theme is drawn in the terminal's named colours. Their
+   contrast is that of the terminal's own scheme.}
+{- Every theme falls back to ASCII on a formatter that is not UTF-8.
+   {!Console.Theme.ascii} always draws in ASCII.}}
+
+{!Console.Theme.all} lists the themes under their names, the values of a
+[--theme] option:
+
+{@ocaml[
+# List.map fst Console.Theme.all;;
+- : string list =
+["default"; "ascii"; "dos"; "matrix"; "rainbow"; "dracula"; "nord";
+ "solarized-dark"; "solarized-light"; "gruvbox-dark"; "gruvbox-light";
+ "catppuccin-latte"; "catppuccin-mocha"; "tokyo-night"; "one-dark";
+ "monokai"; "github-dark"; "github-light"]
+]}
+
+{2:motion Motion}
+
+In a theme with {{!Console.Theme.type-motion}motion}, the frame of a table
+or a panel in a display's scene ({!Console.Display.set_scene}) moves, by the
+time since the display started:
+
+{ul
+{- {!Console.Theme.matrix} runs digital rain round it ([`Rain]);}
+{- {!Console.Theme.rainbow} sweeps its palette round it ([`Sweep]);}
+{- every theme named after a colour scheme sends a highlight of its main
+   colour round it ([`Shimmer]);}
+{- {!Console.Theme.default}, {!Console.Theme.ascii} and
+   {!Console.Theme.dos} stand still.}}
+
+Only the colours and the glyphs of straight lines change. Each glyph keeps
+its width, so the columns stay aligned in every frame.
+
+Printed with [Fmt], on a pipe or without colour, a frame stands still, and
+a rainbow frame keeps its colours.
+
+{!Console.Theme.still} takes all motion out of a theme, the spinner
+included, for the users who ask for no animation:
+
+{@ocaml[
+let theme ~no_motion t = if no_motion then Console.Theme.still t else t
+]}
