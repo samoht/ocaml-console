@@ -30,13 +30,16 @@ let frame border padding =
 
 let v ?border ?title ?subtitle ?(padding = 1) ?width content =
   if padding < 0 then invalid_arg "Console.Panel.v: negative padding";
-  let least =
+  let edges =
     match border with
-    | Some border -> frame border padding
-    | None -> 2 + (2 * padding)
+    | Some border ->
+        let left, right = columns border in
+        left + right
+    | None -> 2
   in
+  (* Compared before doubling, so that no padding overflows into a fit. *)
   (match width with
-  | Some width when width < least ->
+  | Some width when width < edges || padding > (width - edges) / 2 ->
       invalid_arg "Console.Panel.v: width too small for padding"
   | _ -> ());
   let title = Option.map Widget.one_line title
