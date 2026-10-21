@@ -59,7 +59,9 @@ type mark =
   | `Warning  (** A message that warns. *)
   | `Error  (** A message that reports an error. *)
   | `Debug  (** A message for debugging. *) ]
-(** The type for the states a mark says. *)
+(** The type for the states a mark says. Constructors may be added: a function
+    that gives marks ends with a case for the others, as
+    [function `Failed -> "x" | m -> mark default m] does. *)
 
 type bar =
   [ `Line
@@ -84,13 +86,14 @@ type motion =
     (** A short highlight in the main colour travels round the frame. *) ]
 (** The type for how the frame of a table or a panel moves while a live
     {!Display} draws it ([Display.set_scene]), clockwise and by the elapsed
-    time. Only the colours of the border's cells change, and the glyphs of some
-    to one as wide, so the frame keeps its width and its cells their place in
-    every frame. Printed on a formatter, or drawn by a display without colour or
-    with [NO_COLOR] set, a frame stands still in the glyphs of the theme without
-    motion: a sweep keeps the colours a display starts with, and rain and a
-    shimmer, a highlight that would move, keep those of the theme without
-    motion. *)
+    time. Only the colours of the border's cells change, and some cells' glyphs
+    change to glyphs as wide, so the frame keeps its width and its cells their
+    place in every frame. Constructors may be added: a match on a motion has a
+    case for the others. Printed on a formatter, or drawn by a display without
+    colour or with [NO_COLOR] set, a frame stands still in the glyphs of the
+    theme without motion: a sweep keeps the colours a display starts with, and
+    rain and a shimmer, a highlight that would move, keep those of the theme
+    without motion. *)
 
 type t
 (** The type for themes. *)
@@ -136,7 +139,10 @@ val v :
       {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
     - [bar] is the glyphs of bars and of a display's progress (defaults to
       [`Line]);
-    - [marks] gives the mark of each state (defaults to those of {!default}). *)
+    - [marks] gives the mark of each state (defaults to those of {!default}),
+      ending with a case for the states it leaves to another theme, as
+      [~marks:(function `Failed -> "x" | m -> mark default m)] does, since
+      states may be added ({!type-mark}). *)
 
 val name : t -> string
 (** [name t] is the name of [t]: that of {!all} for a predefined theme. *)
