@@ -1120,9 +1120,76 @@ let test_finished_children_heap n terminal =
       done)
     ~finally:(fun () -> Display.close d)
 
+(* Changing the formatter's look redraws the whole region like a fresh
+   display, including the scene and the task's log window. *)
+let theme_switch_display width theme =
+  let term = Console_vte.v ~raw:true ~rows:12 ~cols:width () in
+  Console_vte.feed term "before\r\n";
+  let writes = ref [] in
+  let ppf =
+    Format.make_formatter
+      (fun s off len ->
+        let chunk = String.sub s off len in
+        writes := chunk :: !writes;
+        Console_vte.feed term chunk)
+      ignore
+  in
+  Fmt.set_utf_8 ppf true;
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  Theme.set ppf theme;
+  let display =
+    Display.v
+      ~size:(fun () -> (width, 12))
+      ~now:(fun () -> 0.)
+      ~header:"build" ppf
+  in
+  let task = Display.task display "\u{754c} compile" in
+  Display.set_count task ~cur:1 ~total:2;
+  Display.log task "a log";
+  Display.set_scene display (fun ~height:_ ppf ->
+      Panel.pp ppf (Panel.v ~title:(Span.text "result") (Span.text "hello")));
+  Display.redraw display;
+  (ppf, display, term, writes)
+
+let test_theme_switch old_index next_index n =
+  let width = 8 + (n mod 73) in
+  let theme i =
+    Theme.still (snd (List.nth Theme.all (i mod List.length Theme.all)))
+  in
+  let ppf, display, actual, writes =
+    theme_switch_display width (theme old_index)
+  in
+  let _, reference, expected, _ =
+    theme_switch_display width (theme next_index)
+  in
+  Fun.protect
+    ~finally:(fun () ->
+      Display.close display;
+      Display.close reference)
+    (fun () ->
+      Theme.set ppf (theme next_index);
+      Display.redraw display;
+      check_eq
+        ~pp:Fmt.(Dump.list Dump.string)
+        (Console_vte.screen expected)
+        (Console_vte.screen actual);
+      let count = List.length !writes in
+      Display.redraw display;
+      check_eq ~pp:Fmt.int count (List.length !writes);
+      List.iter
+        (fun chunk ->
+          check_chunk_lines ~width chunk;
+          check_line_ends chunk;
+          check_styles_closed chunk)
+        !writes);
+  check (Console_vte.cursor_visible actual);
+  check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos actual))
+
 let suite =
   ( "display",
     [
+      test_case "switching themes redraws like a fresh display"
+        [ uint8; uint8; uint8 ] test_theme_switch;
       test_case "a running parent releases completed children" [ uint8; bool ]
         test_finished_children_heap;
       test_case "scene exceptions leave the terminal usable"
