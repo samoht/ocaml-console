@@ -29,5 +29,9 @@ val sub_width : string -> pos:int -> len:int -> int
 val clusters : string -> string list
 (** [clusters s] are the grapheme clusters (UAX #29) of [s], in order. *)
 
+val is_spacing_mark : int -> bool
+(** [is_spacing_mark c] is [true] iff the code point [c] is a spacing mark, of
+    general category Mc. *)
+
 val is_ascii : string -> bool
 (** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)
