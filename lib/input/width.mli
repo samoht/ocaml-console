@@ -13,8 +13,9 @@ val string_width : string -> int
     - an emoji sequence takes two cells. A ZWJ sequence, a skin tone, a flag, a
       keycap and a character that VS16 shows as an emoji are emoji sequences;
     - a spacing mark (general category Mc) after the first code point of its
-      cluster adds the cells it takes alone, as xterm, VTE and Ghostty draw it.
-      A consonant and its vowel sign take two, and a wide mark adds two;
+      cluster adds the cells it takes alone, as xterm, VTE, Ghostty and iTerm2
+      draw it. A consonant and its vowel sign take two, and a wide mark adds
+      two;
     - a VS16 after a character that emoji-variation-sequences.txt does not list
       selects nothing and adds no cell.
 
