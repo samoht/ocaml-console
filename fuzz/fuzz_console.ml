@@ -543,9 +543,73 @@ let test_nested_wrap s k n =
           (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
     expected actual
 
+let hcat_cell g i =
+  ( Grid.get_text g i,
+    Grid.get_attrs g i,
+    (Grid.get_fg_r g i, Grid.get_fg_g g i, Grid.get_fg_b g i),
+    (Grid.get_bg_r g i, Grid.get_bg_g g i, Grid.get_bg_b g i),
+    Grid.hyperlink_url g (Grid.get_link g i) )
+
+(* Side-by-side widgets must keep their cells when a containing widget
+   wraps them. A width check alone would miss lost text, styles or links. *)
+let test_hcat_nested_wrap input k n =
+  let content =
+    let clusters = [| "a"; " "; "b"; "\n"; "\u{754c}"; "e\u{0301}" |] in
+    String.concat ""
+      (List.init
+         (min 12 (String.length input))
+         (fun i -> clusters.(Char.code input.[i] mod Array.length clusters)))
+  in
+  let left = Panel.to_span (Panel.v (Span.gradient content)) in
+  let right =
+    Tree.to_span
+      (Tree.v
+         (Span.link ~uri:"https://example.org/report" "tree")
+         [ Tree.v (Span.role `Ok "leaf") [] ])
+  in
+  let joined = Span.hcat ~gap:(k mod 4) [ left; right ] in
+  let source =
+    Span.with_style Style.bold
+      (match k / 4 mod 3 with
+      | 0 -> Panel.to_span (Panel.v joined)
+      | 1 ->
+          Table.to_span
+            (Table.v [ Table.column (Span.text "h") ] [ [ joined ] ])
+      | _ -> Tree.to_span (Tree.v joined []))
+  in
+  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let render s =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    Fmt.set_utf_8 ppf (k land 128 = 0);
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    Color.set_depth ppf `True_color;
+    Span.pp ppf s;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  let width = 4 + (n mod 29) in
+  let pieces = Span.wrap width source in
+  List.iter
+    (fun s ->
+      check (Span.width s <= width);
+      List.iter (fun line -> check (on_screen line <= width)) (lines (render s)))
+    pieces;
+  let expected = nested_cells (render source)
+  and actual = List.concat_map (fun s -> nested_cells (render s)) pieces in
+  check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
+  List.iter2
+    (fun (g, i) (h, j) ->
+      if hcat_cell g i <> hcat_cell h j then
+        fail "wrapping nested hcat changed a cell")
+    expected actual
+
 let suite =
   ( "console",
     [
+      test_case "wrapping hcat inside widgets preserves terminal cells"
+        [ bytes; uint8; uint8 ] test_hcat_nested_wrap;
       test_case "wrapping nested widgets preserves their terminal cells"
         [ bytes; uint8; uint8 ] test_nested_wrap;
       test_case "hcat preserves trailing combining marks" [ uint8 ]
