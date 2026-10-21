@@ -8,12 +8,12 @@ Each section adds to the one before it.
 
 {1:setup Setup}
 
-[check] uses the [console] and [console-eio] packages, with
-{{:https://erratique.ch/software/cmdliner}Cmdliner} for its options and
-{{:https://erratique.ch/software/logs}Logs} for its messages:
+[check] uses the [console] and [console-eio] packages, with [eio_main] to
+run Eio, {{:https://erratique.ch/software/cmdliner}Cmdliner} for its options
+and {{:https://erratique.ch/software/logs}Logs} for its messages:
 
 {v
-opam install console console-eio cmdliner logs
+opam install console console-eio eio_main cmdliner logs
 v}
 
 Its [dune] file:

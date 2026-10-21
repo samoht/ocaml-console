@@ -65,8 +65,12 @@ program is [examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 <!-- $MDX skip -->
 ```sh
-$ opam install console console-eio
+$ opam install console console-eio eio_main cmdliner
 ```
+
+`eio_main`, which runs Eio, and
+[Cmdliner](https://erratique.ch/software/cmdliner), which reads the options
+of the program above, are installed apart: console needs neither.
 
 Until console is in the opam repository, install it from GitHub:
 
@@ -350,9 +354,9 @@ theme, recorded with [VHS](https://github.com/charmbracelet/vhs) by the
 script that drives it, [its tape](examples/themes/tape.ml), on the background
 the theme is made for, while its progress rows run. In reading order:
 `default`, `ascii`, `dos`, `matrix`, `rainbow`, `dracula`, `nord`,
-`solarized_dark`, `solarized_light`, `gruvbox_dark`, `gruvbox_light`,
-`catppuccin_latte`, `catppuccin_mocha`, `tokyo_night`, `one_dark`,
-`monokai`, `github_dark` and `github_light`.
+`solarized-dark`, `solarized-light`, `gruvbox-dark`, `gruvbox-light`,
+`catppuccin-latte`, `catppuccin-mocha`, `tokyo-night`, `one-dark`,
+`monokai`, `github-dark` and `github-light`.
 
 ![The eighteen themes, each drawing the same tree, table and progress rows](examples/themes/gallery.png)
 
