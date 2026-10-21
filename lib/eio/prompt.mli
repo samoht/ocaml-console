@@ -6,12 +6,13 @@
 (** Questions asked on the terminal.
 
     A prompt writes a question on a formatter and reads the answer, one line,
-    from an Eio flow. A fiber waiting for an answer lets the others run.
+    from an Eio flow, so a fiber waiting for an answer lets the others run.
 
-    The terminal edits the line as the user types it. {!secret} alone switches
-    the terminal's echo off, and edits the line with a {!Console_input} editor
-    that shows a [*] for each character. A prompt with nobody to type an answer
-    says so with an [Error] instead of waiting for ever.
+    The terminal edits the line as the user types it, except under {!secret},
+    which switches the terminal's echo off and edits the line with a
+    {!Console_input} editor that shows a [*] for each character. A prompt with
+    nobody to type an answer says so with an [Error] instead of waiting for
+    ever.
 
     While a display that [Console_eio.run] opened runs, a question takes its
     progress rows off the screen for the time it is asked. *)
@@ -29,7 +30,7 @@ val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
       holds). A prompt that is not interactive answers [Error] to every question
       and writes nothing, rather than block on input nobody will type.
 
-    A program creates one {!type-t} and reuses it. It owns the read buffer, so
+    A program creates one {!type-t} and reuses it: it owns the read buffer, so
     two questions in a row do not lose the input between them. *)
 
 val interactive : t -> bool
@@ -43,18 +44,18 @@ val line : t -> string -> (string, [ `Msg of string ]) result
     not interactive or the input ends before a line feed. *)
 
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
-(** [confirm t question] asks [question ^ " [y/N] "]. It is [true] for an answer
+(** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
     of ["y"] or ["yes"], compared after trimming surrounding whitespace and
-    ignoring case. It is [false] for any other line, an empty one included. This
+    ignoring case, and [false] for any other line, an empty one included. This
     is [Error] when [t] is not interactive or the input ends. *)
 
 val secret : t -> string -> (string, [ `Msg of string ]) result
 (** [secret t question] is like {!line} but the answer is not shown. One [*] is
     written for each grapheme cluster typed instead, then a line feed when the
     answer ends. The answer is the bytes typed, as they were typed, less the
-    keys that edit the line ({!Console_input.feed}). It is never retained.
+    keys that edit the line ({!Console_input.feed}), and it is never retained.
 
-    Masking switches echo off on the terminal behind [t]'s input. So this is
+    Since masking switches echo off on the terminal behind [t]'s input, this is
     [Error] when that input is not a terminal, as well as when [t] is not
     interactive or the input ends. Input typed before echo goes off, which the
     terminal has already shown, is discarded, as getpass(3) does. The terminal

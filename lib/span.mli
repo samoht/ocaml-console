@@ -19,10 +19,10 @@
     show its text in another order. A line feed starts a new line, and the
     functions below work line by line.
 
-    Widths are counted in terminal cells, as a terminal draws the text. A wide
-    character, such as a Chinese one or an emoji, takes two cells. An accent
-    added to a letter takes none, even when it is in another style than the
-    letter. *)
+    Widths are counted in terminal cells, as a terminal draws the text: a wide
+    character, such as a Chinese one or an emoji, takes two cells, while an
+    accent added to a letter takes none, even when it is in another style than
+    the letter. *)
 
 (** {1:spans Spans} *)
 
@@ -40,8 +40,8 @@ val styled : Style.t -> string -> t
 
 val link : ?style:Style.t -> uri:string -> string -> t
 (** [link ~style ~uri label] is [label] drawn in [style] (defaults to
-    {!Style.none}) as a link to [uri]. A terminal that supports links opens it
-    on a click. Printed without colours, it is [label] alone.
+    {!Style.none}) as a link to [uri], which a terminal that supports links
+    opens on a click. Printed without colours, it is [label] alone.
 
     Each byte of [uri] that a URI may not hold
     ({{:https://www.rfc-editor.org/rfc/rfc3986#section-2}RFC 3986}) is written
@@ -54,14 +54,14 @@ val role : Theme.role -> string -> t
     theme ({!Theme.get}), taken when it is printed. [role `Ok "passed"] is green
     in {!Theme.default} and Nord's green in {!Theme.nord}.
 
-    It is as wide as [s]. It prints in colours at the formatter's
-    {!Color.val-depth}, and as the text of [s] without colour. {!to_string}
+    It is as wide as [s], printed in colours at the formatter's
+    {!Color.val-depth} and as the text of [s] without colour, and {!to_string}
     styles it in {!Theme.default}. *)
 
 val with_role : Theme.role -> t -> t
 (** [with_role r s] is [s] with the part [r] of the formatter's theme under each
     of its styles, as {!with_style} lays a style. A part of [s] in a colour of
-    its own keeps it. [with_role `Ok (link ~uri "report")] is a link in the
+    its own keeps it, so [with_role `Ok (link ~uri "report")] is a link in the
     success colour. *)
 
 val gradient : ?colors:Color.t list -> string -> t
@@ -70,10 +70,10 @@ val gradient : ?colors:Color.t list -> string -> t
     theme, as is [[]]).
 
     The stops spread evenly along a line, the first on its first grapheme
-    cluster and the last on its last. Each cluster takes the {!Color.blend} of
-    the two stops around its place. The span is as wide as [s]. It prints in
-    colours at the formatter's {!Color.val-depth}, and as the text of [s]
-    without colour. *)
+    cluster and the last on its last, and each cluster takes the {!Color.blend}
+    of the two stops around its place. The span is as wide as [s], printed in
+    colours at the formatter's {!Color.val-depth} and as the text of [s] without
+    colour. *)
 
 val ( ++ ) : t -> t -> t
 (** [s0 ++ s1] is [s0] followed by [s1]. *)
@@ -95,8 +95,8 @@ val hcat : ?gap:int -> t list -> t
     - A line ends at its last span with text on it, so no line ends with spaces
       that [hcat] adds.
 
-    A widget goes in it by its [to_span], at the width it is given. The result
-    goes in a table cell, a panel, a tree or a scene, as any span does:
+    A widget goes in it by its [to_span], at the width it is given, and the
+    result goes in a table cell, a panel, a tree or a scene, as any span does:
 
     {[
     let report tree panel =
@@ -109,8 +109,8 @@ val hcat : ?gap:int -> t list -> t
 
 type align = [ `Left | `Center | `Right ]
 (** The type for the place of a span in a room wider than it: at its left edge,
-    in its middle or at its right edge. A {!Table} column or a {!Rule} label
-    sits so. *)
+    in its middle or at its right edge, as a {!Table} column or a {!Rule} label
+    sits. *)
 
 val width : t -> int
 (** [width s] is the number of cells the widest line of [s] takes. The invariant

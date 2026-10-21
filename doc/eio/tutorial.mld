@@ -1,8 +1,8 @@
 {0 A first CLI}
 
-This tutorial writes [check], a command that runs test suites. It shows
-them as progress rows while they run, then prints a table of their results.
-By the end, [check] has:
+This tutorial writes [check], a command that runs test suites and shows
+them as progress rows while they run, before printing a table of their
+results. By the end, [check] has:
 
 {ul
 {- [--color], [--theme] and [--progress] options;}
@@ -14,14 +14,14 @@ Each section adds to the one before it.
 {1:setup Setup}
 
 [check] uses the [console] and [console-eio] packages, with [eio_main] to
-run Eio, {{:https://erratique.ch/software/cmdliner}Cmdliner} for its options
+run {{:https://github.com/ocaml-multicore/eio}Eio}, {{:https://erratique.ch/software/cmdliner}Cmdliner} for its options
 and {{:https://erratique.ch/software/logs}Logs} for its messages:
 
 {v
 opam install console console-eio eio_main cmdliner logs
 v}
 
-Its [dune] file:
+Its [dune] file lists the libraries it uses:
 
 {v
 (executable
@@ -34,16 +34,15 @@ v}
 {1:options Colour and theme}
 
 A program decides on colour once, before it prints. {!Console_tty.setup}
-reads [NO_COLOR], [TERM], [COLORTERM] and the locale. From them it sets
-colour, colour depth and UTF-8 on the standard outputs.
-
-Given a style renderer, [setup] uses that one instead.
-[Fmt_cli.style_renderer] reads one from a [--color=auto|always|never]
-option.
+reads {{:https://github.com/jcs/no_color}[NO_COLOR]}, [TERM], [COLORTERM]
+and the locale, and from them sets colour, colour depth and UTF-8 on the
+standard outputs. Given a style renderer, [setup] uses that one instead, so
+a [--color=auto|always|never] option read by [Fmt_cli.style_renderer] has
+the last word.
 
 A formatter also keeps a {{!Console.Theme}theme}. The table prints on
 standard output and the progress rows on standard error, so [setup] gives
-both outputs the theme a [--theme] option reads:
+both outputs the theme that a [--theme] option reads:
 
 {@ocaml[
 let setup color theme =
@@ -59,7 +58,7 @@ let theme =
 let options = Cmdliner.Term.(const setup $ Fmt_cli.style_renderer () $ theme)
 ]}
 
-{!Console.Theme.all} lists the predefined themes under their names. These
+{!Console.Theme.all} lists the predefined themes under their names, which
 are the values [--theme] accepts:
 
 {@ocaml[
@@ -71,8 +70,9 @@ are the values [--theme] accepts:
  "monokai"; "github-dark"; "github-light"]
 ]}
 
-{!Console.Theme.default} reads on any background. A theme named after a
-colour scheme, such as [dracula], is for a terminal that uses that scheme.
+{!Console.Theme.default} reads well on any background, while a theme named
+after a colour scheme, such as [dracula], is meant for a terminal that uses
+that scheme.
 
 {1:table A table}
 
@@ -108,12 +108,12 @@ val results : (string * int) list -> Console.Table.t = <fun>
 
 {1:progress Progress rows}
 
-{!Console_eio.run} opens a display on standard error. It passes the
-display to a function and closes it when the function returns.
-
-{!Console.Display.with_task} runs a function as a task. Its row shows while
-the function runs. The task succeeds when the function returns, and fails
-when it raises. {!Console.Display.set_count} says how much work is done:
+{!Console_eio.run} opens a display on standard error, passes it to a
+function and closes it when that function returns. Inside, the function
+uses {!Console.Display.with_task} to run each piece of work as a task,
+whose row shows while it runs. The task succeeds when its function returns
+and fails when it raises, and {!Console.Display.set_count} says how much of
+its work is done:
 
 {@ocaml[
 let test display (name, total) =
@@ -128,25 +128,27 @@ let run_all ~clock ~progress suites =
       Eio.Fiber.List.iter (test display) suites)
 ]}
 
-[Eio.Fiber.List.iter] runs each suite in a fiber of its own. Suites that
-wait, for a child process for example, run side by side, one row each.
+[Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites
+that wait, for a child process for example, run side by side with one row
+each.
 
-A task's output shows under its row while it runs, and stays if the task
-fails. Its output is:
+A task's output shows under its row while it runs, and stays there if the
+task fails. That output is made of:
 
 {ul
 {- the [Logs] messages logged inside it, as here;}
 {- the lines it prints with [Fmt.pr];}
 {- the lines it hands to {!Console.Display.log}.}}
 
-Outside a task, output goes above the rows.
-{{!Console_eio.output}Where text goes} says more.
+Output printed outside any task goes above the rows instead, as
+{{!Console_eio.output}where text goes} explains in more detail.
 
 {1:program The whole program}
 
-[check] sets up the outputs, runs the suites, then prints the table. A
-[--progress] option says how the progress shows, as that of [docker build]
-does:
+[check] sets up the outputs, runs the suites and then prints the table. It
+also takes a [--progress] option, which says how progress is shown, as the
+option of the same name does for
+{{:https://github.com/docker/buildx}[docker build]}:
 
 {ul
 {- [auto], the default, redraws the rows on a terminal;}
@@ -156,8 +158,8 @@ does:
 {- [json] writes one JSON object for each event
    ({{!Console_eio.json}JSON events}).}}
 
-{!Console_eio.val-progress} names these values for the [progress] argument
-of {!Console_eio.run}:
+{!Console_eio.val-progress} lists these values in the form Cmdliner reads,
+for the [progress] argument of {!Console_eio.run}:
 
 {@ocaml[
 let progress =
@@ -181,12 +183,12 @@ let cmd =
 let main () = exit (Cmdliner.Cmd.eval cmd)
 ]}
 
-Its entry point is [let () = main ()].
+The program's entry point is then [let () = main ()].
 
 {1:pipe Output on a pipe}
 
 When the output is not a terminal, as in a pipe or a CI log, nothing is
-redrawn. Instead:
+redrawn, and [check] prints lines in turn instead:
 
 {ul
 {- a task prints a line when it starts;}
@@ -195,9 +197,9 @@ redrawn. Instead:
    [failed] or [cancelled] if it did not succeed;}
 {- the header comes last, as a summary.}}
 
-Without [--color=always], a pipe gets no colour. Here [check] runs with its
-output captured and [CONSOLE_FROZEN_CLOCK] set, which the
-{{!testing}next section} explains:
+Unless [--color=always] asks for it, a pipe gets no colour. Here [check]
+runs with its output captured and with [CONSOLE_FROZEN_CLOCK] set, which
+the {{!testing}next section} explains:
 
 {@ocaml[
 # Unix.putenv "CONSOLE_FROZEN_CLOCK" "1";;
@@ -219,12 +221,14 @@ output captured and [CONSOLE_FROZEN_CLOCK] set, which the
 - : int = 0
 ]}
 
-The marks come from the theme, here {!Console.Theme.dos}. Console flushes
-standard output before each line it writes, so [check 2>&1 | cat] keeps the
-order of the two outputs.
+The marks at the start of each line come from the theme, here
+{!Console.Theme.dos}. Console flushes standard output before each line it
+writes, so [check 2>&1 | cat] keeps the two outputs in the order they were
+written.
 
-[check --progress=plain] prints these lines on a terminal too. No suite
-fails, so [check --progress=quiet] prints none of them, only the table:
+[check --progress=plain] prints the same lines on a terminal. With
+[--progress=quiet] it prints none of them, because no suite fails, and
+only the table remains:
 
 {@ocaml[
 # Cmdliner.Cmd.eval ~argv:[| "check"; "--progress=quiet" |] cmd;;
@@ -237,29 +241,31 @@ fails, so [check --progress=quiet] prints none of them, only the table:
 - : int = 0
 ]}
 
-[check --progress=json] writes the events for another program to read,
-one JSON object to a line ({{!Console_eio.json}JSON events}).
+With [--progress=json], [check] writes the events for another program to
+read instead, one JSON object to a line ({{!Console_eio.json}JSON
+events}).
 
 {1:testing Testing the output}
 
-An elapsed time is the one part of the output that depends on the
-machine. With [CONSOLE_FROZEN_CLOCK] set to a value other than the empty
-string, {!Console_eio.run} reads a clock stopped at zero:
+The elapsed times are the only part of the output that changes from one
+machine to another. When [CONSOLE_FROZEN_CLOCK] is set to a value other
+than the empty string, {!Console_eio.run} reads a clock stopped at zero:
 
 {ul
 {- every time reads [0.0s];}
 {- no rate shows;}
 {- the spinners and the motion stand still.}}
 
-A cram test of [check] then reads the same on every machine. Its [dune]
-stanza:
+A {{:https://github.com/ocaml/dune}Dune} cram test of [check] then reads
+the same on every machine. It needs a [dune] stanza that makes [check]
+available:
 
 {v
 (cram
  (deps %{bin:check}))
 v}
 
-and its file, [check.t]:
+and a file, [check.t], with the session it expects:
 
 {v
   $ export CONSOLE_FROZEN_CLOCK=1
@@ -279,9 +285,9 @@ and its file, [check.t]:
   ╰────────┴───────╯
 v}
 
-The widgets need no clock: [Console.Table.to_string] and the other
-[to_string] functions give the text a unit test compares, plain unless
-[~styled:true].
+The widgets need no clock at all. [Console.Table.to_string] and the other
+[to_string] functions return the text that a unit test compares, without
+escape codes unless [~styled:true] asks for them.
 
 {1:next Next}
 

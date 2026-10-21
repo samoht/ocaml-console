@@ -5,14 +5,14 @@
 
 (** Horizontal bars, for progress and for figures.
 
-    A bar is [width] cells, filled in its colour to a fraction of its length.
-    The rest is a track in the [track] style (defaults to the muted colour of
-    the formatter's theme, {!Theme.get}). The glyphs are those of that theme
-    ({!Theme.val-bar}):
+    A bar is [width] cells, filled in its colour to a fraction of its length,
+    with the rest drawn as a track in the [track] style (defaults to the muted
+    colour of the formatter's theme, {!Theme.get}). The glyphs are those of that
+    theme ({!Theme.val-bar}):
 
-    - [`Line] draws a heavy horizontal line (U+2501). A half filled cell is the
-      left half of the line (U+2578). After a whole filled cell, the track
-      starts with the right half (U+257A), which leaves a gap between the two.
+    - [`Line] draws a heavy horizontal line (U+2501), in which a half filled
+      cell is the left half of the line (U+2578). After a whole filled cell the
+      track starts with the right half (U+257A), leaving a gap between the two.
       The brackets are a right one eighth block (U+2595) and a left one
       (U+258F).
     - [`Block] fills whole cells with full blocks (U+2588) on a track of light
@@ -32,9 +32,9 @@ type t
 val v :
   ?style:Style.t -> ?track:Style.t -> ?brackets:bool -> width:int -> float -> t
 (** [v ~style ~width frac] is a [width]-cell bar in [style], filled to [frac] of
-    its length. [frac] is clamped to the range 0 to 1, and NaN is 0. The fill is
-    rounded to the nearest half cell in [`Line] glyphs, and to the nearest cell
-    in the others.
+    its length, with [frac] clamped to the range 0 to 1 and NaN taken as 0. The
+    fill is rounded to the nearest half cell in [`Line] glyphs, and to the
+    nearest cell in the others.
 
     Without [style], the bar takes the {!Theme.palette} of the formatter's
     theme. A palette of several colours is spread along the bar's whole length,
@@ -59,4 +59,4 @@ val to_string : ?styled:bool -> t -> string
 
 val pp : t Fmt.t
 (** [pp] formats a bar on one line, [width] cells wide, or two more with
-    brackets. It is cut with an ellipsis to the formatter's margin. *)
+    brackets, cut with an ellipsis to the formatter's margin. *)

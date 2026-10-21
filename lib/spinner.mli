@@ -7,12 +7,12 @@
 
     A spinner is a short sequence of frames, such as braille dots or a turning
     ASCII bar, shown beside a task of unknown length. {!Display} animates one
-    for each running row, ten frames a second. A {!Theme.t} carries the one a
-    display uses.
+    for each running row, ten frames a second, using the one its {!Theme.t}
+    carries.
 
     A spinner of one frame, such as {!static}, does not move. A program offers
-    it, with [Theme.still], to users who prefer no animation. [Theme.still] also
-    stops the frames of tables and panels. *)
+    it to users who prefer no animation through [Theme.still], which also stops
+    the frames of tables and panels. *)
 
 (** {1:spinners Spinners} *)
 

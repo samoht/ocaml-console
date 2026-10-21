@@ -30,7 +30,7 @@
       ({{!Console.Display.output}where text goes}).
 
     Text that [print_string], [Printf] or a child process writes on the terminal
-    is not seen, and it garbles the rows. Print it with
+    goes past the display and garbles the rows, so print it with
     {!Console.Display.with_output}. *)
 
 module Prompt = Prompt
@@ -79,8 +79,8 @@ val run :
     - [header] and [layout] are those of {!Console.Display.v}.
     - [progress] says how progress shows (defaults to [`Auto]).
 
-    [run] first calls {!Console_tty.ensure}. A standard output on which the
-    program chose nothing then gets the colours its terminal and environment
+    [run] first calls {!Console_tty.ensure}, so that a standard output on which
+    the program chose nothing gets the colours its terminal and environment
     allow.
 
     The rows are redrawn in place when [ppf] is {!Fmt.stdout} or {!Fmt.stderr},
@@ -97,9 +97,9 @@ val run :
 
     When [f] returns, raises or its fiber is cancelled, the tasks still running
     are cancelled, unless [f] said the work succeeded with
-    {!Console.Display.set_result}. An exception is raised again. The display
-    closes either way. A fiber cancelled inside a {!Console.Display.with_task}
-    cancels its task.
+    {!Console.Display.set_result}. The display closes either way, and an
+    exception from [f] is raised again. A fiber cancelled inside a
+    {!Console.Display.with_task} cancels its task.
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a
@@ -118,7 +118,7 @@ val progress : (string * progress) list
 
     With [`Json] the display writes one JSON object on each line of [ppf] for
     each event, in the order the events happen. Objects may gain fields and new
-    events may be added. The fields below keep their meaning.
+    events may be added, but the fields below keep their meaning.
 
     Every object has:
     - [time], the seconds since the display started, a number with three
@@ -168,7 +168,7 @@ val progress : (string * progress) list
       source's name in brackets, as in [[http] connected].
     - A message logged in another domain that Eio runs, such as one of an
       [Eio.Executor_pool], is passed to the domain that runs [f] and goes above
-      the rows. The display itself is for that domain alone
+      the rows. The display itself belongs to that domain alone
       ({{!Console.Display.displays}Displays}).
 
     A message the display cannot take goes to the reporter installed before
@@ -179,36 +179,36 @@ val progress : (string * progress) list
     - a message from a domain that Eio does not run.
 
     That reporter is put back when [f] ends, and when the program exits during
-    [f]. What an [at_exit] function logs after the display closed goes to it.
+    [f], so what an [at_exit] function logs after the display closed goes to it.
 
     {2:signals Signals and exits}
 
-    The display closes when the program exits during [f]. Signals left at their
-    default disposition are handled as follows.
+    The display closes when the program exits during [f], and signals left at
+    their default disposition are handled as follows.
 
     - SIGINT or SIGTERM during [f]: the display closes, then the signal ends the
       program as it would have.
     - SIGTSTP (Ctrl-Z): the rows are taken off the terminal and the cursor is
-      shown before the program stops. They are drawn again once [fg] continues
-      it.
+      shown before the program stops, and the rows are drawn again once [fg]
+      continues it.
 
     A signal the program handles or ignores is left to it.
 
-    A closed pipe on [ppf] ends the display's output and nothing else. One on
-    standard output is met by the program's own writes, as without console
+    A closed pipe on [ppf] ends the display's output and nothing else, while one
+    on standard output is met by the program's own writes, as without console
     ({!Console.Display.v}).
 
     {2:nested Nested runs}
 
     A [run] called while another runs in the same domain passes its own function
     the same display. This holds inside [f], in a fiber that [f] started and in
-    a fiber beside it. A library can therefore call [run] without knowing
-    whether its caller already did.
+    a fiber beside it, so a library can call [run] without knowing whether its
+    caller already did.
 
     - The [clock], [ppf], [layout], [header] and [progress] of the inner [run]
-      are ignored. The display keeps those of the first [run].
-    - The display closes once the last of their functions ends. The first [run]
-      waits for the others.
+      are ignored, since the display keeps those of the first [run].
+    - The display closes once the last of their functions ends, and the first
+      [run] waits for the others.
     - A [run] that starts while that display closes opens its own once it is
       gone. So does one from a fiber that outlived the display it was started
       under, unless another display runs then, which it joins.
@@ -221,5 +221,5 @@ val progress : (string * progress) list
     - no rate shows;
     - the spinners and the motion stand still.
 
-    The redraws still wait on [clock]. The progress that a test captures from
-    the program then reads the same on every machine. *)
+    The redraws still wait on [clock], and the progress that a test captures
+    from the program reads the same on every machine. *)

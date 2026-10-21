@@ -5,10 +5,10 @@
 
 (** Untrusted text made safe for a terminal.
 
-    Text from outside the program can hold bytes that a terminal acts on, such
-    as escape codes that move the cursor, clear the screen or change colours. A
-    subprocess's output, a name read off the network or a file name are such
-    text. These functions return text that only prints.
+    Text from outside the program, such as a subprocess's output, a name read
+    off the network or a file name, can hold bytes that a terminal acts on:
+    escape codes that move the cursor, clear the screen or change colours. These
+    functions return text that only prints.
 
     This library is [console.text]. It does not need the rest of [console], so
     code that must stay small can use it alone. *)

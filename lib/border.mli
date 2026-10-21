@@ -30,13 +30,13 @@ type chars = {
   right_cross : string;  (** The tee on the right edge, pointing left. *)
 }
 (** The type for the glyphs of a border, one per part of the box. It is plain
-    data the program supplies. Every field is needed to draw a box, and none
+    data the program supplies: every field is needed to draw a box, and none
     constrains another.
 
     A glyph may take any number of cells. Each vertical line of the box is as
     wide as its widest glyph, and a narrower glyph is followed by spaces. A
-    horizontal line repeats its glyph over its length. Where a whole copy does
-    not fit, the glyph is cut between two characters and ended with spaces.
+    horizontal line repeats its glyph over its length, and where a whole copy
+    does not fit, the glyph is cut between two characters and ended with spaces.
 
     Fields may be added to this record, so a custom border starts from a
     predefined one, as [v { (chars single) with top = "=" }] does. *)

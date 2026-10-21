@@ -18,36 +18,38 @@ let main () =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
 ]}
 
-The {!page-tutorial} builds a whole command step by step. The command has
-options for colour and theme, a table, progress rows and a test of its
-output.
+The {!page-tutorial} builds a whole command step by step, with options for
+colour and theme, a table, progress rows and a test of its output.
 
 {1:run What [Console_eio.run] does}
 
-{ul
-{- It finds out whether the output is a terminal, and its size.}
-{- It redraws the progress rows ten times a second.}
-{- It gives each line the program prints, and each [Logs] message, to the
-   task current where it is printed. Outside a task, the line goes above
-   the rows ({{!Console_eio.output}where text goes}).}
-{- It gives the terminal back however the program ends: a return, an
-   exception, a cancellation, [exit], Ctrl-C or SIGTERM.}}
+{!Console_eio.run} finds out whether the output is a terminal, and how
+large it is, and redraws the progress rows ten times a second. It hands
+each line the program prints, and each
+{{:https://erratique.ch/software/logs}Logs} message, to the task current
+where it is printed, or prints it above the rows outside any task
+({{!Console_eio.output}where text goes}).
 
-{1:rules Rules of the display}
+The terminal is given back as [run] found it when the function returns or
+raises, when its fiber is cancelled, and when the program exits or is
+stopped by Ctrl-C or SIGTERM.
+
+{1:rules Using a display}
 
 {ul
-{- A task the function did not end is cancelled when the display closes,
-   unless the function said that the work succeeded with
-   {!Console.Display.set_result}. An exception the function raises goes on.}
-{- A {!Console_eio.run} inside another one, or in a fiber beside it, gets
-   the same display. A library can start one without knowing whether its
-   caller did. The display closes once the last of them ends.}
-{- Call the functions of a display from the domain that runs it. A [Logs]
+{- A task that the function did not end is cancelled when the display
+   closes, unless the function said the work succeeded with
+   {!Console.Display.set_result}. An exception the function raises still
+   reaches the caller.}
+{- A {!Console_eio.run} called inside another one, or in a fiber beside
+   it, gets the same display, so a library can start one without knowing
+   whether its caller did. The display closes once the last of them ends.}
+{- Call a display's functions only from the domain that runs it. A [Logs]
    message logged in another domain that Eio runs, such as one of an
    [Eio.Executor_pool], is passed to that domain and printed above the
    rows.}
 {- What [print_string], [Printf] or a child process writes on the terminal
-   is not seen and garbles the rows. Print it with
+   goes past console and garbles the rows, so print it through
    {!Console.Display.with_output}.}
 {- {!Console_eio.Prompt} asks a question, or a password without echoing it,
    and takes the rows off the screen while it asks.}}

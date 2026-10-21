@@ -14,10 +14,11 @@
     It reads and writes nothing itself, so a network channel, a serial console
     or a terminal in raw mode drives it alike. The program reads bytes, passes
     them to {!feed} and writes the echo back. To ask a question on the program's
-    own terminal, use [Console_eio.Prompt]. It reads the answer, and uses an
+    own terminal, use [Console_eio.Prompt], which reads the answer and uses an
     editor to hide a password.
 
-    Editing is by grapheme cluster (UAX #29), a character with its marks.
+    Editing works on grapheme clusters (UAX #29), each a character with its
+    marks:
     - A printable character is inserted at the cursor, even one whose bytes
       arrive across separate {!feed} calls. A mark joins the cluster before the
       cursor.
@@ -62,22 +63,22 @@ val v :
     as they are, other than the keys. The replacement character, the space for a
     C1 control and the dropped mark of {!feed} are for an echo only, and a byte
     above [0x7F] that is no character is kept. A masked editor, for a password
-    or a token, completes nothing and recalls nothing. Its {!history} is empty:
-    it drops the [history] seed and keeps no line it submits. *)
+    or a token, completes nothing and recalls nothing, and its {!history} stays
+    empty because it drops the [history] seed and keeps no line it submits. *)
 
 val feed : t -> string -> string * string list
-(** [feed t input] is [(echo, lines)] once each byte of [input] is read in turn.
-    [echo] is the bytes to write back to the terminal. [lines] are the lines
-    [input] completes, in order, each without its terminator. The bytes act as
-    follows:
+(** [feed t input] is [(echo, lines)] once each byte of [input] is read in turn,
+    where [echo] is the bytes to write back to the terminal and [lines] are the
+    lines [input] completes, in order, each without its terminator. The bytes
+    act as follows:
 
     - a printable character is inserted at the cursor and echoed. It is ASCII
       \[[0x20];[0x7E]\], or a UTF-8 character of several bytes, which may arrive
       across several [feed] calls. A mark of no width with nothing before it in
       the line to join is dropped, as a terminal drops it in the first column. A
-      byte sequence that decodes to no character is the replacement character
-      U+FFFD. A C1 control (U+0080 to U+009F), which a terminal acts on, is a
-      space. So what is echoed and kept is text that only prints;
+      byte sequence that decodes to no character becomes the replacement
+      character U+FFFD. A C1 control (U+0080 to U+009F), which a terminal would
+      act on, becomes a space, so what is echoed and kept only prints;
     - [\127] (DEL) and [\008] (BS) erase the cluster before the cursor, echoing
       ["\b \b"] at the end of the line;
     - ['\r'] and ['\n'] submit the line, but a ['\n'] right after a ['\r'], the
@@ -90,8 +91,8 @@ val feed : t -> string -> string * string list
       act the same;
     - any other byte is ignored.
 
-    Feeding [input] at once or in pieces gives the same echo and lines. The echo
-    holds no escape code: the cursor moves by backspaces. *)
+    Feeding [input] at once or in pieces gives the same echo and lines, and the
+    echo holds no escape code, since the cursor moves by backspaces. *)
 
 val pending : t -> string
 (** [pending t] is the current line, the bytes typed since the last submitted

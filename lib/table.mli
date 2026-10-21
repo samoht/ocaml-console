@@ -13,9 +13,9 @@
 (** {1:columns Columns} *)
 
 type overflow = [ `Wrap | `Truncate ]
-(** The type for what a cell wider than its column does. [`Wrap] goes on over
-    several lines ({!Span.wrap}). [`Truncate] keeps one line, ended with an
-    ellipsis ({!Span.truncate}). *)
+(** The type for what a cell wider than its column does: [`Wrap] goes on over
+    several lines ({!Span.wrap}), while [`Truncate] keeps one line, ended with
+    an ellipsis ({!Span.truncate}). *)
 
 type column
 (** The type for column specifications. *)

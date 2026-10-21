@@ -12,24 +12,24 @@
     - the frame of tables and panels, and how it moves;
     - the lines of a tree and the spinner of a {!Display}.
 
-    A formatter has one theme ({!set}). Every widget printed on it is drawn in
-    that theme, with ASCII glyphs alone when the formatter is not {!Fmt.utf_8}.
-    Text takes a colour of the theme, such as that of a success, with
-    {!Span.role}.
+    A formatter has one theme ({!set}), and every widget printed on it is drawn
+    in that theme, with ASCII glyphs alone when the formatter is not
+    {!Fmt.utf_8}. Text takes a colour of the theme, such as that of a success,
+    with {!Span.role}.
 
-    The predefined themes suit different terminals.
-    - {!default} reads on any background at 256 colours or more. Keep it when
-      nothing is known of the terminal.
+    The predefined themes suit different terminals:
+    - {!default} reads on any background at 256 colours or more, which makes it
+      the one to keep when nothing is known of the terminal.
     - A theme with a {!background}, such as {!dracula} or {!solarized_light}, is
       for a terminal whose own colour scheme is that one. Its colours are chosen
-      for that background, which the widgets do not paint. On another background
-      some of them may be hard to read.
+      for that background, which the widgets do not paint, so on another
+      background some of them may be hard to read.
     - {!ascii} draws with ASCII alone on any terminal.
     - {!still} takes the motion out of any theme, for the users who ask for no
       animation.
 
-    A program lets its users choose with a [--theme] option ({!all}). The
-    predefined themes keep to the ratios of {{!contrast}Contrast}. *)
+    A program lets its users choose with a [--theme] option ({!all}), and every
+    predefined theme keeps to the ratios given under {{!contrast}Contrast}. *)
 
 (** {1:themes Themes} *)
 
@@ -78,15 +78,15 @@ type motion =
   | `Shimmer
     (** A short highlight in the main colour travels round the frame. *) ]
 (** The type for how the frame of a table or a panel moves while a live
-    {!Display} draws it ([Display.set_scene]). It moves clockwise, by the
-    elapsed time. Only the colours of the border's cells change, and some cells'
-    glyphs change to glyphs as wide. The frame keeps its width, and its cells
-    their place, in every frame.
+    {!Display} draws it ([Display.set_scene]), clockwise and by the elapsed
+    time. Only the colours of the border's cells change, and some cells' glyphs
+    change to glyphs as wide, so the frame keeps its width and its cells their
+    place in every frame.
 
     A frame stands still, in the glyphs of the theme without motion, when it is
-    printed on a formatter, or drawn by a display without colour or with
-    [NO_COLOR] set. A sweep then keeps the colours a display starts with. Rain
-    and a shimmer keep those of the theme without motion.
+    printed on a formatter or drawn by a display without colour or with
+    [NO_COLOR] set. A sweep then keeps the colours a display starts with, while
+    rain and a shimmer keep those of the theme without motion.
 
     Constructors may be added, so a match on a motion has a case for the others.
 *)
@@ -116,8 +116,8 @@ val v :
 
     - [name] is its {!name} (defaults to ["custom"]);
     - [accent] is the main colour (defaults to {!default}'s teal);
-    - [palette] are the colours that successive progress rows take in turn. A
-      bar without a style spreads them along its length when there are several
+    - [palette] are the colours that successive progress rows take in turn, and
+      that a bar without a style spreads along its length when there are several
       (defaults to [[accent]], as does [[]]);
     - [ok] colours the mark of a success, [warn] that of a warning or a
       cancellation, and [fail] that of a failure or an error (default to
@@ -127,7 +127,7 @@ val v :
     - [header] is the style of table headers, panel titles and a display's
       header (defaults to {!Style.bold});
     - [background] is the light or dark background the colours are chosen for
-      (defaults to none: the terminal's own). The widgets do not paint it;
+      (defaults to none: the terminal's own), which the widgets do not paint;
     - [motion] is how frames move in a live display (defaults to none: they
       stand still);
     - [border], [guide] and [spinner] are the frame of tables and panels, the
@@ -147,8 +147,8 @@ val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
 
 val palette : t -> Color.t list
-(** [palette t] are the colours that successive progress rows take in turn. It
-    is never empty. A bar without a style ({!Bar.v}) spreads them along its
+(** [palette t] are the colours that successive progress rows take in turn, and
+    it is never empty. A bar without a style ({!Bar.v}) spreads them along its
     length when there are several, and is in the one colour otherwise. *)
 
 val ok : t -> Color.t
@@ -209,13 +209,12 @@ val still : t -> t
     scheme's text, to just above it. *)
 
 val default : t
-(** [default] is teal, with a green, an amber, a red and a grey. Its colours are
-    entries 30, 28, 136, 160 and 243 of the xterm 256-colour palette, chosen for
-    their contrast on dark and light backgrounds alike. It has bold headers,
-    rounded frames and a braille spinner. Its marks, for the states of
-    {!type-mark} in order, are a bullet, a check mark, a cross, a circle, a
-    single right-pointing angle quotation mark, [!], a cross and a middle dot.
-*)
+(** [default] is teal, with a green, an amber, a red and a grey taken from the
+    xterm 256-colour palette (entries 30, 28, 136, 160 and 243) for their
+    contrast on dark and light backgrounds alike. It has bold headers, rounded
+    frames and a braille spinner. Its marks, for the states of {!type-mark} in
+    order, are a bullet, a check mark, a cross, a circle, a single
+    right-pointing angle quotation mark, [!], a cross and a middle dot. *)
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
@@ -237,8 +236,8 @@ val matrix : t
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
-    from the xterm 256-colour palette as {!default}'s are. It spreads them along
-    its bars and sweeps them round its frames ([`Sweep]). *)
+    from the xterm 256-colour palette as {!default}'s are, and also spreads them
+    along its bars and sweeps them round its frames ([`Sweep]). *)
 
 val dracula : t
 (** [dracula] is Dracula's purple, green, yellow and red, for its background
@@ -301,9 +300,9 @@ val github_light : t
 (** {1:names Names} *)
 
 val all : (string * t) list
-(** [all] is every predefined theme under its {!name}, {!default} first. These
-    are the choices of a [--theme] option, as [Cmdliner.Arg.enum all] reads
-    them. *)
+(** [all] is every predefined theme under its {!name}, {!default} first, which
+    are the choices of a [--theme] option as [Cmdliner.Arg.enum all] reads them.
+*)
 
 val of_string : string -> (t, [ `Msg of string ]) result
 (** [of_string s] is the theme of {!all} named [s]. The error message lists the
@@ -313,8 +312,8 @@ val of_string : string -> (t, [ `Msg of string ]) result
 (** {1:formatters Themes of formatters} *)
 
 val set : Format.formatter -> t -> unit
-(** [set ppf t] makes [t] the theme of [ppf]. The widgets printed on [ppf] from
-    now on are drawn in it. *)
+(** [set ppf t] makes [t] the theme of [ppf], in which the widgets printed on
+    [ppf] from now on are drawn. *)
 
 val get : Format.formatter -> t
 (** [get ppf] is the theme of [ppf]: the last one {!set} gave it, else
@@ -329,19 +328,19 @@ val pp : t Fmt.t
 
     A terminal that shows fewer colours than a theme has gets the nearest ones
     it has ({!Color.val-depth}). Contrast is measured as WCAG 2.1 measures it,
-    against the theme's {!background}. In every predefined theme:
-    - the colours of text are at 4.5:1 or more. They are the {!muted} colour,
-      that of the {!header}, and the colours {!Span.role} gives text: the main
-      colour and the colours of a success, a warning and a failure;
+    against the theme's {!background}, and in every predefined theme:
+    - the colours of text are at 4.5:1 or more, that is the {!muted} colour,
+      that of the {!header}, and the colours {!Span.role} gives text (the main
+      colour and the colours of a success, a warning and a failure);
     - the colours of the progress rows are at 3:1 or more.
 
-    A theme without a background is read against black and white alike. Its
-    muted colour and header are at 4.5:1, and its other colours at 3:1. A frame
-    that moves is drawn in these colours alone, so each of its frames keeps the
+    A theme without a background is read against black and white alike, with its
+    muted colour and header at 4.5:1 and its other colours at 3:1. A frame that
+    moves is drawn in these colours alone, so each of its frames keeps the
     contrast of a glyph.
 
     These ratios are those of the colours as given. The colours of {!default}
     are entries of the 256-colour palette, so they are shown as given at 256
-    colours too. At 16 colours every theme is drawn in the terminal's named
-    colours, such as its green and its yellow. Their contrast is that of the
-    terminal's own scheme, which console does not know. *)
+    colours too. At 16 colours, though, every theme is drawn in the terminal's
+    named colours, such as its green and its yellow. Their contrast then depends
+    on the terminal's own scheme, which console cannot know. *)

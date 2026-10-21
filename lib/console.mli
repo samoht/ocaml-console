@@ -12,21 +12,22 @@
 
     A {!Span.t} is text in a {!Style.t}: colours, bold, italic and so on. The
     widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out spans and
-    print with {!Format}. A {!Theme} gives them one look.
+    print with {!Format}, and a {!Theme} gives them one look.
 
-    Every widget is also a span, by its [to_span], laid out when it is printed.
-    A table goes in a panel, the panel in a cell of another table, beside a tree
-    ({!Span.hcat}) or in a display's scene. All of them are drawn in the theme
-    of the formatter that prints them. [Console_eio.run] runs a {!Display}.
+    Every widget is also a span, by its [to_span], laid out only when it is
+    printed. So a table goes in a panel, the panel in a cell of another table,
+    beside a tree ({!Span.hcat}) or in a display's scene, and each of them is
+    drawn in the theme of the formatter that prints it. [Console_eio.run] runs a
+    {!Display}.
 
     {b Guarantees.}
     - Widths are counted in terminal cells, as the terminal draws the text. A
       wide character, such as a Chinese one or an emoji, takes two cells, and an
       accent added to a letter takes none.
-    - A widget printed by its [pp] is no wider than the formatter's margin. As a
-      span it is as wide as its [to_span] lays it out. Either ends without a
-      line end, so ["%a@."] prints it on its own lines.
-    - A span holds only text that prints. A line end in it starts a new line and
+    - A widget printed by its [pp] is no wider than the formatter's margin, and
+      as a span it is as wide as its [to_span] lays it out. Either way it ends
+      without a line end, so ["%a@."] prints it on its own lines.
+    - A span holds only text that prints: a line end in it starts a new line and
       any other control character is a space, so caller text cannot move the
       cursor or change colours.
     - Every style a printer turns on, it turns off before the line ends.
@@ -120,8 +121,8 @@
     ]}
 
     [Console_eio.run ~clock ~header:"Building" build_step] runs it, with [clock]
-    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself.
-    Inside another one, it gets the same display. *)
+    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself,
+    since a run inside another one gets the same display. *)
 
 (** {1:modules Modules} *)
 

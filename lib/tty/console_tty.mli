@@ -17,7 +17,7 @@
         (Console.Span.styled Console.Style.bold "ready")
     ]}
 
-    This library is [console.tty]. It needs Unix, not Eio. *)
+    This library is [console.tty], which needs Unix but not Eio. *)
 
 val setup :
   ?style_renderer:Fmt.style_renderer ->

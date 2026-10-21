@@ -17,11 +17,11 @@
       when it did not succeed;
     - the header comes last, as a summary.
 
-    Each of these lines starts a line of its own. When what the program wrote on
-    the same formatter did not end its line, a line feed comes first.
+    Each of these lines starts on a line of its own, after a line feed when what
+    the program wrote on the same formatter did not end its line.
 
     [Console_eio.run] opens a display, passes it to a function and closes it
-    when the function returns. Most programs need nothing else.
+    when the function returns, which is all that most programs need:
 
     {[
     let build display =
@@ -37,8 +37,8 @@
 
     - Output outside any task, or within {!root}, goes above the rows.
     - On a pipe, each line is printed at once, after its task's name.
-    - {!within} makes a task current again, from another fiber say, and {!log}
-      gives it a line from where it is not.
+    - {!within} makes a task current again, for example from another fiber, and
+      {!log} gives it a line from code where it is not current.
 
     Output is what the program prints while a task is current ({!tasks}),
     without its escape codes:
@@ -46,38 +46,38 @@
     - under [Console_eio.run], its [Logs] messages and the lines it prints with
       [Fmt.pr] or [Fmt.epr] on the display's terminal.
 
-    A task that succeeds leaves its line alone. One that fails or is cancelled
-    prints its output under its line, up to 1 MiB. The oldest lines are dropped
-    first, and counted on a line of their own. A line too wide for the terminal
-    is cut under a running task, and nowhere else.
+    A task that succeeds leaves its line alone, while one that fails or is
+    cancelled prints up to 1 MiB of its output under its line. Beyond that, the
+    oldest lines are dropped first and a line of their own counts them. A line
+    too wide for the terminal is cut under a running task, and nowhere else.
 
-    [Console_eio.run] sees standard output through {!Fmt.stdout}, and [Logs]
-    messages through its reporter. What [print_string], [Printf] or a child
-    process writes on the terminal is not seen, and it garbles the rows. Print
-    it with {!with_output}.
+    [Console_eio.run] sees standard output through {!Fmt.stdout} and [Logs]
+    messages through its reporter, so what [print_string], [Printf] or a child
+    process writes on the terminal goes unseen and garbles the rows. Print such
+    text with {!with_output}.
 
     Without a terminal, console flushes {!Fmt.stdout} before each line it
     writes, so that [2>&1] keeps the order of the two outputs. A write error on
     the display's output ends the display's output and nothing else, as when a
     reader closes its pipe in [prog 2>&1 | head -1]. A write error on standard
-    output is the program's. Console stops flushing it, and the program's own
-    writes meet the error as they would without console.
+    output belongs to the program: console stops flushing it, and the program's
+    own writes meet the error as they would without console.
 
-    What the program prints outside a task goes out as it is, escape codes
-    included. Console does not read it, so the terminal shows what a pipe
-    receives, colours, tabs and hyperlinks too.
+    Console does not read what the program prints outside a task, so it goes out
+    as it is, escape codes included, and the terminal shows what a pipe would
+    receive, colours, tabs and hyperlinks too.
     - Bytes that move the cursor or erase, such as a carriage return, a move up
-      or a clear, act on the lines above the region. Console does not draw those
-      lines again.
+      or a clear, act on the lines above the region, which console does not draw
+      again.
     - The region is drawn below wherever such bytes leave the cursor, from the
       first column, on rows it erases first.
     - A mode they set, such as a scroll region, the alternate screen or a shown
       cursor, stays set.
 
-    The lines a display prints start with a mark ({!Theme.val-mark}). The mark
-    says how a task ended, that a line is a task's output, or the level of a
-    [Logs] message. In the header, it says whether work is still running and how
-    it ended.
+    The lines a display prints start with a mark ({!Theme.val-mark}) that says
+    what they are: how a task ended, a line of a task's output, or the level of
+    a [Logs] message. In the header, the mark says whether work is still running
+    and how it ended.
 
     {1:guarantees Guarantees}
 
@@ -92,7 +92,7 @@
       its frames. On a pipe no such escape is written.
     - A redraw that would change nothing writes nothing.
     - A label cut to fit is cut between two characters, never inside an escape
-      code. It ends with an ellipsis and turns its style off.
+      code, and it ends with an ellipsis that turns its style off.
     - The counts, rates and timers of all rows sit in the same columns, whatever
       the width of the labels: at the right edge of the first [min w 100]
       columns. On a wide terminal they stay near their labels, and they do not
@@ -111,7 +111,7 @@
 (** The pieces of a running task's row.
 
     A layout draws the rows that a display redraws on a terminal. The other
-    lines have pieces of their own, whatever the layout. No bar, rate or
+    lines have pieces of their own, whatever the layout, and no bar, rate or
     percentage shows on them.
     - The line a task prints when it ends is its mark, its label, its count and
       its elapsed time. Without a terminal, [failed] or [cancelled] follows when
@@ -180,10 +180,10 @@ end
 
 (** {1:displays Displays}
 
-    A display belongs to the domain that runs it. Call its functions, and those
-    of its tasks, from that domain alone. [Console_eio.run] passes it the [Logs]
-    messages logged in the other domains that Eio runs, such as those of an
-    [Eio.Executor_pool]. They go above the rows. *)
+    A display belongs to the domain that runs it, so call its functions, and
+    those of its tasks, from that domain alone. [Console_eio.run] passes it the
+    [Logs] messages logged in the other domains that Eio runs, such as those of
+    an [Eio.Executor_pool], and they go above the rows. *)
 
 type t = Display_state.t
 (** The type for displays. *)
@@ -224,17 +224,17 @@ val redraw : t -> unit
 
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output display f] prints what console does not see, such as the text
-    of [print_string] or of a child process. It takes the region off the screen
-    and calls [f] with the display's formatter, as wide as the terminal. Then it
+    of [print_string] or of a child process. It takes the region off the screen,
+    calls [f] with the display's formatter, as wide as the terminal, and then
     draws the region again below what [f] printed, also when [f] raises.
 
-    Output that [f] does not end with a line feed is ended. The region is drawn
-    from the first column of the row where [f] left the cursor, on rows it
+    Output that [f] does not end with a line feed is ended, and the region is
+    drawn from the first column of the row where [f] left the cursor, on rows it
     erases first. *)
 
 val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
 (** [set_scene display scene] draws what [scene ~height ppf] prints above the
-    header, each time the region is drawn. It replaces the scene set before.
+    header each time the region is drawn, in place of the scene set before.
 
     - [ppf] is in the theme and the UTF-8 of [display]'s formatter. Its margin
       is the width of the rows, so a {!Table.pp} or a {!Panel.pp} printed on it
@@ -248,12 +248,12 @@ val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
       exception again.
 
     While [display] draws in colour, a frame drawn in a theme with a
-    {!Theme.val-motion} moves, by the time since [display] started. On a
+    {!Theme.val-motion} moves, by the time since [display] started, and on a
     terminal without colour it stands still.
 
     Without a terminal the scene is not drawn, and once [display] closes it is
-    gone. A scene shows what the program also prints, such as a table it prints
-    when the work is done.
+    gone, so a scene should show what the program also prints, such as a table
+    it prints when the work is done.
 
     {[
     let watch display results =
@@ -282,10 +282,10 @@ val pp : t Fmt.t
 
 (** {1:tasks Tasks}
 
-    A task is {e current} in the function given to {!with_task}. Under
-    [Console_eio.run], it is also current in the fibers that function starts. A
-    task started where another is current goes under it, and what the program
-    prints there is the current task's output ({!output}).
+    A task is {e current} in the function given to {!with_task} and, under
+    [Console_eio.run], in the fibers that function starts. A task started where
+    another is current goes under it, and what the program prints there is the
+    current task's output ({!output}).
 
     A task that ended ignores what it is told. Once its display closed, every
     task has ended, and so has one that {!val-task} starts then. *)
@@ -313,9 +313,9 @@ val task :
       ending.
     - [log_lines] is how many of the task's latest lines its window shows under
       its row while it runs (defaults to [8]).
-    - [transient] (defaults to [false]) makes a task that shows while it runs
-      and nothing else. When it ends it leaves no line of its own, nor any of
-      its output.
+    - [transient] (defaults to [false]) makes a task that shows only while it
+      runs, and leaves neither a line of its own nor any of its output when it
+      ends.
 
     @raise Invalid_argument
       if [key] is empty, [log_lines] is negative, or [parent] belongs to another
@@ -331,29 +331,29 @@ val with_task :
   (task -> 'a) ->
   'a
 (** [with_task display label f] is [f task], for a [task] started as {!val-task}
-    starts it and current while [f] runs. The task succeeds when [f] returns,
-    and fails when [f] raises, which raises the exception again. If [f] ended
-    the task, that ending counts.
+    starts it and current while [f] runs. The task succeeds when [f] returns and
+    fails when [f] raises, in which case the exception is raised again, but if
+    [f] ended the task itself, that ending counts.
 
     When [key] names a task that runs, [with_task] is
     [within task (fun () -> f task)] for that task. It ends nothing, and the
     task ends as the call that started it says. *)
 
 val within : task -> (unit -> 'a) -> 'a
-(** [within task f] is [f ()] with [task] current while [f] runs. Under
-    [Console_eio.run], [task] is also current in the fibers [f] starts. What [f]
-    prints is [task]'s output, and a task [f] starts goes under [task].
+(** [within task f] is [f ()] with [task] current while [f] runs and, under
+    [Console_eio.run], in the fibers [f] starts. What [f] prints is [task]'s
+    output, and a task [f] starts goes under [task].
 
-    {!with_task} starts a task; [within] enters one that exists. It ends
-    nothing, also when [f] raises: [task] ends as it is told. *)
+    Where {!with_task} starts a task, [within] enters one that exists, so it
+    ends nothing, even when [f] raises: [task] ends as it is told. *)
 
 val root : t -> task
 (** [root display] is the top task of [display], current where no other is. Its
-    output goes above the rows at once and stays. A task started within it has
-    no parent, and [within (root display) f] prints what [f] prints above the
+    output goes above the rows at once and stays, and a task started within it
+    has no parent, so [within (root display) f] prints what [f] prints above the
     rows, from inside a task too.
 
-    The root never ends. {!succeed}, {!fail}, {!cancel}, {!set_label},
+    The root never ends: {!succeed}, {!fail}, {!cancel}, {!set_label},
     {!set_count} and {!set_bytes} do nothing on it, as on a task that ended, so
     code given a task needs no case for the root. *)
 
@@ -397,7 +397,7 @@ val succeed : ?message:string -> task -> unit
     {!cancel} counts, and the others do nothing.
 
     The tasks under [task] that still run end first, each with a line of its
-    own. They succeed with it, and are cancelled when it fails or is cancelled.
+    own: they succeed with it, and are cancelled when it fails or is cancelled.
 *)
 
 val fail : ?message:string -> task -> unit
