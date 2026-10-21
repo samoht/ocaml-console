@@ -8,6 +8,7 @@ type outcome = [ `Succeeded | `Failed | `Cancelled ]
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 type kind = Output | Logs of level
 type line = { gap : float; kind : kind; text : string }
+type form = Plain | Quiet | Json
 
 let count_text = function
   | Spin -> ""
@@ -29,6 +30,7 @@ let count_width metric =
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
+  form : form;
   depth : Color.depth option;
   now : unit -> float;
   header : string option;
@@ -100,6 +102,13 @@ let pp ppf t =
    its label. *)
 let room t = min t.width 100
 let is_live t = Option.is_some t.size
+
+let is_plain t =
+  (not (is_live t)) && match t.form with Plain -> true | Quiet | Json -> false
+
+let keeps_output t =
+  is_live t || match t.form with Quiet -> true | Plain | Json -> false
+
 let is_running r = r.ended_at = None
 let is_root r = r.id < 0
 

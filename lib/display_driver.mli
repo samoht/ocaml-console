@@ -27,16 +27,26 @@ val scope :
     says that the fiber raising it was cancelled: a {!Display.with_task} whose
     function raises it cancels its task rather than failing it. *)
 
+type form = [ `Plain | `Quiet | `Json ]
+(** The type for what a display prints without a terminal, as the [`Plain],
+    [`Quiet] and [`Json] forms of [Console_eio.progress] describe. *)
+
 val v :
   ?layout:Display.Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
+  ?form:form ->
   scope:scope ->
   now:(unit -> float) ->
   Format.formatter ->
   Display.t
-(** [v ~scope ~now ppf] is {!Display.v}[ ~now ppf] in which [scope] says which
-    task is current. *)
+(** [v ~form ~scope ~now ppf] is {!Display.v}[ ~now ppf] in which [scope] says
+    which task is current and, without [size], [form] says what the display
+    prints (defaults to [`Plain]). *)
+
+val is_json : Display.t -> bool
+(** [is_json display] is [true] iff [display] prints JSON events, so that what
+    the program prints on its formatter goes as events too ({!Display.log}). *)
 
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of messages, those of [Logs]. *)

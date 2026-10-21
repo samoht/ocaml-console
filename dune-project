@@ -30,7 +30,8 @@
   (astring :with-test)
   (mdx :with-test)
   (alcobar :with-test)
-  (re :with-test)))
+  (re :with-test)
+  (yojson :with-test)))
 
 (package
  (name console-eio)

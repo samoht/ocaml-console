@@ -32,13 +32,15 @@ val v :
   ?layout:Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
+  ?form:Display_state.form ->
   ?scope:scope ->
   now:(unit -> float) ->
   Format.formatter ->
   t
-(** [v ~scope ~now ppf] is {!Display.v}[ ~now ppf] in which [scope] says which
-    task is current (defaults to the task of the innermost {!with_task} that
-    runs). *)
+(** [v ~form ~scope ~now ppf] is {!Display.v}[ ~now ppf] in which [scope] says
+    which task is current (defaults to the task of the innermost {!with_task}
+    that runs) and, without [size], [form] says what it prints (defaults to
+    {!Display_state.Plain}). *)
 
 val redraw : t -> unit
 (** See {!Display.redraw}. *)

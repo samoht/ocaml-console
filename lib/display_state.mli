@@ -27,6 +27,10 @@ type line = {
     of a standard output among them, or a Logs message logged while it was
     current. *)
 
+(** The type for what a display prints without a terminal: lines in turn, only
+    what fails, or one JSON object for each event. *)
+type form = Plain | Quiet | Json
+
 val count_text : metric -> string
 (** [count_text m] is what a row's count cell shows: items or bytes done over
     the total, or [""] for {!constructor-Spin}. *)
@@ -38,6 +42,7 @@ val count_width : metric -> int
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
+  form : form;
   depth : Color.depth option;
   now : unit -> float;
   header : string option;
@@ -108,8 +113,9 @@ and row = {
     lines, {!field-output_bytes} bytes in all, the {!field-dropped} oldest left
     out. Without a terminal, {!field-partial} is [true] iff the last byte
     written on {!field-ppf} did not end a line, and {!field-release} gives
-    {!field-ppf} its own output functions back. {!field-root} is the top task,
-    once asked for, the only one with a negative {!field-id}. *)
+    {!field-ppf} its own output functions back, and {!field-form} says what it
+    prints. {!field-root} is the top task, once asked for, the only one with a
+    negative {!field-id}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)
@@ -120,6 +126,14 @@ val room : t -> int
 
 val is_live : t -> bool
 (** [is_live t] is [true] iff [t] draws a region on a terminal. *)
+
+val is_plain : t -> bool
+(** [is_plain t] is [true] iff [t] prints its lines in turn, without a terminal.
+*)
+
+val keeps_output : t -> bool
+(** [keeps_output t] is [true] iff [t] keeps the output of its tasks for their
+    failure: on a terminal, and when quiet. *)
 
 val is_running : row -> bool
 (** [is_running r] is [true] iff [r] has not ended. *)

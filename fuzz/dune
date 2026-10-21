@@ -1,6 +1,9 @@
-; Width is private to the library; the properties compile it in.
+; Width and Display_json are private to the library; the properties compile
+; them in.
 
 (copy_files ../lib/input/width.{ml,mli})
+
+(copy_files ../lib/display_json.{ml,mli})
 
 (executable
  (name fuzz)
@@ -16,6 +19,7 @@
   matrix.vte
   fmt
   re
+  yojson
   alcobar))
 
 ; The property run is a quick smoke; deep exploration is the fuzz alias.

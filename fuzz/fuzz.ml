@@ -22,5 +22,6 @@ let () =
       Fuzz_tree.suite;
       Fuzz_input.suite;
       Fuzz_display.suite;
+      Fuzz_display_json.suite;
       Fuzz_console.suite;
     ]

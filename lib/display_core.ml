@@ -69,7 +69,7 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-let v ?(layout = Layout.default) ?header ?size ?scope ~now ppf =
+let v ?(layout = Layout.default) ?header ?size ?(form = Plain) ?scope ~now ppf =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -79,6 +79,7 @@ let v ?(layout = Layout.default) ?header ?size ?scope ~now ppf =
     {
       ppf;
       size;
+      form;
       depth;
       now;
       header = Option.map Display_text.clean header;
@@ -135,6 +136,21 @@ let end_line t (out : Format.formatter_out_functions) last =
     end
   with Sys_error _ -> ()
 
+(* What [f] writes is the output of no task, as events. *)
+let events t f =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Fmt.set_utf_8 ppf (Fmt.utf_8 t.ppf);
+  Format.pp_set_margin ppf t.width;
+  Fun.protect
+    (fun () -> f ppf)
+    ~finally:(fun () ->
+      Format.pp_print_flush ppf ();
+      List.iter
+        (fun text ->
+          Display_event.output t None { gap = 0.; kind = Output; text })
+        (Display_text.lines (Console_text.strip (Buffer.contents buf))))
+
 (* What [f] writes is watched for its last byte: output that does not end
    its line is ended, so the region starts on a line of its own. *)
 let with_output t f =
@@ -152,6 +168,7 @@ let with_output t f =
         Format.pp_set_margin t.ppf margin)
   in
   if t.closed then f t.ppf
+  else if Display_event.is_json t then events t f
   else if (not (is_live t)) || t.suspended > 0 then call ()
   else begin
     ignore (Display_region.refresh_size t);
@@ -201,19 +218,23 @@ let push r line =
     if Queue.length r.window > r.log_lines then ignore (Queue.take r.window)
   end
 
-(* A running task takes each line in its window and, on a terminal, keeps
-   it for its failure; without a terminal, and for a task that ended, a
-   line is printed at once after its label. *)
+(* A running task takes each line in its window and, on a terminal or
+   quiet, keeps it for its failure; otherwise, and for a task that ended, a
+   line is printed at once after its label, or is an event. *)
 let add r kind text =
   let t = r.disp in
   let line text =
     let now = t.now () in
     let line = { gap = now -. r.log_prev; kind; text } in
     r.log_prev <- now;
-    if not (is_running r) then Display_row.labelled r line
+    if Display_event.is_json t then begin
+      Display_event.output t (Some r) line;
+      []
+    end
+    else if not (is_running r) then Display_row.labelled r line
     else begin
       push r line;
-      if is_live t then begin
+      if keeps_output t then begin
         keep_output r line;
         []
       end
@@ -224,46 +245,57 @@ let add r kind text =
 
 (* A line of the root goes above the region at once, as a message of no
    task does. *)
+(* Lines of no task: above the region, in turn, or events. *)
+let above t kind text =
+  let lines = Display_text.lines text in
+  if Display_event.is_json t then
+    List.iter
+      (fun text -> Display_event.output t None { gap = 0.; kind; text })
+      lines
+  else
+    let level = match kind with Logs l -> l | Output -> `App in
+    print t (List.concat_map (Display_row.message t level) lines)
+
 let log r text =
   let t = r.disp in
   if t.closed then ()
-  else if is_root r then
-    print t
-      (List.concat_map (Display_row.message t `App) (Display_text.lines text))
+  else if is_root r then above t Output text
   else if is_running r then add r Output text
 
 let report t level text =
   if not t.closed then
     match scoped t with
     | Some r -> add r (Logs level) text
-    | None ->
-        print t
-          (List.concat_map
-             (Display_row.message t level)
-             (Display_text.lines text))
+    | None -> above t (Logs level) text
+
+(* The output a task kept, under its line. *)
+let kept r =
+  let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
+  (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
+  @ List.concat_map (Display_row.under r) (List.rev all)
 
 (* What a task prints when it ends: on a terminal, its line, then all its
-   lines if it failed or was cancelled; without one, its line, then its
-   window again if it failed. *)
+   lines if it failed or was cancelled; quiet, the same but only then, and
+   compact; in turn, its line, then its window again if it failed. Its
+   event says the rest. *)
 let ending r outcome window =
   let t = r.disp in
+  let failed =
+    match outcome with `Succeeded -> false | `Failed | `Cancelled -> true
+  in
   if r.transient then []
   else if is_live t then
-    let block =
-      match outcome with
-      | `Succeeded -> []
-      | `Failed | `Cancelled ->
-          let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
-          (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
-          @ List.concat_map (Display_row.under r) (List.rev all)
-    in
-    Display_row.committed t r @ block
+    Display_row.committed t r @ if failed then kept r else []
   else
-    Display_row.appended r
-    ::
-    (match outcome with
-    | `Failed -> List.concat_map (Display_row.under r) window
-    | `Succeeded | `Cancelled -> [])
+    match t.form with
+    | Json -> []
+    | Quiet -> if failed then Display_row.appended r :: kept r else []
+    | Plain ->
+        Display_row.appended r
+        ::
+        (match outcome with
+        | `Failed -> List.concat_map (Display_row.under r) window
+        | `Succeeded | `Cancelled -> [])
 
 (* The tasks under one that ends end first: they succeed with it, and are
    cancelled when it fails or is cancelled. *)
@@ -291,6 +323,7 @@ let rec finish outcome ?message r =
     | `Cancelled -> t.cancelled <- t.cancelled + 1
     | `Succeeded -> ());
     Option.iter (fun k -> Hashtbl.remove t.by_key k) r.key;
+    if Display_event.is_json t then Display_event.ended r;
     t.stale <- t.stale + 1;
     compact t;
     let lines = ending r outcome window in
@@ -330,7 +363,8 @@ let start t r =
   t.started <- t.started + 1;
   Queue.add r t.running;
   Option.iter (fun k -> Hashtbl.replace t.by_key k r) r.key;
-  if not (is_live t || r.transient) then print t [ Display_row.started r ];
+  if is_plain t && not r.transient then print t [ Display_row.started r ];
+  if Display_event.is_json t then Display_event.started r;
   match r.parent with
   | Some p when is_running p ->
       (* The children that ended are pruned each time the list doubles. *)
@@ -416,11 +450,21 @@ let with_task ?key ?parent ?log_lines ?transient t label f =
 let set_label r label =
   if is_running r && not (is_root r) then begin
     r.label <- Display_text.clean label;
+    if Display_event.is_json r.disp then Display_event.renamed r;
     touch r.disp
   end
 
+let same_metric a b =
+  match (a, b) with
+  | Spin, Spin -> true
+  | Count (c, n), Count (c', n') -> c = c' && n = n'
+  | Bytes (c, n), Bytes (c', n') -> Int64.equal c c' && Int64.equal n n'
+  | _ -> false
+
 let set_metric r metric =
+  let changed = not (same_metric r.metric metric) in
   r.metric <- metric;
+  if changed && Display_event.is_json r.disp then Display_event.progress r;
   r.disp.count_cell <- max r.disp.count_cell (count_width metric);
   touch r.disp
 
@@ -501,7 +545,11 @@ let close t =
     t.scene <- None;
     finish_running `Cancelled t;
     t.closed <- true;
-    let header = Option.to_list (Display_row.header t) in
+    let header =
+      match t.form with
+      | Plain -> Option.to_list (Display_row.header t)
+      | Quiet | Json -> []
+    in
     let verdict, detail =
       match t.result with
       | None -> ([], [])
@@ -518,7 +566,8 @@ let close t =
       Display_region.write t (Buffer.contents buf)
     end
     else begin
-      Display_region.write t (String.concat "" (List.map render lines));
+      if Display_event.is_json t then Display_event.result t
+      else Display_region.write t (String.concat "" (List.map render lines));
       t.release ()
     end
   end

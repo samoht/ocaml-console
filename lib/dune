@@ -16,6 +16,8 @@
   widget
   width
   display_core
+  display_event
+  display_json
   display_layout
   display_region
   display_row

@@ -23,6 +23,7 @@ depends: [
   "mdx" {with-test}
   "alcobar" {with-test}
   "re" {with-test}
+  "yojson" {with-test}
   "odoc" {with-doc}
 ]
 build: [
