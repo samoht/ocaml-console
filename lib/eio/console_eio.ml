@@ -100,3 +100,5 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(plain = false) f =
       match Session.join f with
       | Some v -> v
       | None -> open_display ~clock ~ppf ?layout ?header ~plain f)
+
+let progress = [ ("auto", false); ("plain", true) ]

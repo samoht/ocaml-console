@@ -54,7 +54,8 @@ Initial release of `console` and `console-eio`.
   terminal back when the function returns or raises, when its fiber is
   cancelled, at exit and on SIGINT or SIGTERM. A `run` inside another, or
   in a fiber beside it, gets the same display. `~plain:true` prints the lines a pipe gets on a terminal
-  too. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
+  too, and `Console_eio.progress` makes a `--progress=auto|plain` option
+  for it one line of Cmdliner. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
   the rows off the screen while it asks.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,

@@ -57,9 +57,9 @@ val run :
     line at a time, is the output of the current task, or goes above the rows as
     it is outside a task ({!output}), and what it prints on another output goes
     out as it is written. Otherwise each line is printed in turn, as on a pipe:
-    [plain] at [true] asks for that on a terminal too, as a [--progress=plain]
-    option does. When [f] returns, raises or its fiber is cancelled, the tasks
-    still running are cancelled, unless [f] said the work succeeded with
+    [plain] at [true] asks for that on a terminal too, as [--progress=plain]
+    does ({!progress}). When [f] returns, raises or its fiber is cancelled, the
+    tasks still running are cancelled, unless [f] said the work succeeded with
     {!Console.Display.set_result}; an exception is raised again. Either way, and
     when the program exits during [f], the display closes. So it does when
     SIGINT or SIGTERM arrives during [f] and the program left that signal at its
@@ -104,3 +104,9 @@ val run :
     program then reads the same on every machine.
 
     @raise Invalid_argument if a display runs in another domain. *)
+
+val progress : (string * bool) list
+(** [progress] is [[("auto", false); ("plain", true)]]: the choices of a
+    [--progress] option, as [Cmdliner.Arg.enum progress] reads them, for the
+    [plain] argument of {!run}. [auto] redraws the rows in place on a terminal
+    and [plain] prints each line in turn, as on a pipe, colours kept. *)

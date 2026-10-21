@@ -394,10 +394,27 @@ who ask for no animation:
 let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 ```
 
-A user can stop the motion of a program that offers no such option: with
-`NO_COLOR` set, frames stand still but the spinner turns; with `TERM=dumb`,
-or the output in a pipe, the display prints its lines in turn, without
-colour, spinner or scene, as on a CI log.
+A program with a `--progress=plain` option lets its users stop all motion:
+the display then prints its lines in turn, as on a CI log, without spinner
+or scene but in colour. `Console_eio.progress` names the two values, `auto`
+(the default) and `plain`, for the `plain` argument of `Console_eio.run`,
+as `Theme.all` names the themes, so the option is one more line beside
+`--theme`:
+
+```ocaml
+let progress =
+  Cmdliner.Arg.(
+    value
+    & opt (enum Console_eio.progress) false
+    & info [ "progress" ] ~doc:"How progress shows: $(b,auto) or $(b,plain).")
+
+let build plain =
+  Eio_main.run @@ fun env ->
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~plain ignore
+```
+
+Without the option, `TERM=dumb` or a pipe gives the same lines, without
+colour.
 
 A scene is drawn only on a terminal and goes when the display closes:
 print the table again once the work is done, as
@@ -489,8 +506,8 @@ what `build` above prints in a pipe:
 
 On a pipe, console flushes standard output before each line it writes, so
 that `2>&1` keeps the order of the two outputs. `Console_eio.run
-~plain:true` prints these lines on a terminal too, for a `--progress=plain`
-option. Each line starts with a mark that says how its task ended; the
+~plain:true` prints these lines on a terminal too, as a `--progress=plain`
+option asks ([Motion](#motion)). Each line starts with a mark that says how its task ended; the
 theme chooses the marks:
 
 | Task | `Theme.default` | `Theme.dos` |

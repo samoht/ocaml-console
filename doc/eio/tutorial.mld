@@ -2,8 +2,8 @@
 
 This tutorial writes [check], a command that runs test suites, shows them as
 progress rows while they run and prints a table of their results. It takes a
-[--color] option and a [--theme] option, prints plain lines when its output
-is a pipe, and has a cram test whose output is the same on every machine.
+[--color] option, a [--theme] option and a [--progress] option, prints plain
+lines when its output is a pipe or on [--progress=plain], and has a cram test whose output is the same on every machine.
 Each section adds to the one before it.
 
 {1:setup Setup}
@@ -114,8 +114,8 @@ let test display (name, total) =
   done;
   Logs.info (fun m -> m "%d tests passed" total)
 
-let run_all ~clock suites =
-  Console_eio.run ~clock ~header:"Testing" (fun display ->
+let run_all ~clock ~plain suites =
+  Console_eio.run ~clock ~plain ~header:"Testing" (fun display ->
       Eio.Fiber.List.iter (test display) suites)
 ]}
 
@@ -129,17 +129,26 @@ more.
 
 {1:program The whole program}
 
-[check] sets up the outputs, runs the suites, then prints the table:
+[check] sets up the outputs, runs the suites, then prints the table. A
+[--progress=plain] option prints the progress as lines in turn, as on a
+pipe, on a terminal too: {!Console_eio.progress} names its values, [auto]
+and [plain], for the [plain] argument of {!Console_eio.run}:
 
 {@ocaml[
-let check () =
+let progress =
+  Cmdliner.Arg.(
+    value
+    & opt (enum Console_eio.progress) false
+    & info [ "progress" ] ~doc:"How progress shows: $(b,auto) or $(b,plain).")
+
+let check () plain =
   Eio_main.run @@ fun env ->
-  run_all ~clock:(Eio.Stdenv.mono_clock env) suites;
+  run_all ~clock:(Eio.Stdenv.mono_clock env) ~plain suites;
   Fmt.pr "%a@." Console.Table.pp (results suites)
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "check")
-    Cmdliner.Term.(const check $ options)
+    Cmdliner.Term.(const check $ options $ progress)
 
 let main () = exit (Cmdliner.Cmd.eval cmd)
 ]}
@@ -177,8 +186,8 @@ which the {{!testing}next section} explains:
 
 The marks come from the theme, here {!Console.Theme.dos}. Console flushes
 standard output before each line it writes, so [check 2>&1 | cat] keeps the
-order of the two outputs. A [--progress=plain] option can ask for these lines
-on a terminal too, with [Console_eio.run ~plain:true].
+order of the two outputs. [check --progress=plain] prints these lines on a
+terminal too.
 
 {1:testing Testing the output}
 
