@@ -101,16 +101,17 @@ let release () =
 
    While a display draws a region on a terminal, what the program writes on
    the standard formatters of that terminal is output, a whole line at a
-   time; a line without its end waits for it, and outside a task a line
-   waits for a flush, up to {!max_pending} bytes. A line goes to the task
-   current in the fiber that writes or flushes it, without its escape codes,
-   or above the region as it is when none is. Inside {!with_terminal} the
-   bytes go straight out. *)
+   time; a line without its end waits for it, up to {!max_pending} bytes. A
+   line goes to the task current in the fiber that writes its end, without
+   its escape codes, or above the region as it is when none is, where it
+   waits for a flush, also up to {!max_pending} bytes. Inside
+   {!with_terminal} the bytes go straight out. *)
 
 type intercepted = {
   ppf : Format.formatter;
   out : Format.formatter_out_functions;
-  pending : Buffer.t;
+  held : Buffer.t; (* whole lines for above the region *)
+  pending : Buffer.t; (* the line not ended yet *)
 }
 
 let intercepted : intercepted list Atomic.t = Atomic.make []
@@ -131,28 +132,31 @@ let whole_lines pending =
 let max_pending = 65536
 let to_task task s = Console.Display.log task (Console_text.strip s)
 
-(* [s] for the task current in the calling fiber, or above the region. *)
+(* The lines held for above the region go out. *)
+let send_held display i =
+  if Buffer.length i.held > 0 then begin
+    let s = Buffer.contents i.held in
+    Buffer.clear i.held;
+    Display.with_output display (fun _ ->
+        i.out.out_string s 0 (String.length s);
+        i.out.out_flush ())
+  end
+
+(* [s], written in the calling fiber: the current task's output, or held
+   for above the region; either way after the lines held before it. *)
 let write display i s =
   match Display_driver.current display with
-  | Some task -> to_task task s
+  | Some task ->
+      send_held display i;
+      to_task task s
   | None ->
-      Display.with_output display (fun _ ->
-          i.out.out_string s 0 (String.length s);
-          i.out.out_flush ())
-
-(* [pending] past its bound: its whole lines, or else all of it. *)
-let spill display i =
-  match whole_lines i.pending with
-  | Some s -> write display i s
-  | None ->
-      let s = Buffer.contents i.pending in
-      Buffer.clear i.pending;
-      write display i s
+      Buffer.add_string i.held s;
+      if Buffer.length i.held > max_pending then send_held display i
 
 let intercept display ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
-  let i = { ppf; out; pending = Buffer.create 256 } in
+  let i = { ppf; out; held = Buffer.create 256; pending = Buffer.create 256 } in
   let add s o l =
     if Atomic.get direct > 0 then out.out_string s o l
     else begin
@@ -162,14 +166,20 @@ let intercept display ppf =
         | Some k -> k < o + l
         | None -> false
       in
-      match if ends_a_line then Display_driver.current display else None with
-      | Some task -> Option.iter (to_task task) (whole_lines i.pending)
-      | None -> if Buffer.length i.pending > max_pending then spill display i
+      match if ends_a_line then whole_lines i.pending else None with
+      | Some lines -> write display i lines
+      | None ->
+          (* A line too long is cut where the bound falls. *)
+          if Buffer.length i.pending > max_pending then begin
+            let s = Buffer.contents i.pending in
+            Buffer.clear i.pending;
+            write display i s;
+            send_held display i
+          end
     end
   in
   let flush () =
-    if Atomic.get direct > 0 then out.out_flush ()
-    else Option.iter (write display i) (whole_lines i.pending)
+    if Atomic.get direct > 0 then out.out_flush () else send_held display i
   in
   Format.pp_set_formatter_out_functions ppf
     {
@@ -191,7 +201,7 @@ let restore () =
     (fun i ->
       (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
-      let rest = Buffer.contents i.pending in
+      let rest = Buffer.contents i.held ^ Buffer.contents i.pending in
       if rest <> "" then
         try
           i.out.out_string rest 0 (String.length rest);
