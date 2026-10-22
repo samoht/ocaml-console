@@ -1736,6 +1736,71 @@ let test_tty_transient_failure () =
     (List.exists (contains "[x] probe") all
     && List.exists (contains "disk full") all)
 
+(* What gives way: a row's label is cut only once its rate, its bar, its
+   count and its time have all given way, the count to its short form out
+   of its column. A row of 30 cells of label that counts bytes, from 80
+   columns down. *)
+let test_label_gives_way_last () =
+  let label = "a-label-of-thirty-cells-long-x" in
+  let given = Re.Perl.compile_pat "MiB|GiB|[0-9]s|\u{2588}|\u{2591}" in
+  List.iter
+    (fun width ->
+      let t = terminal ~theme ~width ~height:4 () in
+      let r = Display.task t.display label in
+      t.advance 1.;
+      Display.set_bytes r ~cur:268435456L ~total:2147483648L;
+      t.advance 4.;
+      Display.redraw t.display;
+      let row = List.find (contains "a-label") (screen t) in
+      if not (contains label row) then
+        Alcotest.(check bool)
+          (Fmt.str "at %d nothing but the label is left in %S" width row)
+          false (Re.execp given row);
+
+      Display.close t.display)
+    [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
+
+(* The cell column of the last bar glyph in [row], if any; every glyph on
+   these rows takes one cell. *)
+let bar_end row =
+  let cells = ref 0 and last = ref None in
+  String.iteri
+    (fun i c ->
+      if Char.code c land 0xc0 <> 0x80 then begin
+        let at s =
+          i + String.length s <= String.length row
+          && String.sub row i (String.length s) = s
+        in
+        if at "\u{2588}" || at "\u{2591}" then last := Some !cells;
+        incr cells
+      end)
+    row;
+  !last
+
+(* The bars of the rows that show one end in the same column, whatever
+   their counts and rates: examples/progress's step, which counts items,
+   and its layer, which counts bytes and shows a rate. *)
+let test_bars_line_up () =
+  let t = terminal ~theme ~width:80 ~height:8 () in
+  let step = Display.task t.display "RUN make" in
+  let layer = Display.task ~parent:step t.display "sha256:abcd" in
+  Display.set_count step ~cur:2 ~total:5;
+  t.advance 1.;
+  Display.set_bytes layer ~cur:268435456L ~total:2147483648L;
+  t.advance 1.;
+  Display.set_bytes layer ~cur:536870912L ~total:2147483648L;
+  Display.redraw t.display;
+  let rows = screen t in
+  let ends = List.filter_map bar_end rows in
+  Alcotest.(check int)
+    ("two bars in\n" ^ String.concat "\n" rows)
+    2 (List.length ends);
+  Alcotest.(check bool)
+    ("the bars end in one column in\n" ^ String.concat "\n" rows)
+    true
+    (List.for_all (( = ) (List.hd ends)) ends);
+  Display.close t.display
+
 let suite =
   ( "display",
     [
@@ -1841,4 +1906,7 @@ let suite =
         test_plain_transient_failure;
       Alcotest.test_case "a terminal shows a transient failure" `Quick
         test_tty_transient_failure;
+      Alcotest.test_case "the label gives way last" `Quick
+        test_label_gives_way_last;
+      Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
     ] )
