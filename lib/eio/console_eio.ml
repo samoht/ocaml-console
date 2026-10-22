@@ -78,18 +78,25 @@ let deterministic () =
   | None | Some "" -> false
   | Some _ -> true
 
-(* A virtual clock: a sleep from [now] until [time] wakes at [time], after
-   it has also lasted its duration on [real]. Sleeps wake in the order of
-   their wake-up times, then of their start, so a sleep whose real
-   duration ended first still waits for those due before it, and the time
-   never depends on how long the program worked between its sleeps. *)
+(* A virtual clock. A sleep of [d] started at [t] wakes at [t + d], once it
+   has also lasted [d] on [real]. Sleeps wake one at a time, in the order of
+   their wake-up times then of their start, and each sets the time to its
+   own wake-up time as its fiber resumes. The next one wakes only once the
+   fibers the last one made runnable have run, until the clock sees no use
+   for two yields in a row, so the time never depends on the order in which
+   the real durations ended. A passive sleep, a redraw's, wakes in that order
+   too, but only before a sleep of the program, so that it never moves the
+   time further than the program would, and as soon as a sleep of the program
+   after it has lasted its real duration, so that it never holds one up. *)
 module Sleeps = struct
   type sleep = {
     until : Mtime.t;
     seq : int;
+    active : bool;
     mutable elapsed : bool;
     mutable pending : bool;
-    wake : unit Eio.Promise.u;
+    mutable waiting : unit Eio.Promise.u option;
+    overtaken : unit Eio.Promise.t * unit Eio.Promise.u;
   }
 
   type t = {
@@ -97,11 +104,14 @@ module Sleeps = struct
     mutable now : Mtime.t;
     mutable sleeps : sleep list;
     mutable next : int;
+    mutable used : int;
   }
 
   type time = Mtime.t
 
-  let now t = t.now
+  let now t =
+    t.used <- t.used + 1;
+    t.now
 
   let before a b =
     match Mtime.compare a.until b.until with 0 -> a.seq < b.seq | c -> c < 0
@@ -110,75 +120,150 @@ module Sleeps = struct
     | x :: rest when before x s -> x :: insert s rest
     | l -> s :: l
 
+  let due t =
+    match t.sleeps with
+    | s :: rest
+      when s.elapsed && (s.active || List.exists (fun x -> x.active) rest) ->
+        Some s
+    | _ -> None
+
+  let is_due t s = match due t with Some x -> x == s | None -> false
+
+  let wake t =
+    match due t with
+    | Some ({ waiting = Some u; _ } as s) ->
+        s.waiting <- None;
+        Eio.Promise.resolve u ()
+    | _ -> ()
+
   let remove t s =
     if s.pending then begin
       s.pending <- false;
-      t.sleeps <- List.filter (fun x -> x != s) t.sleeps
+      t.sleeps <- List.filter (fun x -> x != s) t.sleeps;
+      wake t
     end
 
-  let rec advance t =
-    match t.sleeps with
-    | s :: _ when s.elapsed ->
-        remove t s;
-        if Mtime.is_later s.until ~than:t.now then t.now <- s.until;
-        Eio.Promise.resolve s.wake ();
-        advance t
-    | _ -> ()
+  (* The rounds are bounded, so that a fiber that polls the clock in a loop
+     of yields cannot stop it. *)
+  let settle t =
+    let rec go quiet rounds =
+      if quiet < 2 && rounds < 64 then begin
+        let used = t.used in
+        Eio.Fiber.yield ();
+        go (if t.used = used then quiet + 1 else 0) (rounds + 1)
+      end
+    in
+    go 0 0
 
-  let sleep_until t time =
+  let rec turn t s =
+    if is_due t s then begin
+      settle t;
+      if is_due t s then begin
+        t.now <- s.until;
+        t.used <- t.used + 1;
+        remove t s
+      end
+      else turn t s
+    end
+    else begin
+      let p, u = Eio.Promise.create () in
+      s.waiting <- Some u;
+      Eio.Promise.await p;
+      turn t s
+    end
+
+  let overtake t s =
+    let rec go = function
+      | x :: rest when x != s ->
+          if not x.active then
+            ignore (Eio.Promise.try_resolve (snd x.overtaken) ());
+          go rest
+      | _ -> ()
+    in
+    go t.sleeps
+
+  let overtaken t s =
+    List.exists (fun x -> x.active && x.elapsed && before s x) t.sleeps
+
+  let elapse t s span =
+    if s.active then begin
+      Eio.Time.Mono.sleep_span t.real span;
+      overtake t s
+    end
+    else if not (overtaken t s) then
+      Eio.Fiber.first
+        (fun () -> Eio.Time.Mono.sleep_span t.real span)
+        (fun () -> Eio.Promise.await (fst s.overtaken))
+
+  let sleep t ~active time =
     if Mtime.is_later time ~than:t.now then begin
-      let turn, wake = Eio.Promise.create () in
       let s =
-        { until = time; seq = t.next; elapsed = false; pending = true; wake }
+        {
+          until = time;
+          seq = t.next;
+          active;
+          elapsed = false;
+          pending = true;
+          waiting = None;
+          overtaken = Eio.Promise.create ();
+        }
       in
       t.next <- t.next + 1;
+      t.used <- t.used + 1;
       t.sleeps <- insert s t.sleeps;
+      wake t;
       Fun.protect
-        ~finally:(fun () ->
-          remove t s;
-          advance t)
+        ~finally:(fun () -> remove t s)
         (fun () ->
-          Eio.Time.Mono.sleep_span t.real (Mtime.span t.now time);
+          elapse t s (Mtime.span t.now time);
           s.elapsed <- true;
-          advance t;
-          Eio.Promise.await turn)
+          turn t s)
     end
+
+  let sleep_until t time = sleep t ~active:true time
+
+  let redraw t d =
+    let span = Mtime.Span.of_uint64_ns (Int64.of_float (d *. 1e9)) in
+    Option.iter (sleep t ~active:false) (Mtime.add_span t.now span)
 end
 
 type (_, _, _) Eio.Resource.pi +=
-  | Real :
-      ( 't,
-        't -> Eio.Time.Mono.ty Eio.Resource.t,
-        [> `Console_sleeps ] )
-      Eio.Resource.pi
+  | Redraw : ('t, 't -> float -> unit, [> `Console_sleeps ]) Eio.Resource.pi
 
 let sleeps =
   Eio.Resource.handler
-    (H (Real, fun t -> t.Sleeps.real)
+    (H (Redraw, Sleeps.redraw)
     :: Eio.Resource.bindings (Eio.Time.Pi.clock (module Sleeps)))
 
 let clock c =
   let real = (c :> Eio.Time.Mono.ty Eio.Resource.t) in
   if deterministic () then
     Eio.Resource.T
-      ( { Sleeps.real; now = Mtime.of_uint64_ns 0L; sleeps = []; next = 0 },
+      ( {
+          Sleeps.real;
+          now = Mtime.of_uint64_ns 0L;
+          sleeps = [];
+          next = 0;
+          used = 0;
+        },
         sleeps )
   else real
 
-(* The clock that [clock] waits on, if it is one of {!clock}'s. *)
-let real (Eio.Resource.T (t, ops)) =
-  Option.map (fun real -> real t) (Eio.Resource.get_opt ops Real)
+(* The redraws of a clock of {!clock}, which wait on its time. *)
+let redraw (Eio.Resource.T (t, ops)) =
+  Option.map (fun redraw -> redraw t) (Eio.Resource.get_opt ops Redraw)
 
-(* What the display reads and what its redraws wait on. Under
-   CONSOLE_DETERMINISTIC_CLOCK the display reads a clock of {!clock}, whose
-   time its own redraws must not move, or a clock stopped at zero. *)
+(* What the display reads and what its redraws wait for. Under
+   CONSOLE_DETERMINISTIC_CLOCK the display reads a clock of {!clock} and
+   redraws at its instants, without moving its time, or reads a clock
+   stopped at zero. *)
 let reading clock =
   let clock = (clock :> Eio.Time.Mono.ty Eio.Resource.t) in
-  if not (deterministic ()) then (seconds clock, clock)
+  if not (deterministic ()) then (seconds clock, Eio.Time.Mono.sleep clock)
   else
-    match real clock with
-    | Some real -> (seconds clock, real)
-    | None -> ((fun () -> 0.), clock)
+    match redraw clock with
+    | Some redraw -> (seconds clock, redraw)
+    | None -> ((fun () -> 0.), Eio.Time.Mono.sleep clock)
 
 (* The display of [root], the formatters whose lines it takes and what
    shows or hides the cursor. On a terminal it takes the standard formatters
@@ -230,7 +315,7 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
-  let now, redraws = reading clock in
+  let now, sleep = reading clock in
   match
     let root = Task_driver.root ?label ~scope:Session.scope ~now () in
     let display, intercept, cursor =
@@ -238,8 +323,7 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ~progress f =
     in
     ({ Session.display; root; json = progress = `Json }, intercept, cursor)
   with
-  | run, intercept, cursor ->
-      Session.run ~cursor ~sleep:(Eio.Time.Mono.sleep redraws) ~intercept run f
+  | run, intercept, cursor -> Session.run ~cursor ~sleep ~intercept run f
   | exception e ->
       Session.release ();
       raise e

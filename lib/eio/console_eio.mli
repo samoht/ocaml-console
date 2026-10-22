@@ -179,9 +179,10 @@ val run :
 
     On a clock that {!clock} made, the time is virtual, as on a mock clock, and
     never the real time. It starts at zero, and a sleep that starts at time [t]
-    for [d] wakes at [t + d]: sleeps at once overlap, and the clock reads the
-    latest time a sleep woke at. Sleeps wake in the order of their wake-up
-    times, those due at once in the order they started. Each sleep also lasts at
+    for [d] wakes at [t + d]: sleeps at once overlap. Sleeps wake one at a time,
+    in the order of their wake-up times, those due at once in the order they
+    started, and the clock reads the wake-up time of the fiber that woke last,
+    while it and the fibers it makes runnable run. Each sleep also lasts at
     least [d] on the clock behind it, so the rows move as the program runs, and
     one whose real duration ended waits for those due before it. What the
     program does between two sleeps, and how long that takes, then does not
@@ -189,6 +190,10 @@ val run :
     {{!Console.Task.json}JSON events}, unless that work itself waits, on input
     or output for example: a sleep can then wake in the meantime and move the
     time from which the next sleep starts.
+
+    The display redraws at the instants of the virtual time, every tenth of a
+    second while the program sleeps, and never moves it: on a terminal, the
+    frames it draws are the same on every run.
 
     [Eio.Time.with_timeout] on such a clock times out once its duration has
     passed on the clock behind it and the sleeps due before it have woken, and a
@@ -198,9 +203,8 @@ val run :
     - every elapsed time reads [0.0s], and every [time] and [elapsed] of a JSON
       event reads [0];
     - no rate shows;
-    - the spinners and the motion stand still.
-
-    The redraws wait on the clock behind it, and do not move its time. *)
+    - the spinners and the motion stand still;
+    - the display redraws on that clock. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
 (** [with_output f] prints what console does not see, such as the text of

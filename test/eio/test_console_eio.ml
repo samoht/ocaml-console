@@ -46,6 +46,11 @@ let with_env bindings f =
   Fun.protect f ~finally:(fun () ->
       List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
+(* [mock] at its next timer, if any: a sleep that waits for its turn on
+   [Console_eio.clock] has none. *)
+let step mock =
+  try Eio_mock.Clock.Mono.advance mock with Invalid_argument _ -> ()
+
 (* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
    of a mock clock, which moves to the end of each sleep in turn. *)
 let sleeps () =
@@ -64,7 +69,7 @@ let sleeps () =
             (fun () ->
               while not !slept do
                 Eio.Fiber.yield ();
-                Eio_mock.Clock.Mono.advance mock
+                step mock
               done)));
 
   Format.pp_print_flush ppf ();
@@ -91,7 +96,7 @@ let overlapping () =
               (fun () ->
                 while !slept < 2 do
                   Eio.Fiber.yield ();
-                  Eio_mock.Clock.Mono.advance mock
+                  step mock
                 done);
             ]));
   Format.pp_print_flush ppf ();
@@ -118,6 +123,77 @@ let test_deterministic_clock () =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "") ] (fun () -> nap ())
   in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
+
+(* The two builds of examples/columns, with sleeps on [Console_eio.clock] of
+   a mock clock whose real time a seeded random schedule moves: each build
+   works a random real time before each sleep, which wakes the sleeps then
+   due at once, and a driver moves the clock by random steps after random
+   numbers of yields. *)
+let perturbed ~progress seed =
+  let rand = Random.State.make [| seed |] in
+  let mock = Eio_mock.Clock.Mono.make () in
+  let real = ref 0 in
+  let pass () =
+    if seed > 0 then begin
+      real := !real + Random.State.int rand 300_000_000;
+      Eio_mock.Clock.Mono.set_time mock
+        (Mtime.of_uint64_ns (Int64.of_int !real))
+    end
+  in
+  let clock = Console_eio.clock mock in
+  let build root (name, pace, steps) =
+    Console.Task.run root name (fun b ->
+        List.iter
+          (fun (step, total) ->
+            Console.Task.run b step (fun task ->
+                for count = 1 to total do
+                  pass ();
+                  Eio.Time.Mono.sleep clock pace;
+                  Console.Task.set_items task ~count ~total
+                done))
+          steps)
+  in
+  let builds =
+    [
+      ("linux", 0.08, [ ("fetch", 4); ("compile", 12); ("test", 8) ]);
+      ( "macos",
+        0.11,
+        [ ("fetch", 4); ("compile", 12); ("test", 8); ("sign", 2) ] );
+    ]
+  in
+  let buf, ppf = buffer () in
+  let finished = ref false in
+  Eio_main.run (fun _ ->
+      Eio.Fiber.both
+        (fun () ->
+          Console_eio.run ~clock ~ppf ~progress ~keep_ended:true (fun root ->
+              Eio.Fiber.List.iter (build root) builds);
+          finished := true)
+        (fun () ->
+          while not !finished do
+            for _ = 0 to Random.State.int rand 4 do
+              Eio.Fiber.yield ()
+            done;
+            if seed > 0 then pass () else step mock
+          done));
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* Whatever the real schedule, the virtual clock gives the same bytes: the
+   same lines on a pipe, and the same frames on a terminal. *)
+let test_deterministic_schedule () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  List.iter
+    (fun (progress, ended) ->
+      let calm = perturbed ~progress 0 in
+      Alcotest.(check bool)
+        "the builds take the longer time" true (contains ended calm);
+      for seed = 1 to 50 do
+        Alcotest.(check string)
+          (Fmt.str "schedule %d" seed)
+          calm (perturbed ~progress seed)
+      done)
+    [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 69 ' ' ^ "2.9s") ]
 
 let test_run_raises () =
   with_clock (fun clock ->
@@ -529,6 +605,8 @@ let suite =
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
       Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
+      Alcotest.test_case "a deterministic clock ignores the schedule" `Quick
+        test_deterministic_schedule;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
