@@ -32,6 +32,18 @@ let duration secs =
    digit. *)
 let duration_cells = 6
 let clean = Console_text.sanitize ~keep_newlines:false
+let kept_bytes = 4096
+let ellipsis = "\xe2\x80\xa6"
+
+(* The text is sanitized, so a cut needs only to fall between two
+   characters, which [boundary] finds. *)
+let capped s =
+  if String.length s <= kept_bytes then s
+  else
+    let head = String.sub s 0 (kept_bytes - String.length ellipsis) in
+    String.sub head 0 (Console_text.boundary head) ^ ellipsis
+
+let label s = capped (clean s)
 
 (* The cells of the last line of [s]. *)
 let last_line_cells s =

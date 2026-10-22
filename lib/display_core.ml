@@ -98,7 +98,7 @@ let row t ~id ?key ?parent ~log_lines ~transient label =
     output_bytes = 0;
     dropped = 0;
     log_prev = now;
-    label = Display_text.clean label;
+    label = Display_text.label label;
     metric = Spin;
     transient;
     started_at = now;
@@ -298,9 +298,10 @@ let add r kind text =
     end
     else if not (is_running r) then Display_row.labelled r line
     else begin
-      push r line;
+      let kept = { line with text = Display_text.capped line.text } in
+      push r kept;
       if keeps_output t then begin
-        keep_output r line;
+        keep_output r kept;
         []
       end
       else Display_row.labelled r line
@@ -453,7 +454,7 @@ let rec finish outcome ?message r =
     let window = List.rev (Queue.fold (fun acc l -> l :: acc) [] r.window) in
     Queue.clear r.window;
     r.ended_at <- Some (t.now ());
-    r.message <- Option.map Display_text.clean message;
+    r.message <- Option.map Display_text.label message;
     r.outcome <- Some outcome;
     t.finished <- t.finished + 1;
     (match outcome with
@@ -555,7 +556,7 @@ let with_task ?key ?parent ?log_lines ?transient t label f =
 
 let set_label r label =
   if is_running r && not (is_root r) then begin
-    r.label <- Display_text.clean label;
+    r.label <- Display_text.label label;
     if Display_event.is_json r.disp then Display_event.renamed r;
     touch r.disp
   end

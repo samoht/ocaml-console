@@ -50,7 +50,10 @@
     A task that succeeds leaves its line alone, while one that fails or is
     cancelled prints up to 1 MiB of its output under its line. Beyond that, the
     oldest lines are dropped first and a line of their own counts them. A line
-    too wide for the terminal is cut under a running task, and nowhere else.
+    too wide for the terminal is cut under a running task, and nowhere else. A
+    line a task keeps for its window or its failure, and a task's label or
+    message, keeps its first 4 KiB, ended with an ellipsis, so that the bounds
+    above hold for each task however long its text.
 
     [Console_eio.run] sees standard output through {!Fmt.stdout} and [Logs]
     messages through its reporter, so what [print_string], [Printf] or a child
@@ -119,7 +122,8 @@
       the view's last frame is printed once, still, and stays: the summary alone
       in the default view.
     - The tasks that wait in the region under a task are bounded: past 1 MiB,
-      the oldest are dropped, and a line counts them.
+      the oldest are dropped, and a line counts them. Each weighs at most its
+      output, 1 MiB, and three texts of 4 KiB ({!output}).
 
     Without a terminal there is no region. The tasks print the lines of
     {!Progress}: one line when a task starts and one when it ends, in the order

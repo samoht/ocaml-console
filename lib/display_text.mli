@@ -22,6 +22,19 @@ val clean : string -> string
 (** [clean s] is [s] on one line: each control character, line feeds included, a
     space. *)
 
+val kept_bytes : int
+(** [kept_bytes] is the most bytes of a label or a line that a display keeps:
+    4096. *)
+
+val capped : string -> string
+(** [capped s] is [s] if it has at most {!kept_bytes} bytes, and otherwise its
+    longest prefix of whole characters that leaves room for an ellipsis, then
+    U+2026: at most {!kept_bytes} bytes in all. *)
+
+val label : string -> string
+(** [label s] is [capped (clean s)], the label or the message of a task as a
+    display keeps it. *)
+
 val lines : string -> string list
 (** [lines s] are the lines of [s], each {!clean}, ending where
     {!Console_text.sanitize} ends a line, a tab in them gone to the next stop of
