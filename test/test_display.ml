@@ -1643,6 +1643,22 @@ let test_summary_between_tasks () =
     (List.exists (contains "[+] Build") (screen t));
   Display.close t.display
 
+(* The 4 KiB cut is between two characters, as console.mli guarantees for
+   any text cut to fit: a flag, two regional indicators, is one character
+   and must not lose its second half. *)
+let test_cap_keeps_a_flag () =
+  let flag = "\u{1F1EB}\u{1F1F7}" in
+  let label = String.make 4089 'a' ^ flag ^ "b" in
+  let (), out =
+    plain (fun d _ ->
+        let t = Display.task d label in
+        Display.succeed t)
+  in
+  let has affix = contains affix out in
+  Alcotest.(check bool)
+    "the flag whole or not at all" true
+    (has flag || not (has "\u{1F1EB}"))
+
 let suite =
   ( "display",
     [
@@ -1738,4 +1754,6 @@ let suite =
         test_quiet_transient_failure;
       Alcotest.test_case "the summary runs between two tasks" `Quick
         test_summary_between_tasks;
+      Alcotest.test_case "the 4 KiB cut keeps a flag whole" `Quick
+        test_cap_keeps_a_flag;
     ] )
