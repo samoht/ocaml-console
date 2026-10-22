@@ -231,14 +231,36 @@ let test_window_age () =
   let rows = screen t in
   Display.close d;
   Alcotest.(check int) "the region fits" 3 (List.length rows);
-  Alcotest.(check bool) "the newest window line stays" true
+  Alcotest.(check bool)
+    "the newest window line stays" true
     (List.exists (contains "newer") rows);
-  Alcotest.(check bool) "the oldest window line gives way" false
+  Alcotest.(check bool)
+    "the oldest window line gives way" false
     (List.exists (contains "older") rows)
+
+(* A single completed task is subject to the waiting-region bound too.
+   Neither the caller nor the output sink retains the task or its label. *)
+let test_oversized_waiting_task () =
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
+  let d = Display.v ~size:(fun () -> (40, 8)) ~now:(fun () -> 0.) ppf in
+  let parent = Display.task d "parent" in
+  let live_bytes () =
+    Gc.full_major ();
+    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  in
+  let before = live_bytes () in
+  Display.succeed (Display.task ~parent d (String.make (4 * 1024 * 1024) 'x'));
+  let retained = live_bytes () - before in
+  Display.succeed (Display.task ~parent d "replacement");
+  Display.close d;
+  if retained > 1_048_576 + 65_536 then
+    Alcotest.failf "one completed child retains %d bytes (limit 1 MiB)" retained
 
 let suite =
   ( "layout",
     [
+      Alcotest.test_case "one oversized waiting task stays bounded" `Quick
+        test_oversized_waiting_task;
       Alcotest.test_case "windows give way oldest first across tasks" `Quick
         test_window_age;
       Alcotest.test_case "the summary is the last line" `Quick test_summary_last;
