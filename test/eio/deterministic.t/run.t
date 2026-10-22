@@ -30,16 +30,18 @@ On a terminal, the screen it leaves:
     +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    0.0s
   [+] Building 0.0s (2/2)
 
-The examples/columns program sleeps on Console_eio.clock, whose time moves
-by exactly each sleep: two of its runs print the same bytes, and the build
-that sleeps 26 times 0.11 seconds takes 2.8s.
+The examples/columns program sleeps on Console_eio.clock, whose time is
+the sum of the sleeps that ended: two of its runs print the same bytes,
+and the time of the build counts the sleeps of both its columns.
+
+
 
   $ ../../../examples/columns/main.exe > first 2>&1
   $ ../../../examples/columns/main.exe > second 2>&1
   $ cmp first second
   $ grep -e '] macos  ' -e Building first
-  [+] macos  2.8s
-  [+] Building 2.8s (9/9)
+  [+] macos  4.7s
+  [+] Building 4.7s (9/9)
 
 Its time is the sum of the sleeps that ended, whatever the program does
 between them: two fibers that sleep 0.1 seconds four times and 0.13

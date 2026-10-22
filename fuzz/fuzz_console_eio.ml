@@ -762,8 +762,9 @@ let test_progress_enum text =
           if not (contains 0) then failf "diagnostic omitted progress %s" name)
         Console.Progress.all
 
-(* Backing-clock overshoot must not affect the bytes of a run whose two
-   tasks wait concurrently on the deterministic clock. *)
+(* How late the backing clock wakes two concurrent sleeps does not change
+   the bytes of the run. The deterministic time is the sum of the sleeps
+   that ended, so the task that ends last ran for both. *)
 let test_deterministic_concurrency a b =
   let key = "CONSOLE_DETERMINISTIC_CLOCK" in
   let saved = Sys.getenv_opt key in
@@ -809,10 +810,11 @@ let test_deterministic_concurrency a b =
           | Ok _ -> None
           | Error (`Msg m) -> fail m)
     in
+    let ms x = Float.round (x *. 1000.) /. 1000. in
     check
-      (List.sort compare ends
-      = List.sort compare
-          [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
+      (List.sort compare (List.map (fun (_, e) -> Option.map ms e) ends)
+      = [ Some (ms (Float.min first second)); Some (ms (first +. second)) ]);
+
     output
   in
   check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)

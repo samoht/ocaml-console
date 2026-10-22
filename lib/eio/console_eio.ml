@@ -78,10 +78,8 @@ let deterministic () =
   | None | Some "" -> false
   | Some _ -> true
 
-(* A clock that reads the latest time one of its sleeps ended at, and
-   whose sleeps wait on [real] until that time. Each sleep ends at the time
-   the clock read when it started plus its duration, however late [real]
-   wakes it. *)
+(* A clock whose time is the sum of the sleeps on it that ended. A sleep
+   waits its duration, from the clock's time when it starts, on [real]. *)
 module Sleeps = struct
   type t = { real : Eio.Time.Mono.ty Eio.Resource.t; mutable now : Mtime.t }
   type time = Mtime.t
@@ -89,8 +87,11 @@ module Sleeps = struct
   let now t = t.now
 
   let sleep_until t time =
-    Eio.Time.Mono.sleep_until t.real time;
-    if Mtime.is_later time ~than:t.now then t.now <- time
+    if Mtime.is_later time ~than:t.now then begin
+      let d = Mtime.span t.now time in
+      Eio.Time.Mono.sleep_span t.real d;
+      t.now <- Option.value (Mtime.add_span t.now d) ~default:t.now
+    end
 end
 
 type (_, _, _) Eio.Resource.pi +=
@@ -108,7 +109,7 @@ let sleeps =
 let clock c =
   let real = (c :> Eio.Time.Mono.ty Eio.Resource.t) in
   if deterministic () then
-    Eio.Resource.T ({ Sleeps.real; now = Eio.Time.Mono.now real }, sleeps)
+    Eio.Resource.T ({ Sleeps.real; now = Mtime.of_uint64_ns 0L }, sleeps)
   else real
 
 (* The clock that [clock] waits on, if it is one of {!clock}'s. *)

@@ -100,9 +100,11 @@ Initial release of `console` and `console-eio`.
   alone, and sets the theme of both (`~theme`). `Console_eio.run` decides
   only for the outputs the program left alone (`Console_tty.ensure`).
 - Tests. `CONSOLE_DETERMINISTIC_CLOCK`, set and not empty, stops the
-  display's clock at zero, or, on a clock of `Console_eio.clock`, moves it
-  by exactly each sleep, so a cram test of a program's progress reads the
-  same on every machine.
+  display's clock at zero, or makes the time of a clock of
+  `Console_eio.clock` the sum of the sleeps on it that ended, each sleep
+  still lasting its duration, so a cram test of a program's progress reads
+  the same on every machine, whatever the program does between its sleeps.
+
 - Two small libraries in the `console` package: `console.text`
   (`Console_text`) makes untrusted text safe to print, without the
   characters that Unicode makes default ignorable, which reorder or hide

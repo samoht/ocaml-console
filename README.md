@@ -547,32 +547,36 @@ ready
 The elapsed times are the only part of the output that changes from one
 machine to another. When `CONSOLE_DETERMINISTIC_CLOCK` is set to a value
 other than the empty string, `Console_eio.run` reads a clock stopped at
-zero:
+zero, unless the program gives it one of `Console_eio.clock` (below):
 
 - every elapsed time reads `0.0s`;
 - no rate is shown;
 - the spinners and the motion stand still.
 
 A [Dune](https://dune.build/) cram test of the program's output
-then reads the same on every machine. This one runs the `build` function
-from [Progress rows](#progress-rows), compiled as an executable:
+then reads the same on every machine. Dune runs it without a UTF-8
+locale, so the program draws its marks in ASCII. This one runs the
+`build` function from [Progress rows](#progress-rows), compiled as an
+executable:
 
 <!-- $MDX skip -->
 ```sh
   $ export CONSOLE_DETERMINISTIC_CLOCK=1
   $ build 2>&1 | cat
-  • compile
-    › compile: ocamlopt parser.ml
-  ✓ compile  2/2  0.0s
-  ✓ Building 0.0s (1/1)
+  [-] compile
+    # compile: ocamlopt parser.ml
+  [+] compile  2/2  0.0s
+  [+] Building 0.0s (1/1)
 ```
 
-A program that waits on the clock `Console_eio.clock` gives it, and passes
-that clock to `Console_eio.run`, keeps its times under the variable: the
-clock's time moves by exactly the length of each wait, so the times read
-the same on every run and the rows still move as the program runs.
-examples/columns waits on that clock, so its recording above shows the
-times a test checks.
+A program that sleeps on the clock `Console_eio.clock` gives it, and
+passes that clock to `Console_eio.run`, keeps its times under the
+variable: the clock's time is the sum of the sleeps that ended, whatever
+the program does between them, and each sleep still lasts its duration.
+The times then read the same on every machine, and the rows still move as
+the program runs. The examples wait on that clock, so their recordings
+show the times a test checks.
+
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes

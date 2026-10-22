@@ -279,7 +279,7 @@ its members with accessors such as {!Console.Progress.Event.val-kind} and
 The elapsed times are the only part of the output that changes from one
 machine to another. When [CONSOLE_DETERMINISTIC_CLOCK] is set to a value
 other than the empty string, {!Console_eio.run} reads a clock stopped at
-zero:
+zero, unless the program gives it one of {!Console_eio.clock} (below):
 
 {ul
 {- every time reads [0.0s];}
@@ -287,8 +287,9 @@ zero:
 {- the spinners and the motion stand still.}}
 
 A {{:https://dune.build/}Dune} cram test of [check] then reads
-the same on every machine. It needs a [dune] stanza that makes [check]
-available:
+the same on every machine. Dune runs it without a UTF-8 locale, so [check]
+draws its marks and its table in ASCII. It needs a [dune] stanza that
+makes [check] available:
 
 {v
 (cram
@@ -300,25 +301,27 @@ and a file, [check.t], with the session it expects:
 {v
   $ export CONSOLE_DETERMINISTIC_CLOCK=1
   $ check 2>&1
-  • parser
+  [-] parser
     parser: 3 tests passed
-  ✓ parser  3/3  0.0s
-  • layout
+  [+] parser  3/3  0.0s
+  [-] layout
     layout: 2 tests passed
-  ✓ layout  2/2  0.0s
-  ✓ Testing 0.0s (2/2)
-  ╭────────┬───────╮
-  │ Suite  │ Tests │
-  ├────────┼───────┤
-  │ parser │     3 │
-  │ layout │     2 │
-  ╰────────┴───────╯
+  [+] layout  2/2  0.0s
+  [+] Testing 0.0s (2/2)
+  +--------+-------+
+  | Suite  | Tests |
+  +--------+-------+
+  | parser |     3 |
+  | layout |     2 |
+  +--------+-------+
 v}
 
-A program that waits on the clock {!Console_eio.clock} gives it, and
+A program that sleeps on the clock {!Console_eio.clock} gives it, and
 passes that clock to {!Console_eio.run}, keeps its times: the clock's time
-moves by exactly the length of each wait, so the times read the same on
-every run ({{!Console_eio.section-deterministic}a deterministic clock}).
+is the sum of the sleeps that ended, whatever the program does between
+them, so the times read the same on every machine
+({{!Console_eio.section-deterministic}a deterministic clock}).
+
 
 The widgets need no clock at all. [Console.Table.to_string] and the other
 [to_string] functions return the text that a unit test compares, without

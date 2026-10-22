@@ -167,20 +167,37 @@ val run :
     {2:deterministic A deterministic clock}
 
     [CONSOLE_DETERMINISTIC_CLOCK], set in the environment to a value other than
-    the empty string, makes the time the display reads depend on the program
-    alone, so that the progress a test captures from the program reads the same
-    on every machine. On a clock that {!clock} made, the time moves by exactly
-    the duration of each sleep on it. On any other clock it stays at zero:
-    - every elapsed time reads [0.0s], and every [time] and [elapsed] of a
-      {{!Console.Progress.json}JSON event} reads [0];
+    the empty string, makes the time the display reads depend on the program's
+    sleeps alone, so that the progress a test captures from the program reads
+    the same on every machine.
+
+    On a clock that {!clock} made, the time is the sum of the sleeps on it that
+    ended, and never the real time. Each sleep still waits its whole duration on
+    the clock behind it, so the rows move as the program runs, but what the
+    program does between two sleeps, and how long that takes, does not change
+    the times it shows or the [time] and [elapsed] of its
+    {{!Console.Progress.json}JSON events}. Fibers that sleep at once each add
+    their sleep when it ends, so a task counts the sleeps of the other fibers
+    that end while it runs, and the times depend on the order in which the
+    sleeps end, which their durations set when nothing else runs long.
+
+    [Eio.Time.with_timeout] on such a clock times out after its duration on the
+    clock behind it, as it would without the variable. A timeout that fires
+    counts as a sleep that ended, and one that the function beats counts
+    nothing.
+
+    On any other clock the time stays at zero:
+    - every elapsed time reads [0.0s], and every [time] and [elapsed] of a JSON
+      event reads [0];
     - no rate shows;
     - the spinners and the motion stand still.
 
-    The redraws still wait on the clock behind it, and do not move its time. *)
+    The redraws wait on the clock behind it, and do not move its time. *)
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]},
-    a clock that reads the time its latest sleep ended at. A sleep of [d] on it
-    waits on [c] until [d] after the time it read when the sleep started, and
-    then reads that time, so the elapsed times, the rates and the spinners of a
-    display that {!run} draws on it follow the program's sleeps. *)
+    a clock whose time starts at zero and is the sum of the sleeps on it that
+    ended. A sleep until [t] on it waits [d] on [c], with [d] the time from its
+    own time when the sleep starts to [t], then adds [d] to its time, so the
+    elapsed times, the rates and the spinners of a display that {!run} draws on
+    it follow the program's sleeps. *)

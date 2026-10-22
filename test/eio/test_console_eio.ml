@@ -47,19 +47,26 @@ let with_env bindings f =
       List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
 (* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
-   of a mock clock, which moves to five seconds at once. *)
+   of a mock clock, which moves to the end of each sleep in turn. *)
 let sleeps () =
   Eio_main.run @@ fun _ ->
   let mock = Eio_mock.Clock.Mono.make () in
   let clock = Console_eio.clock mock in
   let buf, ppf = buffer () in
+  let slept = ref false in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Display.with_task display "nap" (fun _ ->
           Eio.Fiber.both
             (fun () ->
               Eio.Time.Mono.sleep clock 1.5;
-              Eio.Time.Mono.sleep clock 0.5)
-            (fun () -> Eio_mock.Clock.Mono.set_time mock (seconds 5.))));
+              Eio.Time.Mono.sleep clock 0.5;
+              slept := true)
+            (fun () ->
+              while not !slept do
+                Eio.Fiber.yield ();
+                Eio_mock.Clock.Mono.advance mock
+              done)));
+
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
