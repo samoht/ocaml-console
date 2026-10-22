@@ -218,9 +218,29 @@ let test_no_scroll () =
   List.iter Display.succeed tasks;
   Display.close d
 
+(* Window lines give way by age, including across a parent and its child. *)
+let test_window_age () =
+  let t = terminal ~width:60 ~height:4 () in
+  let d = t.display in
+  let parent = Display.task d "parent" in
+  let child = Display.task ~parent d "child" in
+  Display.log child "older";
+  t.advance 1.;
+  Display.log parent "newer";
+  Display.redraw d;
+  let rows = screen t in
+  Display.close d;
+  Alcotest.(check int) "the region fits" 3 (List.length rows);
+  Alcotest.(check bool) "the newest window line stays" true
+    (List.exists (contains "newer") rows);
+  Alcotest.(check bool) "the oldest window line gives way" false
+    (List.exists (contains "older") rows)
+
 let suite =
   ( "layout",
     [
+      Alcotest.test_case "windows give way oldest first across tasks" `Quick
+        test_window_age;
       Alcotest.test_case "the summary is the last line" `Quick test_summary_last;
       Alcotest.test_case "a tree moves whole" `Quick test_tree_moves;
       Alcotest.test_case "three levels, endings interleaved" `Quick
