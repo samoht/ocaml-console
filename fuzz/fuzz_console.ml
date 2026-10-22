@@ -24,7 +24,11 @@ let width = Width.string_width
    line's, and no line is wider than the spans' widths and gaps. *)
 let test_hcat texts gap =
   let gap = gap mod 5 in
-  let blocks = List.map (fun s -> lines (text s)) texts in
+  (* A span with no text takes no column. *)
+  let kept =
+    List.filter (fun s -> Span.height (Span.text (text s)) > 0) texts
+  in
+  let blocks = List.map (fun s -> lines (text s)) kept in
   let out =
     Span.to_string
       (Span.hcat ~gap (List.map (fun s -> Span.text (text s)) texts))

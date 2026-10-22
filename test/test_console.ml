@@ -136,7 +136,7 @@ let text = Span.text
 
 (* [hcat] puts spans side by side, [gap] spaces apart, each padded to its
    widest line and a shorter one with blank lines, a line ending at its last
-   span that has text there. *)
+   span that has text there, and a span with no text left out. *)
 let test_hcat () =
   Alcotest.(check string)
     "side by side" "a    1\nbbb  2\n     3"
@@ -149,6 +149,9 @@ let test_hcat () =
     (side [ text "a\n"; text "1\n2" ]);
   Alcotest.(check string) "one span" "a\nb" (side [ text "a\nb" ]);
   Alcotest.(check string) "none" "" (side []);
+  Alcotest.(check string)
+    "an empty span takes no gap" "a  b"
+    (side [ text "a"; Span.empty; text "b" ]);
   let panel = Panel.v (Span.text "p") and tree = Tree.v (Span.text "t") [] in
   let panel_lines = lines (Panel.to_string panel) in
   Alcotest.(check (list string))

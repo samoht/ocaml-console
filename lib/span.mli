@@ -91,7 +91,9 @@ val hcat : ?gap:int -> t list -> t
     [2]).
 
     - Its line [i] is the line [i] of each span. Each span but the last is
-      padded to its {!width}, and a span with fewer lines gives blank ones.
+      padded to its {!width}, and a span with fewer lines gives blank ones. A
+      span with no text, such as {!empty}, takes no column and no gap, as it
+      takes no line in {!vcat}.
     - A line ends at its last span with text on it, so no line ends with spaces
       that [hcat] adds.
 

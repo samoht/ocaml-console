@@ -387,7 +387,7 @@ let spaces n = if n <= 0 then empty else text (String.make n ' ')
 let hcat ?(gap = 2) spans =
   if gap < 0 then invalid_arg "Console.Span.hcat: negative gap";
   let blocks =
-    spans
+    List.filter (fun s -> not (is_empty s)) spans
     |> List.map (fun s -> (Array.of_list (seamed s), width s))
     |> Array.of_list
   in
