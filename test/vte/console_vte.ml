@@ -70,6 +70,7 @@ let complete s =
 
 (* A tty with output processing on writes each line feed as CR LF. *)
 let feed t s =
+  let s = Matrix_fix.backspace s in
   Buffer.add_string t.pending
     (if t.raw then s else String.concat "\r\n" (String.split_on_char '\n' s));
   let s = Buffer.contents t.pending in
@@ -81,10 +82,9 @@ let feed t s =
     Vte.feed_string t.vte (Buffer.contents out);
     Buffer.clear out
   in
-  let b = Bytes.unsafe_of_string s in
   for i = 0 to n - 1 do
     Buffer.add_char out s.[i];
-    Ansi.Parser.feed t.scan b ~off:i ~len:1 (scan t);
+    Matrix_fix.scan t.scan s i (scan t);
     match t.split with
     | None -> ()
     | Some k ->
