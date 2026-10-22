@@ -13,7 +13,6 @@
   console.text
   console_vte
   matrix.ansi
-  matrix.glyph
   display_harness
   matrix.grid
   matrix.vte
@@ -22,4 +21,6 @@
   re
   jsont
   jsont.bytesrw
+  uucp
+  uuseg
   fmt))

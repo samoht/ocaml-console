@@ -1163,12 +1163,7 @@ let border_glyphs =
       ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters s =
-  let l = ref [] in
-  Glyph.String.iter_graphemes
-    (fun ~offset ~len -> l := String.sub s offset len :: !l)
-    s;
-  List.rev !l
+let clusters = Width.clusters
 
 (* A table's frame moves in a live display drawn in a theme with motion:
    from one frame to the next, only its border cells change, each to a glyph

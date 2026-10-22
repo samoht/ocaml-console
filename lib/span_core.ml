@@ -217,10 +217,10 @@ let layout line =
     }
   else begin
     let starts = ref [] and widths = ref [] and n = ref 0 in
-    Glyph.String.iter_graphemes
-      (fun ~offset ~len ->
+    Width.iter_clusters
+      (fun ~offset ~len:_ ~cells ->
         starts := offset :: !starts;
-        widths := Width.sub_width text ~pos:offset ~len :: !widths;
+        widths := cells :: !widths;
         incr n)
       text;
     let starts = Array.of_list (List.rev !starts) in

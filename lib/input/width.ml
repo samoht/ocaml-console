@@ -3,231 +3,189 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let clusters s =
-  let l = ref [] in
-  Glyph.String.iter_graphemes
-    (fun ~offset ~len -> l := String.sub s offset len :: !l)
-    s;
-  List.rev !l
-
 let is_ascii s = String.for_all Char.Ascii.is_print s
 
-(* The characters VS16 can show as an emoji, the bases of
-   emoji-variation-sequences.txt (Unicode 16.0), as ranges. *)
-let vs16_bases =
-  [|
-    (0x23, 0x23); (0x2a, 0x2a); (0x30, 0x39); (0xa9, 0xa9); (0xae, 0xae);
-    (0x203c, 0x203c); (0x2049, 0x2049); (0x2122, 0x2122); (0x2139, 0x2139);
-    (0x2194, 0x2199); (0x21a9, 0x21aa); (0x231a, 0x231b); (0x2328, 0x2328);
-    (0x23cf, 0x23cf); (0x23e9, 0x23f3); (0x23f8, 0x23fa); (0x24c2, 0x24c2);
-    (0x25aa, 0x25ab); (0x25b6, 0x25b6); (0x25c0, 0x25c0); (0x25fb, 0x25fe);
-    (0x2600, 0x2604); (0x260e, 0x260e); (0x2611, 0x2611); (0x2614, 0x2615);
-    (0x2618, 0x2618); (0x261d, 0x261d); (0x2620, 0x2620); (0x2622, 0x2623);
-    (0x2626, 0x2626); (0x262a, 0x262a); (0x262e, 0x262f); (0x2638, 0x263a);
-    (0x2640, 0x2640); (0x2642, 0x2642); (0x2648, 0x2653); (0x265f, 0x2660);
-    (0x2663, 0x2663); (0x2665, 0x2666); (0x2668, 0x2668); (0x267b, 0x267b);
-    (0x267e, 0x267f); (0x2692, 0x2697); (0x2699, 0x2699); (0x269b, 0x269c);
-    (0x26a0, 0x26a1); (0x26a7, 0x26a7); (0x26aa, 0x26ab); (0x26b0, 0x26b1);
-    (0x26bd, 0x26be); (0x26c4, 0x26c5); (0x26c8, 0x26c8); (0x26ce, 0x26cf);
-    (0x26d1, 0x26d1); (0x26d3, 0x26d4); (0x26e9, 0x26ea); (0x26f0, 0x26f5);
-    (0x26f7, 0x26fa); (0x26fd, 0x26fd); (0x2702, 0x2702); (0x2705, 0x2705);
-    (0x2708, 0x270d); (0x270f, 0x270f); (0x2712, 0x2712); (0x2714, 0x2714);
-    (0x2716, 0x2716); (0x271d, 0x271d); (0x2721, 0x2721); (0x2728, 0x2728);
-    (0x2733, 0x2734); (0x2744, 0x2744); (0x2747, 0x2747); (0x274c, 0x274c);
-    (0x274e, 0x274e); (0x2753, 0x2755); (0x2757, 0x2757); (0x2763, 0x2764);
-    (0x2795, 0x2797); (0x27a1, 0x27a1); (0x27b0, 0x27b0); (0x27bf, 0x27bf);
-    (0x2934, 0x2935); (0x2b05, 0x2b07); (0x2b1b, 0x2b1c); (0x2b50, 0x2b50);
-    (0x2b55, 0x2b55); (0x3030, 0x3030); (0x303d, 0x303d); (0x3297, 0x3297);
-    (0x3299, 0x3299); (0x1f004, 0x1f004); (0x1f170, 0x1f171);
-    (0x1f17e, 0x1f17f); (0x1f202, 0x1f202); (0x1f21a, 0x1f21a);
-    (0x1f22f, 0x1f22f); (0x1f237, 0x1f237); (0x1f30d, 0x1f30f);
-    (0x1f315, 0x1f315); (0x1f31c, 0x1f31c); (0x1f321, 0x1f321);
-    (0x1f324, 0x1f32c); (0x1f336, 0x1f336); (0x1f378, 0x1f378);
-    (0x1f37d, 0x1f37d); (0x1f393, 0x1f393); (0x1f396, 0x1f397);
-    (0x1f399, 0x1f39b); (0x1f39e, 0x1f39f); (0x1f3a7, 0x1f3a7);
-    (0x1f3ac, 0x1f3ae); (0x1f3c2, 0x1f3c2); (0x1f3c4, 0x1f3c4);
-    (0x1f3c6, 0x1f3c6); (0x1f3ca, 0x1f3ce); (0x1f3d4, 0x1f3e0);
-    (0x1f3ed, 0x1f3ed); (0x1f3f3, 0x1f3f3); (0x1f3f5, 0x1f3f5);
-    (0x1f3f7, 0x1f3f7); (0x1f408, 0x1f408); (0x1f415, 0x1f415);
-    (0x1f41f, 0x1f41f); (0x1f426, 0x1f426); (0x1f43f, 0x1f43f);
-    (0x1f441, 0x1f442); (0x1f446, 0x1f449); (0x1f44d, 0x1f44e);
-    (0x1f453, 0x1f453); (0x1f46a, 0x1f46a); (0x1f47d, 0x1f47d);
-    (0x1f4a3, 0x1f4a3); (0x1f4b0, 0x1f4b0); (0x1f4b3, 0x1f4b3);
-    (0x1f4bb, 0x1f4bb); (0x1f4bf, 0x1f4bf); (0x1f4cb, 0x1f4cb);
-    (0x1f4da, 0x1f4da); (0x1f4df, 0x1f4df); (0x1f4e4, 0x1f4e6);
-    (0x1f4ea, 0x1f4ed); (0x1f4f7, 0x1f4f7); (0x1f4f9, 0x1f4fb);
-    (0x1f4fd, 0x1f4fd); (0x1f508, 0x1f508); (0x1f50d, 0x1f50d);
-    (0x1f512, 0x1f513); (0x1f549, 0x1f54a); (0x1f550, 0x1f567);
-    (0x1f56f, 0x1f570); (0x1f573, 0x1f579); (0x1f587, 0x1f587);
-    (0x1f58a, 0x1f58d); (0x1f590, 0x1f590); (0x1f5a5, 0x1f5a5);
-    (0x1f5a8, 0x1f5a8); (0x1f5b1, 0x1f5b2); (0x1f5bc, 0x1f5bc);
-    (0x1f5c2, 0x1f5c4); (0x1f5d1, 0x1f5d3); (0x1f5dc, 0x1f5de);
-    (0x1f5e1, 0x1f5e1); (0x1f5e3, 0x1f5e3); (0x1f5e8, 0x1f5e8);
-    (0x1f5ef, 0x1f5ef); (0x1f5f3, 0x1f5f3); (0x1f5fa, 0x1f5fa);
-    (0x1f610, 0x1f610); (0x1f687, 0x1f687); (0x1f68d, 0x1f68d);
-    (0x1f691, 0x1f691); (0x1f694, 0x1f694); (0x1f698, 0x1f698);
-    (0x1f6ad, 0x1f6ad); (0x1f6b2, 0x1f6b2); (0x1f6b9, 0x1f6ba);
-    (0x1f6bc, 0x1f6bc); (0x1f6cb, 0x1f6cb); (0x1f6cd, 0x1f6cf);
-    (0x1f6e0, 0x1f6e5); (0x1f6e9, 0x1f6e9); (0x1f6f0, 0x1f6f0);
-    (0x1f6f3, 0x1f6f3);
-  |]
-[@@ocamlformat "disable"]
+let is_ascii_sub s ~pos ~len =
+  let rec go i = i >= pos + len || (Char.Ascii.is_print s.[i] && go (i + 1)) in
+  go pos
 
-(* The spacing combining marks, general category Mc (Unicode 16.0), as
-   ranges. *)
-let spacing_marks =
-  [|
-    (0x903, 0x903); (0x93b, 0x93b); (0x93e, 0x940); (0x949, 0x94c);
-    (0x94e, 0x94f); (0x982, 0x983); (0x9be, 0x9c0); (0x9c7, 0x9c8);
-    (0x9cb, 0x9cc); (0x9d7, 0x9d7); (0xa03, 0xa03); (0xa3e, 0xa40);
-    (0xa83, 0xa83); (0xabe, 0xac0); (0xac9, 0xac9); (0xacb, 0xacc);
-    (0xb02, 0xb03); (0xb3e, 0xb3e); (0xb40, 0xb40); (0xb47, 0xb48);
-    (0xb4b, 0xb4c); (0xb57, 0xb57); (0xbbe, 0xbbf); (0xbc1, 0xbc2);
-    (0xbc6, 0xbc8); (0xbca, 0xbcc); (0xbd7, 0xbd7); (0xc01, 0xc03);
-    (0xc41, 0xc44); (0xc82, 0xc83); (0xcbe, 0xcbe); (0xcc0, 0xcc4);
-    (0xcc7, 0xcc8); (0xcca, 0xccb); (0xcd5, 0xcd6); (0xcf3, 0xcf3);
-    (0xd02, 0xd03); (0xd3e, 0xd40); (0xd46, 0xd48); (0xd4a, 0xd4c);
-    (0xd57, 0xd57); (0xd82, 0xd83); (0xdcf, 0xdd1); (0xdd8, 0xddf);
-    (0xdf2, 0xdf3); (0xf3e, 0xf3f); (0xf7f, 0xf7f); (0x102b, 0x102c);
-    (0x1031, 0x1031); (0x1038, 0x1038); (0x103b, 0x103c); (0x1056, 0x1057);
-    (0x1062, 0x1064); (0x1067, 0x106d); (0x1083, 0x1084); (0x1087, 0x108c);
-    (0x108f, 0x108f); (0x109a, 0x109c); (0x1715, 0x1715); (0x1734, 0x1734);
-    (0x17b6, 0x17b6); (0x17be, 0x17c5); (0x17c7, 0x17c8); (0x1923, 0x1926);
-    (0x1929, 0x192b); (0x1930, 0x1931); (0x1933, 0x1938); (0x1a19, 0x1a1a);
-    (0x1a55, 0x1a55); (0x1a57, 0x1a57); (0x1a61, 0x1a61); (0x1a63, 0x1a64);
-    (0x1a6d, 0x1a72); (0x1b04, 0x1b04); (0x1b35, 0x1b35); (0x1b3b, 0x1b3b);
-    (0x1b3d, 0x1b41); (0x1b43, 0x1b44); (0x1b82, 0x1b82); (0x1ba1, 0x1ba1);
-    (0x1ba6, 0x1ba7); (0x1baa, 0x1baa); (0x1be7, 0x1be7); (0x1bea, 0x1bec);
-    (0x1bee, 0x1bee); (0x1bf2, 0x1bf3); (0x1c24, 0x1c2b); (0x1c34, 0x1c35);
-    (0x1ce1, 0x1ce1); (0x1cf7, 0x1cf7); (0x302e, 0x302f); (0xa823, 0xa824);
-    (0xa827, 0xa827); (0xa880, 0xa881); (0xa8b4, 0xa8c3); (0xa952, 0xa953);
-    (0xa983, 0xa983); (0xa9b4, 0xa9b5); (0xa9ba, 0xa9bb); (0xa9be, 0xa9c0);
-    (0xaa2f, 0xaa30); (0xaa33, 0xaa34); (0xaa4d, 0xaa4d); (0xaa7b, 0xaa7b);
-    (0xaa7d, 0xaa7d); (0xaaeb, 0xaaeb); (0xaaee, 0xaaef); (0xaaf5, 0xaaf5);
-    (0xabe3, 0xabe4); (0xabe6, 0xabe7); (0xabe9, 0xabea); (0xabec, 0xabec);
-    (0x11000, 0x11000); (0x11002, 0x11002); (0x11082, 0x11082);
-    (0x110b0, 0x110b2); (0x110b7, 0x110b8); (0x1112c, 0x1112c);
-    (0x11145, 0x11146); (0x11182, 0x11182); (0x111b3, 0x111b5);
-    (0x111bf, 0x111c0); (0x111ce, 0x111ce); (0x1122c, 0x1122e);
-    (0x11232, 0x11233); (0x11235, 0x11235); (0x112e0, 0x112e2);
-    (0x11302, 0x11303); (0x1133e, 0x1133f); (0x11341, 0x11344);
-    (0x11347, 0x11348); (0x1134b, 0x1134d); (0x11357, 0x11357);
-    (0x11362, 0x11363); (0x113b8, 0x113ba); (0x113c2, 0x113c2);
-    (0x113c5, 0x113c5); (0x113c7, 0x113ca); (0x113cc, 0x113cd);
-    (0x113cf, 0x113cf); (0x11435, 0x11437); (0x11440, 0x11441);
-    (0x11445, 0x11445); (0x114b0, 0x114b2); (0x114b9, 0x114b9);
-    (0x114bb, 0x114be); (0x114c1, 0x114c1); (0x115af, 0x115b1);
-    (0x115b8, 0x115bb); (0x115be, 0x115be); (0x11630, 0x11632);
-    (0x1163b, 0x1163c); (0x1163e, 0x1163e); (0x116ac, 0x116ac);
-    (0x116ae, 0x116af); (0x116b6, 0x116b6); (0x1171e, 0x1171e);
-    (0x11720, 0x11721); (0x11726, 0x11726); (0x1182c, 0x1182e);
-    (0x11838, 0x11838); (0x11930, 0x11935); (0x11937, 0x11938);
-    (0x1193d, 0x1193d); (0x11940, 0x11940); (0x11942, 0x11942);
-    (0x119d1, 0x119d3); (0x119dc, 0x119df); (0x119e4, 0x119e4);
-    (0x11a39, 0x11a39); (0x11a57, 0x11a58); (0x11a97, 0x11a97);
-    (0x11c2f, 0x11c2f); (0x11c3e, 0x11c3e); (0x11ca9, 0x11ca9);
-    (0x11cb1, 0x11cb1); (0x11cb4, 0x11cb4); (0x11d8a, 0x11d8e);
-    (0x11d93, 0x11d94); (0x11d96, 0x11d96); (0x11ef5, 0x11ef6);
-    (0x11f03, 0x11f03); (0x11f34, 0x11f35); (0x11f3e, 0x11f3f);
-    (0x11f41, 0x11f41); (0x1612a, 0x1612c); (0x16f51, 0x16f87);
-    (0x16ff0, 0x16ff1); (0x1d165, 0x1d166); (0x1d16d, 0x1d172);
-  |]
-[@@ocamlformat "disable"]
+let is_mark u = Uucp.Gc.general_category u = `Mc
+let is_spacing_mark c = Uchar.is_valid c && is_mark (Uchar.unsafe_of_int c)
 
-let mem ranges c =
-  let rec go lo hi =
-    if lo > hi then false
+(* A character that is text by default and that VS16 shows as an emoji:
+   emoji, with no emoji presentation, the bases of
+   emoji-variation-sequences.txt. *)
+let is_text_emoji u =
+  Uucp.Emoji.is_emoji u && not (Uucp.Emoji.is_emoji_presentation u)
+
+let is_regional_indicator u =
+  let c = Uchar.to_int u in
+  0x1f1e6 <= c && c <= 0x1f1ff
+
+let vs16 = Uchar.of_int 0xfe0f
+
+(* What the widths read of a character, from uucp, in a byte: its cells
+   (bits 0-1), whether it is a spacing mark (bit 2) and a text emoji (bit
+   3), with bit 4 set. *)
+let props_of u =
+  let w = max 0 (Uucp.Break.tty_width_hint u) in
+  w
+  lor (if w > 0 && is_mark u then 4 else 0)
+  lor (if is_text_emoji u then 8 else 0)
+  lor 16
+
+(* The bytes of [props_of] for the first two planes, where most text is,
+   each computed once as it is first read: uucp's lookups of general
+   category and East Asian width take tens of nanoseconds and allocate. A
+   byte read as 0 by a domain racing another's write is computed again. *)
+let cached = Bytes.make 0x20000 '\000'
+
+let props u =
+  let c = Uchar.to_int u in
+  if c >= 0x20000 then props_of u
+  else
+    let p = Char.code (Bytes.unsafe_get cached c) in
+    if p <> 0 then p
     else
-      let mid = (lo + hi) / 2 in
-      let first, last = ranges.(mid) in
-      if c < first then go lo (mid - 1)
-      else if c > last then go (mid + 1) hi
-      else true
+      let p = props_of u in
+      Bytes.unsafe_set cached c (Char.unsafe_chr p);
+      p
+
+(* The character of [s] at [i], read no further than [stop], as
+   [String.sub s i (stop - i)] reads it. *)
+let decode s i stop =
+  let d = String.get_utf_8_uchar s i in
+  if i + Uchar.utf_decode_length d <= stop then d
+  else String.get_utf_8_uchar (String.sub s i (stop - i)) 0
+
+(* The cluster under way: where it starts, the cells of its widest
+   character, those of its spacing marks, its regional indicators, whether
+   a VS16 shows it as an emoji, and whether its last character is a text
+   emoji. *)
+type cluster = {
+  mutable start : int;
+  mutable widest : int;
+  mutable marks : int;
+  mutable ris : int;
+  mutable emoji : bool;
+  mutable after_text_emoji : bool;
+}
+
+(* A cluster takes the cells of its widest character, two for an emoji
+   sequence, plus those of each spacing mark after its first character. *)
+let cells c =
+  (if c.emoji || c.ris >= 2 then max c.widest 2 else c.widest) + c.marks
+
+let start c at =
+  c.start <- at;
+  c.widest <- 0;
+  c.marks <- 0;
+  c.ris <- 0;
+  c.emoji <- false;
+  c.after_text_emoji <- false
+
+(* Add [u], at [at], to the cluster under way. *)
+let take c u at =
+  let p = props u in
+  let w = p land 3 in
+  if at > c.start && p land 4 <> 0 then c.marks <- c.marks + w
+  else begin
+    if c.after_text_emoji && Uchar.equal u vs16 then c.emoji <- true;
+    if is_regional_indicator u then c.ris <- c.ris + 1;
+    if w > c.widest then c.widest <- w
+  end;
+  c.after_text_emoji <- p land 8 <> 0
+
+(* [segment f acc s ~pos ~len] folds [f] over the grapheme clusters
+   (UAX #29) of [s] from [pos] for [len] bytes, given as their offset,
+   length and cells. [out] is where the next character the segmenter gives
+   back starts: the one just added at [i], of [n] bytes, or one before. *)
+let segment f acc s ~pos ~len =
+  let stop = pos + len in
+  let seg = Uuseg.create `Grapheme_cluster in
+  let c =
+    {
+      start = pos;
+      widest = 0;
+      marks = 0;
+      ris = 0;
+      emoji = false;
+      after_text_emoji = false;
+    }
   in
-  go 0 (Array.length ranges - 1)
-
-let is_vs16_base = mem vs16_bases
-let is_spacing_mark = mem spacing_marks
-
-(* [s] without the VS16 that follow a character they cannot show as an
-   emoji: such a selector selects nothing, and kitty, WezTerm and Ghostty
-   draw the character as it is. *)
-let without_stray_vs16 s =
-  let n = String.length s in
-  let b = Buffer.create n in
-  let rec go i prev =
-    if i < n then
-      let d = String.get_utf_8_uchar s i in
-      let len = Uchar.utf_decode_length d in
-      let c = Uchar.to_int (Uchar.utf_decode_uchar d) in
-      if c = 0xfe0f && not (is_vs16_base prev) then go (i + len) prev
+  let acc = ref acc and out = ref pos in
+  let close at =
+    if at > c.start then begin
+      acc := f !acc ~offset:c.start ~len:(at - c.start) ~cells:(cells c);
+      start c at
+    end
+  in
+  let rec drain i n = function
+    | `Boundary ->
+        close !out;
+        drain i n (Uuseg.add seg `Await)
+    | `Uchar u ->
+        take c u !out;
+        out :=
+          !out
+          + if !out = i then n else Uchar.utf_decode_length (decode s !out stop);
+        drain i n (Uuseg.add seg `Await)
+    | `Await | `End -> ()
+  in
+  let rec go i =
+    if i < stop then
+      if
+        i > pos && !out = i
+        && Char.Ascii.is_print s.[i - 1]
+        && Char.Ascii.is_print s.[i]
+        && (i + 1 = stop || Char.Ascii.is_print s.[i + 1])
+      then begin
+        (* Printable ASCII between printable ASCII is a cluster of one
+           cell (GB999), and the segmenter, whose last character is
+           printable ASCII too, is in the state it would be after it. *)
+        close i;
+        acc := f !acc ~offset:i ~len:1 ~cells:1;
+        start c (i + 1);
+        out := i + 1;
+        go (i + 1)
+      end
       else begin
-        Buffer.add_string b (String.sub s i len);
-        go (i + len) c
+        let d = decode s i stop in
+        let n = Uchar.utf_decode_length d in
+        drain i n (Uuseg.add seg (`Uchar (Uchar.utf_decode_uchar d)));
+        go (i + n)
       end
   in
-  go 0 (-1);
-  Buffer.contents b
+  go pos;
+  drain stop 0 (Uuseg.add seg `End);
+  close stop;
+  !acc
 
-(* VS16 is EF B8 8F in UTF-8. *)
-let contains_vs16 s ~pos ~len =
-  let rec go i =
-    i + 2 < pos + len
-    && ((s.[i] = '\xef' && s.[i + 1] = '\xb8' && s.[i + 2] = '\x8f')
-       || go (i + 1))
-  in
-  go pos
-
-(* The cells the spacing marks of [s] from [i] to [stop] take alone, two for
-   a wide one. *)
-let rec marks s i stop =
-  if i >= stop then 0
+(* A single character, such as a glyph of a frame, a bar or a spinner, is a
+   cluster alone and takes its own cells. *)
+let fold_cells f acc s ~pos ~len =
+  if len = 0 then acc
   else
-    let d = String.get_utf_8_uchar s i in
-    let next = i + Uchar.utf_decode_length d in
-    if is_spacing_mark (Uchar.to_int (Uchar.utf_decode_uchar d)) then
-      Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos:i
-        ~len:(next - i)
-      + marks s next stop
-    else marks s next stop
+    let d = decode s pos (pos + len) in
+    if Uchar.utf_decode_length d = len then
+      f acc ~offset:pos ~len ~cells:(props (Uchar.utf_decode_uchar d) land 3)
+    else segment f acc s ~pos ~len
 
-(* Whether a character of [s], from [pos] for [len] bytes, is at or past
-   U+0903, the first spacing mark. *)
-let may_have_marks s ~pos ~len =
-  let rec go i =
-    i < pos + len
-    &&
-    let d = String.get_utf_8_uchar s i in
-    Uchar.to_int (Uchar.utf_decode_uchar d) >= 0x903
-    || go (i + Uchar.utf_decode_length d)
-  in
-  go pos
+let iter_clusters f s =
+  fold_cells
+    (fun () ~offset ~len ~cells -> f ~offset ~len ~cells)
+    () s ~pos:0 ~len:(String.length s)
 
-(* The cells the spacing marks of [s] add to its clusters': xterm, VTE and
-   Ghostty draw a cluster with the cells of each spacing mark after its
-   first code point. *)
-let mark_cells s ~pos ~len =
-  if not (may_have_marks s ~pos ~len) then 0
-  else
-    let s = String.sub s pos len in
-    let cells = ref 0 in
-    Glyph.String.iter_graphemes
-      (fun ~offset ~len ->
-        let first = Uchar.utf_decode_length (String.get_utf_8_uchar s offset) in
-        cells := !cells + marks s (offset + first) (offset + len))
-      s;
-    !cells
+let clusters s =
+  List.rev
+    (fold_cells
+       (fun l ~offset ~len ~cells:_ -> String.sub s offset len :: l)
+       [] s ~pos:0 ~len:(String.length s))
 
-let glyph_width s =
-  Glyph.String.measure ~width_method:`Unicode ~tab_width:1
-    (if contains_vs16 s ~pos:0 ~len:(String.length s) then without_stray_vs16 s
-     else s)
+let sub_width s ~pos ~len =
+  if is_ascii_sub s ~pos ~len then len
+  else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
 
 let string_width s =
   if is_ascii s then String.length s
-  else glyph_width s + mark_cells s ~pos:0 ~len:(String.length s)
-
-let sub_width s ~pos ~len =
-  (if contains_vs16 s ~pos ~len then glyph_width (String.sub s pos len)
-   else Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos ~len)
-  + mark_cells s ~pos ~len
+  else sub_width s ~pos:0 ~len:(String.length s)

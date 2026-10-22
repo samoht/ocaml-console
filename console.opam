@@ -17,16 +17,16 @@ depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "5.4"}
   "fmt" {>= "0.9"}
-  "matrix" {>= "0.1.0" & < "0.2.0"}
+  "uucp" {>= "18.0.0"}
+  "uuseg" {>= "18.0.0"}
   "jsont" {>= "0.3.0"}
   "bytesrw"
+  "matrix" {with-test & >= "0.1.0" & < "0.2.0"}
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}
   "alcobar" {with-test & >= "0.3.2"}
   "re" {with-test}
-  "uucp" {with-test & >= "18.0.0"}
-  "uuseg" {with-test & >= "18.0.0"}
   "odoc" {with-doc}
 ]
 build: [

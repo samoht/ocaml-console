@@ -25,20 +25,20 @@
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
-  ; The released matrix. Its emulator lacks fixes some tests need, which
-  ; are skipped until console moves to matrix 0.2.0.
-  (matrix (and (>= 0.1.0) (< 0.2.0)))
+  (uucp (>= 18.0.0))
+  (uuseg (>= 18.0.0))
   ; jsont.bytesrw, which writes and reads the JSON events, is built only
   ; where bytesrw is installed.
   (jsont (>= 0.3.0))
   bytesrw
+  ; The tests' terminal emulator, from the released matrix. It lacks fixes
+  ; some tests need, which are skipped until console moves to matrix 0.2.0.
+  (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
-  (re :with-test)
-  (uucp (and :with-test (>= 18.0.0)))
-  (uuseg (and :with-test (>= 18.0.0)))))
+  (re :with-test)))
 
 (package
  (name console-eio)

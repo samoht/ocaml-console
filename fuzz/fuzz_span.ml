@@ -122,12 +122,7 @@ let test_truncate_closes s n =
    character every non-space one is kept, in order. *)
 (* The cells of the widest cluster of [s]. *)
 let widest s =
-  let w = ref 0 in
-  Glyph.String.iter_graphemes
-    (fun ~offset ~len ->
-      w := max !w (Width.string_width (String.sub s offset len)))
-    s;
-  !w
+  List.fold_left (fun w c -> max w (Width.string_width c)) 0 (Width.clusters s)
 
 (* Every character is kept but those wider than a line, which cannot be
    drawn. *)
@@ -287,6 +282,7 @@ let test_linked_unicode_cuts s n =
   check_eq ~pp:Fmt.int
     (occurrences "\027]8;;https://example.invalid\027\\")
     (occurrences "\027]8;;\027\\");
+  Matrix_0_1.discard_newer_unicode line;
   let vte = Console_vte.v ~rows:1 ~cols:81 () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int (Span.width fitted) (snd (Console_vte.cursor_pos vte))

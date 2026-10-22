@@ -11,7 +11,8 @@
   console.text
   console_vte
   display_harness
-  matrix.glyph
   matrix.vte
+  uucp
+  uuseg
   fmt
   alcotest))

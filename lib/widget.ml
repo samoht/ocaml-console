@@ -102,9 +102,8 @@ let fill n glyph =
     else
       let rest = n mod gw in
       let part = Buffer.create rest and used = ref 0 and full = ref false in
-      Glyph.String.iter_graphemes
-        (fun ~offset ~len ->
-          let w = Width.sub_width glyph ~pos:offset ~len in
+      Width.iter_clusters
+        (fun ~offset ~len ~cells:w ->
           if (not !full) && !used + w <= rest then begin
             Buffer.add_substring part glyph offset len;
             used := !used + w

@@ -9,7 +9,7 @@
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt jsont jsont.bytesrw matrix.glyph)
+ (libraries console.text fmt jsont jsont.bytesrw uucp uuseg)
  (private_modules
   border_motion
   capturing

@@ -15,16 +15,18 @@ cannot silently fall behind the suite.
 The tests read the screen through `test/vte`, an emulator that hands
 matrix.vte only what it reads as xterm does (`test/test_console_vte.ml`
 "controls from the last column", unit). The emulator measures with
-console's own code, so the tests also count cells against what real
-terminals show (`test/input/test_width.ml` "as real terminals show it",
-unit).
+matrix's code and console with uuseg and uucp, so the tests also count
+console's cells against a model of its width policy written on uuseg and
+uucp alone (`fuzz/fuzz_width.ml` "follows the policy", property) and
+against what real terminals show (`test/input/test_width.ml` "as real
+terminals show it", unit).
 
 ## What a user can rely on
 
 | Invariant | Checked by |
 |---|---|
 | Columns line up: counts, rates and timers in the same columns whatever the labels, table cells aligned in every script | `test/test_display.ml` "alignment" (unit); `fuzz/fuzz_table.ml` "right-aligned cells line up" (property); `fuzz/fuzz_table.ml` "mixed-script columns align in every theme" (property) |
-| Wide characters and emoji keep alignment: a cluster takes the cells real terminals give it, and a cut keeps a selector or joiner with its character | `test/input/test_width.ml` "as real terminals show it" (unit); `fuzz/fuzz_span.ml` "cuts fit with joiners and selectors" (property); `fuzz/fuzz_width.ml` "matches the terminal" (property) |
+| Wide characters and emoji keep alignment: a cluster takes the cells real terminals give it, and a cut keeps a selector or joiner with its character | `test/input/test_width.ml` "as real terminals show it" (unit); `fuzz/fuzz_width.ml` "follows the policy" (property); `fuzz/fuzz_span.ml` "cuts fit with joiners and selectors" (property); `fuzz/fuzz_width.ml` "matches the terminal" (property) |
 | No line wider than the terminal, and no cut inside a character or an escape code | `fuzz/fuzz_display.ml` "screen guarantees" (property); `fuzz/fuzz_display.ml` "extreme terminal sizes keep region width and height bounded" (property); `test/test_display.ml` "a terminal of any width" (unit); `test/eio/test_terminal.ml` "absurd terminal dimensions are ignored" (unit); `fuzz/fuzz_span.ml` "linked Unicode cuts fit and keep complete escapes" (property) |
 | Widgets put together, every widget as a span in every other (a table in a panel in a table cell side by side in a scene, in roles, styles and gradients), keep every widget's guarantees: within the margin, as wide on the terminal as counted, plain text plus escape codes, deterministic, valid UTF-8, no escape without colour; a widget as a span is laid out as its `pp` lays it out, in the printing formatter's look, in the cells it takes in the default look | `fuzz/fuzz_console.ml` "any tree of widgets printed anywhere" (property); `test/test_console.ml` "widgets put together" (unit); `fuzz/fuzz_console.ml` "hcat lines are the blocks' widths and gaps" (property); `test/test_console.ml` "widgets as spans" (unit); `test/test_console.ml` "widgets nest as spans" (unit); `test/test_console.ml` "a widget span keeps its cells" (unit); `test/test_console.ml` "side by side goes in a panel" (unit) |
 | The terminal is restored after a return, an exception, a cancellation, `exit`, Ctrl-C and SIGTERM: cursor shown, first column, default colours, echo back | `test/eio/test_console_eio.ml` "the terminal is usable after every ending" (pty); `test/eio/test_console_eio.ml` "teardown on a terminal" (pty); `test/eio/test_console_eio.ml` "SIGINT restores the terminal cursor" (pty); `test/eio/test_console_eio.ml` "SIGINT during a password restores echo" (pty); `fuzz/fuzz_display.ml` "callback exceptions restore a usable terminal" (property); `fuzz/fuzz_display.ml` "scene exceptions leave the terminal usable" (property); `test/test_display.ml` "a scene exception still allows close" (unit) |

@@ -1,7 +1,7 @@
 # The cells real terminals give a string, from what each documents or
 # implements, and the cells console counts. The matrix emulator the other
-# tests read measures with the very code console does, so it cannot say
-# whether console is right; this table can.
+# tests read measures by its own rules, so it cannot say whether console
+# is right; this table can.
 #
 # Each row is: the string as Unicode code points, the cells in xterm, VTE,
 # kitty, WezTerm, Ghostty and iTerm2, then console's; "?" where the

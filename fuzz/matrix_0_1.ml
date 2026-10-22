@@ -36,3 +36,18 @@ let discard_dropped_mark s =
       || from (i + n)
   in
   discard_if (from 0)
+
+let is_newer_than_16 u =
+  match Uucp.Age.age u with
+  | `Version (major, _) -> major > 16
+  | `Unassigned -> false
+
+let discard_newer_unicode s =
+  let rec from i =
+    i < String.length s
+    &&
+    let d = String.get_utf_8_uchar s i in
+    is_newer_than_16 (Uchar.utf_decode_uchar d)
+    || from (i + Uchar.utf_decode_length d)
+  in
+  discard_if (from 0)

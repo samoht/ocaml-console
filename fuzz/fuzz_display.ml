@@ -923,12 +923,7 @@ let line_glyphs =
       [ c.top; c.left; c.right; c.bottom ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters s =
-  let l = ref [] in
-  Glyph.String.iter_graphemes
-    (fun ~offset ~len -> l := String.sub s offset len :: !l)
-    s;
-  List.rev !l
+let clusters = Width.clusters
 
 (* A table of [cells] from [labels], or a panel with them as its title and
    its lines. *)

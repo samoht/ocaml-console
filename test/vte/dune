@@ -5,4 +5,4 @@
 
 (library
  (name console_vte)
- (libraries matrix.ansi matrix.grid matrix.glyph matrix.vte))
+ (libraries matrix.ansi matrix.grid matrix.vte uucp uuseg))

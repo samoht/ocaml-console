@@ -15,10 +15,10 @@ Initial release of `console` and `console-eio`.
   span too, by its `to_span`, laid out when it is printed in the theme of
   the formatter that prints it, so widgets nest: a bar or a table in a
   cell, a table in a panel, and `Span.hcat` puts spans, widgets among
-  them, side by side, as one more span. Widths are
-  counted in terminal cells, wide characters and emoji included, a widget is
-  no wider than its formatter's margin, and every widget is drawn in ASCII
-  on a formatter that is not UTF-8. Each has a `pp`, a `to_span` and a
+  them, side by side, as one more span. Widths are counted in terminal
+  cells, by grapheme cluster with uuseg and uucp, wide characters and emoji
+  included, a widget is no wider than its formatter's margin, and every
+  widget is drawn in ASCII on a formatter that is not UTF-8. Each has a `pp`, a `to_span` and a
   `to_string ?styled`.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
   gives every widget its colours, marks, frames, tree lines, bars and
@@ -84,8 +84,9 @@ Initial release of `console` and `console-eio`.
   (`Console_text.boundary`), and `console.input`
   (`Console_input`) is a line editor, with history and completion, that does
   no input or output itself.
-- Known limitations, listed in the README: console builds on matrix 0.1.0,
-  whose emulator the tests work around until matrix 0.2.0; a pictograph
+- Known limitations, listed in the README: the tests read the screen
+  through matrix 0.1.0's emulator, which they work around until matrix
+  0.2.0; a pictograph
   with no emoji presentation, such as ❤ or ‼, counts one cell; and
   `Display.v` does not take the program's own output, which `Console_eio.run`
   does.

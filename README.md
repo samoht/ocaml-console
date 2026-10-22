@@ -104,8 +104,11 @@ $ opam install console console-eio
 The quick start also needs `eio_main` to run
 [Eio](https://github.com/ocaml-multicore/eio) and
 [Cmdliner](https://erratique.ch/software/cmdliner) to read its options, with
-`Fmt_cli` from `fmt.cli`, but console itself depends on none of them. Its
-`dune` file names the libraries it links:
+`Fmt_cli` from `fmt.cli`, but console itself depends on none of them: it
+needs [fmt](https://erratique.ch/software/fmt), and
+[uuseg](https://erratique.ch/software/uuseg) and
+[uucp](https://erratique.ch/software/uucp) to split text into grapheme
+clusters and measure it. Its `dune` file names the libraries it links:
 
 <!-- $MDX skip -->
 ```dune
@@ -594,14 +597,13 @@ character that reorders the text around it:
 
 ## Known limitations
 
-- console 0.9.0 needs matrix 0.1.0 and works around nothing in it. It uses
-  matrix only to split text into grapheme clusters and measure it, where
-  0.1.0 agrees with the matrix that console was written against; where
-  console's widths differ from matrix's, it is by console's own width
-  policy, below. The tests' terminal emulator, also from matrix, has defects
-  in 0.1.0 that the tests work around until matrix 0.2.0, which fixes them
-  (`test/vte/matrix_fix.ml`, `fuzz/matrix_0_1.ml` and five skipped checks,
-  each naming its upstream fix).
+- The tests read the screen through the terminal emulator of matrix 0.1.0,
+  a test dependency only. It has defects that the tests work around until
+  matrix 0.2.0, which fixes them (`test/vte/matrix_fix.ml`,
+  `fuzz/matrix_0_1.ml` and five skipped checks, each naming its upstream
+  fix). It also reads Unicode 16.0, so the properties that read it skip text
+  with a character assigned since, which console measures by uucp's newer
+  Unicode.
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
   is text unless a VS16 follows it, so console counts it at its East Asian
   width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.
