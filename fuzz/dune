@@ -27,6 +27,8 @@
   re
   jsont
   jsont.bytesrw
+  uucp
+  uuseg
   alcobar))
 
 ; The property run is a quick smoke; deep exploration is the fuzz alias.

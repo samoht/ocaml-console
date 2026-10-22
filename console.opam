@@ -25,6 +25,8 @@ depends: [
   "mdx" {with-test}
   "alcobar" {with-test & >= "0.3.2"}
   "re" {with-test}
+  "uucp" {with-test & >= "18.0.0"}
+  "uuseg" {with-test & >= "18.0.0"}
   "odoc" {with-doc}
 ]
 build: [

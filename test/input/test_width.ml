@@ -23,6 +23,44 @@ let test_widths () =
   check "keycap" 2 "1\xef\xb8\x8f\xe2\x83\xa3";
   check "VS16 makes an emoji" 2 "\xe2\x9d\xa4\xef\xb8\x8f"
 
+(* A cluster takes the cells of its widest character, not of its first
+   one with any width. *)
+let test_widest () =
+  check "a bare heart is text" 1 "\u{2764}";
+  check "a bare double exclamation mark is text" 1 "\u{203C}";
+  check "a skin tone on a text pictograph" 2 "\u{261D}\u{1F3FD}";
+  check "a ZWJ before a wide emoji" 2 "\u{2764}\u{200D}\u{1F469}";
+  check "a prepended letter before a wide one" 2 "\u{0D4E}\u{754C}";
+  check "a conjunct takes its widest consonant" 1 "\u{0915}\u{094D}\u{0937}";
+  check "a VS16 after a combining mark selects nothing" 1
+    "\u{2764}\u{0301}\u{FE0F}"
+
+(* A spacing mark adds its cells once, after the first character of its
+   cluster. *)
+let test_marks () =
+  check "a spacing mark after a mark of no width" 1 "\u{0301}\u{0940}";
+  check "a wide spacing mark after a ZWJ" 2 "\u{200D}\u{302E}"
+
+(* A VS16 that selects nothing still splits the text as it is: it does
+   not join the clusters around it. *)
+let test_stray_vs16_splits () =
+  check "a prepended letter, a VS16, then CJK" 3 "\u{0D4E}\u{FE0F}\u{754C}";
+  Alcotest.(check (list string))
+    "its clusters"
+    [ "\u{0D4E}\u{FE0F}"; "\u{754C}" ]
+    (Width.clusters "\u{0D4E}\u{FE0F}\u{754C}")
+
+let test_sub_width () =
+  let s = "ab\u{754C}e\u{0301}\u{2764}\u{FE0F}" in
+  for pos = 0 to String.length s do
+    for len = 0 to String.length s - pos do
+      Alcotest.(check int)
+        (Fmt.str "%S at %d for %d" s pos len)
+        (Width.string_width (String.sub s pos len))
+        (Width.sub_width s ~pos ~len)
+    done
+  done
+
 (* The width is the column a terminal's cursor reaches. *)
 let test_matches_terminal () =
   List.iter
@@ -92,6 +130,11 @@ let suite =
   ( "width",
     [
       Alcotest.test_case "widths" `Quick test_widths;
+      Alcotest.test_case "the widest character" `Quick test_widest;
+      Alcotest.test_case "spacing marks" `Quick test_marks;
+      Alcotest.test_case "a stray VS16 splits as it is" `Quick
+        test_stray_vs16_splits;
+      Alcotest.test_case "a part as a string" `Quick test_sub_width;
       Alcotest.test_case "matches the terminal" `Quick test_matches_terminal;
       Alcotest.test_case "as real terminals show it" `Quick test_real_terminals;
     ] )

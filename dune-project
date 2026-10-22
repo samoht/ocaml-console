@@ -36,7 +36,9 @@
   (astring :with-test)
   (mdx :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
-  (re :with-test)))
+  (re :with-test)
+  (uucp (and :with-test (>= 18.0.0)))
+  (uuseg (and :with-test (>= 18.0.0)))))
 
 (package
  (name console-eio)
