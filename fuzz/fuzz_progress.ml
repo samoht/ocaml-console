@@ -288,6 +288,28 @@ let test_extreme_seconds time =
   test_round_trip time (fun ~time:t ->
       Event.end' ~time:t ~id:0 ~status:`Succeeded ~elapsed:time [ "work" ])
 
+(* A future event may reuse a current member's name for another JSON type.
+   None of those members belongs to the unknown event's schema here. *)
+let test_unknown_schema k =
+  let members =
+    [|
+      ("id", {|"bad"|});
+      ("task", "false");
+      ("parent", "[]");
+      ("count", "{}");
+      ("total", "true");
+      ("unit", "42");
+      ("status", "[]");
+      ("elapsed", {|"later"|});
+      ("text", "5");
+      ("level", "{}");
+      ("detail", "false");
+    |]
+  in
+  let name, json = members.(k mod Array.length members) in
+  let line = Fmt.str {|{"time":1.25,"event":"pause","%s":%s}|} name json in
+  check (decode line = Event.other ~time:1.25 "pause")
+
 (* Deliberately malformed inputs, not prefixes cut out of UTF-8 text. *)
 let invalid_prefix =
   choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
@@ -346,6 +368,8 @@ let test_retained_cut k =
 let suite =
   ( "progress",
     [
+      test_case "unknown events ignore members of other schemas" [ uint8 ]
+        test_unknown_schema;
       test_case "event times read back at every finite magnitude"
         [ extreme_seconds ] test_extreme_seconds;
       test_case "an event reads back" [ float; kind ] test_round_trip;
