@@ -70,8 +70,6 @@ val styled : t -> 'a Fmt.t -> 'a Fmt.t
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], and like [pp_v] otherwise.
     Its colours are those the formatter's {!Color.val-depth} shows.
 
-    - In a display's scene the text keeps [s], at the colours of the display's
-      formatter.
     - In the printer of another [styled], [s] is added to the outer style
       ({!( + )}), which is on again after it.
     - The escape codes take no room on the line, so the boxes and breaks of

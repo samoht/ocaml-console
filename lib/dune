@@ -12,7 +12,6 @@
  (libraries console.text fmt jsont jsont.bytesrw uucp uuseg)
  (private_modules
   border_motion
-  capturing
   widget
   width
   display_core
