@@ -1778,6 +1778,32 @@ let test_bars_line_up () =
     (List.for_all (( = ) (List.hd ends)) ends);
   Display.close t.display
 
+let test_elapsed_rounded () =
+  List.iter
+    (fun (secs, shown) ->
+      let now = ref 0. in
+      let buffer = Buffer.create 64 in
+      let ppf = Format.formatter_of_buffer buffer in
+      Theme.set ppf theme;
+      let d = Display.v ~progress:`Plain ~now:(fun () -> !now) ppf in
+      let t = Display.task d "t" in
+      now := secs;
+      Display.succeed t;
+      Display.close d;
+      Format.pp_print_flush ppf ();
+      let out = Buffer.contents buffer in
+      Alcotest.(check bool)
+        (Fmt.str "%g s reads %s in %S" secs shown out)
+        true
+        (contains ("t  " ^ shown) out))
+    [
+      (0.96, "1.0s");
+      (0.94, "0.9s");
+      (59.97, "1m00s");
+      (119.6, "2m00s");
+      (3599.6, "1h00m");
+    ]
+
 let suite =
   ( "display",
     [
@@ -1886,4 +1912,5 @@ let suite =
       Alcotest.test_case "the label gives way last" `Quick
         test_label_gives_way_last;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
+      Alcotest.test_case "elapsed times are rounded" `Quick test_elapsed_rounded;
     ] )
