@@ -77,6 +77,22 @@ let test_echo_shows_the_line keys =
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
 
+(* Whatever is typed, the cursor stands between two clusters of the line as
+   console segments it, never inside one, even after a character that
+   joins the cluster after the cursor: a [|] typed then splits the line
+   where its clusters split. *)
+let test_cursor_between_clusters keys =
+  let editor = Console_input.v () in
+  List.iter (fun k -> ignore (Console_input.feed editor k)) keys;
+  ignore (Console_input.feed editor "|");
+  match String.split_on_char '|' (Console_input.pending editor) with
+  | [ before; after ] ->
+      check_eq
+        ~pp:Fmt.(Dump.list Dump.string)
+        (Width.clusters (before ^ after))
+        (Width.clusters before @ Width.clusters after)
+  | _ -> failf "not one | in %S" (Console_input.pending editor)
+
 (* Inserting a multi-codepoint cluster before a suffix must redraw that
    suffix at its new column, even when the cluster changes width as typed. *)
 let test_insert_cluster k n split =
@@ -215,4 +231,7 @@ let suite =
         test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
       test_case "the echo shows the line" [ list key ] test_echo_shows_the_line;
+      test_case "the cursor stands between clusters"
+        [ list key ]
+        test_cursor_between_clusters;
     ] )

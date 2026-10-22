@@ -245,6 +245,22 @@ let test_cluster_arrows () =
     [ "\u{0915}\u{093F}y"; left; left; "X" ]
     ~shown:"X\u{0915}\u{093F}y" ~line:"X\u{0915}\u{093F}y"
 
+(* What is typed at the cursor can join the cluster after it, as a ZWJ
+   joins two emoji, and what is erased can let its neighbours join. The
+   cursor then goes past the joined cluster, never inside it, and the
+   screen shows the line. *)
+let test_cluster_joins_after () =
+  check_typed "a ZWJ before an emoji"
+    [ "\u{1F469}"; left; "\u{2764}"; "\u{200D}"; "\u{754C}"; "a" ]
+    ~shown:"\u{2764}\u{200D}\u{1F469}\u{754C}a"
+    ~line:"\u{2764}\u{200D}\u{1F469}\u{754C}a";
+  check_typed "erasing what stood between them"
+    [ "\u{2764}\u{200D}x\u{1F469}"; left; "\127"; "b" ]
+    ~shown:"\u{2764}\u{200D}\u{1F469}b" ~line:"\u{2764}\u{200D}\u{1F469}b";
+  check_typed "a flag's second half before its first"
+    [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
+    ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x"
+
 (* ---- History ----------------------------------------------------------- *)
 
 let up = "\027[A"
@@ -494,6 +510,8 @@ let suite =
         (Display_harness.skip_on_matrix_0_1
            "invariant-hq/mosaic@65da7988 (a combining mark after ASCII)"
            test_cluster_arrows);
+      Alcotest.test_case "a cluster joins the one after the cursor" `Quick
+        test_cluster_joins_after;
       Alcotest.test_case "history up" `Quick test_history_up;
       Alcotest.test_case "history up clamps" `Quick test_history_up_twice_clamps;
       Alcotest.test_case "history down restores draft" `Quick
