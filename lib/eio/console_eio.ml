@@ -73,12 +73,58 @@ let seconds clock =
   fun () ->
     Mtime.Span.to_float_ns (Mtime.span start (Eio.Time.Mono.now clock)) *. 1e-9
 
-(* A clock stopped at zero, under CONSOLE_FROZEN_CLOCK; the redraws still
-   wait on [clock]. *)
+let deterministic () =
+  match Sys.getenv_opt "CONSOLE_DETERMINISTIC_CLOCK" with
+  | None | Some "" -> false
+  | Some _ -> true
+
+(* A clock that reads the latest time one of its sleeps ended at, and
+   whose sleeps wait on [real] until that time. Each sleep ends at the time
+   the clock read when it started plus its duration, however late [real]
+   wakes it. *)
+module Sleeps = struct
+  type t = { real : Eio.Time.Mono.ty Eio.Resource.t; mutable now : Mtime.t }
+  type time = Mtime.t
+
+  let now t = t.now
+
+  let sleep_until t time =
+    Eio.Time.Mono.sleep_until t.real time;
+    if Mtime.is_later time ~than:t.now then t.now <- time
+end
+
+type (_, _, _) Eio.Resource.pi +=
+  | Real :
+      ( 't,
+        't -> Eio.Time.Mono.ty Eio.Resource.t,
+        [> `Console_sleeps ] )
+      Eio.Resource.pi
+
+let sleeps =
+  Eio.Resource.handler
+    (H (Real, fun t -> t.Sleeps.real)
+    :: Eio.Resource.bindings (Eio.Time.Pi.clock (module Sleeps)))
+
+let clock c =
+  let real = (c :> Eio.Time.Mono.ty Eio.Resource.t) in
+  if deterministic () then
+    Eio.Resource.T ({ Sleeps.real; now = Eio.Time.Mono.now real }, sleeps)
+  else real
+
+(* The clock that [clock] waits on, if it is one of {!clock}'s. *)
+let real (Eio.Resource.T (t, ops)) =
+  Option.map (fun real -> real t) (Eio.Resource.get_opt ops Real)
+
+(* What the display reads and what its redraws wait on. Under
+   CONSOLE_DETERMINISTIC_CLOCK the display reads a clock of {!clock}, whose
+   time its own redraws must not move, or a clock stopped at zero. *)
 let reading clock =
-  match Sys.getenv_opt "CONSOLE_FROZEN_CLOCK" with
-  | None | Some "" -> seconds clock
-  | Some _ -> fun () -> 0.
+  let clock = (clock :> Eio.Time.Mono.ty Eio.Resource.t) in
+  if not (deterministic ()) then (seconds clock, clock)
+  else
+    match real clock with
+    | Some real -> (seconds clock, real)
+    | None -> ((fun () -> 0.), clock)
 
 (* The display, the formatters whose lines it takes and what shows or hides
    the cursor. On a terminal it takes the standard formatters on that
@@ -135,11 +181,11 @@ let open_display ~clock ~ppf ?layout ?summary ?view ?keep ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
-  let now = reading clock in
+  let now, redraws = reading clock in
   match display ~progress ~now ?layout ?summary ?view ?keep ppf with
   | display, intercept, cursor ->
       Session.run ~cursor
-        ~sleep:(Eio.Time.Mono.sleep clock)
+        ~sleep:(Eio.Time.Mono.sleep redraws)
         ~intercept display f
   | exception e ->
       Session.release ();

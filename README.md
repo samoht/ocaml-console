@@ -535,8 +535,9 @@ ready
 ## Testing the output
 
 The elapsed times are the only part of the output that changes from one
-machine to another. When `CONSOLE_FROZEN_CLOCK` is set to a value other
-than the empty string, `Console_eio.run` reads a clock stopped at zero:
+machine to another. When `CONSOLE_DETERMINISTIC_CLOCK` is set to a value
+other than the empty string, `Console_eio.run` reads a clock stopped at
+zero:
 
 - every elapsed time reads `0.0s`;
 - no rate is shown;
@@ -548,13 +549,18 @@ from [Progress rows](#progress-rows), compiled as an executable:
 
 <!-- $MDX skip -->
 ```sh
-  $ export CONSOLE_FROZEN_CLOCK=1
+  $ export CONSOLE_DETERMINISTIC_CLOCK=1
   $ build 2>&1 | cat
   • compile
     › compile: ocamlopt parser.ml
   ✓ compile  2/2  0.0s
   ✓ Building 0.0s (1/1)
 ```
+
+A program that waits on the clock `Console_eio.clock` gives it, and passes
+that clock to `Console_eio.run`, keeps its times under the variable: the
+clock's time moves by exactly the length of each wait, so the times read
+the same on every run and the rows still move as the program runs.
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes

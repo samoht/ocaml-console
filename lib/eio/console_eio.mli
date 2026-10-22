@@ -98,7 +98,7 @@ val run :
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a
-    {{!frozen}frozen clock}.
+    {{!deterministic}deterministic clock}.
 
     @raise Invalid_argument if a display runs in another domain. *)
 
@@ -163,14 +163,23 @@ val run :
       gone. So does one from a fiber that outlived the display it was started
       under, unless another display runs then, which it joins.
 
-    {2:frozen A frozen clock}
+    {2:deterministic A deterministic clock}
 
-    [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
-    empty string, stops the display's clock at zero:
+    [CONSOLE_DETERMINISTIC_CLOCK], set in the environment to a value other than
+    the empty string, makes the time the display reads depend on the program
+    alone, so that the progress a test captures from the program reads the same
+    on every machine. On a clock that {!clock} made, the time moves by exactly
+    the duration of each sleep on it. On any other clock it stays at zero:
     - every elapsed time reads [0.0s], and every [time] and [elapsed] of a
       {{!Console.Progress.json}JSON event} reads [0];
     - no rate shows;
     - the spinners and the motion stand still.
 
-    The redraws still wait on [clock], and the progress that a test captures
-    from the program reads the same on every machine. *)
+    The redraws still wait on the clock behind it, and do not move its time. *)
+
+val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
+(** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]},
+    a clock that reads the time its latest sleep ended at. A sleep of [d] on it
+    waits on [c] until [d] after the time it read when the sleep started, and
+    then reads that time, so the elapsed times, the rates and the spinners of a
+    display that {!run} draws on it follow the program's sleeps. *)

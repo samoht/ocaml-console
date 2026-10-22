@@ -223,11 +223,11 @@ redrawn, and [check] prints lines in turn instead:
 {- the summary comes last.}}
 
 Unless [--color=always] asks for it, a pipe gets no colour. Here [check]
-runs with its output captured and with [CONSOLE_FROZEN_CLOCK] set, which
-the {{!testing}next section} explains:
+runs with its output captured and with [CONSOLE_DETERMINISTIC_CLOCK] set,
+which the {{!testing}next section} explains:
 
 {@ocaml[
-# Unix.putenv "CONSOLE_FROZEN_CLOCK" "1";;
+# Unix.putenv "CONSOLE_DETERMINISTIC_CLOCK" "1";;
 - : unit = ()
 # Cmdliner.Cmd.eval ~argv:[| "check"; "--theme=dos" |] cmd;;
 [-] parser
@@ -275,8 +275,9 @@ decodes it with the jsont codec {!Console.Progress.Event.jsont}.
 {1:testing Testing the output}
 
 The elapsed times are the only part of the output that changes from one
-machine to another. When [CONSOLE_FROZEN_CLOCK] is set to a value other
-than the empty string, {!Console_eio.run} reads a clock stopped at zero:
+machine to another. When [CONSOLE_DETERMINISTIC_CLOCK] is set to a value
+other than the empty string, {!Console_eio.run} reads a clock stopped at
+zero:
 
 {ul
 {- every time reads [0.0s];}
@@ -295,7 +296,7 @@ v}
 and a file, [check.t], with the session it expects:
 
 {v
-  $ export CONSOLE_FROZEN_CLOCK=1
+  $ export CONSOLE_DETERMINISTIC_CLOCK=1
   $ check 2>&1
   • parser
     parser: 3 tests passed
@@ -311,6 +312,11 @@ and a file, [check.t], with the session it expects:
   │ layout │     2 │
   ╰────────┴───────╯
 v}
+
+A program that waits on the clock {!Console_eio.clock} gives it, and
+passes that clock to {!Console_eio.run}, keeps its times: the clock's time
+moves by exactly the length of each wait, so the times read the same on
+every run ({{!Console_eio.section-deterministic}a deterministic clock}).
 
 The widgets need no clock at all. [Console.Table.to_string] and the other
 [to_string] functions return the text that a unit test compares, without

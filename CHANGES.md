@@ -85,9 +85,10 @@ Initial release of `console` and `console-eio`.
   `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix
   alone, and sets the theme of both (`~theme`). `Console_eio.run` decides
   only for the outputs the program left alone (`Console_tty.ensure`).
-- Tests. `CONSOLE_FROZEN_CLOCK`, set and not empty, stops the display's
-  clock at zero, so a cram test of a program's progress reads the same on
-  every machine.
+- Tests. `CONSOLE_DETERMINISTIC_CLOCK`, set and not empty, stops the
+  display's clock at zero, or, on a clock of `Console_eio.clock`, moves it
+  by exactly each sleep, so a cram test of a program's progress reads the
+  same on every machine.
 - Two small libraries in the `console` package: `console.text`
   (`Console_text`) makes untrusted text safe to print, and says where text
   read in pieces can be cut outside a character and an escape code

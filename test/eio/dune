@@ -31,7 +31,12 @@
 
 (cram
  (package console-eio)
- (deps tty.exe piped.exe events.exe ../../examples/progress/main.exe))
+ (deps
+  tty.exe
+  piped.exe
+  events.exe
+  ../../examples/progress/main.exe
+  ../../examples/columns/main.exe))
 
 (test
  (name test)

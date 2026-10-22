@@ -46,13 +46,40 @@ let with_env bindings f =
   Fun.protect f ~finally:(fun () ->
       List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
-(* CONSOLE_FROZEN_CLOCK, set and not empty, stops the display's clock at
-   zero; the waits still run on [clock]. *)
-let test_frozen_clock () =
+(* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
+   of a mock clock, which moves to five seconds at once. *)
+let sleeps () =
+  Eio_main.run @@ fun _ ->
+  let mock = Eio_mock.Clock.Mono.make () in
+  let clock = Console_eio.clock mock in
+  let buf, ppf = buffer () in
+  Console_eio.run ~clock ~ppf (fun display ->
+      Console.Display.with_task display "nap" (fun _ ->
+          Eio.Fiber.both
+            (fun () ->
+              Eio.Time.Mono.sleep clock 1.5;
+              Eio.Time.Mono.sleep clock 0.5)
+            (fun () -> Eio_mock.Clock.Mono.set_time mock (seconds 5.))));
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
+   the sum of the sleeps on a clock of [Console_eio.clock], and zero on
+   another clock; the waits still run on the clock behind it. *)
+let test_deterministic_clock () =
+  let deterministic f =
+    with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] (fun () -> f ())
+  in
   Alcotest.(check bool) "a moving clock" true (took "2.0s" (nap ()));
-  let frozen = with_env [ ("CONSOLE_FROZEN_CLOCK", "1") ] (fun () -> nap ()) in
-  Alcotest.(check bool) "a frozen clock" true (took "0.0s" frozen);
-  let empty = with_env [ ("CONSOLE_FROZEN_CLOCK", "") ] (fun () -> nap ()) in
+  Alcotest.(check bool)
+    "another clock stops" true
+    (took "0.0s" (deterministic nap));
+  let first = deterministic sleeps in
+  Alcotest.(check bool) "the sum of the sleeps" true (took "2.0s" first);
+  Alcotest.(check string) "the same twice" first (deterministic sleeps);
+  let empty =
+    with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "") ] (fun () -> nap ())
+  in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
 let test_run_raises () =
@@ -461,7 +488,7 @@ let suite =
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
-      Alcotest.test_case "frozen clock" `Quick test_frozen_clock;
+      Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;

@@ -2,7 +2,7 @@ A --progress option asks Console_eio.run how progress shows, as docker
 build's does. The example reads it with Console.Progress.all, as
 Cmdliner.Arg.enum does.
 
-  $ export CONSOLE_FROZEN_CLOCK=1
+  $ export CONSOLE_DETERMINISTIC_CLOCK=1
 
 With --progress=auto, the default, a terminal gets the rows redrawn in
 place, and the screen keeps the tree of the tasks that ended, then the
