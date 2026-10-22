@@ -200,8 +200,9 @@ val v :
 
     - [size], if given, says that [ppf] is a terminal and gives its width and
       height. The display reads it again before each redraw, hides the cursor
-      and redraws its rows in place. Without [size] the display prints lines in
-      turn.
+      and redraws its rows in place. A width or a height is taken in
+      \[[1];[4096]\]: a larger one is [4096], and a smaller one [1]. Without
+      [size] the display prints lines in turn.
     - [progress] says how progress shows (defaults to [`Auto]). [`Auto] is as
       [size] says. [`Tty] redraws the rows, on 80 columns by 24 rows without
       [size]. [`Plain], [`Quiet] and [`Json] print lines, whatever [size] says.

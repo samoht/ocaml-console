@@ -9,9 +9,9 @@
     size is Eio's. *)
 
 val width : Eio_unix.Fd.t option -> int
-(** [width fd] is the width in columns of the terminal behind [fd]: the first
-    positive one of the [TIOCGWINSZ] ioctl on [fd] and [$COLUMNS], else [80].
-    [None] asks no ioctl. *)
+(** [width fd] is the width in columns of the terminal behind [fd]: the
+    [TIOCGWINSZ] ioctl on [fd] if positive, else [$COLUMNS] if it is in
+    \[[1];[4096]\], else [80]. [None] asks no ioctl. *)
 
 val height : Eio_unix.Fd.t option -> int
 (** [height fd] is like {!width} for the height in rows, from [$LINES], else

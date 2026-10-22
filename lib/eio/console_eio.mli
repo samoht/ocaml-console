@@ -56,7 +56,8 @@ val run :
     - [header] and [layout] are those of {!Console.Display.v}.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
-      output, if there is one, else [$COLUMNS] by [$LINES], else 80 by 24.
+      output, if there is one, else [$COLUMNS] by [$LINES], each when it is
+      between [1] and [4096], else 80 by 24.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
     the program chose nothing gets the colours its terminal and environment

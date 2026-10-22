@@ -198,12 +198,17 @@ let clear buf t =
   t.frame <- [||];
   t.frame_widths <- [||]
 
+(* No screen is this wide or tall, and the display writes a row of its
+   width when it starts: a larger size is taken as this one. *)
+let max_size = 4096
+let bounded n = min max_size (max 1 n)
+
 let refresh_size t =
   match t.size with
   | None -> false
   | Some size ->
       let w, h = size () in
-      let w = max 1 w and h = max 1 h in
+      let w = bounded w and h = bounded h in
       let changed = w <> t.width || h <> t.height in
       t.width <- w;
       t.height <- h;

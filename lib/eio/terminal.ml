@@ -5,6 +5,9 @@
 
 let positive n = if n > 0 then Some n else None
 
+(* No terminal has more than the 4096 columns or rows a display takes. *)
+let usable n = if n > 0 && n <= 4096 then Some n else None
+
 let window_size = function
   | None -> None
   | Some fd -> (
@@ -28,14 +31,14 @@ let first ~default sources =
    inside this Eio driver to say so. *)
 let width fd =
   first ~default:80
-    [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" positive) ]
+    [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" usable) ]
 
 let height_of_ioctl fd () =
   Option.bind (window_size fd) (fun w -> positive w.rows)
 
 let height fd =
   first ~default:24
-    [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" positive) ]
+    [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" usable) ]
 
 let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)
