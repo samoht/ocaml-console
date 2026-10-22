@@ -105,7 +105,9 @@ The quick start also needs `eio_main` to run
 [Eio](https://github.com/ocaml-multicore/eio) and
 [Cmdliner](https://erratique.ch/software/cmdliner) to read its options, with
 `Fmt_cli` from `fmt.cli`, but console itself depends on none of them: it
-needs [fmt](https://erratique.ch/software/fmt), and
+needs [fmt](https://erratique.ch/software/fmt),
+[jsont](https://erratique.ch/software/jsont) and
+[bytesrw](https://erratique.ch/software/bytesrw) for its JSON events, and
 [uuseg](https://erratique.ch/software/uuseg) and
 [uucp](https://erratique.ch/software/uucp) to split text into grapheme
 clusters and measure it. Its `dune` file names the libraries it links:
@@ -601,9 +603,10 @@ character that reorders the text around it:
   a test dependency only. It has defects that the tests work around until
   matrix 0.2.0, which fixes them (`test/vte/matrix_fix.ml`,
   `fuzz/matrix_0_1.ml` and five skipped checks, each naming its upstream
-  fix). It also reads Unicode 16.0, so the properties that read it skip text
-  with a character assigned since, which console measures by uucp's newer
-  Unicode.
+  fix). It also reads Unicode 16.0 and draws a cluster in the cells of its
+  first character, so the properties that read it skip text with a
+  character assigned since, and a cluster such as ❤‍👩 (U+2764 U+200D
+  U+1F469), which console counts by its widest character, two cells.
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
   is text unless a VS16 follows it, so console counts it at its East Asian
   width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.

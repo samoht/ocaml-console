@@ -18,8 +18,8 @@ Initial release of `console` and `console-eio`.
   them, side by side, as one more span. Widths are counted in terminal
   cells, by grapheme cluster with uuseg and uucp, wide characters and emoji
   included, a widget is no wider than its formatter's margin, and every
-  widget is drawn in ASCII on a formatter that is not UTF-8. Each has a `pp`, a `to_span` and a
-  `to_string ?styled`.
+  widget is drawn in ASCII on a formatter that is not UTF-8. Each has a
+  `pp`, a `to_span` and a `to_string ?styled`.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
   gives every widget its colours, marks, frames, tree lines, bars and
   spinner. Eighteen are predefined: `Theme.default`, which reads on any
@@ -86,7 +86,6 @@ Initial release of `console` and `console-eio`.
   no input or output itself.
 - Known limitations, listed in the README: the tests read the screen
   through matrix 0.1.0's emulator, which they work around until matrix
-  0.2.0; a pictograph
-  with no emoji presentation, such as ❤ or ‼, counts one cell; and
-  `Display.v` does not take the program's own output, which `Console_eio.run`
-  does.
+  0.2.0; a pictograph with no emoji presentation, such as ❤ or ‼, counts
+  one cell; and `Display.v` does not take the program's own output, which
+  `Console_eio.run` does.
