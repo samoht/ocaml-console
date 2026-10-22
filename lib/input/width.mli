@@ -47,5 +47,10 @@ val is_spacing_mark : int -> bool
 (** [is_spacing_mark c] is [true] iff the code point [c] is a spacing mark
     ({!string_width}). *)
 
+val joins : string -> string -> bool
+(** [joins a b] is [false] if the last cluster of [a] ends where [b] starts, so
+    that [string_width (a ^ b)] is [string_width a + string_width b]. It is
+    [true] when it may not. *)
+
 val is_ascii : string -> bool
 (** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)

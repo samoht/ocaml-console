@@ -3,7 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let is_ascii s = String.for_all Char.Ascii.is_print s
+(* No closure: a width is measured for every atom of every frame. *)
+let rec ascii_from s i n =
+  i >= n
+  || (Char.Ascii.is_print (String.unsafe_get s i) && ascii_from s (i + 1) n)
+
+let is_ascii s = ascii_from s 0 (String.length s)
 
 let is_ascii_sub s ~pos ~len =
   let rec go i = i >= pos + len || (Char.Ascii.is_print s.[i] && go (i + 1)) in
@@ -191,6 +196,25 @@ let clusters s =
 let sub_width s ~pos ~len =
   if is_ascii_sub s ~pos ~len then len
   else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
+
+(* Printable ASCII starts a cluster after any character but a prepend
+   (UAX #29 GB9b, GB999). *)
+let joins a b =
+  let n = String.length a in
+  n > 0
+  && String.length b > 0
+  && ((not (Char.Ascii.is_print b.[0]))
+     || (not (Char.Ascii.is_print a.[n - 1]))
+        &&
+        let rec last i d =
+          if i >= n then d
+          else
+            let d = String.get_utf_8_uchar a i in
+            last (i + Uchar.utf_decode_length d) d
+        in
+        let d = last 0 (String.get_utf_8_uchar a 0) in
+        (not (Uchar.utf_decode_is_valid d))
+        || Uucp.Break.grapheme_cluster (Uchar.utf_decode_uchar d) = `PP)
 
 let string_width s =
   if is_ascii s then String.length s

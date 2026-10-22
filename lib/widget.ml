@@ -101,18 +101,25 @@ let fill n glyph =
     if gw = 0 then String.make n ' '
     else
       let rest = n mod gw in
-      let part = Buffer.create rest and used = ref 0 and full = ref false in
-      Width.iter_clusters
-        (fun ~offset ~len ~cells:w ->
-          if (not !full) && !used + w <= rest then begin
-            Buffer.add_substring part glyph offset len;
-            used := !used + w
-          end
-          else full := true)
-        glyph;
-      String.concat "" (List.init (n / gw) (Fun.const glyph))
-      ^ Buffer.contents part
-      ^ String.make (rest - !used) ' '
+      let buf = Buffer.create ((n / gw * String.length glyph) + rest) in
+      for _ = 1 to n / gw do
+        Buffer.add_string buf glyph
+      done;
+      if rest > 0 then begin
+        let used = ref 0 and full = ref false in
+        Width.iter_clusters
+          (fun ~offset ~len ~cells:w ->
+            if (not !full) && !used + w <= rest then begin
+              Buffer.add_substring buf glyph offset len;
+              used := !used + w
+            end
+            else full := true)
+          glyph;
+        for _ = 1 to rest - !used do
+          Buffer.add_char buf ' '
+        done
+      end;
+      Buffer.contents buf
 
 let rails g lasts =
   String.concat ""

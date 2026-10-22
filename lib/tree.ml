@@ -31,12 +31,21 @@ let lines c ~guide ~indent t =
   let margin = Option.value (Ctx.width c) ~default:max_int in
   let pad = String.make indent ' ' in
   let acc = ref [] in
+  (* The guides of a tree are few strings, each measured once. *)
+  let measured = Hashtbl.create 8 in
+  let cells s =
+    match Hashtbl.find_opt measured s with
+    | Some n -> n
+    | None ->
+        let n = Widget.cells s in
+        Hashtbl.add measured s n;
+        n
+  in
   (* A line fits its room, so only guides wider than the margin cut it. *)
-  let emit prefix line =
+  let emit (prefix, cells) line =
     let line = View_core.(ink style prefix ++ line) in
     let line =
-      if Widget.cells prefix > margin then Widget.truncate look margin line
-      else line
+      if cells > margin then Widget.truncate look margin line else line
     in
     acc := line :: !acc
   in
@@ -46,8 +55,8 @@ let lines c ~guide ~indent t =
     let lead = if lasts = [] then "" else pad in
     let first = lead ^ Widget.branch guide lasts
     and after = pad ^ Widget.rails guide lasts in
-    let room = margin - Widget.cells first
-    and rest = margin - Widget.cells after in
+    let first_cells = cells first and after_cells = cells after in
+    let room = margin - first_cells and rest = margin - after_cells in
     let label =
       View_core.resolve
         (Ctx.with_width (Option.map (fun _ -> room) (Ctx.width c)) c)
@@ -56,8 +65,8 @@ let lines c ~guide ~indent t =
     (match label_lines ~first:room ~rest label with
     | [] -> ()
     | l :: ls ->
-        emit first l;
-        List.iter (emit after) ls);
+        emit (first, first_cells) l;
+        List.iter (emit (after, after_cells)) ls);
     let n = List.length node.children in
     List.iteri (fun i child -> go ((i = n - 1) :: lasts) child) node.children
   in

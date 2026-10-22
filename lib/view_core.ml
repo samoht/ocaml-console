@@ -365,11 +365,17 @@ module F = struct
     in
     unlines (List.map line (lines t))
 
+  (* A line whose atoms no cluster crosses is as wide as their widths. *)
+  let rec apart prev = function
+    | [] -> true
+    | a :: rest -> (not (Width.joins prev a.text)) && apart a.text rest
+
   let line_width = function
     | [ a ] -> Width.string_width a.text
-    | line ->
-        if ascii line then
-          List.fold_left (fun n a -> n + String.length a.text) 0 line
+    | [] -> 0
+    | a :: rest as line ->
+        if apart a.text rest then
+          List.fold_left (fun n a -> n + Width.string_width a.text) 0 line
         else
           Width.string_width
             (String.concat "" (List.map (fun a -> a.text) line))

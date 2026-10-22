@@ -3,6 +3,16 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+(* What a frame depends on: the changes it was told of, the half tenth of a
+   second when the view reads the time (a spinner turns at each tenth, a
+   time rounded to the tenth at each half), and the terminal's size. *)
+type stamp = {
+  mutable changes : int;
+  mutable tick : int;
+  mutable width : int;
+  mutable height : int;
+}
+
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
@@ -18,17 +28,19 @@ type t = {
   mutable frame_widths : int array;
   mutable painted_at : float;
   mutable changes : int;
-  mutable painted : int * int * int * int;
+  painted : stamp;
+  buf : Buffer.t;
   mutable closed : bool;
   mutable closing : bool;
   mutable suspended : int;
   mutable partial : bool;
-  writes : string Queue.t;
+  writes : (string * bool) Queue.t;
   mutable writing : bool;
   mutable release : unit -> unit;
   mutable on_close : unit -> unit;
   mutable on_output : (string -> unit) option;
   mutable looks : (Look.t * Look.t) option;
+  mutable looked : int;
 }
 
 let pp ppf t =
@@ -53,8 +65,9 @@ let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
    shows a region half erased or half drawn. A write error (a closed pipe)
    is the end of the output, not of the program. *)
 
-let synchronized t s =
-  if is_live t then "\027[?2026h" ^ s ^ "\027[?2026l" else s
+let sync_on = "\027[?2026h"
+let sync_off = "\027[?2026l"
+let synchronized t s = if is_live t then sync_on ^ s ^ sync_off else s
 
 (* Without a terminal, standard output may share the display's pipe: what
    the program printed there goes out first. An error there is the
@@ -68,10 +81,14 @@ let flush_stdout t =
     try Format.pp_print_flush Fmt.stdout ()
     with Sys_error _ -> Atomic.set stdout_failed true
 
-let write_now t s =
+(* A [framed] string is synchronized already. *)
+let write_now t (s, framed) =
   try
     let s =
-      if is_live t then synchronized t s else if t.partial then "\n" ^ s else s
+      if framed then s
+      else if is_live t then synchronized t s
+      else if t.partial then "\n" ^ s
+      else s
     in
     let out = Format.pp_get_formatter_out_functions t.ppf () in
     out.out_string s 0 (String.length s);
@@ -82,13 +99,13 @@ let write_now t s =
    in the middle of a write: what is written meanwhile waits in [writes],
    and the write under way writes it out in turn, so that writes never mix.
    A write cut short (a cancelled fiber) leaves the rest to the next. *)
-let write t s =
+let send ?(framed = false) t s =
   if s <> "" then begin
     (try
        flush_stdout t;
        Format.pp_print_flush t.ppf ()
      with e when write_error t e -> ());
-    Queue.add s t.writes
+    Queue.add (s, framed) t.writes
   end;
   if not t.writing then begin
     t.writing <- true;
@@ -99,6 +116,8 @@ let write t s =
           write_now t (Queue.pop t.writes)
         done)
   end
+
+let write t s = send t s
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -285,33 +304,60 @@ let draw buf t ~resized spans =
     t.frame_widths <- Array.of_list (List.map snd spans)
   end
 
-(* What a frame depends on: the changes it was told of, the half tenth of a
-   second when the view reads the time (a spinner turns at each tenth, a
-   time rounded to the tenth at each half), and the terminal's size. A
-   redraw with all of them as they were draws nothing and computes
-   nothing. *)
-let stamp t =
-  let look = look ~live:true t in
-  let timed = (View_core.kind t.view look).timed in
-  ( t.changes,
-    (if timed then int_of_float (since_start t *. 20.) else 0),
-    t.width,
-    t.height )
+(* A redraw with all that the frame depends on as it was draws nothing,
+   computes nothing and allocates nothing. The look is read again from the
+   formatter once a slot was set, such as its theme. *)
+let tick t =
+  let look =
+    match t.looks with
+    | Some (_, moving) when t.looked = Slot.generation () -> moving
+    | _ ->
+        t.looked <- Slot.generation ();
+        look ~live:true t
+  in
+  if (View_core.kind t.view look).timed then int_of_float (since_start t *. 20.)
+  else 0
+
+(* The tick first: reading the look again may count a change. *)
+let stale t =
+  let tick = tick t and p = t.painted in
+  p.changes <> t.changes || p.tick <> tick || p.width <> t.width
+  || p.height <> t.height
+
+let mark t =
+  let p = t.painted in
+  p.changes <- t.changes;
+  p.tick <- tick t;
+  p.width <- t.width;
+  p.height <- t.height;
+  t.painted_at <- t.now ()
+
+(* The frame's bytes, synchronized, in the display's buffer, which every
+   frame reuses; a frame of no bytes writes none. *)
+let framing t f =
+  let buf = t.buf in
+  Buffer.clear buf;
+  Buffer.add_string buf sync_on;
+  f buf;
+  if Buffer.length buf = String.length sync_on then write t ""
+  else begin
+    Buffer.add_string buf sync_off;
+    let s = Buffer.contents buf in
+    if Buffer.length buf > 65536 then Buffer.reset buf;
+    send ~framed:true t s
+  end
 
 let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
     let resized = refresh_size t in
-    let stamp = stamp t in
-    if resized || stamp <> t.painted || t.frame = [||] then begin
-      t.painted <- stamp;
-      t.painted_at <- t.now ();
+    if resized || stale t || t.frame = [||] then begin
+      mark t;
       (* A narrower terminal has reflowed the old frame: it is cleared with
          the old frame's rows counted at the new width. *)
       framed t (fun spans ->
-          let buf = Buffer.create 256 in
-          if resized then clear buf t;
-          draw buf t ~resized spans;
-          write t (Buffer.contents buf))
+          framing t (fun buf ->
+              if resized then clear buf t;
+              draw buf t ~resized spans))
     end
   end
 
@@ -330,20 +376,18 @@ let commit t lines =
   if is_live t then begin
     ignore (refresh_size t);
     let commit spans =
-      let buf = Buffer.create 256 in
-      clear buf t;
-      List.iter
-        (fun line ->
-          Buffer.add_string buf (render_in look t line);
-          Buffer.add_string buf "\r\n")
-        lines;
-      Option.iter
-        (fun spans ->
-          t.painted_at <- t.now ();
-          t.painted <- stamp t;
-          draw buf t ~resized:false spans)
-        spans;
-      write t (Buffer.contents buf)
+      framing t (fun buf ->
+          clear buf t;
+          List.iter
+            (fun line ->
+              Buffer.add_string buf (render_in look t line);
+              Buffer.add_string buf "\r\n")
+            lines;
+          Option.iter
+            (fun spans ->
+              mark t;
+              draw buf t ~resized:false spans)
+            spans)
     in
     if t.suspended = 0 && not t.closed then
       framed t (fun spans -> commit (Some spans))
@@ -430,7 +474,8 @@ let v ?size ?(write_error = fun _ -> false) ~now ppf view =
       frame_widths = [||];
       painted_at = neg_infinity;
       changes = 0;
-      painted = (-1, -1, -1, -1);
+      painted = { changes = -1; tick = -1; width = -1; height = -1 };
+      buf = Buffer.create 4096;
       closed = false;
       closing = false;
       suspended = 0;
@@ -441,6 +486,7 @@ let v ?size ?(write_error = fun _ -> false) ~now ppf view =
       on_close = ignore;
       on_output = None;
       looks = None;
+      looked = -1;
     }
   in
   ignore (refresh_size t);

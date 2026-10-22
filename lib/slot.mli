@@ -26,6 +26,10 @@ val find : 'a t -> Format.formatter -> 'a option
 val set : 'a t -> Format.formatter -> 'a -> unit
 (** [set s ppf v] makes [v] the value of [s] on [ppf]. *)
 
+val generation : unit -> int
+(** [generation ()] is the number of {!set}s so far, on any slot and formatter,
+    so that a reader of a slot knows when to read it again. *)
+
 val unset : Format.formatter -> bool
 (** [unset ppf] is [true] iff nothing but slots that are not settings changed
     the tag functions of [ppf]: neither {!Fmt}, such as its style renderer, nor

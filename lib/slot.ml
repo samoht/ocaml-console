@@ -55,7 +55,11 @@ let find s ppf =
   ignore (ask s ppf (Get r));
   !r
 
+let sets = Atomic.make 0
+let generation () = Atomic.get sets
+
 let set s ppf v =
+  Atomic.incr sets;
   if not (ask s ppf (Set v)) then begin
     let current = ref v in
     let funs = Format.pp_get_formatter_stag_functions ppf () in

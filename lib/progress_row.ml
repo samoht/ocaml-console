@@ -432,9 +432,17 @@ let summary look ?width root =
   Option.map
     (fun h ->
       let meta =
-        Fmt.kstr (muted look) " %s (%d/%d)"
-          (Task_text.duration (elapsed root))
-          w.finished w.started
+        muted look
+          (String.concat ""
+             [
+               " ";
+               Task_text.duration (elapsed root);
+               " (";
+               string_of_int w.finished;
+               "/";
+               string_of_int w.started;
+               ")";
+             ])
       in
       let lead = V.(mark look (state root) ++ text " ") in
       let h = V.ink (Theme.header (theme look)) h in

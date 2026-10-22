@@ -28,20 +28,27 @@ let bytes_short n =
   else if v < 9.95 then Fmt.str "%.1f%c" v unit
   else Fmt.str "%.0f%c" v unit
 
+(* Every duration under a minute, made once: a display shows one at each
+   frame for each task. *)
+let tenths =
+  Array.init 600 (fun t ->
+      string_of_int (t / 10) ^ "." ^ string_of_int (t mod 10) ^ "s")
+
+let two n = if n < 10 then "0" ^ string_of_int n else string_of_int n
+
 let duration secs =
   let secs =
     if Float.is_nan secs then 0. else Float.min 1e15 (Float.max 0. secs)
   in
-  let tenths = Float.round (secs *. 10.) in
-  if tenths < 600. then
-    let tenths = int_of_float tenths in
-    Fmt.str "%d.%ds" (tenths / 10) (tenths mod 10)
+  let t = Float.round (secs *. 10.) in
+  if t < 600. then tenths.(int_of_float t)
   else
     let s = int_of_float (Float.round secs) in
-    if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
+    if s < 3600 then
+      String.concat "" [ string_of_int (s / 60); "m"; two (s mod 60); "s" ]
     else
       let m = int_of_float (Float.round (secs /. 60.)) in
-      Fmt.str "%dh%02dm" (m / 60) (m mod 60)
+      String.concat "" [ string_of_int (m / 60); "h"; two (m mod 60); "m" ]
 
 (* [duration] is six wide at its widest below a hundred hours ("59m59s",
    "23h59m"). A longer run takes the columns it needs rather than losing a

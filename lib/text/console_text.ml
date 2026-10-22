@@ -101,8 +101,36 @@ let sanitize_into buf ~keep_newlines seen str =
 
 let seen () = { cr = false; base = true }
 
+(* Whether [sanitize] gives [str] back as it is: valid UTF-8 with no
+   control but, if kept, the line feed, nothing removed, and no variation
+   selector without a base. *)
+let rec is_clean ~keep_newlines str i base =
+  i >= String.length str
+  ||
+  let d = String.get_utf_8_uchar str i in
+  Uchar.utf_decode_is_valid d
+  &&
+  match tag_sequence str i d with
+  | Some stop -> is_clean ~keep_newlines str stop true
+  | None ->
+      let u = Uchar.utf_decode_uchar d in
+      let c = Uchar.to_int u in
+      let next = i + Uchar.utf_decode_length d in
+      if c = 0x0a then keep_newlines && is_clean ~keep_newlines str next false
+      else if c < 0x20 || (c >= 0x7f && c <= 0x9f) then false
+      else if c >= 0x80 && (removed u || (is_selector u && not base)) then false
+      else
+        is_clean ~keep_newlines str next
+          (c > 0x20
+          && (c < 0x80 || not (is_selector u))
+          && c <> 0x200c && c <> 0x200d)
+
+let rec ascii_from s i =
+  i >= String.length s
+  || (Char.Ascii.is_print (String.unsafe_get s i) && ascii_from s (i + 1))
+
 let sanitize ?(keep_newlines = true) str =
-  if String.for_all Char.Ascii.is_print str then str
+  if ascii_from str 0 || is_clean ~keep_newlines str 0 true then str
   else
     let buf = Buffer.create (String.length str) in
     sanitize_into buf ~keep_newlines (seen ()) str;
