@@ -1342,6 +1342,37 @@ let test_view_exception_close () =
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
 
+(* {1 What a user sees} *)
+
+(* [indent_of s] is the number of spaces [s] starts with. *)
+let indent_of s =
+  let rec go i = if i < String.length s && s.[i] = ' ' then go (i + 1) else i in
+  go 0
+
+(* On a narrow terminal the label is what tells two rows apart: it gives
+   way last, after the bar, and the row still ends with its timer. *)
+let test_label_before_bar () =
+  let t = terminal ~theme ~width:40 ~height:8 () in
+  let step = Display.task t.display "RUN make" in
+  let layer = Display.task ~parent:step t.display "sha256:abcd" in
+  Display.set_count step ~cur:5 ~total:5;
+  Display.set_bytes layer ~cur:268435456L ~total:2147483648L;
+  t.advance 1.5;
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check bool)
+    "the parent's label shows" true
+    (List.exists (contains "RUN") rows);
+  Alcotest.(check bool)
+    "the child's label shows" true
+    (List.exists (contains "sha") rows);
+  Alcotest.(check bool)
+    "the timers show" true
+    (List.for_all
+       (fun r -> (not (contains "\xe2\x80\xa6" r)) || contains "1.5s" r)
+       rows);
+  Display.close t.display
+
 let suite =
   ( "display",
     [
@@ -1411,4 +1442,6 @@ let suite =
       Alcotest.test_case "view replaced" `Quick test_view_replaced;
       Alcotest.test_case "view on a pipe" `Quick test_view_plain;
       Alcotest.test_case "view moves" `Quick test_view_moves;
+      Alcotest.test_case "the label gives way after the bar" `Quick
+        test_label_before_bar;
     ] )
