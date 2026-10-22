@@ -14,37 +14,37 @@ let rec labels acc r =
   let acc = r.label :: acc in
   match r.parent with None -> acc | Some p -> labels acc p
 
-let task r = (r.id, labels [] r)
-
-let write t kind =
-  let event = Event.make ~time:(t.now () -. t.start) kind in
-  Display_region.write t (Event.to_string event ^ "\n")
+let write t event =
+  let time = t.now () -. t.start in
+  Display_region.write t (Event.to_string (event ~time) ^ "\n")
 
 let started r =
-  write r.disp (`Start (task r, Option.map (fun p -> p.id) r.parent))
+  let parent = Option.map (fun p -> p.id) r.parent in
+  write r.disp (Event.start ?parent ~id:r.id (labels [] r))
 
 let progress r =
+  let count cur total unit =
+    write r.disp (Event.progress ~id:r.id ~count:cur ~total ~unit (labels [] r))
+  in
   match r.metric with
   | Spin -> (* A count never goes back to a spinner. *) ()
-  | Count (cur, total) ->
-      write r.disp
-        (`Progress (task r, Int64.of_int cur, Int64.of_int total, `Items))
-  | Bytes (cur, total) -> write r.disp (`Progress (task r, cur, total, `Bytes))
+  | Count (cur, total) -> count (Int64.of_int cur) (Int64.of_int total) `Items
+  | Bytes (cur, total) -> count cur total `Bytes
 
-let renamed r = write r.disp (`Label (task r, r.label))
+let renamed r = write r.disp (Event.label ~id:r.id ~text:r.label (labels [] r))
 
 let output t r line =
-  let level = match line.kind with Output -> None | Logs l -> Some l in
-  write t
-    (`Output (Option.map task r, line.text, (level :> Event.level option)))
+  let level =
+    match line.kind with Output -> None | Logs l -> Some (l :> Event.level)
+  in
+  let id = Option.map (fun r -> r.id) r and task = Option.map (labels []) r in
+  write t (Event.output ?id ?task ?level line.text)
 
 let ended r =
+  let status = (Option.value r.outcome ~default:`Cancelled :> Event.status) in
   write r.disp
-    (`End
-       ( task r,
-         (Option.value r.outcome ~default:`Cancelled :> Event.status),
-         elapsed r,
-         r.message ))
+    (Event.end' ?text:r.message ~id:r.id ~status ~elapsed:(elapsed r)
+       (labels [] r))
 
 let result t =
   match t.result with
@@ -58,4 +58,4 @@ let result t =
         | [] -> None
         | lines -> Some (String.concat "\n" lines)
       in
-      write t (`Result (outcome, text, detail))
+      write t (Event.result ?detail ~outcome text)

@@ -170,6 +170,25 @@ let test_surviving_fiber k =
    shows them, whatever bytes they were given. *)
 module Event = Console.Progress.Event
 
+(* [e] as a variant of its members, to match on. *)
+let members e =
+  let task () = (Option.get (Event.id e), Event.task e) in
+  let get = Option.get in
+  match Event.kind e with
+  | `Start -> `Start (task (), Event.parent e)
+  | `Progress ->
+      `Progress
+        (task (), get (Event.count e), get (Event.total e), get (Event.unit e))
+  | `Label -> `Label (task (), get (Event.text e))
+  | `Output ->
+      let task = Option.map (fun id -> (id, Event.task e)) (Event.id e) in
+      `Output (task, get (Event.text e), Event.level e)
+  | `End ->
+      `End (task (), get (Event.status e), get (Event.elapsed e), Event.text e)
+  | `Result ->
+      `Result (get (Event.outcome e), get (Event.text e), Event.detail e)
+  | `Other name -> `Other name
+
 (* The events of the lines of [out], each checked to be valid UTF-8 and to
    be written back as it is. *)
 let events out =
@@ -180,7 +199,7 @@ let events out =
       match Jsont_bytesrw.decode_string Event.jsont line with
       | Ok e ->
           check_eq ~pp:Fmt.Dump.string line (Event.to_string e);
-          Event.kind e
+          members e
       | Error e -> failf "%s does not decode: %s" line e)
 
 let test_json_events label text =

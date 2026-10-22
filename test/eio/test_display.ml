@@ -217,13 +217,19 @@ let events out =
           Alcotest.(check string)
             "written back" line
             (Console.Progress.Event.to_string e);
-          Console.Progress.Event.kind e
+          e
       | Error e -> Alcotest.failf "%S does not decode: %s" line e)
 
 (* The task and the text of the output events of [out]. *)
 let output_events out =
+  let module Event = Console.Progress.Event in
   List.filter_map
-    (function `Output (task, text, _) -> Some (task, text) | _ -> None)
+    (fun e ->
+      match (Event.kind e, Event.text e) with
+      | `Output, Some text ->
+          let task = Option.map (fun id -> (id, Event.task e)) (Event.id e) in
+          Some (task, text)
+      | _ -> None)
     (events out)
 
 let outputs out = List.map snd (output_events out)

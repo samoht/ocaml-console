@@ -67,13 +67,16 @@ Initial release of `console` and `console-eio`.
   progress shows, as `docker build --progress` does: `` `Auto ``, rows on a
   terminal and lines elsewhere; `` `Tty ``, rows on any output; `` `Plain ``,
   the lines a pipe gets; `` `Quiet ``, only what fails; `` `Json ``, one
-  JSON object for each event. `Console.Progress.Event` types the events,
-  and its [jsont](https://erratique.ch/software/jsont) codec,
+  JSON object for each event. `Console.Progress.Event` types the events:
+  an abstract value with a constructor for each event, whose members are
+  optional arguments where an event may lack them, and an accessor for each
+  member, so that a member added later breaks no match. Its
+  [jsont](https://erratique.ch/software/jsont) codec,
   `Console.Progress.Event.jsont`, writes them and reads them back
   (`Event.of_string`), skipping the members, events and values that a later
   console adds. Times are rounded to the millisecond and held within 10^12
-  seconds, and strings are valid
-  UTF-8 without a C1 control. `Console.Progress.all`
+  seconds, and strings are valid UTF-8 without a C1 control.
+  `Console.Progress.all`
   makes a `--progress=auto|tty|plain|quiet|json` option of it in one line
   of Cmdliner, as `Theme.all` makes a `--theme` option, and
   `Progress.to_string` names a mode. `Display.v ~progress` takes

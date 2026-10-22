@@ -270,7 +270,9 @@ With [--progress=json], [check] writes the events for another program to
 read instead, one JSON object to a line ({{!Console.Progress.json}JSON
 events}). An OCaml program reads each line back as a
 {!Console.Progress.Event.t} with {!Console.Progress.Event.of_string}, which
-decodes it with the jsont codec {!Console.Progress.Event.jsont}.
+decodes it with the jsont codec {!Console.Progress.Event.jsont}, and reads
+its members with accessors such as {!Console.Progress.Event.kind} and
+{!Console.Progress.Event.text}.
 
 {1:testing Testing the output}
 

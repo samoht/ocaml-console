@@ -378,8 +378,9 @@ can with [`docker build`](https://docs.docker.com/reference/cli/docker/buildx/bu
 - `plain` prints lines, as on a CI log, but keeps the colour.
 - `quiet` prints only what fails.
 - `json` writes one JSON object per line for each event. Each line is a
-  `Console.Progress.Event.t`, whose fields keep their meaning as new ones
-  are added, and `Console.Progress.Event.of_string` reads it back with its
+  `Console.Progress.Event.t`, whose members keep their meaning as new ones
+  are added, each read by an accessor such as `Console.Progress.Event.text`,
+  and `Console.Progress.Event.of_string` reads it back with its
   [jsont](https://erratique.ch/software/jsont) codec.
 
 ```ocaml

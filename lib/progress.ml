@@ -23,28 +23,34 @@ let of_string s =
         (String.concat ", " (List.map fst all))
 
 module Event = struct
-  type task = int * string list
+  type kind =
+    [ `Start | `Progress | `Label | `Output | `End | `Result | `Other of string ]
+
   type count_unit = [ `Items | `Bytes | `Other of string ]
   type level = [ `App | `Error | `Warning | `Info | `Debug | `Other of string ]
   type status = [ `Succeeded | `Failed | `Cancelled | `Other of string ]
   type outcome = [ `Ok | `Error | `Other of string ]
 
-  type kind =
-    [ `Start of task * int option
-    | `Progress of task * int64 * int64 * count_unit
-    | `Label of task * string
-    | `Output of task option * string * level option
-    | `End of task * status * float * string option
-    | `Result of outcome * string * string option
-    | `Other of string ]
-
-  type t = { time : float; kind : kind }
-
-  let make ~time kind = { time; kind }
-  let time e = e.time
-  let kind e = e.kind
+  type t = {
+    time : float;
+    kind : kind;
+    id : int option;
+    task : string list option;
+    parent : int option;
+    count : int64 option;
+    total : int64 option;
+    unit : count_unit option;
+    status : status option;
+    outcome : outcome option;
+    elapsed : float option;
+    text : string option;
+    level : level option;
+    detail : string option;
+  }
 
   (* An open enumeration: the known values, then any other string. *)
+  type 'a enum = { of_string : string -> 'a; to_string : 'a -> string }
+
   let open_enum known =
     let of_string s =
       match List.assoc_opt s known with Some v -> v | None -> `Other s
@@ -54,12 +60,23 @@ module Event = struct
       | `Other s -> s
       | v -> fst (List.find (fun (_, v') -> v' = v) known)
     in
-    (of_string, to_string)
+    { of_string; to_string }
 
-  let count_unit : (string -> count_unit) * (count_unit -> string) =
+  let kinds : kind enum =
+    open_enum
+      [
+        ("start", `Start);
+        ("progress", `Progress);
+        ("label", `Label);
+        ("output", `Output);
+        ("end", `End);
+        ("result", `Result);
+      ]
+
+  let count_units : count_unit enum =
     open_enum [ ("items", `Items); ("bytes", `Bytes) ]
 
-  let level : (string -> level) * (level -> string) =
+  let levels : level enum =
     open_enum
       [
         ("app", `App);
@@ -69,135 +86,13 @@ module Event = struct
         ("debug", `Debug);
       ]
 
-  let status : (string -> status) * (status -> string) =
+  let statuses : status enum =
     open_enum
       [
         ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
       ]
 
-  let outcome : (string -> outcome) * (outcome -> string) =
-    open_enum [ ("ok", `Ok); ("error", `Error) ]
-
-  (* The object as it is written: every member, in the order of the line,
-     each absent when the event has none. *)
-  type members = {
-    time : float;
-    event : string;
-    id : int option;
-    task : string list option;
-    parent : int option;
-    count : int64 option;
-    total : int64 option;
-    unit : string option;
-    status : string option;
-    elapsed : float option;
-    text : string option;
-    level : string option;
-    detail : string option;
-  }
-
-  let none =
-    {
-      time = 0.;
-      event = "";
-      id = None;
-      task = None;
-      parent = None;
-      count = None;
-      total = None;
-      unit = None;
-      status = None;
-      elapsed = None;
-      text = None;
-      level = None;
-      detail = None;
-    }
-
-  let of_task ((id, labels) : task) m =
-    { m with id = Some id; task = Some labels }
-
-  let to_members (e : t) =
-    let m = { none with time = e.time } in
-    match e.kind with
-    | `Start (task, parent) -> of_task task { m with event = "start"; parent }
-    | `Progress (task, count, total, u) ->
-        of_task task
-          {
-            m with
-            event = "progress";
-            count = Some count;
-            total = Some total;
-            unit = Some (snd count_unit u);
-          }
-    | `Label (task, text) ->
-        of_task task { m with event = "label"; text = Some text }
-    | `Output (task, text, l) -> (
-        let m =
-          {
-            m with
-            event = "output";
-            text = Some text;
-            level = Option.map (snd level) l;
-          }
-        in
-        match task with
-        | Some task -> of_task task m
-        | None -> { m with task = Some [] })
-    | `End (task, s, elapsed, text) ->
-        of_task task
-          {
-            m with
-            event = "end";
-            status = Some (snd status s);
-            elapsed = Some elapsed;
-            text;
-          }
-    | `Result (o, text, detail) ->
-        {
-          m with
-          event = "result";
-          status = Some (snd outcome o);
-          text = Some text;
-          detail;
-        }
-    | `Other event -> { m with event }
-
-  let of_members (m : members) =
-    let get name = function
-      | Some v -> v
-      | None ->
-          Jsont.Error.msgf Jsont.Meta.none "%s event without %s" m.event name
-    in
-    let task () = (get "id" m.id, get "task" m.task) in
-    let kind =
-      match m.event with
-      | "start" -> `Start (task (), m.parent)
-      | "progress" ->
-          `Progress
-            ( task (),
-              get "count" m.count,
-              get "total" m.total,
-              fst count_unit (get "unit" m.unit) )
-      | "label" -> `Label (task (), get "text" m.text)
-      | "output" ->
-          let task =
-            match m.id with
-            | None -> None
-            | Some id -> Some (id, Option.value m.task ~default:[])
-          in
-          `Output (task, get "text" m.text, Option.map (fst level) m.level)
-      | "end" ->
-          `End
-            ( task (),
-              fst status (get "status" m.status),
-              get "elapsed" m.elapsed,
-              m.text )
-      | "result" ->
-          `Result
-            (fst outcome (get "status" m.status), get "text" m.text, m.detail)
-      | event -> `Other event
-    in
-    { time = m.time; kind }
+  let outcomes : outcome enum = open_enum [ ("ok", `Ok); ("error", `Error) ]
 
   (* Every number is written with 15 significant digits, the most that a
      float holds exactly: then a time rounded to the millisecond is written
@@ -269,7 +164,147 @@ module Event = struct
       go 0;
       Buffer.contents buf
 
-  let text = Jsont.map Jsont.string ~dec:Fun.id ~enc:clean
+  let utf_8 = Jsont.map Jsont.string ~dec:Fun.id ~enc:clean
+  let other_text = function `Other s -> `Other (clean s) | v -> v
+
+  let event ?id ?task ~time kind =
+    {
+      time = to_seconds time;
+      kind;
+      id;
+      task = Option.map (List.map clean) task;
+      parent = None;
+      count = None;
+      total = None;
+      unit = None;
+      status = None;
+      outcome = None;
+      elapsed = None;
+      text = None;
+      level = None;
+      detail = None;
+    }
+
+  let start ?parent ~time ~id task =
+    { (event ~id ~task ~time `Start) with parent }
+
+  let progress ~time ~id ~count ~total ~unit task =
+    {
+      (event ~id ~task ~time `Progress) with
+      count = Some count;
+      total = Some total;
+      unit = Some (other_text unit);
+    }
+
+  let label ~time ~id ~text task =
+    { (event ~id ~task ~time `Label) with text = Some (clean text) }
+
+  let output ?id ?(task = []) ?level ~time text =
+    {
+      (event ?id ~task ~time `Output) with
+      text = Some (clean text);
+      level = Option.map other_text level;
+    }
+
+  let end' ?text ~time ~id ~status ~elapsed task =
+    {
+      (event ~id ~task ~time `End) with
+      status = Some (other_text status);
+      elapsed = Some (to_seconds elapsed);
+      text = Option.map clean text;
+    }
+
+  let result ?detail ~time ~outcome text =
+    {
+      (event ~time `Result) with
+      outcome = Some (other_text outcome);
+      text = Some (clean text);
+      detail = Option.map clean detail;
+    }
+
+  let other ~time name = event ~time (`Other (clean name))
+  let time e = e.time
+  let kind e = e.kind
+  let id e = e.id
+  let task e = Option.value e.task ~default:[]
+  let parent e = e.parent
+  let count e = e.count
+  let total e = e.total
+  let unit e = e.unit
+  let status e = e.status
+  let outcome e = e.outcome
+  let elapsed e = e.elapsed
+  let text e = e.text
+  let level e = e.level
+  let detail e = e.detail
+
+  (* The object as it is written: every member, in the order of the line,
+     each absent when the event has none. *)
+  type members = {
+    time : float;
+    event : string;
+    id : int option;
+    task : string list option;
+    parent : int option;
+    count : int64 option;
+    total : int64 option;
+    unit : string option;
+    status : string option;
+    elapsed : float option;
+    text : string option;
+    level : string option;
+    detail : string option;
+  }
+
+  let to_members (e : t) =
+    let status =
+      match (e.status, e.outcome) with
+      | Some s, _ -> Some (statuses.to_string s)
+      | None, Some o -> Some (outcomes.to_string o)
+      | None, None -> None
+    in
+    {
+      time = e.time;
+      event = kinds.to_string e.kind;
+      id = e.id;
+      task = e.task;
+      parent = e.parent;
+      count = e.count;
+      total = e.total;
+      unit = Option.map count_units.to_string e.unit;
+      status;
+      elapsed = e.elapsed;
+      text = e.text;
+      level = Option.map levels.to_string e.level;
+      detail = e.detail;
+    }
+
+  let of_members (m : members) =
+    let get name = function
+      | Some v -> v
+      | None ->
+          Jsont.Error.msgf Jsont.Meta.none "%s event without %s" m.event name
+    in
+    let time = m.time in
+    let id () = get "id" m.id and task () = get "task" m.task in
+    match kinds.of_string m.event with
+    | `Start -> start ?parent:m.parent ~time ~id:(id ()) (task ())
+    | `Progress ->
+        let count = get "count" m.count and total = get "total" m.total in
+        let unit = count_units.of_string (get "unit" m.unit) in
+        progress ~time ~id:(id ()) ~count ~total ~unit (task ())
+    | `Label -> label ~time ~id:(id ()) ~text:(get "text" m.text) (task ())
+    | `Output ->
+        let level = Option.map levels.of_string m.level in
+        output ?id:m.id ?task:m.task ?level ~time (get "text" m.text)
+    | `End ->
+        let status = statuses.of_string (get "status" m.status) in
+        end' ?text:m.text ~time ~id:(id ()) ~status
+          ~elapsed:(get "elapsed" m.elapsed) (task ())
+    | `Result ->
+        let outcome = outcomes.of_string (get "status" m.status) in
+        result ?detail:m.detail ~time ~outcome (get "text" m.text)
+    | `Other name -> other ~time name
 
   let jsont =
     let open Jsont.Object in
@@ -305,18 +340,18 @@ module Event = struct
           detail;
         })
     |> mem "time" seconds ~enc:(fun (m : members) -> m.time)
-    |> mem "event" text ~enc:(fun m -> m.event)
+    |> mem "event" utf_8 ~enc:(fun m -> m.event)
     |> opt_mem "id" int ~enc:(fun m -> m.id)
-    |> opt_mem "task" (Jsont.list text) ~enc:(fun m -> m.task)
+    |> opt_mem "task" (Jsont.list utf_8) ~enc:(fun m -> m.task)
     |> opt_mem "parent" int ~enc:(fun m -> m.parent)
     |> opt_mem "count" int64 ~enc:(fun m -> m.count)
     |> opt_mem "total" int64 ~enc:(fun m -> m.total)
-    |> opt_mem "unit" text ~enc:(fun m -> m.unit)
-    |> opt_mem "status" text ~enc:(fun m -> m.status)
+    |> opt_mem "unit" utf_8 ~enc:(fun m -> m.unit)
+    |> opt_mem "status" utf_8 ~enc:(fun m -> m.status)
     |> opt_mem "elapsed" seconds ~enc:(fun m -> m.elapsed)
-    |> opt_mem "text" text ~enc:(fun m -> m.text)
-    |> opt_mem "level" text ~enc:(fun m -> m.level)
-    |> opt_mem "detail" text ~enc:(fun m -> m.detail)
+    |> opt_mem "text" utf_8 ~enc:(fun m -> m.text)
+    |> opt_mem "level" utf_8 ~enc:(fun m -> m.level)
+    |> opt_mem "detail" utf_8 ~enc:(fun m -> m.detail)
     |> skip_unknown |> finish
     |> Jsont.map ~kind:"console progress event" ~dec:of_members ~enc:to_members
 

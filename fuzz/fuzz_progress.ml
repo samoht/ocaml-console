@@ -36,23 +36,31 @@ let status =
     ]
 
 let outcome = open_value [ ("ok", `Ok); ("error", `Error) ]
-let task = pair int (list bytes)
+let task = list bytes
 
-(* Any event: [`Other] names an event that is not listed. *)
+(* Any event, but for its time: [other] names an event that is not
+   listed. *)
 let kind =
   choose
     [
-      map [ task; option int ] (fun t p -> `Start (t, p));
-      map [ task; int64; int64; count_unit ] (fun t c n u ->
-          `Progress (t, c, n, u));
-      map [ task; bytes ] (fun t s -> `Label (t, s));
-      map [ option task; bytes; option level ] (fun t s l -> `Output (t, s, l));
       map
-        [ task; status; float; option bytes ]
-        (fun t s x m -> `End (t, s, x, m));
-      map [ outcome; bytes; option bytes ] (fun o s d -> `Result (o, s, d));
+        [ int; task; option int ]
+        (fun id t parent -> Event.start ?parent ~id t);
+      map [ int; task; int64; int64; count_unit ] (fun id t count total unit ->
+          Event.progress ~id ~count ~total ~unit t);
+      map [ int; task; bytes ] (fun id t text -> Event.label ~id ~text t);
+      map
+        [ option int; option task; bytes; option level ]
+        (fun id task s level -> Event.output ?id ?task ?level s);
+      map
+        [ int; task; status; float; option bytes ]
+        (fun id t status elapsed text ->
+          Event.end' ?text ~id ~status ~elapsed t);
+      map
+        [ outcome; bytes; option bytes ]
+        (fun outcome s detail -> Event.result ?detail ~outcome s);
       map [ bytes ] (fun s ->
-          if List.mem s known_events then bad_test () else `Other s);
+          if List.mem s known_events then bad_test () else Event.other s);
     ]
 
 (* No byte of a line is a control character, nor is a character of it
@@ -77,7 +85,7 @@ let decode line =
 (* An event's line decodes, and its event is written as the line is: valid
    UTF-8 on one line, without a control character. *)
 let test_round_trip time kind =
-  let line = Event.to_string (Event.make ~time kind) in
+  let line = Event.to_string (kind ~time) in
   check (String.is_valid_utf_8 line);
   check (no_control line);
   check_eq ~pp:Fmt.Dump.string line (Event.to_string (decode line))
@@ -103,11 +111,9 @@ let cleaned s =
 (* Any bytes read back as valid UTF-8 without a C1 control, the bytes of
    each other character kept. *)
 let test_string s =
-  match
-    Event.kind
-      (decode (Event.to_string (Event.make ~time:0. (`Label ((0, [ s ]), s)))))
-  with
-  | `Label ((0, [ l ]), t) ->
+  let e = decode (Event.to_string (Event.label ~time:0. ~id:0 ~text:s [ s ])) in
+  match (Event.task e, Event.text e) with
+  | [ l ], Some t ->
       check_eq ~pp:Fmt.Dump.string (cleaned s) l;
       check_eq ~pp:Fmt.Dump.string (cleaned s) t
   | _ -> fail "not the label event"
@@ -115,9 +121,7 @@ let test_string s =
 (* A time reads back rounded to the millisecond, held in [-10^12, 10^12]
    seconds, and is zero if it is not finite. *)
 let test_time x =
-  let back =
-    Event.time (decode (Event.to_string (Event.make ~time:x (`Other "x"))))
-  in
+  let back = Event.time (decode (Event.to_string (Event.other ~time:x "x"))) in
   if not (Float.is_finite x) then check_eq ~pp:Fmt.float 0. back
   else
     let x = Float.min 1e12 (Float.max (-1e12) x) in
@@ -134,7 +138,8 @@ let contains ~affix s =
    a string of decimal digits from there. *)
 let test_count c n =
   let line =
-    Event.to_string (Event.make ~time:0. (`Progress ((0, []), c, n, `Bytes)))
+    Event.to_string
+      (Event.progress ~time:0. ~id:0 ~count:c ~total:n ~unit:`Bytes [])
   in
   let exact = Int64.compare (Int64.abs c) 1_000_000_000_000_000L < 0 in
   let exact = exact && not (Int64.equal c Int64.min_int) in
@@ -144,11 +149,9 @@ let test_count c n =
          (if exact then Fmt.str {|"count":%Ld,|} c
           else Fmt.str {|"count":"%Ld",|} c)
        line);
-  match Event.kind (decode line) with
-  | `Progress (_, c', n', `Bytes) ->
-      check (Int64.equal c c');
-      check (Int64.equal n n')
-  | _ -> fail "not the progress event"
+  let e = decode line in
+  check (Event.count e = Some c);
+  check (Event.total e = Some n)
 
 (* Check every documented event field through the public Display API,
    including arbitrary bytes in labels, end messages and result text: each
@@ -198,7 +201,7 @@ let public_schema_events k raw =
         match Progress.Event.of_string line with
         | Ok e ->
             check_eq ~pp:Fmt.Dump.string line (Progress.Event.to_string e);
-            (Progress.Event.time e, Progress.Event.kind e)
+            e
         | Error (`Msg e) -> failf "%s does not decode: %s" line e)
   in
   (events, (count, status, detail))
@@ -208,16 +211,17 @@ let public_schema_expected k raw ((count, unit), status, detail) =
   let label = clean raw and child = clean (raw ^ "/child") in
   let renamed = clean (raw ^ "/new") and message = clean (raw ^ "/end") in
   let outcome = if k land 2 = 0 then `Ok else `Error in
+  let child_task = [ renamed; child ] in
   [
-    (0., `Start ((0, [ label ]), None));
-    (0.125, `Start ((1, [ label; child ]), Some 0));
-    (0.375, `Label ((0, [ renamed ]), renamed));
-    (0.375, `Progress ((1, [ renamed; child ]), count, count, unit));
-    (0.375, `Output (Some (1, [ renamed; child ]), "line", None));
-    (0.375, `End ((1, [ renamed; child ]), status, 0.25, Some message));
-    (0.375, `End ((0, [ renamed ]), `Succeeded, 0.375, None));
-    (0.375, `Output (None, "root", None));
-    (0.375, `Result (outcome, label, Some detail));
+    Event.start ~time:0. ~id:0 [ label ];
+    Event.start ~parent:0 ~time:0.125 ~id:1 [ label; child ];
+    Event.label ~time:0.375 ~id:0 ~text:renamed [ renamed ];
+    Event.progress ~time:0.375 ~id:1 ~count ~total:count ~unit child_task;
+    Event.output ~id:1 ~task:child_task ~time:0.375 "line";
+    Event.end' ~text:message ~time:0.375 ~id:1 ~status ~elapsed:0.25 child_task;
+    Event.end' ~time:0.375 ~id:0 ~status:`Succeeded ~elapsed:0.375 [ renamed ];
+    Event.output ~time:0.375 "root";
+    Event.result ~detail ~time:0.375 ~outcome label;
   ]
 
 let test_public_schema k text =
@@ -227,7 +231,8 @@ let test_public_schema k text =
   check_eq ~pp:Fmt.int (List.length expected) (List.length events);
   List.iteri
     (fun i (expected, actual) ->
-      if expected <> actual then failf "event %d is not the one expected" i)
+      if expected <> actual then
+        failf "event %d is %a, not %a" i Event.pp actual Event.pp expected)
     (List.combine expected events)
 
 (* Include the finite limits and all IEEE-754 bit patterns, rather than
@@ -241,7 +246,8 @@ let extreme_seconds =
     ]
 
 let test_extreme_seconds time =
-  test_round_trip time (`End ((0, [ "work" ]), `Succeeded, time, None))
+  test_round_trip time (fun ~time:t ->
+      Event.end' ~time:t ~id:0 ~status:`Succeeded ~elapsed:time [ "work" ])
 
 let suite =
   ( "progress",

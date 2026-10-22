@@ -76,13 +76,14 @@ val to_string : t -> string
       have the same number;
     - [task], the labels from the top task down to it, an array of strings.
 
-    The other members are those of each event, in the order {!Event.type-kind}
-    gives them, a member that an event may not have being absent. Strings are
-    valid UTF-8 and hold no C1 control (U+0080 to U+009F), which a terminal may
-    take for an escape code: each byte that is not part of a character and each
-    C1 control is U+FFFD. The C0 controls and DEL are escaped. Numbers have at
-    most 15 significant digits, so an integer is a JSON number between
-    -10{^ 15}+1 and 10{^ 15}-1, and a string of decimal digits beyond.
+    The other members are those of each event, in the order of
+    {{!Event.members}its accessors}, a member that an event does not have being
+    absent. Strings are valid UTF-8 and hold no C1 control (U+0080 to U+009F),
+    which a terminal may take for an escape code: each byte that is not part of
+    a character and each C1 control is U+FFFD. The C0 controls and DEL are
+    escaped. Numbers have at most 15 significant digits, so an integer is a JSON
+    number between -10{^ 15}+1 and 10{^ 15}-1, and a string of decimal digits
+    beyond.
 
     The task in the example of {!Display} gives these events:
     {v
@@ -96,11 +97,25 @@ val to_string : t -> string
     A program reads a line with {!Event.of_string}, or with any
     {{:https://erratique.ch/software/jsont}jsont} decoder of {!Event.jsont}. *)
 module Event : sig
-  (** {1:values Values} *)
+  (** {1:values Values}
 
-  type task = int * string list
-  (** The type for the task of an event: its [id] and its [task], the labels
-      from the top task down to it. *)
+      The types of the names of events and of the values of their members are
+      open: constructors may be added, so a value read as [`Other s] today may
+      read as a constructor of its own later, and a match on one has a case for
+      the others. An event never holds [`Other s] with [s] a listed name: the
+      constructors refuse it, and {!jsont} reads [s] as its constructor. *)
+
+  type kind =
+    [ `Start  (** ["start"]: the task started. *)
+    | `Progress  (** ["progress"]: the count of the task changed. *)
+    | `Label  (** ["label"]: the label of the task changed. *)
+    | `Output  (** ["output"]: a line of output, of a task or of none. *)
+    | `End  (** ["end"]: the task ended. *)
+    | `Result
+      (** ["result"]: the result of {!Display.set_result}, when the display
+          closes. *)
+    | `Other of string  (** An event of another name. *) ]
+  (** The type for the names of events, the [event] member. *)
 
   type count_unit = [ `Items | `Bytes | `Other of string ]
   (** The type for the units of a count, the [unit] member: ["items"], ["bytes"]
@@ -118,47 +133,120 @@ module Event : sig
   (** The type for how the work ended, the [status] member of ["result"]:
       ["ok"], ["error"] or another string. *)
 
-  type kind =
-    [ `Start of task * int option
-      (** ["start"]: the task started, under the task whose [id] is [parent], if
-          any. *)
-    | `Progress of task * int64 * int64 * count_unit
-      (** ["progress"]: the count of the task changed to [count] of [total], in
-          [unit]. A [count] or a [total] of 10{^ 15} or more is a string of
-          decimal digits. Each call to {!Display.set_count} or
-          {!Display.set_bytes} that changes them is one event, however often it
-          comes. *)
-    | `Label of task * string
-      (** ["label"]: the label of the task changed to [text]. *)
-    | `Output of task option * string * level option
-      (** ["output"]: [text] is a line of output of the task, and [level], only
-          for a Logs message, its level. Output outside any task has no [id] and
-          [task] at [[]]. *)
-    | `End of task * status * float * string option
-      (** ["end"]: the task ended with [status], after [elapsed] seconds,
-          rounded to the millisecond, and [text] is the message it ended with,
-          if any. *)
-    | `Result of outcome * string * string option
-      (** ["result"]: the result of {!Display.set_result}, when the display
-          closes. It has no [id] nor [task]: [status] is the outcome, [text] its
-          message and [detail] its detail, if any. *)
-    | `Other of string
-      (** An event of another name. The line of [`Other n], [n] one of the names
-          above, does not decode. *) ]
-  (** The type for the kinds of events and their members. A transient task
-      ({!Display.val-task}) has its events as any other task has. *)
-
   type t
-  (** The type for events. *)
+  (** The type for events. A transient task ({!Display.val-task}) has its events
+      as any other task has. *)
 
-  val make : time:float -> kind -> t
-  (** [make ~time k] is the event [k] at [time] seconds. *)
+  (** {1:make Constructors}
+
+      Each event has a constructor that takes its members, those it may lack as
+      optional arguments, so that a member added later is an optional argument.
+      The task of an event is its [id] and its [task], the labels from the top
+      task down to it, the last argument. [time] and [elapsed] are taken as
+      {!jsont} writes them, and each string as valid UTF-8 without a C1 control.
+
+      The constructors raise [Invalid_argument] if given [`Other s] with [s] a
+      listed name. *)
+
+  val start : ?parent:int -> time:float -> id:int -> string list -> t
+  (** [start ~parent ~time ~id task] is ["start"]: the task started, under the
+      task whose [id] is [parent], if any. *)
+
+  val progress :
+    time:float ->
+    id:int ->
+    count:int64 ->
+    total:int64 ->
+    unit:count_unit ->
+    string list ->
+    t
+  (** [progress ~time ~id ~count ~total ~unit task] is ["progress"]: the count
+      of the task changed to [count] of [total], in [unit]. Each call to
+      {!Display.set_count} or {!Display.set_bytes} that changes them is one
+      event, however often it comes. *)
+
+  val label : time:float -> id:int -> text:string -> string list -> t
+  (** [label ~time ~id ~text task] is ["label"]: the label of the task changed
+      to [text]. *)
+
+  val output :
+    ?id:int -> ?task:string list -> ?level:level -> time:float -> string -> t
+  (** [output ~id ~task ~level ~time text] is ["output"]: [text] is a line of
+      output of the task, and [level], only for a Logs message, its level.
+      Output outside any task has no [id], and its [task] is [[]] (the default).
+  *)
+
+  val end' :
+    ?text:string ->
+    time:float ->
+    id:int ->
+    status:status ->
+    elapsed:float ->
+    string list ->
+    t
+  (** [end' ~text ~time ~id ~status ~elapsed task] is ["end"]: the task ended
+      with [status], after [elapsed] seconds, and [text] is the message it ended
+      with, if any. *)
+
+  val result : ?detail:string -> time:float -> outcome:outcome -> string -> t
+  (** [result ~detail ~time ~outcome text] is ["result"]: the work ended with
+      [outcome], [text] is its message and [detail] its detail, if any. It has
+      no [id] nor [task], and its [outcome] is its [status] member. *)
+
+  val other : time:float -> string -> t
+  (** [other ~time name] is the event named [name], with no other member. *)
+
+  (** {1:members Members}
+
+      An event's members are in the order of these accessors. A member that an
+      event does not have is [None], and is absent from its object. *)
 
   val time : t -> float
   (** [time e] is the seconds since the display started when [e] happened. *)
 
   val kind : t -> kind
-  (** [kind e] is the kind of [e] and its members. *)
+  (** [kind e] is the name of [e]. *)
+
+  val id : t -> int option
+  (** [id e] is the [id] of the task of [e]: [None] for output outside any task,
+      for ["result"] and for [`Other]. *)
+
+  val task : t -> string list
+  (** [task e] is the labels from the top task of [e] down to its task: [[]]
+      where it has none. *)
+
+  val parent : t -> int option
+  (** [parent e] is the [id] of the task over that of ["start"], if any. *)
+
+  val count : t -> int64 option
+  (** [count e] is the count of ["progress"]. It is written as a JSON number
+      below 10{^ 15} in magnitude, and as a string of decimal digits from there.
+  *)
+
+  val total : t -> int64 option
+  (** [total e] is the total of ["progress"], written as {!count} is. *)
+
+  val unit : t -> count_unit option
+  (** [unit e] is the unit of the count of ["progress"]. *)
+
+  val status : t -> status option
+  (** [status e] is how the task of ["end"] ended. *)
+
+  val outcome : t -> outcome option
+  (** [outcome e] is how the work of ["result"] ended, its [status] member. *)
+
+  val elapsed : t -> float option
+  (** [elapsed e] is the seconds the task of ["end"] ran for. *)
+
+  val text : t -> string option
+  (** [text e] is the label of ["label"], the line of ["output"], the message of
+      ["end"], if any, and that of ["result"]. *)
+
+  val level : t -> level option
+  (** [level e] is the level of ["output"], for a Logs message. *)
+
+  val detail : t -> string option
+  (** [detail e] is the detail of ["result"], if any. *)
 
   (** {1:json JSON} *)
 
@@ -168,14 +256,15 @@ module Event : sig
       larger magnitude as the bound and [0] if not finite, so that each reads
       back as it was written. It encodes an integer of 10{^ 15} or more as a
       string, and each string as valid UTF-8 without a C1 control. It decodes an
-      event of another name as [`Other], a value of a {!type-count_unit}, a
-      {!type-level}, a {!type-status} or an {!type-outcome} it does not list as
-      [`Other], and skips the members it does not know. An event that lacks a
-      member of its kind does not decode. *)
+      event of another name as [`Other] with its [time] alone, a value of a
+      {!type-count_unit}, a {!type-level}, a {!type-status} or an
+      {!type-outcome} it does not list as [`Other], and skips the members it
+      does not know. An event that lacks a member of its kind does not decode.
+  *)
 
   val of_string : string -> (t, [ `Msg of string ]) result
   (** [of_string s] is the event of the JSON object [s], decoded with {!jsont}.
-  *)
+      This is [Error (`Msg m)] if [s] is not the JSON object of an event. *)
 
   val to_string : t -> string
   (** [to_string e] is the line a display writes for [e], without the line feed:

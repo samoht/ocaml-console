@@ -152,7 +152,9 @@ let test_json_reads_back () =
       (1e9 +. 0.5, Some (Some "", Ok ""));
     ]
 
-let event time kind = Progress.Event.to_string (Progress.Event.make ~time kind)
+module Event = Progress.Event
+
+let event time make = Event.to_string (make ~time)
 
 (* The line of each event, its members in order. *)
 let test_json_lines () =
@@ -160,63 +162,67 @@ let test_json_lines () =
     Alcotest.(check string) name expected (event 1.5 kind);
     reads_back expected
   in
-  let task = (2, [ "a"; "b" ]) in
+  let task = [ "a"; "b" ] in
   check "start"
     {|{"time":1.5,"event":"start","id":2,"task":["a","b"],"parent":1}|}
-    (`Start (task, Some 1));
+    (Event.start ~parent:1 ~id:2 task);
   check "progress"
     {|{"time":1.5,"event":"progress","id":2,"task":["a","b"],"count":3,"total":999999999999999,"unit":"bytes"}|}
-    (`Progress (task, 3L, 999999999999999L, `Bytes));
+    (Event.progress ~id:2 ~count:3L ~total:999999999999999L ~unit:`Bytes task);
   check "from 10^15"
     {|{"time":1.5,"event":"progress","id":2,"task":["a","b"],"count":"1000000000000000","total":"9223372036854775807","unit":"items"}|}
-    (`Progress (task, 1_000_000_000_000_000L, Int64.max_int, `Items));
+    (Event.progress ~id:2 ~count:1_000_000_000_000_000L ~total:Int64.max_int
+       ~unit:`Items task);
   check "label"
     {|{"time":1.5,"event":"label","id":2,"task":["a","b"],"text":"c"}|}
-    (`Label (task, "c"));
+    (Event.label ~id:2 ~text:"c" task);
   check "controls"
     ({|{"time":1.5,"event":"output","task":[],"text":"\u001B\u007F|}
    ^ "\u{FFFD}" ^ {|\t\"\\|} ^ "\xc3\xa9" ^ {|","level":"warning"}|})
-    (`Output (None, "\027\127\xc2\x85\t\"\\\xc3\xa9", Some `Warning));
+    (Event.output ~level:`Warning "\027\127\xc2\x85\t\"\\\xc3\xa9");
   check "invalid UTF-8"
     "{\"time\":1.5,\"event\":\"output\",\"id\":2,\"task\":[\"a\",\"b\"],\"text\":\"\u{FFFD}\"}"
-    (`Output (Some task, "\xff", None));
+    (Event.output ~id:2 ~task "\xff");
   check "end"
     {|{"time":1.5,"event":"end","id":2,"task":["a","b"],"status":"failed","elapsed":0.25,"text":"m"}|}
-    (`End (task, `Failed, 0.25, Some "m"));
+    (Event.end' ~text:"m" ~id:2 ~status:`Failed ~elapsed:0.25 task);
   check "result"
     {|{"time":1.5,"event":"result","status":"ok","text":"t","detail":"d"}|}
-    (`Result (`Ok, "t", Some "d"));
-  check "other" {|{"time":1.5,"event":"pause"}|} (`Other "pause");
+    (Event.result ~detail:"d" ~outcome:`Ok "t");
+  check "other" {|{"time":1.5,"event":"pause"}|} (Event.other "pause");
   check "other values"
     {|{"time":1.5,"event":"end","id":2,"task":["a","b"],"status":"skipped","elapsed":0}|}
-    (`End (task, `Other "skipped", 0., None));
+    (Event.end' ~id:2 ~status:(`Other "skipped") ~elapsed:0. task);
   Alcotest.(check string)
     "a time to the millisecond" {|{"time":861415.19,"event":"pause"}|}
-    (event 861415.1899999 (`Other "pause"));
+    (event 861415.1899999 (Event.other "pause"));
   Alcotest.(check string)
     "a time that is not finite" {|{"time":0,"event":"pause"}|}
-    (event Float.nan (`Other "pause"))
+    (event Float.nan (Event.other "pause"))
 
 (* A consumer skips the members, events and values it does not know, and an
    event that lacks a member of its kind does not decode. *)
 let test_json_growth () =
   let kind line =
     match decode line with
-    | Ok e -> Some (Progress.Event.kind e)
+    | Ok e ->
+        Some
+          (Event.kind e, Event.id e, Event.task e, Event.text e, Event.level e)
     | Error _ -> None
   in
   Alcotest.(check bool)
     "unknown members" true
     (kind
        {|{"time":0,"event":"label","new":{"a":[1]},"id":0,"task":["x"],"text":"y","more":null}|}
-    = Some (`Label ((0, [ "x" ]), "y")));
+    = Some (`Label, Some 0, [ "x" ], Some "y", None));
   Alcotest.(check bool)
     "unknown event" true
-    (kind {|{"time":0,"event":"pause","id":0}|} = Some (`Other "pause"));
+    (kind {|{"time":0,"event":"pause","id":0}|}
+    = Some (`Other "pause", None, [], None, None));
   Alcotest.(check bool)
     "unknown value" true
     (kind {|{"time":0,"event":"output","task":[],"text":"","level":"trace"}|}
-    = Some (`Output (None, "", Some (`Other "trace"))));
+    = Some (`Output, None, [], Some "", Some (`Other "trace")));
   Alcotest.(check bool)
     "a missing member" true
     (kind {|{"time":0,"event":"start","task":["x"]}|} = None)
@@ -245,10 +251,10 @@ let test_tty () =
 (* Rounding the largest finite float to 15 digits must still read back. *)
 let test_json_max_float () =
   let e =
-    Progress.Event.make ~time:Float.max_float
-      (`End ((0, [ "work" ]), `Succeeded, Float.max_float, None))
+    Event.end' ~time:Float.max_float ~id:0 ~status:`Succeeded
+      ~elapsed:Float.max_float [ "work" ]
   in
-  reads_back (Progress.Event.to_string e)
+  reads_back (Event.to_string e)
 
 let suite =
   ( "progress",
