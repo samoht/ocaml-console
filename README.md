@@ -648,14 +648,13 @@ character that reorders the text around it:
 
 ## Known limitations
 
-- The tests read the screen through the terminal emulator of matrix 0.1.0,
-  a test dependency only. It has defects that the tests work around until
-  matrix 0.2.0, which fixes them (`test/vte/matrix_fix.ml`,
-  `fuzz/matrix_0_1.ml` and five skipped checks, each naming its upstream
-  fix). It also reads Unicode 16.0 and draws a cluster in the cells of its
-  first character, so the properties that read it skip text with a
-  character assigned since, and a cluster such as ❤‍👩 (U+2764 U+200D
-  U+1F469), which console counts by its widest character, two cells.
+- console 0.9.0 is tested against the terminal emulator of matrix 0.1.0, a
+  test dependency only, which has defects that matrix 0.2.0 fixes; the tests
+  work around them and skip five checks until then. That emulator reads
+  Unicode 16.0 and draws a cluster in the cells of its first character, so
+  the properties that read it skip text with a character assigned since, and
+  clusters such as ❤‍👩 (U+2764 U+200D U+1F469), which console counts by its
+  widest character, two cells.
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
   is text unless a VS16 follows it, so console counts it at its East Asian
   width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.

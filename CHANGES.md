@@ -29,12 +29,13 @@ Initial release of `console` and `console-eio`.
   Monokai and GitHub. Text colours, the roles' included, are at 4.5:1
   contrast on the theme's background and glyph colours at 3:1. `Span.role`
   styles text as a success, a warning, a failure, the main colour, muted
-  text or a header, in the theme of the formatter it is printed on. `Theme.all` and
-  `Theme.of_string` make a `--theme` option one line of Cmdliner.
-- Motion. In a live display the frame of a table or a panel drawn above the
-  rows (`Display.set_view`) moves in the theme's way (`Theme.motion`):
-  digital rain in `Theme.matrix`, a rainbow sweep in `Theme.rainbow`, a
-  shimmer in the colour schemes. Only colours and glyphs of one width
+  text or a header, in the theme of the formatter it is printed on.
+  `Theme.all` and `Theme.of_string` make a `--theme` option one line of
+  Cmdliner.
+- Motion. In a live display the frame of a table or a panel drawn in a
+  display's view (`Display.set_view`) moves in the theme's way
+  (`Theme.motion`): digital rain in `Theme.matrix`, a rainbow sweep in
+  `Theme.rainbow`, a shimmer in the colour schemes. Only colours and glyphs of one width
   change; printed with `Fmt`, on a pipe or without colour, a frame is still,
   and `Theme.still` stops every motion and the spinner.
 - Live progress. `Display` shows the tree of the running tasks, one row
@@ -43,21 +44,26 @@ Initial release of `console` and `console-eio`.
   only those rows. A task that ends stays under its parent, marked, until
   its top task ends, and the top task's tree then goes to the scrollback
   whole, each task once under its parent; the summary is the last line
-  printed. The region never scrolls the terminal: a tree too tall folds the
-  tasks that ended into one line, then shows the latest running tasks. The
-  region is a view (`Display.set_view`), a span the program puts together
-  from `Display.tree`, `Display.summary` and any widget, such as a table
-  above the rows or trees side by side with `~keep_ended:true`; its last frame
-  stays when the display closes. `Display.with_task` runs a
-  function as a task, current in the fibers it forks, that succeeds when the
-  function returns and fails when it raises. A task's output shows under it
+  printed. A row too wide gives way its rate, bar, count and time, in that
+  order, before its label. The region never scrolls the terminal: a tree
+  too tall folds the tasks that ended into one line, which counts the
+  failures, then drops its windows' oldest lines, then shows the latest
+  running tasks, and a view too tall drops a widget whole rather than show
+  a fragment of its frame. The region is a view (`Display.set_view`), a
+  span the program puts together from `Display.tree`, `Display.children`,
+  `Display.summary` and any widget, such as a table above the rows or trees
+  side by side with `~keep_ended:true`; its last frame stays when the
+  display closes. `Display.with_task` runs a function as a task, current in
+  the fibers it forks, that succeeds when the function returns and fails,
+  saying why, when it raises. A task's output shows under it
   while it runs, and stays if the task fails: its `Logs` messages, its
   `Display.log` lines and its standard output on the display's terminal
   alike, printed whole (up to 1 MiB) under the line of a failure or a
   cancellation. `Display.within` makes a task current again, and output
   within `Display.root` goes above the rows, from inside a task too. In a
   pipe or a CI log, every line is printed once, in order with standard
-  output under `2>&1`.
+  output under `2>&1`, and names its task by its path, such as
+  `linux › compile`, so the lines of trees that run at once read apart.
 - `console-eio`. `Console_eio.run ~clock` runs a display on standard error
   with Eio: it gives it the `Logs` messages, those of other Eio domains
   included, and the program's output on its terminal, and gives the
