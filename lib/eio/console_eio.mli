@@ -70,12 +70,11 @@ val run :
 
     - With [`Tty] on another output, what the program prints on [ppf] itself is
       taken in the same way.
-    - With [`Quiet], what the program prints on {!Fmt.stdout} or {!Fmt.stderr},
-      when it writes where [ppf] does, is taken in the same way, so that the
-      output of a task that succeeds is not printed.
-    - With [`Json], what the program prints on [ppf], when it is {!Fmt.stdout}
-      or {!Fmt.stderr}, becomes [output] events, so that each line of [ppf] is
-      an event.
+    - With [`Quiet] or [`Json], what the program prints on {!Fmt.stdout} or
+      {!Fmt.stderr}, when it writes where [ppf] does, as with [2>&1], is taken
+      in the same way. With [`Quiet] the output of a task that succeeds is not
+      printed, and with [`Json] each line is an [output] event, so that every
+      line of [ppf] is an event.
 
     When [f] returns, raises or its fiber is cancelled, the tasks still running
     are cancelled, unless [f] said the work succeeded with

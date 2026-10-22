@@ -82,9 +82,9 @@ let reading clock =
 
 (* The display, the formatters whose lines it takes and what shows or hides
    the cursor. On a terminal it takes the standard formatters on that
-   terminal; quiet, those that write where [ppf] does, as a task's output
-   is printed only if it fails; drawn on another output, or as events,
-   [ppf] alone. *)
+   terminal; quiet or as events, those that write where [ppf] does, so
+   that a task's output is printed only if it fails, or is an event; drawn
+   on another output, [ppf] alone. *)
 let display ~progress ~now ?layout ?header ppf =
   let scope = Session.scope in
   let live ~size ~intercept ~cursor =
@@ -100,16 +100,12 @@ let display ~progress ~now ?layout ?header ppf =
           ~intercept:(routed unix) ~cursor:(cursor unix))
       (terminal ppf)
   in
-  let std = match descriptor ppf with Some _ -> [ ppf ] | None -> [] in
   let lines form =
-    let taking std =
-      ( Display_driver.v ?layout ?header ~progress:form ~scope ~now (own ppf),
-        std,
-        ignore )
-    in
     match (form, descriptor ppf) with
-    | `Json, Some _ -> taking std
-    | `Quiet, Some (_, unix) -> taking (sharing unix)
+    | (`Json | `Quiet), Some (_, unix) ->
+        ( Display_driver.v ?layout ?header ~progress:form ~scope ~now (own ppf),
+          sharing unix,
+          ignore )
     | _ ->
         ( Display_driver.v ?layout ?header ~progress:form ~scope ~now ppf,
           [],
@@ -126,8 +122,10 @@ let display ~progress ~now ?layout ?header ppf =
             | Some (_, unix) -> cursor unix
             | None -> ignore
           in
-          live ~size:(fun () -> Terminal.dimensions None) ~intercept:std ~cursor
-      )
+          let intercept =
+            match descriptor ppf with Some _ -> [ ppf ] | None -> []
+          in
+          live ~size:(fun () -> Terminal.dimensions None) ~intercept ~cursor)
   | (`Plain | `Quiet | `Json) as form -> lines form
 
 (* A display of its own, which [f] is given. *)
