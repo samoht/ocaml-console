@@ -372,8 +372,9 @@ let test_accessors raw id n =
   verify ~outcome:`Ok ~text `Result (Event.result ~time:1.25 ~outcome:`Ok raw);
   verify (`Other "pause") (Event.other ~time:1.25 "pause")
 
-(* The retained 4 KiB texts include complete decoded characters and ASCII
-   dots, also where a combining mark, a joiner or an escape meets the cap. *)
+(* The retained 4 KiB texts are cut between two grapheme clusters, a
+   character in console, then end in ASCII dots, also where a combining
+   mark, a joiner, a flag or an escape meets the cap. *)
 let test_retained_cut k =
   let tails =
     [|
@@ -381,28 +382,24 @@ let test_retained_cut k =
       "\u{1F600}";
       "e\u{0301}";
       "\u{1F468}\u{200D}\u{1F469}";
+      "\u{1F1EB}\u{1F1F7}";
+      "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
       "\027[31mred";
     |]
   in
   let raw =
-    String.make (4090 + (k mod 12)) 'a' ^ tails.(k mod Array.length tails)
+    String.make (4086 + (k mod 16)) 'a' ^ tails.(k mod Array.length tails)
   in
   let clean = Console_text.sanitize ~keep_newlines:false raw in
   let expected =
     if String.length clean <= 4096 then clean
     else
-      let b = Buffer.create 4096 in
-      let rec prefix i =
-        let d = String.get_utf_8_uchar clean i in
-        let next = i + Uchar.utf_decode_length d in
-        if next <= 4093 then begin
-          Buffer.add_utf_8_uchar b (Uchar.utf_decode_uchar d);
-          prefix next
-        end
+      let rec prefix acc n = function
+        | c :: rest when n + String.length c <= 4093 ->
+            prefix (c :: acc) (n + String.length c) rest
+        | _ -> String.concat "" (List.rev acc)
       in
-      prefix 0;
-      Buffer.add_string b "...";
-      Buffer.contents b
+      prefix [] 0 (Width.clusters clean) ^ "..."
   in
   let out = Buffer.create 16384 in
   let ppf = Format.formatter_of_buffer out in
