@@ -38,6 +38,8 @@ let v ?interactive ?(ppf = Fmt.stderr) stdin =
     ppf;
   }
 
+type error = [ `End_of_input | `Msg of string ]
+
 let interactive t = t.interactive
 
 let line t question =
@@ -58,7 +60,7 @@ let line t question =
     in
     match read () with
     | answer -> Ok answer
-    | exception End_of_file -> Error (`Msg "no answer: the input ended")
+    | exception End_of_file -> Error `End_of_input
     | exception Eio.Buf_read.Buffer_limit_exceeded ->
         (* The rest of the line goes, so that the next question reads the
            line after it; skipping keeps the buffer within its cap. *)
@@ -68,7 +70,7 @@ let line t question =
 
 let confirm t question =
   match line t (question ^ " [y/N] ") with
-  | Error (`Msg _ as e) -> Error e
+  | Error _ as e -> e
   | Ok answer -> (
       match String.lowercase_ascii (String.trim answer) with
       | "y" | "yes" -> Ok true
@@ -91,7 +93,7 @@ let masked_attributes attr =
 
 let rec read_masked t input =
   match Eio.Buf_read.any_char t.input with
-  | exception End_of_file -> Error (`Msg "no answer: the input ended")
+  | exception End_of_file -> Error `End_of_input
   | c -> (
       let echo, lines = Console_input.feed input (String.make 1 c) in
       Fmt.pf t.ppf "%s%!" echo;

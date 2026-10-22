@@ -90,7 +90,10 @@ let test_line_at_end_of_input_is_refused () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "" in
   Alcotest.check string_answer "answer" Ended (seen (Prompt.line t "name: "));
-  Alcotest.(check string) "question" "name: " (Buffer.contents out)
+  Alcotest.(check string) "question" "name: " (Buffer.contents out);
+  let t, _ = prompt ~interactive:true "cut" in
+  Alcotest.check string_answer "a line cut short" Ended
+    (seen (Prompt.line t "name: "))
 
 let test_confirm_asks_with_a_default_of_no () =
   run @@ fun () ->

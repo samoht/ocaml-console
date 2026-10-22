@@ -14,11 +14,20 @@ let prompt ?interactive actions =
 
 let got expected = function
   | Ok s -> Alcotest.(check string) "answer" expected s
+  | Error `End_of_input -> Alcotest.fail "end of input"
   | Error (`Msg m) -> Alcotest.fail m
 
 let refused = function
   | Error (`Msg _) -> ()
+  | Error `End_of_input -> Alcotest.fail "end of input"
   | Ok _ -> Alcotest.fail "expected refusal"
+
+let ended = function
+  | Error `End_of_input -> ()
+  | Error (`Msg m) -> Alcotest.fail m
+  | Ok _ -> Alcotest.fail "expected the end of the input"
+
+let message = function `Msg s -> s | `End_of_input -> "end of input"
 
 let byte_reads s =
   List.init (String.length s) (fun i -> `Return (String.make 1 s.[i]))
@@ -32,7 +41,7 @@ let test_bytewise () =
   Alcotest.(check bool) "interactive override" true (P.interactive t);
   got " alpha " (P.line t "first: ");
   got "beta" (P.line t "second: ");
-  refused (P.line t "last: ");
+  ended (P.line t "last: ");
   Alcotest.(check string)
     "questions flushed" "first: second: last: " (Buffer.contents out)
 
@@ -59,7 +68,7 @@ let test_partial_eof () =
   in
   (* Buf_read.line permits an unterminated final line; the prompt documents
      an Error when input ends. A partial answer must not open a typed gate. *)
-  refused (P.line t "line: ")
+  ended (P.line t "line: ")
 
 exception Read_failure
 
@@ -80,13 +89,13 @@ let test_questions () =
   in
   Alcotest.(check (result bool string))
     "yes" (Ok true)
-    (Result.map_error (fun (`Msg s) -> s) (P.confirm t "go?"));
+    (Result.map_error message (P.confirm t "go?"));
   Alcotest.(check (result bool string))
     "no" (Ok false)
-    (Result.map_error (fun (`Msg s) -> s) (P.confirm t "go?"));
+    (Result.map_error message (P.confirm t "go?"));
   Alcotest.(check string)
     "question syntax" "go? [y/N] go? [y/N] " (Buffer.contents out);
-  refused (P.confirm t "end?")
+  ended (P.confirm t "end?")
 
 let test_nonterminal () =
   Eio_mock.Backend.run @@ fun () ->

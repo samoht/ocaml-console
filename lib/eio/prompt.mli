@@ -36,29 +36,34 @@ val v : ?interactive:bool -> ?ppf:Format.formatter -> _ Eio.Flow.source -> t
 val interactive : t -> bool
 (** [interactive t] is [true] iff [t] has someone to ask. *)
 
-val line : t -> string -> (string, [ `Msg of string ]) result
+type error = [ `End_of_input | `Msg of string ]
+(** The type for the errors of a question. [`End_of_input] is the end of the
+    input before an answer, such as Ctrl-D on a terminal; [`Msg] is any other
+    error, a prompt that is not {!interactive} among them. *)
+
+val line : t -> string -> (string, error) result
 (** [line t question] is the next line of input, without its terminator (LF or
     CRLF), after writing [question]. The question is flushed, with no newline
     added, and each control character in it but a line feed is a space. The
-    answer is returned as typed, spaces included. This is [Error] when [t] is
-    not interactive, when the input ends before a line feed, or when the line is
-    longer than 4096 bytes, which is then skipped up to its line feed. *)
+    answer is returned as typed, spaces included. This is [Error `End_of_input]
+    when the input ends before a line feed, and [Error (`Msg _)] when [t] is not
+    interactive or when the line is longer than 4096 bytes, which is then
+    skipped up to its line feed. *)
 
-val confirm : t -> string -> (bool, [ `Msg of string ]) result
+val confirm : t -> string -> (bool, error) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
     of ["y"] or ["yes"], compared after trimming surrounding whitespace and
-    ignoring case, and [false] for any other line, an empty one included. This
-    is [Error] when [t] is not interactive or the input ends. *)
+    ignoring case, and [false] for any other line, an empty one included. Its
+    errors are those of {!line}. *)
 
-val secret : t -> string -> (string, [ `Msg of string ]) result
+val secret : t -> string -> (string, error) result
 (** [secret t question] is like {!line} but the answer is not shown. One [*] is
     written for each grapheme cluster typed instead, then a line feed when the
     answer ends. The answer is the bytes typed, as they were typed, less the
     keys that edit the line ({!Console_input.feed}), and it is never retained.
 
     Since masking switches echo off on the terminal behind [t]'s input, this is
-    [Error] when that input is not a terminal, as well as when [t] is not
-    interactive or the input ends. Input typed before echo goes off, which the
-    terminal has already shown, is discarded, as getpass(3) does. The terminal
-    is given back as it was found on return, on an exception and on SIGINT or
-    SIGTERM. *)
+    also [Error (`Msg _)] when that input is not a terminal. Input typed before
+    echo goes off, which the terminal has already shown, is discarded, as
+    getpass(3) does. The terminal is given back as it was found on return, on an
+    exception and on SIGINT or SIGTERM. *)
