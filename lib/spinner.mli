@@ -3,52 +3,32 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Animated spinners.
+(** Spinners, for work of unknown length.
 
-    A spinner is a short sequence of frames, such as braille dots or a turning
-    ASCII bar, shown beside a task of unknown length. {!Display} animates one
-    for each running row, ten frames a second, using the one its {!Theme.t}
-    carries.
+    A spinner is a short cycle of frames, such as braille dots or a turning
+    ASCII bar. Its {!view} goes in any view: a {!Display} turns it at each
+    frame, while printed once it shows its first frame. Each running task's row
+    has the spinner of its theme ({!Theme.val-spinner}).
 
-    A spinner of one frame, such as {!static}, does not move. A program offers
-    it to users who prefer no animation through [Theme.still], which also stops
-    the frames of tables and panels. *)
+    A spinner of one frame does not move. A program offers that to users who
+    prefer no animation with {!Theme.still}, which also stops the frames of
+    tables and panels. *)
 
-(** {1:spinners Spinners} *)
-
-type t
-(** The type for spinners: non-empty, cyclic sequences of frames. *)
-
-val v : string array -> t
-(** [v frames] is a spinner that shows [frames] in order, from the first to the
-    last and then from the first again, one frame each [1 / fps] seconds of
-    {!frame}. A frame is drawn on one line: a control character in it is a
-    space. Changing [frames] after the call does not change the spinner.
+val view : ?frames:string list -> unit -> View.t
+(** [view ()] shows [frames] in turn, from the first to the last and then from
+    the first again, ten frames a second of the moment it is drawn at
+    ({!View.fit}): the first frame at moment [0.]. [frames] defaults to the
+    spinner of the theme it is printed in. A frame is drawn on one line, a
+    control character in it a space, and on a formatter that is not {!Fmt.utf_8}
+    a spinner whose frames are not all ASCII is drawn as {!ascii}. Every frame
+    takes the cells of the widest, so the view does not change size as it turns.
 
     @raise Invalid_argument if [frames] is empty. *)
 
-val braille : t
-(** [braille] cycles the ten braille patterns U+280B, U+2819, U+2839, U+2838,
+val braille : string list
+(** [braille] are the ten braille patterns U+280B, U+2819, U+2839, U+2838,
     U+283C, U+2834, U+2826, U+2827, U+2807 and U+280F. *)
 
-val ascii : t
-(** [ascii] cycles the four frames [|], [/], [-] and a backslash, for terminals
-    or fonts without braille. *)
-
-val static : t
-(** [static] is [v [| "*" |]]: a spinner that does not move. *)
-
-(** {1:frames Frames} *)
-
-val frame : ?fps:float -> t -> elapsed:float -> string
-(** [frame t ~elapsed] is the frame [t] shows [elapsed] seconds in, at [fps]
-    frames a second (defaults to [10.]). Of [n] frames, it is frame [i], where
-    [i] is the whole part of [elapsed * fps] modulo [n]. An [elapsed] that is
-    not positive or not finite shows the first frame.
-
-    @raise Invalid_argument if [fps] is not finite and positive. *)
-
-(** {1:fmt Formatting} *)
-
-val pp : t Fmt.t
-(** [pp] formats a spinner for diagnostics, in an unspecified format. *)
+val ascii : string list
+(** [ascii] are the four frames [|], [/], [-] and a backslash, for terminals or
+    fonts without braille. *)

@@ -26,7 +26,7 @@ let title =
     (View.gradient (View.text "console, built step by step"))
 
 let table () =
-  Table.v ~rules:true
+  Table.view ~rules:true
     [
       Table.column (View.text "Step");
       Table.column ~min_width:7 (View.text "Status");
@@ -92,7 +92,7 @@ let view display ~width ~height =
   View.vcat
     [
       title;
-      Table.to_span ~width:(min width 100) (table ());
+      View.sized ~width:(min width 100) (table ());
       Display.default_view display ~width ~height;
     ]
 

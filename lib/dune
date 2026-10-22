@@ -12,6 +12,8 @@
  (libraries console.text fmt jsont jsont.bytesrw uucp uuseg)
  (private_modules
   border_motion
+  ctx
+  frames
   widget
   width
   display_core

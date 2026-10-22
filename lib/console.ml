@@ -5,11 +5,12 @@
 
 module Color = Color
 module Style = Style
-module View = View
 module Border = Border
 module Guide = Guide
-module Spinner = Spinner
 module Theme = Theme
+module Room = Room
+module View = View
+module Spinner = Spinner
 module Bar = Bar
 module Panel = Panel
 module Table = Table

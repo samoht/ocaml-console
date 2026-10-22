@@ -35,7 +35,7 @@ let main color theme =
         column (View.text "Result");
       ]
   in
-  Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
+  Fmt.pr "%a@." View.pp (Table.view cols (List.map row suites))
 
 let theme =
   Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])

@@ -13,7 +13,7 @@ type t = {
 let v ?style ?(glyph = "─") ?(align = `Center) ?(label = View_core.empty) () =
   let glyph = Console_text.sanitize ~keep_newlines:false glyph in
   if Width.string_width glyph <> 1 then
-    invalid_arg "Console.Rule.v: glyph must occupy one cell";
+    invalid_arg "Console.Rule.view: glyph must occupy one cell";
   { style; glyph; align; label = Widget.one_line label }
 
 let space = View_core.text " "
@@ -36,10 +36,18 @@ let line look t width =
         let right = available - 2 - left in
         View_core.(fill left ++ space ++ label ++ space ++ fill right)
 
-let pp ppf t =
-  View_core.pp ppf
-    (line (Widget.look ppf) t (max 0 (Format.pp_get_margin ppf ())))
+(* At its natural size, a label has two glyphs a side, and a line without
+   one is four glyphs. *)
+let natural t = match View_core.width t.label with 0 -> 4 | w -> w + 6
 
-let lines look ~margin t = [ line look t (max 0 margin) ]
-let to_span ~width t = Widget.to_span lines ~width t
-let to_string ?styled ~width t = Widget.to_string lines ?styled ~width t
+let view ?style ?glyph ?align ?label () =
+  let t = v ?style ?glyph ?align ?label () in
+  View_core.deferred ~grow:1
+    ~kind:(fun look -> View_core.kind t.label look)
+    (fun c ->
+      let label = View_core.resolve (Ctx.natural c) t.label in
+      let t = { t with label } in
+      let width =
+        match Ctx.width c with Some w -> max 0 w | None -> natural t
+      in
+      line (Ctx.look c) t width)

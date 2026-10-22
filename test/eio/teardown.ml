@@ -38,17 +38,19 @@ let widgets _env =
   Console_tty.setup ();
   let long = View.text (String.concat " " (List.init 20 (Fun.const "word"))) in
   let leaf = Tree.v long [] in
-  Fmt.pr "%a@.%a@.%a@.%a@.%a@." Table.pp
-    (Table.v
+  Fmt.pr "%a@.%a@.%a@.%a@.%a@." View.pp
+    (Table.view
        [
          Table.column (View.text "a");
          Table.column ~overflow:`Truncate (View.text "b");
        ]
        [ [ View.text "1"; long ] ])
-    Panel.pp (Panel.v ~title:long long) Tree.pp
-    (Tree.v long [ Tree.v long [ leaf ]; leaf ])
-    Rule.pp (Rule.v ~label:long ()) Bar.pp
-    (Bar.v ~brackets:true ~width:10 0.55);
+    View.pp
+    (Panel.view ~title:long long)
+    View.pp
+    (Tree.view (Tree.v long [ Tree.v long [ leaf ]; leaf ]))
+    View.pp (Rule.view ~label:long ()) View.pp
+    (Bar.view ~brackets:true ~width:10 0.55);
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       let task = Display.task display "counting" in
       Display.set_count task ~cur:1 ~total:3;

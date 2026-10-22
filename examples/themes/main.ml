@@ -15,7 +15,7 @@ open Console
 let accent s = View.styled Style.bold (View.role `Accent (View.text s))
 
 let table =
-  Table.v ~rules:true
+  Table.view ~rules:true
     [
       Table.column (View.text "Package");
       Table.column ~align:`Right (View.text "Size");
@@ -38,7 +38,7 @@ let progress ~clock table =
   let view d ~width ~height =
     View.vcat
       [
-        Table.to_span ~width:(min width 100) table;
+        View.sized ~width:(min width 100) table;
         Display.default_view d ~width ~height;
       ]
   in
@@ -72,6 +72,8 @@ let () =
         ~theme ();
       let ocaml = String.map (function '-' -> '_' | c -> c) name in
       let title = View.gradient (View.text ("Theme." ^ ocaml)) in
-      Fmt.pr "%a@.%a@.@." View.pp (View.styled Style.bold title) Tree.pp tree;
+      Fmt.pr "%a@.%a@.@." View.pp
+        (View.styled Style.bold title)
+        View.pp (Tree.view tree);
       Eio_main.run @@ fun env ->
       progress ~clock:(Console_eio.clock (Eio.Stdenv.mono_clock env)) table

@@ -49,16 +49,15 @@ console
 
 {@ocaml[
 # print_endline
-    (Console.Table.to_string
-       (Console.Table.v ~border:Console.Border.simple
-          [
-            Console.Table.column (Console.View.text "Name");
-            Console.Table.column ~align:`Right (Console.View.text "Size");
-          ]
-          [
-            [ Console.View.text "README.md"; Console.View.text "2.4K" ];
-            [ Console.View.text "src/"; Console.View.text "4.0K" ];
-          ]));;
+    (Console.View.to_string (Console.Table.view ~border:Console.Border.simple
+     [
+      Console.Table.column (Console.View.text "Name");
+      Console.Table.column ~align:`Right (Console.View.text "Size");
+     ]
+     [
+      [ Console.View.text "README.md"; Console.View.text "2.4K" ];
+      [ Console.View.text "src/"; Console.View.text "4.0K" ];
+     ]));;
 Name       Size
 ───────────────
 README.md  2.4K
@@ -71,16 +70,15 @@ hold several lines:
 
 {@ocaml[
 # print_endline
-    (Console.Table.to_string
-       (Console.Table.v ~rules:true
-          [
-            Console.Table.column (Console.View.text "Step");
-            Console.Table.column (Console.View.text "Status");
-          ]
-          [
-            [ Console.View.text "fetch"; Console.View.text "done" ];
-            [ Console.View.text "compile"; Console.View.text "2 warnings\n1 error" ];
-          ]));;
+    (Console.View.to_string (Console.Table.view ~rules:true
+     [
+      Console.Table.column (Console.View.text "Step");
+      Console.Table.column (Console.View.text "Status");
+     ]
+     [
+      [ Console.View.text "fetch"; Console.View.text "done" ];
+      [ Console.View.text "compile"; Console.View.text "2 warnings\n1 error" ];
+     ]));;
 ╭─────────┬────────────╮
 │ Step    │ Status     │
 ├─────────┼────────────┤
@@ -94,20 +92,20 @@ hold several lines:
 
 {1:nesting Widgets side by side}
 
-Every widget can become a view with its [to_span], and that view is laid
-out only when it is printed. {!Console.View.hcat} puts such views side by
-side, each at the width its [to_span] gives it and in its own colours. The
-result is one more view, which can go in a cell, a panel or a display's
-view. {!Console.View.vcat} puts views one under the other:
+Every widget is a view, laid out only when it is printed, in the room it
+is given. {!Console.View.hcat} puts views side by side, each at its
+natural width, or at the width {!Console.View.sized} gives it, and in its
+own colours. The result is one more view, which can go in a cell, a panel
+or a display's view. {!Console.View.vcat} puts views one under the other:
 
 {@ocaml[
 # let tree =
     Console.Tree.v (Console.View.text "src")
       [ Console.Tree.v (Console.View.text "lib") [] ]
-  and panel = Console.Panel.v (Console.View.text "2 files") in
+  and panel = Console.Panel.view (Console.View.text "2 files") in
   Fmt.pr "%a@." Console.View.pp
     (Console.View.hcat
-       [ Console.Tree.to_span tree; Console.Panel.to_span panel ]);;
+       [ Console.Tree.view tree; panel ]);;
 src      ╭─────────╮
 └── lib  │ 2 files │
          ╰─────────╯

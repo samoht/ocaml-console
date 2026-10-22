@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Styled text, with the operations the widgets share. {!View} is its public
-    face and documents the values both have. *)
+(** Views, with the operations the widgets and the display share. {!View} is
+    their public face and documents the values both have. *)
 
 type t
 (** The type for views. *)
@@ -12,74 +12,90 @@ type t
 type align = [ `Left | `Center | `Right ]
 (** See {!View.align}. *)
 
+(** {1:room Room and moment} *)
+
+type kind = { live : bool; timed : bool }
+(** The type for what a deferred view reads besides its room: state outside the
+    view, which changes between frames, and the time. A view that reads neither
+    caches its layout for its room. *)
+
+val static : kind
+(** [static] reads neither. *)
+
+val deferred :
+  ?kind:(Look.t -> kind) ->
+  ?grow:int ->
+  ?min_width:int ->
+  ?still:bool ->
+  (Ctx.t -> t) ->
+  t
+(** [deferred ~kind ~grow ~min_width ~still lay] is the view [lay c] where it is
+    laid out in [c]. [kind] (defaults to {!static} in every look) says what it
+    reads, [grow] (defaults to [0]) its weight in an {!hcat} that shares a room,
+    [min_width] the width below which it should not be laid out. With [still]
+    (defaults to [false]), every frame takes the cells of its frame at time
+    [0.], each line cut or padded to them. *)
+
+val kind : t -> Look.t -> kind
+(** [kind v look] is what [v] reads in [look]: what any of its parts reads. *)
+
+val kinds : t list -> Look.t -> kind
+(** [kinds vs look] is what any of [vs] reads in [look]. *)
+
+val is_flat : t -> bool
+(** [is_flat v] is [true] iff [v] has no deferred part. *)
+
+val min_width : t -> int
+(** [min_width v] is the width below which [v] should not be laid out: the
+    widest word of a flat view, the hint of a deferred one, or its natural
+    width. *)
+
+val resolve : Ctx.t -> t -> t
+(** [resolve c v] is [v] laid out in [c], with no deferred part. A part drawn in
+    its look ({!drawn}) stays one. *)
+
+(** {1:views Views} *)
+
 val empty : t
-(** See {!View.empty}. *)
-
 val is_empty : t -> bool
-(** [is_empty s] is [true] iff [s] holds no text, not even a character that
-    takes no cell. *)
-
 val text : string -> t
-(** See {!View.text}. *)
 
 val ink : Style.t -> string -> t
 (** [ink style s] is [styled style (text s)]. *)
 
 val link : uri:string -> t -> t
-(** See {!View.link}. *)
-
-val gradient : ?colors:Color.t list -> t -> t
-(** See {!View.gradient}. *)
-
-val role : Theme.role -> t -> t
-(** See {!View.role}. *)
-
-val ( ++ ) : t -> t -> t
-(** See {!View.( ++ )}. *)
-
-val concat : ?sep:t -> t list -> t
-(** See {!View.concat}. *)
-
 val styled : Style.t -> t -> t
-(** See {!View.styled}. *)
-
+val role : Theme.role -> t -> t
+val gradient : ?colors:Color.t list -> t -> t
+val ( ++ ) : t -> t -> t
+val concat : ?sep:t -> t list -> t
 val hcat : ?gap:int -> t list -> t
-(** See {!View.hcat}. *)
-
 val vcat : t list -> t
-(** See {!View.vcat}. *)
-
+val fit : ?min_width:int -> ?grow:int -> (Ctx.t -> t) -> t
+val sized : ?width:int -> ?height:int -> t -> t
+val place : ?align:align -> ?width:int -> ?height:int -> t -> t
 val width : t -> int
-(** See {!View.width}. *)
-
 val height : t -> int
-(** See {!View.height}. *)
 
 val ellipsis : string
 (** [ellipsis] is U+2026, which ends a line {!truncate} cuts. *)
 
 val truncate : ?ellipsis:string -> int -> t -> t
-(** [truncate ~ellipsis w s] is like {!View.truncate} but ends a cut line with
+(** [truncate ~ellipsis w v] is like {!View.truncate} but ends a cut line with
     [ellipsis] (defaults to U+2026). An ellipsis wider than [w] cells keeps only
     its first grapheme clusters that fit in them. *)
 
 val wrap : int -> t -> t list
-(** See {!View.wrap}. *)
-
-val fit : int -> t -> t
-(** [fit w line] is the line [line] cut to its first [w] cells, between two
-    clusters, then padded with spaces to exactly [w] cells. *)
-
 val pp : t Fmt.t
-(** See {!View.pp}. *)
-
 val to_string : ?styled:bool -> t -> string
-(** See {!View.to_string}. *)
 
-(** {1:widgets For the widgets} *)
+(** {1:widgets For the widgets}
+
+    These lay a deferred view out at its natural size, in {!Look.default} at
+    time [0.], when they are given one. *)
 
 val lines : t -> t list
-(** [lines s] are the lines of [s], without their line feeds. It is never empty.
+(** [lines v] are the lines of [v], without their line feeds. It is never empty.
 *)
 
 val block : t list -> t
@@ -88,8 +104,12 @@ val block : t list -> t
 *)
 
 val seamed : t -> (bool * t) list
-(** [seamed s] are the {!lines} of [s], each after [true] iff it goes on the
+(** [seamed v] are the {!lines} of [v], each after [true] iff it goes on the
     {!block} of the line above it. *)
+
+val pad_to : int -> t -> t
+(** [pad_to w line] is the line [line] cut to its first [w] cells, between two
+    clusters, then padded with spaces to exactly [w] cells. *)
 
 val color_at : Color.t list -> float -> Color.t
 (** [color_at stops p] is the colour at [p], clamped to 0 to 1, of [stops]
@@ -97,15 +117,11 @@ val color_at : Color.t list -> float -> Color.t
     or the stop at [p] itself. [stops] is not empty. *)
 
 val wrap_hanging : int -> t -> t list
-(** [wrap_hanging w s] is like {!wrap} but the lines after the first of each
+(** [wrap_hanging w v] is like {!wrap} but the lines after the first of each
     line start under the text after its first word, at most [w / 2] cells in. *)
 
 val widest_word : t -> int
-(** [widest_word s] is the width of the widest run of [s] without a space. *)
-
-val render : look:Look.t -> ?depth:Color.depth -> t -> string
-(** [render ~look ~depth s] is [s] drawn in [look] with its styles at [depth],
-    or its text alone without [depth]. *)
+(** [widest_word v] is the width of the widest run of [v] without a space. *)
 
 val drawn : (Look.t -> t) -> t
 (** [drawn draw] is the view [draw look] when it is printed in [look], and
@@ -113,8 +129,8 @@ val drawn : (Look.t -> t) -> t
     as [draw Look.default], one cluster for one. A part of it that {!truncate}
     or {!wrap} keep is drawn as the same cells of [draw look]. *)
 
-val resolve : Look.t -> t -> t
-(** [resolve look s] is [s] with each {!drawn} part drawn in [look]. *)
+val paint : Look.t -> t -> t
+(** [paint look v] is [v] with each {!drawn} part drawn in [look]. *)
 
 val recell :
   (cell:int -> (Style.t -> string -> Style.t * string) option) -> t -> t
@@ -122,6 +138,10 @@ val recell :
     starts [cell] cells in, when [f ~cell] is [Some r], drawn as [r s g]: a new
     style and glyph. A glyph that does not take the cells of [g], or holds a
     control character, is [g]; a cluster of a {!drawn} part is kept. *)
+
+val render : look:Look.t -> ?depth:Color.depth -> t -> string
+(** [render ~look ~depth v] is [v] drawn in [look] with its styles at [depth],
+    or its text alone without [depth]. *)
 
 val pp_lines : t list Fmt.t
 (** [pp_lines] formats views one per line, with no line end after the last. *)

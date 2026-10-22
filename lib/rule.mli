@@ -11,42 +11,23 @@
 
 (** {1:rules Rules} *)
 
-type t
-(** The type for horizontal lines. *)
-
-val v :
+val view :
   ?style:Style.t ->
   ?glyph:string ->
   ?align:View.align ->
   ?label:View.t ->
   unit ->
-  t
-(** [v ()] is a horizontal line.
+  View.t
+(** [view ()] is a horizontal line as wide as its room ({!View.fit}). At its
+    natural size, its label has two glyphs on each side, and without a label it
+    is four glyphs.
     - [glyph] draws it (defaults to a light horizontal line, U+2500). A [glyph]
       that is not ASCII is drawn as [-] on a formatter that is not {!Fmt.utf_8}.
     - [style] is its style (defaults to the muted colour of the formatter's
       theme, {!Theme.get}).
     - [label], if given, sits in the line at [align] (defaults to [`Center]),
-      with a space on each side.
+      with a space on each side, and is cut with an ellipsis to the room.
 
     @raise Invalid_argument
       if [glyph], with each control character a space, is not one terminal cell
       wide. *)
-
-(** {1:converting Converting} *)
-
-val to_span : width:int -> t -> View.t
-(** [to_span ~width rule] is [rule] as a view [width] cells wide, to put in a
-    cell, a panel, a tree or beside other text. When it is printed, it is drawn
-    as {!pp} draws it at a margin of [width], in the formatter's theme and
-    [Fmt.utf_8]. *)
-
-val to_string : ?styled:bool -> width:int -> t -> string
-(** [to_string ~width rule] is [rule] as {!pp} formats it at a margin of
-    [width], with colours iff [styled] (defaults to [false]). *)
-
-(** {1:fmt Formatting} *)
-
-val pp : t Fmt.t
-(** [pp] formats a line exactly as wide as the formatter's margin. A label wider
-    than that is cut with an ellipsis. *)

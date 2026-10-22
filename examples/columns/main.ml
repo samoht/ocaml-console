@@ -32,7 +32,7 @@ let status = Hashtbl.create 2
 let set_status b s = Hashtbl.replace status b.name s
 
 let table () =
-  Table.v
+  Table.view
     [
       Table.column (View.text "Build");
       Table.column ~min_width:7 (View.text "Status");
@@ -65,7 +65,7 @@ let view display ~width ~height =
     | _ -> Display.tree ~height (Display.root display)
   in
   View.vcat
-    [ Table.to_span ~width:room (table ()); trees; Display.summary display ]
+    [ View.sized ~width:room (table ()); trees; Display.summary display ]
 
 let run clock display b =
   set_status b (View.role `Accent (View.text "running"));

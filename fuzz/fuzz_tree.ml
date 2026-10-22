@@ -71,7 +71,7 @@ let test_fits s n =
       (View.text (pick s 0))
       [ Tree.v (View.text (pick s 1)) [ leaf 2; leaf 3 ]; leaf 4 ]
   in
-  let raw, lines = render Tree.pp margin tree in
+  let raw, lines = render View.pp margin (Tree.view tree) in
   check_fits margin lines;
   check_closed raw;
   if margin >= 80 then check_eq ~pp:Fmt.int 5 (List.length lines)

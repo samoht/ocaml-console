@@ -71,7 +71,7 @@ let main color theme =
         column (View.text "Result");
       ]
   in
-  Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
+  Fmt.pr "%a@." View.pp (Table.view cols (List.map row suites))
 
 let theme =
   Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
@@ -170,7 +170,7 @@ open View
 
 let print_files () =
   let table = Table.(
-    v ~border:Border.rounded
+    view ~border:Border.rounded
       [ column (text "Name"); column ~align:`Right (text "Size");
         column (text "Modified") ]
       [
@@ -179,7 +179,7 @@ let print_files () =
         [ text "Makefile"; text "892"; text "3 days ago" ];
       ]
   ) in
-  Fmt.pr "%a@." Table.pp table
+  Fmt.pr "%a@." View.pp table
 ```
 
 ```ocaml
@@ -205,12 +205,11 @@ Trees and framed panels print the same way:
 
 ```ocaml
 # let file name = Tree.v (View.text name) [] in
-  Fmt.pr "%a@." Tree.pp
-    (Tree.v (View.text "src")
+  Fmt.pr "%a@." View.pp (Tree.view (Tree.v (View.text "src")
        [
          Tree.v (View.text "lib") [ file "console.ml"; file "table.ml" ];
          Tree.v (View.text "test") [ file "test.ml" ];
-       ]);;
+       ]));;
 src
 ├── lib
 │   ├── console.ml
@@ -218,8 +217,7 @@ src
 └── test
     └── test.ml
 - : unit = ()
-# Fmt.pr "%a@." Panel.pp
-    (Panel.v ~title:(View.text "Status") (View.text "All tests passed"));;
+# Fmt.pr "%a@." View.pp (Panel.view ~title:(View.text "Status") (View.text "All tests passed"));;
 ╭───── Status ─────╮
 │ All tests passed │
 ╰──────────────────╯
@@ -232,33 +230,32 @@ and a bar shows a fraction, here 65% of twenty cells:
 ```ocaml
 # Format.set_margin 40;;
 - : unit = ()
-# Fmt.pr "%a@." Rule.pp (Rule.v ~label:(View.text "Results") ());;
+# Fmt.pr "%a@." View.pp (Rule.view ~label:(View.text "Results") ());;
 ─────────────── Results ────────────────
 - : unit = ()
-# print_endline (Bar.to_string (Bar.v ~width:20 0.65));;
+# print_endline (View.to_string (Bar.view ~width:20 0.65));;
 ━━━━━━━━━━━━━╺━━━━━━
 - : unit = ()
 ```
 
 ## Widgets inside widgets
 
-Every widget can also become a view, with its `to_span`. That view is laid
-out only when it is printed, in the theme of the formatter that prints it,
-so a widget can go wherever a view goes. Here two bars sit in a table, and
-the table sits in a panel:
+Every widget is a view, laid out only when it is printed, in the room it is
+given and in the theme of the formatter that prints it, so a widget can go
+wherever a view goes. Here two bars sit in a table, and the table sits in a
+panel:
 
 ```ocaml
 # let downloads =
-    Table.v ~border:Border.none
+    Table.view ~border:Border.none
       [ Table.column (View.text "File"); Table.column (View.text "Progress") ]
       [
-        [ View.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
-        [ View.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];
+        [ View.text "boot.img"; Bar.view ~width:10 0.4 ];
+        [ View.text "rootfs.tar"; Bar.view ~width:10 0.9 ];
       ]
   in
   print_endline
-    (Panel.to_string
-       (Panel.v ~title:(View.text "Downloads") (Table.to_span downloads)));;
+    (View.to_string (Panel.view ~title:(View.text "Downloads") downloads));;
 ╭────── Downloads ───────╮
 │ File        Progress   │
 │ boot.img    ━━━━╺━━━━━ │
@@ -291,7 +288,7 @@ let theme =
 
 let greet theme =
   Console.Theme.set Fmt.stdout theme;
-  Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.View.text "hello"))
+  Fmt.pr "%a@." Console.View.pp (Console.Panel.view (Console.View.text "hello"))
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "greet") Cmdliner.Term.(const greet $ theme)
@@ -421,7 +418,7 @@ let view results display ~width ~height =
   Console.(
     View.vcat
       [
-        Table.to_span ~width:(min width 100) (results ());
+        View.sized ~width:(min width 100) (results ());
         Display.default_view display ~width ~height;
       ])
 ```

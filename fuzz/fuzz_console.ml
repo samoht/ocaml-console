@@ -70,10 +70,11 @@ let test_hcat_margin n k =
   let gap = 1 + (k mod 5) in
   let count = 2 + (k mod 4) in
   let margin = (count * width) + ((count - 1) * gap) in
-  let blocks = List.init count (fun _ -> Rule.to_span ~width (Rule.v ())) in
+  let blocks = List.init count (fun _ -> View.sized ~width (Rule.view ())) in
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  Format.pp_set_margin ppf margin;
   Fmt.set_style_renderer ppf `Ansi_tty;
   View.pp ppf (View.hcat ~gap blocks);
   Format.pp_print_flush ppf ();
@@ -264,7 +265,7 @@ let rec span = function
   | Text (k, s) -> View.styled (pick styles k) (View.text s)
   | Gradient s -> View.gradient (View.text s)
   | Link s -> View.link ~uri:"https://example.org/a" (View.text s)
-  | Bar (w, f) -> Bar.to_span (Bar.v ~width:w (Float.of_int f /. 255.))
+  | Bar (w, f) -> Bar.view ~width:w (Float.of_int f /. 255.)
   | Role (k, s) -> View.role (pick roles k) (span s)
   | Nest (k, b) -> nested k b
   | Cat l -> View.concat (List.map span l)
@@ -275,10 +276,10 @@ and nested k b =
   let width = if k land 1 = 0 then None else Some (1 + (k / 2 mod 60)) in
   match b with
   | View s -> span s
-  | Table (k, rows) -> Table.to_span ?width (table k rows)
-  | Panel (k, s, t) -> Panel.to_span ?width (panel k s t)
-  | Tree (s, l) -> Tree.to_span ?width (tree s l)
-  | Rule l -> Rule.to_span ~width:(Option.value width ~default:20) (rule l)
+  | Table (k, rows) -> View.sized ?width (table k rows)
+  | Panel (k, s, t) -> View.sized ?width (panel k s t)
+  | Tree (s, l) -> View.sized ?width (Tree.view (tree s l))
+  | Rule l -> View.sized ~width:(Option.value width ~default:20) (rule l)
   | Styled (j, b) -> View.styled (pick styles j) (nested k b)
   | Hcat (gap, l) -> View.hcat ~gap (List.map (nested k) l)
   | Vcat l -> View.vcat (List.map (nested k) l)
@@ -294,24 +295,27 @@ and table k rows =
            else View.text ("c" ^ string_of_int i)))
   in
   let border = if k land 8 = 0 then None else Some (pick borders (k / 16)) in
-  Table.v ?border ~rules:(k land 1 = 1) columns (List.map (List.map span) rows)
+  Table.view ?border
+    ~rules:(k land 1 = 1)
+    columns
+    (List.map (List.map span) rows)
 
 and panel k s t =
   let border =
     if k land 1 = 0 then None
     else Some borders.(1 + (k / 2 mod (Array.length borders - 1)))
   in
-  Panel.v ?border ?title:(Option.map span t) ~padding:(k / 32 mod 3) (span s)
+  Panel.view ?border ?title:(Option.map span t) ~padding:(k / 32 mod 3) (span s)
 
 and tree s l = Tree.v (span s) (List.map (fun c -> Tree.v (span c) []) l)
-and rule l = Rule.v ?label:(Option.map span l) ()
+and rule l = Rule.view ?label:(Option.map span l) ()
 
 let rec pp = function
   | View s -> Fmt.const View.pp (span s)
-  | Table (k, rows) -> Fmt.const Table.pp (table k rows)
-  | Panel (k, s, t) -> Fmt.const Panel.pp (panel k s t)
-  | Tree (s, l) -> Fmt.const Tree.pp (tree s l)
-  | Rule l -> Fmt.const Rule.pp (rule l)
+  | Table (k, rows) -> Fmt.const View.pp (table k rows)
+  | Panel (k, s, t) -> Fmt.const View.pp (panel k s t)
+  | Tree (s, l) -> Fmt.const View.pp (Tree.view (tree s l))
+  | Rule l -> Fmt.const View.pp (rule l)
   | Styled (k, b) -> Style.styled (pick styles k) (pp b)
   | (Hcat _ | Vcat _) as b -> Fmt.const View.pp (nested 0 b)
 
@@ -523,25 +527,23 @@ let test_nested_wrap s k n =
   let content = View.styled Style.bold (View.gradient (View.text input)) in
   let inner =
     match k mod 5 with
-    | 0 -> Panel.to_span (Panel.v content)
+    | 0 -> Panel.view content
     | 1 ->
-        Table.to_span
-          (Table.v
-             [ Table.column (View.role `Header (View.text "h")) ]
-             [ [ content ] ])
+        Table.view
+          [ Table.column (View.role `Header (View.text "h")) ]
+          [ [ content ] ]
     | 2 ->
-        Tree.to_span
+        Tree.view
           (Tree.v content
              [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
-    | 3 -> Rule.to_span ~width:20 (Rule.v ~label:content ())
-    | _ -> Bar.to_span (Bar.v ~width:12 0.6)
+    | 3 -> View.sized ~width:20 (Rule.view ~label:content ())
+    | _ -> Bar.view ~width:12 0.6
   in
   let nested =
     match k / 5 mod 3 with
-    | 0 -> Panel.to_span (Panel.v inner)
-    | 1 ->
-        Table.to_span (Table.v [ Table.column (View.text "h") ] [ [ inner ] ])
-    | _ -> Tree.to_span (Tree.v (View.text "root") [ Tree.v inner [] ])
+    | 0 -> Panel.view inner
+    | 1 -> Table.view [ Table.column (View.text "h") ] [ [ inner ] ]
+    | _ -> Tree.view (Tree.v (View.text "root") [ Tree.v inner [] ])
   in
   let source = View.role `Warning nested in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
@@ -595,9 +597,9 @@ let test_hcat_nested_wrap input k n =
          (min 12 (String.length input))
          (fun i -> clusters.(Char.code input.[i] mod Array.length clusters)))
   in
-  let left = Panel.to_span (Panel.v (View.gradient (View.text content))) in
+  let left = Panel.view (View.gradient (View.text content)) in
   let right =
-    Tree.to_span
+    Tree.view
       (Tree.v
          (View.link ~uri:"https://example.org/report" (View.text "tree"))
          [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
@@ -606,11 +608,9 @@ let test_hcat_nested_wrap input k n =
   let source =
     View.styled Style.bold
       (match k / 4 mod 3 with
-      | 0 -> Panel.to_span (Panel.v joined)
-      | 1 ->
-          Table.to_span
-            (Table.v [ Table.column (View.text "h") ] [ [ joined ] ])
-      | _ -> Tree.to_span (Tree.v joined []))
+      | 0 -> Panel.view joined
+      | 1 -> Table.view [ Table.column (View.text "h") ] [ [ joined ] ]
+      | _ -> Tree.view (Tree.v joined []))
   in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
   let render s =

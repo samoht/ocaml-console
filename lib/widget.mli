@@ -5,18 +5,9 @@
 
 (** What the widgets share. *)
 
-type look = Look.t = { theme : Theme.t; utf_8 : bool; elapsed : float option }
-(** The type for what a formatter says of how to draw a widget: its theme,
-    whether it shows UTF-8 or ASCII alone, and the time of a frame that moves.
-*)
-
-val look : Format.formatter -> look
-(** [look ppf] is the look of the widgets printed on [ppf]: its {!Theme.get} and
-    its {!Fmt.utf_8}. *)
-
-val default_look : look
-(** [default_look] is the look of a formatter given nothing: {!Theme.default},
-    in UTF-8. *)
+type look = Look.t
+(** The type for how a widget is drawn: in a theme, in UTF-8 or ASCII alone,
+    live or not. *)
 
 val border : look -> Border.t option -> Border.t
 (** [border look b] is [b] if given, else the border of [look]'s theme, in
@@ -31,9 +22,9 @@ val glyph : look -> string -> ascii:string -> string
 (** [glyph look g ~ascii] is [g], or [ascii] when [look] is not UTF-8 and [g] is
     not ASCII. *)
 
-val spinner : look -> elapsed:float -> string
-(** [spinner look ~elapsed] is the frame of [look]'s spinner [elapsed] seconds
-    in, as {!glyph} shows it, with {!Spinner.ascii}'s frame for ASCII. *)
+val spinner : look -> time:float -> string
+(** [spinner look ~time] is the frame of [look]'s spinner [time] seconds in, as
+    {!glyph} shows it, with {!Spinner.ascii}'s frame for ASCII. *)
 
 val mark : look -> Theme.mark -> string
 (** [mark look m] is the mark of [m] in [look]'s theme, as {!glyph} shows it,
@@ -86,23 +77,7 @@ val pad_glyph : int -> string -> string
 val pad : int -> View.t
 (** [pad n] is [n] spaces, none if [n] is not positive. *)
 
-val to_span :
-  (look -> margin:int -> 'a -> View.t list) -> ?width:int -> 'a -> View.t
-(** [to_span lines ~width v] is the [lines] of [v] at a margin of [width]
-    (defaults to [max_int]: its natural width) as a view, laid out when it is
-    printed in the look of the formatter it is printed on, each line in the
-    cells it takes in {!default_look}: cut or padded to them in another look. *)
-
-val pp : (look -> margin:int -> 'a -> View.t list) -> 'a Fmt.t
-(** [pp lines] formats the [lines] of a widget in the formatter's {!look} and at
-    its margin, one per line, with no line end after the last. *)
-
-val to_string :
-  (look -> margin:int -> 'a -> View.t list) ->
-  ?styled:bool ->
-  ?width:int ->
-  'a ->
-  string
-(** [to_string lines v] is the [lines] of [v] in {!default_look} at a margin of
-    [width] (defaults to [max_int]: its natural width), joined by line feeds,
-    styled iff [styled] (defaults to [false]). *)
+val framed_kind : View.t list -> look -> View_core.kind
+(** [framed_kind parts look] is how a frame around [parts] changes in [look]:
+    with the time if [look] is live and its theme's frames move
+    ({!Theme.val-motion}), and otherwise as its parts change. *)

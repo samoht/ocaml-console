@@ -13,7 +13,7 @@ let pad_left n span =
   if w >= n then span else View_core.(pad (n - w) ++ span)
 
 (* The display is drawn in the look of its formatter. *)
-let look t = Widget.look t.ppf
+let look t = Look.v t.ppf
 let theme t = (look t).theme
 let cut t w s = Widget.truncate (look t) w s
 let muted t s = View_core.ink (Widget.muted (look t)) s
@@ -70,7 +70,7 @@ let bar t r width =
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
-      View_core.resolve (look t) (Bar.to_span (Bar.v ~width f))
+      View_core.paint (look t) (Bar.view ~width f)
   | _ -> View_core.empty
 
 let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))
@@ -91,7 +91,7 @@ let timer t d =
 let piece t r ~time (p : Display_layout.piece) =
   match p with
   | Spinner ->
-      View_core.ink (Style.fg (color r)) (Widget.spinner (look t) ~elapsed:time)
+      View_core.ink (Style.fg (color r)) (Widget.spinner (look t) ~time)
   | Label | Spacer -> View_core.empty
   | Bar n -> bar t r n
   | Percent -> (

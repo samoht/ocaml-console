@@ -81,9 +81,10 @@ let utf_8 =
 
 (* Bars and rules fill their cells with a glyph, cluster by cluster. *)
 let fills () =
-  run "bar 80 cells" ~n:10_000 (fun () -> Bar.pp utf_8 (Bar.v ~width:80 0.5));
-  let rule = Rule.v ~glyph:"\u{2550}" ~label:(View.text mixed) () in
-  run "rule 120 cells, mixed label" ~n:10_000 (fun () -> Rule.pp utf_8 rule)
+  run "bar 80 cells" ~n:10_000 (fun () ->
+      View.pp utf_8 (Bar.view ~width:80 0.5));
+  let rule = Rule.view ~glyph:"\u{2550}" ~label:(View.text mixed) () in
+  run "rule 120 cells, mixed label" ~n:10_000 (fun () -> View.pp utf_8 rule)
 
 (* The line editor measures the line and steps over its clusters as it
    echoes. *)
@@ -108,13 +109,13 @@ let table () =
       ]
   in
   Format.pp_set_margin null 120;
-  run "table 1k rows" ~n:10 (fun () -> Table.pp null (Table.v columns rows));
+  run "table 1k rows" ~n:10 (fun () -> View.pp null (Table.view columns rows));
   let rows =
     List.init 1000 (fun i ->
         [ Fmt.kstr View.text "row %d" i; View.text mixed; View.text "42" ])
   in
   run "table 1k mixed rows" ~n:10 (fun () ->
-      Table.pp utf_8 (Table.v columns rows))
+      View.pp utf_8 (Table.view columns rows))
 
 let tree () =
   let leaf i = Tree.v (Fmt.kstr View.text "leaf %d" i) [] in
@@ -123,7 +124,7 @@ let tree () =
       (List.init 10 (fun i ->
            Tree.v (Fmt.kstr View.text "dir %d" i) (List.init 100 leaf)))
   in
-  run "tree 1k nodes" ~n:10 (fun () -> Tree.pp null tree)
+  run "tree 1k nodes" ~n:10 (fun () -> View.pp null (Tree.view tree))
 
 let clock () =
   let t = ref 0. in

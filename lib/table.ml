@@ -19,20 +19,22 @@ type column = {
    two cells and its right edge, each as wide as its widest glyph. *)
 type frame = { left : int; mid : int; right : int }
 
-(* A cell is kept as its lines, split once. *)
+(* A cell is kept as its lines at its natural size, split once, and as the
+   view it is, laid out again at the width of its column when it is not
+   flat. *)
+type cell = { view : View_core.t; lines : View_core.t list }
+
 type drawn = {
+  ctx : Ctx.t;
   look : Widget.look;
   border : Border.t;
   frame : frame;
   header_style : Style.t;
   rules : bool;
   columns : column array;
-  headers : View_core.t list array;
-  rows : View_core.t list array list;
+  headers : cell array;
+  rows : cell array list;
 }
-
-(* A table is drawn in the look of the formatter it is printed on. *)
-type t = Widget.look -> drawn
 
 let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
     ?(shrinkable = true) ?(style = Style.none) header =
@@ -56,36 +58,6 @@ let frame border =
       Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
   }
 
-let v ?border ?header_style ?(rules = false) columns rows =
-  let expected = List.length columns in
-  let rows =
-    List.map
-      (fun cells ->
-        let got = List.length cells in
-        if got > expected || (got = 0 && expected > 0) then
-          Fmt.invalid_arg "Console.Table.v: expected 1 to %d cells, got %d"
-            expected got;
-        Array.of_list (List.map View_core.lines cells))
-      rows
-  in
-  let columns = Array.of_list columns in
-  let headers = Array.map (fun c -> View_core.lines c.header) columns in
-  fun look ->
-    let border = Widget.border look border in
-    let header_style =
-      Option.value header_style ~default:(Theme.header look.theme)
-    in
-    {
-      look;
-      border;
-      frame = frame border;
-      header_style;
-      rules;
-      columns;
-      headers;
-      rows;
-    }
-
 (* {1 Column widths} *)
 
 let chars t = Border.chars t.border
@@ -108,12 +80,13 @@ let ( +| ) a b = if a > max_int - b then max_int else a + b
 let rendered_width t widths =
   Array.fold_left ( +| ) (overhead t (Array.length widths)) widths
 
-let lines_width = List.fold_left (fun n l -> max n (View_core.width l)) 0
+let lines_width c =
+  List.fold_left (fun n l -> max n (View_core.width l)) 0 c.lines
 
 (* The widest word of a cell: the width a column keeps while another column
    can still give room, so that an identifier stays whole. *)
-let word_width lines =
-  List.fold_left (fun n line -> max n (View_core.widest_word line)) 0 lines
+let word_width c =
+  List.fold_left (fun n line -> max n (View_core.widest_word line)) 0 c.lines
 
 (* A short row's last cell spans the columns it leaves and is measured
    against none of them. *)
@@ -222,11 +195,17 @@ let align_span ~pad_right align target span =
 
 (* The physical lines of a cell in [width] cells; [None] is a cell nothing
    bounds, the last of a line without edges and no width. *)
-let fit t overflow width lines =
+let fit t overflow width cell =
   match width with
-  | None -> lines
+  | None -> cell.lines
   | Some width when width <= 0 -> [ View_core.empty ]
   | Some width -> (
+      let lines =
+        if View_core.is_flat cell.view then cell.lines
+        else
+          View_core.lines
+            (View_core.resolve (Ctx.with_width (Some width) t.ctx) cell.view)
+      in
       match overflow with
       | `Wrap -> List.concat_map (View_core.wrap width) lines
       | `Truncate -> List.map (Widget.truncate t.look width) lines)
@@ -297,10 +276,10 @@ let bare_line style cells k =
 let row_lines ?max_width t widths style row =
   let cells =
     Array.mapi
-      (fun i lines ->
+      (fun i cell ->
         let col = t.columns.(i) in
         let width = slot_width ?max_width t widths row i in
-        let lines = Array.of_list (fit t col.overflow width lines) in
+        let lines = Array.of_list (fit t col.overflow width cell) in
         (col, Option.value width ~default:0, lines))
       row
   in
@@ -347,21 +326,50 @@ let lines ?max_width t =
         List.map (Widget.truncate t.look w) lines
     | None when not (edged t && c.top <> "") -> lines
     | _ ->
-        Border_motion.frame t.look t.border ~left:t.frame.left
-          ~right:t.frame.right lines
+        Border_motion.frame t.look ~time:(Ctx.time t.ctx) t.border
+          ~left:t.frame.left ~right:t.frame.right lines
 
-(* Without a width, the table takes its natural width: the margin
-   [Widget.to_span] passes then bounds nothing. *)
-let to_span ?width t =
-  Widget.to_span
-    (fun look ~margin t ->
-      lines ?max_width:(Option.map (fun _ -> margin) width) (t look))
-    ?width t
-
-let pp ppf t =
-  View_core.pp_lines ppf
-    (lines ~max_width:(Format.pp_get_margin ppf ()) (t (Widget.look ppf)))
-
-let to_string ?styled ?width t =
-  View_core.string_of_lines ?styled
-    (lines ?max_width:width (t Widget.default_look))
+let view ?border ?header_style ?(rules = false) columns rows =
+  let expected = List.length columns in
+  List.iter
+    (fun cells ->
+      let got = List.length cells in
+      if got > expected || (got = 0 && expected > 0) then
+        Fmt.invalid_arg "Console.Table.view: expected 1 to %d cells, got %d"
+          expected got)
+    rows;
+  let columns = Array.of_list columns in
+  let rows = List.map Array.of_list rows in
+  let parts =
+    Array.to_list (Array.map (fun c -> c.header) columns)
+    @ List.concat_map Array.to_list rows
+  in
+  View_core.deferred ~kind:(Widget.framed_kind parts) (fun ctx ->
+      let look = Ctx.look ctx in
+      let natural = Ctx.natural ctx in
+      let cell view =
+        let view = View_core.resolve natural view in
+        { view; lines = View_core.lines view }
+      in
+      let cell view =
+        if View_core.is_flat view then { view; lines = View_core.lines view }
+        else { (cell view) with view }
+      in
+      let border = Widget.border look border in
+      let header_style =
+        Option.value header_style ~default:(Theme.header look.theme)
+      in
+      let t =
+        {
+          ctx;
+          look;
+          border;
+          frame = frame border;
+          header_style;
+          rules;
+          columns;
+          headers = Array.map (fun c -> cell c.header) columns;
+          rows = List.map (Array.map cell) rows;
+        }
+      in
+      View_core.block (lines ?max_width:(Ctx.width ctx) t))

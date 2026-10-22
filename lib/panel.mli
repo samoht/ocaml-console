@@ -10,60 +10,35 @@
 
 (** {1:panels Panels} *)
 
-type t
-(** The type for panels. *)
-
-val v :
+val view :
   ?border:Border.t ->
   ?title:View.t ->
   ?subtitle:View.t ->
   ?padding:int ->
-  ?width:int ->
+  ?expand:bool ->
   View.t ->
-  t
-(** [v content] is a panel around [content].
+  View.t
+(** [view content] is a panel around [content], laid out in its room
+    ({!View.fit}): no wider than the room, and its content laid out in the room
+    the frame and the padding leave it.
 
     - The border is [border] if given, else the border of the formatter's theme
       ({!Theme.get}).
     - [title] labels the top edge, in the theme's {!Theme.header}, and
       [subtitle] labels the bottom edge.
     - [padding] is the internal horizontal padding (defaults to [1]).
-    - [width] fixes the width, cutting content and edge labels to keep the box a
-      rectangle; by default it is sized to the content.
-
-    @raise Invalid_argument
-      if [padding] is negative, if [width] cannot hold the padding and [border]
-      (without [border], a frame one cell wide on each side), or if the padding
-      and border are wider than a string can hold ({!Sys.max_string_length}). *)
-
-(** {1:converting Converting} *)
-
-val to_span : ?width:int -> t -> View.t
-(** [to_span ~width panel] is [panel] as a view, to put in a cell, another
-    panel, a tree or beside other text. When it is printed, it is laid out as
-    {!pp} lays it out at a margin of [width] (defaults to its natural width), in
-    the formatter's theme and [Fmt.utf_8].
-
-    Each of its lines takes the cells it takes in {!Theme.default} in UTF-8.
-    Where the formatter's look lays a line out wider or narrower, as a frame of
-    glyphs two cells wide does, the line is cut or padded to those cells. A
-    panel whose {!v} [width] is wider than [width] has each of its lines cut to
-    [width], as {!pp} cuts it to a narrower margin. *)
-
-val to_string : ?styled:bool -> ?width:int -> t -> string
-(** [to_string panel] is [panel] as {!pp} formats it at a margin of [width], or
-    at its natural width without [width], with colours iff [styled] (defaults to
-    [false]). Its lines are joined by line feeds, with none after the last. *)
-
-(** {1:fmt Formatting} *)
-
-val pp : t Fmt.t
-(** [pp] formats a panel, with no line end after its last line. No line is wider
-    than the formatter's margin. A panel of fixed [width] that fits the margin
-    is a rectangle [width] cells wide.
+    - [expand] (defaults to [false]) makes the panel as wide as its room, its
+      content and edge labels cut to keep the box a rectangle. Otherwise the
+      panel is sized to its content.
 
     A line wider than the room inside the frame:
-    - wraps at its words in a box sized to its content ({!View.wrap}), hanging
+    - wraps at its words in a panel sized to its content ({!View.wrap}), hanging
       under the text after its first word;
-    - is cut in a box of fixed width ({!View.truncate}), and so are edge labels.
-*)
+    - is cut in a panel that expands ({!View.truncate}), and so are edge labels.
+
+    A panel that fits its room is a rectangle. One in a room too narrow for its
+    border has each line cut to the room.
+
+    @raise Invalid_argument
+      if [padding] is negative, or the padding and border are wider than a
+      string can hold ({!Sys.max_string_length}). *)

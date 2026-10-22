@@ -1131,7 +1131,7 @@ let test_iter () =
 (* {1 Views} *)
 
 let steps =
-  Table.v
+  Table.view
     [
       Table.column (View.text "step");
       Table.column ~align:`Right (View.text "time");
@@ -1151,7 +1151,7 @@ let printed ?(theme = theme) ~margin pp v =
   Format.pp_print_flush ppf ();
   String.split_on_char '\n' (Buffer.contents buf)
 
-let table ~width = Table.to_span ~width:(min width 100) steps
+let table ~width = View.sized ~width:(min width 100) steps
 
 (* A view is a span: here a table above the default view, the tree of the
    tasks and then the summary, which stays the last line. The view is given
@@ -1164,7 +1164,7 @@ let test_view () =
       above (table ~width) d ~width ~height);
   ignore (Display.task t.display "compile");
   Display.redraw t.display;
-  let table = printed ~margin:40 Table.pp steps in
+  let table = printed ~margin:40 View.pp steps in
   let rows = screen t in
   let n = List.length table in
   check_lines "the table first" table (List.filteri (fun i _ -> i < n) rows);
@@ -1203,7 +1203,7 @@ let test_view_fits () =
    region shows no fragment of its frame. *)
 let test_view_short () =
   let t = terminal ~theme ~width:40 ~height:6 ~summary:"Build" () in
-  let table = Table.to_span ~width:30 steps in
+  let table = View.sized ~width:30 steps in
   Display.set_view t.display (fun d ~width ~height:_ ->
       View.vcat [ table; Display.default_view d ~width ~height:2 ]);
   ignore (Display.task t.display "compile");
@@ -1242,7 +1242,7 @@ let test_view_width () =
    view puts them in a column narrower than the terminal. *)
 let test_default_view_column () =
   let t = terminal ~theme ~width:120 ~height:12 ~summary:"Building" () in
-  let panel = Panel.to_span ~width:30 (Panel.v (View.text "status")) in
+  let panel = View.sized ~width:30 (Panel.view (View.text "status")) in
   Display.set_view t.display (fun d ~width ~height ->
       View.hcat [ Display.default_view d ~width:(width - 32) ~height; panel ]);
   let step = Display.task t.display "compile" in
@@ -1262,11 +1262,10 @@ let test_default_view_column () =
 (* Widgets side by side make a view, each at the width it is given. *)
 let test_view_hcat () =
   let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
-  let panel = Panel.v (View.text "status") in
+  let panel = Panel.view (View.text "status") in
   let side width =
     let half = (width - 2) / 2 in
-    View.hcat
-      [ Table.to_span ~width:half steps; Panel.to_span ~width:half panel ]
+    View.hcat [ View.sized ~width:half steps; View.sized ~width:half panel ]
   in
   Display.set_view t.display (fun d ~width ~height ->
       above (side width) d ~width ~height);
@@ -1344,7 +1343,7 @@ let test_view_moves () =
     Display.close t.display;
     frames
   in
-  let still = printed ~theme:Theme.matrix ~margin:40 Table.pp steps in
+  let still = printed ~theme:Theme.matrix ~margin:40 View.pp steps in
   let frames = run Theme.matrix ~styled:true in
   Alcotest.(check bool)
     "frames are drawn" true
@@ -1382,7 +1381,7 @@ let test_view_moves () =
    every frame of a view is the still one. *)
 let test_simple_view_stands_still () =
   let simple =
-    Table.v ~border:Border.simple
+    Table.view ~border:Border.simple
       [
         Table.column (View.text "step");
         Table.column ~align:`Right (View.text "time");
@@ -1396,7 +1395,7 @@ let test_simple_view_stands_still () =
     (fun theme ->
       let t = terminal ~theme ~styled:true ~width:40 ~height:12 () in
       Display.set_view t.display (fun _ ~width ~height:_ ->
-          Table.to_span ~width simple);
+          View.sized ~width simple);
       Display.redraw t.display;
       let still = screen t in
       for _ = 1 to 12 do
@@ -1791,7 +1790,7 @@ let region_stands_still ~width ~bars =
   let t = terminal ~theme ~width ~height:16 () in
   let status = Hashtbl.create 2 in
   let table () =
-    Table.v
+    Table.view
       [
         Table.column (View.text "Build");
         Table.column ~min_width:7 (View.text "Status");
@@ -1810,7 +1809,7 @@ let region_stands_still ~width ~bars =
     | [ a; b ] ->
         View.vcat
           [
-            Table.to_span ~width (table ());
+            View.sized ~width (table ());
             View.hcat
               [
                 Display.tree ~width:((width - 2) / 2) ~height a;

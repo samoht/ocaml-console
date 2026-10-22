@@ -28,10 +28,10 @@ let test_dos () =
   let t = Theme.dos in
   Alcotest.(check string)
     "ascii spinner" "/"
-    (Spinner.frame (Theme.spinner t) ~elapsed:0.1);
+    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()));
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
   let table =
-    Table.v
+    Table.view
       [ Table.column (View.text "a"); Table.column (View.text "b") ]
       [ [ View.text "1"; View.text "2" ] ]
   in
@@ -43,28 +43,28 @@ let test_dos () =
      \u{255f}\u{2500}\u{2500}\u{2500}\u{253c}\u{2500}\u{2500}\u{2500}\u{2562}\n\
      \u{2551} 1 \u{2502} 2 \u{2551}\n\
      \u{255a}\u{2550}\u{2550}\u{2550}\u{2567}\u{2550}\u{2550}\u{2550}\u{255d}"
-    (printed ~theme:t Table.pp table);
+    (printed ~theme:t View.pp table);
   Alcotest.(check string)
     "double-line panel"
     "\u{2554}\u{2550}\u{2550}\u{2550}\u{2557}\n\
      \u{2551} 1 \u{2551}\n\
      \u{255a}\u{2550}\u{2550}\u{2550}\u{255d}"
-    (printed ~theme:t Panel.pp (Panel.v (View.text "1")));
+    (printed ~theme:t View.pp (Panel.view (View.text "1")));
   Alcotest.(check string)
     "single-line tree guides" "r\n\u{2514}\u{2500}\u{2500} c"
-    (printed ~theme:t Tree.pp tree);
+    (printed ~theme:t View.pp (Tree.view tree));
   Alcotest.(check string)
     "ASCII table" "+---+---+\n| a | b |\n+---+---+\n| 1 | 2 |\n+---+---+"
-    (printed ~theme:t ~utf_8:false Table.pp table);
+    (printed ~theme:t ~utf_8:false View.pp table);
   Alcotest.(check string)
     "ASCII tree" "r\n+-- c"
-    (printed ~theme:t ~utf_8:false Tree.pp tree)
+    (printed ~theme:t ~utf_8:false View.pp (Tree.view tree))
 
 let test_default () =
   let t = Theme.default in
   Alcotest.(check string)
     "braille spinner" "⠙"
-    (Spinner.frame (Theme.spinner t) ~elapsed:0.1)
+    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
 
 let test_rainbow () =
   let t = Theme.rainbow in
@@ -82,7 +82,7 @@ let test_v_defaults () =
     (match Theme.palette t with [ c ] -> Color.equal c Color.red | _ -> false);
   Alcotest.(check string)
     "the spinner given" "/"
-    (Spinner.frame (Theme.spinner t) ~elapsed:0.1)
+    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
 
 (* Each scheme keeps the background its authors chose. *)
 let test_schemes () =
@@ -137,14 +137,14 @@ let test_widgets_read_it () =
       (what ^ " by default") true
       (contains default (printed pp v))
   in
-  check "table" Table.pp
-    (Table.v [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
+  check "table" View.pp
+    (Table.view [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
     ~ascii:"+---+" ~default:"\u{256d}\u{2500}";
-  check "panel" Panel.pp
-    (Panel.v (View.text "1"))
+  check "panel" View.pp
+    (Panel.view (View.text "1"))
     ~ascii:"+---+" ~default:"\u{256d}\u{2500}";
-  check "tree" Tree.pp
-    (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ])
+  check "tree" View.pp
+    (Tree.view (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ]))
     ~ascii:"+-- c" ~default:"\u{2514}\u{2500}\u{2500} c";
   let amber s =
     View.to_string ~styled:true
@@ -154,13 +154,13 @@ let test_widgets_read_it () =
     "rule in the muted colour"
     (View.to_string ~styled:true
        (View.styled (Style.fg (Theme.muted Theme.dos)) (View.text "-----")))
-    (printed ~theme:Theme.dos ~styled:true ~margin:5 Rule.pp
-       (Rule.v ~glyph:"-" ()));
+    (printed ~theme:Theme.dos ~styled:true ~margin:5 View.pp
+       (Rule.view ~glyph:"-" ()));
   Alcotest.(check bool)
     "bar in the accent" true
     (Astring.String.is_prefix
        ~affix:(String.sub (amber "x") 0 10)
-       (printed ~theme:Theme.dos ~styled:true Bar.pp (Bar.v ~width:2 1.)))
+       (printed ~theme:Theme.dos ~styled:true View.pp (Bar.view ~width:2 1.)))
 
 (* A display takes the theme of the formatter it writes on. *)
 let test_display_reads_it () =
@@ -323,18 +323,21 @@ let test_roles () =
     if not (contains affix s) then Alcotest.failf "%s: no %S in %S" what affix s
   in
   let table =
-    print Table.pp
-      (Table.v [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
+    print View.pp
+      (Table.view [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
   in
   check "table frame" (muted ^ "\u{256d}") table;
   check "table header" (header ^ "a") table;
-  let panel = print Panel.pp (Panel.v ~title:(View.text "T") (View.text "1")) in
+  let panel =
+    print View.pp (Panel.view ~title:(View.text "T") (View.text "1"))
+  in
   check "panel frame" (muted ^ "\u{256d}") panel;
   check "panel title" (header ^ "T") panel;
   check "tree guide" (muted ^ "\u{2514}")
-    (print Tree.pp (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ]));
-  check "rule" (muted ^ "\u{2500}") (print Rule.pp (Rule.v ()));
-  check "bar track" muted (print Bar.pp (Bar.v ~width:4 0.5));
+    (print View.pp
+       (Tree.view (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ])));
+  check "rule" (muted ^ "\u{2500}") (print View.pp (Rule.view ()));
+  check "bar track" muted (print View.pp (Bar.view ~width:4 0.5));
   let term = terminal ~theme:t ~styled:true ~summary:"Build" () in
   let task = Display.task term.display "compile" in
   Display.set_count task ~cur:1 ~total:3;
@@ -424,19 +427,21 @@ let test_ascii_fallback () =
     let print pp v = printed ~theme ~utf_8:false ~margin:12 pp v in
     [
       ( "table",
-        print Table.pp
-          (Table.v
+        print View.pp
+          (Table.view
              [
                Table.column (View.text "a");
                Table.column ~overflow:`Truncate (View.text "b");
              ]
              [ [ View.text "1"; long ] ]) );
-      ("panel", print Panel.pp (Panel.v ~title:long long));
+      ("panel", print View.pp (Panel.view ~title:long long));
       ( "tree",
-        print Tree.pp
-          (Tree.v long [ Tree.v long [ Tree.v long [] ]; Tree.v long [] ]) );
-      ("rule", print Rule.pp (Rule.v ~label:long ()));
-      ("bar", print Bar.pp (Bar.v ~brackets:true ~width:10 0.55));
+        print View.pp
+          (Tree.view
+             (Tree.v long [ Tree.v long [ Tree.v long [] ]; Tree.v long [] ]))
+      );
+      ("rule", print View.pp (Rule.view ~label:long ()));
+      ("bar", print View.pp (Bar.view ~brackets:true ~width:10 0.55));
       ("display", display_bytes theme);
     ]
   in
@@ -449,8 +454,8 @@ let test_ascii_fallback () =
     presets;
   Alcotest.(check string)
     "a cut line ends with dots" "a label ..."
-    (printed ~utf_8:false ~margin:11 Rule.pp
-       (Rule.v ~align:`Left ~label:long ()))
+    (printed ~utf_8:false ~margin:11 View.pp
+       (Rule.view ~align:`Left ~label:long ()))
 
 (* {1 Motion} *)
 
@@ -482,7 +487,7 @@ let test_still () =
   Alcotest.(check bool)
     "its colours" true
     (Color.equal (Theme.accent t) (Theme.accent Theme.matrix));
-  let frame elapsed = Spinner.frame (Theme.spinner t) ~elapsed in
+  let frame time = Display_harness.at ~theme:t ~time (Spinner.view ()) in
   Alcotest.(check (list string))
     "a spinner that does not turn"
     [ frame 0.; frame 0. ]
@@ -494,11 +499,11 @@ let test_still () =
    display draws it at its start. *)
 let test_still_printed () =
   let table =
-    Table.v
+    Table.view
       [ Table.column (View.text "a"); Table.column (View.text "b") ]
       [ [ View.text "1"; View.text "2" ] ]
   in
-  let panel = Panel.v ~title:(View.text "T") (View.text "body") in
+  let panel = Panel.view ~title:(View.text "T") (View.text "body") in
   let colours s =
     let re =
       Re.compile
@@ -533,8 +538,8 @@ let test_still_printed () =
               (printed ~theme:still ~styled:true pp v)
               moving
       in
-      check "table" Table.pp table;
-      check "panel" Panel.pp panel)
+      check "table" View.pp table;
+      check "panel" View.pp panel)
     presets
 
 (* The cells of the frame of a table drawn in a live display in [theme], as
@@ -542,7 +547,7 @@ let test_still_printed () =
 let frames theme times =
   let term = terminal ~theme ~styled:true ~width:40 ~height:12 () in
   let table =
-    Table.v
+    Table.view
       [
         Table.column (View.text "step");
         Table.column ~align:`Right (View.text "time");
@@ -550,7 +555,7 @@ let frames theme times =
       [ [ View.text "fetch"; View.text "1.2s" ] ]
   in
   Display.set_view term.display (fun _ ~width ~height:_ ->
-      Table.to_span ~width table);
+      View.sized ~width table);
   let now = ref 0. in
   List.map
     (fun time ->

@@ -65,12 +65,8 @@ let write t s =
 
 (* A frame that moves moves only in colour: without it, rain would still
    change its glyphs. *)
-let moving t =
-  let look = Widget.look t.ppf in
-  if Option.is_some t.depth then { look with elapsed = Some (since_start t) }
-  else look
-
-let render t span = View_core.render ~look:(moving t) ?depth:t.depth span
+let moving t = Look.v ~live:(Option.is_some t.depth) t.ppf
+let render t span = View_core.render ~look:(Look.v t.ppf) ?depth:t.depth span
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -103,24 +99,25 @@ let drop_first height lines =
    the terminal's width if there is one. The default view's lines are
    taken as they are drawn, without joining them into a span to split
    again. *)
-let lines t ~look ~height view =
+let lines t ~look ~time ~height view =
   let lines =
     match view with
     | None ->
         drop_first height
-          (List.map (View_core.resolve look)
+          (List.map (View_core.paint look)
              (Display_tree.default_lines t ~width:t.width ~height))
     | Some view -> (
-        match view t ~width:t.width ~height with
+        let c = Ctx.v ~width:t.width ~height ~time look in
+        match View_core.resolve c (view t ~width:t.width ~height) with
         | span when View_core.is_empty span -> []
-        | span -> last height (View_core.seamed (View_core.resolve look span)))
+        | span -> last height (View_core.seamed (View_core.paint look span)))
   in
   if is_live t then List.map (Widget.truncate look t.width) lines else lines
 
 let frame t =
   match capacity t with
   | 0 -> []
-  | height -> lines t ~look:(moving t) ~height t.view
+  | height -> lines t ~look:(moving t) ~time:(since_start t) ~height t.view
 
 (* A view that raises is dropped: what was to be written is written with
    the default view, then the exception is raised again. *)
@@ -137,15 +134,15 @@ let framed t k =
    view if the program's raises. *)
 let final t =
   t.closing <- true;
-  let look = Widget.look t.ppf in
+  let look = Look.v t.ppf in
   Fun.protect
     ~finally:(fun () -> t.closing <- false)
     (fun () ->
-      match lines t ~look ~height:max_int t.view with
+      match lines t ~look ~time:0. ~height:max_int t.view with
       | lines -> lines
       | exception _ ->
           t.view <- None;
-          lines t ~look ~height:max_int None)
+          lines t ~look ~time:0. ~height:max_int None)
 
 (* {1 Drawing} *)
 

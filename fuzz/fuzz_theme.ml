@@ -53,19 +53,20 @@ let test_ascii s n =
   Fmt.set_style_renderer ppf `Ansi_tty;
   Format.pp_set_margin ppf margin;
   let leaf = Tree.v text [] in
-  Fmt.pf ppf "%a@.%a@.%a@.%a@.%a@." Table.pp
-    (Table.v
+  Fmt.pf ppf "%a@.%a@.%a@.%a@.%a@." View.pp
+    (Table.view
        [
          Table.column (View.text s);
          Table.column ~overflow:`Truncate (View.text s);
        ]
        [ [ text; text ]; [ text ] ])
-    Panel.pp
-    (Panel.v ~title:text ~subtitle:text text)
-    Tree.pp
-    (Tree.v text [ Tree.v text [ leaf ]; leaf ])
-    Rule.pp (Rule.v ~label:text ()) Bar.pp
-    (Bar.v ~brackets:true ~width:(n mod 30) (Float.of_int (n mod 101) /. 100.));
+    View.pp
+    (Panel.view ~title:text ~subtitle:text text)
+    View.pp
+    (Tree.view (Tree.v text [ Tree.v text [ leaf ]; leaf ]))
+    View.pp (Rule.view ~label:text ()) View.pp
+    (Bar.view ~brackets:true ~width:(n mod 30)
+       (Float.of_int (n mod 101) /. 100.));
   let d =
     Display.v ~summary:s
       ~size:(fun () -> (margin, 1 + (n mod 7)))

@@ -9,56 +9,60 @@ let at width rule =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
   Format.pp_set_margin ppf width;
-  Rule.pp ppf rule;
+  View.pp ppf rule;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 let test_plain () =
-  Alcotest.(check string) "unlabelled" "-----" (at 5 (Rule.v ~glyph:"-" ()))
+  Alcotest.(check string) "unlabelled" "-----" (at 5 (Rule.view ~glyph:"-" ()))
 
 let test_label () =
   let label = View.styled Style.bold (View.text "Build") in
   Alcotest.(check string)
     "center" "-- Build --"
-    (at 11 (Rule.v ~glyph:"-" ~label ()));
+    (at 11 (Rule.view ~glyph:"-" ~label ()));
   Alcotest.(check string)
     "left" "Build -----"
-    (at 11 (Rule.v ~glyph:"-" ~align:`Left ~label ()));
+    (at 11 (Rule.view ~glyph:"-" ~align:`Left ~label ()));
   Alcotest.(check string)
     "right" "----- Build"
-    (at 11 (Rule.v ~glyph:"-" ~align:`Right ~label ()))
+    (at 11 (Rule.view ~glyph:"-" ~align:`Right ~label ()))
 
 (* A label wider than the line is cut to it, not refused. *)
 let test_long_label_is_cut () =
   Alcotest.(check string)
     "cut to the margin" "lo…"
-    (at 3 (Rule.v ~label:(View.text "long") ()))
+    (at 3 (Rule.view ~label:(View.text "long") ()))
 
 (* [to_string] draws a rule as [pp] does at a margin of [width], in
    {!Theme.default} and UTF-8. *)
 let test_to_string () =
-  let rule = Rule.v ~label:(View.text "Build") () in
+  let rule = Rule.view ~label:(View.text "Build") () in
   Alcotest.(check string)
     "plain"
     "\u{2500}\u{2500}\u{2500}\u{2500} Build \u{2500}\u{2500}\u{2500}\u{2500}"
-    (Rule.to_string ~width:15 rule);
+    (View.to_string (View.sized ~width:15 rule));
   Alcotest.(check string)
     "as pp"
-    (at 15 (Rule.v ~glyph:"=" ()))
-    (Rule.to_string ~width:15 (Rule.v ~glyph:"=" ()));
-  Alcotest.(check string) "no room" "" (Rule.to_string ~width:0 rule);
-  let styled = Rule.to_string ~styled:true ~width:5 (Rule.v ()) in
+    (at 15 (Rule.view ~glyph:"=" ()))
+    (View.to_string (View.sized ~width:15 (Rule.view ~glyph:"=" ())));
+  Alcotest.(check string)
+    "no room" ""
+    (View.to_string (View.sized ~width:0 rule));
+  let styled =
+    View.to_string ~styled:true (View.sized ~width:5 (Rule.view ()))
+  in
   Alcotest.(check bool)
     "in the theme's muted colour" true
     (String.starts_with ~prefix:"\027[" styled)
 
 let test_invalid () =
   Alcotest.check_raises "wide glyph"
-    (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
-      ignore (Rule.v ~glyph:"--" ()));
+    (Invalid_argument "Console.Rule.view: glyph must occupy one cell")
+    (fun () -> ignore (Rule.view ~glyph:"--" ()));
   Alcotest.check_raises "a control is a space"
-    (Invalid_argument "Console.Rule.v: glyph must occupy one cell") (fun () ->
-      ignore (Rule.v ~glyph:"-\027" ()))
+    (Invalid_argument "Console.Rule.view: glyph must occupy one cell")
+    (fun () -> ignore (Rule.view ~glyph:"-\027" ()))
 
 let suite =
   ( "rule",

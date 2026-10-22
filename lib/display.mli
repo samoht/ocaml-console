@@ -437,8 +437,8 @@ val cancel : ?message:string -> task -> unit
     display calls it each time it draws, with the terminal's width and the
     number of lines the region may take, draws the last lines that fit, each cut
     to the width, and redraws only those that changed. Any view goes in a view:
-    a {!Table.to_span} above the tasks, trees side by side with {!View.hcat},
-    one under the other with {!View.vcat}.
+    a {!View.sized} above the tasks, trees side by side with {!View.hcat}, one
+    under the other with {!View.vcat}.
 
     A view of trees side by side wants [keep_ended] ({!v}), so that a column
     does not empty while the others run:
@@ -529,8 +529,8 @@ val summary : ?width:int -> t -> View.t
     line is printed once and never rewritten, and the {e region} below it, which
     it redraws in place. The region is a {e view} ({!views}): a view the program
     may put together from the display's parts, a tree of tasks ({!tree}) and the
-    summary line ({!summary}), and any other view, such as a {!Table.to_span}.
-    The default view is the tree of every top task, then the summary.
+    summary line ({!summary}), and any other view, such as a {!View.sized}. The
+    default view is the tree of every top task, then the summary.
 
     - The summary is the last line of the default view, so the line that says
       how far the work is stays where the eye left it, below the rows, and it is

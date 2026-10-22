@@ -89,14 +89,14 @@ val suites : (string * int) list = [("parser", 3); ("layout", 2)]
       [ Console.View.text name; Console.View.text (Int.to_string n) ]
     in
     Console.Table.(
-      v
+      view
         [
           column (Console.View.text "Suite");
           column ~align:`Right (Console.View.text "Tests");
         ]
         (List.map row suites));;
-val results : (string * int) list -> Console.Table.t = <fun>
-# Fmt.pr "%a@." Console.Table.pp (results suites);;
+val results : (string * int) list -> Console.View.t = <fun>
+# Fmt.pr "%a@." Console.View.pp (results suites);;
 ╭────────┬───────╮
 │ Suite  │ Tests │
 ├────────┼───────┤
@@ -160,7 +160,7 @@ stays once they are done:
 let with_table ~table display ~width ~height =
   Console.View.vcat
     [
-      Console.Table.to_span ~width:(min width 100) (table ());
+      Console.View.sized ~width:(min width 100) (table ());
       Console.Display.default_view display ~width ~height;
     ]
 ]}
@@ -201,7 +201,7 @@ let progress =
 let check () progress =
   Eio_main.run @@ fun env ->
   run_all ~clock:(Eio.Stdenv.mono_clock env) ~progress suites;
-  Fmt.pr "%a@." Console.Table.pp (results suites)
+  Fmt.pr "%a@." Console.View.pp (results suites)
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "check")
@@ -326,7 +326,7 @@ whatever the program computes between them, so the times read the same on
 every machine
 ({{!Console_eio.section-deterministic}a deterministic clock}).
 
-The widgets need no clock at all. [Console.Table.to_string] and the other
+The widgets need no clock at all. [Console.View.to_string] and the other
 [to_string] functions return the text that a unit test compares, without
 escape codes unless [~styled:true] asks for them.
 

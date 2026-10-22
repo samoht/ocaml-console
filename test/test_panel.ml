@@ -7,13 +7,13 @@ open Console
 open Display_harness
 
 let test_basic () =
-  let panel = Panel.v (View.text "content") in
-  let output = Panel.to_string panel in
+  let panel = Panel.view (View.text "content") in
+  let output = View.to_string panel in
   Alcotest.(check bool) "contains content" true (contains "content" output)
 
 let test_with_title () =
-  let panel = Panel.v ~title:(View.text "Title") (View.text "body") in
-  let output = Panel.to_string panel in
+  let panel = Panel.view ~title:(View.text "Title") (View.text "body") in
+  let output = View.to_string panel in
   Alcotest.(check bool) "contains title" true (contains "Title" output);
   Alcotest.(check bool) "contains body" true (contains "body" output)
 
@@ -21,7 +21,7 @@ let render renderer panel =
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_style_renderer ppf renderer;
-  Panel.pp ppf panel;
+  View.pp ppf panel;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -32,7 +32,7 @@ let test_multiline_preserves_styles () =
       ++ text "\n"
       ++ styled Style.(fg Color.blue) (text "blue"))
   in
-  let panel = Panel.v content in
+  let panel = Panel.view content in
   let ansi = render `Ansi_tty panel in
   Alcotest.(check bool) "first line is styled" true (contains "\027[31m" ansi);
   Alcotest.(check bool) "second line is styled" true (contains "\027[34m" ansi);
@@ -42,18 +42,21 @@ let test_multiline_preserves_styles () =
 
 let test_invalid_geometry () =
   Alcotest.check_raises "negative padding"
-    (Invalid_argument "Console.Panel.v: negative padding") (fun () ->
-      ignore (Panel.v ~padding:(-1) (View.text "x")));
-  Alcotest.check_raises "width too small"
-    (Invalid_argument "Console.Panel.v: width too small for padding") (fun () ->
-      ignore (Panel.v ~padding:2 ~width:5 (View.text "x")))
+    (Invalid_argument "Console.Panel.view: negative padding") (fun () ->
+      ignore (Panel.view ~padding:(-1) (View.text "x")));
+  Alcotest.(check string)
+    "a room too small cuts the frame" "╭─…\n│ …\n╰─…"
+    (View.to_string
+       (View.sized ~width:3
+          (Panel.view ~padding:2 ~expand:true (View.text "x"))))
 
 let test_fixed_width_truncates () =
   let panel =
-    Panel.v ~padding:1 ~width:8 ~title:(View.text "long title")
-      (View.text "abcdefgh")
+    View.sized ~width:8
+      (Panel.view ~padding:1 ~expand:true ~title:(View.text "long title")
+         (View.text "abcdefgh"))
   in
-  let rendered = Panel.to_string panel |> String.split_on_char '\n' in
+  let rendered = View.to_string panel |> String.split_on_char '\n' in
   Alcotest.(check int) "three lines" 3 (List.length rendered);
   List.iter
     (fun line ->
@@ -71,7 +74,7 @@ let render_at margin panel =
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
   Format.pp_set_margin ppf margin;
-  Panel.pp ppf panel;
+  View.pp ppf panel;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -80,7 +83,7 @@ let render_at margin panel =
    line's first word, and the box is exactly the margin wide. *)
 let test_margin_wraps () =
   let panel =
-    Panel.v
+    Panel.view
       (View.text
          "REFUSED main has no baseline and the gate worktree does not exist\nok")
   in
@@ -102,18 +105,18 @@ let test_margin_wraps () =
 let test_margin_natural () =
   Alcotest.(check string)
     "fits" "╭────╮\n│ ok │\n╰────╯"
-    (render_at 30 (Panel.v (View.text "ok")));
+    (render_at 30 (Panel.view (View.text "ok")));
   let long = String.make 100 'x' in
   Alcotest.(check int)
     "to_string is natural" 104
     (Width.string_width
-       (List.hd (lines (Panel.to_string (Panel.v (View.text long))))))
+       (List.hd (lines (View.to_string (Panel.view (View.text long))))))
 
 (* A styled border opens one sequence for each run of border glyphs. *)
 let test_styled_border () =
   let red = Color.rgb 255 0 0 in
   let panel =
-    Panel.v ~padding:0
+    Panel.view ~padding:0
       ~border:(Border.with_style (Style.fg red) Border.single)
       (View.text "x")
   in
@@ -138,7 +141,7 @@ let test_styled_border () =
          "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x98";
          reset;
        ])
-    (Panel.to_string ~styled:true panel)
+    (View.to_string ~styled:true panel)
 
 let test_wide_border () =
   let border =
@@ -162,7 +165,10 @@ let test_wide_border () =
           right_cross = "\u{754c}";
         }
   in
-  let out = Panel.to_string (Panel.v ~border ~width:12 (View.text "x")) in
+  let out =
+    View.to_string
+      (View.sized ~width:12 (Panel.view ~border ~expand:true (View.text "x")))
+  in
   let widths =
     List.map (fun l -> View.width (View.text l)) (String.split_on_char '\n' out)
   in
@@ -177,16 +183,14 @@ let test_to_string_width () =
         true
         (View.width (View.text line) <= 12))
     (String.split_on_char '\n'
-       (Panel.to_string ~width:12
-          (Panel.v (View.text "a line longer than twelve cells"))))
+       (View.to_string
+          (View.sized ~width:12
+             (Panel.view (View.text "a line longer than twelve cells")))))
 
 let test_overflowing_padding () =
-  Alcotest.check_raises "padding cannot fit a twenty-cell panel"
-    (Invalid_argument "Console.Panel.v: width too small for padding") (fun () ->
-      ignore (Panel.v ~padding:max_int ~width:20 (View.text "x")));
   Alcotest.check_raises "no line can hold this padding"
-    (Invalid_argument "Console.Panel.v: padding too large") (fun () ->
-      ignore (Panel.v ~padding:max_int (View.text "x")))
+    (Invalid_argument "Console.Panel.view: padding too large") (fun () ->
+      ignore (Panel.view ~padding:max_int (View.text "x")))
 
 let suite =
   ( "panel",

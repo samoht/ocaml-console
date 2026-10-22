@@ -383,8 +383,123 @@ let test_with_role () =
     (printed ~theme:Theme.nord
        (View.role `Succeeded View.(text "a" ++ styled Style.bold (text "b"))))
 
+(* {1 Room and moment} *)
+
+let pp_at margin v =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  Format.pp_set_margin ppf margin;
+  View.pp ppf v;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* A [fit] part is laid out in the room it is printed in: the margin under
+   [pp], none where it is measured or printed whole. *)
+let test_fit_room () =
+  let room =
+    View.fit (fun r ->
+        View.text
+          (match Room.width r with
+          | Some w -> Fmt.str "%d at %.1f" w (Room.time r)
+          | None -> "natural"))
+  in
+  Alcotest.(check string) "the margin" "30 at 0.0" (pp_at 30 room);
+  Alcotest.(check string) "measured" "natural" (View.to_string room);
+  Alcotest.(check int) "its natural width" 7 (View.width room);
+  Alcotest.(check string)
+    "sized" "12 at 0.0"
+    (View.to_string (View.sized ~width:12 room));
+  Alcotest.(check string)
+    "sized within the room" "8 at 0.0"
+    (pp_at 8 (View.sized ~width:12 room));
+  Alcotest.(check string)
+    "at a display's moment" "5 at 1.5"
+    (at ~width:5 ~time:1.5 room);
+  let theme =
+    View.fit (fun r ->
+        View.text (Fmt.str "%s %b" (Theme.name (Room.theme r)) (Room.utf_8 r)))
+  in
+  Alcotest.(check string)
+    "its theme and character set" "ascii false"
+    (at ~theme:Theme.ascii ~utf_8:false ~time:0. theme)
+
+(* A view's size depends on its room, not on its moment: each frame of a
+   [fit] is cut or padded to its frame at moment 0. *)
+let test_fit_still_size () =
+  let growing =
+    View.fit (fun r ->
+        View.text (String.make (1 + int_of_float (Room.time r)) '#'))
+  in
+  Alcotest.(check (list string))
+    "each frame as wide as the first" [ "#"; "#"; "#" ]
+    (List.map (fun time -> at ~time growing) [ 0.; 1.; 5. ]);
+  let shrinking =
+    View.fit (fun r ->
+        if Room.time r = 0. then View.text "abc\nd" else View.text "x")
+  in
+  Alcotest.(check string) "padded" "x  \n " (at ~time:2. shrinking)
+
+(* Under a room, the parts of [hcat] that do not grow take what they need,
+   and a bar of no width grows to the rest. *)
+let test_hcat_grow () =
+  let row = View.(hcat ~gap:1 [ text "label"; Bar.view 0.5; text "50%" ]) in
+  Alcotest.(check string)
+    "the bar takes the rest" "label ━━━━━━━╺━━━━━━ 50%" (pp_at 24 row);
+  Alcotest.(check string)
+    "at its natural size, ten cells" "label ━━━━━╺━━━━ 50%" (View.to_string row);
+  let two = View.(hcat ~gap:0 [ Bar.view 1.; Rule.view () ]) in
+  Alcotest.(check int)
+    "two growers share the room" 9
+    (View.width (View.text (pp_at 9 two)))
+
+(* [place] pads or cuts each line to its box, at its alignment. *)
+let test_place () =
+  let v = View.text "ab\ncdef" in
+  Alcotest.(check string)
+    "right" "  ab\ncdef"
+    (View.to_string (View.place ~align:`Right v));
+  Alcotest.(check string)
+    "centred and wider" "  ab  \n cdef "
+    (View.to_string (View.place ~align:`Center ~width:6 v));
+  Alcotest.(check string)
+    "cut" "ab \ncd\u{2026}"
+    (View.to_string (View.place ~width:3 v));
+  Alcotest.(check (list string))
+    "three lines" [ "ab  "; "cdef"; "    " ]
+    (String.split_on_char '\n' (View.to_string (View.place ~height:3 v)));
+  Alcotest.(check string)
+    "one line" "ab  "
+    (View.to_string (View.place ~height:1 v))
+
+(* A view that reads nothing but its room is laid out once for each room it
+   is printed in; one that reads state is laid out each time. *)
+let test_cached () =
+  let v, calls = laid () in
+  ignore (at ~width:4 ~time:0. v);
+  ignore (at ~width:4 ~time:1. v);
+  Alcotest.(check int) "one room, one layout" 1 !calls;
+  ignore (at ~width:5 ~time:1. v);
+  Alcotest.(check int) "another room, another" 2 !calls;
+  let v, calls = laid ~live:true () in
+  ignore (at ~width:4 ~time:0. v);
+  ignore (at ~width:4 ~time:0. v);
+  Alcotest.(check int) "state is read again" 2 !calls
+
+(* The matrix theme's frame moves in a display that draws in colour, and
+   stands still where it is printed once. *)
+let test_matrix_moves () =
+  let table =
+    Table.view [ Table.column (View.text "Name") ] [ [ View.text "Alice" ] ]
+  in
+  let frame time = at ~theme:Theme.matrix ~time table in
+  Alcotest.(check bool) "it moves" true (frame 0.3 <> frame 0.9);
+  Alcotest.(check string)
+    "printed once, still"
+    (at ~live:false ~theme:Theme.matrix ~time:0. table)
+    (at ~live:false ~theme:Theme.matrix ~time:0.9 table)
+
 let suite =
-  ( "span",
+  ( "view",
     [
       Alcotest.test_case "zero-width truncation of blank lines is empty" `Quick
         test_zero_width_blank_lines;
@@ -412,4 +527,13 @@ let suite =
       Alcotest.test_case "with_role" `Quick test_with_role;
       Alcotest.test_case "gradient in the theme's palette" `Quick
         test_gradient_theme;
+      Alcotest.test_case "a fit part is laid out in its room" `Quick
+        test_fit_room;
+      Alcotest.test_case "a fit part keeps its still size" `Quick
+        test_fit_still_size;
+      Alcotest.test_case "hcat shares its room" `Quick test_hcat_grow;
+      Alcotest.test_case "place" `Quick test_place;
+      Alcotest.test_case "a still view is laid out once a room" `Quick
+        test_cached;
+      Alcotest.test_case "the matrix frame moves" `Quick test_matrix_moves;
     ] )

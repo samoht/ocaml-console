@@ -11,7 +11,7 @@
     {[
     let tree =
       Console.(
-        Tree.v ~guide:Guide.ascii (View.text "root")
+        Tree.v (View.text "root")
           [
             Tree.v (View.text "bin") [];
             Tree.v (View.text "etc") [ Tree.v (View.text "hosts") [] ];
@@ -19,40 +19,36 @@
 
     let () =
       assert (
-        Console.Tree.to_string tree = "root\n+-- bin\n+-- etc\n    +-- hosts")
+        Console.(View.to_string (Tree.view ~guide:Guide.ascii tree))
+        = "root\n+-- bin\n+-- etc\n    +-- hosts")
     ]} *)
 
 (** {1:trees Trees} *)
 
 type t
-(** The type for trees. *)
+(** The type for trees: a label above sub-trees. *)
 
-val v : ?guide:Guide.t -> View.t -> t list -> t
-(** [v label children] is the tree of [label] above [children]. Its lines are
-    those of [guide] if given, else the guide of the formatter's theme
-    ({!Theme.get}). A tree drawn under another takes the lines of the one above
-    it. *)
+val v : View.t -> t list -> t
+(** [v label children] is the tree of [label] above [children]. *)
 
-(** {1:converting Converting} *)
+val label : t -> View.t
+(** [label t] is the label of [t]. *)
 
-val to_span : ?width:int -> t -> View.t
-(** [to_span ~width tree] is [tree] as a view, to put in a cell, a panel, the
-    label of another tree or beside other text. When it is printed, it is laid
-    out as {!pp} lays it out at a margin of [width] (defaults to its natural
-    width), in the formatter's theme and [Fmt.utf_8].
+val children : t -> t list
+(** [children t] are the sub-trees of [t], in order. *)
 
-    Each of its lines takes the cells it takes in {!Theme.default} in UTF-8.
-    Where the formatter's look lays a line out wider or narrower, as a frame of
-    glyphs two cells wide does, the line is cut or padded to those cells. *)
+(** {1:views Views} *)
 
-val to_string : ?styled:bool -> ?width:int -> t -> string
-(** [to_string t] is [t] as {!pp} formats it at a margin of [width], or at its
-    natural width without [width], with colours iff [styled] (defaults to
-    [false]). Its lines are joined by line feeds, with none after the last. *)
+val view : ?guide:Guide.t -> ?indent:int -> t -> View.t
+(** [view t] draws [t] laid out in its room ({!View.fit}), each node on its own
+    lines, behind the lines of [guide] that connect it to its parent (defaults
+    to the guide of the formatter's theme, {!Theme.get}).
 
-(** {1:fmt Formatting} *)
+    - A label is laid out in the room its guides leave it. One wider than that
+      wraps, and the rest goes under its text, behind the lines that go on to
+      the node's next sibling. No line is wider than the room.
+    - [indent] (defaults to [0]) is the cells before the guides of every line
+      but the first line of the root: a display's task tree is a
+      [view ~indent:2], whose sub-tasks start under their parent's label.
 
-val pp : t Fmt.t
-(** [pp] formats a tree, with no line end after its last line. No line is wider
-    than the formatter's margin. A label wider than the room the margin leaves
-    it wraps, and the rest goes under its text. *)
+    @raise Invalid_argument if [indent] is negative. *)

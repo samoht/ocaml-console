@@ -75,14 +75,14 @@ let table ?(border = Border.rounded) s =
     List.init 3 (fun r ->
         List.init ncol (fun c -> View.text (pick s (2 + (r * ncol) + c))))
   in
-  (ncol, Table.v ~border columns rows)
+  (ncol, Table.view ~border columns rows)
 
 (* No line is wider than the margin, every style is turned off, and a framed
    table that fits has all its lines as wide as one another. *)
 let test_fits s n =
   let margin = 4 + (abs n mod 80) in
   let ncol, t = table s in
-  let raw, lines = render Table.pp margin t in
+  let raw, lines = render View.pp margin t in
   check_fits margin lines;
   check_closed raw;
   if margin >= (ncol * 3) + 1 then
@@ -96,7 +96,7 @@ let test_fits s n =
 let test_simple s n =
   let margin = 4 + (abs n mod 80) in
   let ncol, t = table ~border:Border.simple s in
-  let raw, lines = render Table.pp margin t in
+  let raw, lines = render View.pp margin t in
   check_fits margin lines;
   check_closed raw;
   let headed =
@@ -119,7 +119,7 @@ let test_right_aligned s =
   let cells_of i = View.text (pick s i) in
   let rows = List.init 4 (fun i -> [ cells_of i; View.text "|" ]) in
   let t =
-    Table.v ~border:Border.none
+    Table.view ~border:Border.none
       [
         Table.column ~align:`Right (View.text "a"); Table.column (View.text "b");
       ]
@@ -136,14 +136,16 @@ let test_right_aligned s =
           failf "%S does not start with %S" line expected
       end)
     firsts
-    (String.split_on_char '\n' (Table.to_string t))
+    (String.split_on_char '\n' (View.to_string t))
 
 (* A row with more cells than columns, or none, is refused. *)
 let test_shape s n =
   let k = abs n mod 4 in
   let rows = [ List.init k (fun i -> View.text (pick s i)) ] in
   match
-    Table.v [ Table.column (View.text "a"); Table.column (View.text "b") ] rows
+    Table.view
+      [ Table.column (View.text "a"); Table.column (View.text "b") ]
+      rows
   with
   | _ -> if k = 0 || k > 2 then fail "bad row accepted"
   | exception Invalid_argument _ -> if k >= 1 && k <= 2 then fail "row refused"
@@ -151,14 +153,14 @@ let test_shape s n =
 let test_huge_min_width n =
   let minimum = max_int - (n mod 1024) in
   let t =
-    Table.v
+    Table.view
       [
         Table.column ~min_width:minimum (View.text "A");
         Table.column (View.text "B");
       ]
       [ [ View.text "x"; View.text "y" ] ]
   in
-  let out = Table.to_string ~width:20 t in
+  let out = View.to_string (View.sized ~width:20 t) in
   check_fits 20 (String.split_on_char '\n' out)
 
 let test_wide_border n =
@@ -185,11 +187,13 @@ let test_wide_border n =
         }
   in
   let t =
-    Table.v ~border
+    Table.view ~border
       [ Table.column (View.text "A"); Table.column (View.text "B") ]
       [ [ View.text "x"; View.text "y" ] ]
   in
-  let lines = String.split_on_char '\n' (Table.to_string ~width:40 t) in
+  let lines =
+    String.split_on_char '\n' (View.to_string (View.sized ~width:40 t))
+  in
   check_fits 40 lines;
   let widths = List.map cells lines in
   List.iter (fun w -> check_eq ~pp:Fmt.int (List.hd widths) w) widths
@@ -199,7 +203,7 @@ let themes = List.map snd Theme.all
 let check_marker_columns mixed s =
   (* A marker in the next column gives an observable column boundary. *)
   let t =
-    Table.v ~border:Border.none
+    Table.view ~border:Border.none
       [
         Table.column ~align:`Right (View.text ""); Table.column (View.text "|");
       ]
@@ -211,7 +215,7 @@ let check_marker_columns mixed s =
            View.empty;
          ])
   in
-  let lines = String.split_on_char '\n' (Table.to_string t) in
+  let lines = String.split_on_char '\n' (View.to_string t) in
   let positions =
     List.map
       (fun line ->
@@ -240,14 +244,14 @@ let test_mixed_script_themes s n =
   List.iter
     (fun theme ->
       let t =
-        Table.v
+        Table.view
           [
             Table.column (View.text "name");
             Table.column ~align:`Right (View.text "size");
           ]
           rows
       in
-      let raw, lines = render ~theme Table.pp margin t in
+      let raw, lines = render ~theme View.pp margin t in
       check (String.is_valid_utf_8 raw);
       check_fits margin lines;
       check_closed raw;
@@ -266,8 +270,8 @@ let test_rules s n =
     List.init nrows (fun r ->
         List.init ncol (fun c -> View.text (pick s (2 + (r * ncol) + c))))
   in
-  let t = Table.v ~rules:true ~border:Border.rounded columns rows in
-  let _, lines = render Table.pp 1000 t in
+  let t = Table.view ~rules:true ~border:Border.rounded columns rows in
+  let _, lines = render View.pp 1000 t in
   let rules = List.filter (String.starts_with ~prefix:"\u{251c}") lines in
   check_eq ~pp:Fmt.int nrows (List.length rules);
   List.iter (fun r -> check_eq ~pp:Fmt.Dump.string (List.hd rules) r) rules
@@ -285,12 +289,12 @@ let test_independent_edges a b empty_right =
       }
   in
   let table =
-    Table.v ~border
+    Table.view ~border
       [ Table.column (View.text "A"); Table.column (View.text "B") ]
       [ [ View.text (String.make a 'x'); View.text (String.make b 'y') ] ]
   in
   let expected_width = a + b + 7 in
-  let raw, lines = render Table.pp 80 table in
+  let raw, lines = render View.pp 80 table in
   check_closed raw;
   List.iter
     (fun line ->

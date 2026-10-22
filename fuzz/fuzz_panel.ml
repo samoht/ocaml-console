@@ -70,18 +70,24 @@ let test_fits s n m =
   let title = View.text (pick s 2) in
   List.iter
     (fun p ->
-      let raw, lines = render Panel.pp margin p in
+      let raw, lines = render View.pp margin p in
       check_fits margin lines;
       check_closed raw)
-    [ Panel.v ~title content; Panel.v ~title ~width content ];
+    [
+      Panel.view ~title content;
+      View.sized ~width (Panel.view ~expand:true ~title content);
+    ];
   if width <= margin then
-    let _, lines = render Panel.pp margin (Panel.v ~title ~width content) in
+    let _, lines =
+      render View.pp margin
+        (View.sized ~width (Panel.view ~expand:true ~title content))
+    in
     List.iter (fun l -> check_eq ~pp:Fmt.int width (cells l)) lines
 
 let test_refused n =
-  match Panel.v ~padding:(n mod 3) ~width:(n mod 7) View.empty with
-  | _ -> if n mod 3 < 0 || n mod 7 < 2 + (2 * (n mod 3)) then fail "accepted"
-  | exception Invalid_argument _ -> ()
+  match Panel.view ~padding:(n mod 3) View.empty with
+  | _ -> if n mod 3 < 0 then fail "accepted"
+  | exception Invalid_argument _ -> if n mod 3 >= 0 then fail "refused"
 
 let test_wide_border n =
   let glyph = String.make (2 + (n mod 3)) '#' in
@@ -107,17 +113,19 @@ let test_wide_border n =
         }
   in
   let width = 20 in
-  let out = Panel.to_string (Panel.v ~border ~width (View.text "x")) in
+  let out =
+    View.to_string
+      (View.sized ~width (Panel.view ~border ~expand:true (View.text "x")))
+  in
   List.iter
     (fun l -> check_eq ~pp:Fmt.int width (cells l))
     (String.split_on_char '\n' out)
 
 (* Compare before multiplying: no finite box can hold padding this large,
-   whether its width is fixed or follows its content. *)
-let test_overflowing_padding n fixed =
+   whether it expands to its room or follows its content. *)
+let test_overflowing_padding n expand =
   let padding = max_int - (n mod 1024) in
-  let width = if fixed then Some (4 + (n mod 77)) else None in
-  match Panel.v ~padding ?width View.empty with
+  match Panel.view ~padding ~expand View.empty with
   | _ -> failf "accepted padding %d" padding
   | exception Invalid_argument _ -> ()
 

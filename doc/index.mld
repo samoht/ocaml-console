@@ -13,7 +13,7 @@ pipe:
 {@ocaml[
 # let sizes =
     Console.Table.(
-      v
+      view
         [
           column (Console.View.text "Package");
           column ~align:`Right (Console.View.text "Size");
@@ -22,8 +22,8 @@ pipe:
           [ Console.View.text "console"; Console.View.text "42 KiB" ];
           [ Console.View.text "console-eio"; Console.View.text "9 KiB" ];
         ]);;
-val sizes : Console.Table.t = <abstr>
-# Fmt.pr "%a@." Console.Table.pp sizes;;
+val sizes : Console.View.t = <abstr>
+# Fmt.pr "%a@." Console.View.pp sizes;;
 ╭─────────────┬────────╮
 │ Package     │   Size │
 ├─────────────┼────────┤

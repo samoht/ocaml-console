@@ -77,10 +77,10 @@ let position ~width ~height ~left ~right ~y x =
   else if x < left then Some ((2 * width) + height - 2 + (height - 2 - y))
   else None
 
-let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
+let frame (look : Look.t) ~time border ~left ~right ?(gaps = []) lines =
   match (Theme.motion look.theme, lines) with
   | None, _ | _, ([] | [ _ ]) -> lines
-  | Some motion, first :: _ ->
+  | Some motion, first :: _ -> (
       let width = View_core.width first and height = List.length lines in
       if
         left = 0 || right = 0 || width < 2
@@ -96,22 +96,22 @@ let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
         let gap y x =
           List.exists (fun (g, a, b) -> g = y && a <= x && x < b) gaps
         in
-        List.mapi
-          (fun y line ->
-            let border ~elapsed ~cell =
-              if gap y cell then None
-              else
-                Option.map
-                  (fun p -> draw ~elapsed p)
-                  (position ~width ~height ~left ~right ~y cell)
-            in
-            (* Still, a sweep keeps its colours, which cover the whole frame;
-               a moving highlight is no pattern to keep. *)
-            View_core.drawn (fun (now : Look.t) ->
-                match (now.elapsed, motion) with
-                | Some elapsed, _ when Float.is_finite elapsed && elapsed >= 0.
-                  ->
-                    View_core.recell (border ~elapsed) line
-                | _, `Sweep -> View_core.recell (border ~elapsed:0.) line
-                | _ -> line))
-          lines
+        let border y ~elapsed ~cell =
+          if gap y cell then None
+          else
+            Option.map
+              (fun p -> draw ~elapsed p)
+              (position ~width ~height ~left ~right ~y cell)
+        in
+        (* Still, a sweep keeps its colours, which cover the whole frame;
+           a moving highlight is no pattern to keep. *)
+        let elapsed =
+          if look.live && Float.is_finite time && time >= 0. then Some time
+          else match motion with `Sweep -> Some 0. | _ -> None
+        in
+        match elapsed with
+        | None -> lines
+        | Some elapsed ->
+            List.mapi
+              (fun y line -> View_core.recell (border y ~elapsed) line)
+              lines)

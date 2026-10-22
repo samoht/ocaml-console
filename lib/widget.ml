@@ -3,21 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type look = Look.t = { theme : Theme.t; utf_8 : bool; elapsed : float option }
-
-let look = Look.v
-let default_look = Look.default
+type look = Look.t
 
 (* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
    replaced, all of a part at once so that its pieces still join; a piece a
    border leaves out stays out. *)
-let shows look glyphs = look.utf_8 || List.for_all Width.is_ascii glyphs
-let muted look = Style.fg (Theme.muted look.theme)
-let accent look = Style.fg (Theme.accent look.theme)
+let shows look glyphs = look.Look.utf_8 || List.for_all Width.is_ascii glyphs
+let muted look = Style.fg (Theme.muted look.Look.theme)
+let accent look = Style.fg (Theme.accent look.Look.theme)
 
 (* A border or a guide in no style of its own is drawn in the muted colour. *)
 let border look border =
-  let border = Option.value border ~default:(Theme.border look.theme) in
+  let border = Option.value border ~default:(Theme.border look.Look.theme) in
   let border =
     if Style.equal (Border.style border) Style.none then
       Border.with_style (muted look) border
@@ -67,7 +64,7 @@ let border look border =
       }
 
 let guide look guide =
-  let guide = Option.value guide ~default:(Theme.guide look.theme) in
+  let guide = Option.value guide ~default:(Theme.guide look.Look.theme) in
   let guide =
     if Style.equal (Guide.style guide) Style.none then
       Guide.with_style (muted look) guide
@@ -79,16 +76,16 @@ let guide look guide =
 
 let glyph look g ~ascii = if shows look [ g ] then g else ascii
 
-let spinner look ~elapsed =
+let spinner look ~time =
   glyph look
-    (Spinner.frame (Theme.spinner look.theme) ~elapsed)
-    ~ascii:(Spinner.frame Spinner.ascii ~elapsed)
+    (Frames.at (Theme.spinner look.Look.theme) ~time)
+    ~ascii:(Frames.at Frames.ascii ~time)
 
 let mark look m =
-  glyph look (Theme.mark look.theme m) ~ascii:(Theme.mark Theme.ascii m)
+  glyph look (Theme.mark look.Look.theme m) ~ascii:(Theme.mark Theme.ascii m)
 
-let bar look = if look.utf_8 then Theme.bar look.theme else `Ascii
-let ellipsis look = if look.utf_8 then View_core.ellipsis else "..."
+let bar look = if look.Look.utf_8 then Theme.bar look.Look.theme else `Ascii
+let ellipsis look = if look.Look.utf_8 then View_core.ellipsis else "..."
 let truncate look w s = View_core.truncate ~ellipsis:(ellipsis look) w s
 
 let one_line span =
@@ -130,36 +127,8 @@ let branch g = function
 let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
 let pad n = View_core.text (String.make (max 0 n) ' ')
 
-(* A widget as a span is a part drawn when printed for each of its lines in
-   {!default_look}; drawn in another look, it is laid out once for all its
-   lines, each fitted to the cells of its line in the default look. *)
-let to_span lines ?(width = max_int) v =
-  let lines look = lines look ~margin:width v in
-  let base = lines default_look in
-  let last = ref None in
-  let laid look =
-    match !last with
-    | Some (l, lines) when l == look -> lines
-    | _ ->
-        let lines = Array.of_list (lines look) in
-        last := Some (look, lines);
-        lines
-  in
-  View_core.block
-    (List.mapi
-       (fun i line ->
-         let w = View_core.width line in
-         View_core.drawn (fun look ->
-             if look == default_look then line
-             else
-               let lines = laid look in
-               View_core.fit w
-                 (if i < Array.length lines then lines.(i) else View_core.empty)))
-       base)
-
-let pp lines ppf v =
-  View_core.pp_lines ppf
-    (lines (look ppf) ~margin:(Format.pp_get_margin ppf ()) v)
-
-let to_string lines ?styled ?(width = max_int) v =
-  View_core.string_of_lines ?styled (lines default_look ~margin:width v)
+let framed_kind parts look =
+  let k = View_core.kinds parts look in
+  if look.Look.live && Option.is_some (Theme.motion look.theme) then
+    { k with timed = true }
+  else k

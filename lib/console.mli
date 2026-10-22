@@ -14,19 +14,19 @@
     widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out views and
     print with {!Format}, and a {!Theme} gives them one look.
 
-    Every widget is also a view, by its [to_span], laid out only when it is
-    printed. So a table goes in a panel, the panel in a cell of another table,
-    beside a tree ({!View.hcat}) or in a display's view, and each of them is
-    drawn in the theme of the formatter that prints it. [Console_eio.run] runs a
-    {!Display}.
+    Every widget is a view, by its [view], laid out only when it is printed, in
+    the room it is given ({!View.fit}). So a table goes in a panel, the panel in
+    a cell of another table, beside a tree ({!View.hcat}) or in a display's
+    view, and each of them is drawn in the theme of the formatter that prints
+    it. [Console_eio.run] runs a {!Display}.
 
     {b Guarantees.}
     - Widths are counted in terminal cells, as the terminal draws the text. A
       wide character, such as a Chinese one or an emoji, takes two cells, and an
       accent added to a letter takes none.
-    - A widget printed by its [pp] is no wider than the formatter's margin, and
-      as a view it is as wide as its [to_span] lays it out. Either way it ends
-      without a line end, so ["%a@."] prints it on its own lines.
+    - A widget printed by {!View.pp} is no wider than the formatter's margin,
+      and in a room no wider than the room. It ends without a line end, so
+      ["%a@."] prints it on its own lines.
     - A view holds only text that prints: a line end in it starts a new line and
       any other control character is a space, so caller text cannot move the
       cursor or change colours.
@@ -64,7 +64,7 @@
     let demo_table () =
       let table =
         Table.(
-          v ~border:Border.rounded
+          view ~border:Border.rounded
             [
               column (View.text "Name"); column ~align:`Right (View.text "Age");
             ]
@@ -73,7 +73,7 @@
               [ View.text "Bob"; View.text "25" ];
             ])
       in
-      Fmt.pr "%a@." Table.pp table
+      Fmt.pr "%a@." View.pp table
     ]}
 
     {2:trees Trees}
@@ -89,7 +89,7 @@
             Tree.v (View.text "test") [];
           ]
       in
-      Fmt.pr "%a@." Tree.pp tree
+      Fmt.pr "%a@." View.pp (Tree.view tree)
     ]}
 
     {2:panels Panels}
@@ -99,10 +99,10 @@
 
     let demo_panel () =
       let panel =
-        Panel.v ~title:(View.text "Status")
+        Panel.view ~title:(View.text "Status")
           (View.text "All systems operational")
       in
-      Fmt.pr "%a@." Panel.pp panel
+      Fmt.pr "%a@." View.pp panel
     ]}
 
     {2:progress Progress}
@@ -132,20 +132,23 @@ module Color = Color
 module Style = Style
 (** Bold, italic, underline and colours, combined with [+]. *)
 
-module View = View
-(** Text in a style. *)
-
 module Border = Border
 (** Frames for tables and panels. *)
 
 module Guide = Guide
 (** The lines that connect the branches of a tree. *)
 
-module Spinner = Spinner
-(** Spinners for work of unknown length. *)
-
 module Theme = Theme
 (** One look for every widget. *)
+
+module Room = Room
+(** Where and when a view is laid out: its width, height, moment and theme. *)
+
+module View = View
+(** What console prints: styled text and every widget, laid out in a room. *)
+
+module Spinner = Spinner
+(** Spinners for work of unknown length. *)
 
 module Bar = Bar
 (** Horizontal bars, for progress and for figures. *)

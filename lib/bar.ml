@@ -12,7 +12,7 @@ type t = {
 }
 
 let v ?style ?track ?(brackets = false) ~width frac =
-  if width < 0 then invalid_arg "Console.Bar.v: negative width";
+  if width < 0 then invalid_arg "Console.Bar.view: negative width";
   let frac =
     if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
   in
@@ -55,7 +55,7 @@ let cells ~glyphs ~width frac =
    grows rather than recolouring the cells it has. A palette is never
    empty. *)
 let fill ~style ~width look glyphs =
-  match (style, Theme.palette look.Widget.theme) with
+  match (style, Theme.palette look.Look.theme) with
   | Some style, _ -> View_core.ink style glyphs
   | None, [] -> View_core.ink (Widget.accent look) glyphs
   | None, [ c ] -> View_core.ink (Style.fg c) glyphs
@@ -74,7 +74,12 @@ let draw t look =
   framed ~glyphs ~track ~brackets:t.brackets
     View_core.(fill ~style:t.style ~width:t.width look filled ++ ink track rest)
 
-let to_span t = View_core.drawn (draw t)
-let lines look ~margin t = [ Widget.truncate look margin (draw t look) ]
-let pp = Widget.pp lines
-let to_string ?styled t = Widget.to_string lines ?styled t
+(* A bar given no width grows to its room, ten cells at its natural size and
+   one at least. *)
+let view ?style ?track ?brackets ?width frac =
+  match width with
+  | Some width -> View_core.drawn (draw (v ?style ?track ?brackets ~width frac))
+  | None ->
+      View_core.deferred ~grow:1 (fun c ->
+          let width = match Ctx.width c with Some w -> max 1 w | None -> 10 in
+          View_core.drawn (draw (v ?style ?track ?brackets ~width frac)))

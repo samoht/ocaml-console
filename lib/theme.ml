@@ -31,7 +31,7 @@ type t = {
   border : Border.t;
   motion : motion option;
   guide : Guide.t;
-  spinner : Spinner.t;
+  spinner : string list;
   bar : bar;
   marks : mark -> string;
 }
@@ -98,7 +98,7 @@ let default =
     border = Border.rounded;
     motion = None;
     guide = Guide.single;
-    spinner = Spinner.braille;
+    spinner = Frames.braille;
     bar = `Line;
     marks = unicode_marks;
   }
@@ -112,6 +112,7 @@ let v ?(name = "custom") ?(accent = default.accent) ?palette
   let palette =
     match palette with None | Some [] -> [ accent ] | Some p -> p
   in
+  let spinner = Frames.v "Theme.v" spinner in
   {
     name;
     accent;
@@ -131,7 +132,7 @@ let v ?(name = "custom") ?(accent = default.accent) ?palette
   }
 
 let ascii =
-  v ~name:"ascii" ~border:Border.ascii ~guide:Guide.ascii ~spinner:Spinner.ascii
+  v ~name:"ascii" ~border:Border.ascii ~guide:Guide.ascii ~spinner:Frames.ascii
     ~bar:`Ascii ~marks:ascii_marks ()
 
 let dos_amber = Color.rgb 0xff 0xb0 0x00
@@ -141,7 +142,7 @@ let dos =
     ~failed:(Color.rgb 0xff 0x55 0x55) ~muted:(Color.rgb 0xa1 0x6c 0x00)
     ~header:Style.(bold + fg dos_amber)
     ~background:Color.black ~border:Border.dos ~guide:Guide.single
-    ~spinner:Spinner.ascii ~bar:`Block ~marks:ascii_marks ()
+    ~spinner:Frames.ascii ~bar:`Block ~marks:ascii_marks ()
 
 let matrix_green = Color.rgb 0x33 0xff 0x33
 
@@ -157,7 +158,7 @@ let rainbow =
     ~palette:[ red; amber; green; teal; blue; magenta ]
     ~motion:`Sweep ()
 
-let still t = { t with motion = None; spinner = Spinner.static }
+let still t = { t with motion = None; spinner = Frames.still }
 
 (* The colours of each scheme are taken from its upstream source, named
    beside it, and degrade to 256 or 16 colours as a terminal's depth asks.

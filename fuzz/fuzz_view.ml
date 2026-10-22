@@ -402,9 +402,38 @@ let test_vcat_height inputs =
   in
   check_eq ~pp:Fmt.Dump.string expected (View.to_string combined)
 
+(* A view's size does not depend on its moment: whatever a [fit] part draws
+   at a moment, the view takes the cells of its frame at moment 0, line by
+   line. *)
+let test_still_size frames time width =
+  let frames = Array.of_list (List.map View.text frames) in
+  let n = Array.length frames in
+  let v =
+    View.fit (fun r ->
+        if n = 0 then View.empty
+        else
+          let i =
+            Float.to_int
+              (Float.rem (Float.abs (Room.time r) *. 7.) (Float.of_int n))
+          in
+          let i = if i < 0 || i >= n then 0 else i in
+          frames.(i))
+  in
+  let v = View.(hcat [ text "|"; v; text "|" ]) in
+  let width = if width = 0 then None else Some (width mod 64) in
+  let widths s =
+    List.map (fun l -> View.width (View.text l)) (String.split_on_char '\n' s)
+  in
+  let still = Display_harness.at ?width ~time:0. v
+  and moved = Display_harness.at ?width ~time:(Float.abs time) v in
+  check_eq ~pp:Fmt.(Dump.list int) (widths still) (widths moved)
+
 let suite =
-  ( "span",
+  ( "view",
     [
+      test_case "a view's size does not depend on its moment"
+        [ list bytes; float; uint8 ]
+        test_still_size;
       test_case "vertical composition adds heights and preserves lines"
         [ list bytes ]
         test_vcat_height;

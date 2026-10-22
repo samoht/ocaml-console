@@ -5,73 +5,83 @@
 
 open Console
 
-let frames = [| "a"; "b"; "c" |]
+let frames = [ "a"; "b"; "c" ]
+
+let at ?theme ?utf_8 ?frames time =
+  Display_harness.at ?theme ?utf_8 ~time (Spinner.view ?frames ())
 
 let test_empty () =
   Alcotest.check_raises "empty frames rejected"
-    (Invalid_argument "Console.Spinner.v: no frames") (fun () ->
-      ignore (Spinner.v [||]))
-
-let test_frames_are_copied () =
-  let given = Array.copy frames in
-  let spinner = Spinner.v given in
-  given.(0) <- "z";
-  Alcotest.(check string)
-    "the caller's array is not shared" "a"
-    (Spinner.frame spinner ~elapsed:0.)
+    (Invalid_argument "Console.Spinner.view: no frames") (fun () ->
+      ignore (Spinner.view ~frames:[] ()))
 
 let test_frame () =
-  let t = Spinner.v frames in
-  let at elapsed = Spinner.frame ~fps:2. t ~elapsed in
+  let at time = at ~frames time in
   Alcotest.(check (list string))
-    "two frames a second, cycling"
+    "ten frames a second, cycling"
     [ "a"; "a"; "b"; "c"; "a" ]
-    [ at 0.; at 0.25; at 0.5; at 1.; at 1.5 ];
+    [ at 0.; at 0.05; at 0.1; at 0.2; at 0.3 ];
   Alcotest.(check string) "negative time" "a" (at (-1.));
   Alcotest.(check string) "infinite time" "a" (at Float.infinity);
   Alcotest.(check string) "nan" "a" (at Float.nan)
 
-let test_fps () =
-  List.iter
-    (fun fps ->
-      Alcotest.check_raises (Fmt.str "fps %g" fps)
-        (Invalid_argument "Console.Spinner.frame: fps must be positive")
-        (fun () -> ignore (Spinner.frame ~fps (Spinner.v frames) ~elapsed:0.)))
-    [ 0.; -1.; Float.nan; Float.infinity ]
+(* Printed once, a spinner is still: its first frame. *)
+let test_printed () =
+  Alcotest.(check string)
+    "first frame" "a"
+    (View.to_string (Spinner.view ~frames ()));
+  Alcotest.(check string) "the theme's" "⠋" (View.to_string (Spinner.view ()))
 
-let cycle t n = List.init n (fun i -> Spinner.frame t ~elapsed:(float i /. 10.))
+let cycle ?theme ?utf_8 n =
+  List.init n (fun i -> at ?theme ?utf_8 (float i /. 10.))
 
 let test_predefined () =
   Alcotest.(check (list string))
     "braille"
     [ "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "⠏"; "⠋" ]
-    (cycle Spinner.braille 11);
+    (cycle 11);
   Alcotest.(check (list string))
-    "ascii"
+    "ascii theme"
     [ "|"; "/"; "-"; "\\"; "|" ]
-    (cycle Spinner.ascii 5)
+    (cycle ~theme:Theme.ascii 5);
+  Alcotest.(check (list string))
+    "ascii formatter"
+    [ "|"; "/"; "-"; "\\"; "|" ]
+    (cycle ~utf_8:false 5);
+  Alcotest.(check (list string))
+    "the lists" [ "|"; "/"; "-"; "\\" ] Spinner.ascii;
+  Alcotest.(check int) "braille" 10 (List.length Spinner.braille)
 
-let test_static () =
+let test_still () =
   List.iter
-    (fun elapsed ->
+    (fun time ->
       Alcotest.(check string)
         "one frame" "*"
-        (Spinner.frame Spinner.static ~elapsed))
+        (at ~theme:(Theme.still Theme.default) time))
     [ 0.; 0.1; 0.25; 1.; 3600. ]
+
+(* A spinner is as wide as its widest frame at every moment. *)
+let test_width () =
+  let frames = [ "."; "..."; "\u{754c}" ] in
+  List.iter
+    (fun time ->
+      Alcotest.(check int) "widest" 3 (View.width (View.text (at ~frames time))))
+    [ 0.; 0.1; 0.2 ];
+  Alcotest.(check int) "measured" 3 (View.width (Spinner.view ~frames ()))
 
 let test_frames_print () =
   Alcotest.(check string)
     "control characters are spaces" "a b"
-    (Spinner.frame (Spinner.v [| "a\027b" |]) ~elapsed:0.)
+    (at ~frames:[ "a\027b" ] 0.)
 
 let suite =
   ( "spinner",
     [
-      Alcotest.test_case "static does not move" `Quick test_static;
+      Alcotest.test_case "still does not move" `Quick test_still;
       Alcotest.test_case "frames print" `Quick test_frames_print;
       Alcotest.test_case "empty" `Quick test_empty;
-      Alcotest.test_case "frames are copied" `Quick test_frames_are_copied;
       Alcotest.test_case "frame" `Quick test_frame;
-      Alcotest.test_case "fps" `Quick test_fps;
+      Alcotest.test_case "printed once" `Quick test_printed;
+      Alcotest.test_case "as wide as its widest frame" `Quick test_width;
       Alcotest.test_case "predefined" `Quick test_predefined;
     ] )

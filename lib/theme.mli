@@ -110,7 +110,7 @@ val v :
   ?border:Border.t ->
   ?motion:motion ->
   ?guide:Guide.t ->
-  ?spinner:Spinner.t ->
+  ?spinner:string list ->
   ?bar:bar ->
   ?marks:(mark -> string) ->
   unit ->
@@ -141,7 +141,9 @@ val v :
     - [marks] gives the mark of each state (defaults to those of {!default}).
       States may be added ({!type-mark}), so it ends with a case for the states
       it leaves to another theme, as
-      [~marks:(function `Failed -> "x" | m -> mark default m)] does. *)
+      [~marks:(function `Failed -> "x" | m -> mark default m)] does.
+
+    @raise Invalid_argument if [spinner] is empty. *)
 
 val name : t -> string
 (** [name t] is the name of [t]: that of {!all} for a predefined theme. *)
@@ -151,8 +153,8 @@ val accent : t -> Color.t
 
 val palette : t -> Color.t list
 (** [palette t] are the colours that successive progress rows take in turn, and
-    it is never empty. A bar without a style ({!Bar.v}) spreads them along its
-    length when there are several, and is in the one colour otherwise. *)
+    it is never empty. A bar without a style ({!Bar.view}) spreads them along
+    its length when there are several, and is in the one colour otherwise. *)
 
 val succeeded : t -> Color.t
 (** [succeeded t] is the colour of a success. *)
@@ -184,8 +186,9 @@ val motion : t -> motion option
 val guide : t -> Guide.t
 (** [guide t] is the lines that connect the branches of a tree. *)
 
-val spinner : t -> Spinner.t
-(** [spinner t] is the spinner of a running task. *)
+val spinner : t -> string list
+(** [spinner t] are the frames of a {!Spinner.view} given none, which a running
+    task's row shows. It is never empty. *)
 
 val bar : t -> bar
 (** [bar t] is the glyphs of bars and of a display's progress, drawn [`Ascii] on
@@ -196,8 +199,9 @@ val mark : t -> mark -> string
     space. *)
 
 val still : t -> t
-(** [still t] is [t] with nothing that moves: no {!val-motion} and the
-    {!Spinner.static} spinner, for the users who ask for no animation. *)
+(** [still t] is [t] with nothing that moves: no {!val-motion} and the spinner
+    of one frame, which does not move, for the users who ask for no animation.
+*)
 
 (** {1:predefined Predefined themes}
 

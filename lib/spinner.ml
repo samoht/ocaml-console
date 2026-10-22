@@ -3,23 +3,24 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = string array
+let braille = Frames.braille
+let ascii = Frames.ascii
 
-let pp ppf t = Fmt.pf ppf "spinner[%d frames]" (Array.length t)
-
-let v frames =
-  if Array.length frames = 0 then invalid_arg "Console.Spinner.v: no frames";
-  Array.map (Console_text.sanitize ~keep_newlines:false) frames
-
-let braille = [| "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "⠏" |]
-
-let ascii = [| "|"; "/"; "-"; "\\" |]
-let static = [| "*" |]
-
-let frame ?(fps = 10.) t ~elapsed =
-  if (not (Float.is_finite fps)) || fps <= 0. then
-    invalid_arg "Console.Spinner.frame: fps must be positive";
-  let n = Array.length t in
-  let x = elapsed *. fps in
-  if (not (Float.is_finite x)) || x <= 0. then t.(0)
-  else t.(Float.to_int (Float.rem x (Float.of_int n)))
+let view ?frames () =
+  let frames = Option.map (Frames.v "Spinner.view") frames in
+  let frames (look : Look.t) =
+    let frames = Option.value frames ~default:(Theme.spinner look.theme) in
+    if look.utf_8 || List.for_all Width.is_ascii frames then frames
+    else Frames.ascii
+  in
+  let moves look = match frames look with [ _ ] -> false | _ -> true in
+  View_core.deferred
+    ~kind:(fun look -> { View_core.static with timed = moves look })
+    (fun c ->
+      let frames = frames (Ctx.look c) in
+      let widest =
+        List.fold_left (fun n f -> max n (Width.string_width f)) 0 frames
+      in
+      let frame = Frames.at frames ~time:(Ctx.time c) in
+      View_core.text
+        (frame ^ String.make (widest - Width.string_width frame) ' '))

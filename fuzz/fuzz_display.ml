@@ -595,9 +595,7 @@ let test_untrusted_arguments s =
   let render input lines =
     let ppf, out, frames = capture_frames () in
     Fmt.set_style_renderer ppf `Ansi_tty;
-    let theme =
-      Theme.v ~marks:(fun _ -> input) ~spinner:(Spinner.v [| input |]) ()
-    in
+    let theme = Theme.v ~marks:(fun _ -> input) ~spinner:[ input ] () in
     let layout =
       Display.Layout.(v [ text input; accent input; label; spacer; elapsed ])
     in
@@ -933,7 +931,7 @@ let widget kind cells =
   let cells = if cells = [] then [ View.text "x" ] else cells in
   if kind then
     let table =
-      Table.v
+      Table.view
         ~rules:(List.length cells mod 2 = 0)
         [
           Table.column (View.text "a");
@@ -941,12 +939,13 @@ let widget kind cells =
         ]
         (List.map (fun c -> [ c; c ]) cells)
     in
-    ((fun ppf -> Table.pp ppf table), fun width -> Table.to_span ~width table)
+    ((fun ppf -> View.pp ppf table), fun width -> View.sized ~width table)
   else
     let panel =
-      Panel.v ~title:(List.hd cells) (View.concat ~sep:(View.text "\n") cells)
+      Panel.view ~title:(List.hd cells)
+        (View.concat ~sep:(View.text "\n") cells)
     in
-    ((fun ppf -> Panel.pp ppf panel), fun width -> Panel.to_span ~width panel)
+    ((fun ppf -> View.pp ppf panel), fun width -> View.sized ~width panel)
 
 (* [top] above the default view. *)
 let above top d ~width ~height =
@@ -1167,8 +1166,8 @@ let theme_switch_display width theme =
   Display.log task "a log";
   Display.set_view display (fun d ~width ~height ->
       above
-        (Panel.to_span ~width:(min width 100)
-           (Panel.v ~title:(View.text "result") (View.text "hello")))
+        (View.sized ~width:(min width 100)
+           (Panel.view ~title:(View.text "result") (View.text "hello")))
         d ~width ~height);
   Display.redraw display;
   (ppf, display, term, writes)

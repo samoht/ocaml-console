@@ -22,15 +22,21 @@
 
 (** {1:bars Bars} *)
 
-type t
-(** The type for bars. *)
+val view :
+  ?style:Style.t ->
+  ?track:Style.t ->
+  ?brackets:bool ->
+  ?width:int ->
+  float ->
+  View.t
+(** [view ~style ~track ~brackets ~width frac] is a bar [width] cells long in
+    [style], filled to [frac] of its length, with [frac] clamped to the range 0
+    to 1 and NaN taken as 0. The fill is rounded to the nearest half cell in
+    [`Line] glyphs, and to the nearest cell in the others.
 
-val v :
-  ?style:Style.t -> ?track:Style.t -> ?brackets:bool -> width:int -> float -> t
-(** [v ~style ~track ~brackets ~width frac] is a [width]-cell bar in [style],
-    filled to [frac] of its length, with [frac] clamped to the range 0 to 1 and
-    NaN taken as 0. The fill is rounded to the nearest half cell in [`Line]
-    glyphs, and to the nearest cell in the others.
+    Without [width], the bar grows to its room ({!View.fit}): it takes what the
+    other parts of a {!View.hcat} leave it, the formatter's margin under
+    {!View.pp}, at least one cell, and ten at its natural size.
 
     - [track] is the style of the rest (defaults to the muted colour of the
       formatter's theme).
@@ -42,22 +48,8 @@ val v :
     each filled cell in the colour of its place, so the fill uncovers the
     colours as it grows. A palette of one colour gives that colour.
 
+    The bar is drawn in the theme and {!Fmt.utf_8} of the formatter it is
+    printed on. A part that {!View.truncate} or {!View.wrap} keep is drawn as
+    those cells of the bar.
+
     @raise Invalid_argument if [width] is negative. *)
-
-(** {1:converting Converting} *)
-
-val to_span : t -> View.t
-(** [to_span bar] is [bar] as a view, to put in a table cell, a tree or a panel.
-    It is drawn when it is printed, as {!pp} draws it, in the formatter's theme
-    and {!Fmt.utf_8}, and takes the cells {!pp} gives it. A part that
-    {!View.truncate} or {!View.wrap} keep is drawn as those cells of the bar. *)
-
-val to_string : ?styled:bool -> t -> string
-(** [to_string bar] is [bar] as {!pp} formats it on a formatter of unbounded
-    margin, with colours iff [styled] (defaults to [false]). *)
-
-(** {1:fmt Formatting} *)
-
-val pp : t Fmt.t
-(** [pp] formats a bar on one line, [width] cells wide, or two more with
-    brackets, cut with an ellipsis to the formatter's margin. *)

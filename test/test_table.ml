@@ -7,42 +7,42 @@ open Console
 open Display_harness
 
 let of_string_rows ?border columns rows =
-  Table.v ?border columns (List.map (List.map View.text) rows)
+  Table.view ?border columns (List.map (List.map View.text) rows)
 
 let test_basic () =
   let table =
     Table.(
-      v
+      view
         [ column (View.text "A"); column (View.text "B") ]
         [ [ View.text "1"; View.text "2" ]; [ View.text "3"; View.text "4" ] ])
   in
-  let output = Table.to_string table in
+  let output = View.to_string table in
   Alcotest.(check bool) "contains A" true (contains "A" output);
   Alcotest.(check bool) "contains 1" true (contains "1" output)
 
 (* Without a border or a theme, a table is framed as a panel is. *)
 let test_default_border () =
-  let table = Table.(v [ column (View.text "A") ] [ [ View.text "1" ] ]) in
-  let panel = Panel.v (View.text "1") in
+  let table = Table.(view [ column (View.text "A") ] [ [ View.text "1" ] ]) in
+  let panel = Panel.view (View.text "1") in
   let first s = String.sub s 0 (String.index s '\n') in
   Alcotest.(check string)
     "top-left corner"
-    (Astring.String.with_range ~len:3 (first (Panel.to_string panel)))
-    (Astring.String.with_range ~len:3 (first (Table.to_string table)))
+    (Astring.String.with_range ~len:3 (first (View.to_string panel)))
+    (Astring.String.with_range ~len:3 (first (View.to_string table)))
 
 let test_empty () =
-  let table = Table.(v [ column (View.text "X") ] []) in
-  let output = Table.to_string table in
+  let table = Table.(view [ column (View.text "X") ] []) in
+  let output = View.to_string table in
   Alcotest.(check bool) "contains X" true (contains "X" output)
 
 let test_wrap () =
   let table =
     Table.(
-      v
+      view
         [ column ~max_width:10 ~overflow:`Wrap (View.text "Header") ]
         [ [ View.text "hello world this wraps" ] ])
   in
-  let output = Table.to_string table in
+  let output = View.to_string table in
   (* Should contain all words (wrapped to multiple lines) *)
   Alcotest.(check bool) "contains hello" true (contains "hello" output);
   Alcotest.(check bool) "contains world" true (contains "world" output);
@@ -65,7 +65,7 @@ let test_wrap_preserves_unbroken_token () =
       [ [ "infra  ACTIVE"; "Scheduler"; url ] ]
   in
   let natural_width = 10 + 13 + 9 + String.length url in
-  let output = Table.to_string ~width:(natural_width - 1) table in
+  let output = View.to_string (View.sized ~width:(natural_width - 1) table) in
   Alcotest.(check bool) "URL remains contiguous" true (contains url output)
 
 (* String conversion is plain. The formatter passed to [pp], not terminal
@@ -77,16 +77,14 @@ let test_string_conversion_is_plain () =
       [ [ "1"; "2" ] ]
   in
   let has_esc s = String.contains s '\027' in
-  Alcotest.(check bool)
-    "tty string is plain" false
-    (has_esc (Table.to_string t));
-  Alcotest.(check bool) "piped is plain" false (has_esc (Table.to_string t))
+  Alcotest.(check bool) "tty string is plain" false (has_esc (View.to_string t));
+  Alcotest.(check bool) "piped is plain" false (has_esc (View.to_string t))
 
 let render renderer table =
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_style_renderer ppf renderer;
-  Table.pp ppf table;
+  View.pp ppf table;
   Format.pp_print_char ppf '\n';
   Format.pp_print_flush ppf ();
   Buffer.contents buf
@@ -102,7 +100,7 @@ let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
     Fmt.set_style_renderer ppf `Ansi_tty;
     Color.set_depth ppf `True_color
   end;
-  Table.pp ppf table;
+  View.pp ppf table;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -110,14 +108,14 @@ let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
    the formatter the table is printed on, even cut to fit its column. *)
 let test_bar_cell () =
   let table ?overflow ?max_width bar =
-    Table.v ~border:Border.none
+    Table.view ~border:Border.none
       [
         Table.column (View.text "task");
         Table.column ?overflow ?max_width (View.text "done");
       ]
-      [ [ View.text "copy"; Bar.to_span bar ] ]
+      [ [ View.text "copy"; bar ] ]
   in
-  let half = table (Bar.v ~width:4 0.5) in
+  let half = table (Bar.view ~width:4 0.5) in
   let row s = List.nth (String.split_on_char '\n' s) 1 in
   let check msg want got = Alcotest.(check string) msg want (row got) in
   check "default" "copy  \u{2501}\u{2501}\u{257a}\u{2501}" (printed half);
@@ -125,7 +123,7 @@ let test_bar_cell () =
     (printed ~theme:Theme.dos half);
   check "not UTF-8" "copy  ##--" (printed ~utf_8:false half);
   check "ascii" "copy  ##--" (printed ~theme:Theme.ascii half);
-  let cut = table ~overflow:`Truncate ~max_width:5 (Bar.v ~width:8 0.5) in
+  let cut = table ~overflow:`Truncate ~max_width:5 (Bar.view ~width:8 0.5) in
   check "cut, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2588}\u{2026}"
     (printed ~theme:Theme.dos cut);
   check "cut, not UTF-8" "copy  ##..."
@@ -146,7 +144,7 @@ let test_bar_cell () =
    line. *)
 let test_span_natural_width () =
   let table =
-    Table.v ~border:Border.none
+    Table.view ~border:Border.none
       [
         Table.column (View.text "a");
         Table.column ~align:`Right (View.text "b");
@@ -157,9 +155,9 @@ let test_span_natural_width () =
         [ View.text "s"; View.text "short" ];
       ]
   in
-  let span = Table.to_span table in
+  let span = table in
   Alcotest.(check string)
-    "as printed at its natural width" (Table.to_string table)
+    "as printed at its natural width" (View.to_string table)
     (View.to_string span)
 
 (* bar.mli, to_span: a bar alone as a span is drawn when printed. *)
@@ -167,19 +165,19 @@ let test_bar_span () =
   let buf = Buffer.create 16 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf Theme.dos;
-  View.pp ppf View.(text "[" ++ Bar.to_span (Bar.v ~width:2 0.5) ++ text "]");
+  View.pp ppf View.(text "[" ++ Bar.view ~width:2 0.5 ++ text "]");
   Format.pp_print_flush ppf ();
   Alcotest.(check string) "dos" "[\u{2588}\u{2591}]" (Buffer.contents buf);
   Alcotest.(check string)
     "to_string, the default theme" "\u{2501}\u{2501}"
-    (View.to_string (Bar.to_span (Bar.v ~width:2 1.)));
+    (View.to_string (Bar.view ~width:2 1.));
   Alcotest.(check int)
     "width" 6
-    (View.width (Bar.to_span (Bar.v ~brackets:true ~width:4 0.5)))
+    (View.width (Bar.view ~brackets:true ~width:4 0.5))
 
 let test_formatter_gates_cell_styles () =
   let table =
-    Table.v
+    Table.view
       [ Table.column (View.text "A") ]
       [ [ View.styled Style.(fg Color.red) (View.text "red") ] ]
   in
@@ -192,7 +190,7 @@ let test_formatter_gates_cell_styles () =
 
 let test_link_cell () =
   let table =
-    Table.v
+    Table.view
       [ Table.column (View.text "A") ]
       [ [ View.link ~uri:"https://example.com" (View.text "docs") ] ]
   in
@@ -219,7 +217,7 @@ let test_formatter_margin_never_wraps_border () =
   let ppf = Format.formatter_of_buffer buffer in
   Format.pp_set_margin ppf width;
   Fmt.set_style_renderer ppf `Ansi_tty;
-  Table.pp ppf table;
+  View.pp ppf table;
   Format.pp_print_char ppf '\n';
   Format.pp_print_flush ppf ();
   let raw = Buffer.contents buffer in
@@ -294,7 +292,7 @@ let test_every_margin_is_a_hard_limit () =
     let ppf = Format.formatter_of_buffer buffer in
     Format.pp_set_margin ppf width;
     Fmt.set_style_renderer ppf `Ansi_tty;
-    Table.pp ppf table;
+    View.pp ppf table;
     Format.pp_print_char ppf '\n';
     Format.pp_print_flush ppf ();
     let raw = Buffer.contents buffer in
@@ -363,12 +361,12 @@ let test_invalid_shape () =
     [ Table.column (View.text "A"); Table.column (View.text "B") ]
   in
   Alcotest.check_raises "too many cells"
-    (Invalid_argument "Console.Table.v: expected 1 to 2 cells, got 3")
+    (Invalid_argument "Console.Table.view: expected 1 to 2 cells, got 3")
     (fun () ->
-      ignore (Table.v columns [ List.map View.text [ "a"; "b"; "c" ] ]));
+      ignore (Table.view columns [ List.map View.text [ "a"; "b"; "c" ] ]));
   Alcotest.check_raises "no cell"
-    (Invalid_argument "Console.Table.v: expected 1 to 2 cells, got 0")
-    (fun () -> ignore (Table.v columns [ [] ]))
+    (Invalid_argument "Console.Table.view: expected 1 to 2 cells, got 0")
+    (fun () -> ignore (Table.view columns [ [] ]))
 
 (* A [~shrinkable:false] column keeps its full width when the table is fitted to
    a narrow terminal; a shrinkable neighbour gives way instead. *)
@@ -377,7 +375,7 @@ let test_shrinkable_protects_column () =
   let detail = "1234567890" in
   let protected =
     Table.(
-      v
+      view
         [
           column ~shrinkable:false (View.text "Package");
           column ~overflow:`Truncate (View.text "Detail");
@@ -386,10 +384,10 @@ let test_shrinkable_protects_column () =
   in
   Alcotest.(check bool)
     "unshrinkable package name is kept in full" true
-    (contains long_name (Table.to_string ~width:35 protected));
+    (contains long_name (View.to_string (View.sized ~width:35 protected)));
   let shrinkable =
     Table.(
-      v
+      view
         [
           column ~overflow:`Truncate (View.text "Package");
           column (View.text "Detail");
@@ -398,14 +396,14 @@ let test_shrinkable_protects_column () =
   in
   Alcotest.(check bool)
     "a shrinkable package name is cut at the same width" false
-    (contains long_name (Table.to_string ~width:35 shrinkable))
+    (contains long_name (View.to_string (View.sized ~width:35 shrinkable)))
 
 (* A border with no glyphs draws no edge either: a row starts at its first
    cell and ends at its last cell's text, so a listing pipes as it prints. A
    right-aligned last column keeps its padding, which is on its left. *)
 let test_no_border_draws_no_edge () =
   let lines table =
-    Table.to_string table |> String.split_on_char '\n'
+    View.to_string table |> String.split_on_char '\n'
     |> List.filter (fun line -> line <> "")
   in
   Alcotest.(check (list string))
@@ -435,19 +433,19 @@ let test_no_border_draws_no_edge () =
   let col = Table.column (View.text "") in
   Alcotest.(check string)
     "a line ends at its last cell that is not empty" "fix   stuck  /pool\nmain"
-    (Table.to_string
+    (View.to_string
        (of_string_rows ~border:Border.none [ col; col; col ]
           [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))
 
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
   let t =
-    Table.v
+    Table.view
       ~border:(Border.with_style Style.(fg Color.red) Border.single)
       [ Table.column (View.text "a") ]
       [ [ View.text "b" ] ]
   in
-  let lines = String.split_on_char '\n' (Table.to_string ~styled:true t) in
+  let lines = String.split_on_char '\n' (View.to_string ~styled:true t) in
   Alcotest.(check string)
     "top"
     "\027[31m\xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90\027[0m"
@@ -464,18 +462,18 @@ let test_pp_ending () =
   in
   Alcotest.(check string)
     "caller supplies the line ending" "x!"
-    (Fmt.str "%a!" Table.pp table)
+    (Fmt.str "%a!" View.pp table)
 
 let test_huge_min_width () =
   let t =
-    Table.v
+    Table.view
       [
         Table.column ~min_width:max_int (View.text "A");
         Table.column (View.text "B");
       ]
       [ [ View.text "x"; View.text "y" ] ]
   in
-  let out = Table.to_string ~width:20 t in
+  let out = View.to_string (View.sized ~width:20 t) in
   List.iter
     (fun line ->
       Alcotest.(check bool)
@@ -506,14 +504,14 @@ let test_wide_border () =
         }
   in
   let t =
-    Table.v ~border
+    Table.view ~border
       [ Table.column (View.text "A"); Table.column (View.text "B") ]
       [ [ View.text "x"; View.text "y" ] ]
   in
   let widths =
     List.map
       (fun l -> View.width (View.text l))
-      (String.split_on_char '\n' (Table.to_string ~width:20 t))
+      (String.split_on_char '\n' (View.to_string (View.sized ~width:20 t)))
   in
   let body_width = List.nth widths 1 in
   Alcotest.(check (list int))
@@ -530,7 +528,7 @@ let test_wide_border () =
    none. *)
 let test_rules () =
   let table ?rules ?border () =
-    Table.v ?rules ?border
+    Table.view ?rules ?border
       [ Table.column (View.text "a") ]
       [ [ View.text "1" ]; [ View.text "2\n3" ]; [ View.text "4" ] ]
   in
@@ -546,17 +544,17 @@ let test_rules () =
      \u{251c}\u{2500}\u{2500}\u{2500}\u{2524}\n\
      \u{2502} 4 \u{2502}\n\
      \u{2570}\u{2500}\u{2500}\u{2500}\u{256f}"
-    (Table.to_string (table ~rules:true ()));
+    (View.to_string (table ~rules:true ()));
   Alcotest.(check int)
     "none by default" 8
-    (List.length (String.split_on_char '\n' (Table.to_string (table ()))));
+    (List.length (String.split_on_char '\n' (View.to_string (table ()))));
   Alcotest.(check string)
     "none without edges"
-    (Table.to_string (table ~border:Border.none ()))
-    (Table.to_string (table ~rules:true ~border:Border.none ()));
+    (View.to_string (table ~border:Border.none ()))
+    (View.to_string (table ~rules:true ~border:Border.none ()));
   let lines =
     String.split_on_char '\n'
-      (Table.to_string ~styled:true (table ~rules:true ()))
+      (View.to_string ~styled:true (table ~rules:true ()))
   in
   Alcotest.(check string)
     "in the header rule's style" (List.nth lines 2) (List.nth lines 4)
@@ -567,7 +565,7 @@ let test_rules () =
    UTF-8. *)
 let test_simple () =
   let table ?rules () =
-    Table.v ?rules ~border:Border.simple
+    Table.view ?rules ~border:Border.simple
       [
         Table.column (View.text "Name");
         Table.column ~align:`Right (View.text "Size");
@@ -582,12 +580,12 @@ let test_simple () =
     "header rule"
     (String.concat "\n"
        [ "Name       Size"; rule; "README.md  2.4K"; "src/       4.0K" ])
-    (Table.to_string (table ()));
+    (View.to_string (table ()));
   Alcotest.(check string)
     "rules"
     (String.concat "\n"
        [ "Name       Size"; rule; "README.md  2.4K"; rule; "src/       4.0K" ])
-    (Table.to_string (table ~rules:true ()));
+    (View.to_string (table ~rules:true ()));
   Alcotest.(check string)
     "not UTF-8"
     (String.concat "\n"
@@ -600,7 +598,8 @@ let test_simple () =
     (printed ~utf_8:false (table ()));
   let narrow =
     List.map Width.string_width
-      (String.split_on_char '\n' (Table.to_string ~width:10 (table ())))
+      (String.split_on_char '\n'
+         (View.to_string (View.sized ~width:10 (table ()))))
   in
   Alcotest.(check bool)
     "within the margin" true
@@ -612,7 +611,7 @@ let test_simple () =
 let test_empty_left_edge () =
   let border = Border.v { (Border.chars Border.single) with left = "" } in
   let table =
-    Table.v ~border
+    Table.view ~border
       [ Table.column (View.text "A"); Table.column (View.text "B") ]
       [ [ View.text "x"; View.text "y" ] ]
   in
@@ -620,7 +619,7 @@ let test_empty_left_edge () =
     "the empty left edge is padded to the corners' width"
     (String.concat "\n"
        [ "┌───┬───┐"; "  A │ B │"; "├───┼───┤"; "  x │ y │"; "└───┴───┘" ])
-    (Table.to_string ~width:30 table)
+    (View.to_string (View.sized ~width:30 table))
 
 let suite =
   ( "table",

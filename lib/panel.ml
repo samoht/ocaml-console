@@ -5,6 +5,7 @@
 
 type drawn = {
   look : Widget.look;
+  time : float;
   border : Border.t;
   title : View_core.t option;
   subtitle : View_core.t option;
@@ -12,9 +13,6 @@ type drawn = {
   width : int option;
   lines : View_core.t list;
 }
-
-(* A panel is drawn in the look of the formatter it is printed on. *)
-type t = Widget.look -> drawn
 
 (* The cells of the frame's left and right columns, each as wide as its
    widest glyph. *)
@@ -27,30 +25,6 @@ let columns border =
 let frame border padding =
   let left, right = columns border in
   left + right + (2 * padding)
-
-let v ?border ?title ?subtitle ?(padding = 1) ?width content =
-  if padding < 0 then invalid_arg "Console.Panel.v: negative padding";
-  let edges =
-    match border with
-    | Some border ->
-        let left, right = columns border in
-        left + right
-    | None -> 2
-  in
-  (* Compared before doubling, so that no padding overflows into a fit. *)
-  (match width with
-  | Some width when width < edges || padding > (width - edges) / 2 ->
-      invalid_arg "Console.Panel.v: width too small for padding"
-  | _ -> ());
-  if padding > (Sys.max_string_length - edges) / 2 then
-    invalid_arg "Console.Panel.v: padding too large";
-  let title = Option.map Widget.one_line title
-  and subtitle = Option.map Widget.one_line subtitle in
-  let lines = View_core.lines content in
-  fun look ->
-    let border = Widget.border look border in
-    let title = Option.map (View_core.styled (Theme.header look.theme)) title in
-    { look; border; title; subtitle; padding; width; lines }
 
 let natural_width panel =
   let label = function Some span -> View_core.width span + 2 | None -> 0 in
@@ -118,9 +92,10 @@ let framed panel ~margin ~width ~left ~right (top, top_gap) body
           Option.map (fun (a, b) -> (List.length lines - 1, a, b)) bottom_gap;
         ]
     in
-    Border_motion.frame panel.look panel.border ~left ~right ~gaps lines
+    Border_motion.frame panel.look ~time:panel.time panel.border ~left ~right
+      ~gaps lines
 
-let lines ~margin panel =
+let lines_of ~margin panel =
   let chars = Border.chars panel.border in
   let style = Border.style panel.border in
   let lw, rw = columns panel.border in
@@ -161,7 +136,51 @@ let lines ~margin panel =
   framed panel ~margin ~width ~left:lw ~right:rw (top, top_gap) body
     (bottom, bottom_gap)
 
-let lines look ~margin t = lines ~margin (t look)
-let to_span = Widget.to_span lines
-let pp = Widget.pp lines
-let to_string = Widget.to_string lines
+(* A panel is laid out in the room and the look it is printed in: its
+   content in the room the frame leaves it, a fixed width when it expands to
+   its room. *)
+let view ?border ?title ?subtitle ?(padding = 1) ?(expand = false) content =
+  if padding < 0 then invalid_arg "Console.Panel.view: negative padding";
+  let edges =
+    match border with
+    | Some border ->
+        let left, right = columns border in
+        left + right
+    | None -> 2
+  in
+  if padding > (Sys.max_string_length - edges) / 2 then
+    invalid_arg "Console.Panel.view: padding too large";
+  let title = Option.map Widget.one_line title
+  and subtitle = Option.map Widget.one_line subtitle in
+  let parts = content :: List.filter_map Fun.id [ title; subtitle ] in
+  View_core.deferred ~kind:(Widget.framed_kind parts) (fun c ->
+      let look = Ctx.look c in
+      let border = Widget.border look border in
+      let frame = frame border padding in
+      let natural = Ctx.natural c in
+      let title =
+        Option.map
+          (fun t ->
+            View_core.styled (Theme.header look.theme)
+              (View_core.resolve natural t))
+          title
+      and subtitle = Option.map (View_core.resolve natural) subtitle in
+      let room = Option.map (fun w -> max 0 (w - frame)) (Ctx.width c) in
+      let lines =
+        View_core.lines (View_core.resolve (Ctx.with_width room c) content)
+      in
+      let width = if expand then Ctx.width c else None in
+      let margin = Option.value (Ctx.width c) ~default:max_int in
+      let panel =
+        {
+          look;
+          time = Ctx.time c;
+          border;
+          title;
+          subtitle;
+          padding;
+          width;
+          lines;
+        }
+      in
+      View_core.block (lines_of ~margin panel))

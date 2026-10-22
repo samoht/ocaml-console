@@ -20,9 +20,6 @@ type overflow = [ `Wrap | `Truncate ]
 type column
 (** The type for column specifications. *)
 
-type t
-(** The type for tables. *)
-
 val column :
   ?align:View.align ->
   ?min_width:int ->
@@ -51,14 +48,16 @@ val column :
 
 (** {1:tables Tables} *)
 
-val v :
+val view :
   ?border:Border.t ->
   ?header_style:Style.t ->
   ?rules:bool ->
   column list ->
   View.t list list ->
-  t
-(** [v ~rules columns rows] is the table of [rows] under [columns].
+  View.t
+(** [view ~rules columns rows] is the table of [rows] under [columns], laid out
+    in its room ({!View.fit}): no wider than the room, its columns narrowing
+    until it fits, and each cell laid out at the width of its column.
 
     - Its frame is [border] if given, else the border of the formatter's theme
       ({!Theme.get}).
@@ -69,35 +68,15 @@ val v :
       ({!Theme.val-motion}) moves the ends of the rules with its edges.
 
     A cell may hold line feeds, which start new lines inside its row. A row with
-    fewer cells than there are columns ends in a cell that views the columns
+    fewer cells than there are columns ends in a cell that spans the columns
     left. In a table without a frame, whose border has no glyph in its vertical
     lines ({!Border.none}, {!Border.simple}), a line ends at its last cell that
     is not empty.
 
+    - The lines of a framed table that fits are all as wide as one another.
+    - The cells of a right-aligned column end in the same column.
+    - A column is as wide as its widest cell, so a table whose cells change in a
+      display gives its columns a [min_width] to keep still.
+
     @raise Invalid_argument
       if a row is empty or has more cells than there are columns. *)
-
-(** {1:converting Converting} *)
-
-val to_span : ?width:int -> t -> View.t
-(** [to_span ~width table] is [table] as a view, to put in a cell, a panel, a
-    tree or beside other text. When it is printed, it is laid out as {!pp} lays
-    it out at a margin of [width] (defaults to its natural width), in the
-    formatter's theme and [Fmt.utf_8].
-
-    Each of its lines takes the cells it takes in {!Theme.default} in UTF-8.
-    Where the formatter's look lays a line out wider or narrower, as a frame of
-    glyphs two cells wide does, the line is cut or padded to those cells. *)
-
-val to_string : ?styled:bool -> ?width:int -> t -> string
-(** [to_string table] is [table] as {!pp} formats it at a margin of [width], or
-    at its natural width without [width], with colours iff [styled] (defaults to
-    [false]). Its lines are joined by line feeds, with none after the last. *)
-
-(** {1:fmt Formatting} *)
-
-val pp : t Fmt.t
-(** [pp] formats a table, with no line end after its last line.
-    - No line is wider than the formatter's margin.
-    - The lines of a framed table that fits are all as wide as one another.
-    - The cells of a right-aligned column end in the same column. *)
