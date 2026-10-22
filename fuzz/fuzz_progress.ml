@@ -314,6 +314,17 @@ let test_unknown_schema k =
 let invalid_prefix =
   choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
 
+let test_invalid_bytes raw =
+  let expected =
+    let b = Buffer.create 12 in
+    for _ = 1 to String.length raw do
+      Buffer.add_utf_8_uchar b Uchar.rep
+    done;
+    Buffer.contents b
+  in
+  check (Event.text (Event.output ~time:0. raw) = Some expected);
+  check_eq ~pp:Fmt.Dump.string expected (Console_text.sanitize raw)
+
 (* The retained 4 KiB texts include complete decoded characters and ASCII
    dots, also where a combining mark, a joiner or an escape meets the cap. *)
 let test_retained_cut k =
@@ -368,6 +379,8 @@ let test_retained_cut k =
 let suite =
   ( "progress",
     [
+      test_case "each invalid byte gets a replacement character"
+        [ invalid_prefix ] test_invalid_bytes;
       test_case "unknown events ignore members of other schemas" [ uint8 ]
         test_unknown_schema;
       test_case "event times read back at every finite magnitude"
