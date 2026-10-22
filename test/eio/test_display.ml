@@ -340,9 +340,35 @@ let test_long_line_cut () =
   Alcotest.(check (list string))
     "outside an escape code" [ x; "red" ] (cut "\027[3" "1mred")
 
+(* A write error on the display's output ends that output and nothing
+   else, whatever the formatter's output raises it with: on an Eio flow, as
+   [Eio.Io]. *)
+let test_flow_write_error () =
+  Eio_main.run @@ fun env ->
+  let closed =
+    Eio.Net.err
+      (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", "")))
+  in
+  let ppf = Format.make_formatter (fun _ _ _ -> raise closed) ignore in
+  List.iter
+    (fun progress ->
+      let v =
+        Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf ~progress
+          (fun d ->
+            D.with_task d "work" (fun task ->
+                D.set_count task ~cur:1 ~total:2;
+                D.log task "a line");
+            D.set_result d (Ok "done");
+            42)
+      in
+      Alcotest.(check int) "the run's value" 42 v)
+    [ `Plain; `Tty; `Quiet; `Json ]
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "a write error on a flow ends the output" `Quick
+        test_flow_write_error;
       Alcotest.test_case "a long line is cut between characters" `Quick
         test_long_line_cut;
       Alcotest.test_case "JSON keeps a 65537-byte line as one output event"
