@@ -50,12 +50,16 @@ let kept_bytes = 4096
 let ellipsis = "..."
 
 (* The text is sanitized, so a cut needs only to fall between two
-   characters, which [boundary] finds. *)
+   characters: at the last byte, at most three back, where a character
+   decodes. *)
 let capped s =
   if String.length s <= kept_bytes then s
   else
-    let head = String.sub s 0 (kept_bytes - String.length ellipsis) in
-    String.sub head 0 (Console_text.boundary head) ^ ellipsis
+    let rec cut i =
+      if i = 0 || Uchar.utf_decode_is_valid (String.get_utf_8_uchar s i) then i
+      else cut (i - 1)
+    in
+    String.sub s 0 (cut (kept_bytes - String.length ellipsis)) ^ ellipsis
 
 let label s = capped (clean s)
 
