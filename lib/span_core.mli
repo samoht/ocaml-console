@@ -54,7 +54,8 @@ val ellipsis : string
 
 val truncate : ?ellipsis:string -> int -> t -> t
 (** [truncate ~ellipsis w s] is like {!Span.truncate} but ends a cut line with
-    [ellipsis] (defaults to U+2026), cut to [w] cells when wider. *)
+    [ellipsis] (defaults to U+2026). An ellipsis wider than [w] cells keeps only
+    its first grapheme clusters that fit in them. *)
 
 val wrap : int -> t -> t list
 (** See {!Span.wrap}. *)

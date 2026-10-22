@@ -367,14 +367,17 @@ let hcat ?(gap = 2) spans =
 
 let ellipsis = "\xe2\x80\xa6"
 
-(* An ellipsis wider than [w], ASCII dots, is cut to [w]. It takes the
-   style of the cluster it replaces, as that cluster is drawn. *)
+(* An ellipsis wider than [w], such as ASCII dots, keeps its first clusters
+   that fit in [w]. It takes the style of the cluster it replaces, as that
+   cluster is drawn. *)
 let truncate_line ~ellipsis w line =
   if line_width line <= w then line
   else
     let ellipsis =
       if Width.string_width ellipsis <= w then ellipsis
-      else String.sub ellipsis 0 w
+      else
+        let e = layout (text ellipsis) in
+        String.sub e.joined 0 (start e (fitting e w))
     in
     let l = layout line in
     let k = fitting l (w - Width.string_width ellipsis) in
