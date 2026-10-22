@@ -222,8 +222,8 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
   t.display <-
     Some
       (match scope with
-      | Some scope -> Driver.v ~header ~scope ~size ~now ppf
-      | None -> Display.v ~header ~size ~now ppf);
+      | Some scope -> Driver.v ~summary:header ~scope ~size ~now ppf
+      | None -> Display.v ~summary:header ~size ~now ppf);
   t
 
 let display t = Option.get t.display
@@ -352,7 +352,7 @@ let test ops w h styled p =
 let test_plain ops =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let d = Display.v ~header ~now:(fun () -> 0.) ppf in
+  let d = Display.v ~summary:header ~now:(fun () -> 0.) ppf in
   let tasks = ref [] in
   List.iter
     (function
@@ -409,7 +409,7 @@ let test_retained_heap n =
 let test_pipe_attribution n =
   let b = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer b in
-  let d = Display.v ~header:"SUMMARY" ~now:(fun () -> 0.) ppf in
+  let d = Display.v ~summary:"SUMMARY" ~now:(fun () -> 0.) ppf in
   let tasks =
     Array.init 4 (fun i -> Display.task d ("task" ^ string_of_int i))
   in
@@ -603,7 +603,7 @@ let test_untrusted_arguments s =
     in
     Theme.set ppf theme;
     let d =
-      Display.v ~layout ~header:input
+      Display.v ~layout ~summary:input
         ~size:(fun () -> (40, 8))
         ~now:(fun () -> 0.)
         ppf
@@ -683,8 +683,8 @@ let test_wide n label =
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
 (* [n] running tasks with [l] log lines each, on a screen [h] rows high: the
-   region is at most [h - 1] lines, and a marker counts exactly the lines
-   it hides. *)
+   region is at most [h - 1] lines, the summary last; every task shows, or
+   the latest ones after a line that counts exactly the others. *)
 let test_marker_counts n l h =
   let n = 1 + (n mod 12) and l = l mod 3 and h = 3 + (h mod 12) in
   let t = terminal ~width:30 ~height:h ~styled:false () in
@@ -699,13 +699,17 @@ let test_marker_counts n l h =
   let rows = List.filter (( <> ) "") (screen t.vte) in
   let shown = List.length rows in
   if shown > h - 1 then failf "%d lines on %d rows" shown h;
-  let total = n * (1 + l) in
-  let budget = h - 2 in
-  (match List.find_opt (has "more lines") rows with
+  (match List.rev rows with
+  | last :: _ when has header last -> ()
+  | _ -> fail "the summary is not last");
+  let tasks =
+    count (fun r -> Re.execp (Re.Perl.compile_pat "t[0-9]+") r) rows
+  in
+  (match List.find_opt (has "more running") rows with
   | Some m ->
       let hidden = Scanf.sscanf (String.trim m) "%_s %d" Fun.id in
-      check_eq ~pp:Fmt.int (total - (shown - 2)) hidden
-  | None -> if budget >= 3 then check_eq ~pp:Fmt.int total (shown - 1));
+      check_eq ~pp:Fmt.int n (tasks + hidden)
+  | None -> check_eq ~pp:Fmt.int n tasks);
   Display.close d
 
 (* {1 Task output and Logs messages}
@@ -909,7 +913,7 @@ let test_terminal_lines steps =
     (List.map (fun l -> (l, expected l)) lines)
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
-(* {1 Scenes} *)
+(* {1 Views} *)
 
 let themes = Array.of_list (List.map snd Theme.all)
 let pick_theme n = themes.(n mod Array.length themes)
@@ -926,30 +930,39 @@ let line_glyphs =
 let clusters = Width.clusters
 
 (* A table of [cells] from [labels], or a panel with them as its title and
-   its lines. *)
+   its lines, as a printer and as a span at a width. *)
 let widget kind cells =
   let cells = List.filteri (fun i _ -> i < 4) cells in
   let cells = List.map (fun c -> Span.text (label c)) cells in
   let cells = if cells = [] then [ Span.text "x" ] else cells in
-  if kind then fun ppf ->
-    Table.pp ppf
-      (Table.v
-         ~rules:(List.length cells mod 2 = 0)
-         [
-           Table.column (Span.text "a");
-           Table.column ~align:`Right (Span.text "b");
-         ]
-         (List.map (fun c -> [ c; c ]) cells))
-  else fun ppf ->
-    Panel.pp ppf
-      (Panel.v ~title:(List.hd cells) (Span.concat ~sep:(Span.text "\n") cells))
+  if kind then
+    let table =
+      Table.v
+        ~rules:(List.length cells mod 2 = 0)
+        [
+          Table.column (Span.text "a");
+          Table.column ~align:`Right (Span.text "b");
+        ]
+        (List.map (fun c -> [ c; c ]) cells)
+    in
+    ((fun ppf -> Table.pp ppf table), fun width -> Table.to_span ~width table)
+  else
+    let panel =
+      Panel.v ~title:(List.hd cells) (Span.concat ~sep:(Span.text "\n") cells)
+    in
+    ((fun ppf -> Panel.pp ppf panel), fun width -> Panel.to_span ~width panel)
 
-(* The rows above the header, at each of [times] in tenths of a second.
-   A terminal of eight columns cuts the header after its third letter. *)
-let scene_frames theme ~width pp times =
+(* [top] above the default view. *)
+let above top d ~width ~height =
+  Span.vcat [ top; Display.default_view d ~width ~height ]
+
+(* The rows above the summary, at each of [times] in tenths of a second.
+   A terminal of eight columns cuts the summary after its third letter. *)
+let view_frames theme ~width span times =
   let t = terminal ~theme ~width ~height:600 ~styled:true () in
   let d = display t in
-  Display.set_scene d (fun ~height:_ ppf -> pp ppf);
+  Display.set_view d (fun d ~width ~height ->
+      above (span (min width 100)) d ~width ~height);
   let header = String.sub header 0 3 in
   let frames =
     List.map
@@ -966,16 +979,16 @@ let scene_frames theme ~width pp times =
   Display.close d;
   frames
 
-(* In every frame of a scene in a theme with motion, only the glyphs of
+(* In every frame of a view in a theme with motion, only the glyphs of
    straight lines differ from the theme without motion, each from a glyph as wide: every
    line keeps its width and every cell its place. The theme without motion
    draws the same frame at every time: the table as Fmt prints it. *)
-let test_scene_frames kind cells n w times =
+let test_view_frames kind cells n w times =
   let theme = pick_theme n and width = 8 + (w mod 113) in
-  let pp = widget kind cells in
+  let pp, span = widget kind cells in
   let times = 0 :: times in
-  let moving = scene_frames theme ~width pp times in
-  let still = scene_frames (Theme.still theme) ~width pp times in
+  let moving = view_frames theme ~width span times in
+  let still = view_frames (Theme.still theme) ~width span times in
   (* As the same emulator shows it. *)
   let printed =
     let buf = Buffer.create 256 in
@@ -1011,22 +1024,26 @@ let test_scene_frames kind cells n w times =
         moving still)
     moving still
 
-(* A scene is never drawn on a pipe, and a widget printed on a formatter is
-   motionless: printed twice it is the same bytes, without colour those of
-   its theme without motion, and in colour too but for a sweep, which
-   colours its frame. *)
-let test_scene_pipe kind cells n m =
+(* On a pipe a view is drawn once, at the end, before nothing but the
+   result, and a widget printed on a formatter is motionless: printed twice
+   it is the same bytes, without colour those of its theme without motion,
+   and in colour too but for a sweep, which colours its frame. *)
+let test_view_pipe kind cells n m =
   let theme = pick_theme n in
-  let pp = widget kind cells in
+  let pp, _ = widget kind cells in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf theme;
-  let d = Display.v ~header ~now:(fun () -> 1.5) ppf in
-  Display.set_scene d (fun ~height:_ ppf -> Fmt.string ppf "SCENE_SENTINEL");
+  let d = Display.v ~summary:header ~now:(fun () -> 1.5) ppf in
+  Display.set_view d (fun d ~width ~height ->
+      above (Span.text "VIEW_SENTINEL") d ~width ~height);
   Display.succeed (Display.task d "t");
   Display.close d;
   Format.pp_print_flush ppf ();
-  if has "SCENE_SENTINEL" (Buffer.contents buf) then fail "a scene on a pipe";
+  (match List.rev (String.split_on_char '\n' (Buffer.contents buf)) with
+  | "" :: last :: sentinel :: _ when has header last ->
+      check_eq ~pp:Fmt.Dump.string "VIEW_SENTINEL" sentinel
+  | _ -> failf "the view is not last on a pipe: %S" (Buffer.contents buf));
   let printed ?(styled = true) theme =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
@@ -1047,9 +1064,9 @@ let test_scene_pipe kind cells n m =
   if Theme.motion theme <> Some `Sweep then
     check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
 
-(* Scene callbacks are user code too: once one raises, closing must still
-   restore the cursor and default attributes for the next terminal writer. *)
-let test_scene_exception_close n k styled =
+(* Views are user code too: once one raises, closing must still restore the
+   cursor and default attributes for the next terminal writer. *)
+let test_view_exception_close n k styled =
   let width = 20 + (n mod 61) and height = 8 + (k mod 8) in
   let term = Console_vte.v ~raw:true ~rows:height ~cols:width () in
   let ppf =
@@ -1062,14 +1079,13 @@ let test_scene_exception_close n k styled =
   let d = Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> 0.) ppf in
   ignore (Display.task d "running");
   (match
-     Display.set_scene d (fun ~height:_ ppf ->
-         Span.pp ppf (Span.styled Style.bold "partial scene");
-         raise Exit);
-     Display.redraw d
+     Display.set_view d (fun _ ~width:_ ~height:_ ->
+         ignore (Span.styled Style.bold "partial view");
+         raise Exit)
    with
-  | () -> fail "scene exception swallowed"
+  | () -> fail "view exception swallowed"
   | exception Exit -> ());
-  (try Display.close d with Exit -> fail "close called the failed scene again");
+  (try Display.close d with Exit -> fail "close raised the view's exception");
   check (Console_vte.cursor_visible term);
   let y, x = Console_vte.cursor_pos term in
   check_eq ~pp:Fmt.int 0 x;
@@ -1081,9 +1097,11 @@ let test_scene_exception_close n k styled =
     check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
   done
 
-(* A long-lived parent must not retain the tasks and output of completed
-   children, including keyed failures and cancellations. The output sink
-   deliberately retains no transcript, so this measures the display alone. *)
+(* A long-lived parent retains a bounded part of the tasks and output of
+   completed children, keyed failures and cancellations included: none
+   without a terminal, and on one at most 1 MiB, which they wait in for their
+   parent. The output sink deliberately retains no transcript, so this
+   measures the display alone. *)
 let test_finished_children_heap n terminal =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let size = if terminal then Some (fun () -> (80, 10)) else None in
@@ -1094,7 +1112,7 @@ let test_finished_children_heap n terminal =
     for i = 0 to 99 + (n mod 100) do
       incr serial;
       let child = Display.task ~parent ~key:(string_of_int !serial) d "child" in
-      Display.log child (String.make 256 'x');
+      Display.log child (String.make 8192 'x');
       match i mod 3 with
       | 0 -> Display.succeed child
       | 1 -> Display.fail child
@@ -1106,18 +1124,27 @@ let test_finished_children_heap n terminal =
   in
   Fun.protect
     (fun () ->
+      (* On a terminal the children wait for their parent, up to 1 MiB, the
+         oldest dropped past it down to half of it, so the heap goes up and
+         down by as much: it may exceed what it held warm by 1 MiB, never by
+         the six batches, of a megabyte or more each, that follow. *)
       ignore (batch ());
-      ignore (batch ());
-      let warm = batch () in
-      for _ = 1 to 3 do
+      let warm = ref (batch ()) in
+      if terminal then
+        for _ = 1 to 2 do
+          warm := max !warm (batch ())
+        done;
+      let warm = !warm in
+      let slack = if terminal then 1_048_576 / (Sys.word_size / 8) else 4096 in
+      for _ = 1 to if terminal then 6 else 3 do
         let retained = batch () in
-        if retained > warm + 4096 then
+        if retained > warm + slack then
           failf "completed children retained: %d to %d words" warm retained
       done)
     ~finally:(fun () -> Display.close d)
 
 (* Changing the formatter's look redraws the whole region like a fresh
-   display, including the scene and the task's log window. *)
+   display, including the view and the task's log window. *)
 let theme_switch_display width theme =
   let term = Console_vte.v ~raw:true ~rows:12 ~cols:width () in
   Console_vte.feed term "before\r\n";
@@ -1137,13 +1164,16 @@ let theme_switch_display width theme =
     Display.v
       ~size:(fun () -> (width, 12))
       ~now:(fun () -> 0.)
-      ~header:"build" ppf
+      ~summary:"build" ppf
   in
   let task = Display.task display "\u{754c} compile" in
   Display.set_count task ~cur:1 ~total:2;
   Display.log task "a log";
-  Display.set_scene display (fun ~height:_ ppf ->
-      Panel.pp ppf (Panel.v ~title:(Span.text "result") (Span.text "hello")));
+  Display.set_view display (fun d ~width ~height ->
+      above
+        (Panel.to_span ~width:(min width 100)
+           (Panel.v ~title:(Span.text "result") (Span.text "hello")))
+        d ~width ~height);
   Display.redraw display;
   (ppf, display, term, writes)
 
@@ -1314,18 +1344,110 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
+(* With [keep] and a view of the top tasks' trees side by side, every frame
+   fits the screen, the summary last, and the last frame holds every task
+   once. *)
+let test_columns steps h =
+  let height = 6 + (h mod 15) and width = 120 in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        let s = Buffer.contents buf in
+        Buffer.clear buf;
+        check_chunk_lines ~width s;
+        Console_vte.feed vte s)
+  in
+  let view d ~width ~height =
+    let tops = Display.tasks d in
+    let n = max 1 (List.length tops) in
+    let column = (min width 100 - (2 * (n - 1))) / n in
+    Span.vcat
+      [
+        Span.hcat
+          (List.map (Display.tree ~width:column ~height:(height - 1)) tops);
+        Display.summary d;
+      ]
+  in
+  let d =
+    Display.v ~summary:header ~view ~keep:true
+      ~size:(fun () -> (width, height))
+      ~now:(fun () -> 0.)
+      ppf
+  in
+  let frame () =
+    Display.redraw d;
+    let rows = List.filter (( <> ) "") (screen vte) in
+    if List.length rows > height - 1 then failf "%d rows" (List.length rows);
+    match List.rev rows with
+    | last :: _ when has header last -> ()
+    | _ -> fail "the summary is not last"
+  in
+  (* At most three top tasks, so that each column holds its names. *)
+  let steps =
+    let tops = ref 0 in
+    List.filter
+      (function
+        | Start None ->
+            incr tops;
+            !tops <= 3
+        | _ -> true)
+      steps
+  in
+  let tasks, _ = run_tree ~keep:true d ~frame steps in
+  Display.close d;
+  let lines = Console_vte.screen ~scrollback:true vte in
+  Array.iter
+    (fun x ->
+      let n = List.length (List.filter (has x.tname) lines) in
+      if n <> 1 then
+        failf "%s is %d times in:@.%a" x.tname n
+          Fmt.(list ~sep:cut string)
+          lines)
+    tasks
+
+(* The default view is the tree of the root, fit to the room the summary
+   leaves, then the summary: the two draw the same bytes. *)
+let test_default_view steps h =
+  let height = 4 + (h mod 15) in
+  let run view =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    let d =
+      Display.v ~summary:header ?view
+        ~size:(fun () -> (60, height))
+        ~now:(fun () -> 0.)
+        ppf
+    in
+    ignore (run_tree d ~frame:(fun () -> Display.redraw d) steps);
+    Display.close d;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  let explicit d ~width:_ ~height =
+    Span.vcat
+      [ Display.tree ~height:(height - 1) (Display.root d); Display.summary d ]
+  in
+  check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
+
 let suite =
   ( "display",
     [
       test_case "switching themes redraws like a fresh display"
         [ uint8; uint8; uint8 ] test_theme_switch;
-      test_case "a running parent releases completed children" [ uint8; bool ]
-        test_finished_children_heap;
+      test_case "a running parent keeps a bounded part of completed children"
+        [ uint8; bool ] test_finished_children_heap;
       test_case "the scrollback keeps every tree whole, in its order"
         [ list tree_step; uint8 ]
         test_scrollback_tree;
-      test_case "scene exceptions leave the terminal usable"
-        [ uint8; uint8; bool ] test_scene_exception_close;
+      test_case "trees side by side hold every task once"
+        [ list tree_step; uint8 ]
+        test_columns;
+      test_case "the default view is the tree and the summary"
+        [ list tree_step; uint8 ]
+        test_default_view;
+      test_case "view exceptions leave the terminal usable"
+        [ uint8; uint8; bool ] test_view_exception_close;
       test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
         test_wide;
       test_case "extreme terminal sizes keep region width and height bounded"
@@ -1349,12 +1471,12 @@ let suite =
       test_case "on a terminal a line stays as its task ended"
         [ list step ]
         test_terminal_lines;
-      test_case "the marker counts what the region hides"
+      test_case "the region fits and counts what it hides"
         [ uint8; uint8; uint8 ] test_marker_counts;
-      test_case "a scene's frames move only its border"
+      test_case "a view's frames move only its border"
         [ bool; list uint8; uint8; uint8; list uint8 ]
-        test_scene_frames;
-      test_case "a scene is still off a live display"
+        test_view_frames;
+      test_case "a view is still off a live display"
         [ bool; list uint8; uint8; uint8 ]
-        test_scene_pipe;
+        test_view_pipe;
     ] )

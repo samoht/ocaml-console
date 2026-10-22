@@ -124,13 +124,20 @@ let test display (name, total) =
   Logs.info (fun m -> m "%d tests passed" total)
 
 let run_all ~clock ~progress suites =
-  Console_eio.run ~clock ~progress ~header:"Testing" (fun display ->
+  Console_eio.run ~clock ~progress ~summary:"Testing" (fun display ->
       Eio.Fiber.List.iter (test display) suites)
 ]}
 
 [Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites
 that wait, for a child process for example, run side by side with one row
-each.
+each. Below the rows, the summary line names the work given as [~summary],
+with its time and the count of suites that ended. It stays the last line
+while the rows above it come and go, and it is the last line printed when
+the work ends.
+
+A suite that ends goes above the rows, into the terminal's scrollback,
+where it stays: a task with tasks under it goes when it ends, with all of
+them, each under its parent, so the scrollback reads as a tree.
 
 A task's output shows under its row while it runs, and stays there if the
 task fails. That output is made of:
@@ -142,6 +149,24 @@ task fails. That output is made of:
 
 Output printed outside any task goes above the rows instead, as
 {{!Console_eio.output}where text goes} explains in more detail.
+
+The rows and the summary are the display's default view. A program can put
+its own view together from spans ({!Console.Display.views}): the table of
+results above the rows, for instance, filled in as the suites run, which
+stays once they are done:
+
+{@ocaml[
+let with_table ~results display ~width ~height =
+  Console.Span.vcat
+    [
+      Console.Table.to_span ~width:(min width 100) (results ());
+      Console.Display.default_view display ~width ~height;
+    ]
+]}
+
+[Console_eio.run ~view:(with_table ~results)] draws it. The display draws
+the last lines of the view that fit on the terminal, so the table gives way
+before the rows.
 
 {1:program The whole program}
 
@@ -195,7 +220,7 @@ redrawn, and [check] prints lines in turn instead:
 {- each of its messages follows, after its name;}
 {- it prints a line when it ends, with its count and its time, then
    [failed] or [cancelled] if it did not succeed;}
-{- the header comes last, as a summary.}}
+{- the summary comes last.}}
 
 Unless [--color=always] asks for it, a pipe gets no colour. Here [check]
 runs with its output captured and with [CONSOLE_FROZEN_CLOCK] set, which

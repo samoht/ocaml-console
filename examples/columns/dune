@@ -1,0 +1,24 @@
+(executable
+ (name main)
+ (modules main)
+ (libraries console console.tty console-eio eio eio_main fmt))
+
+(executable
+ (name tape)
+ (modules tape)
+ (optional)
+ (libraries fmt vhs))
+
+(rule
+ (enabled_if %{lib-available:vhs})
+ (target columns.generated.tape)
+ (action
+  (with-stdout-to
+   %{target}
+   (run ./tape.exe))))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:vhs})
+ (action
+  (diff columns.tape columns.generated.tape)))

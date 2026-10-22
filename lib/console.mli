@@ -16,7 +16,7 @@
 
     Every widget is also a span, by its [to_span], laid out only when it is
     printed. So a table goes in a panel, the panel in a cell of another table,
-    beside a tree ({!Span.hcat}) or in a display's scene, and each of them is
+    beside a tree ({!Span.hcat}) or in a display's view, and each of them is
     drawn in the theme of the formatter that prints it. [Console_eio.run] runs a
     {!Display}.
 
@@ -120,9 +120,9 @@
           Display.set_count step ~cur:2 ~total:2)
     ]}
 
-    [Console_eio.run ~clock ~header:"Building" build_step] runs it, with [clock]
-    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself,
-    since a run inside another one gets the same display. *)
+    [Console_eio.run ~clock ~summary:"Building" build_step] runs it, with
+    [clock] as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run]
+    itself, since a run inside another one gets the same display. *)
 
 (** {1:modules Modules} *)
 

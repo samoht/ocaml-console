@@ -47,6 +47,7 @@ let prefix t lasts =
   match nested lasts with [] -> "" | l -> "  " ^ Widget.branch (guide t) l
 
 let continuation t lasts = "  " ^ Widget.rails (guide t) (nested lasts)
+let guided t s = Span.styled (Guide.style (guide t)) s
 let indent r = String.make (2 * depth r) ' '
 
 (* {1 Live rows} *)
@@ -100,13 +101,14 @@ let piece t r ~time (p : Display_layout.piece) =
 
 (* The label takes the room the other pieces leave and is cut to it; one
    spacer takes the slack, so the pieces after it sit at the right edge. *)
-let live t ~lasts r =
+let live t ~width ~lasts r =
   let time = t.now () -. t.start in
   let pieces =
     List.map (fun p -> (p, piece t r ~time p)) (Display_layout.pieces t.layout)
   in
   let prefix = prefix t lasts in
   let has p = List.exists (fun (q, _) -> q = p) pieces in
+  let room = width in
   let fixed =
     Span.width (Span.text prefix)
     + List.fold_left (fun n (_, s) -> n + Span.width s) 0 pieces
@@ -114,19 +116,19 @@ let live t ~lasts r =
   let reserve = if has Display_layout.Spacer then 1 else 0 in
   let label =
     if has Display_layout.Label then
-      cut t (room t - fixed - reserve) (Span.styled Style.bold r.label)
+      cut t (room - fixed - reserve) (Span.styled Style.bold r.label)
     else Span.empty
   in
-  let slack = max reserve (room t - fixed - Span.width label) in
+  let slack = max reserve (room - fixed - Span.width label) in
   let line =
     Span.concat
-      (Span.styled (Guide.style (guide t)) prefix
+      (guided t prefix
       :: List.map
            (fun ((p : Display_layout.piece), s) ->
              match p with Label -> label | Spacer -> pad slack | _ -> s)
            pieces)
   in
-  cut t (room t) line
+  cut t room line
 
 let gap_suffix t gap =
   if gap >= 1. then muted t ("  +" ^ Display_text.duration gap) else Span.empty
@@ -145,12 +147,11 @@ let body t ?label (line : line) =
   in
   Span.(label ++ text line.text ++ gap_suffix t line.gap)
 
-let tail t ~lasts r =
-  let prefix = Span.styled (Guide.style (guide t)) (continuation t lasts) in
+let tail t ~width ~lasts r =
+  let prefix = guided t (continuation t lasts) in
   Queue.fold
     (fun acc line ->
-      cut t (room t) Span.(prefix ++ lead_mark t line.kind ++ body t line)
-      :: acc)
+      cut t width Span.(prefix ++ lead_mark t line.kind ++ body t line) :: acc)
     [] r.window
   |> List.rev
 
@@ -161,13 +162,23 @@ let label_of r = Option.value r.message ~default:r.label
 let mark_of t r =
   mark t (outcome_mark (Option.value r.outcome ~default:`Cancelled))
 
-(* On a terminal: the mark and the label, then the count and the timer
-   against the right edge, in the cells every row uses, so the columns line
-   up whatever the labels. A label that does not fit folds onto the lines
-   below it. *)
-let committed t r =
-  let width = room t in
-  let lead = Span.(text (indent r) ++ mark_of t r ++ text " ") in
+(* [lead], then the lines of [body] broken to [width], each after the
+   first under its start. *)
+let hanging t ~width lead body =
+  let w = Span.width lead in
+  (* Only a terminal narrower than the lead cuts a line. *)
+  List.map (cut t width)
+    (match Span.wrap (max 1 (width - w)) body with
+    | first :: rest ->
+        Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
+    | [] -> [ lead ])
+
+(* The mark and the label, then the count and the timer against the right
+   edge, in the cells every task uses, so the columns line up whatever the
+   labels. A label that does not fit is cut, or with [whole] goes on over the
+   lines below. *)
+let ended t ~width ~lasts ~whole r =
+  let lead = Span.(guided t (prefix t lasts) ++ mark_of t r ++ text " ") in
   let lead_w = Span.width lead in
   let timer = timer t (elapsed r) in
   let meta =
@@ -178,7 +189,8 @@ let committed t r =
   let space = width - lead_w - Span.width meta - 2 in
   let label = text (label_of r) in
   let first, rest =
-    if space <= 0 then (Span.empty, [ label ])
+    if space <= 0 then (Span.empty, if whole then [ label ] else [])
+    else if not whole then (cut t space label, [])
     else
       match Span.wrap space label with
       | first :: rest -> (first, rest)
@@ -195,6 +207,49 @@ let committed t r =
            (fun l -> cut t width Span.(under ++ l))
            (Span.wrap (max 1 (width - lead_w)) l))
        rest
+
+let output t ~width ~lasts r =
+  let lead = guided t (continuation t lasts) in
+  let dropped =
+    if r.dropped = 0 then []
+    else
+      [
+        cut t width
+          Span.(
+            lead
+            ++ muted t
+                 (Fmt.str "%s %d %s dropped"
+                    (Widget.ellipsis (look t))
+                    r.dropped
+                    (if r.dropped = 1 then "line" else "lines")));
+      ]
+  in
+  dropped
+  @ List.concat_map
+      (fun line ->
+        hanging t ~width Span.(lead ++ lead_mark t line.kind) (body t line))
+      (List.rev (Queue.fold (fun acc l -> l :: acc) [] r.output))
+
+let finished t ~width ~lasts n (m : Theme.mark) =
+  cut t width
+    Span.(
+      guided t (prefix t lasts)
+      ++ mark t m ++ text " "
+      ++ muted t (Fmt.str "%d done" n))
+
+let shed t ~width ~lasts n =
+  cut t width
+    Span.(
+      guided t (prefix t lasts)
+      ++ muted t
+           (Fmt.str "%s %d %s dropped"
+              (Widget.ellipsis (look t))
+              n
+              (if n = 1 then "task" else "tasks")))
+
+let more t ~width n =
+  cut t width
+    (muted t (Fmt.str "  %s %d more running" (Widget.ellipsis (look t)) n))
 
 (* Without a terminal: the same, compact, on one line, which says how a
    task that did not succeed ended, as no colour may. *)
@@ -217,14 +272,7 @@ let appended r =
    under its start; without one it is a line of its own, as long as it is. *)
 let folded t ~width lead body =
   if not (is_live t) then [ Span.(lead ++ body) ]
-  else
-    let w = Span.width lead in
-    (* Only a terminal narrower than the lead cuts a line. *)
-    List.map (cut t width)
-      (match Span.wrap (max 1 (width - w)) body with
-      | first :: rest ->
-          Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
-      | [] -> [ lead ])
+  else hanging t ~width lead body
 
 let under_task r = text (indent r ^ "  ")
 
@@ -258,7 +306,7 @@ let started r =
 let message t level msg =
   folded t ~width:t.width (lead_mark t (Logs level)) (text msg)
 
-(* {1 The header and the verdict} *)
+(* {1 The summary and the verdict} *)
 
 let state t : Theme.mark =
   if (not t.closed) && (t.started = 0 || t.finished < t.started) then `Running
@@ -268,9 +316,9 @@ let state t : Theme.mark =
   else if t.cancelled > 0 then `Cancelled
   else `Succeeded
 
-(* On a terminal, the header's name gives way last: the time and the count
+(* On a terminal, the summary's name gives way last: the time and the count
    go first. *)
-let header t =
+let summary t =
   Option.map
     (fun h ->
       let meta =
@@ -283,7 +331,7 @@ let header t =
       let full = Span.(lead ++ h ++ meta) in
       if (not (is_live t)) || Span.width full <= room t then full
       else cut t (room t) Span.(lead ++ h))
-    t.header
+    t.summary
 
 let verdict t result =
   let m, msg =

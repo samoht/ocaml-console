@@ -13,11 +13,16 @@ let theme = Theme.dos
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 
+(* [above top] is the view of [top] above the default view, which gives way
+   first when they do not fit. *)
+let above top d ~width ~height =
+  Span.vcat [ top; Display.default_view d ~width ~height ]
+
 (* {1 Without a terminal} *)
 
 let test_plain_lines () =
   let (), out =
-    plain ~theme ~header:"Building" (fun d advance ->
+    plain ~theme ~summary:"Building" (fun d advance ->
         let t = Display.task d "compile" in
         Display.set_count t ~cur:2 ~total:2;
         Display.log t "compiled parser.ml";
@@ -155,7 +160,7 @@ let test_tabs () =
 
 let test_plain_sanitizes () =
   let (), out =
-    plain ~header:"Build\027[2J" (fun d _ ->
+    plain ~summary:"Build\027[2J" (fun d _ ->
         let task = Display.task d "a\tb" in
         Display.log task "x\007y";
         Display.succeed task)
@@ -165,7 +170,7 @@ let test_plain_sanitizes () =
 
 let test_plain_result () =
   let (), out =
-    plain ~theme ~header:"Work" (fun d _ ->
+    plain ~theme ~summary:"Work" (fun d _ ->
         ignore (Display.task d "left running");
         Display.set_result ~detail:"see the log" d (Error "it broke");
         Display.set_result d (Ok "changed my mind"))
@@ -182,7 +187,7 @@ let test_plain_result () =
     (String.split_on_char '\n' out)
 
 let test_empty_header_pending () =
-  let t = terminal ~header:"Building" () in
+  let t = terminal ~summary:"Building" () in
   Alcotest.(check bool)
     "pending before any task" true
     (List.exists (contains "\xe2\x80\xa2 Building 0.0s (0/0)") (screen t));
@@ -194,16 +199,18 @@ let test_empty_header_pending () =
 (* {1 On a terminal} *)
 
 let test_region () =
-  let t = terminal ~theme ~width:40 ~header:"Build" () in
+  let t = terminal ~theme ~width:40 ~summary:"Build" () in
   let a = Display.task t.display "fetch" in
   let b = Display.task t.display "compile" in
   Display.set_count b ~cur:1 ~total:4;
   Display.redraw t.display;
   let rows = screen t in
-  Alcotest.(check bool) "header" true (contains "[-] Build" (List.nth rows 0));
-  Alcotest.(check bool) "first row" true (contains "fetch" (List.nth rows 1));
-  Alcotest.(check bool) "second row" true (contains "compile" (List.nth rows 2));
-  Alcotest.(check bool) "its count" true (contains "1/4" (List.nth rows 2));
+  Alcotest.(check bool) "first row" true (contains "fetch" (List.nth rows 0));
+  Alcotest.(check bool) "second row" true (contains "compile" (List.nth rows 1));
+  Alcotest.(check bool) "its count" true (contains "1/4" (List.nth rows 1));
+  Alcotest.(check bool)
+    "the summary last" true
+    (contains "[-] Build" (List.nth rows 2));
   Display.succeed a;
   Display.redraw t.display;
   let rows = screen t in
@@ -211,8 +218,8 @@ let test_region () =
     "the ended task is above the region" true
     (String.starts_with ~prefix:"[+] fetch" (List.nth rows 0));
   Alcotest.(check bool)
-    "header below it" true
-    (contains "[-] Build" (List.nth rows 1));
+    "the summary still last" true
+    (contains "[-] Build" (List.nth rows 2));
   Display.succeed b;
   Display.close t.display;
   check_lines "final screen"
@@ -227,12 +234,33 @@ let test_region () =
     "no bare line feed" false
     (Re.execp (Re.Perl.compile_pat "(^|[^\r])\n") (written t))
 
+(* A view with a table taller than the room: the table loses its first
+   lines, and the tasks and the summary stay. *)
+let test_tall_header () =
+  let t = terminal ~width:40 ~height:8 ~summary:"S" () in
+  let d = t.display in
+  let rows =
+    Span.vcat (List.init 20 (fun i -> Span.text (Fmt.str "row %d" i)))
+  in
+  Display.set_view d (above rows);
+  let a = Display.task d "a" in
+  Display.redraw d;
+  let shown = List.map untimed (screen t) in
+  Alcotest.(check int) "the screen less one" 7 (List.length shown);
+  check_lines "the table's last lines"
+    [ "row 15"; "row 16"; "row 17"; "row 18"; "row 19" ]
+    (List.filteri (fun i _ -> i < 5) shown);
+  Alcotest.(check bool) "the task" true (contains " a" (List.nth shown 5));
+  Alcotest.(check bool) "the summary" true (contains "S" (List.nth shown 6));
+  Display.succeed a;
+  Display.close d
+
 (* With the tty in raw mode a line feed keeps the column, so a line that
    began with a bare line feed would start where the one above it ended: the
    screen of a raw tty is that of a cooked one. *)
 let test_raw_tty () =
   let run raw =
-    let t = terminal ~theme ~width:40 ~header:"Build" ~raw () in
+    let t = terminal ~theme ~width:40 ~summary:"Build" ~raw () in
     let a = Display.task t.display "fetch" in
     let b = Display.task t.display "compile" in
     Display.set_count b ~cur:1 ~total:4;
@@ -258,7 +286,9 @@ let test_raw_tty () =
    a repaint erases all of it. *)
 let test_after_a_partial_line () =
   let run before =
-    let t = terminal ~theme ~width:40 ~before ~header:(String.make 28 'h') () in
+    let t =
+      terminal ~theme ~width:40 ~before ~summary:(String.make 28 'h') ()
+    in
     Display.redraw t.display;
     let a = Display.task t.display "fetch" in
     Display.redraw t.display;
@@ -334,40 +364,59 @@ let test_label_truncated () =
   Alcotest.(check bool) "ellipsis" true (contains "\xe2\x80\xa6" row);
   Alcotest.(check bool) "fits" true (Span.width (Span.text row) <= 20)
 
+(* More running tasks than rows: the latest show, after a line that counts
+   the others, and the summary stays last. No redraw scrolls the terminal. *)
 let test_capped () =
-  let t = terminal ~theme ~width:30 ~height:5 ~header:"H" () in
-  let tasks =
-    List.init 8 (fun i -> Display.task t.display (Fmt.str "task %d" i))
-  in
-  Display.redraw t.display;
-  let rows = List.filter (( <> ) "") (screen t) in
-  Alcotest.(check int) "no taller than the screen less one" 4 (List.length rows);
-  Alcotest.(check bool) "header" true (contains "[-] H" (List.nth rows 0));
-  Alcotest.(check bool) "first task" true (contains "task 0" (List.nth rows 1));
-  Alcotest.(check bool) "marker" true (contains "more lines" (List.nth rows 2));
-  Alcotest.(check bool) "latest task" true (contains "task 7" (List.nth rows 3));
-  List.iter Display.cancel tasks;
-  Display.close t.display
-
-(* Eight running tasks with a log line each fill a budget of eight lines
-   exactly: the tails go, the marker takes a row and counts what is hidden. *)
-let test_marker_counts () =
-  let t = terminal ~theme ~width:30 ~height:10 ~header:"H" () in
+  let t = terminal ~theme ~width:30 ~height:5 ~summary:"H" () in
   let tasks =
     List.init 8 (fun i ->
-        let task = Display.task ~log_lines:1 t.display (Fmt.str "task %d" i) in
-        Display.log task "line";
+        let task = Display.task t.display (Fmt.str "task %d" i) in
+        Display.redraw t.display;
         task)
   in
   Display.redraw t.display;
   let rows = List.filter (( <> ) "") (screen t) in
-  Alcotest.(check int) "no taller than the screen less one" 9 (List.length rows);
-  let hidden = 16 - (List.length rows - 2) in
-  Alcotest.(check bool)
-    "the marker counts the hidden lines" true
-    (List.exists (Fmt.kstr contains "%d more lines" hidden) rows);
+  check_lines "no taller than the screen less one"
+    [ "  \u{2026} 6 more running"; "| task 6"; "| task 7"; "[-] H 0.0s (0/8)" ]
+    (List.map untimed rows);
+  Alcotest.(check int) "nothing scrolled" 0 (Console_vte.scrollback_size t.vte);
   List.iter Display.cancel tasks;
   Display.close t.display
+
+(* Eight running tasks with a log line each fill a budget of eight lines
+   exactly: the windows give way and every task shows. Two rows fewer, and
+   only the latest tasks show, a line counting the others. *)
+let test_marker_counts () =
+  let run height =
+    let t = terminal ~theme ~width:30 ~height ~summary:"H" () in
+    let tasks =
+      List.init 8 (fun i ->
+          let task =
+            Display.task ~log_lines:1 t.display (Fmt.str "task %d" i)
+          in
+          Display.log task "line";
+          task)
+    in
+    Display.redraw t.display;
+    let rows = List.filter (( <> ) "") (screen t) in
+    List.iter Display.cancel tasks;
+    Display.close t.display;
+    List.map untimed rows
+  in
+  check_lines "the windows give way"
+    (List.init 8 (Fmt.str "| task %d") @ [ "[-] H 0.0s (0/8)" ])
+    (run 10);
+  check_lines "the latest tasks"
+    [
+      "  \u{2026} 3 more running";
+      "| task 3";
+      "| task 4";
+      "| task 5";
+      "| task 6";
+      "| task 7";
+      "[-] H 0.0s (0/8)";
+    ]
+    (run 8)
 
 let test_marker_fits () =
   let t = terminal ~theme ~width:12 ~height:4 () in
@@ -443,7 +492,7 @@ let test_redraw_idle () =
 (* A terminal that narrows reflows the old frame onto more rows; the redraw
    moves up over all of them. *)
 let test_narrowing () =
-  let t = terminal ~theme ~width:40 ~height:8 ~header:"Header" () in
+  let t = terminal ~theme ~width:40 ~height:8 ~summary:"Header" () in
   ignore (Display.task t.display "job");
   Display.redraw t.display;
   t.chunks := [];
@@ -483,12 +532,21 @@ let test_nested () =
     "last" true
     (contains "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80" (List.nth rows 2));
   Display.succeed c1;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "an ended child stays under its parent" true
+    (contains "\u{2713} one" (List.nth (screen t) 1));
   Display.fail p;
   let late = Display.task ~parent:p t.display "late" in
   Display.succeed late;
   Display.close t.display;
-  check_lines "each task its own line, the children first"
-    [ "  \u{2713} one"; "  \u{25cb} two"; "\u{2717} parent"; "  \u{25cb} late" ]
+  check_lines "the parent first, each child under it, in start order"
+    [
+      "\u{2717} parent";
+      "  \u{251c}\u{2500}\u{2500} \u{2713} one";
+      "  \u{2514}\u{2500}\u{2500} \u{25cb} two";
+      "\u{25cb} late";
+    ]
     (List.map untimed (lines t))
 
 (* A task that its parent ends still says how it ended, on a pipe too. *)
@@ -641,7 +699,7 @@ let test_any_width () =
 (* A fiber that outlives the display, or a library that holds on to it,
    is ignored once it closed: nothing raises and nothing is written. *)
 let test_closed () =
-  let t = terminal ~theme ~header:"Build" () in
+  let t = terminal ~theme ~summary:"Build" () in
   let d = t.display in
   let running = Display.task d "running" in
   Display.close d;
@@ -658,7 +716,7 @@ let test_closed () =
       Display.cancel task)
     [ running; late ];
   Display.redraw d;
-  Display.set_scene d (fun ~height:_ ppf -> Fmt.string ppf "scene");
+  Display.set_view d (fun _ ~width:_ ~height:_ -> Span.text "view");
   Display.set_result d (Ok "late");
   Alcotest.(check string) "nothing written" before (written t);
   Alcotest.(check int)
@@ -696,7 +754,7 @@ let test_wide () =
    such escape. *)
 let test_synchronized () =
   let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
-  let t = terminal ~header:"Build" () in
+  let t = terminal ~summary:"Build" () in
   let task = Display.task t.display "a" in
   t.advance 0.2;
   Display.redraw t.display;
@@ -1028,7 +1086,7 @@ let test_iter () =
   Alcotest.(check (list int)) "in order" [ 1; 2; 3 ] (List.rev !seen);
   check_lines "counted" [ "[-] items"; "[+] items  3/3  0.0s"; "" ] (split out)
 
-(* {1 Scenes} *)
+(* {1 Views} *)
 
 let steps =
   Table.v
@@ -1051,69 +1109,79 @@ let printed ?(theme = theme) ~margin pp v =
   Format.pp_print_flush ppf ();
   String.split_on_char '\n' (Buffer.contents buf)
 
-(* A scene is what its printer prints, drawn above the header in the
-   display's theme, at the width of the rows; it is given the lines the
-   header and the rows leave. *)
-let test_scene () =
-  let t = terminal ~theme ~width:40 ~height:12 ~header:"Build" () in
+let table ~width = Table.to_span ~width:(min width 100) steps
+
+(* A view is a span: here a table above the default view, the tree of the
+   tasks and then the summary, which stays the last line. The view is given
+   the terminal's width and its height less one. *)
+let test_view () =
+  let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
   let heights = ref [] in
-  Display.set_scene t.display (fun ~height ppf ->
+  Display.set_view t.display (fun d ~width ~height ->
       heights := height :: !heights;
-      Table.pp ppf steps);
+      above (table ~width) d ~width ~height);
   ignore (Display.task t.display "compile");
   Display.redraw t.display;
   let table = printed ~margin:40 Table.pp steps in
   let rows = screen t in
   let n = List.length table in
   check_lines "the table first" table (List.filteri (fun i _ -> i < n) rows);
+  Alcotest.(check bool) "the row" true (contains "compile" (List.nth rows n));
   Alcotest.(check bool)
-    "the header" true
-    (contains "[-] Build" (List.nth rows n));
-  Alcotest.(check bool)
-    "the row" true
-    (contains "compile" (List.nth rows (n + 1)));
-  Alcotest.(check int) "the room left" 9 (List.hd !heights)
+    "the summary last" true
+    (contains "[-] Build" (List.nth rows (n + 1)));
+  Alcotest.(check int) "the room" 11 (List.hd !heights)
 
-(* A scene line wider than the rows is cut, and a scene taller than the room
-   loses its last lines; the rows keep their place. *)
-let test_scene_fits () =
-  let t = terminal ~theme ~width:20 ~height:6 ~header:"Build" () in
-  Display.set_scene t.display (fun ~height:_ ppf ->
-      Fmt.pf ppf "a scene line much wider than twenty@\nb@\nc@\nd@\ne@\nf");
+(* A view line wider than the terminal is cut, and a view taller than the
+   room loses its first lines, so that the summary at its bottom stays. *)
+let test_view_fits () =
+  let t = terminal ~theme ~width:20 ~height:6 ~summary:"Build" () in
+  let tall = Span.text "a view line much wider than twenty\nb\nc\nd\ne\nf" in
+  Display.set_view t.display (fun d ~width ~height:_ ->
+      Span.vcat [ tall; Display.default_view d ~width ~height:2 ]);
   ignore (Display.task t.display "compile");
   Display.redraw t.display;
   let rows = screen t in
-  Alcotest.(check int) "within the screen less one" 5 (List.length rows);
-  Alcotest.(check string) "cut" "a scene line much w\u{2026}" (List.nth rows 0);
-  check_lines "the first lines" [ "b"; "c" ]
-    [ List.nth rows 1; List.nth rows 2 ];
+  check_lines "the last five lines" [ "d"; "e"; "f" ]
+    (List.filteri (fun i _ -> i < 3) rows);
+  Alcotest.(check bool) "the row" true (contains "compile" (List.nth rows 3));
   Alcotest.(check bool)
-    "the header" true
-    (contains "[-] Build" (List.nth rows 3));
-  Alcotest.(check bool) "the row" true (contains "compile" (List.nth rows 4))
+    "the summary" true
+    (contains "[-] Build" (List.nth rows 4));
+  Alcotest.(check int) "within the screen less one" 5 (List.length rows);
+  Display.set_view t.display (fun _ ~width:_ ~height:_ ->
+      Span.text "a view line much wider than twenty\nb");
+  check_lines "cut to the width"
+    [ "a view line much wi\u{2026}"; "b" ]
+    (screen t);
+  Display.close t.display
 
-(* On a wide terminal a scene is as wide as the rows: 100 columns. *)
-let test_scene_width () =
+(* On a wide terminal the view is given its width, and the tree keeps to
+   100 columns. *)
+let test_view_width () =
   let t = terminal ~theme ~width:160 () in
-  let margin = ref 0 in
-  Display.set_scene t.display (fun ~height:_ ppf ->
-      margin := Format.pp_get_margin ppf ());
+  let given = ref 0 in
+  Display.set_view t.display (fun d ~width ~height ->
+      given := width;
+      Display.default_view d ~width ~height);
+  ignore (Display.task t.display "compile");
   Display.redraw t.display;
-  Alcotest.(check int) "the margin" 100 !margin
+  Alcotest.(check int) "the width" 160 !given;
+  Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
 
-(* Widgets side by side make a scene, each at the width it is given. *)
-let test_scene_hcat () =
-  let t = terminal ~theme ~width:40 ~height:12 ~header:"Build" () in
+(* Widgets side by side make a view, each at the width it is given. *)
+let test_view_hcat () =
+  let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
   let panel = Panel.v (Span.text "status") in
-  let side ppf =
-    let half = (Format.pp_get_margin ppf () - 2) / 2 in
-    Span.pp ppf
-      (Span.hcat
-         [ Table.to_span ~width:half steps; Panel.to_span ~width:half panel ])
+  let side width =
+    let half = (width - 2) / 2 in
+    Span.hcat
+      [ Table.to_span ~width:half steps; Panel.to_span ~width:half panel ]
   in
-  Display.set_scene t.display (fun ~height:_ ppf -> side ppf);
+  Display.set_view t.display (fun d ~width ~height ->
+      above (side width) d ~width ~height);
   Display.redraw t.display;
-  let want = printed ~margin:40 (fun ppf () -> side ppf) () in
+  let want = printed ~margin:40 Span.pp (side 40) in
   let rows = screen t in
   check_lines "side by side" want
     (List.filteri (fun i _ -> i < List.length want) rows);
@@ -1121,26 +1189,29 @@ let test_scene_hcat () =
     "on one line" true
     (contains "step" (List.nth rows 1) && contains "status" (List.nth rows 1))
 
-(* A scene replaces the one before; the display's formatter keeps its own
-   margin. *)
-let test_scene_replaced () =
+(* A view replaces the one before, and its last frame stays once the
+   display closes. *)
+let test_view_replaced () =
   let t = terminal ~theme ~width:30 () in
-  Display.set_scene t.display (fun ~height:_ ppf -> Fmt.string ppf "first");
+  Display.set_view t.display (fun _ ~width:_ ~height:_ -> Span.text "first");
   Display.redraw t.display;
-  Display.set_scene t.display (fun ~height:_ ppf -> Fmt.string ppf "second");
-  Display.redraw t.display;
-  check_lines "the second scene" [ "second" ] (screen t);
+  Display.set_view t.display (fun _ ~width:_ ~height:_ -> Span.text "second");
+  check_lines "the second view, at once" [ "second" ] (screen t);
   Display.close t.display;
-  check_lines "nothing left once closed" [] (lines t)
+  check_lines "its last frame stays" [ "second" ] (lines t)
 
-(* Without a terminal a scene is never drawn. *)
-let test_scene_plain () =
+(* Without a terminal a view is drawn once, when the display closes, after
+   the tasks' lines. *)
+let test_view_plain () =
   let (), out =
-    plain ~theme (fun d _ ->
-        Display.set_scene d (fun ~height:_ ppf -> Table.pp ppf steps);
+    plain ~theme ~summary:"Build" (fun d _ ->
+        Display.set_view d (fun d ~width ~height ->
+            above (Span.text "TOP") d ~width ~height);
         Display.succeed (Display.task d "compile"))
   in
-  Alcotest.(check bool) "no scene" false (contains "fetch" out)
+  check_lines "the last frame, at the end"
+    [ "[-] compile"; "[+] compile  0.0s"; "TOP"; "[+] Build 0.0s (1/1)"; "" ]
+    (split out)
 
 let border_glyphs =
   List.concat_map
@@ -1168,10 +1239,10 @@ let clusters = Width.clusters
 (* A table's frame moves in a live display drawn in a theme with motion:
    from one frame to the next, only its border cells change, each to a glyph
    as wide, so that every line keeps its width and its cells their place. *)
-let test_scene_moves () =
+let test_view_moves () =
   let run theme ~styled =
     let t = terminal ~theme ~styled ~width:40 ~height:12 () in
-    Display.set_scene t.display (fun ~height:_ ppf -> Table.pp ppf steps);
+    Display.set_view t.display (fun _ ~width ~height:_ -> table ~width);
     Display.redraw t.display;
     let frames =
       List.init 12 (fun _ ->
@@ -1218,8 +1289,8 @@ let test_scene_moves () =
     (unmoved (run (Theme.still Theme.matrix) ~styled:true))
 
 (* A table in [Border.simple] has no frame to move: in a theme with motion,
-   every frame of a scene is the still one. *)
-let test_simple_scene_stands_still () =
+   every frame of a view is the still one. *)
+let test_simple_view_stands_still () =
   let simple =
     Table.v ~border:Border.simple
       [
@@ -1234,7 +1305,8 @@ let test_simple_scene_stands_still () =
   List.iter
     (fun theme ->
       let t = terminal ~theme ~styled:true ~width:40 ~height:12 () in
-      Display.set_scene t.display (fun ~height:_ ppf -> Table.pp ppf simple);
+      Display.set_view t.display (fun _ ~width ~height:_ ->
+          Table.to_span ~width simple);
       Display.redraw t.display;
       let still = screen t in
       for _ = 1 to 12 do
@@ -1245,16 +1317,19 @@ let test_simple_scene_stands_still () =
       Display.close t.display)
     Theme.[ matrix; rainbow; tokyo_night ]
 
-(* A broken scene must not prevent teardown from restoring the terminal. *)
-let test_scene_exception_close () =
+(* A broken view must not prevent teardown from restoring the terminal: it
+   is dropped, and the default view drawn in its place. *)
+let test_view_exception_close () =
   let t = terminal ~styled:true ~width:40 ~height:10 () in
   ignore (Display.task t.display "running");
   (match
-     Display.set_scene t.display (fun ~height:_ _ -> raise Exit);
-     Display.redraw t.display
+     Display.set_view t.display (fun _ ~width:_ ~height:_ -> raise Exit)
    with
-  | () -> Alcotest.fail "scene exception was swallowed"
+  | () -> Alcotest.fail "view exception was swallowed"
   | exception Exit -> ());
+  Alcotest.(check bool)
+    "the default view drawn" true
+    (List.exists (contains "running") (screen t));
   let raised =
     try
       Display.close t.display;
@@ -1262,19 +1337,19 @@ let test_scene_exception_close () =
     with Exit -> true
   in
   Alcotest.(check bool)
-    "closing does not call the broken scene again" false raised;
+    "closing does not call the broken view again" false raised;
   Alcotest.(check bool)
-    "cursor restored after the scene exception" true
+    "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
 
 let suite =
   ( "display",
     [
-      Alcotest.test_case "a scene exception still allows close" `Quick
-        test_scene_exception_close;
-      Alcotest.test_case "a scene side by side" `Quick test_scene_hcat;
+      Alcotest.test_case "a view exception still allows close" `Quick
+        test_view_exception_close;
+      Alcotest.test_case "a view side by side" `Quick test_view_hcat;
       Alcotest.test_case "a simple table stands still" `Quick
-        test_simple_scene_stands_still;
+        test_simple_view_stands_still;
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
       Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;
@@ -1286,6 +1361,7 @@ let suite =
       Alcotest.test_case "empty live header remains pending" `Quick
         test_empty_header_pending;
       Alcotest.test_case "region" `Quick test_region;
+      Alcotest.test_case "a view taller than the room" `Quick test_tall_header;
       Alcotest.test_case "a raw tty" `Quick test_raw_tty;
       Alcotest.test_case "after a partial line" `Quick test_after_a_partial_line;
       Alcotest.test_case "the window" `Quick test_window;
@@ -1329,10 +1405,10 @@ let suite =
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "iter" `Quick test_iter;
-      Alcotest.test_case "scene" `Quick test_scene;
-      Alcotest.test_case "scene fits" `Quick test_scene_fits;
-      Alcotest.test_case "scene width" `Quick test_scene_width;
-      Alcotest.test_case "scene replaced" `Quick test_scene_replaced;
-      Alcotest.test_case "scene on a pipe" `Quick test_scene_plain;
-      Alcotest.test_case "scene moves" `Quick test_scene_moves;
+      Alcotest.test_case "view" `Quick test_view;
+      Alcotest.test_case "view fits" `Quick test_view_fits;
+      Alcotest.test_case "view width" `Quick test_view_width;
+      Alcotest.test_case "view replaced" `Quick test_view_replaced;
+      Alcotest.test_case "view on a pipe" `Quick test_view_plain;
+      Alcotest.test_case "view moves" `Quick test_view_moves;
     ] )

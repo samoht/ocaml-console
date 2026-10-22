@@ -694,7 +694,7 @@ let test_direct_progress_parity k label use_str =
                   else Some (fun () -> (80, 24))
                 in
                 let d =
-                  Console.Display.v ?size ~progress ~header:"header"
+                  Console.Display.v ?size ~progress ~summary:"header"
                     ~now:(fun () -> 0.)
                     ppf
                 in
@@ -706,7 +706,7 @@ let test_direct_progress_parity k label use_str =
             capture_progress_formatter ~theme ~use_str (fun ppf ->
                 Eio_mock.Backend.run (fun () ->
                     Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ())
-                      ~ppf ~progress ~header:"header" (fun d ->
+                      ~ppf ~progress ~summary:"header" (fun d ->
                         program d;
                         Console.Display.redraw d)))
           in

@@ -79,10 +79,10 @@ type motion =
   | `Shimmer
     (** A short highlight in the main colour travels round the frame. *) ]
 (** The type for how the frame of a table or a panel moves while a live
-    {!Display} draws it ([Display.set_scene]), clockwise and by the elapsed
-    time. Only the colours of the border's cells change, and some cells' glyphs
-    change to glyphs as wide, so the frame keeps its width and its cells their
-    place in every frame.
+    {!Display} draws it in a view ([Display.set_view]), clockwise and by the
+    elapsed time. Only the colours of the border's cells change, and some cells'
+    glyphs change to glyphs as wide, so the frame keeps its width and its cells
+    their place in every frame.
 
     A frame stands still, in the glyphs of the theme without motion, when it is
     printed on a formatter or drawn by a display without colour or with

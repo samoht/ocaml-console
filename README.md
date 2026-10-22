@@ -59,7 +59,7 @@ let main color theme =
   Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~header:"Testing" (fun d ->
+  Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
   let ok = Span.role `Ok "passed" in
   let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
@@ -321,9 +321,11 @@ says more about roles, contrast and terminals of 16 colours.
 
 ![A build whose running steps are redrawn in place](examples/display/display.gif)
 
-A display shows one row for each running task and redraws those rows in
-place. When a task ends, its line is printed once above the rows and stays
-in the scrollback. The smallest program looks like this:
+A display shows the tree of the running tasks, one row each, above a
+summary line, and redraws them in place. A task that ends stays under its
+parent, marked, until its top task ends; then the whole tree is printed
+once above the rows, a task under its parent, and stays in the scrollback.
+The smallest program looks like this:
 
 ```ocaml
 let build display =
@@ -334,7 +336,7 @@ let build display =
 
 let main () =
   Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~summary:"Building" build
 ```
 
 `with_task` runs a function as a task, which succeeds when the function
@@ -348,6 +350,14 @@ and the lines it prints on the terminal with `Fmt.pr`.
 
 If the task fails or is cancelled, up to 1 MiB of its output stays under
 its line. Output from outside any task goes above the rows.
+
+The summary line comes last: it names the work, says whether it still runs
+and how it ended, its time and the count of tasks that ended. It stays at
+the bottom of the region while the rows above it come and go, and it is the
+last line printed when the work ends, after everything it counts. A region
+too tall for the terminal folds the tasks that ended under each task into
+one line, such as `✓ 12 done`, then shows only the latest running tasks,
+so a redraw never scrolls the terminal.
 
 The rows are drawn on standard error, which leaves standard output to the
 program. What `print_string`, `Printf` or a child process writes on the
@@ -390,26 +400,48 @@ let run_build progress build =
 Without the option, `TERM=dumb` or a pipe gets the lines of `plain`, but
 without colour.
 
-### A live table above the rows
+### Putting the region together
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
 
-`Display.set_scene` draws whatever a printer prints above the header and
-the rows, each time they are redrawn. A program can use it to keep a table
-of results on screen and fill it in as the work runs:
+The region is a view: a span the program puts together from the display's
+parts and any other span, as it puts widgets together. `Display.tree` is
+the tree of a task, or of every top task, and `Display.summary` the summary
+line; `Display.default_view` is the one, then the other. A table of results
+above the rows is a span above the default view:
 
 ```ocaml
-let watch display (results : unit -> Console.Table.t) =
-  Console.Display.set_scene display (fun ~height:_ ppf ->
-      Console.Table.pp ppf (results ()))
+let view results display ~width ~height =
+  Console.(
+    Span.vcat
+      [
+        Table.to_span ~width:(min width 100) (results ());
+        Display.default_view display ~width ~height;
+      ])
 ```
 
-This scene is as wide as the rows and drawn in the display's theme. It
-shows only on a terminal and disappears when the display closes, so the
-program prints the table again once the work is done, as
-[the example](examples/display/main.ml) does.
+The view is given the terminal's width and the lines the region may take,
+and the display draws its last lines that fit, so the table gives way
+before the rows. With `~keep:true` the tasks that ended stay in the region
+until it closes, and trees side by side make columns, with `Span.hcat`, as
+[examples/columns](examples/columns/main.ml) does:
 
-In a theme with motion, the frame of a table or a panel in the scene moves:
+```ocaml
+let columns display ~width ~height =
+  let half = (min width 100 - 2) / 2 in
+  let tree task = Console.Display.tree ~width:half ~height:(height - 1) task in
+  Console.Span.vcat
+    [
+      Console.Span.hcat (List.map tree (Console.Display.tasks display));
+      Console.Display.summary display;
+    ]
+```
+
+When the display closes, the view's last frame is printed once and stays:
+on a pipe too, after the lines of the tasks. A view is drawn in the
+display's theme.
+
+In a theme with motion, the frame of a table or a panel in the view moves:
 
 - `Theme.matrix` runs digital rain round it (`` `Rain ``, above).
 - `Theme.rainbow` sweeps its palette round it (`` `Sweep ``,
@@ -431,8 +463,8 @@ let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 
 When the output is not a terminal, nothing is redrawn. Each task prints a
 line when it starts and another when it ends, with the lines of its output
-in between, each after the task's name. The header comes last, as a
-summary.
+in between, each after the task's name. The view's last frame comes last:
+by default, the summary line.
 
 `Display.v` opens a display on any formatter. Here it writes into a buffer,
 with a clock that stays at zero, to show what the `build` function above
@@ -441,7 +473,7 @@ prints in a pipe:
 ```ocaml
 # let pipe = Buffer.create 256 in
   let display =
-    Console.Display.v ~header:"Building" ~now:(fun () -> 0.)
+    Console.Display.v ~summary:"Building" ~now:(fun () -> 0.)
       (Format.formatter_of_buffer pipe)
   in
   build display;
@@ -629,8 +661,10 @@ character that reorders the text around it:
   modelled on, and [indicatif](https://github.com/console-rs/indicatif), its
   Rust counterpart for progress bars.
 - [BuildKit](https://github.com/moby/buildkit), whose progress output the
-  display follows: a header with the time and the count of steps, above one
-  row for each running step.
+  display follows: one row for each running step, and a line with the time
+  and the count of steps. Console puts that line last, as a footer, and
+  moves a step to the scrollback with the steps under it, so that the
+  scrollback reads as a tree, as cargo's and Rich's finished lines do.
 - [lipgloss](https://github.com/charmbracelet/lipgloss), a Go library whose
   way of combining styles `Style` follows.
 - [printbox](https://github.com/c-cube/printbox), which prints boxes, tables

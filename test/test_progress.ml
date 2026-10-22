@@ -32,7 +32,7 @@ let shown ?size progress =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let d =
-    Display.v ?size ~progress ~header:"Building" ~now:(fun () -> 0.) ppf
+    Display.v ?size ~progress ~summary:"Building" ~now:(fun () -> 0.) ppf
   in
   Display.with_task d "fine" (fun t -> Display.log t "quiet line");
   (try

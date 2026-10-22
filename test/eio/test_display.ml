@@ -12,12 +12,12 @@ module D = Console.Display
 
 (* Run [f] under a fresh display captured into a string, then return the
    text. *)
-let capture ?header f =
+let capture ?summary f =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  Console_eio.run ~clock ~ppf ?header f;
+  Console_eio.run ~clock ~ppf ?summary f;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -27,7 +27,7 @@ let mem ~msg needle haystack =
 (* A finished task commits its label; set_result Ok prints the verdict. *)
 let test_run_banner () =
   let out =
-    capture ~header:"Build" (fun t ->
+    capture ~summary:"Build" (fun t ->
         let step = D.task t "compile foo.ml" in
         D.succeed step;
         D.set_result t ~detail:"3 files, 0 errors" (Ok "build succeeded"))

@@ -6,8 +6,9 @@
 (* A build in the terminal's scrollback: steps that end are printed once and
    stay; only the steps still running are redrawn in place, under a title in
    the theme's palette and a table of the steps, whose frame moves in a theme
-   with motion. The title and the table are printed once the build is done. Name a theme to see it in that one; pipe it
-   through [cat] to see the lines a CI log gets. *)
+   with motion, and above the summary. The title, the table and the summary
+   are printed once the build is done. Name a theme to see it in that one;
+   pipe it through [cat] to see the lines a CI log gets. *)
 
 open Console
 
@@ -84,7 +85,15 @@ let test clock display =
   done;
   finished "130 passed"
 
-let scene ppf () = Fmt.pf ppf "%a@.%a" Span.pp title Table.pp (table ())
+(* The title and the table above the rows and the summary; they give way
+   first when the rows need the room. *)
+let view display ~width ~height =
+  Span.vcat
+    [
+      title;
+      Table.to_span ~width:(min width 100) (table ());
+      Display.default_view display ~width ~height;
+    ]
 
 let () =
   let name = if Array.length Sys.argv > 1 then Sys.argv.(1) else "default" in
@@ -98,11 +107,9 @@ let () =
   Console_tty.setup ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~header:"Building" (fun display ->
-      Display.set_scene display (fun ~height:_ ppf -> scene ppf ());
+  Console_eio.run ~clock ~summary:"Building" ~view (fun display ->
       Eio.Fiber.both
         (fun () -> fetch clock display)
         (fun () -> compile clock display);
       test clock display;
-      Display.set_result display (Ok "build complete"));
-  Fmt.pr "%a@." scene ()
+      Display.set_result display (Ok "build complete"))

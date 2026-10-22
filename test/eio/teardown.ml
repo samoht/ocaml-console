@@ -110,7 +110,7 @@ let held env =
 let quiet ending env =
   Logs.set_level (Some Logs.Info);
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env)
-    ~progress:`Quiet ~header:"quiet header" (fun display ->
+    ~progress:`Quiet ~summary:"quiet header" (fun display ->
       Console.Display.with_task display "quiet work" (fun task ->
           Console.Display.log task "display line";
           Fmt.pr "stdout line@.";

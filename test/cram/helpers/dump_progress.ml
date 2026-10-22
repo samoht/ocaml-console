@@ -13,7 +13,7 @@ let () =
   (* An eighth of a second is exact in binary: no step's time rounds down. *)
   let tick () = now := !now +. 0.125 in
   let display =
-    Console.Display.v ~header:"Processing"
+    Console.Display.v ~summary:"Processing"
       ~now:(fun () -> !now)
       Format.std_formatter
   in

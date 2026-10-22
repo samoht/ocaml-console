@@ -5,5 +5,7 @@
 
 include Display_core
 
-let v ?layout ?header ?size ?progress ~now ppf =
-  Display_core.v ?layout ?header ?size ?progress ~now ppf
+type view = t -> width:int -> height:int -> Span.t
+
+let v ?layout ?summary ?view ?keep ?size ?progress ~now ppf =
+  Display_core.v ?layout ?summary ?view ?keep ?size ?progress ~now ppf

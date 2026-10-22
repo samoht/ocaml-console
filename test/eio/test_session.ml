@@ -134,7 +134,7 @@ let test_run_clock () =
   let out = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer out in
   let value =
-    Console_eio.run ~clock ~ppf ~header:"build" (fun d ->
+    Console_eio.run ~clock ~ppf ~summary:"build" (fun d ->
         let task = Console.Display.task d "compile" in
         Eio.Fiber.both
           (fun () ->
@@ -263,11 +263,11 @@ let test_run_from_surviving_fiber () =
   let original = ref None and reused = ref false in
   Eio.Switch.run (fun sw ->
       let ended, finish = Eio.Promise.create () in
-      Console_eio.run ~clock ~ppf ~header:"first" (fun d ->
+      Console_eio.run ~clock ~ppf ~summary:"first" (fun d ->
           original := Some d;
           Eio.Fiber.fork ~sw (fun () ->
               Eio.Promise.await ended;
-              Console_eio.run ~clock ~ppf ~header:"second" (fun next ->
+              Console_eio.run ~clock ~ppf ~summary:"second" (fun next ->
                   reused :=
                     Option.fold ~none:false ~some:(( == ) next) !original;
                   Console.Display.with_task next "second-task" (fun task ->

@@ -39,11 +39,13 @@ val render : t -> Span.t -> string
     by the time since [t] started, or plain and still. *)
 
 val frame : t -> Span.t list
-(** [frame t] is the region of [t]: the scene, then the header, then each
-    running task and its log tail, at most [t.height - 1] lines. When they do
-    not fit, the scene gives way first, from its last line, then log lines, the
-    oldest first, then the tasks between the first and the most recent, and a
-    marker counts what is hidden. *)
+(** [frame t] is the region of [t]: the last [t.height - 1] lines of its view,
+    each cut to [t.width]. *)
+
+val final : t -> Span.t list
+(** [final t] is the last frame of [t], printed once it closes: its view drawn
+    still, with no limit on its height, or the default view if [t]'s raises.
+    Without a terminal, no line is cut. *)
 
 val clear : Buffer.t -> t -> unit
 (** [clear buf t] adds to [buf] what erases the region on the screen, counting

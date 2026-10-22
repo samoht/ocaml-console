@@ -85,8 +85,39 @@ let shape ?size = function
   | `Quiet -> (None, Quiet)
   | `Json -> (None, Json)
 
-let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
-    ppf =
+let row t ~id ?key ?parent ~log_lines ~transient label =
+  let now = t.now () in
+  {
+    id;
+    key;
+    disp = t;
+    parent;
+    log_lines;
+    window = Queue.create ();
+    output = Queue.create ();
+    output_bytes = 0;
+    dropped = 0;
+    log_prev = now;
+    label = Display_text.clean label;
+    metric = Spin;
+    transient;
+    started_at = now;
+    ended_at = None;
+    message = None;
+    outcome = None;
+    children = [];
+    child_limit = 16;
+    gone = false;
+    held = 0;
+    weight = 0;
+    shed = 0;
+    last_cur = 0L;
+    last_t = now;
+    rate = 0.;
+  }
+
+let v ?(layout = Layout.default) ?summary ?view ?(keep = false) ?size
+    ?(progress = `Auto) ?scope ~now ppf =
   let size, form = shape ?size progress in
   let depth =
     match Fmt.style_renderer ppf with
@@ -100,8 +131,9 @@ let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
       form;
       depth;
       now;
-      header = Option.map Display_text.clean header;
+      summary = Option.map Display_text.clean summary;
       layout;
+      keep;
       start = now ();
       width = 80;
       height = 24;
@@ -115,13 +147,14 @@ let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
       failed = 0;
       cancelled = 0;
       result = None;
-      scene = None;
+      view;
       frame = [||];
       frame_widths = [||];
       painted_at = neg_infinity;
       changes = 0;
       painted = (-1, -1, -1, -1);
       closed = false;
+      closing = false;
       suspended = 0;
       partial = false;
       writes = Queue.create ();
@@ -132,6 +165,7 @@ let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
       scope = (match scope with Some s -> s | None -> local ());
     }
   in
+  t.root <- Some (row t ~id:(-1) ~log_lines:0 ~transient:true "");
   ignore (Display_region.refresh_size t);
   if is_live t then begin
     Display_region.write t
@@ -202,11 +236,17 @@ let with_output t f =
         Display_region.paint t)
   end
 
-let set_scene t scene =
+let set_view t view =
   if not t.closed then begin
-    t.scene <- Some scene;
-    touch t
+    t.view <- Some view;
+    t.changes <- t.changes + 1;
+    Display_region.paint t
   end
+
+let tasks t = children (root t)
+let tree = Display_tree.tree
+let summary = Display_tree.summary
+let default_view = Display_tree.default_view
 
 (* Lines printed once: above the region, or in turn without one. *)
 let print t = function [] -> touch t | lines -> Display_region.commit t lines
@@ -297,18 +337,15 @@ let kept r =
   (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
   @ List.concat_map (Display_row.under r) (List.rev all)
 
-(* What a task prints when it ends: on a terminal, its line, then all its
-   lines if it failed or was cancelled; quiet, the same but only then, and
-   compact; in turn, its line, then its window again if it failed. Its
-   event says the rest. *)
+(* What a task prints when it ends without a terminal: quiet, its line and
+   all its lines if it failed or was cancelled, compact; in turn, its line,
+   then its window again if it failed. Its event says the rest. *)
 let ending r outcome window =
   let t = r.disp in
   let failed =
     match outcome with `Succeeded -> false | `Failed | `Cancelled -> true
   in
   if r.transient then []
-  else if is_live t then
-    Display_row.committed t r @ if failed then kept r else []
   else
     match t.form with
     | Json -> []
@@ -319,6 +356,81 @@ let ending r outcome window =
         (match outcome with
         | `Failed -> List.concat_map (Display_row.under r) window
         | `Succeeded | `Cancelled -> [])
+
+(* {2 The scrollback}
+
+   On a terminal, a task that ended waits in the region while a task above
+   it runs, or with [keep] until the display closes, and goes to the
+   scrollback with its top task, as its tree. *)
+
+let rec running_above r =
+  match r.parent with
+  | None -> false
+  | Some p -> is_running p || running_above p
+
+let parent_of r = match r.parent with Some p -> p | None -> root r.disp
+
+let adopt p r =
+  p.children <- r :: p.children;
+  p.child_limit <- p.child_limit - 1;
+  if p.child_limit <= 0 then begin
+    (* The children that are gone are forgotten each time the list doubles. *)
+    p.children <- List.filter (fun c -> not c.gone) p.children;
+    p.child_limit <- max 16 (List.length p.children)
+  end
+
+let rec release r =
+  r.gone <- true;
+  List.iter release r.children;
+  r.children <- [];
+  Queue.clear r.output;
+  r.output_bytes <- 0;
+  r.held <- 0
+
+let rec size r =
+  List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
+
+(* The tasks that wait under a task are bounded: past 1 MiB, the oldest
+   are dropped, down to half of it, never the latest. *)
+let held_cap = 1_048_576
+
+let weight r =
+  256 + String.length r.label
+  + Option.fold ~none:0 ~some:String.length r.message
+  + r.output_bytes + r.held
+
+let shed p latest =
+  let keep c =
+    if
+      p.held > held_cap / 2 && c != latest && (not (is_running c)) && not c.gone
+    then begin
+      p.held <- p.held - c.weight;
+      p.shed <- p.shed + size c;
+      release c;
+      false
+    end
+    else true
+  in
+  p.children <- List.rev (List.filter keep (List.rev p.children))
+
+let hold r =
+  let p = parent_of r in
+  r.weight <- weight r;
+  p.held <- p.held + r.weight;
+  if p.held > held_cap then shed p r
+
+(* A top task that ends, unless [keep], goes to the scrollback as its
+   tree. *)
+let moved r =
+  let t = r.disp in
+  if t.keep || running_above r then begin
+    hold r;
+    []
+  end
+  else
+    let lines = Display_tree.scrollback t ~width:(room t) r in
+    release r;
+    lines
 
 (* The tasks under one that ends end first: they succeed with it, and are
    cancelled when it fails or is cancelled. *)
@@ -335,7 +447,6 @@ let rec finish outcome ?message r =
     let children =
       List.concat_map (finish child_outcome) (List.rev (running_children r))
     in
-    r.children <- [];
     let window = List.rev (Queue.fold (fun acc l -> l :: acc) [] r.window) in
     Queue.clear r.window;
     r.ended_at <- Some (t.now ());
@@ -350,38 +461,20 @@ let rec finish outcome ?message r =
     if Display_event.is_json t then Display_event.ended r;
     t.stale <- t.stale + 1;
     compact t;
-    let lines = ending r outcome window in
-    Queue.clear r.output;
-    r.output_bytes <- 0;
-    children @ lines
+    if is_live t then begin
+      (* A success folds its output away. *)
+      if outcome = `Succeeded then begin
+        Queue.clear r.output;
+        r.output_bytes <- 0
+      end;
+      children @ moved r
+    end
+    else begin
+      let lines = ending r outcome window in
+      release r;
+      children @ lines
+    end
   end
-
-let row t ~id ?key ?parent ~log_lines ~transient label =
-  let now = t.now () in
-  {
-    id;
-    key;
-    disp = t;
-    parent;
-    log_lines;
-    window = Queue.create ();
-    output = Queue.create ();
-    output_bytes = 0;
-    dropped = 0;
-    log_prev = now;
-    label = Display_text.clean label;
-    metric = Spin;
-    transient;
-    started_at = now;
-    ended_at = None;
-    message = None;
-    outcome = None;
-    children = [];
-    child_limit = 16;
-    last_cur = 0L;
-    last_t = now;
-    rate = 0.;
-  }
 
 let start t r =
   t.started <- t.started + 1;
@@ -389,22 +482,14 @@ let start t r =
   Option.iter (fun k -> Hashtbl.replace t.by_key k r) r.key;
   if is_plain t && not r.transient then print t [ Display_row.started r ];
   if Display_event.is_json t then Display_event.started r;
-  match r.parent with
-  | Some p when is_running p ->
-      (* The children that ended are pruned each time the list doubles. *)
-      p.children <- r :: p.children;
-      p.child_limit <- p.child_limit - 1;
-      if p.child_limit <= 0 then begin
-        p.children <- List.filter is_running p.children;
-        p.child_limit <- max 16 (List.length p.children)
-      end;
-      touch t
-  | Some p -> (
-      (* A task started under one that ended takes its ending. *)
-      match p.outcome with
-      | Some `Succeeded -> print t (finish `Succeeded r)
-      | _ -> print t (finish `Cancelled r))
-  | None -> touch t
+  let p = parent_of r in
+  if not p.gone then adopt p r;
+  if is_running p then touch t
+  else
+    (* A task started under one that ended takes its ending. *)
+    match p.outcome with
+    | Some `Succeeded -> print t (finish `Succeeded r)
+    | _ -> print t (finish `Cancelled r)
 
 (* The task of [key] that runs, or a new task, and whether it is new. *)
 let keyed ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
@@ -439,13 +524,7 @@ let keyed ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
 let task ?key ?parent ?log_lines ?transient t label =
   fst (keyed ?key ?parent ?log_lines ?transient t label)
 
-let root t =
-  match t.root with
-  | Some r -> r
-  | None ->
-      let r = row t ~id:(-1) ~log_lines:0 ~transient:true "" in
-      t.root <- Some r;
-      r
+let root = root
 
 let within r f =
   let value = ref None in
@@ -540,10 +619,14 @@ let set_bytes r ~cur ~total =
     set_metric r (Bytes (cur, total))
   end
 
+(* On a terminal, each top task ends with the tasks under it, in the order
+   they started, so that the scrollback reads in that order. *)
 let finish_running outcome ?message t =
-  List.iter
-    (fun r -> print t (finish outcome ?message r))
-    (List.rev (running_rows t))
+  let rows =
+    if is_live t then List.filter is_running (children (root t))
+    else List.rev (running_rows t)
+  in
+  List.iter (fun r -> print t (finish outcome ?message r)) rows
 
 let set_result ?detail t result =
   if (not t.closed) && Option.is_none t.result then begin
@@ -565,33 +648,36 @@ let set_result ?detail t result =
 
 let close t =
   if not t.closed then begin
-    (* The scene goes with the display, and cannot keep it from closing. *)
-    t.scene <- None;
-    finish_running `Cancelled t;
+    (* Closed first, so that the tasks it ends draw no region. *)
     t.closed <- true;
-    let header =
+    finish_running `Cancelled t;
+    let final =
       match t.form with
-      | Plain -> Option.to_list (Display_row.header t)
+      | Plain ->
+          ignore (Display_region.refresh_size t);
+          Display_region.final t
       | Quiet | Json -> []
     in
-    let verdict, detail =
+    let lines =
       match t.result with
-      | None -> ([], [])
-      | Some (r, d) -> (Display_row.verdict t r, Display_row.detail t d)
+      | None -> final
+      | Some (r, d) -> final @ Display_row.detail t d @ Display_row.verdict t r
     in
-    let lines = header @ detail @ verdict in
+    t.view <- None;
+    List.iter release (root t).children;
+    (root t).children <- [];
     let render l = Display_region.render t l ^ Display_region.eol t in
+    let out = String.concat "" (List.map render lines) in
     if is_live t then begin
-      ignore (Display_region.refresh_size t);
       let buf = Buffer.create 256 in
       Display_region.clear buf t;
       Buffer.add_string buf Display_region.show_cursor;
-      List.iter (fun l -> Buffer.add_string buf (render l)) lines;
+      Buffer.add_string buf out;
       Display_region.write t (Buffer.contents buf)
     end
     else begin
       if Display_event.is_json t then Display_event.result t
-      else Display_region.write t (String.concat "" (List.map render lines));
+      else Display_region.write t out;
       t.release ()
     end
   end

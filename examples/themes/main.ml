@@ -33,8 +33,15 @@ let tree =
     ]
 
 let progress ~clock table =
-  Console_eio.run ~clock ~ppf:Fmt.stdout ~header:"Building" (fun d ->
-      Display.set_scene d (fun ~height:_ ppf -> Table.pp ppf table);
+  (* The table above the rows and the summary. *)
+  let view d ~width ~height =
+    Span.vcat
+      [
+        Table.to_span ~width:(min width 100) table;
+        Display.default_view d ~width ~height;
+      ]
+  in
+  Console_eio.run ~clock ~ppf:Fmt.stdout ~summary:"Building" ~view (fun d ->
       let ok = Display.task d "fetch" in
       Display.set_count ok ~cur:3 ~total:3;
       Display.succeed ok;

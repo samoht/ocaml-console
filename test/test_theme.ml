@@ -332,7 +332,7 @@ let test_roles () =
     (print Tree.pp (Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ]));
   check "rule" (muted ^ "\u{2500}") (print Rule.pp (Rule.v ()));
   check "bar track" muted (print Bar.pp (Bar.v ~width:4 0.5));
-  let term = terminal ~theme:t ~styled:true ~header:"Build" () in
+  let term = terminal ~theme:t ~styled:true ~summary:"Build" () in
   let task = Display.task term.display "compile" in
   Display.set_count task ~cur:1 ~total:3;
   Display.redraw term.display;
@@ -397,7 +397,10 @@ let display_bytes theme =
   Theme.set ppf theme;
   Fmt.set_utf_8 ppf false;
   let d =
-    Display.v ~header:"Build" ~size:(fun () -> (24, 6)) ~now:(fun () -> 0.3) ppf
+    Display.v ~summary:"Build"
+      ~size:(fun () -> (24, 6))
+      ~now:(fun () -> 0.3)
+      ppf
   in
   let parent = Display.task d "a label much wider than the terminal" in
   let child = Display.task ~parent d "child" in
@@ -543,7 +546,8 @@ let frames theme times =
       ]
       [ [ Span.text "fetch"; Span.text "1.2s" ] ]
   in
-  Display.set_scene term.display (fun ~height:_ ppf -> Table.pp ppf table);
+  Display.set_view term.display (fun _ ~width ~height:_ ->
+      Table.to_span ~width table);
   let now = ref 0. in
   List.map
     (fun time ->

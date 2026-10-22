@@ -32,14 +32,23 @@ Initial release of `console` and `console-eio`.
   text or a header, in the theme of the formatter it is printed on. `Theme.all` and
   `Theme.of_string` make a `--theme` option one line of Cmdliner.
 - Motion. In a live display the frame of a table or a panel drawn above the
-  rows (`Display.set_scene`) moves in the theme's way (`Theme.motion`):
+  rows (`Display.set_view`) moves in the theme's way (`Theme.motion`):
   digital rain in `Theme.matrix`, a rainbow sweep in `Theme.rainbow`, a
   shimmer in the colour schemes. Only colours and glyphs of one width
   change; printed with `Fmt`, on a pipe or without colour, a frame is still,
   and `Theme.still` stops every motion and the spinner.
-- Live progress. `Display` shows one row per running task, with a spinner
-  or a bar, a count or bytes and a rate, and redraws only those rows; a task
-  that ends leaves one line in the scrollback. `Display.with_task` runs a
+- Live progress. `Display` shows the tree of the running tasks, one row
+  each, with a spinner or a bar, a count or bytes and a rate, above a
+  summary line (`~summary`) with the work's time and count, and redraws
+  only those rows. A task that ends stays under its parent, marked, until
+  its top task ends, and the top task's tree then goes to the scrollback
+  whole, each task once under its parent; the summary is the last line
+  printed. The region never scrolls the terminal: a tree too tall folds the
+  tasks that ended into one line, then shows the latest running tasks. The
+  region is a view (`Display.set_view`), a span the program puts together
+  from `Display.tree`, `Display.summary` and any widget, such as a table
+  above the rows or trees side by side with `~keep:true`; its last frame
+  stays when the display closes. `Display.with_task` runs a
   function as a task, current in the fibers it forks, that succeeds when the
   function returns and fails when it raises. A task's output shows under it
   while it runs, and stays if the task fails: its `Logs` messages, its

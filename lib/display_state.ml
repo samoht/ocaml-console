@@ -33,8 +33,9 @@ type t = {
   form : form;
   depth : Color.depth option;
   now : unit -> float;
-  header : string option;
+  summary : string option;
   layout : Display_layout.t;
+  keep : bool;
   start : float;
   mutable width : int;
   mutable height : int;
@@ -48,13 +49,14 @@ type t = {
   mutable failed : int;
   mutable cancelled : int;
   mutable result : ((string, string) result * string list) option;
-  mutable scene : (height:int -> Format.formatter -> unit) option;
+  mutable view : (t -> width:int -> height:int -> Span_core.t) option;
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;
   mutable changes : int;
   mutable painted : int * int * int * int;
   mutable closed : bool;
+  mutable closing : bool;
   mutable suspended : int;
   mutable partial : bool;
   writes : string Queue.t;
@@ -92,6 +94,10 @@ and row = {
   mutable outcome : outcome option;
   mutable children : row list;
   mutable child_limit : int;
+  mutable gone : bool;
+  mutable held : int;
+  mutable weight : int;
+  mutable shed : int;
   mutable last_cur : int64;
   mutable last_t : float;
   mutable rate : float;
@@ -141,28 +147,7 @@ let running_rows t =
   |> List.rev
 
 let running_children r = List.filter is_running r.children
+let children r = List.rev (List.filter (fun c -> not c.gone) r.children)
 
-(* For each running row, in order: whether it is the last running row under
-   its parent, and the same for each of its ancestors, innermost first. Rows
-   start after their parent, so one pass forward sees each parent first. *)
-let lasts rows =
-  let last = Hashtbl.create 16 in
-  let parent_id r = match r.parent with None -> -1 | Some p -> p.id in
-  List.iter
-    (fun r ->
-      if not (Hashtbl.mem last (parent_id r)) then
-        Hashtbl.add last (parent_id r) r.id)
-    (List.rev rows);
-  let flags = Hashtbl.create 16 in
-  List.map
-    (fun r ->
-      let own = Hashtbl.find last (parent_id r) = r.id in
-      let above =
-        match r.parent with
-        | None -> []
-        | Some p -> Option.value (Hashtbl.find_opt flags p.id) ~default:[]
-      in
-      let l = own :: above in
-      Hashtbl.replace flags r.id l;
-      (r, l))
-    rows
+(* A display has its root from the time it is made. *)
+let root t = Option.get t.root

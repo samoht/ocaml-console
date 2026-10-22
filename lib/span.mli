@@ -96,7 +96,8 @@ val hcat : ?gap:int -> t list -> t
       that [hcat] adds.
 
     A widget goes in it by its [to_span], at the width it is given, and the
-    result goes in a table cell, a panel, a tree or a scene, as any span does:
+    result goes in a table cell, a panel, a tree or a display's view, as any
+    span does:
 
     {[
     let report tree panel =

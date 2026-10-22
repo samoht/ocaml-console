@@ -128,7 +128,7 @@ let test_vcat texts =
    every widget as a span in every other, a table in a panel in a cell of a
    table next to a tree, in roles, styles and gradients, printed in any
    theme, at any colour depth or none, in UTF-8 or not, at any margin, and
-   drawn as a display's scene. *)
+   drawn in a display's view. *)
 
 (* Text that is hard to lay out: wide, combining, joined and selected
    emoji, a spacing mark, controls and escapes, and ASCII. *)
@@ -161,7 +161,8 @@ let hostile_text s =
 
 (* A span may be a widget as a span ([Nest]), and a block a printer in a
    style ([Styled]), so that every widget nests in every other: a table in a
-   panel in a cell of a table, side by side ([Hcat]), in a scene. *)
+   panel in a cell of a table, side by side ([Hcat]) or one under the other
+   ([Vcat]), in a view. *)
 type span =
   | Text of int * string
   | Gradient of string
@@ -435,11 +436,11 @@ let test_printed block k m =
       if (not look.utf_8) && List.for_all is_ascii (texts block) then
         if not (is_ascii out) then failf "not ASCII: %S" out
 
-(* {1 Scenes} *)
+(* {1 Views} *)
 
-(* The screen a display draws with [block] as its scene, in [theme] at
+(* The screen a display draws with [block] as its view, in [theme] at
    [time]. *)
-let scene_screen theme ~width ~height ~time block =
+let view_screen theme ~width ~height ~time block =
   let term = Console_vte.v ~rows:height ~cols:width () in
   let buf = Buffer.create 1024 in
   let ppf =
@@ -453,7 +454,7 @@ let scene_screen theme ~width ~height ~time block =
   let d =
     Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> time) ppf
   in
-  (try Display.set_scene d (fun ~height:_ ppf -> pp block ppf ())
+  (try Display.set_view d (fun _ ~width:_ ~height:_ -> nested 0 block)
    with Invalid_argument _ -> ());
   Display.redraw d;
   let g = Console_vte.grid term in
@@ -468,15 +469,15 @@ let scene_screen theme ~width ~height ~time block =
 
 let is_text c = String.length c = 1 && Char.Ascii.is_alphanum c.[0]
 
-(* A scene in a theme that moves, at any time: each frame lays its cells
+(* A view in a theme that moves, at any time: each frame lays its cells
    out as the still frame does, so motion changes no width, and keeps every
    letter and digit of it, so only the frame's lines move. *)
-let test_scene block k w t =
+let test_view block k w t =
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
   let width = 1 + (w mod 120) and height = 3 + (k / 64 mod 12) in
   let time = Float.of_int t /. 10. in
-  let moving = scene_screen theme ~width ~height ~time block
-  and still = scene_screen (Theme.still theme) ~width ~height ~time block in
+  let moving = view_screen theme ~width ~height ~time block
+  and still = view_screen (Theme.still theme) ~width ~height ~time block in
   List.iteri
     (fun y (m, s) ->
       List.iteri
@@ -641,9 +642,9 @@ let suite =
         test_hcat_combining_suffix;
       test_case "hcat widgets take the cells of their widths" [ uint8; uint8 ]
         test_hcat_margin;
-      test_case "a scene of widgets moves only its lines"
+      test_case "a view of widgets moves only its lines"
         [ block_gen; uint16; uint8; uint8 ]
-        test_scene;
+        test_view;
       test_case "vcat lines are the spans' lines in turn"
         [ list bytes ]
         test_vcat;

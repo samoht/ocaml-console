@@ -5,17 +5,18 @@
 
 (** Progress rows for work that takes time.
 
-    A display shows one row for each task still running, with a spinner or a
-    progress bar. It redraws those rows in place, at the bottom of the
-    terminal's normal output: they are its {e live region}. When a task ends,
-    its line is printed once above the region and stays in the scrollback.
+    A display shows the tree of the tasks still running, one row each, with a
+    spinner or a progress bar, above a summary line. It redraws them in place,
+    at the bottom of the terminal's normal output: they are its {e live region}
+    ({!design}). When a top task ends, its tree is printed once above the region
+    and stays in the scrollback.
 
     When the output is not a terminal, such as a pipe or a CI log, nothing is
     redrawn, unless the [`Tty] {!Progress} mode asks for the rows. Instead:
     - a task prints a line when it starts;
     - it prints a line when it ends, with [failed] or [cancelled] at the end
       when it did not succeed;
-    - the header comes last, as a summary.
+    - the summary comes last.
 
     Each of these lines starts on a line of its own, after a line feed when what
     the program wrote on the same formatter did not end its line.
@@ -40,8 +41,8 @@
     - {!within} makes a task current again, for example from another fiber, and
       {!log} gives it a line from code where it is not current.
 
-    Output is what the program prints while a task is current ({!tasks}),
-    without its escape codes:
+    Output is what the program prints while a task is current
+    ({!section-tasks}), without its escape codes:
     - its {!log} lines;
     - under [Console_eio.run], its [Logs] messages and the lines it prints with
       [Fmt.pr] or [Fmt.epr] that [Console_eio.run] takes.
@@ -76,8 +77,55 @@
 
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of a task's output, or the level of
-    a [Logs] message. In the header, the mark says whether work is still running
-    and how it ended.
+    a [Logs] message. In the summary, the mark says whether work is still
+    running and how it ended.
+
+    {1:design Design}
+
+    On a terminal, a display writes in two places: the {e scrollback}, where a
+    line is printed once and never rewritten, and the {e region} below it, which
+    it redraws in place. The region is a {e view} ({!views}): a span the program
+    may put together from the display's parts, a tree of tasks ({!tree}) and the
+    summary line ({!summary}), and any other span, such as a {!Table.to_span}.
+    The default view is the tree of every top task, then the summary.
+
+    - The summary is the last line of the default view, so the line that says
+      how far the work is stays where the eye left it, below the rows, and it is
+      the last line printed when the display closes, after all it counts.
+    - A task that ends stays in the region, marked as it ended, under its
+      parent, while its top task runs.
+    - When a top task ends, it moves to the scrollback with every task under it,
+      as its tree: each task once, under its parent, in the order they started,
+      and a task that failed or was cancelled followed by its output. Work moves
+      by top task so that a task never lands above its parent and the tasks of
+      one top task stay together, however their endings interleave.
+    - With [keep] ({!v}), no task moves: the tasks that ended stay in the region
+      until the display closes, as in a view of trees side by side, where a
+      column should not empty while the others run.
+    - Output outside any task goes to the scrollback at once, above the region
+      ({!output}).
+    - In the region, only running rows, their windows and the summary change: a
+      task that ended keeps its line as it ended until it leaves the region, or
+      folds to fit.
+    - The region is never taller than the terminal less one row, so a redraw
+      never scrolls the terminal: a view taller than that loses its first lines,
+      and a summary at its bottom stays.
+    - A tree too tall for its height first folds the tasks that ended under each
+      task into one line, such as [✓ 12 done], then its windows give way, the
+      oldest line first, then only its latest running tasks show, after a line
+      such as [… 3 more running].
+    - At close, the tasks still running are cancelled and move as above, then
+      the view's last frame is printed once, still, and stays: the summary alone
+      in the default view.
+    - The tasks that wait in the region under a task are bounded: past 1 MiB,
+      the oldest are dropped, and a line counts them.
+
+    Without a terminal there is no region. The tasks print the lines of
+    {!Progress}: one line when a task starts and one when it ends, in the order
+    they happen, indented under its parent, and at close the view's last frame
+    comes last, once: the summary alone in the default view, since every task
+    has printed its lines. A terminal's scrollback keeps one line for each task
+    instead, in the order of its tree, with the tree's guides.
 
     {1:guarantees Guarantees}
 
@@ -110,12 +158,12 @@
 
 (** The pieces of a running task's row.
 
-    A layout draws the rows that a display redraws on a terminal. The other
+    A layout draws the rows of running tasks in a tree ({!tree}). The other
     lines have pieces of their own, whatever the layout, and no bar, rate or
     percentage shows on them.
-    - The line a task prints when it ends is its mark, its label, its count and
-      its elapsed time. Without a terminal, [failed] or [cancelled] follows when
-      the task did not succeed.
+    - The line of a task that ended is its mark, its label, its count and its
+      elapsed time. Without a terminal, [failed] or [cancelled] follows when the
+      task did not succeed.
     - Without a terminal, the line a task prints when it starts is its mark and
       its label.
 
@@ -187,9 +235,16 @@ end
 type t = Display_state.t
 (** The type for displays. *)
 
+type view = t -> width:int -> height:int -> Span.t
+(** The type for views: [view display ~width ~height] is the region of [display]
+    on a terminal [width] columns wide, at most [height] lines tall ({!views}).
+*)
+
 val v :
   ?layout:Layout.t ->
-  ?header:string ->
+  ?summary:string ->
+  ?view:view ->
+  ?keep:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
   now:(unit -> float) ->
@@ -209,7 +264,12 @@ val v :
       The display takes none of what the program prints on [ppf]: with [`Quiet]
       it shows, and with [`Json] it breaks the lines of events. {!log} gives
       such a line to a task, and [Console_eio.run] takes the standard outputs.
-    - [header], if given, names the work on a line above the rows.
+    - [summary], if given, names the work on the summary line ({!val-summary}).
+    - [view] (defaults to {!default_view}) is the region on a terminal
+      ({!set_view}).
+    - [keep] (defaults to [false]) keeps the tasks that ended in the region
+      until the display closes, where they otherwise move to the scrollback with
+      their top task ({!design}).
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row
       redrawn on a terminal; the lines printed in turn have their own
       ({!Layout}).
@@ -239,35 +299,6 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
     drawn from the first column of the row where [f] left the cursor, on rows it
     erases first. *)
 
-val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
-(** [set_scene display scene] draws what [scene ~height ppf] prints above the
-    header each time the region is drawn, in place of the scene set before.
-
-    - [ppf] is in the theme and the UTF-8 of [display]'s formatter. Its margin
-      is the width of the rows, so a {!Table.pp} or a {!Panel.pp} printed on it
-      fits.
-    - A span printed on [ppf] keeps its styles, and so does the text of a
-      {!Style.styled}. Other text, that of [Fmt.styled] included, has none.
-    - [height] is the number of lines that the header and the rows leave. The
-      lines after them are not drawn, and a line wider than the rows is cut.
-    - A [scene] that raises is dropped. The call that was drawing it, such as
-      {!redraw} or {!set_count}, draws the region without it, then raises the
-      exception again.
-
-    While [display] draws in colour, a frame drawn in a theme with a
-    {!Theme.val-motion} moves, by the time since [display] started, and on a
-    terminal without colour it stands still.
-
-    Without a terminal the scene is not drawn, and once [display] closes it is
-    gone, so a scene should show what the program also prints, such as a table
-    it prints when the work is done.
-
-    {[
-    let watch display results =
-      Console.Display.set_scene display (fun ~height:_ ppf ->
-          Console.Table.pp ppf (results ()))
-    ]} *)
-
 val set_result : ?detail:string -> t -> (string, string) result -> unit
 (** [set_result display result] says how the work ended. When [display] closes,
     it prints [result]'s message after a success or failure mark, and [detail]
@@ -277,12 +308,14 @@ val set_result : ?detail:string -> t -> (string, string) result -> unit
 val close : t -> unit
 (** [close display] cancels the tasks still running, unless {!set_result} with
     [Ok] had them succeed. It takes the region off the screen, shows the cursor
-    and prints the header, then the result of {!set_result}.
+    and prints the last frame of the view on a terminal ({!design}), the summary
+    otherwise, then the result of {!set_result}. A view that raises then is
+    dropped, and the default view's frame printed in its place.
 
     A closed display ignores what it is told, so that a fiber that outlives it
-    does not fail. Closing it again, {!redraw}, {!set_scene} and {!set_result}
-    do nothing, and [with_output display f] is [f ppf], with [ppf] the formatter
-    of {!v}. *)
+    does not fail. Closing it again, {!redraw}, {!set_view} and {!set_result} do
+    nothing, and [with_output display f] is [f ppf], with [ppf] the formatter of
+    {!v}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics, in an unspecified format. *)
@@ -412,3 +445,73 @@ val fail : ?message:string -> task -> unit
 
 val cancel : ?message:string -> task -> unit
 (** [cancel task] is like {!succeed} but ends [task] as cancelled. *)
+
+(** {1:views Views}
+
+    A view is the region of a display on a terminal, as a span ({!Span}). The
+    display calls it each time it draws, with the terminal's width and the
+    number of lines the region may take, draws the last lines that fit, each cut
+    to the width, and redraws only those that changed. Any span goes in a view:
+    a {!Table.to_span} above the tasks, trees side by side with {!Span.hcat},
+    one under the other with {!Span.vcat}.
+
+    {[
+    let view display ~width ~height =
+      let half = (min width 100 - 2) / 2 in
+      let tree task =
+        Console.Display.tree ~width:half ~height:(height - 1) task
+      in
+      match Console.Display.tasks display with
+      | [ a; b ] ->
+          Console.Span.(
+            vcat [ hcat [ tree a; tree b ]; Console.Display.summary display ])
+      | _ -> Console.Display.default_view display ~width ~height
+    ]}
+
+    - The view is drawn in [display]'s theme. A span keeps its styles, and a
+      widget's span is laid out in that theme.
+    - While [display] draws in colour, a frame drawn in a theme with a
+      {!Theme.val-motion} moves, by the time since [display] started, and on a
+      terminal without colour it stands still.
+    - A view that raises is dropped. The call that was drawing it, such as
+      {!redraw} or {!set_count}, draws the default view, then raises the
+      exception again.
+    - Without a terminal no view is drawn ({!design}). *)
+
+val set_view : t -> view -> unit
+(** [set_view display view] draws the region of [display] with [view] from now
+    on, in place of the view set before, and draws it at once. *)
+
+val default_view : view
+(** [default_view display ~width ~height] is the tree of every top task of
+    [display], fit to [height] less the summary's line, then {!val-summary}.
+    [width] is ignored: the tree is as wide as {!tree} makes it. *)
+
+val tasks : t -> task list
+(** [tasks display] are the top tasks of [display] in its region, in the order
+    they started: those that run, and with [keep] those that ended. *)
+
+val tree : ?width:int -> ?height:int -> task -> Span.t
+(** [tree task] is the tree of [task] in the region: the row of [task], then the
+    rows of the tasks under it, each under its parent with the guides of a
+    {!Tree}, in the order they started. The tree of {!root} is those of the top
+    tasks.
+
+    - A running task's row is drawn by the {!Layout} of the display, its window
+      under it; a task that ended is its line ({!Layout}), and a transient one
+      leaves its place to the tasks under it.
+    - [width] (defaults to the terminal's width, at most 100) is the width of
+      each line, and [height] (defaults to no limit) the most lines it takes.
+      When the tree does not fit, it folds as {!design} says.
+    - In the last frame, once the display closes, the tree holds every task,
+      none folded, each failure or cancellation followed by its output, and a
+      line too wide goes on over the next ones.
+    - The tree of a task that moved to the scrollback is {!Span.empty}. *)
+
+val summary : t -> Span.t
+(** [summary display] is the summary line of [display], if it has a name ({!v}),
+    and {!Span.empty} otherwise: the mark of its state, its name, the time since
+    it started and the count of the tasks that ended out of those started. On a
+    terminal it is at most 100 cells, the name kept longest. A view that wants
+    more says it next to it, such as
+    [Span.(summary display ++ text "  3 warnings")]. *)

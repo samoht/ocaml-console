@@ -5,29 +5,45 @@
 
 (** The lines a display draws, as spans.
 
-    A task is drawn three ways: {{!live}live}, in the region, on one row of at
-    most the terminal's width; {{!committed}committed}, printed above the region
-    once it ends, its count and timer against the right edge; and
-    {{!appended}appended}, printed in turn without a terminal, compact. *)
+    A task is drawn three ways: {{!live}live}, a running task in a tree of the
+    region; {{!ended}ended}, a task that ended in a tree, its count and timer
+    against the right edge; and {{!appended}appended}, printed in turn without a
+    terminal, compact. In a tree a task's line starts with the guides that
+    [lasts] draws: whether it is the last line under its parent, then the same
+    for each task above it, innermost first, the outermost drawing nothing. *)
 
 open Display_state
 
 (** {1:rows Tasks} *)
 
-val live : t -> lasts:bool list -> row -> Span.t
-(** [live t ~lasts r] is [r]'s row in the region, its tree guide drawn from
-    [lasts] ({!Display_state.lasts}), its label cut to the room the other pieces
-    leave; at most [t.width] cells. *)
+val live : t -> width:int -> lasts:bool list -> row -> Span.t
+(** [live t ~width ~lasts r] is the line of the running task [r], its label cut
+    to the room the other pieces leave; at most [width] cells. *)
 
-val tail : t -> lasts:bool list -> row -> Span.t list
-(** [tail t ~lasts r] are the lines of [r]'s window under its row, oldest first,
-    each of at most [t.width] cells. *)
+val tail : t -> width:int -> lasts:bool list -> row -> Span.t list
+(** [tail t ~width ~lasts r] are the lines of [r]'s window under its line,
+    oldest first, each of at most [width] cells. *)
 
-val committed : t -> row -> Span.t list
-(** [committed t r] is the line printed when [r] ends on a terminal: its mark
+val ended :
+  t -> width:int -> lasts:bool list -> whole:bool -> row -> Span.t list
+(** [ended t ~width ~lasts ~whole r] is the line of [r], which ended: its mark
     and label, then its count and timer in the columns every task uses. A label
-    that does not fit goes on over the lines below. Each line is at most
-    [t.width] cells. *)
+    that does not fit is cut, or with [whole] goes on over the lines below. Each
+    line is at most [width] cells. *)
+
+val output : t -> width:int -> lasts:bool list -> row -> Span.t list
+(** [output t ~width ~lasts r] is the output [r] kept, under its line in a tree,
+    whole: a line that does not fit goes on over the lines below. *)
+
+val finished : t -> width:int -> lasts:bool list -> int -> Theme.mark -> Span.t
+(** [finished t ~width ~lasts n m] is the line, after the mark [m], that stands
+    for [n] tasks that ended. *)
+
+val shed : t -> width:int -> lasts:bool list -> int -> Span.t
+(** [shed t ~width ~lasts n] is the line that says [n] tasks were dropped. *)
+
+val more : t -> width:int -> int -> Span.t
+(** [more t ~width n] is the line that says [n] more tasks run. *)
 
 val appended : row -> Span.t
 (** [appended r] is the line printed when [r] ends without a terminal. *)
@@ -56,12 +72,13 @@ val message : t -> level -> string -> Span.t list
 (** [message t level s] is the Logs message [s] of no task, after [level]'s
     mark, folded to the terminal's width. *)
 
-(** {1:summary The header and the result} *)
+(** {1:summary The summary and the result} *)
 
-val header : t -> Span.t option
-(** [header t] is the header of [t], if it has one: the mark of its state, its
-    name, its time and the tasks that ended out of those started. On a terminal
-    it is at most [t.width] cells, the name kept longest. *)
+val summary : t -> Span.t option
+(** [summary t] is the summary line of [t], if it has a name: the mark of its
+    state, its name, its time and the tasks that ended out of those started. On
+    a terminal it is at most {!Display_state.room} cells, the name kept longest.
+*)
 
 val verdict : t -> (string, string) result -> Span.t list
 (** [verdict t r] is the line of the result [r], wrapped to the terminal. *)

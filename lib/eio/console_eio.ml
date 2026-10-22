@@ -85,10 +85,10 @@ let reading clock =
    terminal; quiet or as events, those that write where [ppf] does, so
    that a task's output is printed only if it fails, or is an event; drawn
    on another output, [ppf] alone. *)
-let display ~progress ~now ?layout ?header ppf =
+let display ~progress ~now ?layout ?summary ?view ?keep ppf =
   let scope = Session.scope in
   let live ~size ~intercept ~cursor =
-    ( Display_driver.v ?layout ?header ~size ~scope ~now (own ppf),
+    ( Display_driver.v ?layout ?summary ?view ?keep ~size ~scope ~now (own ppf),
       intercept,
       cursor )
   in
@@ -103,11 +103,13 @@ let display ~progress ~now ?layout ?header ppf =
   let lines form =
     match (form, descriptor ppf) with
     | (`Json | `Quiet), Some (_, unix) ->
-        ( Display_driver.v ?layout ?header ~progress:form ~scope ~now (own ppf),
+        ( Display_driver.v ?layout ?summary ?view ?keep ~progress:form ~scope
+            ~now (own ppf),
           sharing unix,
           ignore )
     | _ ->
-        ( Display_driver.v ?layout ?header ~progress:form ~scope ~now ppf,
+        ( Display_driver.v ?layout ?summary ?view ?keep ~progress:form ~scope
+            ~now ppf,
           [],
           ignore )
   in
@@ -129,12 +131,12 @@ let display ~progress ~now ?layout ?header ppf =
   | (`Plain | `Quiet | `Json) as form -> lines form
 
 (* A display of its own, which [f] is given. *)
-let open_display ~clock ~ppf ?layout ?header ~progress f =
+let open_display ~clock ~ppf ?layout ?summary ?view ?keep ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
   let now = reading clock in
-  match display ~progress ~now ?layout ?header ppf with
+  match display ~progress ~now ?layout ?summary ?view ?keep ppf with
   | display, intercept, cursor ->
       Session.run ~cursor
         ~sleep:(Eio.Time.Mono.sleep clock)
@@ -143,10 +145,12 @@ let open_display ~clock ~ppf ?layout ?header ~progress f =
       Session.release ();
       raise e
 
-let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(progress = `Auto) f =
+let run ~clock ?(ppf = Fmt.stderr) ?layout ?summary ?view ?keep
+    ?(progress = `Auto) f =
   match Session.find () with
   | Some display -> f display
   | None -> (
       match Session.join f with
       | Some v -> v
-      | None -> open_display ~clock ~ppf ?layout ?header ~progress f)
+      | None ->
+          open_display ~clock ~ppf ?layout ?summary ?view ?keep ~progress f)

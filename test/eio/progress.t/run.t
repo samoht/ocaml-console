@@ -5,20 +5,21 @@ Cmdliner.Arg.enum does.
   $ export CONSOLE_FROZEN_CLOCK=1
 
 With --progress=auto, the default, a terminal gets the rows redrawn in
-place, and the screen keeps the lines of the tasks that ended:
+place, and the screen keeps the tree of the tasks that ended, then the
+summary:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=auto
-    [+] sha256:abcd...                                 2.00 GiB / 2.00 GiB    0.0s
   [+] RUN make                                                         5/5    0.0s
+    +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    0.0s
   [+] Building 0.0s (2/2)
 
   $ ../tty.exe ../../../examples/progress/main.exe
-    [+] sha256:abcd...                                 2.00 GiB / 2.00 GiB    0.0s
   [+] RUN make                                                         5/5    0.0s
+    +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    0.0s
   [+] Building 0.0s (2/2)
 
 A pipe gets plain lines instead, one when a task starts, its output and one
-when it ends, then the header:
+when it ends, then the summary:
 
   $ ../../../examples/progress/main.exe 2>&1 | cat
   [-] RUN make
@@ -53,15 +54,15 @@ recorder reads: the bytes leave the screen a terminal shows. The rows are
 80 columns wide unless COLUMNS says otherwise:
 
   $ ../../../examples/progress/main.exe --progress=tty 2>&1 | ../tty.exe -
-    [+] sha256:abcd...                                 2.00 GiB / 2.00 GiB    0.0s
   [+] RUN make                                                         5/5    0.0s
+    +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    0.0s
   [+] Building 0.0s (2/2)
 
   $ COLUMNS=50 ../../../examples/progress/main.exe --progress=tty 2>&1 \
   >   | ../tty.exe -
-    [+] sha256:abcd..    2.00 GiB / 2.00 GiB    0.0s
-        .
   [+] RUN make                           5/5    0.0s
+    +-- [+] sha256:ab    2.00 GiB / 2.00 GiB    0.0s
+            cd...
   [+] Building 0.0s (2/2)
 
 --progress=quiet prints nothing when the work succeeds, and a failed task's

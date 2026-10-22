@@ -12,12 +12,12 @@ let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
-let plain ?header ?layout ?theme f =
+let plain ?summary ?layout ?theme f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let d = Display.v ?header ?layout ~now ppf in
+  let d = Display.v ?summary ?layout ~now ppf in
   let v = f d advance in
   Display.close d;
   Format.pp_print_flush ppf ();
@@ -31,7 +31,7 @@ type term = {
   chunks : string list ref;
 }
 
-let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
+let terminal ?(width = 40) ?(height = 8) ?summary ?layout ?theme
     ?(styled = false) ?(raw = false) ?(before = "") () =
   let buffer = Buffer.create 512 in
   let vte = Console_vte.v ~raw ~rows:height ~cols:width () in
@@ -53,7 +53,7 @@ let terminal ?(width = 40) ?(height = 8) ?header ?layout ?theme
   end;
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let display = Display.v ?header ?layout ~size:(fun () -> !size) ~now ppf in
+  let display = Display.v ?summary ?layout ~size:(fun () -> !size) ~now ppf in
   { vte; display; advance; size; chunks }
 
 let written t = String.concat "" (List.rev !(t.chunks))

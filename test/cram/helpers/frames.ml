@@ -43,7 +43,7 @@ let () =
   in
   let module P = Console.Display in
   let display =
-    P.v ~header:"Build"
+    P.v ~summary:"Build"
       ~size:(fun () -> (width, height))
       ~now:(fun () -> !now)
       ppf
@@ -60,7 +60,7 @@ let () =
   P.log compile "cc b.o";
   frame "two children, each streaming logs";
   P.succeed resolve;
-  frame "resolve finished (committed), siblings still live";
+  frame "resolve finished, under its parent, siblings still live";
   P.log compile "cc c.o";
   P.log compile "link";
   P.log app "still working";

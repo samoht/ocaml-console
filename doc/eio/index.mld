@@ -15,7 +15,7 @@ let build display =
 
 let main () =
   Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~header:"Building" build
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~summary:"Building" build
 ]}
 
 The {!page-tutorial} builds a whole command step by step, with options for

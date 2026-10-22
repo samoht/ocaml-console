@@ -34,7 +34,7 @@ let build ~fail clock display =
 let main progress fail =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~progress ~header:"Building" (build ~fail clock)
+  Console_eio.run ~clock ~progress ~summary:"Building" (build ~fail clock)
 
 let progress =
   Cmdliner.Arg.(

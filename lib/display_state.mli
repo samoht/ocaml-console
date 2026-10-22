@@ -45,8 +45,9 @@ type t = {
   form : form;
   depth : Color.depth option;
   now : unit -> float;
-  header : string option;
+  summary : string option;
   layout : Display_layout.t;
+  keep : bool;
   start : float;
   mutable width : int;
   mutable height : int;
@@ -60,13 +61,14 @@ type t = {
   mutable failed : int;
   mutable cancelled : int;
   mutable result : ((string, string) result * string list) option;
-  mutable scene : (height:int -> Format.formatter -> unit) option;
+  mutable view : (t -> width:int -> height:int -> Span_core.t) option;
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;
   mutable changes : int;
   mutable painted : int * int * int * int;
   mutable closed : bool;
+  mutable closing : bool;
   mutable suspended : int;
   mutable partial : bool;
   writes : string Queue.t;
@@ -104,13 +106,18 @@ and row = {
   mutable outcome : outcome option;
   mutable children : row list;
   mutable child_limit : int;
+  mutable gone : bool;
+  mutable held : int;
+  mutable weight : int;
+  mutable shed : int;
   mutable last_cur : int64;
   mutable last_t : float;
   mutable rate : float;
 }
 (** The type for displays and their tasks. {!field-running} holds the tasks in
     the order they started, the running ones and at most as many that ended
-    ({!field-stale}); {!field-scene} prints what is drawn above the header;
+    ({!field-stale}); {!field-view} gives the region, the default one if [None],
+    and {!field-closing} is [true] while it is drawn for the last time;
     {!field-frame} is the region on the screen, as written; {!field-scope} says
     which task is current. A task's {!field-window} holds its latest lines, at
     most {!field-log_lines}, and on a terminal its {!field-output} holds all its
@@ -121,8 +128,16 @@ and row = {
     written on {!field-ppf} did not end a line, and {!field-release} gives
     {!field-ppf} its own output functions back, and {!field-form} says what it
     prints. {!field-ending} is called with each task as it ends, before it ends.
-    {!field-root} is the top task, once asked for, the only one with a negative
-    {!field-id}. *)
+    {!field-root} is the top task, the only one with a negative {!field-id}.
+
+    A task's {!field-children} are those started under it, the latest first, a
+    top task's those of the root: the running ones and, on a terminal, the ones
+    that ended and wait for the scrollback with their top task, or with
+    {!field-keep} for the display to close. A task is {!field-gone} once it is
+    printed or dropped, and its parent then forgets it. A task that ended and
+    waits weighs {!field-weight} bytes, and the ones under a task {!field-held}
+    bytes in all; {!field-shed} counts the tasks under it dropped to keep that
+    bounded. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)
@@ -169,7 +184,9 @@ val running_rows : t -> row list
 val running_children : row -> row list
 (** [running_children r] are the running tasks directly under [r]. *)
 
-val lasts : row list -> (row * bool list) list
-(** [lasts rows] pairs each of [rows], running and in the order they started,
-    with whether it is the last running one under its parent, then the same for
-    each task above it, innermost first. *)
+val children : row -> row list
+(** [children r] are the tasks under [r] that are not {!field-gone}, in the
+    order they started. *)
+
+val root : t -> row
+(** [root t] is the top task of [t]. *)

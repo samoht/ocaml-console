@@ -35,7 +35,9 @@ val scope :
 
 val v :
   ?layout:Display.Layout.t ->
-  ?header:string ->
+  ?summary:string ->
+  ?view:Display.view ->
+  ?keep:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
   scope:scope ->

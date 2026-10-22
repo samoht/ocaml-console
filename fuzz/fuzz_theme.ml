@@ -65,7 +65,7 @@ let test_ascii s n =
     Rule.pp (Rule.v ~label:text ()) Bar.pp
     (Bar.v ~brackets:true ~width:(n mod 30) (Float.of_int (n mod 101) /. 100.));
   let d =
-    Display.v ~header:s
+    Display.v ~summary:s
       ~size:(fun () -> (margin, 1 + (n mod 7)))
       ~now:(fun () -> 0.25)
       ppf

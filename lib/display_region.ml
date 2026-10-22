@@ -65,14 +65,13 @@ let write t s =
 
 (* A frame that moves moves only in colour: without it, rain would still
    change its glyphs. *)
-let render t span =
+let moving t =
   let look = Widget.look t.ppf in
-  let look =
-    if Option.is_some t.depth then
-      { look with elapsed = Some (t.now () -. t.start) }
-    else look
-  in
-  Span_core.render ~look ?depth:t.depth span
+  if Option.is_some t.depth then
+    { look with elapsed = Some (t.now () -. t.start) }
+  else look
+
+let render t span = Span_core.render ~look:(moving t) ?depth:t.depth span
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -84,91 +83,52 @@ let eol t = if is_live t then "\r\n" else "\n"
    scroll its first line out of reach of the cursor moves that erase it. *)
 let capacity t = max 0 (t.height - 1)
 
-let marker t hidden =
-  let look = Widget.look t.ppf in
-  Widget.truncate look (room t)
-    (Span.styled (Widget.muted look)
-       (Fmt.str "  %s %d more lines" (Widget.ellipsis look) hidden))
+(* The last [height] lines of the view in [look], each cut to the
+   terminal's width if there is one. The default view's lines are taken as
+   they are drawn, without joining them into a span to split again. *)
+let lines t ~look ~height view =
+  let lines =
+    match view with
+    | None ->
+        List.map (Span_core.resolve look) (Display_tree.default_lines t ~height)
+    | Some view -> (
+        match view t ~width:t.width ~height with
+        | span when Span_core.is_empty span -> []
+        | span -> Span_core.lines (Span_core.resolve look span))
+  in
+  let extra = List.length lines - height in
+  let lines = if extra > 0 then List.drop extra lines else lines in
+  if is_live t then List.map (Widget.truncate look t.width) lines else lines
 
-(* The region below the scene: the header, then each running row and its
-   log tail, within {!capacity}. When they do not fit, log lines go first,
-   the oldest first; then the rows between the first and the most recent; a
-   marker counts what is hidden. Only the rows shown are drawn. *)
-let rows t =
-  let cap = capacity t in
-  if cap = 0 then []
-  else
-    let header = Option.to_list (Display_row.header t) in
-    let budget = cap - List.length header in
-    let rows = lasts (running_rows t) in
-    let live (r, lasts) = Display_row.live t ~lasts r in
-    let n = List.length rows in
-    let total =
-      List.fold_left (fun acc (r, _) -> acc + 1 + Queue.length r.window) 0 rows
-    in
-    if budget <= 0 then header
-    else if total <= budget then
-      header
-      @ List.concat_map
-          (fun ((r, lasts) as row) -> live row :: Display_row.tail t ~lasts r)
-          rows
-    else if n < budget then begin
-      (* Every row and the marker fit; tails give way to the marker. *)
-      let to_drop = ref (total - (budget - 1)) in
-      let hidden = !to_drop in
-      let body =
-        List.concat_map
-          (fun ((r, lasts) as row) ->
-            let tail = Display_row.tail t ~lasts r in
-            let k = min !to_drop (List.length tail) in
-            to_drop := !to_drop - k;
-            live row :: List.drop k tail)
-          rows
-      in
-      header @ (marker t hidden :: body)
-    end
-    else
-      match rows with
-      | [] -> header
-      | first :: _ ->
-          let last = List.nth rows (n - 1) in
-          if budget = 1 then header @ [ live last ]
-          else if budget = 2 then header @ [ live first; live last ]
-          else
-            let shown = List.drop (n - (budget - 2)) rows in
-            header
-            @ live first
-              :: marker t (total - 1 - List.length shown)
-              :: List.map live shown
-
-(* The scene takes the lines the rows leave, which it is told. *)
 let frame t =
-  let rows = rows t in
-  match t.scene with
-  | None -> rows
-  | Some scene ->
-      let height = capacity t - List.length rows in
-      if height <= 0 then rows
-      else
-        let look = Widget.look t.ppf in
-        let width = room t in
-        let lines =
-          Span_core.capture ~look ~margin:width (fun ppf -> scene ~height ppf)
-        in
-        List.filteri (fun i _ -> i < height) lines
-        |> List.map (Widget.truncate look width)
-        |> fun scene -> scene @ rows
+  match capacity t with
+  | 0 -> []
+  | height -> lines t ~look:(moving t) ~height t.view
 
-(* A scene that raises is dropped: what was to be written is written with
-   the frame drawn without it, then the exception is raised again. *)
+(* A view that raises is dropped: what was to be written is written with
+   the default view, then the exception is raised again. *)
 let framed t k =
   match frame t with
   | spans -> k spans
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      t.scene <- None;
+      t.view <- None;
       k (frame t);
       Printexc.raise_with_backtrace e bt
+
+(* The last frame is still, as tall as it is, and drawn by the default
+   view if the program's raises. *)
+let final t =
+  t.closing <- true;
+  let look = Widget.look t.ppf in
+  Fun.protect
+    ~finally:(fun () -> t.closing <- false)
+    (fun () ->
+      match lines t ~look ~height:max_int t.view with
+      | lines -> lines
+      | exception _ ->
+          t.view <- None;
+          lines t ~look ~height:max_int None)
 
 (* {1 Drawing} *)
 
@@ -258,8 +218,8 @@ let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
     let resized = refresh_size t in
     let stamp = stamp t in
-    (* A scene may show what the display is not told of. *)
-    if resized || stamp <> t.painted || t.frame = [||] || Option.is_some t.scene
+    (* A view may show what the display is not told of. *)
+    if resized || stamp <> t.painted || t.frame = [||] || Option.is_some t.view
     then begin
       t.painted <- stamp;
       t.painted_at <- t.now ();

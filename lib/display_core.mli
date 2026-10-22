@@ -31,7 +31,9 @@ val scope :
 
 val v :
   ?layout:Layout.t ->
-  ?header:string ->
+  ?summary:string ->
+  ?view:(t -> width:int -> height:int -> Span.t) ->
+  ?keep:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
   ?scope:scope ->
@@ -48,8 +50,20 @@ val redraw : t -> unit
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** See {!Display.with_output}. *)
 
-val set_scene : t -> (height:int -> Format.formatter -> unit) -> unit
-(** See {!Display.set_scene}. *)
+val set_view : t -> (t -> width:int -> height:int -> Span.t) -> unit
+(** See {!Display.set_view}. *)
+
+val default_view : t -> width:int -> height:int -> Span.t
+(** See {!Display.default_view}. *)
+
+val tasks : t -> task list
+(** See {!Display.tasks}. *)
+
+val tree : ?width:int -> ?height:int -> task -> Span.t
+(** See {!Display.tree}. *)
+
+val summary : t -> Span.t
+(** See {!Display.summary}. *)
 
 val set_result : ?detail:string -> t -> (string, string) result -> unit
 (** See {!Display.set_result}. *)

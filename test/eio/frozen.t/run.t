@@ -24,8 +24,8 @@ On a pipe:
 On a terminal, the screen it leaves:
 
   $ ../tty.exe ../../../examples/progress/main.exe
-    [+] sha256:abcd...                                 2.00 GiB / 2.00 GiB    0.0s
   [+] RUN make                                                         5/5    0.0s
+    +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    0.0s
   [+] Building 0.0s (2/2)
 
 The empty string leaves the clock running:

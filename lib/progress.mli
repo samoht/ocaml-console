@@ -20,11 +20,12 @@ type t =
         terminal recorder reads. *)
   | `Plain
     (** Lines are printed in turn, as on a pipe. A task prints a line when it
-        starts, its output at once and a line when it ends. The header comes
-        last. The lines are in colour if the output has colour. *)
+        starts, its output at once and a line when it ends. The display's view
+        comes last, once: by default its summary line. The lines are in colour
+        if the output has colour. *)
   | `Quiet
     (** Only what fails is printed. There are no rows, no task lines and no
-        header. A task that fails or is cancelled prints its line, then its
+        summary. A task that fails or is cancelled prints its line, then its
         output under it, as on a terminal ({!Display.output}). What goes above
         the rows is printed as usual, the result of {!Display.set_result}
         included. *)
@@ -52,7 +53,7 @@ val to_string : t -> string
     With [`Json] a display writes one JSON object on each line of its formatter
     for each event, in the order the events happen: the line is the
     {!Event.to_string} of an {!Event.t}, and {!Event.jsont} reads it back. The
-    header of the display is not an event.
+    summary of the display is not an event.
 
     Objects may gain members, new events may be added, and a member whose values
     are listed may gain values, but the members of {!Event} keep their meaning.

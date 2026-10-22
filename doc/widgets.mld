@@ -97,7 +97,8 @@ hold several lines:
 Every widget can become a span with its [to_span], and that span is laid
 out only when it is printed. {!Console.Span.hcat} puts such spans side by
 side, each at the width its [to_span] gives it and in its own colours. The
-result is one more span, which can go in a cell, a panel or a scene:
+result is one more span, which can go in a cell, a panel or a display's
+view. {!Console.Span.vcat} puts spans one under the other:
 
 {@ocaml[
 # let tree =
@@ -158,7 +159,7 @@ that formatter is drawn in its theme.
 {2:motion Frames that move}
 
 In a theme with {{!Console.Theme.type-motion}motion}, the frame of a table
-or a panel in a display's scene ({!Console.Display.set_scene}) moves, by the
+or a panel in a display's view ({!Console.Display.set_view}) moves, by the
 time since the display started:
 
 {ul

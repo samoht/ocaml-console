@@ -132,7 +132,7 @@ let clock () =
 let display ~live () =
   let now, tick = clock () in
   let size = if live then Some (fun () -> (80, 24)) else None in
-  let d = Display.v ?size ~now ~header:"bench" null in
+  let d = Display.v ?size ~now ~summary:"bench" null in
   for i = 1 to 10_000 do
     let t = Fmt.kstr (Display.task d) "task %d" i in
     for j = 1 to 10 do
@@ -148,7 +148,7 @@ let display ~live () =
    already on screen. *)
 let idle () =
   let now () = 0. in
-  let d = Display.v ~size:(fun () -> (80, 24)) ~now ~header:"bench" null in
+  let d = Display.v ~size:(fun () -> (80, 24)) ~now ~summary:"bench" null in
   let tasks = List.init 10 (fun i -> Fmt.kstr (Display.task d) "task %d" i) in
   run "redraw with nothing changed" ~n:10_000 (fun () -> Display.redraw d);
   List.iter Display.succeed tasks;

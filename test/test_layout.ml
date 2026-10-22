@@ -27,7 +27,7 @@ let last_row t =
 (* The summary is the last line of the region in every frame, whatever
    starts, ends or is printed, and the last line printed at close. *)
 let test_summary_last () =
-  let t = terminal ~width:40 ~height:10 ~header:"Build" () in
+  let t = terminal ~width:40 ~height:10 ~summary:"Build" () in
   let d = t.display in
   let check what =
     Display.redraw d;
@@ -63,7 +63,7 @@ let test_summary_last () =
    first. The layer waits in the region under its step, then goes to the
    scrollback with it, under it, and the summary is last. *)
 let test_tree_moves () =
-  let t = terminal ~width:60 ~height:10 ~header:"Building" () in
+  let t = terminal ~width:60 ~height:10 ~summary:"Building" () in
   let d = t.display in
   let step = Display.task d "RUN make" in
   let layer = Display.task ~parent:step d "sha256:abcd..." in
@@ -95,7 +95,7 @@ let test_tree_moves () =
    ends, after the top tasks that ended before it, each in the order of its
    tree. *)
 let test_three_levels () =
-  let t = terminal ~width:40 ~height:12 ~header:"S" () in
+  let t = terminal ~width:40 ~height:12 ~summary:"S" () in
   let d = t.display in
   let a = Display.task d "a" in
   let b = Display.task ~parent:a d "b" in
@@ -153,7 +153,7 @@ let test_failed_child_in_place () =
 (* A tree too tall folds the tasks that ended under each task into one
    line, and keeps every running one. *)
 let test_fold () =
-  let t = terminal ~width:40 ~height:6 ~header:"S" () in
+  let t = terminal ~width:40 ~height:6 ~summary:"S" () in
   let d = t.display in
   let p = Display.task d "p" in
   for i = 1 to 6 do
@@ -178,7 +178,7 @@ let test_fold () =
 (* Output outside any task goes above the region at once and stays there,
    the region below it, the summary last. *)
 let test_root_above () =
-  let t = terminal ~width:40 ~height:10 ~header:"S" () in
+  let t = terminal ~width:40 ~height:10 ~summary:"S" () in
   let d = t.display in
   let a = Display.task d "a" in
   Display.log (Display.root d) "outside";
@@ -195,7 +195,7 @@ let test_root_above () =
 (* More running tasks than rows: no redraw scrolls the terminal, and the
    summary stays the last line. *)
 let test_no_scroll () =
-  let t = terminal ~width:40 ~height:6 ~header:"S" () in
+  let t = terminal ~width:40 ~height:6 ~summary:"S" () in
   let d = t.display in
   let tasks =
     List.init 12 (fun i ->

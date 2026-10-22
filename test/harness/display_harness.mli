@@ -18,7 +18,7 @@ val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
 
 val plain :
-  ?header:string ->
+  ?summary:string ->
   ?layout:Display.Layout.t ->
   ?theme:Theme.t ->
   (Display.t -> (float -> unit) -> 'a) ->
@@ -40,7 +40,7 @@ type term = private {
 val terminal :
   ?width:int ->
   ?height:int ->
-  ?header:string ->
+  ?summary:string ->
   ?layout:Display.Layout.t ->
   ?theme:Theme.t ->
   ?styled:bool ->
