@@ -30,7 +30,7 @@
   ; jsont.bytesrw, which writes and reads the JSON events, is built only
   ; where bytesrw is installed.
   (jsont (>= 0.3.0))
-  bytesrw
+  (bytesrw (>= 0.1.0))
   ; The tests' terminal emulator, from the released matrix. It lacks fixes
   ; some tests need, which are skipped until console moves to matrix 0.2.0.
   (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
