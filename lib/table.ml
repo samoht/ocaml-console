@@ -350,9 +350,12 @@ let lines ?max_width t =
         Border_motion.frame t.look t.border ~left:t.frame.left
           ~right:t.frame.right lines
 
+(* Without a width, the table takes its natural width: the margin
+   [Widget.to_span] passes then bounds nothing. *)
 let to_span ?width t =
   Widget.to_span
-    (fun look ~margin t -> lines ~max_width:margin (t look))
+    (fun look ~margin t ->
+      lines ?max_width:(Option.map (fun _ -> margin) width) (t look))
     ?width t
 
 let pp ppf t =
