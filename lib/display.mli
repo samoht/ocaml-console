@@ -103,9 +103,9 @@
       and a task that failed or was cancelled followed by its output. Work moves
       by top task so that a task never lands above its parent and the tasks of
       one top task stay together, however their endings interleave.
-    - With [keep] ({!v}), no task moves: the tasks that ended stay in the region
-      until the display closes, as in a view of trees side by side, where a
-      column should not empty while the others run.
+    - With [keep_ended] ({!v}), no task moves: the tasks that ended stay in the
+      region until the display closes, as in a view of trees side by side, where
+      a column should not empty while the others run.
     - Output outside any task goes to the scrollback at once, above the region
       ({!output}).
     - In the region, only running rows, their windows and the summary change: a
@@ -282,7 +282,7 @@ val v :
   ?layout:Layout.t ->
   ?summary:string ->
   ?view:view ->
-  ?keep:bool ->
+  ?keep_ended:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
   now:(unit -> float) ->
@@ -303,11 +303,14 @@ val v :
       it shows, and with [`Json] it breaks the lines of events. {!log} gives
       such a line to a task, and [Console_eio.run] takes the standard outputs.
     - [summary], if given, names the work on the summary line ({!val-summary}).
+      Without [summary] there is no summary line, and the default view is the
+      tree alone.
     - [view] (defaults to {!default_view}) is the region on a terminal, and the
       last frame printed when the display closes ({!type-view}, {!set_view}).
-    - [keep] (defaults to [false]) keeps the tasks that ended in the region
-      until the display closes, where they otherwise move to the scrollback with
-      their top task ({!design}).
+    - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
+      region until the display closes, where they otherwise move to the
+      scrollback with their top task ({!design}). It holds for the life of the
+      display, whatever view {!set_view} sets.
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row
       redrawn on a terminal; the lines printed in turn have their own
       ({!Layout}).
@@ -534,7 +537,7 @@ val default_view : view
 
 val tasks : t -> task list
 (** [tasks display] are the top tasks of [display] in its region, in the order
-    they started: those that run, and with [keep] those that ended. *)
+    they started: those that run, and with [keep_ended] those that ended. *)
 
 val tree : ?width:int -> ?height:int -> task -> Span.t
 (** [tree task] is the tree of [task] in the region: the row of [task], then the

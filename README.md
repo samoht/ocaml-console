@@ -423,7 +423,7 @@ let view results display ~width ~height =
 
 The view is given the terminal's width and the lines the region may take,
 and the display draws its last lines that fit, so the table gives way
-before the rows. With `~keep:true` the tasks that ended stay in the region
+before the rows. With `~keep_ended:true` the tasks that ended stay in the region
 until it closes, and trees side by side make columns, with `Span.hcat`, as
 [examples/columns](examples/columns/main.ml) does:
 

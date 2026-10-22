@@ -8,8 +8,9 @@ type level = Display_core.level
 
 let scope = Display_core.scope
 
-let v ?layout ?summary ?view ?keep ?size ?progress ~scope ~now ppf =
-  Display_core.v ?layout ?summary ?view ?keep ?size ?progress ~scope ~now ppf
+let v ?layout ?summary ?view ?keep_ended ?size ?progress ~scope ~now ppf =
+  Display_core.v ?layout ?summary ?view ?keep_ended ?size ?progress ~scope ~now
+    ppf
 
 let is_json = Display_event.is_json
 let ending (t : Display.t) f = t.Display_state.ending <- f

@@ -48,7 +48,7 @@ type t = {
   now : unit -> float;
   summary : string option;
   layout : Display_layout.t;
-  keep : bool;
+  keep_ended : bool;
   start : float;
   mutable width : int;
   mutable height : int;

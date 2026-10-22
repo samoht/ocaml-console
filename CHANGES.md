@@ -47,7 +47,7 @@ Initial release of `console` and `console-eio`.
   tasks that ended into one line, then shows the latest running tasks. The
   region is a view (`Display.set_view`), a span the program puts together
   from `Display.tree`, `Display.summary` and any widget, such as a table
-  above the rows or trees side by side with `~keep:true`; its last frame
+  above the rows or trees side by side with `~keep_ended:true`; its last frame
   stays when the display closes. `Display.with_task` runs a
   function as a task, current in the fibers it forks, that succeeds when the
   function returns and fails when it raises. A task's output shows under it

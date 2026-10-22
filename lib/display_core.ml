@@ -116,7 +116,7 @@ let row t ~id ?key ?parent ~log_lines ~transient label =
     rate = 0.;
   }
 
-let v ?(layout = Layout.default) ?summary ?view ?(keep = false) ?size
+let v ?(layout = Layout.default) ?summary ?view ?(keep_ended = false) ?size
     ?(progress = `Auto) ?scope ~now ppf =
   let size, form = shape ?size progress in
   let depth =
@@ -133,7 +133,7 @@ let v ?(layout = Layout.default) ?summary ?view ?(keep = false) ?size
       now;
       summary = Option.map Display_text.clean summary;
       layout;
-      keep;
+      keep_ended;
       start = now ();
       width = 80;
       height = 24;
@@ -358,7 +358,7 @@ let ending r outcome =
 (* {2 The scrollback}
 
    On a terminal, a task that ended waits in the region while a task above
-   it runs, or with [keep] until the display closes, and goes to the
+   it runs, or with [keep_ended] until the display closes, and goes to the
    scrollback with its top task, as its tree. *)
 
 let rec running_above r =
@@ -417,11 +417,11 @@ let hold r =
   p.held <- p.held + r.weight;
   if p.held > held_cap then shed p r
 
-(* A top task that ends, unless [keep], goes to the scrollback as its
+(* A top task that ends, unless [keep_ended], goes to the scrollback as its
    tree. *)
 let moved r =
   let t = r.disp in
-  if t.keep || running_above r then begin
+  if t.keep_ended || running_above r then begin
     hold r;
     []
   end

@@ -33,7 +33,7 @@ val v :
   ?layout:Layout.t ->
   ?summary:string ->
   ?view:(t -> width:int -> height:int -> Span.t) ->
-  ?keep:bool ->
+  ?keep_ended:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
   ?scope:scope ->

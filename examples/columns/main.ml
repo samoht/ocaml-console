@@ -5,7 +5,7 @@
 
 (* Two builds side by side: a table of their status above, the tree of each
    build's steps in a column of its own, and the summary below, all put
-   together with Span.vcat and Span.hcat. With [~keep:true] the steps that
+   together with Span.vcat and Span.hcat. With [~keep_ended:true] the steps that
    end stay in their column, and the last frame stays once the builds are
    done. On a terminal too narrow for two columns, the trees go one under the
    other. Pipe it through [cat] to see the lines a CI log gets. *)
@@ -81,5 +81,5 @@ let () =
   Console_tty.setup ();
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~summary:"Building" ~keep:true ~view (fun display ->
-      Eio.Fiber.List.iter (run clock display) builds)
+  Console_eio.run ~clock ~summary:"Building" ~keep_ended:true ~view
+    (fun display -> Eio.Fiber.List.iter (run clock display) builds)

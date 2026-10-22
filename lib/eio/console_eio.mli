@@ -50,7 +50,7 @@ val run :
   ?layout:Console.Display.Layout.t ->
   ?summary:string ->
   ?view:Console.Display.view ->
-  ?keep:bool ->
+  ?keep_ended:bool ->
   ?progress:Console.Progress.t ->
   (Console.Display.t -> 'a) ->
   'a
@@ -63,7 +63,8 @@ val run :
     - [ppf] is where the display draws (defaults to {!Fmt.stderr}, so that
       standard output stays the program's). The display is drawn in [ppf]'s
       theme ({!Console.Theme.get}).
-    - [summary], [view], [keep] and [layout] are those of {!Console.Display.v}.
+    - [summary], [view], [keep_ended] and [layout] are those of
+      {!Console.Display.v}.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is
@@ -154,9 +155,9 @@ val run :
     a fiber beside it, so a library can call [run] without knowing whether its
     caller already did.
 
-    - The [clock], [ppf], [layout], [summary], [view], [keep] and [progress] of
-      the inner [run] are ignored, since the display keeps those of the first
-      [run].
+    - The [clock], [ppf], [layout], [summary], [view], [keep_ended] and
+      [progress] of the inner [run] are ignored, since the display keeps those
+      of the first [run].
     - The display closes once the last of their functions ends, and the first
       [run] waits for the others.
     - A [run] that starts while that display closes opens its own once it is

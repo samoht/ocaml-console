@@ -1250,9 +1250,9 @@ let pp_tree_step ppf = function
 let tree_step = with_printer pp_tree_step tree_step
 
 (* Runs [steps] on [d]: the tasks, and the groups of names, in the order
-   they move to the scrollback, unless [keep]. [frame] is called after each
+   they move to the scrollback, unless [keep_ended]. [frame] is called after each
    step. *)
-let run_tree ?(keep = false) d ~frame steps =
+let run_tree ?(keep_ended = false) d ~frame steps =
   let tasks = ref [||] and moves = ref [] in
   let pick i =
     let n = Array.length !tasks in
@@ -1277,7 +1277,8 @@ let run_tree ?(keep = false) d ~frame steps =
             { tk; tname; tparent; tkids = []; ended = false; moved = false }
           in
           (match tparent with
-          | Some p when keep || not (top p).moved -> p.tkids <- x :: p.tkids
+          | Some p when keep_ended || not (top p).moved ->
+              p.tkids <- x :: p.tkids
           | Some _ ->
               (* Under a tree already in the scrollback: alone. *)
               x.ended <- true;
@@ -1294,7 +1295,7 @@ let run_tree ?(keep = false) d ~frame steps =
             (fun x ->
               finish x.tk o;
               end_model x;
-              if x.tparent = None && not keep then move x)
+              if x.tparent = None && not keep_ended then move x)
             (pick i)
       | Note i -> Option.iter (fun x -> Display.log x.tk "note") (pick i));
       frame ())
@@ -1340,7 +1341,7 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
-(* With [keep] and a view of the top tasks' trees side by side, every frame
+(* With [keep_ended] and a view of the top tasks' trees side by side, every frame
    fits the screen, the summary last, and the last frame holds every task
    once. *)
 let test_columns steps h =
@@ -1366,7 +1367,7 @@ let test_columns steps h =
       ]
   in
   let d =
-    Display.v ~summary:header ~view ~keep:true
+    Display.v ~summary:header ~view ~keep_ended:true
       ~size:(fun () -> (width, height))
       ~now:(fun () -> 0.)
       ppf
@@ -1390,7 +1391,7 @@ let test_columns steps h =
         | _ -> true)
       steps
   in
-  let tasks, _ = run_tree ~keep:true d ~frame steps in
+  let tasks, _ = run_tree ~keep_ended:true d ~frame steps in
   Display.close d;
   let lines = Console_vte.screen ~scrollback:true vte in
   Array.iter
