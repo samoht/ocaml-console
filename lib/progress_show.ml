@@ -81,7 +81,7 @@ let moved d ~layout ~commit r =
 (* A task that ended moves once no task above it runs, the root aside: a
    top task as it ends, and one started under a task that moved. *)
 let rec running_above r =
-  match r.parent with
+  match parent r with
   | None -> false
   | Some p -> (is_running p && not (is_root p)) || running_above p
 
@@ -99,7 +99,7 @@ let on_live d ~layout ~keep_ended ~commit = function
 
 let on_plain d = function
   | Started r ->
-      if not r.transient then
+      if not (transient r) then
         print d [ Progress_row.started (Display_core.look d) r ]
   | Progressed _ | Renamed _ -> ()
   | Line (r, line) ->
@@ -108,15 +108,15 @@ let on_plain d = function
       else print d (Progress_row.labelled look r line)
   | Ended r ->
       if not (is_root r) then begin
-        if not (r.transient && r.outcome = Some `Succeeded) then
+        if not (transient r && outcome r = Some `Succeeded) then
           print d [ Progress_row.appended (Display_core.look d) r ];
         forget r
       end
 
 (* The output a task kept, under its line. *)
 let kept look r =
-  let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
-  (if r.dropped > 0 then [ Progress_row.dropped look r.dropped ] else [])
+  let all = Queue.fold (fun acc l -> l :: acc) [] (output r) in
+  (if dropped r > 0 then [ Progress_row.dropped look (dropped r) ] else [])
   @ List.concat_map (Progress_row.under look) (List.rev all)
 
 let on_quiet d = function
@@ -128,7 +128,7 @@ let on_quiet d = function
         print d (Progress_row.labelled look r line)
   | Ended r ->
       if not (is_root r) then begin
-        (match r.outcome with
+        (match outcome r with
         | Some (`Failed | `Cancelled) ->
             let look = Display_core.look d in
             print d (Progress_row.appended look r :: kept look r)
@@ -137,7 +137,7 @@ let on_quiet d = function
       end
 
 let on_json d root change =
-  (match event change ~time:(since_start root.work) with
+  (match event change ~time:(since_start (work root)) with
   | Some e -> Display_core.write d (Event.to_string e ^ "\n")
   | None -> ());
   match change with Ended r when not (is_root r) -> forget r | _ -> ()
@@ -160,14 +160,16 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     | Live | Plain -> Option.value view ~default
     | Quiet | Json -> default
   in
-  let d = Display_core.v ?size ?write_error ~now:root.work.now ppf shown in
+  let d =
+    Display_core.v ?size ?write_error ~now:(Work.now (work root)) ppf shown
+  in
   Display_core.set_fallback d default;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
   (match form with
-  | Live -> watch root.work (on_live d ~layout ~keep_ended ~commit)
-  | Plain -> watch root.work (on_plain d)
-  | Quiet -> watch root.work (on_quiet d)
+  | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
+  | Plain -> watch (work root) (on_plain d)
+  | Quiet -> watch (work root) (on_quiet d)
   | Json ->
       Display_core.on_output d (fun s -> log root (Console_text.strip s));
-      watch root.work (on_json d root));
+      watch (work root) (on_json d root));
   d

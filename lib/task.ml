@@ -15,12 +15,8 @@ let root ?label ~now () = Task_core.root ?label ~now ()
 let start ?key ?log_lines ?transient parent label =
   fst (Task_core.start ?key ?log_lines ?transient parent label)
 
-let label (t : t) = t.label
-let parent (t : t) = t.parent
-let message (t : t) = t.message
-
 let progress (t : t) : progress =
-  match t.metric with
+  match metric t with
   | Spin -> `Spin
   | Count (c, n) -> `Items (c, n)
   | Bytes (c, n) -> `Bytes (c, n)

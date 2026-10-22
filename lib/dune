@@ -25,7 +25,6 @@
   task_core
   task_text
   inked
-  escape
   look
   sgr
   view_core))

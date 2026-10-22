@@ -15,10 +15,11 @@
 type 'a t
 (** The type for slots holding values of type ['a]. *)
 
-val v : ?setting:bool -> unit -> 'a t
+val v : ?setting:bool -> ?watched:bool -> unit -> 'a t
 (** [v ()] is a new slot, empty on every formatter. A value it holds is a
     setting of the formatter iff [setting] (defaults to [true]), as {!unset}
-    sees it. *)
+    sees it. Its {!set}s count in {!generation} iff [watched] (defaults to
+    [false]). *)
 
 val find : 'a t -> Format.formatter -> 'a option
 (** [find s ppf] is the value of [s] on [ppf], if {!set} gave it one. *)
@@ -27,8 +28,9 @@ val set : 'a t -> Format.formatter -> 'a -> unit
 (** [set s ppf v] makes [v] the value of [s] on [ppf]. *)
 
 val generation : unit -> int
-(** [generation ()] is the number of {!set}s so far, on any slot and formatter,
-    so that a reader of a slot knows when to read it again. *)
+(** [generation ()] is the number of {!set}s so far of slots made with
+    [~watched:true], on any formatter, so that a reader of such a slot knows
+    when to read it again. *)
 
 val unset : Format.formatter -> bool
 (** [unset ppf] is [true] iff nothing but slots that are not settings changed

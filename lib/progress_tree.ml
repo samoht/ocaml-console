@@ -22,7 +22,8 @@ let line f =
 
 (* A transient task that succeeded has no line: the tasks under it take
    its place. *)
-let shows r = is_running r || (not r.transient) || r.outcome <> Some `Succeeded
+let shows r =
+  is_running r || (not (transient r)) || outcome r <> Some `Succeeded
 
 type node = { row : t; kids : node list }
 
@@ -42,7 +43,7 @@ let rec ending outcome nodes =
   List.fold_left
     (fun n x ->
       n
-      + (if x.row.outcome = Some outcome then 1 else 0)
+      + (if Task_core.outcome x.row = Some outcome then 1 else 0)
       + ending outcome x.kids)
     0 nodes
 
@@ -50,7 +51,7 @@ let rec worst acc nodes =
   List.fold_left
     (fun acc n ->
       let acc : Theme.mark =
-        match (n.row.outcome, acc) with
+        match (outcome n.row, acc) with
         | Some `Failed, _ | _, `Failed -> `Failed
         | Some `Cancelled, _ | _, `Cancelled -> `Cancelled
         | _ -> acc
@@ -105,12 +106,12 @@ let keeps layout =
 let key ~layout ~form ~cut ~top ~time look width r =
   let running = is_running r in
   {
-    version = r.version;
+    version = version r;
     look;
     layout;
     width;
-    count_cell = r.work.count_cell;
-    rate_cell = r.work.rate_cell;
+    count_cell = Work.count_cell (work r);
+    rate_cell = Work.rate_cell (work r);
     spin = (if running then int_of_float (Float.floor (time *. 10.)) else 0);
     timer = (if running then Task_text.duration (elapsed r) else "");
     form;
@@ -122,7 +123,7 @@ let key ~layout ~form ~cut ~top ~time look width r =
    [make] makes it, with one more of its kind at most: two views may show a
    task at once. *)
 let kept r ~kind ~find ~make lay =
-  match List.find_map find r.memo with
+  match List.find_map find (memo r) with
   | Some v -> v
   | None ->
       let v = lay () in
@@ -132,7 +133,7 @@ let kept r ~kind ~find ~make lay =
             if seen then one seen rest else m :: one true rest
         | m :: rest -> m :: one seen rest
       in
-      keep r (make v :: one false r.memo);
+      keep r (make v :: one false (memo r));
       v
 
 let is_row = function Row _ -> true | _ -> false
@@ -144,7 +145,7 @@ let split ~fold nodes =
   else ([], nodes)
 
 (* The running tasks alone count no task dropped. *)
-let shed form r = if form = Bare then 0 else r.shed
+let shed form r = if form = Bare then 0 else shed r
 
 (* The label of a node: a running task's row, with the lines of its window
    newer than [cut] in the full and folded forms, and [extra] lines; a task
@@ -244,7 +245,7 @@ let drawn tree = Tree.view ~indent:2 tree
 let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
 
 let rec versions acc n =
-  List.fold_left versions ((n.row.id, n.row.version) :: acc) n.kids
+  List.fold_left versions ((id n.row, version n.row) :: acc) n.kids
 
 (* A top task's tree, kept whole once every task in it ended. *)
 let top_tree ~layout ~form ~cut n =
@@ -282,7 +283,7 @@ let rec count_block ~form ~fold ~shed nodes =
 
 and count_node ~form n =
   let r = n.row in
-  let window = if is_running r then Queue.length r.window else 0 in
+  let window = if is_running r then Queue.length (window r) else 0 in
   let lines, tails =
     count_block ~form ~fold:(form = Fold) ~shed:(shed form r) n.kids
   in
@@ -299,7 +300,7 @@ let cut_tails n nodes =
       (fun acc x ->
         let acc =
           if is_running x.row then
-            Queue.fold (fun acc (l : line) -> l.seq :: acc) acc x.row.window
+            Queue.fold (fun acc (l : line) -> l.seq :: acc) acc (window x.row)
           else acc
         in
         seqs acc x.kids)
@@ -341,16 +342,16 @@ let bare ~layout c ~height r =
   let shown = Hashtbl.create 16 in
   let hidden =
     if n <= room then begin
-      List.iter (fun x -> Hashtbl.replace shown x.id ()) running;
+      List.iter (fun x -> Hashtbl.replace shown (id x) ()) running;
       0
     end
     else
       let k = max 0 (room - 1) in
-      List.sort (fun a b -> Int.compare b.id a.id) running
-      |> List.iteri (fun i x -> if i < k then Hashtbl.replace shown x.id ());
+      List.sort (fun a b -> Int.compare (id b) (id a)) running
+      |> List.iteri (fun i x -> if i < k then Hashtbl.replace shown (id x) ());
       n - k
   in
-  let keep x = x == r || Hashtbl.mem shown x.id in
+  let keep x = x == r || Hashtbl.mem shown (id x) in
   let nodes = tops keep r in
   let trees =
     if hidden = 0 then trees ~layout ~form:Bare ~cut:(-1) r nodes
@@ -376,7 +377,7 @@ let bare ~layout c ~height r =
    fits. *)
 let region ~layout c ~height r =
   let width = Option.value (Ctx.width c) ~default:1 in
-  if height <= 0 || width <= 0 || r.gone then V.empty
+  if height <= 0 || width <= 0 || gone r then V.empty
   else
     let nodes = tops shows r in
     if fst (count ~form:Full r nodes) <= height then
@@ -389,7 +390,7 @@ let region ~layout c ~height r =
         draw (trees ~layout ~form:Fold ~cut r nodes)
 
 let whole ~layout r =
-  if r.gone then V.empty
+  if gone r then V.empty
   else draw (trees ~layout ~form:Whole ~cut:(-1) r (tops shows r))
 
 let view ~layout r =

@@ -9,9 +9,10 @@ type 'a t = {
   wrap : 'a op -> Format.stag;
   unwrap : Format.stag -> 'a op option;
   setting : bool;
+  watched : bool;
 }
 
-let v (type a) ?(setting = true) () : a t =
+let v (type a) ?(setting = true) ?(watched = false) () : a t =
   let module M = struct
     type Format.stag += Op of a op
   end in
@@ -19,6 +20,7 @@ let v (type a) ?(setting = true) () : a t =
     wrap = (fun op -> M.Op op);
     unwrap = (function M.Op op -> Some op | _ -> None);
     setting;
+    watched;
   }
 
 type mark = Format.stag -> string
@@ -59,7 +61,7 @@ let sets = Atomic.make 0
 let generation () = Atomic.get sets
 
 let set s ppf v =
-  Atomic.incr sets;
+  if s.watched then Atomic.incr sets;
   if not (ask s ppf (Set v)) then begin
     let current = ref v in
     let funs = Format.pp_get_formatter_stag_functions ppf () in

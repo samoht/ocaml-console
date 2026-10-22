@@ -20,7 +20,7 @@ let muted look s = V.ink (Widget.muted look) s
 (* Successive rows take the colours of the theme's palette in turn. *)
 let color look r =
   let palette = Theme.palette (theme look) in
-  List.nth palette (abs r.id mod List.length palette)
+  List.nth palette (abs (id r) mod List.length palette)
 
 let mark_style look (m : Theme.mark) =
   let theme = theme look in
@@ -45,7 +45,7 @@ let percent m =
 (* No bar is drawn before work advances, since an empty track reads as an
    input field; once it has, the bar shows the least it can. *)
 let bar look r width =
-  match fraction r.metric with
+  match fraction (metric r) with
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
@@ -53,14 +53,14 @@ let bar look r width =
   | _ -> V.empty
 
 let count_cell look r =
-  pad_left r.work.count_cell (muted look (count_text r.metric))
+  pad_left (Work.count_cell (work r)) (muted look (count_text (metric r)))
 
 (* A count that gives way: items as they are, bytes in short units, and no
    column shared with the other rows. *)
 let compact_count look r =
-  match r.metric with
+  match metric r with
   | Spin -> V.empty
-  | Count _ -> muted look (count_text r.metric)
+  | Count _ -> muted look (count_text (metric r))
   | Bytes (cur, total) ->
       muted look (Task_text.bytes_short cur ^ "/" ^ Task_text.bytes_short total)
 
@@ -81,13 +81,16 @@ let piece look r ~time ~stage (p : Progress_layout.piece) =
   | Label | Spacer -> None
   | Bar w -> Some (bar look r (Option.value w ~default:12))
   | Percent -> (
-      match percent r.metric with
+      match percent (metric r) with
       | Some p -> Some (Fmt.kstr (muted look) "%3d%%" p)
       | None -> Some V.empty)
   | Count ->
       Some (if stage >= 3 then compact_count look r else count_cell look r)
   | Rate ->
-      Some (pad_left r.work.rate_cell (muted look (rate_text r.metric r.rate)))
+      Some
+        (pad_left
+           (Work.rate_cell (work r))
+           (muted look (rate_text (metric r) (rate r))))
   | Eta -> Some (eta look r)
   | Elapsed ->
       Some
@@ -156,7 +159,7 @@ let live look ~time ?width layout r =
   let has k =
     List.exists (fun (p : Progress_layout.piece) -> p.kind = k) layout
   in
-  let label = V.ink Style.bold r.label in
+  let label = V.ink Style.bold (label r) in
   let want = if has Label then V.width label else 0 in
   let growing (p : Progress_layout.piece) = p.kind = Bar None in
   let reserve = if has Spacer then 1 else 0 in
@@ -219,15 +222,15 @@ let tail look r =
   Queue.fold
     (fun acc line ->
       (line.seq, V.(lead_mark look line.kind ++ body look line)) :: acc)
-    [] r.window
+    [] (window r)
   |> List.rev
 
 (* {1 Permanent lines} *)
 
-let label_of r = Option.value r.message ~default:r.label
+let label_of r = Option.value (message r) ~default:(label r)
 
 let mark_of look r =
-  mark look (outcome_mark (Option.value r.outcome ~default:`Cancelled))
+  mark look (outcome_mark (Option.value (outcome r) ~default:`Cancelled))
 
 (* [lead], then the lines of [body] broken to [width], each after the
    first under its start. *)
@@ -250,7 +253,7 @@ let meta look r stage =
   in
   let count =
     if stage = 0 then
-      if r.work.count_cell = 0 then None else Some (count_cell look r)
+      if Work.count_cell (work r) = 0 then None else Some (count_cell look r)
     else
       let c = compact_count look r in
       if V.is_empty c then None else Some c
@@ -331,14 +334,14 @@ let dropped_line look n what =
 
 let output look ~width r =
   let dropped =
-    if r.dropped = 0 then []
-    else [ cut look width (dropped_line look r.dropped "line") ]
+    if dropped r = 0 then []
+    else [ cut look width (dropped_line look (dropped r) "line") ]
   in
   dropped
   @ List.concat_map
       (fun line ->
         hanging look ~width (lead_mark look line.kind) (body look line))
-      (List.rev (Queue.fold (fun acc l -> l :: acc) [] r.output))
+      (List.rev (Queue.fold (fun acc l -> l :: acc) [] (output r)))
 
 let finished look ~failed ~cancelled n (m : Theme.mark) =
   let some n what = if n = 0 then "" else Fmt.str ", %d %s" n what in
@@ -364,7 +367,7 @@ let separator look = Widget.glyph look " \u{25B8} " ~ascii:" > "
 (* The labels above the task, muted, then [own]. *)
 let path look r own =
   let above =
-    match List.rev (Task_core.path r) with _ :: up -> List.rev up | [] -> []
+    match List.rev (path r) with _ :: up -> List.rev up | [] -> []
   in
   V.concat
     (List.map (fun l -> muted look (l ^ separator look)) above @ [ text own ])
@@ -375,9 +378,9 @@ let under_task = text "  "
 (* The same, compact, on one line, which says how a task that did not
    succeed ended, as no colour may. *)
 let appended look r =
-  let count = match count_text r.metric with "" -> "" | c -> "  " ^ c in
+  let count = match count_text (metric r) with "" -> "" | c -> "  " ^ c in
   let ended =
-    match Option.value r.outcome ~default:`Cancelled with
+    match Option.value (outcome r) ~default:`Cancelled with
     | `Succeeded -> ""
     | `Failed -> "  failed"
     | `Cancelled -> "  cancelled"
@@ -399,13 +402,13 @@ let folded look ?width lead body =
 let labelled look ?width r line =
   folded look ?width
     V.(under_task ++ lead_mark look line.kind)
-    V.(path look r r.label ++ muted look ": " ++ body look line)
+    V.(path look r (label r) ++ muted look ": " ++ body look line)
 
 let under look ?width line =
   folded look ?width V.(under_task ++ lead_mark look line.kind) (body look line)
 
 let dropped look n = V.(under_task ++ dropped_line look n "line")
-let started look r = V.(mark look `Running ++ text " " ++ path look r r.label)
+let started look r = V.(mark look `Running ++ text " " ++ path look r (label r))
 
 (* A line of the root is output of no task: a Logs message after its
    level's mark, and a line the program printed after none. *)
@@ -417,18 +420,18 @@ let message look ?width (line : line) =
 
 (* The worst of how the work and its tasks ended. *)
 let state root : Theme.mark =
-  let w = root.work in
-  match root.outcome with
+  let w = work root in
+  match outcome root with
   | None -> `Running
   | Some o ->
-      if o = `Failed || w.failed > 0 then `Failed
-      else if o = `Cancelled || w.cancelled > 0 then `Cancelled
+      if o = `Failed || Work.failed w > 0 then `Failed
+      else if o = `Cancelled || Work.cancelled w > 0 then `Cancelled
       else `Succeeded
 
 (* In a room, the summary's name gives way last: the time and the count go
    first. *)
 let summary look ?width root =
-  let w = root.work in
+  let w = work root in
   Option.map
     (fun h ->
       let meta =
@@ -438,9 +441,9 @@ let summary look ?width root =
                " ";
                Task_text.duration (elapsed root);
                " (";
-               string_of_int w.finished;
+               string_of_int (Work.finished w);
                "/";
-               string_of_int w.started;
+               string_of_int (Work.started w);
                ")";
              ])
       in
@@ -450,10 +453,10 @@ let summary look ?width root =
       match width with
       | Some width when V.width full > width -> cut look width V.(lead ++ h)
       | _ -> full)
-    w.summary
+    (Work.summary w)
 
 let verdict look ?width root =
-  match (root.outcome, root.message) with
+  match (outcome root, Task_core.message root) with
   | Some o, Some msg -> (
       let lead = V.(mark look (outcome_mark o) ++ text " ") in
       let msg = V.ink Style.bold msg in

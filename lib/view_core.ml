@@ -675,7 +675,7 @@ module F = struct
   let add_styled buf ~depth t =
     List.iter
       (fun { style; link; text; _ } ->
-        let sgr = Escape.sgr depth (style :> Color.t Sgr.style) in
+        let sgr = Style.sgr depth style in
         List.iteri
           (fun i line ->
             if i > 0 then Buffer.add_char buf '\n';

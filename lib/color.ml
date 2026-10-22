@@ -200,3 +200,5 @@ let pp ppf = function
   | Ansi `Bright_white -> Fmt.pf ppf "bright_white"
   | Rgb (r, g, b) -> Fmt.pf ppf "#%02x%02x%02x" r g b
   | Palette index -> Fmt.pf ppf "ansi_256(%d)" index
+
+let sgr depth c = downsample depth c

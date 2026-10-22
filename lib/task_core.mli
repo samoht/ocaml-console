@@ -47,64 +47,66 @@ and change =
   | Line of t * line
   | Ended of t
 
-and work = private {
-  now : unit -> float;
-  start : float;
-  summary : string option;  (** The label of the root, if it was given one. *)
-  scope : scope;
-  by_key : (string, t) Hashtbl.t;
-  mutable next_id : int;
-  mutable next_line : int;
-  mutable started : int;
-  mutable finished : int;
-  mutable failed : int;
-  mutable cancelled : int;
-  mutable count_cell : int;
-      (** The cells of the widest count a total has allowed. *)
-  mutable rate_cell : int;  (** The cells of the widest rate seen. *)
-  mutable watchers : (change -> unit) list;
-  mutable ending : t -> unit;  (** Called with each task as it ends, first. *)
-  mutable changes : int;  (** The number of changes so far. *)
-}
+and work
 (** The type for what the tasks of one root share. *)
 
-and t = private {
-  id : int;  (** Negative for the root alone. *)
-  key : string option;
-  work : work;
-  parent : t option;
-  log_lines : int;
-  window : line Queue.t;
-  output : line Queue.t;
-  mutable output_bytes : int;
-  mutable dropped : int;
-  mutable log_prev : float;
-  mutable label : string;
-  mutable metric : metric;
-  transient : bool;
-  started_at : float;
-  mutable ended_at : float option;
-  mutable message : string option;
-  mutable outcome : outcome option;
-  mutable children : t list;  (** The latest first. *)
-  mutable child_limit : int;
-  mutable gone : bool;
-  mutable held : int;
-  mutable weight : int;
-  mutable shed : int;
-  mutable last_cur : float;
-  mutable last_t : float;
-  mutable rate : float;
-  mutable version : int;  (** Counts the changes to what the task shows. *)
-  mutable memo : memo list;
-}
-(** The type for tasks. A task's {!field-window} holds its latest lines, at most
-    {!field-log_lines}, and its {!field-output} its lines, kept for its failure,
-    {!field-output_bytes} bytes in all, the {!field-dropped} oldest left out. A
-    task is {!field-gone} once forgotten, and its parent then forgets it. A task
-    that ended and waits weighs {!field-weight} bytes, and the ones under a task
-    {!field-held} bytes in all; {!field-shed} counts the tasks under it dropped
-    to keep that bounded. *)
+and t
+(** The type for tasks. *)
+
+(** {1:reading Reading} *)
+
+val id : t -> int
+(** [id r] is [r]'s number in its work, negative for the root alone. *)
+
+val work : t -> work
+val parent : t -> t option
+val label : t -> string
+val metric : t -> metric
+val transient : t -> bool
+val message : t -> string option
+val outcome : t -> outcome option
+
+val window : t -> line Queue.t
+(** [window r] holds [r]'s latest lines, as many as it shows. *)
+
+val output : t -> line Queue.t
+(** [output r] holds [r]'s lines, kept for its failure, its {!dropped} oldest
+    left out. *)
+
+val dropped : t -> int
+
+val gone : t -> bool
+(** [gone r] is [true] once [r] is forgotten, and its parent then forgets it. *)
+
+val shed : t -> int
+(** [shed r] counts the tasks under [r] dropped to keep those that ended and
+    wait bounded. *)
+
+val rate : t -> float
+
+val version : t -> int
+(** [version r] counts the changes to what [r] shows. *)
+
+val memo : t -> memo list
+(** [memo r] is what views keep of [r] ({!keep}). *)
+
+module Work : sig
+  val now : work -> unit -> float
+
+  val summary : work -> string option
+  (** [summary w] is the label of the root, if it was given one. *)
+
+  val started : work -> int
+  val finished : work -> int
+  val failed : work -> int
+  val cancelled : work -> int
+
+  val count_cell : work -> int
+  (** [count_cell w] is the cells of the widest count a total has allowed. *)
+
+  val rate_cell : work -> int
+  (** [rate_cell w] is the cells of the widest rate seen. *)
+end
 
 val keep : t -> memo list -> unit
 (** [keep r m] makes [m] what views keep of [r]. *)

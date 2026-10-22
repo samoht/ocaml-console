@@ -570,3 +570,33 @@ let pp ppf r =
     | Some `Succeeded -> " succeeded"
     | Some `Failed -> " failed"
     | Some `Cancelled -> " cancelled")
+
+(* {1 Reading} *)
+
+let id r = r.id
+let work r = r.work
+let parent r = r.parent
+let label r = r.label
+let metric r = r.metric
+let transient r = r.transient
+let message r = r.message
+let outcome r = r.outcome
+let window r = r.window
+let output r = r.output
+let dropped r = r.dropped
+let gone r = r.gone
+let shed r = r.shed
+let rate r = r.rate
+let version r = r.version
+let memo r = r.memo
+
+module Work = struct
+  let now (w : work) = w.now
+  let summary (w : work) = w.summary
+  let started (w : work) = w.started
+  let finished (w : work) = w.finished
+  let failed (w : work) = w.failed
+  let cancelled (w : work) = w.cancelled
+  let count_cell (w : work) = w.count_cell
+  let rate_cell (w : work) = w.rate_cell
+end

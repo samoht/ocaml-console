@@ -56,6 +56,10 @@ let equal left right =
 let compare (left : t) right = Stdlib.compare left right
 let is_none style = equal style none
 
+let sgr depth style =
+  let down = Option.map (Color.sgr depth) in
+  Sgr.start { style with fg = down style.fg; bg = down style.bg }
+
 (* The style the enclosing [styled] calls of a formatter have on, which an
    inner call adds to and selects again when it ends. *)
 let current = Slot.v ~setting:false ()
@@ -71,12 +75,12 @@ let styled style pp_v ppf v =
         let inner = outer + style and depth = Color.depth ppf in
         let code s = Format.pp_print_as ppf 0 s in
         Slot.set current ppf inner;
-        code (Escape.sgr depth inner);
+        code (sgr depth inner);
         Fun.protect
           ~finally:(fun () ->
             Slot.set current ppf outer;
             code Sgr.reset;
-            code (Escape.sgr depth outer))
+            code (sgr depth outer))
           (fun () -> pp_v ppf v)
 
 let pp ppf style =

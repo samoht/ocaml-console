@@ -13,7 +13,7 @@
 
 (** {1:colours Colours} *)
 
-type t = private Sgr.color
+type t
 (** The type for terminal colours. *)
 
 val rgb : int -> int -> int -> t
@@ -140,3 +140,8 @@ val downsample : depth -> t -> t
 val pp : t Fmt.t
 (** [pp] formats an RGB colour as [#rrggbb], which {!of_hex} reads back, and a
     named or palette colour by its name or number. *)
+
+(**/**)
+
+val sgr : depth -> t -> Sgr.color
+(** [sgr d c] is [downsample d c] as an escape code selects it. *)
