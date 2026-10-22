@@ -285,9 +285,36 @@ let test_json_line_attribution () =
     ]
     shown
 
+(* A complete long line is one output record, just as with Display.log. *)
+let test_json_long_line () =
+  let text = String.make 65537 'x' in
+  let out =
+    capture_stdout `Json (fun d ->
+        D.with_task d "large" (fun _ -> Fmt.pr "%s@." text))
+  in
+  let output =
+    String.split_on_char '\n' out
+    |> List.filter (( <> ) "")
+    |> List.map Yojson.Safe.from_string
+    |> List.filter_map (function
+      | `Assoc fields
+        when Yojson.Safe.equal (List.assoc "event" fields) (`String "output")
+        -> (
+          match List.assoc "text" fields with
+          | `String text -> Some text
+          | _ -> Alcotest.fail "non-string output")
+      | _ -> None)
+  in
+  Alcotest.(check (list int))
+    "one complete line, no invented empty line" [ 65537 ]
+    (List.map String.length output);
+  Alcotest.(check bool) "the whole line is preserved" true (output = [ text ])
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "JSON keeps a 65537-byte line as one output event"
+        `Quick test_json_long_line;
       Alcotest.test_case "a line goes to the task of its line feed" `Quick
         test_json_line_attribution;
       Alcotest.test_case "quiet prints an unended line at exit" `Quick

@@ -608,9 +608,28 @@ let test_json_line_attribution size newline =
     (sorted (prefix 0 ^ prefix 1 ^ "donedone"))
     (sorted (Buffer.contents text))
 
+(* The JSON representation of a printed line is independent of how the
+   formatter chunks or flushes it, including at the 64 KiB capture bound. *)
+let test_json_long_line size split =
+  let length = if size land 1 = 0 then 65536 + size else 1 + size in
+  let text = String.make length 'x' in
+  let cut = min length (split * 257) in
+  let out =
+    capture_stdout `Json (fun d ->
+        Console.Display.with_task d "large" (fun _ ->
+            Fmt.pr "%s%!" (String.sub text 0 cut);
+            Fmt.pr "%s@." (String.sub text cut (length - cut))))
+  in
+  let output = events out |> List.filter (json_event "output") in
+  check_eq ~pp:Fmt.int 1 (List.length output);
+  check (json_field_is "id" (Some (`Int 0)) (List.hd output));
+  check (json_field_is "text" (Some (`String text)) (List.hd output))
+
 let suite =
   ( "console_eio",
     [
+      test_case "JSON preserves long lines across formatter chunks"
+        [ uint8; uint8 ] test_json_long_line;
       test_case "a line goes to the task of its line feed" [ uint8; bool ]
         test_json_line_attribution;
       test_case "quiet prints an unended line at exit" [ uint8; bool ]
