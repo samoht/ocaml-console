@@ -228,7 +228,9 @@ let draw buf t ~resized spans =
 (* What a frame depends on: what the tasks were told, the tenth of a second
    the timers and spinners show, and the terminal's size. A redraw with all
    of them as they were draws nothing and computes nothing. *)
-let stamp t = (t.changes, int_of_float (since_start t *. 10.), t.width, t.height)
+(* Half tenths: a spinner turns at each tenth, a time rounded to the tenth
+   at each half. *)
+let stamp t = (t.changes, int_of_float (since_start t *. 20.), t.width, t.height)
 
 let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin

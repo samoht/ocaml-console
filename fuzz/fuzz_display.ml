@@ -169,7 +169,6 @@ let check_screen t =
    its own erased. Below the region, rows a program's cursor moves left
    behind are erased by the fresh draw only. *)
 let check_in_place t =
-  Option.iter Display.redraw t.display;
   let before = screen t.vte in
   Option.iter (fun d -> Display.with_output d ignore) t.display;
   let after = screen t.vte in
