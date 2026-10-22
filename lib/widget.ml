@@ -142,7 +142,7 @@ let to_span lines ?(width = max_int) v =
         last := Some (look, lines);
         lines
   in
-  Span_core.concat ~sep:(Span_core.text "\n")
+  Span_core.block
     (List.mapi
        (fun i line ->
          let w = Span_core.width line in

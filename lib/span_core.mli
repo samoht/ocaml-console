@@ -82,6 +82,15 @@ val lines : t -> t list
 (** [lines s] are the lines of [s], without their line feeds. It is never empty.
 *)
 
+val block : t list -> t
+(** [block lines] is [lines] one under the other, as one block: a display whose
+    region is too short for all of a view drops the lines of a block together.
+*)
+
+val seamed : t -> (bool * t) list
+(** [seamed s] are the {!lines} of [s], each after [true] iff it goes on the
+    {!block} of the line above it. *)
+
 val color_at : Color.t list -> float -> Color.t
 (** [color_at stops p] is the colour at [p], clamped to 0 to 1, of [stops]
     spread evenly from 0 to 1: the {!Color.blend} of the two stops around [p],

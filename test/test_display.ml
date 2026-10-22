@@ -1146,6 +1146,33 @@ let test_view_fits () =
     (screen t);
   Display.close t.display
 
+(* On a terminal too short for the view, the view loses its first lines,
+   and a table cut in its height goes whole, beside text in a hcat too: the
+   region shows no fragment of its frame. *)
+let test_view_short () =
+  let t = terminal ~theme ~width:40 ~height:6 ~summary:"Build" () in
+  let table = Table.to_span ~width:30 steps in
+  Display.set_view t.display (fun d ~width ~height:_ ->
+      Span.vcat [ table; Display.default_view d ~width ~height:2 ]);
+  ignore (Display.task t.display "compile");
+  Display.redraw t.display;
+  let rows = screen t in
+  Alcotest.(check int) "the tree and the summary" 2 (List.length rows);
+  Alcotest.(check bool)
+    "nothing of the table" false
+    (List.exists (fun r -> contains "+-" r || contains "s |" r) rows);
+  Display.set_view t.display (fun d ~width ~height:_ ->
+      Span.vcat
+        [
+          Span.text "a\nb\nc";
+          Span.hcat [ table; Span.text "x" ];
+          Span.text "d\ne";
+          Display.default_view d ~width ~height:2;
+        ]);
+  check_lines "past the table, the text" [ "d"; "e" ]
+    (List.filteri (fun i _ -> i < 2) (screen t));
+  Display.close t.display
+
 (* On a wide terminal the view is given its width, and the tree keeps to
    100 columns. *)
 let test_view_width () =
@@ -1614,6 +1641,7 @@ let suite =
       Alcotest.test_case "view" `Quick test_view;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
+      Alcotest.test_case "a view on a short terminal" `Quick test_view_short;
       Alcotest.test_case "the default view in a column" `Quick
         test_default_view_column;
       Alcotest.test_case "view replaced" `Quick test_view_replaced;

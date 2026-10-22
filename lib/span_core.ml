@@ -7,12 +7,15 @@
    but the line feed: the constructors make it so, and every operation below
    keeps it. An atom with [draw] is drawn when printed, in [style] and the
    formatter's look; its [text] is its drawing in {!Look.default}, which has
-   the same cells in every look, and measures it. *)
+   the same cells in every look, and measures it. A line feed alone in an
+   atom with [block] joins two lines of one widget, which a region too short
+   for it drops together. *)
 type atom = {
   style : Style.t;
   link : string option;
   text : string;
   draw : (Look.t -> atom list) option;
+  block : bool;
 }
 
 type t = atom list
@@ -52,7 +55,7 @@ let target uri =
 let atom ?link style text =
   match clean text with
   | "" -> []
-  | text -> [ { style; link; text; draw = None } ]
+  | text -> [ { style; link; text; draw = None; block = false } ]
 
 let empty = []
 let is_empty = function [] -> true | _ :: _ -> false
@@ -86,7 +89,16 @@ let rec resolve look t =
 let drawn draw =
   match String.concat "" (List.map (fun a -> a.text) (draw Look.default)) with
   | "" -> empty
-  | text -> [ { style = Style.none; link = None; text; draw = Some draw } ]
+  | text ->
+      [
+        {
+          style = Style.none;
+          link = None;
+          text;
+          draw = Some draw;
+          block = false;
+        };
+      ]
 
 (* {1 Gradients} *)
 
@@ -150,6 +162,35 @@ let lines t =
 let unlines = function
   | [] -> empty
   | l :: ls -> List.concat (l :: List.map (fun l -> text "\n" @ l) ls)
+
+let joint =
+  [
+    { style = Style.none; link = None; text = "\n"; draw = None; block = true };
+  ]
+
+let block lines = concat ~sep:joint lines
+
+let seamed t =
+  let rec go acc joined line = function
+    | [] -> List.rev ((joined, List.rev line) :: acc)
+    | a :: rest -> (
+        match String.index_opt a.text '\n' with
+        | None -> go acc joined (a :: line) rest
+        | Some i ->
+            let before = String.sub a.text 0 i in
+            let after =
+              String.sub a.text (i + 1) (String.length a.text - i - 1)
+            in
+            let line =
+              if before = "" then line else { a with text = before } :: line
+            in
+            let rest =
+              if after = "" then rest else { a with text = after } :: rest
+            in
+            let next = a.block && before = "" && after = "" in
+            go ((joined, List.rev line) :: acc) next [] rest)
+  in
+  go [] false [] t
 
 (* {1 Roles} *)
 
@@ -346,13 +387,15 @@ let spaces n = if n <= 0 then empty else text (String.make n ' ')
 let hcat ?(gap = 2) spans =
   if gap < 0 then invalid_arg "Console.Span.hcat: negative gap";
   let blocks =
-    Array.of_list (List.map (fun s -> (Array.of_list (lines s), width s)) spans)
+    spans
+    |> List.map (fun s -> (Array.of_list (seamed s), width s))
+    |> Array.of_list
   in
   let height =
     Array.fold_left (fun h (b, _) -> max h (Array.length b)) 0 blocks
   in
   let row i =
-    let cell (b, _) = if i < Array.length b then b.(i) else empty in
+    let cell (b, _) = if i < Array.length b then snd b.(i) else empty in
     let last = ref (-1) in
     Array.iteri (fun j b -> if not (is_empty (cell b)) then last := j) blocks;
     List.concat
@@ -361,13 +404,19 @@ let hcat ?(gap = 2) spans =
            let c = cell b in
            if j = !last then c else c @ spaces (w - line_width c + gap)))
   in
-  unlines (List.init height row)
+  (* A row goes on the block above it if one of its spans' lines does. *)
+  let joined i =
+    Array.exists (fun (b, _) -> i < Array.length b && fst b.(i)) blocks
+  in
+  List.concat
+    (List.init height (fun i ->
+         if i = 0 then row i
+         else (if joined i then joint else text "\n") @ row i))
 
 (* {1 One under the other} *)
 
 let vcat spans =
-  unlines
-    (List.concat_map lines (List.filter (fun s -> not (is_empty s)) spans))
+  concat ~sep:(text "\n") (List.filter (fun s -> not (is_empty s)) spans)
 
 let height t = if is_empty t then 0 else List.length (lines t)
 
@@ -400,10 +449,18 @@ let truncate_line ~ellipsis w line =
             let style =
               match resolve look cut with a :: _ -> a.style | [] -> Style.none
             in
-            [ { style; link = None; text = ellipsis; draw = None } ])
+            [
+              {
+                style;
+                link = None;
+                text = ellipsis;
+                draw = None;
+                block = false;
+              };
+            ])
       else None
     in
-    sub l 0 k @ [ { style; link = None; text = ellipsis; draw } ]
+    sub l 0 k @ [ { style; link = None; text = ellipsis; draw; block = false } ]
 
 let truncate ?(ellipsis = ellipsis) w t =
   if w <= 0 then empty
@@ -470,6 +527,7 @@ let finish f =
         link = None;
         text = String.make f.hang ' ';
         draw = None;
+        block = false;
       }
       :: body
   in

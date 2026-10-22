@@ -83,22 +83,36 @@ let eol t = if is_live t then "\r\n" else "\n"
    scroll its first line out of reach of the cursor moves that erase it. *)
 let capacity t = max 0 (t.height - 1)
 
-(* The last [height] lines of the view in [look], each cut to the
-   terminal's width if there is one. The default view's lines are taken as
-   they are drawn, without joining them into a span to split again. *)
+(* The last [height] lines of [lines], those of a block cut in its height
+   dropped with the rest of it, so that no fragment of a table's or a
+   panel's frame shows. *)
+let last height lines =
+  let extra = List.length lines - height in
+  if extra <= 0 then List.map snd lines
+  else
+    let rec past_block = function
+      | (true, _) :: rest -> past_block rest
+      | rest -> rest
+    in
+    List.map snd (past_block (List.drop extra lines))
+
+(* The last lines of the view in [look] that fit in [height], each cut to
+   the terminal's width if there is one. The default view's lines are
+   taken as they are drawn, without joining them into a span to split
+   again. *)
 let lines t ~look ~height view =
   let lines =
     match view with
     | None ->
-        List.map (Span_core.resolve look)
+        List.map
+          (fun l -> (false, Span_core.resolve look l))
           (Display_tree.default_lines t ~width:t.width ~height)
     | Some view -> (
         match view t ~width:t.width ~height with
         | span when Span_core.is_empty span -> []
-        | span -> Span_core.lines (Span_core.resolve look span))
+        | span -> Span_core.seamed (Span_core.resolve look span))
   in
-  let extra = List.length lines - height in
-  let lines = if extra > 0 then List.drop extra lines else lines in
+  let lines = last height lines in
   if is_live t then List.map (Widget.truncate look t.width) lines else lines
 
 let frame t =

@@ -113,7 +113,9 @@
       folds to fit.
     - The region is never taller than the terminal less one row, so a redraw
       never scrolls the terminal: a view taller than that loses its first lines,
-      and a summary at its bottom stays.
+      and a summary at its bottom stays. A widget, such as a table or a panel,
+      that this would cut in its height loses all its lines, so that no fragment
+      of its frame shows, in a {!Span.hcat} too.
     - A tree too tall for its height first folds the tasks that ended under each
       task into one line, such as [✓ 12 done], then the lines of its windows
       give way, the oldest of them first, whichever task's window holds it, then
