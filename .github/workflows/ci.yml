@@ -10,12 +10,9 @@ on:
 # The tape examples need vhs, which is not in opam-repository yet. Pinning it
 # from its repository, at one commit, lets every job build them and check the
 # tapes against the same vhs.
-# The terminal fixes console and vhs need are not on opam before matrix 0.2.0:
-# drop the matrix pin once it is.
 env:
   MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
-  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#3f723e947f5e9b180e6aaef30448a83d250b60e9
-  MATRIX_PIN: git+https://github.com/samoht/mosaic.git#67464f3b08eaa42c774b438b8bf70efd0b6ca130
+  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#71185e0410646fea6beb9f6a46f5f026456eaf77
 
 jobs:
   build:
@@ -34,7 +31,6 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - run: opam pin add -n matrix.0.2.0 "$MATRIX_PIN"
       - run: opam pin add -n vhs "$VHS_PIN"
       - run: opam install . vhs --deps-only --with-test
       - run: opam install vhs
@@ -56,7 +52,6 @@ jobs:
       # Resolve every dependency to the oldest version its lower bound allows,
       # so a call that only compiles against a newer API fails here rather than
       # in a downstream opam build.
-      - run: opam pin add -n matrix.0.2.0 "$MATRIX_PIN"
       - run: opam pin add -n vhs "$VHS_PIN"
       - run: opam install . vhs --deps-only --with-test --criteria="+count[version-lag,solution]"
       - run: opam install vhs
@@ -91,7 +86,6 @@ jobs:
           ocaml-compiler: '5.4'
 
       - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
-      - run: opam pin add -n matrix.0.2.0 "$MATRIX_PIN"
       - run: opam pin add -n vhs "$VHS_PIN"
       - run: opam pin add -n merlint "$MERLINT_PIN"
       - run: opam install . vhs --deps-only --with-test
