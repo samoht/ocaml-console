@@ -60,6 +60,10 @@ let line t question =
     | answer -> Ok answer
     | exception End_of_file -> Error (`Msg "no answer: the input ended")
     | exception Eio.Buf_read.Buffer_limit_exceeded ->
+        (* The rest of the line goes, so that the next question reads the
+           line after it; skipping keeps the buffer within its cap. *)
+        Eio.Buf_read.skip_while (fun c -> c <> '\n') t.input;
+        (try Eio.Buf_read.char '\n' t.input with End_of_file -> ());
         Error (`Msg "no answer: the line is too long")
 
 let confirm t question =

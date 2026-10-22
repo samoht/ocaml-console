@@ -41,7 +41,8 @@ val line : t -> string -> (string, [ `Msg of string ]) result
     CRLF), after writing [question]. The question is flushed, with no newline
     added, and each control character in it but a line feed is a space. The
     answer is returned as typed, spaces included. This is [Error] when [t] is
-    not interactive or the input ends before a line feed. *)
+    not interactive, when the input ends before a line feed, or when the line is
+    longer than 4096 bytes, which is then skipped up to its line feed. *)
 
 val confirm : t -> string -> (bool, [ `Msg of string ]) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
