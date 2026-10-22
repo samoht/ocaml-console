@@ -298,7 +298,10 @@ let add r kind text =
     end
     else if not (is_running r) then Display_row.labelled r line
     else begin
-      let kept = { line with text = Display_text.capped line.text } in
+      let kept =
+        let text = Display_text.capped line.text in
+        if text == line.text then line else { line with text }
+      in
       push r kept;
       if keeps_output t then begin
         keep_output r kept;

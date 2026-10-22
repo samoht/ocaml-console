@@ -133,17 +133,19 @@ let gone stage (p : Display_layout.piece) =
    count keeps its distance to the timer, as on the line of a task that
    ended. *)
 let left stage pieces =
-  let a = Array.of_list pieces in
-  let keep = Array.map (fun p -> not (gone stage p)) a in
-  Array.iteri
-    (fun i (p : Display_layout.piece) ->
-      if gone stage p && p <> Rate then
-        if i > 0 && keep.(i - 1) && is_blank a.(i - 1) then
-          keep.(i - 1) <- false
-        else if i + 1 < Array.length a && keep.(i + 1) && is_blank a.(i + 1)
-        then keep.(i + 1) <- false)
-    a;
-  List.filteri (fun i _ -> keep.(i)) pieces
+  if stage = 0 then pieces
+  else
+    let a = Array.of_list pieces in
+    let keep = Array.map (fun p -> not (gone stage p)) a in
+    Array.iteri
+      (fun i (p : Display_layout.piece) ->
+        if gone stage p && p <> Rate then
+          if i > 0 && keep.(i - 1) && is_blank a.(i - 1) then
+            keep.(i - 1) <- false
+          else if i + 1 < Array.length a && keep.(i + 1) && is_blank a.(i + 1)
+          then keep.(i + 1) <- false)
+      a;
+    List.filteri (fun i _ -> keep.(i)) pieces
 
 (* The label takes the room the other pieces leave, and they give way
    until it has [want]; one spacer takes the slack, so the pieces after it
@@ -278,8 +280,8 @@ let ended t ~width ~lasts ~whole r =
   let room m =
     width - lead_w - if Span_core.is_empty m then 0 else Span.width m + 2
   in
-  if room (meta t r 0) >= label_w then
-    [ against t ~width Span.(lead ++ label) (meta t r 0) ]
+  let full = meta t r 0 in
+  if room full >= label_w then [ against t ~width Span.(lead ++ label) full ]
   else if not whole then
     let rec fit stage =
       let m = meta t r stage in

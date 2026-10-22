@@ -95,6 +95,10 @@ let last height lines =
     in
     List.map snd (past_block (List.drop extra lines))
 
+let drop_first height lines =
+  let extra = List.length lines - height in
+  if extra > 0 then List.drop extra lines else lines
+
 (* The last lines of the view in [look] that fit in [height], each cut to
    the terminal's width if there is one. The default view's lines are
    taken as they are drawn, without joining them into a span to split
@@ -103,15 +107,14 @@ let lines t ~look ~height view =
   let lines =
     match view with
     | None ->
-        List.map
-          (fun l -> (false, Span_core.resolve look l))
-          (Display_tree.default_lines t ~width:t.width ~height)
+        drop_first height
+          (List.map (Span_core.resolve look)
+             (Display_tree.default_lines t ~width:t.width ~height))
     | Some view -> (
         match view t ~width:t.width ~height with
         | span when Span_core.is_empty span -> []
-        | span -> Span_core.seamed (Span_core.resolve look span))
+        | span -> last height (Span_core.seamed (Span_core.resolve look span)))
   in
-  let lines = last height lines in
   if is_live t then List.map (Widget.truncate look t.width) lines else lines
 
 let frame t =
