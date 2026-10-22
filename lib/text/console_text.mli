@@ -19,10 +19,12 @@ val sanitize : ?keep_newlines:bool -> string -> string
 
     - Each control character (C0, DEL and C1) is a space.
     - Each invalid UTF-8 byte is the replacement character U+FFFD.
-    - The characters that reorder or hide the text around them are removed. They
-      are the bidirectional marks U+061C, U+200E and U+200F, the embeddings and
-      overrides U+202A to U+202E, the isolates U+2066 to U+2069, and the
-      interlinear annotation characters U+FFF9 to U+FFFB.
+    - The characters that reorder or hide the text around them, or that are
+      invisible text, are removed. They are the bidirectional marks U+061C,
+      U+200E and U+200F, the embeddings and overrides U+202A to U+202E, the
+      isolates U+2066 to U+2069, the interlinear annotation characters U+FFF9 to
+      U+FFFB, and the tag characters U+E0000 to U+E007F, which also leave a
+      subdivision flag, such as Scotland's, a black flag.
     - The joiners U+200C and U+200D, which some scripts and emoji need, are
       kept.
     - A line ends at a line feed, a carriage return, or the two together. VT, FF

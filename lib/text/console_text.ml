@@ -6,15 +6,17 @@
 (* The escape scanner follows the DEC parser of Paul Williams's state diagram
    (vt100.net/emu/dec_ansi_parser) over ECMA-48 and ECMA-35. *)
 
-(* Format characters that reorder the text around them or hide it: the
-   bidirectional marks (U+061C, U+200E, U+200F), embeddings and overrides
-   (U+202A to U+202E) and isolates (U+2066 to U+2069) of Unicode UAX #9, and
-   the interlinear annotation characters (U+FFF9 to U+FFFB). *)
+(* Format characters that reorder the text around them, hide it or are
+   invisible text: the bidirectional marks (U+061C, U+200E, U+200F),
+   embeddings and overrides (U+202A to U+202E) and isolates (U+2066 to
+   U+2069) of Unicode UAX #9, the interlinear annotation characters (U+FFF9
+   to U+FFFB) and the tag characters (U+E0000 to U+E007F). *)
 let reorders c =
   c = 0x061c || c = 0x200e || c = 0x200f
   || (c >= 0x202a && c <= 0x202e)
   || (c >= 0x2066 && c <= 0x2069)
   || (c >= 0xfff9 && c <= 0xfffb)
+  || (c >= 0xe0000 && c <= 0xe007f)
 
 (* [text buf ~keep_newlines ~cr u] adds what [sanitize] makes of the
    character [u]: itself, nothing if it {!reorders}, a line end for CR or a

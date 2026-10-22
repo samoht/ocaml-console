@@ -43,6 +43,7 @@ let removed c =
   || (c >= 0x202a && c <= 0x202e)
   || (c >= 0x2066 && c <= 0x2069)
   || (c >= 0xfff9 && c <= 0xfffb)
+  || (c >= 0xe0000 && c <= 0xe007f)
 
 let line_ends s =
   let n = String.length s in
