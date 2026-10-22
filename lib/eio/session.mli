@@ -47,10 +47,12 @@ val run :
   'a
 (** [run ~sleep ~intercept display f] is [f display], with [display] the calling
     fiber's and the program's one, redrawn ten times a second, waiting with
-    [sleep], {!Logs} messages and each whole line written on the formatters of
-    [intercept] given to the current task, or printed above its region outside a
-    task, and closed when [f] returns, raises, is cancelled, the program exits
-    or a signal ends it ({!Interrupt}). While SIGTSTP stops the program, the
-    region is off the screen and the cursor shown with [cursor true] (default
-    does nothing); once continued, [cursor false] hides it and the region is
-    drawn again. A {!claim} must be held; it is released. *)
+    [sleep], {!Logs} messages and what is written on the formatters of
+    [intercept] given, a line at a time, to the task current where it is
+    written, a task's unended line ended when the task ends, or printed above
+    its region outside a task, and closed when [f] returns, raises, is
+    cancelled, the program exits or a signal ends it ({!Interrupt}). While
+    SIGTSTP stops the program, the region is off the screen and the cursor shown
+    with [cursor true] (default does nothing); once continued, [cursor false]
+    hides it and the region is drawn again. A {!claim} must be held; it is
+    released. *)
