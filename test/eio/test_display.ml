@@ -197,13 +197,36 @@ let test_json_concurrent_writes () =
   in
   List.iter
     (fun line ->
-      match Yojson.Safe.from_string line with
-      | `Assoc _ -> ()
-      | _ -> Alcotest.failf "not a JSON object: %S" line
-      | exception Yojson.Json_error error ->
+      match Jsont_bytesrw.decode_string Console.Progress.Event.jsont line with
+      | Ok e ->
+          Alcotest.(check string)
+            "written back" line
+            (Console.Progress.Event.to_string e)
+      | Error error ->
           Alcotest.failf "interleaved JSON record %S: %s" line error)
     lines;
   Alcotest.(check int) "four events per task" 12 (List.length lines)
+
+(* The events of the lines of [out], each written back as it was. *)
+let events out =
+  String.split_on_char '\n' out
+  |> List.filter (( <> ) "")
+  |> List.map (fun line ->
+      match Jsont_bytesrw.decode_string Console.Progress.Event.jsont line with
+      | Ok e ->
+          Alcotest.(check string)
+            "written back" line
+            (Console.Progress.Event.to_string e);
+          Console.Progress.Event.kind e
+      | Error e -> Alcotest.failf "%S does not decode: %s" line e)
+
+(* The task and the text of the output events of [out]. *)
+let output_events out =
+  List.filter_map
+    (function `Output (task, text, _) -> Some (task, text) | _ -> None)
+    (events out)
+
+let outputs out = List.map snd (output_events out)
 
 (* Capture the standard formatter itself: run only takes program output
    from Fmt.stdout and Fmt.stderr in quiet and JSON modes. *)
@@ -244,42 +267,14 @@ let test_json_unended_attribution () =
             Fmt.pr "public@.";
             D.fail task))
   in
-  let output =
-    String.split_on_char '\n' out
-    |> List.filter (( <> ) "")
-    |> List.map Yojson.Safe.from_string
-    |> List.filter_map (function
-      | `Assoc fields
-        when Yojson.Safe.equal (List.assoc "event" fields) (`String "output") ->
-          Some
-            (`Assoc
-               (List.map
-                  (fun key -> (key, List.assoc key fields))
-                  [ "event"; "id"; "task"; "text" ]))
-      | _ -> None)
+  let task_name = function
+    | Some (id, labels) -> Fmt.str "%d %s" id (String.concat "/" labels)
+    | None -> "-"
   in
-  let expected =
-    [
-      `Assoc
-        [
-          ("event", `String "output");
-          ("id", `Int 0);
-          ("task", `List [ `String "ok" ]);
-          ("text", `String "secret");
-        ];
-      `Assoc
-        [
-          ("event", `String "output");
-          ("id", `Int 1);
-          ("task", `List [ `String "fail" ]);
-          ("text", `String "public");
-        ];
-    ]
-  in
-  Alcotest.(check (list string))
+  Alcotest.(check (list (pair string string)))
     "each task keeps its bytes"
-    (List.map Yojson.Safe.to_string expected)
-    (List.map Yojson.Safe.to_string output)
+    [ ("0 ok", "secret"); ("1 fail", "public") ]
+    (List.map (fun (task, text) -> (task_name task, text)) (output_events out))
 
 (* A complete long line is one output record, just as with Display.log. *)
 let test_json_long_line () =
@@ -288,19 +283,7 @@ let test_json_long_line () =
     capture_stdout `Json (fun d ->
         D.with_task d "large" (fun _ -> Fmt.pr "%s@." text))
   in
-  let output =
-    String.split_on_char '\n' out
-    |> List.filter (( <> ) "")
-    |> List.map Yojson.Safe.from_string
-    |> List.filter_map (function
-      | `Assoc fields
-        when Yojson.Safe.equal (List.assoc "event" fields) (`String "output")
-        -> (
-          match List.assoc "text" fields with
-          | `String text -> Some text
-          | _ -> Alcotest.fail "non-string output")
-      | _ -> None)
-  in
+  let output = outputs out in
   Alcotest.(check (list int))
     "one complete line, no invented empty line" [ 65537 ]
     (List.map String.length output);
@@ -310,19 +293,6 @@ let test_json_long_line () =
    escape code, where the formatter's write leaves one under way. *)
 let test_long_line_cut () =
   let x = String.make 65535 'x' in
-  let outputs out =
-    String.split_on_char '\n' out
-    |> List.filter (( <> ) "")
-    |> List.filter_map (fun line ->
-        match Yojson.Safe.from_string line with
-        | `Assoc fields
-          when Yojson.Safe.equal (List.assoc "event" fields) (`String "output")
-          -> (
-            match List.assoc "text" fields with
-            | `String text -> Some text
-            | _ -> None)
-        | _ -> None)
-  in
   let cut first rest =
     outputs
       (capture_stdout `Json (fun d ->

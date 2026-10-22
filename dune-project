@@ -63,5 +63,4 @@
   (eio_main :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (jsont :with-test)
-  (bytesrw :with-test)
-  (yojson :with-test)))
+  (bytesrw :with-test)))

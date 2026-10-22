@@ -54,7 +54,8 @@
   matrix.grid
   matrix.vte
   alcotest
-  yojson
+  jsont
+  jsont.bytesrw
   astring
   fmt
   logs
