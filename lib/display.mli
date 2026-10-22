@@ -37,7 +37,8 @@
     A task's output shows under it while it runs, and stays if the task fails.
 
     - Output outside any task, or within {!root}, goes above the rows.
-    - On a pipe, each line is printed at once, after its task's name.
+    - On a pipe, each line is printed at once, after its task's path
+      ({!design}).
     - {!within} makes a task current again, for example from another fiber, and
       {!log} gives it a line from code where it is not current.
 
@@ -127,10 +128,19 @@
 
     Without a terminal there is no region. The tasks print the lines of
     {!Progress}: one line when a task starts and one when it ends, in the order
-    they happen, indented under its parent, and at close the view's last frame
-    comes last, once: the summary alone in the default view, since every task
-    has printed its lines. A terminal's scrollback keeps one line for each task
-    instead, in the order of its tree, with the tree's guides.
+    they happen, and at close the view's last frame comes last, once: the
+    summary alone in the default view, since every task has printed its lines. A
+    terminal's scrollback keeps one line for each task instead, in the order of
+    its tree, with the tree's guides.
+
+    The lines of tasks that run at once interleave on a pipe, so no line is
+    placed by its indentation: each line a task prints, as it starts, as it ends
+    and before each line of its output, names the task by its {e path}, the
+    labels from its top task down to it, such as [linux > compile] with a single
+    right-pointing angle quotation mark, U+203A, in UTF-8. The lines of tasks
+    start at the first column, and a line of output two columns in. With
+    [`Quiet], the line of a failure names its path too, and its output follows
+    it, two columns in.
 
     {1:guarantees Guarantees}
 
@@ -170,7 +180,8 @@
       elapsed time. Without a terminal, [failed] or [cancelled] follows when the
       task did not succeed.
     - Without a terminal, the line a task prints when it starts is its mark and
-      its label.
+      its path ({!design}), and the line it prints when it ends has its path in
+      place of its label.
 
     With the [`Quiet] {!Progress}, only a task that fails or is cancelled prints
     its line. With [`Json] no task does: JSON events take their place. *)

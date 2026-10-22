@@ -23,14 +23,14 @@ when it ends, then the summary:
 
   $ ../../../examples/progress/main.exe 2>&1 | cat
   [-] RUN make
-    [-] sha256:abcd...
+  [-] RUN make > sha256:abcd...
     # RUN make:   CC src/file0.c
     # RUN make:   CC src/file1.c
     # RUN make:   CC src/file2.c
     # RUN make:   CC src/file3.c
     # RUN make:   CC src/file4.c
     # RUN make:   CC src/file5.c
-    [+] sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
+  [+] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
   [+] RUN make  5/5  0.0s
   [+] Building 0.0s (2/2)
 
@@ -38,14 +38,14 @@ when it ends, then the summary:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=plain
   [-] RUN make
-    [-] sha256:abcd...
+  [-] RUN make > sha256:abcd...
     # RUN make:   CC src/file0.c
     # RUN make:   CC src/file1.c
     # RUN make:   CC src/file2.c
     # RUN make:   CC src/file3.c
     # RUN make:   CC src/file4.c
     # RUN make:   CC src/file5.c
-    [+] sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
+  [+] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
   [+] RUN make  5/5  0.0s
   [+] Building 0.0s (2/2)
 
@@ -71,8 +71,8 @@ line and its output when it fails:
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet --fail
-    [x] sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s  failed
-      # checksum mismatch
+  [x] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s  failed
+    # checksum mismatch
 
 --progress=json writes one JSON object on each line for each event, on a
 terminal as on a pipe:

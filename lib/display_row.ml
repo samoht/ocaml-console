@@ -48,7 +48,6 @@ let prefix t lasts =
 
 let continuation t lasts = "  " ^ Widget.rails (guide t) (nested lasts)
 let guided t s = Span.styled (Guide.style (guide t)) s
-let indent r = String.make (2 * depth r) ' '
 
 (* {1 Live rows} *)
 
@@ -141,11 +140,7 @@ let lead_mark t = function
   | Logs ((`Warning | `Error | `Debug) as l) ->
       Span.(mark t (l :> Theme.mark) ++ text " ")
 
-let body t ?label (line : line) =
-  let label =
-    match label with Some l -> muted t (l ^ ": ") | None -> Span.empty
-  in
-  Span.(label ++ text line.text ++ gap_suffix t line.gap)
+let body t (line : line) = Span.(text line.text ++ gap_suffix t line.gap)
 
 let tail t ~width ~lasts r =
   let prefix = guided t (continuation t lasts) in
@@ -253,8 +248,30 @@ let more t ~width n =
   cut t width
     (muted t (Fmt.str "  %s %d more running" (Widget.ellipsis (look t)) n))
 
-(* Without a terminal: the same, compact, on one line, which says how a
-   task that did not succeed ended, as no colour may. *)
+(* {2 Without a terminal}
+
+   The lines of tasks that run at once interleave, so each names its task
+   by its path, the labels from its top task down, rather than by an
+   indentation that the line above may belong to another tree. *)
+
+let ancestors r =
+  let rec up acc r =
+    match r.parent with None -> acc | Some p -> up (p.label :: acc) p
+  in
+  up [] r
+
+let separator t = Widget.glyph (look t) " \u{203A} " ~ascii:" > "
+
+(* The labels above the task, muted, then [own]. *)
+let path t r own =
+  Span.concat
+    (List.map (fun l -> muted t (l ^ separator t)) (ancestors r) @ [ text own ])
+
+(* A line of output is two columns in from the lines of tasks. *)
+let under_task = text "  "
+
+(* The same, compact, on one line, which says how a task that did not
+   succeed ended, as no colour may. *)
 let appended r =
   let t = r.disp in
   let count = match count_text r.metric with "" -> "" | c -> "  " ^ c in
@@ -265,9 +282,8 @@ let appended r =
     | `Cancelled -> "  cancelled"
   in
   Span.(
-    text (indent r)
-    ++ mark_of t r ++ text " "
-    ++ text (label_of r)
+    mark_of t r ++ text " "
+    ++ path t r (label_of r)
     ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r) ^ ended))
 
 (* On a terminal a line that does not fit goes on over the lines below,
@@ -276,34 +292,32 @@ let folded t ~width lead body =
   if not (is_live t) then [ Span.(lead ++ body) ]
   else hanging t ~width lead body
 
-let under_task r = text (indent r ^ "  ")
-
 (* The mark leads, so that a line that goes on over the next ones goes on
    under its text. *)
 let labelled r line =
   let t = r.disp in
   folded t ~width:(room t)
-    Span.(under_task r ++ lead_mark t line.kind)
-    (body t ~label:r.label line)
+    Span.(under_task ++ lead_mark t line.kind)
+    Span.(path t r r.label ++ muted t ": " ++ body t line)
 
 let under r line =
   let t = r.disp in
   folded t ~width:(room t)
-    Span.(under_task r ++ lead_mark t line.kind)
+    Span.(under_task ++ lead_mark t line.kind)
     (body t line)
 
 let dropped r n =
   let t = r.disp in
   let look = look t in
   Span.(
-    under_task r
+    under_task
     ++ muted t
          (Fmt.str "%s %d %s dropped" (Widget.ellipsis look) n
             (if n = 1 then "line" else "lines")))
 
 let started r =
   let t = r.disp in
-  Span.(text (indent r) ++ mark t `Running ++ text " " ++ text r.label)
+  Span.(mark t `Running ++ text " " ++ path t r r.label)
 
 let message t level msg =
   folded t ~width:t.width (lead_mark t (Logs level)) (text msg)

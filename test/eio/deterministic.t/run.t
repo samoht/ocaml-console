@@ -12,14 +12,14 @@ On a pipe:
 
   $ ../../../examples/progress/main.exe 2>&1 | cat
   [-] RUN make
-    [-] sha256:abcd...
+  [-] RUN make > sha256:abcd...
     # RUN make:   CC src/file0.c
     # RUN make:   CC src/file1.c
     # RUN make:   CC src/file2.c
     # RUN make:   CC src/file3.c
     # RUN make:   CC src/file4.c
     # RUN make:   CC src/file5.c
-    [+] sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
+  [+] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s
   [+] RUN make  5/5  0.0s
   [+] Building 0.0s (2/2)
 
@@ -37,7 +37,7 @@ that sleeps 26 times 0.11 seconds takes 2.8s.
   $ ../../../examples/columns/main.exe > first 2>&1
   $ ../../../examples/columns/main.exe > second 2>&1
   $ cmp first second
-  $ grep -e '] macos ' -e Building first
+  $ grep -e '] macos  ' -e Building first
   [+] macos  2.8s
   [+] Building 2.8s (9/9)
 

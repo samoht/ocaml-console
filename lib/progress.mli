@@ -20,15 +20,16 @@ type t =
         terminal recorder reads. *)
   | `Plain
     (** Lines are printed in turn, as on a pipe. A task prints a line when it
-        starts, its output at once and a line when it ends. The display's view
-        comes last, once: by default its summary line. The lines are in colour
-        if the output has colour. *)
+        starts, its output at once and a line when it ends, each naming the task
+        by its path ({!Display.design}). The display's view comes last, once: by
+        default its summary line. The lines are in colour if the output has
+        colour. *)
   | `Quiet
-    (** Only what fails is printed. There are no rows, no task lines and no
-        summary. A task that fails or is cancelled prints its line, then its
-        output under it, as on a terminal ({!Display.output}). What goes above
-        the rows is printed as usual, the result of {!Display.set_result}
-        included. *)
+    (** Only what fails is printed: a task that fails or is cancelled prints its
+        line, which names its path, then all its output under it
+        ({!Display.output}). A task that succeeds prints nothing, and there are
+        no rows and no summary. What goes above the rows is printed as usual,
+        the result of {!Display.set_result} included. *)
   | `Json
     (** Each event is one JSON object on a line of its own, and nothing else is
         printed ({{!json}JSON events}). *) ]

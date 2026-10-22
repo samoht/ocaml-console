@@ -467,8 +467,9 @@ let theme ~no_motion t = if no_motion then Console.Theme.still t else t
 
 When the output is not a terminal, nothing is redrawn. Each task prints a
 line when it starts and another when it ends, with the lines of its output
-in between, each after the task's name. The view's last frame comes last:
-by default, the summary line.
+in between. Each of these lines names the task by its path, such as
+`linux › compile`, so the lines of builds that run at once still read
+apart. The view's last frame comes last: by default, the summary line.
 
 `Display.v` opens a display on any formatter. Here it writes into a buffer,
 with a clock that stays at zero, to show what the `build` function above

@@ -557,10 +557,10 @@ let test_nested_plain () =
   check_lines "a start line and an end line each"
     [
       "[-] parent";
-      "  [-] one";
-      "  [-] two";
-      "  [+] one  0.0s";
-      "  [~] two  0.0s  cancelled";
+      "[-] parent \u{203A} one";
+      "[-] parent \u{203A} two";
+      "[+] parent \u{203A} one  0.0s";
+      "[~] parent \u{203A} two  0.0s  cancelled";
       "[x] parent  0.0s  failed";
       "";
     ]
@@ -807,7 +807,7 @@ let test_pipe_start () =
   ignore (Display.task ~parent:p d "index");
   Format.pp_print_flush ppf ();
   check_lines "the start lines, at once"
-    [ "[-] fetch"; "  [-] index"; "" ]
+    [ "[-] fetch"; "[-] fetch \u{203A} index"; "" ]
     (split (Buffer.contents buffer));
   Display.close d
 
@@ -1009,11 +1009,11 @@ let test_within () =
       "[-] a";
       "[-] b";
       "  a: for a";
-      "  [-] under a";
+      "[-] a \u{203A} under a";
       "  b: for b";
       "[+] b  0.0s";
       "  # a: still runs";
-      "  [+] under a  0.0s";
+      "[+] a \u{203A} under a  0.0s";
       "[+] a  0.0s";
       "";
     ]
@@ -1053,14 +1053,14 @@ let test_with_task () =
   check_lines "nested under the current task"
     [
       "[-] outer";
-      "  [-] inner";
-      "    inner: deep";
-      "  [+] inner  0.0s";
-      "  [-] child";
-      "  [-] ended";
-      "  [x] ended  0.0s  failed";
-      "    ended: after its end";
-      "  [+] child  0.0s";
+      "[-] outer \u{203A} inner";
+      "  outer \u{203A} inner: deep";
+      "[+] outer \u{203A} inner  0.0s";
+      "[-] outer \u{203A} child";
+      "[-] outer \u{203A} ended";
+      "[x] outer \u{203A} ended  0.0s  failed";
+      "  outer \u{203A} ended: after its end";
+      "[+] outer \u{203A} child  0.0s";
       "[+] outer  0.0s";
       "";
     ]
@@ -1334,11 +1334,6 @@ let test_view_exception_close () =
 
 (* {1 What a user sees} *)
 
-(* [indent_of s] is the number of spaces [s] starts with. *)
-let indent_of s =
-  let rec go i = if i < String.length s && s.[i] = ' ' then go (i + 1) else i in
-  go 0
-
 (* On a narrow terminal the label is what tells two rows apart: it gives
    way last, after the bar, and the row still ends with its timer. *)
 let test_label_before_bar () =
@@ -1413,7 +1408,8 @@ let test_last_frame_label_readable () =
     && List.exists (contains "sha256") rows)
 
 (* On a pipe, a task's output and the tasks under it are told apart by
-   their indentation: its lines do not read as siblings of its children. *)
+   their paths, not by an indentation: a child's lines name its parent, and
+   a line of output names its own task, two columns in. *)
 let test_plain_output_not_sibling () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -1423,11 +1419,16 @@ let test_plain_output_not_sibling () =
         Display.succeed c;
         Display.succeed p)
   in
-  let lines = split out in
-  let find affix = List.find (contains affix) lines in
-  Alcotest.(check bool)
-    "the parent's output and its child start in different columns" true
-    (indent_of (find "parent says") <> indent_of (find "child"))
+  check_lines "each line names its task"
+    [
+      "[-] parent";
+      "[-] parent \u{203A} child";
+      "  # parent: parent says";
+      "[+] parent \u{203A} child  0.0s";
+      "[+] parent  0.0s";
+      "";
+    ]
+    (split out)
 
 (* On a pipe a failure's output is printed once: the lines streamed as they
    came are not printed again under the failure. *)

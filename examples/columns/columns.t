@@ -4,22 +4,22 @@ ends, and the last frame of the view comes last:
 
   $ columns
   [-] linux
-    [-] fetch
+  [-] linux > fetch
   [-] macos
-    [-] fetch
-    [+] fetch  4/4  0.3s
-    [-] compile
-    [+] fetch  4/4  0.4s
-    [-] compile
-    [+] compile  12/12  0.9s
-    [-] test
-    [+] compile  12/12  1.3s
-    [-] test
-    [+] test  8/8  0.6s
+  [-] macos > fetch
+  [+] linux > fetch  4/4  0.3s
+  [-] linux > compile
+  [+] macos > fetch  4/4  0.4s
+  [-] macos > compile
+  [+] linux > compile  12/12  0.9s
+  [-] linux > test
+  [+] macos > compile  12/12  1.3s
+  [-] macos > test
+  [+] linux > test  8/8  0.6s
   [+] linux  1.9s
-    [+] test  8/8  0.8s
-    [-] sign
-    [+] sign  2/2  0.2s
+  [+] macos > test  8/8  0.8s
+  [-] macos > sign
+  [+] macos > sign  2/2  0.2s
   [+] macos  2.8s
   +-------+--------+
   | Build | Status |
