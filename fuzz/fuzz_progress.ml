@@ -230,9 +230,24 @@ let test_public_schema k text =
       if expected <> actual then failf "event %d is not the one expected" i)
     (List.combine expected events)
 
+(* Include the finite limits and all IEEE-754 bit patterns, rather than
+   only the ordinary magnitudes produced by the float generator. *)
+let extreme_seconds =
+  choose
+    [
+      const Float.max_float;
+      const (-.Float.max_float);
+      map [ int64 ] Int64.float_of_bits;
+    ]
+
+let test_extreme_seconds time =
+  test_round_trip time (`End ((0, [ "work" ]), `Succeeded, time, None))
+
 let suite =
   ( "progress",
     [
+      test_case "event times read back at every finite magnitude"
+        [ extreme_seconds ] test_extreme_seconds;
       test_case "an event reads back" [ float; kind ] test_round_trip;
       test_case "a string reads back" [ bytes ] test_string;
       test_case "a time reads back to the millisecond" [ float ] test_time;
