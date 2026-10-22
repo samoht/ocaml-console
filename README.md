@@ -98,22 +98,23 @@ program is in [examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 <!-- $MDX skip -->
 ```sh
-$ opam install console console-eio eio_main cmdliner
+$ opam install console console-eio
 ```
 
-Until console is published in the opam repository, pin it from GitHub
-instead:
+The quick start also needs `eio_main` to run
+[Eio](https://github.com/ocaml-multicore/eio) and
+[Cmdliner](https://erratique.ch/software/cmdliner) to read its options, with
+`Fmt_cli` from `fmt.cli`, but console itself depends on none of them. Its
+`dune` file names the libraries it links:
 
 <!-- $MDX skip -->
-```sh
-$ opam pin add https://github.com/samoht/ocaml-console.git
+```dune
+(executable
+ (name main)
+ (libraries console console.tty console-eio eio eio_main fmt fmt.cli cmdliner))
 ```
 
-The quick start needs `eio_main` to run
-[Eio](https://github.com/ocaml-multicore/eio) and
-[Cmdliner](https://erratique.ch/software/cmdliner) to read its options, but
-console itself depends on neither. It comes as two packages and five
-libraries:
+console comes as two packages and five libraries:
 
 - `console`: the styles, the widgets, the themes and the display. It needs
   neither Eio nor Unix.
@@ -301,8 +302,9 @@ let cmd =
 
 `Theme.default` reads well on any background at 256 colours or more. A
 theme named after a colour scheme, such as `Theme.dracula`, is meant for a
-terminal that uses that scheme. Every theme falls back to ASCII when the
-locale is not UTF-8.
+terminal that uses that scheme. Every theme falls back to ASCII on a
+formatter that is not UTF-8, as `Console_tty.setup` makes the standard
+outputs when the locale is not UTF-8.
 
 Each tile of the gallery shows [the same program](examples/themes/main.ml)
 in one theme, on the background that theme is made for, and
@@ -591,19 +593,17 @@ character that reorders the text around it:
 
 ## Known limitations
 
-- console 0.9.0 builds on the released matrix 0.1.0. The library uses matrix
-  only to split text into grapheme clusters and measure it, where 0.1.0
-  agrees with the unreleased matrix that console was written against, so it
-  needs no workaround; where console's widths differ from matrix's, it is
-  by console's own width policy, below. The terminal emulator that the tests
-  read is another matter: `test/vte/matrix_fix.ml` works around two defects
-  of its 0.1.0, five checks are skipped, each naming the upstream fix it
-  waits for, and three fuzz properties discard the samples that meet two
-  of its defects (`fuzz/matrix_0_1.ml`). invariant-hq/mosaic has fixed all of
-  them, and the workarounds go with matrix 0.2.0.
+- console 0.9.0 needs matrix 0.1.0 and works around nothing in it. It uses
+  matrix only to split text into grapheme clusters and measure it, where
+  0.1.0 agrees with the matrix that console was written against; where
+  console's widths differ from matrix's, it is by console's own width
+  policy, below. The tests' terminal emulator, also from matrix, has defects
+  in 0.1.0 that the tests work around until matrix 0.2.0, which fixes them
+  (`test/vte/matrix_fix.ml`, `fuzz/matrix_0_1.ml` and five skipped checks,
+  each naming its upstream fix).
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
-  is text unless a VS16 follows it, so console counts it one cell, its East
-  Asian width, and counts ❤️ (U+2764 U+FE0F) two.
+  is text unless a VS16 follows it, so console counts it at its East Asian
+  width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.
   [test/input/widths.txt](test/input/widths.txt) records the cells each
   terminal gives such text. A terminal or a font that draws the bare
   character as an emoji gives it two cells, and a line that holds one then
