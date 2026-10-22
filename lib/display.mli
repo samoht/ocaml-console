@@ -434,8 +434,10 @@ val log : task -> string -> unit
     - A tab goes to the next stop of eight columns from the start of its line.
     - The latest lines show in [task]'s window while it runs. All of them show
       under its line if it fails or is cancelled.
-    - Without a terminal, each line is printed at once, after [task]'s label.
-      Under the line of a failure, the lines of the window are printed again. *)
+    - Without a terminal, each line is printed once, as it comes, after [task]'s
+      label, and not again when [task] fails. With [`Quiet], where none is
+      printed as it comes, all of them are printed under the line of a failure
+      or a cancellation. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its

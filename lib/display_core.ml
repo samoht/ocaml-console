@@ -343,9 +343,9 @@ let kept r =
 
 (* What a task prints when it ends without a terminal: quiet, its line and
    all its lines if it failed or was cancelled, a transient task too, since
-   nothing else shows the failure; in turn, its line, then its window again
-   if it failed. Its event says the rest. *)
-let ending r outcome window =
+   nothing else shows the failure; in turn, its line alone, its lines having
+   been printed as they came. Its event says the rest. *)
+let ending r outcome =
   let t = r.disp in
   let failed =
     match outcome with `Succeeded -> false | `Failed | `Cancelled -> true
@@ -353,14 +353,7 @@ let ending r outcome window =
   match t.form with
   | Json -> []
   | Quiet -> if failed then Display_row.appended r :: kept r else []
-  | Plain ->
-      if r.transient then []
-      else
-        Display_row.appended r
-        ::
-        (match outcome with
-        | `Failed -> List.concat_map (Display_row.under r) window
-        | `Succeeded | `Cancelled -> [])
+  | Plain -> if r.transient then [] else [ Display_row.appended r ]
 
 (* {2 The scrollback}
 
@@ -452,7 +445,6 @@ let rec finish outcome ?message r =
     let children =
       List.concat_map (finish child_outcome) (List.rev (running_children r))
     in
-    let window = List.rev (Queue.fold (fun acc l -> l :: acc) [] r.window) in
     Queue.clear r.window;
     r.ended_at <- Some (t.now ());
     r.message <- Option.map Display_text.label message;
@@ -475,7 +467,7 @@ let rec finish outcome ?message r =
       children @ moved r
     end
     else begin
-      let lines = ending r outcome window in
+      let lines = ending r outcome in
       release r;
       children @ lines
     end

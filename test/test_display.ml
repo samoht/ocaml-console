@@ -128,8 +128,6 @@ let test_plain_attribution () =
       "  # b: two";
       "  # a: three";
       "[x] a  0.0s  failed";
-      "  # one";
-      "  # three";
       "[~] b  0.0s  cancelled";
       "";
     ]
@@ -151,9 +149,6 @@ let test_tabs () =
       "  # a: \u{754c}      z";
       "  # a: 12345678        w";
       "[x] a  0.0s  failed";
-      "  # x       y";
-      "  # \u{754c}      z";
-      "  # 12345678        w";
       "";
     ]
     (String.split_on_char '\n' out)
@@ -890,8 +885,8 @@ let test_failure_cap () =
     (contains (Fmt.str "%d lines dropped" first) out);
   Display.close t.display
 
-(* On a pipe nothing is kept: every line was printed when it came, and the
-   last [log_lines] are repeated under the failure. *)
+(* On a pipe nothing is kept: every line was printed when it came, and
+   none is printed again under the failure. *)
 let test_failure_plain () =
   let n = 2000 in
   let (), out =
@@ -904,17 +899,12 @@ let test_failure_plain () =
   in
   let lines = split out in
   Alcotest.(check int)
-    "every line once, two repeated, three more"
-    (n + 2 + 3)
+    "every line once, and the task's two lines"
+    (n + 2 + 1)
     (List.length lines);
   let tail = List.filteri (fun i _ -> i >= n + 1) lines in
-  check_lines "the last two under the failure"
-    [
-      "[x] job  0.0s  failed";
-      "  # line1998 " ^ String.make 600 'x';
-      "  # line1999 " ^ String.make 600 'x';
-      "";
-    ]
+  check_lines "nothing again under the failure"
+    [ "[x] job  0.0s  failed"; "" ]
     tail
 
 (* A task that is cancelled, as Ctrl-C cancels them all, prints all its

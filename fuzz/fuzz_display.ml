@@ -865,13 +865,10 @@ let check_lines ~where expected out =
           out)
     expected
 
-let in_window l =
-  match l.owner with Some t -> List.mem l.token t.window | None -> false
-
 let ended l = match l.owner with Some t -> t.outcome | None -> None
 
-(* On a pipe every line comes at once, after its task's label or alone
-   without a task, and a failed task repeats its window under its line. *)
+(* On a pipe every line comes at once and once only, after its task's
+   label or alone without a task. *)
 let test_pipe_lines steps =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -883,8 +880,7 @@ let test_pipe_lines steps =
     match l.owner with
     | None -> (0, 1)
     | Some _ when l.output && not l.ran -> (0, 0)
-    | Some _ ->
-        (1, if ended l = Some `Failed && l.ran && in_window l then 1 else 0)
+    | Some _ -> (1, 0)
   in
   check_lines ~where:"pipe"
     (List.map (fun l -> (l, expected l)) lines)
