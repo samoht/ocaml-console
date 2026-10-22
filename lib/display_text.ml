@@ -49,17 +49,24 @@ let kept_bytes = 4096
    sanitizing of each redraw passes over at once. *)
 let ellipsis = "..."
 
-(* The text is sanitized, so a cut needs only to fall between two
-   characters: at the last byte, at most three back, where a character
-   decodes. *)
+exception Cut of int
+
+(* The cut falls between two grapheme clusters, a character in console, at
+   the last boundary that leaves room for the dots. *)
 let capped s =
   if String.length s <= kept_bytes then s
   else
-    let rec cut i =
-      if i = 0 || Uchar.utf_decode_is_valid (String.get_utf_8_uchar s i) then i
-      else cut (i - 1)
+    let room = kept_bytes - String.length ellipsis in
+    let cut =
+      try
+        Width.iter_clusters
+          (fun ~offset ~len ~cells:_ ->
+            if offset + len > room then raise_notrace (Cut offset))
+          s;
+        room
+      with Cut i -> i
     in
-    String.sub s 0 (cut (kept_bytes - String.length ellipsis)) ^ ellipsis
+    String.sub s 0 cut ^ ellipsis
 
 let label s = capped (clean s)
 
