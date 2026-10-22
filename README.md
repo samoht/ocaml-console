@@ -238,25 +238,33 @@ and a bar shows a fraction, here 65% of twenty cells:
 - : unit = ()
 ```
 
-Vertical bars fill from the bottom, an eighth of a cell at a time. Side by
-side, one row tall, they are a sparkline, and in a taller room a
-histogram:
+Vertical bars fill from the bottom, an eighth of a cell at a time, each
+cell in the colour of its height. One cell wide side by side they are a
+sparkline, and as wide as their labels on a baseline a bar chart:
 
 ```ocaml
-# let load = [ 0.1; 0.3; 0.8; 0.5; 0.9; 0.4; 0.2 ];;
-val load : float list = [0.1; 0.3; 0.8; 0.5; 0.9; 0.4; 0.2]
 # print_endline
-    (View.to_string (View.hcat ~gap:0 (List.map Bar.vertical load)));;
-▁▂▆▄▇▃▂
+    (View.to_string (Bar.sparkline [ 0.1; 0.3; 0.8; 0.5; 0.9; 0.4; 0.2 ]));;
+▁▃▇▅█▄▂
 - : unit = ()
 # print_endline
     (View.to_string
-       (View.sized ~height:3 (View.hcat ~gap:1 (List.map Bar.vertical load))));;
-    ▃   ▆
-    █ ▄ █ ▂
-▂ ▇ █ █ █ █ ▅
+       (Panel.view
+          (Bar.chart ~height:3
+             [ ("Mon", 12.); ("Tue", 35.); ("Wed", 81.); ("Thu", 55.) ])));;
+╭─────────────────╮
+│ 12  35  81  55  │
+│         ███     │
+│     ▂▂▂ ███ ███ │
+│ ▄▄▄ ███ ███ ███ │
+│ ─────────────── │
+│ Mon Tue Wed Thu │
+╰─────────────────╯
 - : unit = ()
 ```
+
+[examples/charts](examples/charts/main.ml) draws a week's load and a few
+sparklines in a panel.
 
 ## Widgets inside widgets
 

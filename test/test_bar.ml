@@ -227,9 +227,49 @@ let test_vertical_palette () =
   in
   Alcotest.(check string) "plain" "█\n█" s
 
+(* A sparkline spans its values, its lowest at an eighth. *)
+let test_sparkline () =
+  Alcotest.(check string)
+    "from the lowest to the highest" "▁▃▆█"
+    (View.to_string (Bar.sparkline [ 5.; 6.; 7.; 8. ]));
+  Alcotest.(check string)
+    "from a floor" " ▄█"
+    (View.to_string (Bar.sparkline ~min:0. ~max:2. [ 0.; 1.; 2. ]));
+  Alcotest.(check string)
+    "all equal" "▁▁"
+    (View.to_string (Bar.sparkline [ 3.; 3. ]))
+
+(* A chart's bars are as wide as their labels, their values above them and
+   their labels under a baseline. *)
+let test_chart () =
+  Alcotest.(check string)
+    "values, bars, baseline and labels"
+    " 2   4 \n    ███\n███ ███\n───────\nMon Tue"
+    (View.to_string (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]));
+  Alcotest.(check string)
+    "off UTF-8" " 2   4 \n    ###\n### ###\n-------\nMon Tue"
+    (Display_harness.at ~utf_8:false ~time:0.
+       (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]))
+
+(* A vertical bar of no width grows to its room, as a column does. *)
+let test_vertical_width () =
+  Alcotest.(check string)
+    "fixed" "▄▄▄"
+    (View.to_string (Bar.vertical ~width:3 0.5));
+  Alcotest.(check string)
+    "its room" "▄▄▄▄▄"
+    (Display_harness.at ~width:5 ~time:0. (Bar.vertical 0.5));
+  Alcotest.(check string)
+    "shared in a row" "▄▄ ██"
+    (Display_harness.at ~width:5 ~time:0.
+       (View.hcat ~gap:1 [ Bar.vertical 0.5; Bar.vertical 1. ]))
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "sparkline" `Quick test_sparkline;
+      Alcotest.test_case "chart" `Quick test_chart;
+      Alcotest.test_case "vertical width" `Quick test_vertical_width;
       Alcotest.test_case "vertical fill" `Quick test_vertical_fill;
       Alcotest.test_case "vertical ASCII" `Quick test_vertical_ascii;
       Alcotest.test_case "sparkline and histogram" `Quick test_vertical_charts;
