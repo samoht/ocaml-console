@@ -170,8 +170,10 @@ val progress : (string * progress) list
     - A message from a source other than {!Logs.default} comes after the
       source's name in brackets, as in [[http] connected].
     - A message logged in another domain that Eio runs, such as one of an
-      [Eio.Executor_pool], is passed to the domain that runs [f] and goes above
-      the rows. The display itself belongs to that domain alone
+      [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
+      not inherit the task of the fiber that submitted its work, so the message
+      goes above the rows unless the worker made a task current with
+      {!Console.Display.within}. The display itself belongs to that domain alone
       ({{!Console.Display.displays}Displays}).
 
     A message the display cannot take goes to the reporter installed before

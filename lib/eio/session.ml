@@ -247,8 +247,10 @@ let level : Logs.level -> Display_driver.level = function
   | Logs.Debug -> `Debug
 
 (* A message is answered once the display wrote it, or once the display
-   closed without writing it. *)
+   closed without writing it. It keeps the task current where it was
+   logged, which the fiber that writes it does not have. *)
 type request = {
+  within : Display.task option;
   level : Display_driver.level;
   message : string;
   reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
@@ -268,7 +270,8 @@ let deliver ~owner ~closed ~requests display level message =
       Eio.Fiber.first
         (fun () ->
           let answer, reply = Eio.Promise.create () in
-          Eio.Stream.add requests { level; message; reply };
+          let within = Eio.Fiber.get task in
+          Eio.Stream.add requests { within; level; message; reply };
           Eio.Promise.await_exn (Eio.Promise.await answer))
         (fun () ->
           Eio.Promise.await closed;
@@ -316,14 +319,17 @@ let reporter ~previous ~owner ~closed ~requests display =
 
 let receive ~sw ~closed requests display =
   let rec loop () =
-    let { level; message; reply } = Eio.Stream.take requests in
+    let { within; level; message; reply } = Eio.Stream.take requests in
+    let report () = Display_driver.report display level message in
     let output =
       Eio.Fiber.fork_promise ~sw (fun () ->
           Eio.Fiber.first
             (fun () ->
               if Option.is_some (Eio.Promise.peek closed) then `Closed
               else begin
-                Display_driver.report display level message;
+                (match within with
+                | Some task -> Display.within task report
+                | None -> report ());
                 `Written
               end)
             (fun () ->
