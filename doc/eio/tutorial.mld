@@ -133,7 +133,8 @@ that wait, for a child process for example, run side by side with one row
 each. Below the rows, the summary line names the work given as [~summary],
 with its time and the count of suites that ended. It stays the last line
 while the rows above it come and go, and it is the last line printed when
-the work ends.
+the work ends, before the result a program gives with
+{!Console.Display.set_result}.
 
 A suite that ends goes above the rows, into the terminal's scrollback,
 where it stays: a task with tasks under it goes when it ends, with all of
@@ -217,10 +218,11 @@ redrawn, and [check] prints lines in turn instead:
 
 {ul
 {- a task prints a line when it starts;}
-{- each of its messages follows, after its name;}
+{- each of its messages follows, after its path, the labels from its top
+   task down to it;}
 {- it prints a line when it ends, with its count and its time, then
    [failed] or [cancelled] if it did not succeed;}
-{- the summary comes last.}}
+{- the summary comes last, then the result.}}
 
 Unless [--color=always] asks for it, a pipe gets no colour. Here [check]
 runs with its output captured and with [CONSOLE_DETERMINISTIC_CLOCK] set,

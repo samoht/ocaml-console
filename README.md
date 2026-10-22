@@ -354,10 +354,15 @@ its line. Output from outside any task goes above the rows.
 The summary line comes last: it names the work, says whether it still runs
 and how it ended, its time and the count of tasks that ended. It stays at
 the bottom of the region while the rows above it come and go, and it is the
-last line printed when the work ends, after everything it counts. A region
-too tall for the terminal folds the tasks that ended under each task into
-one line, such as `✓ 12 done`, then shows only the latest running tasks,
-so a redraw never scrolls the terminal.
+last line of the work, after everything it counts, but for the result a
+program gives with `Display.set_result`. A region too tall for the terminal
+folds the tasks that ended under each task into one line, such as
+`✓ 12 done`, then drops the oldest lines of the tasks' windows, then shows
+only the latest running tasks, so a redraw never scrolls the terminal.
+
+A line of a task's output that comes a second or more after the one before
+it, or after the task started, ends with that wait, such as `+3.0s`, so
+that a pause in the work shows where it happened.
 
 The rows are drawn on standard error, which leaves standard output to the
 program. What `print_string`, `Printf` or a child process writes on the

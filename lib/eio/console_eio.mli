@@ -18,7 +18,8 @@
     A task's output shows under it while it runs, and stays if the task fails.
 
     - Outside a task, output goes above the rows.
-    - On a pipe, each line is printed at once, after its task's name.
+    - On a pipe, each line is printed at once, after its task's path
+      ({!Console.Display.design}).
     - [Display.log] gives a task lines from where it is not current, such as a
       fiber that reads a child process.
 

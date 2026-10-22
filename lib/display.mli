@@ -16,7 +16,8 @@
     - a task prints a line when it starts;
     - it prints a line when it ends, with [failed] or [cancelled] at the end
       when it did not succeed;
-    - the summary comes last.
+    - the view's last frame comes last, by default the summary line, and only
+      the result of {!set_result} follows it.
 
     Each of these lines starts on a line of its own, after a line feed when what
     the program wrote on the same formatter did not end its line.
@@ -51,13 +52,19 @@
     - under [Console_eio.run], its [Logs] messages and the lines it prints with
       [Fmt.pr] or [Fmt.epr] that [Console_eio.run] takes.
 
-    A task that succeeds leaves its line alone, while one that fails or is
-    cancelled prints up to 1 MiB of its output under its line. Beyond that, the
-    oldest lines are dropped first and a line of their own counts them. A line
-    too wide for the terminal is cut under a running task, and nowhere else. A
-    line a task keeps for its window or its failure, and a task's label or
-    message, keeps its first 4 KiB, ended with three dots, so that the bounds
-    above hold for each task however long its text.
+    On a terminal and with [`Quiet], a task that succeeds leaves its line alone,
+    while one that fails or is cancelled prints up to 1 MiB of its output under
+    its line. Beyond that, the oldest lines are dropped first and a line of
+    their own counts them. On a pipe its output was printed as it came, and is
+    not printed again. A line too wide for the terminal is cut under a running
+    task, and nowhere else. A line a task keeps for its window or its failure,
+    and a task's label or message, is at most 4 KiB: a longer one is cut between
+    two characters and ends with three dots, the 4 KiB counting them, so that
+    the bounds above hold for each task however long its text.
+
+    A line of output that comes a second or more after the task's line before
+    it, or after the task started, ends with that wait, muted, such as [+3.0s],
+    so that a pause in the work shows where it happened.
 
     [Console_eio.run] sees standard output through {!Fmt.stdout} and [Logs]
     messages through its reporter, so what [print_string], [Printf] or a child
@@ -198,7 +205,7 @@ type view = t -> width:int -> height:int -> Span.t
 
     The {e last frame} is the view drawn once more when the display closes, with
     [height] [max_int], since the scrollback has room for all of it, and without
-    a terminal with [width] [80]: a view does not make a line for each line of
+    a terminal with [width] [80]: a view must not make a line for each line of
     its height. It is printed on a terminal and with [`Plain] alike, and never
     with [`Quiet] or [`Json], which print no view. *)
 
@@ -397,9 +404,9 @@ val log : task -> string -> unit
     - The latest lines show in [task]'s window while it runs. All of them show
       under its line if it fails or is cancelled.
     - Without a terminal, each line is printed once, as it comes, after [task]'s
-      label, and not again when [task] fails. With [`Quiet], where none is
-      printed as it comes, all of them are printed under the line of a failure
-      or a cancellation. *)
+      path ({!design}), and not again when [task] fails. With [`Quiet], where
+      none is printed as it comes, all of them are printed under the line of a
+      failure or a cancellation. *)
 
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its
@@ -498,7 +505,8 @@ val summary : ?width:int -> t -> Span.t
     time since it started and the count of the tasks that ended out of those
     started. On a terminal it is at most [width] cells (defaults to the
     terminal's width, at most 100), the time and the count giving way before the
-    name. A view that wants more says it next to it:
+    name. Without a terminal [width] is ignored and the line is whole. A view
+    that wants more says it next to it:
 
     {[
     let view display ~width ~height =
@@ -519,7 +527,8 @@ val summary : ?width:int -> t -> Span.t
 
     - The summary is the last line of the default view, so the line that says
       how far the work is stays where the eye left it, below the rows, and it is
-      the last line printed when the display closes, after all it counts.
+      the last line of the frame printed when the display closes, after all it
+      counts, and before the result of {!set_result}.
     - A task that ends stays in the region, marked as it ended, under its
       parent, while its top task runs.
     - When a top task ends, it moves to the scrollback with every task under it,
@@ -547,17 +556,18 @@ val summary : ?width:int -> t -> Span.t
       latest running tasks show, after a line such as [3 more running].
     - At close, the tasks still running are cancelled and move as above, then
       the view's last frame is printed once, still, and stays ({!type-view}):
-      the summary alone in the default view.
+      the summary alone in the default view, unless [keep_ended] kept the tasks
+      in the region, then the result of {!set_result}.
     - The tasks that wait in the region under a task are bounded: past 1 MiB,
       the oldest are dropped, and a line counts them. Each weighs at most its
-      output, 1 MiB, and three texts of 4 KiB ({!output}).
+      output, 1 MiB, and its label and its message, 4 KiB each ({!output}).
 
     Without a terminal there is no region. The tasks print the lines of
     {!Progress}: one line when a task starts and one when it ends, in the order
-    they happen, and at close the view's last frame comes last, once: the
-    summary alone in the default view, since every task has printed its lines. A
-    terminal's scrollback keeps one line for each task instead, in the order of
-    its tree, with the tree's guides.
+    they happen, and at close the view's last frame comes once: the summary
+    alone in the default view, since every task has printed its lines, then the
+    result of {!set_result}. A terminal's scrollback keeps one line for each
+    task instead, in the order of its tree, with the tree's guides.
 
     The lines of tasks that run at once interleave on a pipe, so no line is
     placed by its indentation: each line a task prints, as it starts, as it ends
