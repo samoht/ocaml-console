@@ -1452,6 +1452,24 @@ let test_plain_failure_output_once () =
     "the line once" 1
     (List.length (List.filter (contains "checksum mismatch") (split out)))
 
+(* A task whose child failed does not read as a success. *)
+let test_parent_of_failure () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        Display.with_task d "parent" (fun p ->
+            Display.fail (Display.task ~parent:p d "child")))
+  in
+  Alcotest.(check bool)
+    "no success mark on the parent" false
+    (List.mem "[+] parent  0.0s" (split out));
+  let t = terminal ~theme ~width:40 ~height:8 () in
+  Display.with_task t.display "parent" (fun p ->
+      Display.fail (Display.task ~parent:p t.display "child"));
+  Display.close t.display;
+  Alcotest.(check bool)
+    "nor on a terminal" false
+    (List.exists (fun r -> untimed r = "[+] parent") (lines t))
+
 let suite =
   ( "display",
     [
@@ -1531,4 +1549,6 @@ let suite =
         `Quick test_plain_output_not_sibling;
       Alcotest.test_case "a pipe prints a failure's output once" `Quick
         test_plain_failure_output_once;
+      Alcotest.test_case "the parent of a failure is no success" `Quick
+        test_parent_of_failure;
     ] )
