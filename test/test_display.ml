@@ -1373,6 +1373,34 @@ let test_label_before_bar () =
        rows);
   Display.close t.display
 
+(* The same in two trees side by side, as examples/columns lays them out on
+   75 columns. *)
+let test_label_before_bar_hcat () =
+  let t = terminal ~theme ~width:75 ~height:12 () in
+  let view d ~width ~height =
+    let half = (min width 100 - 2) / 2 in
+    match Display.tasks d with
+    | [ a; b ] ->
+        Span.hcat
+          [
+            Display.tree ~width:half ~height a;
+            Display.tree ~width:half ~height b;
+          ]
+    | _ -> Display.default_view d ~width ~height
+  in
+  Display.set_view t.display view;
+  let a = Display.task t.display "linux"
+  and b = Display.task t.display "macos" in
+  let ca = Display.task ~parent:a t.display "compile" in
+  let cb = Display.task ~parent:b t.display "compile" in
+  Display.set_count ca ~cur:4 ~total:12;
+  Display.set_count cb ~cur:2 ~total:12;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "compile shows in a 36-cell tree" true
+    (List.exists (contains "comp") (screen t));
+  Display.close t.display
+
 let suite =
   ( "display",
     [
@@ -1444,4 +1472,6 @@ let suite =
       Alcotest.test_case "view moves" `Quick test_view_moves;
       Alcotest.test_case "the label gives way after the bar" `Quick
         test_label_before_bar;
+      Alcotest.test_case "the label gives way after the bar, side by side"
+        `Quick test_label_before_bar_hcat;
     ] )
