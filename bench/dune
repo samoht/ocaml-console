@@ -3,7 +3,7 @@
 
 (executable
  (name bench)
- (libraries console fmt))
+ (libraries console console.input fmt))
 
 (rule
  (alias bench)
