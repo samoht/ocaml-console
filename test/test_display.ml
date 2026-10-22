@@ -1778,6 +1778,90 @@ let test_bars_line_up () =
     (List.for_all (( = ) (List.hd ends)) ends);
   Display.close t.display
 
+(* The cell width of [row], every glyph one cell. *)
+let cells row =
+  let n = ref 0 in
+  String.iter (fun c -> if Char.code c land 0xc0 <> 0x80 then incr n) row;
+  !n
+
+(* At a fixed width nothing in the region moves sideways while counts grow,
+   a row with a wider count starts and a table's cells change: two trees
+   side by side, as examples/columns lays them out. *)
+let region_stands_still ~width ~bars =
+  let t = terminal ~theme ~width ~height:16 () in
+  let status = Hashtbl.create 2 in
+  let table () =
+    Table.v
+      [
+        Table.column (Span.text "Build");
+        Table.column ~min_width:7 (Span.text "Status");
+      ]
+      (List.map
+         (fun b ->
+           [
+             Span.text b;
+             Span.text
+               (Option.value (Hashtbl.find_opt status b) ~default:"waiting");
+           ])
+         [ "linux"; "macos" ])
+  in
+  let view d ~width ~height =
+    match Display.(children (root d)) with
+    | [ a; b ] ->
+        Span.vcat
+          [
+            Table.to_span ~width (table ());
+            Span.hcat
+              [
+                Display.tree ~width:((width - 2) / 2) ~height a;
+                Display.tree ~width:((width - 2) / 2) ~height b;
+              ];
+          ]
+    | _ -> Display.default_view d ~width ~height
+  in
+  Display.set_view t.display view;
+  let linux = Display.task t.display "linux"
+  and macos = Display.task t.display "macos" in
+  Hashtbl.replace status "linux" "running";
+  let fetch = Display.task ~parent:macos t.display "fetch" in
+  let lfetch = Display.task ~parent:linux t.display "fetch" in
+  let frames = ref [] in
+  let frame () =
+    Display.redraw t.display;
+    let rows = screen t in
+    let border = cells (List.hd rows) in
+    let bar =
+      List.find_map
+        (fun r -> if contains "fetch" r then bar_end r else None)
+        (List.rev rows)
+    in
+    frames := (border, bar, String.concat "\n" rows) :: !frames
+  in
+  for cur = 1 to 4 do
+    Display.set_count fetch ~cur ~total:4;
+    if cur <= 3 then Display.set_count lfetch ~cur ~total:4;
+    if cur = 3 then begin
+      Display.succeed lfetch;
+      let compile = Display.task ~parent:linux t.display "compile" in
+      Display.set_count compile ~cur:12 ~total:12;
+      Hashtbl.replace status "linux" "done"
+    end;
+    frame ()
+  done;
+  match List.rev !frames with
+  | [] -> ()
+  | (border, bar, rows) :: rest ->
+      Alcotest.(check bool) ("a bar in\n" ^ rows) bars (bar <> None);
+      List.iter
+        (fun (b, r, rows) ->
+          Alcotest.(check int) ("the table's edge in\n" ^ rows) border b;
+          Alcotest.(check (option int)) ("the bar in\n" ^ rows) bar r)
+        rest
+
+let test_region_stands_still () =
+  region_stands_still ~width:100 ~bars:true;
+  region_stands_still ~width:80 ~bars:false
+
 let test_elapsed_rounded () =
   List.iter
     (fun (secs, shown) ->
@@ -1913,4 +1997,6 @@ let suite =
         test_label_gives_way_last;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
       Alcotest.test_case "elapsed times are rounded" `Quick test_elapsed_rounded;
+      Alcotest.test_case "the region stands still" `Quick
+        test_region_stands_still;
     ] )
