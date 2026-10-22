@@ -69,6 +69,8 @@ type t = {
   mutable closed : bool;
   mutable suspended : int;
   mutable partial : bool;
+  writes : string Queue.t;
+  mutable writing : bool;
   mutable release : unit -> unit;
   mutable root : row option;
   scope : scope;
@@ -111,7 +113,9 @@ and row = {
     which task is current. A task's {!field-window} holds its latest lines, at
     most {!field-log_lines}, and on a terminal its {!field-output} holds all its
     lines, {!field-output_bytes} bytes in all, the {!field-dropped} oldest left
-    out. Without a terminal, {!field-partial} is [true] iff the last byte
+    out. {!field-writes} holds, in order, what is to be written on {!field-ppf}
+    while {!field-writing} is [true], that is while a write that may yield is
+    under way. Without a terminal, {!field-partial} is [true] iff the last byte
     written on {!field-ppf} did not end a line, and {!field-release} gives
     {!field-ppf} its own output functions back, and {!field-form} says what it
     prints. {!field-root} is the top task, once asked for, the only one with a

@@ -57,6 +57,8 @@ type t = {
   mutable closed : bool;
   mutable suspended : int;
   mutable partial : bool;
+  writes : string Queue.t;
+  mutable writing : bool;
   mutable release : unit -> unit;
   mutable root : row option;
   scope : scope;

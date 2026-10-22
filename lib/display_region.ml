@@ -31,20 +31,37 @@ let flush_stdout t =
     try Format.pp_print_flush Fmt.stdout ()
     with Sys_error _ -> Atomic.set stdout_failed true
 
+let write_now t s =
+  try
+    let s =
+      if is_live t then synchronized t s else if t.partial then "\n" ^ s else s
+    in
+    let out = Format.pp_get_formatter_out_functions t.ppf () in
+    out.out_string s 0 (String.length s);
+    out.out_flush ()
+  with Sys_error _ -> ()
+
+(* The output functions of [ppf] may yield to another fiber (an Eio flow)
+   in the middle of a write: what is written meanwhile waits in [writes],
+   and the write under way writes it out in turn, so that writes never mix.
+   A write cut short (a cancelled fiber) leaves the rest to the next. *)
 let write t s =
-  if s <> "" then
-    try
-      flush_stdout t;
-      Format.pp_print_flush t.ppf ();
-      let s =
-        if is_live t then synchronized t s
-        else if t.partial then "\n" ^ s
-        else s
-      in
-      let out = Format.pp_get_formatter_out_functions t.ppf () in
-      out.out_string s 0 (String.length s);
-      out.out_flush ()
-    with Sys_error _ -> ()
+  if s <> "" then begin
+    (try
+       flush_stdout t;
+       Format.pp_print_flush t.ppf ()
+     with Sys_error _ -> ());
+    Queue.add s t.writes
+  end;
+  if not t.writing then begin
+    t.writing <- true;
+    Fun.protect
+      ~finally:(fun () -> t.writing <- false)
+      (fun () ->
+        while not (Queue.is_empty t.writes) do
+          write_now t (Queue.pop t.writes)
+        done)
+  end
 
 (* A frame that moves moves only in colour: without it, rain would still
    change its glyphs. *)

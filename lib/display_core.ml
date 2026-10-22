@@ -106,6 +106,8 @@ let v ?(layout = Layout.default) ?header ?size ?(form = Plain) ?scope ~now ppf =
       closed = false;
       suspended = 0;
       partial = false;
+      writes = Queue.create ();
+      writing = false;
       release = ignore;
       root = None;
       scope = (match scope with Some s -> s | None -> local ());
