@@ -15,24 +15,23 @@ let count_text = function
   | Count (c, tot) -> string_of_int c ^ "/" ^ string_of_int tot
   | Bytes (c, tot) -> Display_text.bytes c ^ " / " ^ Display_text.bytes tot
 
-(* The pair the metric ends on sizes the cell before the first update; the pair
-   it holds now is wider only where a unit changes under it ("1023.99 KiB"
-   against a total of "1.00 MiB"). *)
-let count_width metric =
-  let full =
-    match metric with
-    | Spin -> Spin
-    | Count (_, total) -> Count (total, total)
-    | Bytes (_, total) -> Bytes (total, total)
-  in
-  let least =
-    match metric with
-    | Spin -> 0
-    | Count _ -> String.length "999/999"
-    | Bytes _ -> String.length "1023.99 MiB / 1023.99 MiB"
-  in
-  max least
-    (max (String.length (count_text metric)) (String.length (count_text full)))
+(* The widest the count of a task can get, known from its total: a count
+   of items as wide as its total twice, and at least [999/999]; a count of
+   bytes below a total of a KiB or more as wide as "1023.99 KiB" in front
+   of it. *)
+let count_width = function
+  | Spin -> 0
+  | Count (_, total) ->
+      max (String.length "999/999")
+        (String.length (count_text (Count (total, total))))
+  | Bytes (cur, total) ->
+      let whole = Display_text.bytes total in
+      let widest =
+        if Int64.compare total 1024L < 0 then whole else "1023.99 KiB"
+      in
+      max
+        (String.length (count_text (Bytes (cur, total))))
+        (String.length widest + 3 + String.length whole)
 
 let rate_text metric rate =
   match metric with
