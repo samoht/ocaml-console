@@ -21,7 +21,14 @@ let test_widths () =
     "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7";
   check "flag" 2 "\xf0\x9f\x87\xab\xf0\x9f\x87\xb7";
   check "keycap" 2 "1\xef\xb8\x8f\xe2\x83\xa3";
-  check "VS16 makes an emoji" 2 "\xe2\x9d\xa4\xef\xb8\x8f"
+  check "VS16 makes an emoji" 2 "\xe2\x9d\xa4\xef\xb8\x8f";
+  check "an emoji tag sequence" 2
+    "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+  Alcotest.(check int)
+    "an emoji tag sequence is one cluster" 1
+    (List.length
+       (Width.clusters
+          "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"))
 
 (* A cluster takes the cells of its widest character, not of its first
    one with any width. *)

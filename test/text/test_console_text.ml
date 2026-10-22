@@ -202,8 +202,9 @@ let test_line_ends () =
 
 (* Characters that reorder or hide the text around them, or that are
    invisible text, are removed: the bidirectional embeddings, overrides,
-   isolates and marks, the interlinear annotation characters and the tag
-   characters. *)
+   isolates and marks, the interlinear annotation characters, the tag
+   characters, and the zero-width space, word joiner, invisible operators
+   and zero-width no-break space. *)
 let test_reordering () =
   let hidden =
     [
@@ -225,6 +226,10 @@ let test_reordering () =
       "\u{E0001}";
       "\u{E0041}";
       "\u{E007F}";
+      "\u{200B}";
+      "\u{2060}";
+      "\u{2064}";
+      "\u{FEFF}";
     ]
   in
   List.iter
@@ -278,7 +283,42 @@ let test_tag_sequence () =
     (Console_text.sanitize ("a" ^ scotland ^ "b"));
   Alcotest.(check string)
     "a stray tag removed" "ab"
-    (Console_text.sanitize "a\u{E0067}b")
+    (Console_text.sanitize "a\u{E0067}b");
+  Alcotest.(check string)
+    "the flag whole through strip"
+    ("a" ^ scotland ^ "b")
+    (Console_text.strip ("a" ^ scotland ^ "b"));
+  Alcotest.(check string)
+    "tags without a cancel tag removed" "\u{1F3F4}b"
+    (Console_text.sanitize "\u{1F3F4}\u{E0067}\u{E0062}b");
+  Alcotest.(check string)
+    "a cancel tag alone removed" "\u{1F3F4}b"
+    (Console_text.sanitize "\u{1F3F4}\u{E007F}b");
+  Alcotest.(check string)
+    "tags on another base removed" "xb"
+    (Console_text.sanitize "x\u{E0067}\u{E0062}\u{E007F}b")
+
+(* A variation selector, VS1 to VS16 or VS17 to VS256, selects a glyph of
+   the character before it: one after a base is kept, and one after no
+   base, such as another selector, is removed, so that a run of them cannot
+   hide text. At the start of the text it is kept: its base may end the
+   text before, as when a line editor takes a character at a time. *)
+let test_variation_selectors () =
+  let check what expected s =
+    Alcotest.(check string) what expected (Console_text.sanitize s);
+    Alcotest.(check string) (what ^ ", strip") expected (Console_text.strip s)
+  in
+  check "VS16 after a heart" "\u{2764}\u{FE0F}" "\u{2764}\u{FE0F}";
+  check "an ideographic variation sequence" "\u{845B}\u{E0100}"
+    "\u{845B}\u{E0100}";
+  check "a keycap" "1\u{FE0F}\u{20E3}" "1\u{FE0F}\u{20E3}";
+  check "one selector of a run" "a\u{E0100}b" "a\u{E0100}\u{E0101}\u{E01EF}b";
+  check "VS16 twice" "\u{2764}\u{FE0F}" "\u{2764}\u{FE0F}\u{FE0F}";
+  check "at the start" "\u{E0100}a" "\u{E0100}a";
+  check "a run at the start" "\u{FE0F}a" "\u{FE0F}\u{FE0F}a";
+  check "after a space" "a b" "a \u{FE0F}b";
+  check "after a line end" "a\nb" "a\n\u{E0100}b";
+  check "after a joiner" "\u{1F468}\u{200D}b" "\u{1F468}\u{200D}\u{FE0F}b"
 
 let suite =
   ( "console_text",
@@ -293,6 +333,7 @@ let suite =
       Alcotest.test_case "strip" `Quick test_strip;
       Alcotest.test_case "an emoji tag sequence is kept" `Quick
         test_tag_sequence;
+      Alcotest.test_case "variation selectors" `Quick test_variation_selectors;
       Alcotest.test_case "strip drops what prints nothing" `Quick
         test_strip_silent;
       Alcotest.test_case "strip leaves no control" `Quick
