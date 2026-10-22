@@ -10,7 +10,7 @@
   console.input
   console_vte
   display_harness
-  matrix.text
+  matrix.glyph
   matrix.vte
   fmt
   alcotest))

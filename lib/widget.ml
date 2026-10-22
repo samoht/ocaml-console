@@ -102,7 +102,7 @@ let fill n glyph =
     else
       let rest = n mod gw in
       let part = Buffer.create rest and used = ref 0 and full = ref false in
-      Matrix_text.iter_graphemes
+      Glyph.String.iter_graphemes
         (fun ~offset ~len ->
           let w = Width.sub_width glyph ~pos:offset ~len in
           if (not !full) && !used + w <= rest then begin

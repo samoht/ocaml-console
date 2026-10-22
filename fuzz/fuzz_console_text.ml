@@ -29,9 +29,8 @@ let test_styles_isolated s =
     let vte = Console_vte.v ~rows:2 ~cols:8 () in
     Console_vte.feed vte ("\027[2J\027[H" ^ prefix ^ "\r\n!");
     let g = Console_vte.grid vte in
-    let i = Matrix_grid.idx g ~x:0 ~y:1 in
-    Ansi.Color.
-      (to_rgba (Matrix_grid.get_fg g i), to_rgba (Matrix_grid.get_bg g i))
+    let i = Grid.idx g ~x:0 ~y:1 in
+    Ansi.Color.(to_rgba (Console_vte.fg g i), to_rgba (Console_vte.bg g i))
   in
   let styled = Console_text.strip ~keep_newlines:false ~keep_styles:true s in
   check (draw styled = draw "")
@@ -113,7 +112,7 @@ let test_extended_colours r g k =
   for i = 0 to 1 do
     if
       not
-        (Matrix_grid.cells_equal
+        (Grid.cells_equal
            (Console_vte.grid expected)
            i (Console_vte.grid actual) i)
     then failf "extended colour changed cell %d or leaked after %S" i source

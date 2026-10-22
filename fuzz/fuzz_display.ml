@@ -472,14 +472,13 @@ let test_output_exception s cancel =
   Console_vte.feed t.vte "AFTER";
   check (has "AFTER" (List.nth (screen t.vte) y));
   let grid = Console_vte.grid t.vte in
-  let index = Matrix_grid.idx grid ~x:0 ~y in
+  let index = Grid.idx grid ~x:0 ~y in
   let reference = Console_vte.v ~rows:8 ~cols:40 () in
   Console_vte.feed reference "AFTER";
   let plain = Console_vte.grid reference in
-  let first = Matrix_grid.idx plain ~x:0 ~y:0 in
+  let first = Grid.idx plain ~x:0 ~y:0 in
   let colours g i =
-    Ansi.Color.
-      (to_rgba (Matrix_grid.get_fg g i), to_rgba (Matrix_grid.get_bg g i))
+    Ansi.Color.(to_rgba (Console_vte.fg g i), to_rgba (Console_vte.bg g i))
   in
   check (colours grid index = colours plain first)
 
@@ -925,7 +924,7 @@ let line_glyphs =
 
 let clusters s =
   let l = ref [] in
-  Matrix_text.iter_graphemes
+  Glyph.String.iter_graphemes
     (fun ~offset ~len -> l := String.sub s offset len :: !l)
     s;
   List.rev !l
@@ -1083,7 +1082,7 @@ let test_scene_exception_close n k styled =
   Console_vte.feed reference "AFTER";
   for x = 0 to 4 do
     let grid = Console_vte.grid term and plain = Console_vte.grid reference in
-    check (Matrix_grid.cells_equal grid (Matrix_grid.idx grid ~x ~y) plain x)
+    check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
   done
 
 (* A long-lived parent must not retain the tasks and output of completed

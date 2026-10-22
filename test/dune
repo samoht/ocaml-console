@@ -13,7 +13,7 @@
   console.text
   console_vte
   matrix.ansi
-  matrix.text
+  matrix.glyph
   display_harness
   matrix.grid
   matrix.vte

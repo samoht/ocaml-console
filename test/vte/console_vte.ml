@@ -34,6 +34,14 @@ let scrollback_lines t = Vte.scrollback_lines t.vte
 let scrollback_size t = Vte.scrollback_size t.vte
 let grid t = Vte.grid t.vte
 
+let fg g i =
+  Ansi.Color.of_rgba_f (Grid.get_fg_r g i) (Grid.get_fg_g g i)
+    (Grid.get_fg_b g i) (Grid.get_fg_a g i)
+
+let bg g i =
+  Ansi.Color.of_rgba_f (Grid.get_bg_r g i) (Grid.get_bg_g g i)
+    (Grid.get_bg_b g i) (Grid.get_bg_a g i)
+
 let scan t = function
   | Ansi.Parser.Text s ->
       let c =

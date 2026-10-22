@@ -322,14 +322,13 @@ let test_usable_after () =
       let plain = Console_vte.v ~rows:1 ~cols:80 () in
       Console_vte.feed plain "AFTER";
       let g = Console_vte.grid vte and reference = Console_vte.grid plain in
-      let i = Matrix_grid.idx g ~x:0 ~y
-      and j = Matrix_grid.idx reference ~x:0 ~y:0 in
+      let i = Grid.idx g ~x:0 ~y and j = Grid.idx reference ~x:0 ~y:0 in
       let colours g i =
         List.concat_map
           (fun c ->
             let r, g, b, a = Ansi.Color.to_rgba c in
             [ r; g; b; a ])
-          [ Matrix_grid.get_fg g i; Matrix_grid.get_bg g i ]
+          [ Console_vte.fg g i; Console_vte.bg g i ]
       in
       Alcotest.(check (list int))
         (name ^ ": default colours")

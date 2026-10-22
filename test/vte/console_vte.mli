@@ -58,8 +58,14 @@ val scrollback_lines : t -> string list
 val scrollback_size : t -> int
 (** [scrollback_size t] is the number of {!scrollback_lines}. *)
 
-val grid : t -> Matrix_grid.t
+val grid : t -> Grid.t
 (** [grid t] is the visible screen's cells. *)
+
+val fg : Grid.t -> int -> Ansi.Color.t
+(** [fg g i] is the foreground colour of cell [i] of [g]. *)
+
+val bg : Grid.t -> int -> Ansi.Color.t
+(** [bg g i] is the background colour of cell [i] of [g]. *)
 
 val screen : ?scrollback:bool -> t -> string list
 (** [screen t] is the visible screen: one string per row, trailing blanks

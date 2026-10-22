@@ -217,7 +217,7 @@ let layout line =
     }
   else begin
     let starts = ref [] and widths = ref [] and n = ref 0 in
-    Matrix_text.iter_graphemes
+    Glyph.String.iter_graphemes
       (fun ~offset ~len ->
         starts := offset :: !starts;
         widths := Width.sub_width text ~pos:offset ~len :: !widths;

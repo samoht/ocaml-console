@@ -554,9 +554,9 @@ let frames theme times =
       let height = 5 and width = Width.string_width (List.hd rows) in
       let grid = Console_vte.grid term.vte in
       let cell x y =
-        let i = Matrix_grid.idx grid ~x ~y in
-        let r, g, b = Ansi.Color.to_rgb (Matrix_grid.get_fg grid i) in
-        (Matrix_grid.get_text grid i, Color.rgb r g b)
+        let i = Grid.idx grid ~x ~y in
+        let r, g, b = Ansi.Color.to_rgb (Console_vte.fg grid i) in
+        (Grid.get_text grid i, Color.rgb r g b)
       in
       List.concat
         (List.init height (fun y ->

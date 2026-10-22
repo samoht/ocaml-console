@@ -5,7 +5,7 @@
 
 let clusters s =
   let l = ref [] in
-  Matrix_text.iter_graphemes
+  Glyph.String.iter_graphemes
     (fun ~offset ~len -> l := String.sub s offset len :: !l)
     s;
   List.rev !l
@@ -186,7 +186,7 @@ let rec marks s i stop =
     let d = String.get_utf_8_uchar s i in
     let next = i + Uchar.utf_decode_length d in
     if is_spacing_mark (Uchar.to_int (Uchar.utf_decode_uchar d)) then
-      Matrix_text.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos:i
+      Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos:i
         ~len:(next - i)
       + marks s next stop
     else marks s next stop
@@ -204,7 +204,7 @@ let mark_cells s ~pos ~len =
   else
     let s = String.sub s pos len in
     let cells = ref 0 in
-    Matrix_text.iter_graphemes
+    Glyph.String.iter_graphemes
       (fun ~offset ~len ->
         let first = Uchar.utf_decode_length (String.get_utf_8_uchar s offset) in
         cells := !cells + marks s (offset + first) (offset + len))
@@ -212,7 +212,7 @@ let mark_cells s ~pos ~len =
     !cells
 
 let glyph_width s =
-  Matrix_text.measure ~width_method:`Unicode ~tab_width:1
+  Glyph.String.measure ~width_method:`Unicode ~tab_width:1
     (if contains_vs16 s ~pos:0 ~len:(String.length s) then without_stray_vs16 s
      else s)
 
@@ -222,5 +222,5 @@ let string_width s =
 
 let sub_width s ~pos ~len =
   (if contains_vs16 s ~pos ~len then glyph_width (String.sub s pos len)
-   else Matrix_text.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos ~len)
+   else Glyph.String.measure_sub ~width_method:`Unicode ~tab_width:1 s ~pos ~len)
   + mark_cells s ~pos ~len

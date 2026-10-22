@@ -25,9 +25,9 @@
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
-  ; matrix main, with Matrix_text and the terminal fixes the tests need, is
-  ; unreleased: CI pins it from samoht/mosaic until matrix 0.2.0 is on opam.
-  (matrix (>= 0.2.0))
+  ; The released matrix. Its emulator lacks fixes some tests need, which
+  ; are skipped until console moves to matrix 0.2.0.
+  (matrix (and (>= 0.1.0) (< 0.2.0)))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)

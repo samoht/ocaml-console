@@ -435,8 +435,8 @@ let scene_screen theme ~width ~height ~time block =
   let rows =
     List.init (height - 1) (fun y ->
         List.init width (fun x ->
-            let i = Matrix_grid.idx g ~x ~y in
-            (Matrix_grid.is_continuation g i, Matrix_grid.get_text g i)))
+            let i = Grid.idx g ~x ~y in
+            (Grid.is_continuation g i, Grid.get_text g i)))
   in
   Display.close d;
   rows
@@ -471,9 +471,7 @@ let nested_cells raw =
       let g = Console_vte.grid vte in
       List.filter_map
         (fun i ->
-          match Matrix_grid.get_text g i with
-          | "" | " " -> None
-          | _ -> Some (g, i))
+          match Grid.get_text g i with "" | " " -> None | _ -> Some (g, i))
         (List.init cols Fun.id))
     (String.split_on_char '\n' raw)
 
@@ -534,24 +532,23 @@ let test_nested_wrap s k n =
   List.iter2
     (fun (g, i) (h, j) ->
       let cell g i =
-        ( Matrix_grid.get_text g i,
-          Matrix_grid.get_attrs g i,
-          Ansi.Color.to_rgb (Matrix_grid.get_fg g i),
-          Ansi.Color.to_rgb (Matrix_grid.get_bg g i),
-          Matrix_grid.hyperlink_url g (Matrix_grid.get_link g i) )
+        ( Grid.get_text g i,
+          Grid.get_attrs g i,
+          Ansi.Color.to_rgb (Console_vte.fg g i),
+          Ansi.Color.to_rgb (Console_vte.bg g i),
+          Grid.hyperlink_url g (Grid.get_link g i) )
       in
       if cell g i <> cell h j then
         failf "wrapping at %d changed a cell in %s: %S became %S" width
-          (Theme.name theme) (Matrix_grid.get_text g i)
-          (Matrix_grid.get_text h j))
+          (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
     expected actual
 
 let hcat_cell g i =
-  ( Matrix_grid.get_text g i,
-    Matrix_grid.get_attrs g i,
-    Ansi.Color.to_rgb (Matrix_grid.get_fg g i),
-    Ansi.Color.to_rgb (Matrix_grid.get_bg g i),
-    Matrix_grid.hyperlink_url g (Matrix_grid.get_link g i) )
+  ( Grid.get_text g i,
+    Grid.get_attrs g i,
+    Ansi.Color.to_rgb (Console_vte.fg g i),
+    Ansi.Color.to_rgb (Console_vte.bg g i),
+    Grid.hyperlink_url g (Grid.get_link g i) )
 
 (* Side-by-side widgets must keep their cells when a containing widget
    wraps them. A width check alone would miss lost text, styles or links. *)

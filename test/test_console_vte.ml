@@ -133,8 +133,8 @@ let test_backspace_moves () =
 
 let foreground t ~x ~y =
   let g = Console_vte.grid t in
-  let i = Matrix_grid.idx g ~x ~y in
-  Ansi.Color.to_rgb (Matrix_grid.get_fg g i)
+  let i = Grid.idx g ~x ~y in
+  Ansi.Color.to_rgb (Console_vte.fg g i)
 
 (* SGR 39 and 49 give back the terminal's own colours. *)
 let test_default_colours () =
