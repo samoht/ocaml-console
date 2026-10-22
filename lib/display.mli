@@ -479,7 +479,6 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
     - A running task's row is drawn by the {!Layout} of the display, its window
       under it; a task that ended is its line ({!Layout}), and a transient one
       that succeeded leaves its place to the tasks under it.
-
     - [width] (defaults to the terminal's width, 80 without one, at most 100) is
       the width of each line, and [height] (defaults to no limit) the most lines
       it takes. When the tree does not fit, it folds as {!design} says. A
@@ -568,10 +567,8 @@ val summary : ?width:int -> t -> Span.t
     glyph that no mark takes and that a label seldom holds, so that a line of
     output, which starts with its mark, reads apart from its path; on another it
     is [>]. The lines of tasks start at the first column, and a line of output
-    two columns in. With
-
-    [`Quiet], the line of a failure names its path too, and its output follows
-    it, two columns in.
+    two columns in. With [`Quiet], the line of a failure names its path too, and
+    its output follows it, two columns in.
 
     {1:guarantees Guarantees}
 
@@ -592,7 +589,6 @@ val summary : ?width:int -> t -> Span.t
       right edge of the first [min w 100] columns, and so do the ends of their
       bars. On a wide terminal they stay near their labels, and they do not move
       when the terminal is resized wider.
-
     - After a resize the old frame is erased, counting the rows that a terminal
       which reflows its lines gives it. On one that does not reflow, such as
       xterm or GNU screen, a narrowing below the width of the old lines also
