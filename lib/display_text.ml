@@ -17,6 +17,17 @@ let bytes n =
     let h = int_of_float (Float.round (v *. 100.)) in
     Fmt.str "%d.%02d %s" (h / 100) (h mod 100) units.(i)
 
+let bytes_short n =
+  let rec pick i v =
+    if v < 1024. || i = Array.length units - 1 then (v, i)
+    else pick (i + 1) (v /. 1024.)
+  in
+  let v, i = pick 0 (Float.max 0. (Int64.to_float n)) in
+  let unit = units.(i).[0] in
+  if i = 0 then Fmt.str "%d%c" (int_of_float v) unit
+  else if v < 9.95 then Fmt.str "%.1f%c" v unit
+  else Fmt.str "%.0f%c" v unit
+
 let duration secs =
   let secs = if Float.is_nan secs then 0. else Float.max 0. secs in
   if secs < 60. then

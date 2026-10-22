@@ -156,10 +156,11 @@
     - A redraw that would change nothing writes nothing.
     - A label cut to fit is cut between two characters, never inside an escape
       code, and it ends with an ellipsis that turns its style off.
-    - The counts, rates and timers of all rows sit in the same columns, whatever
-      the width of the labels: at the right edge of the first [min w 100]
-      columns. On a wide terminal they stay near their labels, and they do not
-      move when the terminal is resized wider.
+    - While no piece gives way ({!Layout}), the counts, rates and timers of all
+      rows sit in the same columns, whatever the width of the labels: at the
+      right edge of the first [min w 100] columns. On a wide terminal they stay
+      near their labels, and they do not move when the terminal is resized
+      wider.
     - After a resize the old frame is erased, counting the rows that a terminal
       which reflows its lines gives it. On one that does not reflow, such as
       xterm or GNU screen, a narrowing below the width of the old lines also
@@ -184,7 +185,20 @@
       place of its label.
 
     With the [`Quiet] {!Progress}, only a task that fails or is cancelled prints
-    its line. With [`Json] no task does: JSON events take their place. *)
+    its line. With [`Json] no task does: JSON events take their place.
+
+    {b What gives way.} The label is what tells two rows apart, so it gives way
+    last. When a row does not fit its width, its pieces give way in this order:
+    + the rate;
+    + the bar and the percentage;
+    + the count, which leaves the column it shares with the other rows and, for
+      bytes, gets shorter, such as [256M/2.0G];
+    + the elapsed time.
+
+    Until all of them have, the label keeps 12 cells, or all of it if it is
+    shorter. Only then is it cut, with an ellipsis. The line of a task that
+    ended gives way in the same order: its count gets shorter, then its time
+    goes. In the last frame a label is never cut ({!tree}). *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
@@ -193,8 +207,9 @@ module Layout : sig
   (** [spinner] is the spinner. *)
 
   val label : piece
-  (** [label] is the task's label. It takes the room the other pieces leave, and
-      is cut to it with an ellipsis. *)
+  (** [label] is the task's label. It takes the room the other pieces leave,
+      once they have given way ({!Layout}), and is cut to it with an ellipsis.
+  *)
 
   val bar : int -> piece
   (** [bar width] is a progress bar [width] cells wide ({!Bar}).
@@ -525,7 +540,11 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
       When the tree does not fit, it folds as {!design} says.
     - In the last frame, once the display closes, the tree holds every task,
       none folded, each failure or cancellation followed by its output, and a
-      line too wide goes on over the next ones.
+      line too wide goes on over the next ones. A label is never cut there: one
+      too wide goes on over the next lines at the full width its guides and mark
+      leave, and never in fewer than 12 cells, and its count and time go at the
+      end of its last line, or give way as {!Layout} says. They are never
+      squeezed.
     - The tree of a task that moved to the scrollback is {!Span.empty}. *)
 
 val summary : t -> Span.t

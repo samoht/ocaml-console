@@ -9,6 +9,11 @@ val bytes : int64 -> string
 (** [bytes n] is [n] bytes in the largest binary unit below 1024 of it, a
     negative [n] being [0 B]. *)
 
+val bytes_short : int64 -> string
+(** [bytes_short n] is [n] bytes in at most five characters, as a count that
+    gives way shows them: a number of at most three digits, then the first
+    letter of its unit, such as ["512B"], ["1.5K"] or ["256M"]. *)
+
 val duration : float -> string
 (** [duration s] is [s] seconds as a row draws its elapsed time: tenths of a
     second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then

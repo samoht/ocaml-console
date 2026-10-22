@@ -61,8 +61,7 @@ recorder reads: the bytes leave the screen a terminal shows. The rows are
   $ COLUMNS=50 ../../../examples/progress/main.exe --progress=tty 2>&1 \
   >   | ../tty.exe -
   [+] RUN make                           5/5    0.0s
-    +-- [+] sha256:ab    2.00 GiB / 2.00 GiB    0.0s
-            cd...
+    +-- [+] sha256:abcd...         2.0G/2.0G    0.0s
   [+] Building 0.0s (2/2)
 
 --progress=quiet prints nothing when the work succeeds, and a failed task's
