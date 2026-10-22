@@ -267,25 +267,20 @@ let rewrite ~keep_newlines ~keep str =
 let strip ?(keep_newlines = true) ?(keep_styles = false) str =
   rewrite ~keep_newlines ~keep:(if keep_styles then sgr else fun _ -> None) str
 
-(* The length of [str] without the character it ends inside, if it does:
-   one whose lead byte, among the last three, wants more bytes than follow. *)
+(* The length of [str] without its last character if that one is not
+   valid UTF-8, which the bytes after [str] may complete. *)
 let character_end str =
   let n = String.length str in
-  let rec lead i =
-    if i < 0 || n - i > 4 then n
+  let rec last i =
+    if i >= n then n
     else
-      let c = Char.code str.[i] in
-      if c land 0xc0 = 0x80 then lead (i - 1)
-      else
-        let length =
-          if c land 0xe0 = 0xc0 then 2
-          else if c land 0xf0 = 0xe0 then 3
-          else if c land 0xf8 = 0xf0 then 4
-          else 1
-        in
-        if n - i < length then i else n
+      let d = String.get_utf_8_uchar str i in
+      let next = i + Uchar.utf_decode_length d in
+      if next < n then last next
+      else if Uchar.utf_decode_is_valid d then n
+      else i
   in
-  lead (n - 1)
+  last 0
 
 let boundary str =
   match snd (fold_tokens (fun () _ _ _ -> ()) () str) with

@@ -254,7 +254,8 @@ let test_boundary () =
       ("a whole character", "a\u{2764}", 4);
       ("two bytes of three", "a\xe2\x9d", 1);
       ("a lone lead byte", "ab\xf0", 2);
-      ("an invalid byte", "a\x9d", 2);
+      ("an invalid byte", "a\x9d", 1);
+      ("an invalid byte before", "\x9da", 2);
       ("a whole escape", "a\027[31mb", 7);
       ("an escape under way", "ab\027[31", 2);
       ("a lone ESC", "ab\027", 2);

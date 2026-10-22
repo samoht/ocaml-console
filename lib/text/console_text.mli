@@ -56,9 +56,10 @@ val strip : ?keep_newlines:bool -> ?keep_styles:bool -> string -> string
     change the look of what is printed after it. *)
 
 val boundary : string -> int
-(** [boundary s] is where [s] can be cut when the text goes on after it: the
-    length of the longest prefix of [s] that ends neither inside a UTF-8
-    character nor inside an escape code. If an escape code under way takes all
-    of [s], it is the longest prefix that ends outside a character. Text read in
-    pieces, such as a child process's output, cut there, gives each piece to
-    {!strip} with no escape code split between two. *)
+(** [boundary s] is where [s] can be cut when the text goes on after it, neither
+    inside a UTF-8 character nor inside an escape code: before the escape code
+    under way at the end of [s], if one is and does not take all of [s], else
+    before the last character of [s] if that one is not valid UTF-8, which the
+    bytes after [s] may complete, else at the end of [s]. Text read in pieces,
+    such as a child process's output, cut there, gives each piece to {!strip}
+    with no escape code split between two. *)

@@ -121,9 +121,45 @@ let test_extended_colours r g k =
   check_eq ~pp:Fmt.Dump.string output
     (Console_text.strip ~keep_styles:true output)
 
+(* The characters of [s] as [String.get_utf_8_uchar] decodes them: where
+   each starts and ends, and whether it is valid. *)
+let decodes s =
+  let n = String.length s in
+  let rec go i acc =
+    if i >= n then List.rev acc
+    else
+      let d = String.get_utf_8_uchar s i in
+      let next = i + Uchar.utf_decode_length d in
+      go next ((i, next, d) :: acc)
+  in
+  go 0 []
+
+(* [boundary s] falls where a decode of [s] starts, or at its end. Without
+   an escape code it is the end of [s], or the start of its last decode if
+   that one is invalid: a character cut short goes to the next piece. *)
+let test_boundary s =
+  let n = String.length s and k = Console_text.boundary s in
+  let ds = decodes s in
+  check (k = n || List.exists (fun (i, _, _) -> i = k) ds);
+  let escape (_, _, d) =
+    Uchar.utf_decode_is_valid d
+    &&
+    let c = Uchar.to_int (Uchar.utf_decode_uchar d) in
+    c = 0x1b || (c >= 0x80 && c <= 0x9f)
+  in
+  if not (List.exists escape ds) then
+    let expected =
+      match List.rev ds with
+      | (i, _, d) :: _ when not (Uchar.utf_decode_is_valid d) -> i
+      | _ -> n
+    in
+    check_eq ~pp:Fmt.int expected k
+
 let suite =
   ( "console_text",
     [
+      test_case "a boundary falls between two decoded characters" [ bytes ]
+        test_boundary;
       test_case "extended colours survive and leave the next cell plain"
         [ uint8; uint8; uint8 ] test_extended_colours;
       test_case "sanitize and strip" [ bytes ] test_laws;
