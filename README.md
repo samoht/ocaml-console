@@ -33,6 +33,7 @@ consoles are not supported.
 - [A line editor](#a-line-editor)
 - [Printing untrusted text](#printing-untrusted-text)
 - [Documentation](#documentation)
+- [Known limitations](#known-limitations)
 - [Related work](#related-work)
 - [License](#license)
 
@@ -587,6 +588,33 @@ character that reorders the text around it:
 | `Console_input` | A line editor that does no input or output (`console.input`) |
 | `Console_eio` | Runs a `Display` with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
+
+## Known limitations
+
+- console 0.9.0 builds on the released matrix 0.1.0. The library uses matrix
+  only to split text into grapheme clusters and measure it, where 0.1.0
+  agrees with the unreleased matrix that console was written against, so it
+  needs no workaround; where console's widths differ from matrix's, it is
+  by console's own width policy, below. The terminal emulator that the tests
+  read is another matter: `test/vte/matrix_fix.ml` works around two defects
+  of its 0.1.0, five checks are skipped, each naming the upstream fix it
+  waits for, and three fuzz properties discard the samples that meet two
+  of its defects (`fuzz/matrix_0_1.ml`). invariant-hq/mosaic has fixed all of
+  them, and the workarounds go with matrix 0.2.0.
+- A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
+  is text unless a VS16 follows it, so console counts it one cell, its East
+  Asian width, and counts ❤️ (U+2764 U+FE0F) two.
+  [test/input/widths.txt](test/input/widths.txt) records the cells each
+  terminal gives such text. A terminal or a font that draws the bare
+  character as an emoji gives it two cells, and a line that holds one then
+  ends a cell later than console counted.
+- `Console_eio.run` takes what the program prints on `Fmt.stdout` and
+  `Fmt.stderr` where the display writes, so that `` `Quiet `` hides the
+  output of a task that succeeds and `` `Json `` makes each line an event.
+  `Display.v` takes nothing. With it, or with `Console_eio.run` on another
+  formatter, what the program prints on the display's formatter goes out as
+  it is: `` `Quiet `` shows it, and it breaks the lines of JSON events.
+  `Display.log` gives such a line to a task instead.
 
 ## Related work
 

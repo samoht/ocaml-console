@@ -75,3 +75,8 @@ Initial release of `console` and `console-eio`.
   (`Console_text`) makes untrusted text safe to print, and `console.input`
   (`Console_input`) is a line editor, with history and completion, that does
   no input or output itself.
+- Known limitations, listed in the README: console builds on matrix 0.1.0,
+  whose emulator the tests work around until matrix 0.2.0; a pictograph
+  with no emoji presentation, such as ❤ or ‼, counts one cell; and
+  `Display.v` does not take the program's own output, which `Console_eio.run`
+  does.
