@@ -69,7 +69,18 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-let v ?(layout = Layout.default) ?header ?size ?(form = Plain) ?scope ~now ppf =
+(* The size in which a display redraws its rows, if it does, and the lines
+   it prints otherwise. *)
+let shape ?size = function
+  | `Auto -> (size, Plain)
+  | `Tty -> (Some (Option.value size ~default:(fun () -> (80, 24))), Plain)
+  | `Plain -> (None, Plain)
+  | `Quiet -> (None, Quiet)
+  | `Json -> (None, Json)
+
+let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
+    ppf =
+  let size, form = shape ?size progress in
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)

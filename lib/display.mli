@@ -119,9 +119,8 @@
     - Without a terminal, the line a task prints when it starts is its mark and
       its label.
 
-    With the [`Quiet] progress of [Console_eio.run], only a task that fails or
-    is cancelled prints its line. With [`Json] no task does: JSON events take
-    their place. *)
+    With the [`Quiet] {!Progress}, only a task that fails or is cancelled prints
+    its line. With [`Json] no task does: JSON events take their place. *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
@@ -192,6 +191,7 @@ val v :
   ?layout:Layout.t ->
   ?header:string ->
   ?size:(unit -> int * int) ->
+  ?progress:Progress.t ->
   now:(unit -> float) ->
   Format.formatter ->
   t
@@ -202,6 +202,9 @@ val v :
       height. The display reads it again before each redraw, hides the cursor
       and redraws its rows in place. Without [size] the display prints lines in
       turn.
+    - [progress] says how progress shows (defaults to [`Auto]). [`Auto] is as
+      [size] says. [`Tty] redraws the rows, on 80 columns by 24 rows without
+      [size]. [`Plain], [`Quiet] and [`Json] print lines, whatever [size] says.
     - [header], if given, names the work on a line above the rows.
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row
       redrawn on a terminal; the lines printed in turn have their own

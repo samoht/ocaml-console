@@ -103,12 +103,17 @@ let display ~progress ~now ?layout ?header ppf =
   let std = match descriptor ppf with Some _ -> [ ppf ] | None -> [] in
   let lines form =
     let taking std =
-      (Display_driver.v ?layout ?header ~form ~scope ~now (own ppf), std, ignore)
+      ( Display_driver.v ?layout ?header ~progress:form ~scope ~now (own ppf),
+        std,
+        ignore )
     in
     match (form, descriptor ppf) with
     | `Json, Some _ -> taking std
     | `Quiet, Some (_, unix) -> taking (sharing unix)
-    | _ -> (Display_driver.v ?layout ?header ~form ~scope ~now ppf, [], ignore)
+    | _ ->
+        ( Display_driver.v ?layout ?header ~progress:form ~scope ~now ppf,
+          [],
+          ignore )
   in
   match progress with
   | `Auto -> ( match on_terminal () with Some d -> d | None -> lines `Plain)

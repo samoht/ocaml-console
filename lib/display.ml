@@ -5,5 +5,5 @@
 
 include Display_core
 
-let v ?layout ?header ?size ~now ppf =
-  Display_core.v ?layout ?header ?size ~now ppf
+let v ?layout ?header ?size ?progress ~now ppf =
+  Display_core.v ?layout ?header ?size ?progress ~now ppf

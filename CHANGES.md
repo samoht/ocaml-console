@@ -59,7 +59,9 @@ Initial release of `console` and `console-eio`.
   the lines a pipe gets; `` `Quiet ``, only what fails; `` `Json ``, one
   JSON object for each event, in a documented schema. `Console.Progress.all`
   makes a `--progress=auto|tty|plain|quiet|json` option of it in one line
-  of Cmdliner, as `Theme.all` makes a `--theme` option. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
+  of Cmdliner, as `Theme.all` makes a `--theme` option. `Display.v ~progress` takes
+  the same values without Eio, so a program with its own scheduler can be
+  quiet or write JSON events too. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
   the rows off the screen while it asks.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
