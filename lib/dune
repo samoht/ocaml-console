@@ -9,7 +9,7 @@
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt matrix.glyph)
+ (libraries console.text fmt jsont jsont.bytesrw matrix.glyph)
  (private_modules
   border_motion
   capturing
@@ -17,7 +17,6 @@
   width
   display_core
   display_event
-  display_json
   display_layout
   display_region
   display_row

@@ -77,29 +77,36 @@ line and its output when it fails:
 terminal as on a pipe:
 
   $ ../../../examples/progress/main.exe --progress=json --fail 2>&1 | cat
-  {"time":0.000,"event":"start","id":0,"task":["RUN make"]}
-  {"time":0.000,"event":"start","id":1,"task":["RUN make","sha256:abcd..."],"parent":0}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":0,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file0.c"}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":1,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file1.c"}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":2,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file2.c"}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":3,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file3.c"}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":4,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file4.c"}
-  {"time":0.000,"event":"progress","id":0,"task":["RUN make"],"count":5,"total":5,"unit":"items"}
-  {"time":0.000,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file5.c"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":0,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":268435456,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":536870912,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":805306368,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1073741824,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1342177280,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1610612736,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1879048192,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":2147483648,"total":2147483648,"unit":"bytes"}
-  {"time":0.000,"event":"output","id":1,"task":["RUN make","sha256:abcd..."],"text":"checksum mismatch"}
-  {"time":0.000,"event":"end","id":1,"task":["RUN make","sha256:abcd..."],"status":"failed","elapsed":0.000}
-  {"time":0.000,"event":"end","id":0,"task":["RUN make"],"status":"succeeded","elapsed":0.000}
+  {"time":0,"event":"start","id":0,"task":["RUN make"]}
+  {"time":0,"event":"start","id":1,"task":["RUN make","sha256:abcd..."],"parent":0}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":0,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file0.c"}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":1,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file1.c"}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":2,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file2.c"}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":3,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file3.c"}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":4,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file4.c"}
+  {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":5,"total":5,"unit":"items"}
+  {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file5.c"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":0,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":268435456,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":536870912,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":805306368,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1073741824,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1342177280,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1610612736,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":1879048192,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":2147483648,"total":2147483648,"unit":"bytes"}
+  {"time":0,"event":"output","id":1,"task":["RUN make","sha256:abcd..."],"text":"checksum mismatch"}
+  {"time":0,"event":"end","id":1,"task":["RUN make","sha256:abcd..."],"status":"failed","elapsed":0}
+  {"time":0,"event":"end","id":0,"task":["RUN make"],"status":"succeeded","elapsed":0}
+
+Console.Progress.Event.jsont reads each of these events back, and writes it
+as it was:
+
+  $ ../../../examples/progress/main.exe --progress=json --fail 2>&1 \
+  >   | ../events.exe
+  26 events read back

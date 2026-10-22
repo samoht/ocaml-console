@@ -3,10 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The events of a display whose form is {!Display_state.Json}, each written as
-    one JSON object on a line of its own. The fields are those of
-    {!Progress.json}: [time], [event], [id], [parent], [task], [count], [total],
-    [unit], [level], [status], [elapsed], [text] and [detail]. *)
+(** The events of a display whose form is {!Display_state.Json}, each a
+    {!Progress.Event.t} written as one JSON object on a line of its own. *)
 
 open Display_state
 

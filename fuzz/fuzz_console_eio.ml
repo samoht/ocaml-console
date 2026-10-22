@@ -165,24 +165,23 @@ let test_surviving_fiber k =
     (List.init count (fun i -> Fmt.str "  \u{203a} later: record-%d" i))
     records
 
-(* With [`Json], each line the display writes is a JSON object with a time
-   and an event, and the labels and lines of output read back as the
-   display shows them, whatever bytes they were given. *)
-(* The objects of the lines of [out], each checked to be valid UTF-8 and
-   to have a time. *)
+(* With [`Json], each line the display writes is an event, written back
+   as it is, and the labels and lines of output read back as the display
+   shows them, whatever bytes they were given. *)
+module Event = Console.Progress.Event
+
+(* The events of the lines of [out], each checked to be valid UTF-8 and to
+   be written back as it is. *)
 let events out =
   String.split_on_char '\n' out
   |> List.filter (fun l -> l <> "")
   |> List.map (fun line ->
       check (String.is_valid_utf_8 line);
-      match Yojson.Safe.from_string line with
-      | `Assoc fields ->
-          (match List.assoc_opt "time" fields with
-          | Some (`Float _ | `Int _) -> ()
-          | _ -> failf "no time in %s" line);
-          fields
-      | _ -> failf "not an object: %s" line
-      | exception Yojson.Json_error e -> failf "%s does not parse: %s" line e)
+      match Jsont_bytesrw.decode_string Event.jsont line with
+      | Ok e ->
+          check_eq ~pp:Fmt.Dump.string line (Event.to_string e);
+          Event.kind e
+      | Error e -> failf "%s does not decode: %s" line e)
 
 let test_json_events label text =
   (* A tab goes to a tab stop, which a space does not need. *)
@@ -199,20 +198,16 @@ let test_json_events label text =
           Console.Display.fail task));
   Format.pp_print_flush ppf ();
   let events = events (Buffer.contents out) in
-  let string name fields =
-    match List.assoc_opt name fields with Some (`String s) -> s | _ -> ""
-  in
-  let of_event e = List.filter (fun f -> string "event" f = e) events in
   let shown = Console_text.sanitize ~keep_newlines:false label in
-  List.iter
-    (fun fields ->
-      check_eq
-        ~pp:Fmt.(Dump.option Dump.string)
-        (Some shown)
-        (match List.assoc_opt "task" fields with
-        | Some (`List [ `String l ]) -> Some l
-        | _ -> None))
-    (of_event "start" @ of_event "end");
+  let labels =
+    List.filter_map
+      (function
+        | `Start ((_, labels), _) | `End ((_, labels), _, _, _) -> Some labels
+        | _ -> None)
+      events
+  in
+  check_eq ~pp:Fmt.int 2 (List.length labels);
+  List.iter (check_eq ~pp:Fmt.(Dump.list Dump.string) [ shown ]) labels;
   let expected =
     match
       String.split_on_char '\n' (Console_text.sanitize text) |> List.rev
@@ -224,14 +219,22 @@ let test_json_events label text =
   check_eq
     ~pp:Fmt.(Dump.list Dump.string)
     expected
-    (List.map (string "text") (of_event "output"));
-  check_eq ~pp:Fmt.Dump.string "failed"
-    (string "status" (List.hd (of_event "end")))
+    (List.filter_map
+       (function `Output (_, text, _) -> Some text | _ -> None)
+       events);
+  check
+    (List.exists
+       (function `End (_, `Failed, _, _) -> true | _ -> false)
+       events)
 
-let json_field_is name value fields =
-  Option.equal Yojson.Safe.equal (List.assoc_opt name fields) value
-
-let json_event event = json_field_is "event" (Some (`String event))
+(* The id and the name of an event of a task. *)
+let of_task = function
+  | `Start ((id, _), _) -> Some (id, "start")
+  | `Progress ((id, _), _, _, _) -> Some (id, "progress")
+  | `Label ((id, _), _) -> Some (id, "label")
+  | `Output (Some (id, _), _, _) -> Some (id, "output")
+  | `End ((id, _), _, _, _) -> Some (id, "end")
+  | `Output (None, _, _) | `Result _ | `Other _ -> None
 
 (* A formatter backed by an Eio flow may yield after any chunk. Records
    still form a complete event stream, regardless of the task interleaving. *)
@@ -264,16 +267,15 @@ let test_json_concurrent_records chunk tasks =
   Format.pp_print_flush ppf ();
   let records = events (Buffer.contents out) in
   check_eq ~pp:Fmt.int (tasks * 4) (List.length records);
+  let records = List.filter_map of_task records in
   List.iter
     (fun i ->
-      let own = List.filter (json_field_is "id" (Some (`Int i))) records in
       check_eq
         ~pp:Fmt.(Dump.list Dump.string)
         [ "start"; "output"; "progress"; "end" ]
-        (List.map
-           (fun fields ->
-             match List.assoc "event" fields with `String s -> s | _ -> "")
-           own))
+        (List.filter_map
+           (fun (id, name) -> if id = i then Some name else None)
+           records))
     (List.init tasks Fun.id)
 
 (* tty.exe replays the real terminal session through matrix.vte. The same
@@ -377,41 +379,75 @@ let capture_lifecycles k count =
   Format.pp_print_flush ppf ();
   (events (Buffer.contents out), !expected)
 
+(* The labels of an event of a task. *)
+let labels_of = function
+  | `Start ((_, l), _)
+  | `Progress ((_, l), _, _, _)
+  | `Label ((_, l), _)
+  | `Output (Some (_, l), _, _)
+  | `End ((_, l), _, _, _) ->
+      Some l
+  | `Output (None, _, _) | `Result _ | `Other _ -> None
+
 let check_lifecycle_pairs count records =
-  let starts = List.filter (json_event "start") records in
-  let ends = List.filter (json_event "end") records in
+  let tasks = List.filter_map of_task records in
+  let starts =
+    List.filter_map
+      (function `Start (task, _) -> Some task | _ -> None)
+      records
+  in
+  let ends = List.filter (fun (_, name) -> name = "end") tasks in
   check_eq ~pp:Fmt.int (count + 2) (List.length starts);
   check_eq ~pp:Fmt.int (List.length starts) (List.length ends);
   List.iter
-    (fun start ->
-      let id = List.assoc_opt "id" start in
-      check (Option.is_some id);
-      let own = List.filter (json_field_is "id" id) records in
-      check_eq ~pp:Fmt.int 1 (List.length (List.filter (json_event "end") own));
-      check (json_event "start" (List.hd own));
-      check (json_event "end" (List.hd (List.rev own))))
+    (fun (id, _) ->
+      let own =
+        List.filter_map
+          (fun (id', name) -> if id = id' then Some name else None)
+          tasks
+      in
+      check_eq ~pp:Fmt.int 1 (List.length (List.filter (( = ) "end") own));
+      check (List.hd own = "start");
+      check (List.hd (List.rev own) = "end"))
     starts;
-  List.find (json_field_is "task" (Some (`List [ `String "parent 界" ]))) starts
+  fst (List.find (fun (_, labels) -> labels = [ "parent 界" ]) starts)
+
+let status_name = function
+  | `Succeeded -> "succeeded"
+  | `Failed -> "failed"
+  | `Cancelled -> "cancelled"
+  | `Other s -> s
+
+let level_name = function
+  | `App -> "app"
+  | `Error -> "error"
+  | `Warning -> "warning"
+  | `Info -> "info"
+  | `Debug -> "debug"
+  | `Other s -> s
 
 let check_worker_events records parent (label, status, level) =
-  let path = Some (`List [ `String "parent 界"; `String label ]) in
-  let own = List.filter (json_field_is "task" path) records in
-  let start = List.find (json_event "start") own in
-  check (json_field_is "parent" (List.assoc_opt "id" parent) start);
-  let ending = List.find (json_event "end") own in
-  check (json_field_is "status" (Some (`String status)) ending);
-  let progress = List.find (json_event "progress") own in
-  let integer = function
-    | Some (`Int n) -> Int64.of_int n
-    | Some (`Intlit n) -> Int64.of_string n
-    | _ -> fail "missing integer count"
+  let path = Some [ "parent 界"; label ] in
+  let own = List.filter (fun e -> labels_of e = path) records in
+  let find f =
+    match List.find_map f own with Some v -> v | None -> fail "missing event"
   in
-  check (Int64.equal (integer (List.assoc_opt "count" progress)) Int64.max_int);
-  check (Int64.equal (integer (List.assoc_opt "total" progress)) Int64.max_int);
-  check (json_field_is "unit" (Some (`String "bytes")) progress);
-  let output = List.filter (json_event "output") own in
-  check_eq ~pp:Fmt.int 1 (List.length output);
-  check (json_field_is "level" (Some (`String level)) (List.hd output))
+  check (find (function `Start (_, p) -> Some p | _ -> None) = Some parent);
+  check_eq ~pp:Fmt.string status
+    (find (function `End (_, s, _, _) -> Some (status_name s) | _ -> None));
+  let count, total, unit =
+    find (function `Progress (_, c, n, u) -> Some (c, n, u) | _ -> None)
+  in
+  check (Int64.equal count Int64.max_int);
+  check (Int64.equal total Int64.max_int);
+  check (unit = `Bytes);
+  let levels =
+    List.filter_map (function `Output (_, _, l) -> Some l | _ -> None) own
+  in
+  check_eq
+    ~pp:Fmt.(Dump.list (Dump.option string))
+    [ Some level ]
+    (List.map (Option.map level_name) levels)
 
 let test_json_lifecycle k =
   let count = 1 + (k mod 8) in
@@ -419,24 +455,18 @@ let test_json_lifecycle k =
   check_eq ~pp:Fmt.int count (List.length expected);
   let parent = check_lifecycle_pairs count records in
   List.iter (check_worker_events records parent) expected;
-  let root =
-    List.find (json_field_is "text" (Some (`String "root line"))) records
-  in
-  check (json_field_is "task" (Some (`List [])) root);
-  check (json_field_is "id" None root);
-  let abandoned =
-    List.find
-      (fun f ->
-        json_event "end" f
-        && json_field_is "task" (Some (`List [ `String "left running" ])) f)
-      records
-  in
-  check (json_field_is "status" (Some (`String "cancelled")) abandoned);
-  let result = List.hd (List.rev records) in
-  check (json_event "result" result);
-  check (json_field_is "status" (Some (`String "error")) result);
-  check (json_field_is "text" (Some (`String "result")) result);
-  check (json_field_is "detail" (Some (`String "detail")) result)
+  check
+    (List.find_map
+       (function `Output (task, "root line", _) -> Some task | _ -> None)
+       records
+    = Some None);
+  check
+    (List.find_map
+       (function
+         | `End ((_, [ "left running" ]), s, _, _) -> Some s | _ -> None)
+       records
+    = Some `Cancelled);
+  check (List.hd (List.rev records) = `Result (`Error, "result", Some "detail"))
 
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
@@ -567,22 +597,26 @@ let test_json_partial_attribution size newline =
   let records = events out in
   let active = Hashtbl.create 2 and text = Array.make 2 "" in
   List.iter
-    (fun fields ->
-      let event = List.assoc "event" fields in
+    (fun kind ->
       let id =
-        match List.assoc_opt "id" fields with
-        | Some (`Int i) when i >= 0 && i < 2 -> i
+        match kind with
+        | `Start ((i, _), _)
+        | `Progress ((i, _), _, _, _)
+        | `Label ((i, _), _)
+        | `Output (Some (i, _), _, _)
+        | `End ((i, _), _, _, _)
+          when i >= 0 && i < 2 ->
+            i
         | _ -> fail "a task's partial line became root output"
       in
-      if Yojson.Safe.equal event (`String "start") then Hashtbl.add active id ()
-      else begin
-        check (Hashtbl.mem active id);
-        if Yojson.Safe.equal event (`String "end") then Hashtbl.remove active id
-        else if Yojson.Safe.equal event (`String "output") then
-          match List.assoc "text" fields with
-          | `String s -> text.(id) <- text.(id) ^ s
-          | _ -> fail "non-string output"
-      end)
+      match kind with
+      | `Start _ -> Hashtbl.add active id ()
+      | _ -> (
+          check (Hashtbl.mem active id);
+          match kind with
+          | `End _ -> Hashtbl.remove active id
+          | `Output (_, s, _) -> text.(id) <- text.(id) ^ s
+          | _ -> ()))
     records;
   List.iter
     (fun i -> check_eq ~pp:Fmt.Dump.string (prefix i ^ "done") text.(i))
@@ -601,10 +635,14 @@ let test_json_long_line size split =
             Fmt.pr "%s%!" (String.sub text 0 cut);
             Fmt.pr "%s@." (String.sub text cut (length - cut))))
   in
-  let output = events out |> List.filter (json_event "output") in
+  let output =
+    List.filter_map
+      (function `Output (task, s, _) -> Some (task, s) | _ -> None)
+      (events out)
+  in
   check_eq ~pp:Fmt.int 1 (List.length output);
-  check (json_field_is "id" (Some (`Int 0)) (List.hd output));
-  check (json_field_is "text" (Some (`String text)) (List.hd output))
+  check (fst (List.hd output) = Some (0, [ "large" ]));
+  check_eq ~pp:Fmt.Dump.string text (snd (List.hd output))
 
 (* What [run ppf] writes, with [ppf] a buffer's formatter or
    {!Format.str_formatter}, in [theme]. *)

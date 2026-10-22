@@ -163,7 +163,7 @@ val run :
     [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
     empty string, stops the display's clock at zero:
     - every elapsed time reads [0.0s], and every [time] and [elapsed] of a
-      {{!Console.Progress.json}JSON event} reads [0.000];
+      {{!Console.Progress.json}JSON event} reads [0];
     - no rate shows;
     - the spinners and the motion stand still.
 

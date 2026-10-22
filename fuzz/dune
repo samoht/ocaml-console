@@ -1,9 +1,6 @@
-; Width and Display_json are private to the library; the properties compile
-; them in.
+; Width is private to the library; the properties compile it in.
 
 (copy_files ../lib/input/width.{ml,mli})
-
-(copy_files ../lib/display_json.{ml,mli})
 
 ; The version of matrix the properties are built against: Matrix_0_1 narrows
 ; three of them on matrix 0.1.0.
@@ -28,7 +25,8 @@
   matrix.vte
   fmt
   re
-  yojson
+  jsont
+  jsont.bytesrw
   alcobar))
 
 ; The property run is a quick smoke; deep exploration is the fuzz alias.
@@ -69,7 +67,8 @@
   unix
   logs
   fmt
-  yojson
+  jsont
+  jsont.bytesrw
   alcobar))
 
 (rule

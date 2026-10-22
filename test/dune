@@ -20,4 +20,6 @@
   alcotest
   astring
   re
+  jsont
+  jsont.bytesrw
   fmt))

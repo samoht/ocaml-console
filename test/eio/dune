@@ -22,13 +22,20 @@
  (modules piped)
  (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt))
 
+; Reads JSON events back with Console.Progress.Event, for the cram tests.
+
+(executable
+ (name events)
+ (modules events)
+ (libraries console fmt jsont jsont.bytesrw))
+
 (cram
  (package console-eio)
- (deps tty.exe piped.exe ../../examples/progress/main.exe))
+ (deps tty.exe piped.exe events.exe ../../examples/progress/main.exe))
 
 (test
  (name test)
- (modules :standard \ teardown tty piped)
+ (modules :standard \ teardown tty piped events)
  (package console-eio)
  (deps teardown.exe)
  (libraries

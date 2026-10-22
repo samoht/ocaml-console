@@ -28,6 +28,8 @@ depends: [
   "cstruct" {with-test}
   "eio_main" {with-test}
   "alcobar" {with-test & >= "0.3.2"}
+  "jsont" {with-test}
+  "bytesrw" {with-test}
   "yojson" {with-test}
   "odoc" {with-doc}
 ]

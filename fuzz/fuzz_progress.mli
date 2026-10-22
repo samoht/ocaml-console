@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Properties of the JSON strings of a display's events. *)
+(** Properties of {!Progress}. *)
 
 val suite : string * Alcobar.test_case list
 (** [suite] is the property suite. *)
