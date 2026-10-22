@@ -191,9 +191,16 @@ let rec marks s i stop =
       + marks s next stop
     else marks s next stop
 
-(* The first spacing mark is U+0903, three bytes long. *)
+(* Whether a character of [s], from [pos] for [len] bytes, is at or past
+   U+0903, the first spacing mark. *)
 let may_have_marks s ~pos ~len =
-  let rec go i = i < pos + len && (Char.code s.[i] >= 0xe0 || go (i + 1)) in
+  let rec go i =
+    i < pos + len
+    &&
+    let d = String.get_utf_8_uchar s i in
+    Uchar.to_int (Uchar.utf_decode_uchar d) >= 0x903
+    || go (i + Uchar.utf_decode_length d)
+  in
   go pos
 
 (* The cells the spacing marks of [s] add to its clusters': xterm, VTE and

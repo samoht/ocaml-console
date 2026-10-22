@@ -50,23 +50,32 @@ let scan t = function
       if Width.is_spacing_mark c then t.split <- Some (String.length s)
   | _ -> ()
 
+(* [s], a part of a character, is the start of one that more bytes can
+   complete: some continuation byte makes the decoder read further. *)
+let continues s =
+  List.exists
+    (fun next ->
+      Uchar.utf_decode_length (String.get_utf_8_uchar (s ^ next) 0)
+      > String.length s)
+    [ "\x80"; "\x90"; "\xa0" ]
+
 (* The length of [s] but for the first bytes of a character it leaves
    unended. *)
 let complete s =
   let n = String.length s in
-  let rec lead i =
-    if i > 0 && Char.code s.[i] land 0xc0 = 0x80 then lead (i - 1) else i
+  let rec last i =
+    if i >= n then n
+    else
+      let d = String.get_utf_8_uchar s i in
+      let next = i + Uchar.utf_decode_length d in
+      if next < n then last next
+      else if
+        (not (Uchar.utf_decode_is_valid d))
+        && continues (String.sub s i (n - i))
+      then i
+      else n
   in
-  if n = 0 then 0
-  else
-    let i = lead (n - 1) in
-    let d = String.get_utf_8_uchar s i in
-    if
-      (not (Uchar.utf_decode_is_valid d))
-      && i + 4 > n
-      && Char.code s.[i] >= 0xc2
-    then i
-    else n
+  last 0
 
 (* A tty with output processing on writes each line feed as CR LF. *)
 let feed t s =
@@ -82,18 +91,26 @@ let feed t s =
     Vte.feed_string t.vte (Buffer.contents out);
     Buffer.clear out
   in
-  for i = 0 to n - 1 do
-    Buffer.add_char out s.[i];
-    Matrix_fix.scan t.scan s i (scan t);
-    match t.split with
-    | None -> ()
-    | Some k ->
-        t.split <- None;
-        let mark = Buffer.sub out (Buffer.length out - k) k in
-        Buffer.truncate out (Buffer.length out - k);
-        write ();
-        Buffer.add_string out mark
-  done;
+  let rec characters at =
+    if at < n then begin
+      let d = String.get_utf_8_uchar s at in
+      let next = at + Uchar.utf_decode_length d in
+      for i = at to next - 1 do
+        Buffer.add_char out s.[i];
+        Matrix_fix.scan t.scan s ~at d i (scan t);
+        match t.split with
+        | None -> ()
+        | Some k ->
+            t.split <- None;
+            let mark = Buffer.sub out (Buffer.length out - k) k in
+            Buffer.truncate out (Buffer.length out - k);
+            write ();
+            Buffer.add_string out mark
+      done;
+      characters next
+    end
+  in
+  characters 0;
   write ()
 
 (* {1 Reading the screen} *)

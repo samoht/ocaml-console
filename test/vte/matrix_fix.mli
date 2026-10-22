@@ -7,8 +7,16 @@
 
     Deleted when console moves to matrix 0.2.0. *)
 
-val scan : Ansi.Parser.t -> string -> int -> (Ansi.Parser.token -> unit) -> unit
-(** [scan p s i f] feeds byte [i] of [s] to [p], holding a multi-byte character
+val scan :
+  Ansi.Parser.t ->
+  string ->
+  at:int ->
+  Uchar.utf_decode ->
+  int ->
+  (Ansi.Parser.token -> unit) ->
+  unit
+(** [scan p s ~at d i f] feeds byte [i] of [s] to [p], in the character [d] that
+    [String.get_utf_8_uchar s at] decodes, holding a valid multi-byte character
     back until its last byte. *)
 
 val backspace : string -> string

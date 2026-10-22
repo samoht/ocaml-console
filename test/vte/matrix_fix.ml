@@ -15,17 +15,11 @@
    split-invariant": Ansi.Parser decodes a character fed a byte at a time
    with the bytes of an earlier one. Feed a valid multi-byte character whole,
    at its last byte. *)
-let scan p s i f =
-  let rec lead j =
-    if j > 0 && j > i - 3 && Char.code s.[j] land 0xc0 = 0x80 then lead (j - 1)
-    else j
-  in
-  let j = lead i in
-  let d = String.get_utf_8_uchar s j in
-  let last = j + Uchar.utf_decode_length d - 1 in
+let scan p s ~at d i f =
+  let last = at + Uchar.utf_decode_length d - 1 in
   let b = Bytes.unsafe_of_string s in
-  if Uchar.utf_decode_is_valid d && last > j && last >= i then
-    begin if last = i then Ansi.Parser.feed p b ~off:j ~len:(last - j + 1) f
+  if Uchar.utf_decode_is_valid d && last > at then
+    begin if last = i then Ansi.Parser.feed p b ~off:at ~len:(last - at + 1) f
     end
   else Ansi.Parser.feed p b ~off:i ~len:1 f
 
