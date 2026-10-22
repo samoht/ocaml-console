@@ -11,8 +11,11 @@ on:
 permissions:
   contents: read
 
+# k7, which the tape examples need, is not in opam-repository yet: it is
+# pinned at the commit ci.yml pins, which moves to the k7 0.9.0 tag at
+# release.
 env:
-  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#71185e0410646fea6beb9f6a46f5f026456eaf77
+  K7_PIN: https://github.com/samoht/ocaml-k7.git#c55bb151687e9d5cf946b996b50d2d4e4ef97a93
 
 jobs:
   properties:
@@ -25,8 +28,8 @@ jobs:
         with:
           ocaml-compiler: '5.4'
 
-      - run: opam pin add -n vhs "$VHS_PIN"
-      - run: opam install . vhs --deps-only --with-test
+      - run: opam pin add -n k7 "$K7_PIN"
+      - run: opam install . k7 --deps-only --with-test
       - run: opam exec -- dune build ./fuzz/fuzz.exe
       - run: ./_build/default/fuzz/fuzz.exe --budget 20
 
@@ -47,8 +50,8 @@ jobs:
         with:
           ocaml-compiler: 'ocaml-variants.5.4.0+options,ocaml-option-afl'
 
-      - run: opam pin add -n vhs "$VHS_PIN"
-      - run: opam install . vhs --deps-only --with-test
+      - run: opam pin add -n k7 "$K7_PIN"
+      - run: opam install . k7 --deps-only --with-test
       - run: opam exec -- dune build ./fuzz/fuzz.exe --profile=afl
 
       # The fuzz alias runs AFL for a minute; the night has more time.

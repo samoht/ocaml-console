@@ -7,10 +7,10 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries console vhs fmt))
+ (libraries console k7 fmt))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target display.generated.tape)
  (action
   (with-stdout-to
@@ -19,12 +19,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff display.tape display.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target matrix.generated.tape)
  (action
   (with-stdout-to
@@ -33,12 +33,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff matrix.tape matrix.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target rainbow.generated.tape)
  (action
   (with-stdout-to
@@ -47,12 +47,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff rainbow.tape rainbow.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target tokyo-night.generated.tape)
  (action
   (with-stdout-to
@@ -61,6 +61,6 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff tokyo-night.tape tokyo-night.generated.tape)))

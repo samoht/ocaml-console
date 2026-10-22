@@ -15,10 +15,10 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries fmt vhs))
+ (libraries fmt k7))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target quickstart.generated.tape)
  (action
   (with-stdout-to
@@ -27,6 +27,6 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff quickstart.tape quickstart.generated.tape)))

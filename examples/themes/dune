@@ -7,10 +7,10 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries console vhs fmt))
+ (libraries console k7 fmt))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target default.generated.tape)
  (action
   (with-stdout-to
@@ -19,12 +19,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff default.tape default.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target ascii.generated.tape)
  (action
   (with-stdout-to
@@ -33,12 +33,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff ascii.tape ascii.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target dos.generated.tape)
  (action
   (with-stdout-to
@@ -47,12 +47,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff dos.tape dos.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target matrix.generated.tape)
  (action
   (with-stdout-to
@@ -61,12 +61,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff matrix.tape matrix.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target rainbow.generated.tape)
  (action
   (with-stdout-to
@@ -75,12 +75,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff rainbow.tape rainbow.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target dracula.generated.tape)
  (action
   (with-stdout-to
@@ -89,12 +89,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff dracula.tape dracula.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target nord.generated.tape)
  (action
   (with-stdout-to
@@ -103,12 +103,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff nord.tape nord.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target solarized-dark.generated.tape)
  (action
   (with-stdout-to
@@ -117,12 +117,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff solarized-dark.tape solarized-dark.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target solarized-light.generated.tape)
  (action
   (with-stdout-to
@@ -131,12 +131,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff solarized-light.tape solarized-light.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target gruvbox-dark.generated.tape)
  (action
   (with-stdout-to
@@ -145,12 +145,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff gruvbox-dark.tape gruvbox-dark.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target gruvbox-light.generated.tape)
  (action
   (with-stdout-to
@@ -159,12 +159,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff gruvbox-light.tape gruvbox-light.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target catppuccin-latte.generated.tape)
  (action
   (with-stdout-to
@@ -173,12 +173,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff catppuccin-latte.tape catppuccin-latte.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target catppuccin-mocha.generated.tape)
  (action
   (with-stdout-to
@@ -187,12 +187,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff catppuccin-mocha.tape catppuccin-mocha.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target tokyo-night.generated.tape)
  (action
   (with-stdout-to
@@ -201,12 +201,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff tokyo-night.tape tokyo-night.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target one-dark.generated.tape)
  (action
   (with-stdout-to
@@ -215,12 +215,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff one-dark.tape one-dark.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target monokai.generated.tape)
  (action
   (with-stdout-to
@@ -229,12 +229,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff monokai.tape monokai.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target github-dark.generated.tape)
  (action
   (with-stdout-to
@@ -243,12 +243,12 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff github-dark.tape github-dark.generated.tape)))
 
 (rule
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (target github-light.generated.tape)
  (action
   (with-stdout-to
@@ -257,6 +257,6 @@
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:vhs})
+ (enabled_if %{lib-available:k7})
  (action
   (diff github-light.tape github-light.generated.tape)))

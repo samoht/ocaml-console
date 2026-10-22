@@ -10,12 +10,12 @@ permissions:
 
 # merlint is pinned at one commit, so that the lint job checks every commit
 # with the same merlint.
-# The tape examples need vhs, which is not in opam-repository yet. Pinning it
+# The tape examples need k7, which is not in opam-repository yet. Pinning it
 # from its repository, at one commit, lets every job build them and check the
-# tapes against the same vhs.
+# tapes against the same k7. At release the pin moves to the k7 0.9.0 tag.
 env:
   MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
-  VHS_PIN: https://github.com/samoht/ocaml-vhs.git#71185e0410646fea6beb9f6a46f5f026456eaf77
+  K7_PIN: https://github.com/samoht/ocaml-k7.git#c55bb151687e9d5cf946b996b50d2d4e4ef97a93
 
 jobs:
   build:
@@ -34,9 +34,9 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - run: opam pin add -n vhs "$VHS_PIN"
-      - run: opam install . vhs --deps-only --with-test
-      - run: opam install vhs
+      - run: opam pin add -n k7 "$K7_PIN"
+      - run: opam install . k7 --deps-only --with-test
+      - run: opam install k7
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
@@ -55,9 +55,9 @@ jobs:
       # Resolve every dependency to the oldest version its lower bound allows,
       # so a call that only compiles against a newer API fails here rather than
       # in a downstream opam build.
-      - run: opam pin add -n vhs "$VHS_PIN"
-      - run: opam install . vhs --deps-only --with-test --criteria="+count[version-lag,solution]"
-      - run: opam install vhs
+      - run: opam pin add -n k7 "$K7_PIN"
+      - run: opam install . k7 --deps-only --with-test --criteria="+count[version-lag,solution]"
+      - run: opam install k7
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
@@ -89,8 +89,8 @@ jobs:
           ocaml-compiler: '5.4'
 
       - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
-      - run: opam pin add -n vhs "$VHS_PIN"
+      - run: opam pin add -n k7 "$K7_PIN"
       - run: opam pin add -n merlint "$MERLINT_PIN"
-      - run: opam install . vhs --deps-only --with-test
-      - run: opam install vhs merlint
+      - run: opam install . k7 --deps-only --with-test
+      - run: opam install k7 merlint
       - run: opam exec -- merlint --build
