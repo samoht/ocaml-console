@@ -336,12 +336,15 @@ let output t ~width ~lasts r =
         hanging t ~width Span.(lead ++ lead_mark t line.kind) (body t line))
       (List.rev (Queue.fold (fun acc l -> l :: acc) [] r.output))
 
-let finished t ~width ~lasts n (m : Theme.mark) =
+let finished t ~width ~lasts ~failed ~cancelled n (m : Theme.mark) =
+  let some n what = if n = 0 then "" else Fmt.str ", %d %s" n what in
   cut t width
     Span.(
       guided t (prefix t lasts)
       ++ mark t m ++ text " "
-      ++ muted t (Fmt.str "%d done" n))
+      ++ muted t
+           (Fmt.str "%d done%s%s" n (some failed "failed")
+              (some cancelled "cancelled")))
 
 let shed t ~width ~lasts n =
   cut t width

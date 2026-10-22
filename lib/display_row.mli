@@ -35,9 +35,18 @@ val output : t -> width:int -> lasts:bool list -> row -> Span.t list
 (** [output t ~width ~lasts r] is the output [r] kept, under its line in a tree,
     whole: a line that does not fit goes on over the lines below. *)
 
-val finished : t -> width:int -> lasts:bool list -> int -> Theme.mark -> Span.t
-(** [finished t ~width ~lasts n m] is the line, after the mark [m], that stands
-    for [n] tasks that ended. *)
+val finished :
+  t ->
+  width:int ->
+  lasts:bool list ->
+  failed:int ->
+  cancelled:int ->
+  int ->
+  Theme.mark ->
+  Span.t
+(** [finished t ~width ~lasts ~failed ~cancelled n m] is the line, after the
+    mark [m], that stands for [n] tasks that ended, [failed] of which failed and
+    [cancelled] were cancelled. *)
 
 val shed : t -> width:int -> lasts:bool list -> int -> Span.t
 (** [shed t ~width ~lasts n] is the line that says [n] tasks were dropped. *)

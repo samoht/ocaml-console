@@ -22,6 +22,15 @@ let rec forest keep rows =
 
 let rec size nodes = List.fold_left (fun n x -> n + 1 + size x.kids) 0 nodes
 
+(* The tasks among [nodes] and under them that ended with [outcome]. *)
+let rec ending outcome nodes =
+  List.fold_left
+    (fun n x ->
+      n
+      + (if x.row.outcome = Some outcome then 1 else 0)
+      + ending outcome x.kids)
+    0 nodes
+
 let rec worst acc nodes =
   List.fold_left
     (fun acc n ->
@@ -73,7 +82,9 @@ let rec block t ~width ~form ~fold ~shed up nodes =
          | `Folded ns ->
              [
                Line
-                 (Display_row.finished t ~width ~lasts (size ns)
+                 (Display_row.finished t ~width ~lasts
+                    ~failed:(ending `Failed ns)
+                    ~cancelled:(ending `Cancelled ns) (size ns)
                     (worst `Succeeded ns));
              ]
          | `Node n -> node t ~width ~form lasts n)

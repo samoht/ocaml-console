@@ -117,10 +117,10 @@
       that this would cut in its height loses all its lines, so that no fragment
       of its frame shows, in a {!Span.hcat} too.
     - A tree too tall for its height first folds the tasks that ended under each
-      task into one line, such as [✓ 12 done], then the lines of its windows
-      give way, the oldest of them first, whichever task's window holds it, then
-      only its latest running tasks show, after a line such as
-      [… 3 more running].
+      task into one line, such as [12 done, 2 failed] after the mark of the
+      worst ending among them, then the lines of its windows give way, the
+      oldest of them first, whichever task's window holds it, then only its
+      latest running tasks show, after a line such as [… 3 more running].
     - At close, the tasks still running are cancelled and move as above, then
       the view's last frame is printed once, still, and stays ({!type-view}):
       the summary alone in the default view.
