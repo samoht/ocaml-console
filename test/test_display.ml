@@ -1470,6 +1470,24 @@ let test_parent_of_failure () =
     "nor on a terminal" false
     (List.exists (fun r -> untimed r = "[+] parent") (lines t))
 
+(* With [`Quiet] a nested failure says where it is: its parent's label goes
+   with it, since its indentation alone means nothing. *)
+let test_quiet_failure_context () =
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Theme.set ppf theme;
+  let d = Display.v ~progress:`Quiet ~now:(fun () -> 0.) ppf in
+  let p = Display.task d "RUN make" in
+  let c = Display.task ~parent:p d "sha256" in
+  Display.log c "checksum mismatch";
+  Display.fail c;
+  Display.succeed p;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buffer in
+  Alcotest.(check bool) "the failure shows" true (contains "sha256" out);
+  Alcotest.(check bool) "with its parent" true (contains "RUN make" out)
+
 let suite =
   ( "display",
     [
@@ -1551,4 +1569,6 @@ let suite =
         test_plain_failure_output_once;
       Alcotest.test_case "the parent of a failure is no success" `Quick
         test_parent_of_failure;
+      Alcotest.test_case "a quiet failure names its parent" `Quick
+        test_quiet_failure_context;
     ] )
