@@ -227,63 +227,59 @@ let capture_stdout progress f =
       Format.pp_print_flush Fmt.stdout ());
   Buffer.contents out
 
-(* A line the program never ends is the output of no task: quiet, it goes
-   out as it is when the display closes, after a run in which every task
-   succeeded too. *)
-let test_quiet_unended_line () =
+(* A successful task's last line is still its output without a newline. *)
+let test_quiet_unended_success () =
   let out =
     capture_stdout `Quiet (fun d ->
-        D.with_task d "ok" (fun _ -> Fmt.pr "unended%!"))
+        D.with_task d "ok" (fun _ -> Fmt.pr "secret%!"))
   in
-  Alcotest.(check string) "the line, at exit" "unended" out
+  Alcotest.(check string) "a successful run is silent" "" out
 
-(* A line is the output of the task current where its line feed is
-   written; a line never ended is root output, after the end events. *)
-let test_json_line_attribution () =
+(* A line begun in one task cannot become the next task's output. *)
+let test_json_unended_attribution () =
   let out =
     capture_stdout `Json (fun d ->
-        D.with_task d "first" (fun _ -> Fmt.pr "begun%!");
-        D.with_task d "second" (fun task ->
-            Fmt.pr " ended@.";
-            D.fail task);
-        D.with_task d "third" (fun _ -> Fmt.pr "unended%!"))
+        D.with_task d "ok" (fun _ -> Fmt.pr "secret%!");
+        D.with_task d "fail" (fun task ->
+            Fmt.pr "public@.";
+            D.fail task))
   in
-  let shown =
+  let output =
     String.split_on_char '\n' out
     |> List.filter (( <> ) "")
     |> List.map Yojson.Safe.from_string
     |> List.filter_map (function
-      | `Assoc fields ->
-          let field key = List.assoc_opt key fields in
-          let str = function Some (`String s) -> s | _ -> "-" in
-          let id = function Some (`Int i) -> string_of_int i | _ -> "-" in
-          let task =
-            match field "task" with
-            | Some (`List []) -> "root"
-            | Some (`List l) ->
-                String.concat "/" (List.map (fun t -> str (Some t)) l)
-            | _ -> "-"
-          in
+      | `Assoc fields
+        when Yojson.Safe.equal (List.assoc "event" fields) (`String "output") ->
           Some
-            (String.concat " "
-               [
-                 str (field "event"); id (field "id"); task; str (field "text");
-               ])
+            (`Assoc
+               (List.map
+                  (fun key -> (key, List.assoc key fields))
+                  [ "event"; "id"; "task"; "text" ]))
       | _ -> None)
   in
-  Alcotest.(check (list string))
-    "the line feed's task, and no task for an unended line"
+  let expected =
     [
-      "start 0 first -";
-      "end 0 first -";
-      "start 1 second -";
-      "output 1 second begun ended";
-      "end 1 second -";
-      "start 2 third -";
-      "end 2 third -";
-      "output - root unended";
+      `Assoc
+        [
+          ("event", `String "output");
+          ("id", `Int 0);
+          ("task", `List [ `String "ok" ]);
+          ("text", `String "secret");
+        ];
+      `Assoc
+        [
+          ("event", `String "output");
+          ("id", `Int 1);
+          ("task", `List [ `String "fail" ]);
+          ("text", `String "public");
+        ];
     ]
-    shown
+  in
+  Alcotest.(check (list string))
+    "each task keeps its bytes"
+    (List.map Yojson.Safe.to_string expected)
+    (List.map Yojson.Safe.to_string output)
 
 (* A complete long line is one output record, just as with Display.log. *)
 let test_json_long_line () =
@@ -373,10 +369,10 @@ let suite =
         test_long_line_cut;
       Alcotest.test_case "JSON keeps a 65537-byte line as one output event"
         `Quick test_json_long_line;
-      Alcotest.test_case "a line goes to the task of its line feed" `Quick
-        test_json_line_attribution;
-      Alcotest.test_case "quiet prints an unended line at exit" `Quick
-        test_quiet_unended_line;
+      Alcotest.test_case "JSON keeps an unended line with its task" `Quick
+        test_json_unended_attribution;
+      Alcotest.test_case "quiet hides an unended successful line" `Quick
+        test_quiet_unended_success;
       Alcotest.test_case "concurrent JSON writes remain whole" `Quick
         test_json_concurrent_writes;
       ("run banner", `Quick, test_run_banner);

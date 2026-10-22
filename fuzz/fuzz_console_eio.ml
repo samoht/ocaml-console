@@ -531,10 +531,9 @@ let capture_stdout progress f =
       Format.pp_print_flush Fmt.stdout ());
   Buffer.contents out
 
-(* Quiet, a line that a task leaves unended, flushed or not, is the output
-   of no task: it goes out as it is when the display closes, after a run in
-   which every task succeeded too, and the terminal is left usable. *)
-let test_quiet_unended_line size flush =
+(* Quiet stays silent when all tasks succeed, even if they flush or yield
+   in the middle of a line. Replay the bytes on a terminal as well. *)
+let test_quiet_unended_success size flush =
   let text = String.make (1 + (size mod 64)) 'x' in
   let out =
     capture_stdout `Quiet (fun d ->
@@ -543,16 +542,15 @@ let test_quiet_unended_line size flush =
             if flush then Format.pp_print_flush Fmt.stdout ();
             Eio.Fiber.yield ()))
   in
-  check_eq ~pp:Fmt.Dump.string text out;
   let screen = Console_vte.v ~raw:true ~rows:8 ~cols:80 () in
   Console_vte.feed screen out;
+  check_eq ~pp:Fmt.(Dump.list Dump.string) [] (Console_vte.screen screen);
+  check_eq ~pp:Fmt.Dump.string "" out;
   check (Console_vte.cursor_visible screen)
 
-(* Two tasks that each begin a line and yield share the line under way: a
-   line is the output of the task current where its line feed is written,
-   inside that task's start and end, and a line never ended is one root
-   output event after every end. No byte is lost or repeated. *)
-let test_json_line_attribution size newline =
+(* Suspending partway through a line must not transfer that text to a
+   sibling task or emit it outside the task after its end event. *)
+let test_json_partial_attribution size newline =
   let prefix i = string_of_int i ^ String.make (1 + (size mod 32)) 'x' in
   let out =
     capture_stdout `Json (fun d ->
@@ -567,46 +565,29 @@ let test_json_line_attribution size newline =
           [ 0; 1 ])
   in
   let records = events out in
-  let active = Hashtbl.create 2 and ended = ref 0 in
-  let text = Buffer.create 64 in
+  let active = Hashtbl.create 2 and text = Array.make 2 "" in
   List.iter
     (fun fields ->
-      let is event = json_event event fields in
+      let event = List.assoc "event" fields in
       let id =
         match List.assoc_opt "id" fields with
-        | Some (`Int i) -> Some i
-        | _ -> None
+        | Some (`Int i) when i >= 0 && i < 2 -> i
+        | _ -> fail "a task's partial line became root output"
       in
-      let output () =
-        match List.assoc_opt "text" fields with
-        | Some (`String s) -> Buffer.add_string text s
-        | _ -> fail "an output event with no text"
-      in
-      match id with
-      | Some i when is "start" -> Hashtbl.replace active i ()
-      | Some i when is "end" ->
-          Hashtbl.remove active i;
-          incr ended
-      | Some i when is "output" ->
-          check newline;
-          check (Hashtbl.mem active i);
-          (match List.assoc_opt "text" fields with
-          | Some (`String s) -> check (String.ends_with ~suffix:"done" s)
-          | _ -> ());
-          output ()
-      | None when is "output" ->
-          check (not newline);
-          check_eq ~pp:Fmt.int 2 !ended;
-          output ()
-      | _ -> ())
+      if Yojson.Safe.equal event (`String "start") then Hashtbl.add active id ()
+      else begin
+        check (Hashtbl.mem active id);
+        if Yojson.Safe.equal event (`String "end") then Hashtbl.remove active id
+        else if Yojson.Safe.equal event (`String "output") then
+          match List.assoc "text" fields with
+          | `String s -> text.(id) <- text.(id) ^ s
+          | _ -> fail "non-string output"
+      end)
     records;
-  let sorted s =
-    String.to_seq s |> List.of_seq |> List.sort Char.compare |> List.to_seq
-    |> String.of_seq
-  in
-  check_eq ~pp:Fmt.Dump.string
-    (sorted (prefix 0 ^ prefix 1 ^ "donedone"))
-    (sorted (Buffer.contents text))
+  List.iter
+    (fun i -> check_eq ~pp:Fmt.Dump.string (prefix i ^ "done") text.(i))
+    [ 0; 1 ];
+  check_eq ~pp:Fmt.int 0 (Hashtbl.length active)
 
 (* The JSON representation of a printed line is independent of how the
    formatter chunks or flushes it, including at the 64 KiB capture bound. *)
@@ -735,10 +716,10 @@ let suite =
         [ uint8; bytes; bool ] test_direct_progress_parity;
       test_case "JSON preserves long lines across formatter chunks"
         [ uint8; uint8 ] test_json_long_line;
-      test_case "a line goes to the task of its line feed" [ uint8; bool ]
-        test_json_line_attribution;
-      test_case "quiet prints an unended line at exit" [ uint8; bool ]
-        test_quiet_unended_line;
+      test_case "JSON partial lines stay inside their originating task"
+        [ uint8; bool ] test_json_partial_attribution;
+      test_case "quiet successful partial lines leave no output or screen text"
+        [ uint8; bool ] test_quiet_unended_success;
       test_case "concurrent JSON records stay whole and complete"
         [ uint8; uint8 ] test_json_concurrent_records;
       test_case "quiet captures every terminal output source" [ uint8 ]
