@@ -442,8 +442,10 @@ The example runs with `dune exec -- examples/columns/main.exe`:
 ![Two builds, linux and macos, under a table of their status: the steps of each build make a tree in a column of its own, and the summary line comes last](examples/columns/columns.svg)
 
 When the display closes, the view's last frame is printed once and stays:
-on a pipe too, after the lines of the tasks. A view is drawn in the
-display's theme.
+on a pipe too, after the lines of the tasks, but not with
+`--progress=quiet` or `json`. The view is then called with a height of
+`max_int`, so it must not draw a line for each line of its height. A view
+is drawn in the display's theme.
 
 In a theme with motion, the frame of a table or a panel in the view moves:
 

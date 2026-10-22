@@ -120,8 +120,8 @@
       only its latest running tasks show, after a line such as
       [… 3 more running].
     - At close, the tasks still running are cancelled and move as above, then
-      the view's last frame is printed once, still, and stays: the summary alone
-      in the default view.
+      the view's last frame is printed once, still, and stays ({!type-view}):
+      the summary alone in the default view.
     - The tasks that wait in the region under a task are bounded: past 1 MiB,
       the oldest are dropped, and a line counts them. Each weighs at most its
       output, 1 MiB, and three texts of 4 KiB ({!output}).
@@ -269,7 +269,12 @@ type t = Display_state.t
 type view = t -> width:int -> height:int -> Span.t
 (** The type for views: [view display ~width ~height] is the region of [display]
     on a terminal [width] columns wide, at most [height] lines tall ({!views}).
-*)
+
+    The {e last frame} is the view drawn once more when the display closes, with
+    [height] [max_int], since the scrollback has room for all of it, and without
+    a terminal with [width] [80]: a view does not make a line for each line of
+    its height. It is printed on a terminal and with [`Plain] alike, and never
+    with [`Quiet] or [`Json], which print no view. *)
 
 val v :
   ?layout:Layout.t ->
@@ -296,8 +301,8 @@ val v :
       it shows, and with [`Json] it breaks the lines of events. {!log} gives
       such a line to a task, and [Console_eio.run] takes the standard outputs.
     - [summary], if given, names the work on the summary line ({!val-summary}).
-    - [view] (defaults to {!default_view}) is the region on a terminal
-      ({!set_view}).
+    - [view] (defaults to {!default_view}) is the region on a terminal, and the
+      last frame printed when the display closes ({!type-view}, {!set_view}).
     - [keep] (defaults to [false]) keeps the tasks that ended in the region
       until the display closes, where they otherwise move to the scrollback with
       their top task ({!design}).
@@ -339,9 +344,9 @@ val set_result : ?detail:string -> t -> (string, string) result -> unit
 val close : t -> unit
 (** [close display] cancels the tasks still running, unless {!set_result} with
     [Ok] had them succeed. It takes the region off the screen, shows the cursor
-    and prints the last frame of the view on a terminal ({!design}), the summary
-    otherwise, then the result of {!set_result}. A view that raises then is
-    dropped, and the default view's frame printed in its place.
+    and prints the view's last frame ({!type-view}), then the result of
+    {!set_result}. A view that raises then is dropped, and the default view's
+    last frame printed in its place.
 
     A closed display ignores what it is told, so that a fiber that outlives it
     does not fail. Closing it again, {!redraw}, {!set_view} and {!set_result} do
@@ -511,7 +516,8 @@ val cancel : ?message:string -> task -> unit
     - A view that raises is dropped. The call that was drawing it, such as
       {!redraw} or {!set_count}, draws the default view, then raises the
       exception again.
-    - Without a terminal no view is drawn ({!design}). *)
+    - Without a terminal the view is drawn once, as its last frame, with
+      [`Plain] alone ({!type-view}). *)
 
 val set_view : t -> view -> unit
 (** [set_view display view] draws the region of [display] with [view] from now
