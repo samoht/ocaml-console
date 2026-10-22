@@ -37,8 +37,8 @@ let output t r line =
   let level =
     match line.kind with Output -> None | Logs l -> Some (l :> Event.level)
   in
-  let id = Option.map (fun r -> r.id) r and task = Option.map (labels []) r in
-  write t (Event.output ?id ?task ?level line.text)
+  let task = Option.map (fun r -> (r.id, labels [] r)) r in
+  write t (Event.output ?task ?level line.text)
 
 let ended r =
   let status = (Option.value r.outcome ~default:`Cancelled :> Event.status) in

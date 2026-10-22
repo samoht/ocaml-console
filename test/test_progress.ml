@@ -177,12 +177,12 @@ let test_json_lines () =
     {|{"time":1.5,"event":"label","id":2,"task":["a","b"],"text":"c"}|}
     (Event.label ~id:2 ~text:"c" task);
   check "controls"
-    ({|{"time":1.5,"event":"output","task":[],"text":"\u001B\u007F|}
-   ^ "\u{FFFD}" ^ {|\t\"\\|} ^ "\xc3\xa9" ^ {|","level":"warning"}|})
+    ({|{"time":1.5,"event":"output","text":"\u001B\u007F|} ^ "\u{FFFD}"
+   ^ {|\t\"\\|} ^ "\xc3\xa9" ^ {|","level":"warning"}|})
     (Event.output ~level:`Warning "\027\127\xc2\x85\t\"\\\xc3\xa9");
   check "invalid UTF-8"
     "{\"time\":1.5,\"event\":\"output\",\"id\":2,\"task\":[\"a\",\"b\"],\"text\":\"\u{FFFD}\"}"
-    (Event.output ~id:2 ~task "\xff");
+    (Event.output ~task:(2, task) "\xff");
   check "end"
     {|{"time":1.5,"event":"end","id":2,"task":["a","b"],"status":"failed","elapsed":0.25,"text":"m"}|}
     (Event.end' ~text:"m" ~id:2 ~status:`Failed ~elapsed:0.25 task);
@@ -218,7 +218,7 @@ let test_json_growth () =
   Alcotest.(check bool)
     "unknown event" true
     (kind {|{"time":0,"event":"pause","id":0}|}
-    = Some (`Other "pause", None, [], None, None));
+    = Some (`Other "pause", Some 0, [], None, None));
   Alcotest.(check bool)
     "unknown value" true
     (kind {|{"time":0,"event":"output","task":[],"text":"","level":"trace"}|}
@@ -256,22 +256,25 @@ let test_json_max_float () =
   in
   reads_back (Event.to_string e)
 
-(* [`Other s] with [s] a listed name is refused, since its line would read
-   back as that name's constructor; any other name reads back as it is. *)
+(* [`Other s] with [s] a listed value is that value; [other] refuses a
+   listed event name. *)
 let test_other_listed () =
-  let refused name f =
-    match f () with
-    | _ -> Alcotest.failf "%s: a listed name taken as other" name
-    | exception Invalid_argument _ -> ()
-  in
-  refused "event" (fun () -> Event.other ~time:0. "start");
-  refused "unit" (fun () ->
-      Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "items")
-        []);
-  refused "level" (fun () -> Event.output ~level:(`Other "error") ~time:0. "");
-  refused "status" (fun () ->
-      Event.end' ~time:0. ~id:0 ~status:(`Other "failed") ~elapsed:0. []);
-  refused "outcome" (fun () -> Event.result ~time:0. ~outcome:(`Other "ok") "");
+  (match Event.other ~time:0. "start" with
+  | _ -> Alcotest.fail "other took a listed event name"
+  | exception Invalid_argument _ -> ());
+  let same what a b = Alcotest.(check bool) what true (a = b) in
+  same "unit"
+    (Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "items") [])
+    (Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:`Items []);
+  same "level"
+    (Event.output ~level:(`Other "error") ~time:0. "")
+    (Event.output ~level:`Error ~time:0. "");
+  same "status"
+    (Event.end' ~time:0. ~id:0 ~status:(`Other "failed") ~elapsed:0. [])
+    (Event.end' ~time:0. ~id:0 ~status:`Failed ~elapsed:0. []);
+  same "outcome"
+    (Event.result ~time:0. ~outcome:(`Other "ok") "")
+    (Event.result ~time:0. ~outcome:`Ok "");
   let files =
     Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "files") []
   in
@@ -279,36 +282,79 @@ let test_other_listed () =
     "another unit reads back" true
     (Event.of_string (Event.to_string files) = Ok files)
 
-(* A future event owns its members' schema. Only its time and name are
-   meaningful to a consumer that does not know that event. *)
-let test_unknown_event_members () =
-  let line = {|{"time":0,"event":"pause","id":"bad","text":5}|} in
-  match Event.of_string line with
-  | Ok e ->
-      Alcotest.(check bool)
-        "only the name and time" true
-        (e = Event.other ~time:0. "pause")
-  | Error (`Msg m) -> Alcotest.failf "unknown event rejected: %s" m
+let test_negative () =
+  let refused what f =
+    match f () with
+    | _ -> Alcotest.failf "a negative %s taken" what
+    | exception Invalid_argument _ -> ()
+  in
+  refused "id" (fun () -> Event.start ~time:0. ~id:(-1) []);
+  refused "parent" (fun () -> Event.start ~parent:(-1) ~time:0. ~id:0 []);
+  refused "count" (fun () ->
+      Event.progress ~time:0. ~id:0 ~count:(-1L) ~total:1L ~unit:`Items []);
+  List.iter
+    (fun line ->
+      match Event.of_string line with
+      | Ok _ -> Alcotest.failf "%s read" line
+      | Error _ -> ())
+    [
+      {|{"time":0,"event":"start","id":-1,"task":[]}|};
+      {|{"time":0,"event":"start","id":1.5,"task":[]}|};
+      {|{"time":0,"event":"start","id":"-1","task":[]}|};
+    ]
 
-(* Neither byte of this truncated four-byte character is a character.
-   Both APIs promise one replacement character per invalid byte. *)
+(* An event of another name keeps its id and task when they have their
+   types, and skips any other member. *)
+let test_unknown_event_members () =
+  let read line =
+    match Event.of_string line with
+    | Ok e -> e
+    | Error (`Msg m) -> Alcotest.failf "unknown event rejected: %s" m
+  in
+  Alcotest.(check bool)
+    "only the name and time" true
+    (read {|{"time":0,"event":"pause","id":"bad","text":5}|}
+    = Event.other ~time:0. "pause");
+  Alcotest.(check bool)
+    "its task" true
+    (read {|{"time":0,"event":"pause","id":4,"task":["a","b"],"text":5}|}
+    = Event.other ~id:4 ~task:[ "a"; "b" ] ~time:0. "pause")
+
+let test_error_plain () =
+  match Event.of_string {|{"event":"x"}|} with
+  | Ok _ -> Alcotest.fail "an event without time read"
+  | Error (`Msg m) ->
+      Alcotest.(check bool)
+        ("no escape in " ^ String.escaped m)
+        false (String.contains m '\027')
+
+(* Each maximal subpart of an ill-formed sequence is one U+FFFD. *)
 let test_invalid_bytes_individually () =
-  let raw = "\xf0\x9f" and expected = "\u{FFFD}\u{FFFD}" in
-  let text = Event.text (Event.output ~time:0. raw) in
-  let sanitized = Console_text.sanitize raw in
-  let vte = Console_vte.v ~rows:3 ~cols:8 () in
-  Console_vte.feed vte (sanitized ^ "\r\n" ^ Option.get text);
-  Alcotest.(check (list string))
-    "one visible cell per invalid byte" [ expected; expected ]
-    (Console_vte.screen vte);
-  Alcotest.(check (option string)) "event text" (Some expected) text;
-  Alcotest.(check string) "sanitized text" expected sanitized
+  List.iter
+    (fun (raw, expected) ->
+      let text = Event.text (Event.output ~time:0. raw) in
+      let sanitized = Console_text.sanitize raw in
+      let vte = Console_vte.v ~rows:3 ~cols:8 () in
+      Console_vte.feed vte (sanitized ^ "\r\n" ^ Option.get text);
+      Alcotest.(check (list string))
+        "one visible cell per subpart" [ expected; expected ]
+        (Console_vte.screen vte);
+      Alcotest.(check (option string)) "event text" (Some expected) text;
+      Alcotest.(check string) "sanitized text" expected sanitized)
+    [
+      ("\xf0\x9f", "\u{FFFD}");
+      ("\xf0\x9f\x98", "\u{FFFD}");
+      ("\xff\xfe", "\u{FFFD}\u{FFFD}");
+      ("\xf0\x9fa", "\u{FFFD}a");
+    ]
 
 let suite =
   ( "progress",
     [
-      Alcotest.test_case "each invalid byte is replaced" `Quick
+      Alcotest.test_case "each maximal subpart is replaced" `Quick
         test_invalid_bytes_individually;
+      Alcotest.test_case "negative integers" `Quick test_negative;
+      Alcotest.test_case "errors are plain text" `Quick test_error_plain;
       Alcotest.test_case "unknown events own their member schemas" `Quick
         test_unknown_event_members;
       Alcotest.test_case "largest finite event times read back" `Quick

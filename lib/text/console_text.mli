@@ -19,7 +19,10 @@ val sanitize : ?keep_newlines:bool -> string -> string
     visible as text.
 
     - Each control character (C0, DEL and C1) is a space.
-    - Each invalid UTF-8 byte is the replacement character U+FFFD.
+    - Each maximal subpart of an ill-formed UTF-8 sequence, as
+      [String.get_utf_8_uchar] decodes it, is the replacement character U+FFFD:
+      a lone byte, or the start of a character that its next byte does not
+      continue, such as ["\xf0\x9f"], which is one U+FFFD.
     - The characters a terminal draws as nothing, which can hide text or reorder
       the text around them, are removed: those of Unicode's
       Default_Ignorable_Code_Point property, such as the bidirectional controls,

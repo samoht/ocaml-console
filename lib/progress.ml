@@ -55,23 +55,41 @@ module Event = struct
      integer beyond 2^53-1; both forms decode. *)
   let number_format : Jsont.number_format = "%.15g"
 
-  let integer ~to_int64 dec =
+  let natural_error s =
+    Jsont.Error.msgf Jsont.Meta.none "%s is not a natural number" s
+
+  let natural ~to_int64 ~of_int64 =
+    let of_float f =
+      if Float.is_integer f && f >= 0. && f < 0x1p63 then
+        match of_int64 (Int64.of_float f) with
+        | Some v -> v
+        | None -> natural_error (Fmt.str "%.17g" f)
+      else natural_error (Fmt.str "%.17g" f)
+    and of_digits s =
+      match Int64.of_string_opt s with
+      | Some n when String.for_all Char.Ascii.is_digit s -> (
+          match of_int64 n with Some v -> v | None -> natural_error s)
+      | _ -> natural_error s
+    in
     let number =
-      Jsont.map Jsont.number ~enc:(fun v -> Int64.to_float (to_int64 v))
+      Jsont.map Jsont.number ~dec:of_float ~enc:(fun v ->
+          Int64.to_float (to_int64 v))
     and digits =
-      Jsont.map Jsont.string ~enc:(fun v -> Int64.to_string (to_int64 v))
+      Jsont.map Jsont.string ~dec:of_digits ~enc:(fun v ->
+          Int64.to_string (to_int64 v))
     in
-    let exact v =
-      let n = to_int64 v in
-      Int64.compare n (-1_000_000_000_000_000L) > 0
-      && Int64.compare n 1_000_000_000_000_000L < 0
-    in
-    Jsont.any ~kind:"integer" ~dec_number:dec ~dec_string:dec
+    let exact v = Int64.compare (to_int64 v) 1_000_000_000_000_000L < 0 in
+    Jsont.any ~kind:"natural number" ~dec_number:number ~dec_string:digits
       ~enc:(fun v -> if exact v then number else digits)
       ()
 
-  let int = integer ~to_int64:Int64.of_int Jsont.int
-  let int64 = integer ~to_int64:Fun.id Jsont.int64
+  let int =
+    natural ~to_int64:Int64.of_int ~of_int64:(fun n ->
+        if Int64.compare n (Int64.of_int max_int) <= 0 then
+          Some (Int64.to_int n)
+        else None)
+
+  let int64 = natural ~to_int64:Fun.id ~of_int64:Option.some
 
   (* Seconds rounded to the millisecond in [-10^12, 10^12]: at most 15
      significant digits, so that the number written reads back as it was. *)
@@ -124,7 +142,7 @@ module Event = struct
   type 'a enum = {
     of_string : string -> 'a;
     to_string : 'a -> string;
-    other : string -> 'a -> 'a;
+    other : 'a -> 'a;
   }
 
   let open_enum known =
@@ -136,11 +154,11 @@ module Event = struct
       | `Other s -> s
       | v -> fst (List.find (fun (_, v') -> v' = v) known)
     in
-    (* [`Other s] with [s] listed would read back as the listed value. *)
-    let other what = function
-      | `Other s when List.mem_assoc s known ->
-          Fmt.invalid_arg "Console.Progress.Event: %s %S is listed" what s
-      | `Other s -> `Other (clean s)
+    let other = function
+      | `Other s -> (
+          match List.assoc_opt s known with
+          | Some v -> v
+          | None -> `Other (clean s))
       | v -> v
     in
     { of_string; to_string; other }
@@ -177,7 +195,15 @@ module Event = struct
 
   let outcomes : outcome enum = open_enum [ ("ok", `Ok); ("error", `Error) ]
 
+  let natural what n =
+    if n < 0 then Fmt.invalid_arg "Console.Progress.Event: negative %s" what
+
+  let natural64 what n =
+    if Int64.compare n 0L < 0 then
+      Fmt.invalid_arg "Console.Progress.Event: negative %s" what
+
   let event ?id ?task ~time kind =
+    Option.iter (natural "id") id;
     {
       time = to_seconds time;
       kind;
@@ -196,30 +222,34 @@ module Event = struct
     }
 
   let start ?parent ~time ~id task =
+    Option.iter (natural "parent") parent;
     { (event ~id ~task ~time `Start) with parent }
 
   let progress ~time ~id ~count ~total ~unit task =
+    natural64 "count" count;
+    natural64 "total" total;
     {
       (event ~id ~task ~time `Progress) with
       count = Some count;
       total = Some total;
-      unit = Some (count_units.other "unit" unit);
+      unit = Some (count_units.other unit);
     }
 
   let label ~time ~id ~text task =
     { (event ~id ~task ~time `Label) with text = Some (clean text) }
 
-  let output ?id ?(task = []) ?level ~time text =
+  let output ?task ?level ~time text =
+    let id = Option.map fst task and task = Option.map snd task in
     {
-      (event ?id ~task ~time `Output) with
+      (event ?id ?task ~time `Output) with
       text = Some (clean text);
-      level = Option.map (levels.other "level") level;
+      level = Option.map levels.other level;
     }
 
   let end' ?text ~time ~id ~status ~elapsed task =
     {
       (event ~id ~task ~time `End) with
-      status = Some (statuses.other "status" status);
+      status = Some (statuses.other status);
       elapsed = Some (to_seconds elapsed);
       text = Option.map clean text;
     }
@@ -227,12 +257,16 @@ module Event = struct
   let result ?detail ~time ~outcome text =
     {
       (event ~time `Result) with
-      outcome = Some (outcomes.other "outcome" outcome);
+      outcome = Some (outcomes.other outcome);
       text = Some (clean text);
       detail = Option.map clean detail;
     }
 
-  let other ~time name = event ~time (kinds.other "event" (`Other name))
+  let other ?id ?task ~time name =
+    match kinds.other (`Other name) with
+    | `Other _ as kind -> event ?id ?task ~time kind
+    | _ -> Fmt.invalid_arg "Console.Progress.Event.other: %S is listed" name
+
   let time e = e.time
   let kind e = e.kind
   let id e = e.id
@@ -248,23 +282,45 @@ module Event = struct
   let level e = e.level
   let detail e = e.detail
 
+  (* A member of an event of another name may have another type: it reads
+     as [Mistyped], which an event of a listed name refuses. *)
+  type 'a member = Typed of 'a | Mistyped
+
+  let member c =
+    let dec =
+      Jsont.map Jsont.json ~dec:(fun j ->
+          match Jsont.Json.decode c j with
+          | Ok v -> Typed v
+          | Error _ -> Mistyped)
+    and enc =
+      Jsont.map c ~enc:(function
+        | Typed v -> v
+        | Mistyped -> invalid_arg "Console.Progress.Event: mistyped member")
+    in
+    Jsont.any ~dec_null:dec ~dec_bool:dec ~dec_number:dec ~dec_string:dec
+      ~dec_array:dec ~dec_object:dec
+      ~enc:(fun _ -> enc)
+      ()
+
   (* The object as it is written: every member, in the order of the line,
      each absent when the event has none. *)
   type members = {
     time : float;
     event : string;
-    id : int option;
-    task : string list option;
-    parent : int option;
-    count : int64 option;
-    total : int64 option;
-    unit : string option;
-    status : string option;
-    elapsed : float option;
-    text : string option;
-    level : string option;
-    detail : string option;
+    id : int member option;
+    task : string list member option;
+    parent : int member option;
+    count : int64 member option;
+    total : int64 member option;
+    unit : string member option;
+    status : string member option;
+    elapsed : float member option;
+    text : string member option;
+    level : string member option;
+    detail : string member option;
   }
+
+  let typed v = Option.map (fun v -> Typed v) v
 
   let to_members (e : t) =
     let status =
@@ -276,45 +332,62 @@ module Event = struct
     {
       time = e.time;
       event = kinds.to_string e.kind;
-      id = e.id;
-      task = e.task;
-      parent = e.parent;
-      count = e.count;
-      total = e.total;
-      unit = Option.map count_units.to_string e.unit;
-      status;
-      elapsed = e.elapsed;
-      text = e.text;
-      level = Option.map levels.to_string e.level;
-      detail = e.detail;
+      id = typed e.id;
+      task = typed e.task;
+      parent = typed e.parent;
+      count = typed e.count;
+      total = typed e.total;
+      unit = typed (Option.map count_units.to_string e.unit);
+      status = typed status;
+      elapsed = typed e.elapsed;
+      text = typed e.text;
+      level = typed (Option.map levels.to_string e.level);
+      detail = typed e.detail;
     }
 
   let of_members (m : members) =
-    let get name = function
+    let fail fmt = Jsont.Error.msgf Jsont.Meta.none fmt in
+    let opt name = function
+      | None -> None
+      | Some (Typed v) -> Some v
+      | Some Mistyped -> fail "%s event with a %s of another type" m.event name
+    in
+    let get name v =
+      match opt name v with
       | Some v -> v
-      | None ->
-          Jsont.Error.msgf Jsont.Meta.none "%s event without %s" m.event name
+      | None -> fail "%s event without %s" m.event name
     in
     let time = m.time in
     let id () = get "id" m.id and task () = get "task" m.task in
+    let parent () = opt "parent" m.parent in
     match kinds.of_string m.event with
-    | `Start -> start ?parent:m.parent ~time ~id:(id ()) (task ())
+    | `Start -> start ?parent:(parent ()) ~time ~id:(id ()) (task ())
     | `Progress ->
         let count = get "count" m.count and total = get "total" m.total in
         let unit = count_units.of_string (get "unit" m.unit) in
         progress ~time ~id:(id ()) ~count ~total ~unit (task ())
     | `Label -> label ~time ~id:(id ()) ~text:(get "text" m.text) (task ())
     | `Output ->
-        let level = Option.map levels.of_string m.level in
-        output ?id:m.id ?task:m.task ?level ~time (get "text" m.text)
+        let level = Option.map levels.of_string (opt "level" m.level) in
+        let task =
+          match (opt "id" m.id, opt "task" m.task) with
+          | Some id, Some task -> Some (id, task)
+          | None, (None | Some []) -> None
+          | Some _, None -> fail "output event with an id and no task"
+          | None, Some _ -> fail "output event with a task and no id"
+        in
+        output ?task ?level ~time (get "text" m.text)
     | `End ->
         let status = statuses.of_string (get "status" m.status) in
-        end' ?text:m.text ~time ~id:(id ()) ~status
+        end' ?text:(opt "text" m.text) ~time ~id:(id ()) ~status
           ~elapsed:(get "elapsed" m.elapsed) (task ())
     | `Result ->
         let outcome = outcomes.of_string (get "status" m.status) in
-        result ?detail:m.detail ~time ~outcome (get "text" m.text)
-    | `Other name -> other ~time name
+        result ?detail:(opt "detail" m.detail) ~time ~outcome
+          (get "text" m.text)
+    | `Other name ->
+        let known = function Some (Typed v) -> Some v | _ -> None in
+        other ?id:(known m.id) ?task:(known m.task) ~time name
 
   let jsont =
     let open Jsont.Object in
@@ -351,17 +424,17 @@ module Event = struct
         })
     |> mem "time" seconds ~enc:(fun (m : members) -> m.time)
     |> mem "event" utf_8 ~enc:(fun m -> m.event)
-    |> opt_mem "id" int ~enc:(fun m -> m.id)
-    |> opt_mem "task" (Jsont.list utf_8) ~enc:(fun m -> m.task)
-    |> opt_mem "parent" int ~enc:(fun m -> m.parent)
-    |> opt_mem "count" int64 ~enc:(fun m -> m.count)
-    |> opt_mem "total" int64 ~enc:(fun m -> m.total)
-    |> opt_mem "unit" utf_8 ~enc:(fun m -> m.unit)
-    |> opt_mem "status" utf_8 ~enc:(fun m -> m.status)
-    |> opt_mem "elapsed" seconds ~enc:(fun m -> m.elapsed)
-    |> opt_mem "text" utf_8 ~enc:(fun m -> m.text)
-    |> opt_mem "level" utf_8 ~enc:(fun m -> m.level)
-    |> opt_mem "detail" utf_8 ~enc:(fun m -> m.detail)
+    |> opt_mem "id" (member int) ~enc:(fun m -> m.id)
+    |> opt_mem "task" (member (Jsont.list utf_8)) ~enc:(fun m -> m.task)
+    |> opt_mem "parent" (member int) ~enc:(fun m -> m.parent)
+    |> opt_mem "count" (member int64) ~enc:(fun m -> m.count)
+    |> opt_mem "total" (member int64) ~enc:(fun m -> m.total)
+    |> opt_mem "unit" (member utf_8) ~enc:(fun m -> m.unit)
+    |> opt_mem "status" (member utf_8) ~enc:(fun m -> m.status)
+    |> opt_mem "elapsed" (member seconds) ~enc:(fun m -> m.elapsed)
+    |> opt_mem "text" (member utf_8) ~enc:(fun m -> m.text)
+    |> opt_mem "level" (member utf_8) ~enc:(fun m -> m.level)
+    |> opt_mem "detail" (member utf_8) ~enc:(fun m -> m.detail)
     |> skip_unknown |> finish
     |> Jsont.map ~kind:"console progress event" ~dec:of_members ~enc:to_members
 
@@ -373,7 +446,7 @@ module Event = struct
   let of_string s =
     match Jsont_bytesrw.decode_string jsont s with
     | Ok e -> Ok e
-    | Error e -> Error (`Msg e)
+    | Error e -> Error (`Msg (Console_text.strip e))
 
   let pp ppf e = Format.pp_print_string ppf (to_string e)
 end

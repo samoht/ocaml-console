@@ -37,6 +37,8 @@ let status =
 
 let outcome = open_value [ ("ok", `Ok); ("error", `Error) ]
 let task = list bytes
+let nat = map [ int ] (fun n -> n land max_int)
+let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
 
 (* Any event, but for its time: [other] names an event that is not
    listed. *)
@@ -44,16 +46,17 @@ let kind =
   choose
     [
       map
-        [ int; task; option int ]
+        [ nat; task; option nat ]
         (fun id t parent -> Event.start ?parent ~id t);
-      map [ int; task; int64; int64; count_unit ] (fun id t count total unit ->
+      map [ nat; task; nat64; nat64; count_unit ] (fun id t count total unit ->
           Event.progress ~id ~count ~total ~unit t);
-      map [ int; task; bytes ] (fun id t text -> Event.label ~id ~text t);
+      map [ nat; task; bytes ] (fun id t text -> Event.label ~id ~text t);
       map
-        [ option int; option task; bytes; option level ]
-        (fun id task s level -> Event.output ?id ?task ?level s);
+        [ option nat; task; bytes; option level ]
+        (fun id t s level ->
+          Event.output ?task:(Option.map (fun id -> (id, t)) id) ?level s);
       map
-        [ int; task; status; float; option bytes ]
+        [ nat; task; status; float; option bytes ]
         (fun id t status elapsed text ->
           Event.end' ?text ~id ~status ~elapsed t);
       map
@@ -93,35 +96,26 @@ let test_round_trip time kind =
   check_eq ~pp:Fmt.Dump.string line (Event.to_string back);
   check (back = e)
 
-(* [`Other s] is refused iff [s] is a listed name, and reads back as it
-   is otherwise, for an event's name and for the values of its members. *)
+(* [other] refuses a listed event name; [`Other s] with [s] a listed value
+   is that value. Either reads back as it is. *)
 let test_other s =
-  let is_listed names = List.mem s names in
-  let try_ listed make =
-    match make () with
-    | e ->
-        if listed then failf "%S, a listed name, taken as other" s;
-        check (decode (Event.to_string e) = e)
-    | exception Invalid_argument _ ->
-        if not listed then failf "%S refused as other" s
-  in
-  try_ (is_listed known_events) (fun () -> Event.other ~time:0. s);
-  try_
-    (is_listed [ "items"; "bytes" ])
-    (fun () ->
-      Event.progress ~time:0. ~id:0 ~count:0L ~total:0L ~unit:(`Other s) []);
-  try_
-    (is_listed [ "app"; "error"; "warning"; "info"; "debug" ])
-    (fun () -> Event.output ~level:(`Other s) ~time:0. "");
-  try_
-    (is_listed [ "succeeded"; "failed"; "cancelled" ])
-    (fun () -> Event.end' ~time:0. ~id:0 ~status:(`Other s) ~elapsed:0. []);
-  try_
-    (is_listed [ "ok"; "error" ])
-    (fun () -> Event.result ~time:0. ~outcome:(`Other s) "")
+  (match Event.other ~time:0. s with
+  | e ->
+      if List.mem s known_events then failf "%S, a listed name, taken" s;
+      check (decode (Event.to_string e) = e)
+  | exception Invalid_argument _ ->
+      if not (List.mem s known_events) then failf "%S refused as other" s);
+  List.iter
+    (fun e -> check (decode (Event.to_string e) = e))
+    [
+      Event.progress ~time:0. ~id:0 ~count:0L ~total:0L ~unit:(`Other s) [];
+      Event.output ~level:(`Other s) ~time:0. "";
+      Event.end' ~time:0. ~id:0 ~status:(`Other s) ~elapsed:0. [];
+      Event.result ~time:0. ~outcome:(`Other s) "";
+    ]
 
-(* [s] as an event holds it: each byte that is not part of a character and
-   each C1 control is U+FFFD. *)
+(* [s] as an event holds it: each maximal subpart of an ill-formed
+   sequence and each C1 control is U+FFFD. *)
 let cleaned s =
   let buf = Buffer.create (String.length s) in
   let rec go i =
@@ -164,15 +158,14 @@ let contains ~affix s =
   in
   go 0
 
-(* A count reads back as it was, a JSON number below 10^15 in magnitude and
-   a string of decimal digits from there. *)
+(* A count reads back as it was, a JSON number below 10^15 and a string of
+   decimal digits from there. *)
 let test_count c n =
   let line =
     Event.to_string
       (Event.progress ~time:0. ~id:0 ~count:c ~total:n ~unit:`Bytes [])
   in
-  let exact = Int64.compare (Int64.abs c) 1_000_000_000_000_000L < 0 in
-  let exact = exact && not (Int64.equal c Int64.min_int) in
+  let exact = Int64.compare c 1_000_000_000_000_000L < 0 in
   check
     (contains
        ~affix:
@@ -256,7 +249,7 @@ let public_schema_expected k raw ((count, unit), status, detail) =
     Event.start ~parent:0 ~time:0.125 ~id:1 [ label; child ];
     Event.label ~time:0.375 ~id:0 ~text:renamed [ renamed ];
     Event.progress ~time:0.375 ~id:1 ~count ~total:count ~unit child_task;
-    Event.output ~id:1 ~task:child_task ~time:0.375 "line";
+    Event.output ~task:(1, child_task) ~time:0.375 "line";
     Event.end' ~text:message ~time:0.375 ~id:1 ~status ~elapsed:0.25 child_task;
     Event.end' ~time:0.375 ~id:0 ~status:`Succeeded ~elapsed:0.375 [ renamed ];
     Event.output ~time:0.375 "root";
@@ -314,14 +307,9 @@ let test_unknown_schema k =
 let invalid_prefix =
   choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
 
+(* Each of these is one maximal subpart, so one U+FFFD. *)
 let test_invalid_bytes raw =
-  let expected =
-    let b = Buffer.create 12 in
-    for _ = 1 to String.length raw do
-      Buffer.add_utf_8_uchar b Uchar.rep
-    done;
-    Buffer.contents b
-  in
+  let expected = "\u{FFFD}" in
   check (Event.text (Event.output ~time:0. raw) = Some expected);
   check_eq ~pp:Fmt.Dump.string expected (Console_text.sanitize raw)
 
@@ -361,7 +349,7 @@ let test_accessors raw id n =
     (Event.progress ~time:1.25 ~id ~count:n ~total:n ~unit:`Bytes [ raw ]);
   verify ~id ~task ~text `Label (Event.label ~time:1.25 ~id ~text:raw [ raw ]);
   verify ~id ~task ~text ~level:`Warning `Output
-    (Event.output ~id ~task:[ raw ] ~level:`Warning ~time:1.25 raw);
+    (Event.output ~task:(id, [ raw ]) ~level:`Warning ~time:1.25 raw);
   verify ~text `Output (Event.output ~time:1.25 raw);
   verify ~id ~task ~text ~status:`Failed ~elapsed:0.5 `End
     (Event.end' ~text:raw ~time:1.25 ~id ~status:`Failed ~elapsed:0.5 [ raw ]);
@@ -424,9 +412,9 @@ let suite =
     [
       test_case "retained labels and messages cut between characters at 4 KiB"
         [ uint8 ] test_retained_cut;
-      test_case "every event accessor exposes its schema" [ bytes; int; int64 ]
+      test_case "every event accessor exposes its schema" [ bytes; nat; nat64 ]
         test_accessors;
-      test_case "each invalid byte gets a replacement character"
+      test_case "each maximal subpart gets a replacement character"
         [ invalid_prefix ] test_invalid_bytes;
       test_case "unknown events ignore members of other schemas" [ uint8 ]
         test_unknown_schema;
@@ -443,7 +431,7 @@ let suite =
         test_other;
       test_case "a string reads back" [ bytes ] test_string;
       test_case "a time reads back to the millisecond" [ float ] test_time;
-      test_case "a count reads back" [ int64; int64 ] test_count;
+      test_case "a count reads back" [ nat64; nat64 ] test_count;
       test_case "public JSON schema keeps every field and renamed ancestry"
         [ uint8; bytes ] test_public_schema;
     ] )
