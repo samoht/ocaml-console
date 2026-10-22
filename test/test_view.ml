@@ -442,12 +442,14 @@ let test_fit_still_size () =
 (* Under a room, the parts of [hcat] that do not grow take what they need,
    and a bar of no width grows to the rest. *)
 let test_hcat_grow () =
-  let row = View.(hcat ~gap:1 [ text "label"; Bar.view 0.5; text "50%" ]) in
+  let row =
+    View.(hcat ~gap:1 [ text "label"; Bar.horizontal 0.5; text "50%" ])
+  in
   Alcotest.(check string)
     "the bar takes the rest" "label ━━━━━━━╺━━━━━━ 50%" (pp_at 24 row);
   Alcotest.(check string)
     "at its natural size, ten cells" "label ━━━━━╺━━━━ 50%" (View.to_string row);
-  let two = View.(hcat ~gap:0 [ Bar.view 1.; Rule.view () ]) in
+  let two = View.(hcat ~gap:0 [ Bar.horizontal 1.; Rule.view () ]) in
   Alcotest.(check int)
     "two growers share the room" 9
     (View.width (View.text (pp_at 9 two)))

@@ -265,7 +265,7 @@ let rec span = function
   | Text (k, s) -> View.styled (pick styles k) (View.text s)
   | Gradient s -> View.gradient (View.text s)
   | Link s -> View.link ~uri:"https://example.org/a" (View.text s)
-  | Bar (w, f) -> Bar.view ~width:w (Float.of_int f /. 255.)
+  | Bar (w, f) -> Bar.horizontal ~width:w (Float.of_int f /. 255.)
   | Role (k, s) -> View.role (pick roles k) (span s)
   | Nest (k, b) -> nested k b
   | Cat l -> View.concat (List.map span l)
@@ -537,7 +537,7 @@ let test_nested_wrap s k n =
           (Tree.v content
              [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
     | 3 -> View.sized ~width:20 (Rule.view ~label:content ())
-    | _ -> Bar.view ~width:12 0.6
+    | _ -> Bar.horizontal ~width:12 0.6
   in
   let nested =
     match k / 5 mod 3 with

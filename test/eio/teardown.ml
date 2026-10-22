@@ -50,7 +50,7 @@ let widgets _env =
     View.pp
     (Tree.view (Tree.v long [ Tree.v long [ leaf ]; leaf ]))
     View.pp (Rule.view ~label:long ()) View.pp
-    (Bar.view ~brackets:true ~width:10 0.55);
+    (Bar.horizontal ~brackets:true ~width:10 0.55);
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       let task = Display.task display "counting" in
       Display.set_count task ~cur:1 ~total:3;

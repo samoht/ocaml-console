@@ -417,7 +417,7 @@ let test_put_together () =
                 (View.text emoji));
            View.sized
              ~width:(half (m - 1))
-             (Rule.view ~label:(Bar.view ~width:4 0.5) ());
+             (Rule.view ~label:(Bar.horizontal ~width:4 0.5) ());
          ])
   in
   List.iter

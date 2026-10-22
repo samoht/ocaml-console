@@ -101,9 +101,9 @@ val hcat : ?gap:int -> t list -> t
     Without a room, as under {!width} or {!to_string}, each view in it is laid
     out at its natural size. In a room [w] wide ({!fit}), the views that do not
     grow take, left to right, the room the views before them leave, and those
-    that grow, such as a {!Bar.view} of no width, share what is left by their
-    weights. A view that should take less goes in it {!sized}. The result goes
-    in a table cell, a panel, a tree or a display's view, as any view does:
+    that grow, such as a {!Bar.horizontal} of no width, share what is left by
+    their weights. A view that should take less goes in it {!sized}. The result
+    goes in a table cell, a panel, a tree or a display's view, as any view does:
 
     {[
     let report tree panel =
@@ -216,8 +216,8 @@ val wrap : int -> t -> t list
 
     - A line breaks at a run of spaces, which the break removes, or after a
       slash. The spaces inside a line and its leading ones are kept.
-    - A part drawn in the theme it is printed in, such as a {!Bar.view}, breaks
-      only where the room ends, and keeps its spaces.
+    - A part drawn in the theme it is printed in, such as a {!Bar.horizontal},
+      breaks only where the room ends, and keeps its spaces.
     - A word wider than [w] goes on over the next lines, broken where the room
       ends.
     - A character wider than [w] cannot be drawn and is left out: a wide one

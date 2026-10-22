@@ -115,7 +115,7 @@ let test_bar_cell () =
       ]
       [ [ View.text "copy"; bar ] ]
   in
-  let half = table (Bar.view ~width:4 0.5) in
+  let half = table (Bar.horizontal ~width:4 0.5) in
   let row s = List.nth (String.split_on_char '\n' s) 1 in
   let check msg want got = Alcotest.(check string) msg want (row got) in
   check "default" "copy  \u{2501}\u{2501}\u{257a}\u{2501}" (printed half);
@@ -123,7 +123,9 @@ let test_bar_cell () =
     (printed ~theme:Theme.dos half);
   check "not UTF-8" "copy  ##--" (printed ~utf_8:false half);
   check "ascii" "copy  ##--" (printed ~theme:Theme.ascii half);
-  let cut = table ~overflow:`Truncate ~max_width:5 (Bar.view ~width:8 0.5) in
+  let cut =
+    table ~overflow:`Truncate ~max_width:5 (Bar.horizontal ~width:8 0.5)
+  in
   check "cut, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2588}\u{2026}"
     (printed ~theme:Theme.dos cut);
   check "cut, not UTF-8" "copy  ##..."
@@ -165,15 +167,15 @@ let test_bar_span () =
   let buf = Buffer.create 16 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf Theme.dos;
-  View.pp ppf View.(text "[" ++ Bar.view ~width:2 0.5 ++ text "]");
+  View.pp ppf View.(text "[" ++ Bar.horizontal ~width:2 0.5 ++ text "]");
   Format.pp_print_flush ppf ();
   Alcotest.(check string) "dos" "[\u{2588}\u{2591}]" (Buffer.contents buf);
   Alcotest.(check string)
     "to_string, the default theme" "\u{2501}\u{2501}"
-    (View.to_string (Bar.view ~width:2 1.));
+    (View.to_string (Bar.horizontal ~width:2 1.));
   Alcotest.(check int)
     "width" 6
-    (View.width (Bar.view ~brackets:true ~width:4 0.5))
+    (View.width (Bar.horizontal ~brackets:true ~width:4 0.5))
 
 let test_formatter_gates_cell_styles () =
   let table =

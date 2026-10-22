@@ -12,7 +12,7 @@ type t = {
 }
 
 let v ?style ?track ?(brackets = false) ~width frac =
-  if width < 0 then invalid_arg "Console.Bar.view: negative width";
+  if width < 0 then invalid_arg "Console.Bar.horizontal: negative width";
   let frac =
     if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
   in
@@ -76,10 +76,56 @@ let draw t look =
 
 (* A bar given no width grows to its room, ten cells at its natural size and
    one at least. *)
-let view ?style ?track ?brackets ?width frac =
+let horizontal ?style ?track ?brackets ?width frac =
   match width with
   | Some width -> View_core.drawn (draw (v ?style ?track ?brackets ~width frac))
   | None ->
       View_core.deferred ~grow:1 (fun c ->
           let width = match Ctx.width c with Some w -> max 1 w | None -> 10 in
           View_core.drawn (draw (v ?style ?track ?brackets ~width frac)))
+
+(* {1 Vertical bars} *)
+
+let eighths = [| " "; "▁"; "▂"; "▃"; "▄"; "▅"; "▆"; "▇"; "█" |]
+
+(* Off UTF-8, a cell is a blank, a dot, a colon or a hash, as it is empty,
+   filled to less than half, less than seven eighths, or more. *)
+let ascii_eighths = [| " "; "."; "."; "."; ":"; ":"; ":"; "#"; "#" |]
+
+(* The eighths of each cell, from the bottom up: whole cells, then the cell
+   the rest fills, then empty ones. *)
+let column ~height frac =
+  let total = int_of_float (Float.round (frac *. float_of_int (height * 8))) in
+  List.init height (fun i -> max 0 (min 8 (total - (i * 8))))
+
+(* Cell [i] from the bottom, filled to [e] eighths, in [look]. *)
+let vertical_cell ~style ~track ~height i e look =
+  let glyphs = if Widget.bar look = `Ascii then ascii_eighths else eighths in
+  if e = 0 then
+    View_core.ink (Option.value track ~default:(Widget.muted look)) glyphs.(0)
+  else
+    let style =
+      match (style, Theme.palette look.Look.theme) with
+      | Some style, _ -> style
+      | None, [] -> Widget.accent look
+      | None, [ c ] -> Style.fg c
+      | None, palette ->
+          let last = float_of_int (max 1 (height - 1)) in
+          Style.fg (View_core.color_at palette (float_of_int i /. last))
+    in
+    View_core.ink style glyphs.(e)
+
+(* A vertical bar is one cell wide and as tall as its room, one row at its
+   natural size. *)
+let vertical ?style ?track frac =
+  let frac =
+    if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
+  in
+  View_core.deferred (fun c ->
+      let height = match Ctx.height c with Some h -> max 1 h | None -> 1 in
+      View_core.concat ~sep:(View_core.text "\n")
+        (List.rev
+           (List.mapi
+              (fun i e ->
+                View_core.drawn (vertical_cell ~style ~track ~height i e))
+              (column ~height frac))))

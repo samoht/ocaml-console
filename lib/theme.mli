@@ -153,8 +153,9 @@ val accent : t -> Color.t
 
 val palette : t -> Color.t list
 (** [palette t] are the colours that successive progress rows take in turn, and
-    it is never empty. A bar without a style ({!Bar.view}) spreads them along
-    its length when there are several, and is in the one colour otherwise. *)
+    it is never empty. A bar without a style ({!Bar.horizontal}) spreads them
+    along its length when there are several, and is in the one colour otherwise.
+*)
 
 val succeeded : t -> Color.t
 (** [succeeded t] is the colour of a success. *)

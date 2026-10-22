@@ -65,7 +65,7 @@ let test_ascii s n =
     View.pp
     (Tree.view (Tree.v text [ Tree.v text [ leaf ]; leaf ]))
     View.pp (Rule.view ~label:text ()) View.pp
-    (Bar.view ~brackets:true ~width:(n mod 30)
+    (Bar.horizontal ~brackets:true ~width:(n mod 30)
        (Float.of_int (n mod 101) /. 100.));
   let d =
     Display.v ~summary:s

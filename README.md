@@ -233,8 +233,28 @@ and a bar shows a fraction, here 65% of twenty cells:
 # Fmt.pr "%a@." View.pp (Rule.view ~label:(View.text "Results") ());;
 ─────────────── Results ────────────────
 - : unit = ()
-# print_endline (View.to_string (Bar.view ~width:20 0.65));;
+# print_endline (View.to_string (Bar.horizontal ~width:20 0.65));;
 ━━━━━━━━━━━━━╺━━━━━━
+- : unit = ()
+```
+
+Vertical bars fill from the bottom, an eighth of a cell at a time. Side by
+side, one row tall, they are a sparkline, and in a taller room a
+histogram:
+
+```ocaml
+# let load = [ 0.1; 0.3; 0.8; 0.5; 0.9; 0.4; 0.2 ];;
+val load : float list = [0.1; 0.3; 0.8; 0.5; 0.9; 0.4; 0.2]
+# print_endline
+    (View.to_string (View.hcat ~gap:0 (List.map Bar.vertical load)));;
+▁▂▆▄▇▃▂
+- : unit = ()
+# print_endline
+    (View.to_string
+       (View.sized ~height:3 (View.hcat ~gap:1 (List.map Bar.vertical load))));;
+    ▃   ▆
+    █ ▄ █ ▂
+▂ ▇ █ █ █ █ ▅
 - : unit = ()
 ```
 
@@ -250,8 +270,8 @@ panel:
     Table.view ~border:Border.none
       [ Table.column (View.text "File"); Table.column (View.text "Progress") ]
       [
-        [ View.text "boot.img"; Bar.view ~width:10 0.4 ];
-        [ View.text "rootfs.tar"; Bar.view ~width:10 0.9 ];
+        [ View.text "boot.img"; Bar.horizontal ~width:10 0.4 ];
+        [ View.text "rootfs.tar"; Bar.horizontal ~width:10 0.9 ];
       ]
   in
   print_endline

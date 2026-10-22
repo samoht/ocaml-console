@@ -865,7 +865,8 @@ let vcat ts = lift ts F.vcat
    natural size. *)
 let share c ~gap ts =
   match Ctx.width c with
-  | None -> List.map (flat_in (Ctx.natural c)) ts
+  | None ->
+      List.map (flat_in (Ctx.with_room ~width:None ~height:(Ctx.height c) c)) ts
   | Some w ->
       let left = ref w and shown = ref 0 in
       let fixed =
@@ -874,7 +875,11 @@ let share c ~gap ts =
             if grow t > 0 then None
             else
               let room = max 0 (!left - if !shown > 0 then gap else 0) in
-              let f = flat_in (Ctx.with_width (Some room) c) t in
+              let f =
+                flat_in
+                  (Ctx.with_room ~width:(Some room) ~height:(Ctx.height c) c)
+                  t
+              in
               if not (F.is_empty f) then begin
                 left := room - F.width f;
                 incr shown
@@ -902,7 +907,11 @@ let share c ~gap ts =
                   1)
                 else 0
               in
-              flat_in (Ctx.with_width (Some (share + extra)) c) t)
+              flat_in
+                (Ctx.with_room
+                   ~width:(Some (share + extra))
+                   ~height:(Ctx.height c) c)
+                t)
         ts fixed
 
 let hcat ?(gap = 2) ts =

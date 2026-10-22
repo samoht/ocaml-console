@@ -70,7 +70,7 @@ let bar t r width =
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
-      View_core.paint (look t) (Bar.view ~width f)
+      View_core.paint (look t) (Bar.horizontal ~width f)
   | _ -> View_core.empty
 
 let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))

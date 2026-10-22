@@ -3,11 +3,24 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Horizontal bars, for progress and for figures.
+(** Bars, for progress and for figures.
 
-    A bar is [width] cells, filled in its colour to a fraction of its length,
-    with the rest drawn as a track. The glyphs are those of the formatter's
-    theme ({!Theme.get}, {!Theme.val-bar}):
+    A bar is filled in its colour to a fraction of its length, with the rest
+    drawn as a track. A {!horizontal} bar shows progress; {!vertical} bars side
+    by side ({!View.hcat}) are a sparkline on one row and a histogram on
+    several:
+
+    {[
+    let sparkline values =
+      Console.(View.hcat ~gap:0 (List.map Bar.vertical values))
+
+    let histogram ~height values =
+      Console.(
+        View.sized ~height (View.hcat ~gap:1 (List.map Bar.vertical values)))
+    ]}
+
+    The glyphs of a horizontal bar are those of the formatter's theme
+    ({!Theme.get}, {!Theme.val-bar}):
 
     - [`Line] draws a heavy horizontal line (U+2501), in which a half filled
       cell is the left half of the line (U+2578). After a whole filled cell the
@@ -22,16 +35,16 @@
 
 (** {1:bars Bars} *)
 
-val view :
+val horizontal :
   ?style:Style.t ->
   ?track:Style.t ->
   ?brackets:bool ->
   ?width:int ->
   float ->
   View.t
-(** [view ~style ~track ~brackets ~width frac] is a bar [width] cells long in
-    [style], filled to [frac] of its length, with [frac] clamped to the range 0
-    to 1 and NaN taken as 0. The fill is rounded to the nearest half cell in
+(** [horizontal ~style ~track ~brackets ~width frac] is a bar [width] cells long
+    in [style], filled to [frac] of its length, with [frac] clamped to the range
+    0 to 1 and NaN taken as 0. The fill is rounded to the nearest half cell in
     [`Line] glyphs, and to the nearest cell in the others.
 
     Without [width], the bar grows to its room ({!View.fit}): it takes what the
@@ -53,3 +66,17 @@ val view :
     those cells of the bar.
 
     @raise Invalid_argument if [width] is negative. *)
+
+val vertical : ?style:Style.t -> ?track:Style.t -> float -> View.t
+(** [vertical ~style ~track frac] is a bar one cell wide, as tall as its room
+    ({!View.fit}) and one row at its natural size, filled from the bottom to
+    [frac] of its height, with [frac] clamped to the range 0 to 1 and NaN taken
+    as 0. Each cell shows the eighths of it that are filled, rounded to the
+    nearest eighth of the whole bar: a lower block from U+2581 (one eighth) to
+    U+2587 (seven eighths), a full block (U+2588), or a blank when empty. Off
+    {!Fmt.utf_8}, and in a theme whose bars are [`Ascii], a cell is a blank, a
+    dot ([.]) when filled to less than half, a colon ([:]) to less than seven
+    eighths, and a hash ([#]) above.
+
+    [style] and [track] are as for {!horizontal}, a palette of several colours
+    spread from the bottom to the top. *)

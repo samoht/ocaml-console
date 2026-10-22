@@ -160,7 +160,8 @@ let test_widgets_read_it () =
     "bar in the accent" true
     (Astring.String.is_prefix
        ~affix:(String.sub (amber "x") 0 10)
-       (printed ~theme:Theme.dos ~styled:true View.pp (Bar.view ~width:2 1.)))
+       (printed ~theme:Theme.dos ~styled:true View.pp
+          (Bar.horizontal ~width:2 1.)))
 
 (* A display takes the theme of the formatter it writes on. *)
 let test_display_reads_it () =
@@ -337,7 +338,7 @@ let test_roles () =
     (print View.pp
        (Tree.view (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ])));
   check "rule" (muted ^ "\u{2500}") (print View.pp (Rule.view ()));
-  check "bar track" muted (print View.pp (Bar.view ~width:4 0.5));
+  check "bar track" muted (print View.pp (Bar.horizontal ~width:4 0.5));
   let term = terminal ~theme:t ~styled:true ~summary:"Build" () in
   let task = Display.task term.display "compile" in
   Display.set_count task ~cur:1 ~total:3;
@@ -441,7 +442,7 @@ let test_ascii_fallback () =
              (Tree.v long [ Tree.v long [ Tree.v long [] ]; Tree.v long [] ]))
       );
       ("rule", print View.pp (Rule.view ~label:long ()));
-      ("bar", print View.pp (Bar.view ~brackets:true ~width:10 0.55));
+      ("bar", print View.pp (Bar.horizontal ~brackets:true ~width:10 0.55));
       ("display", display_bytes theme);
     ]
   in

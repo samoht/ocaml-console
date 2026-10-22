@@ -82,7 +82,7 @@ let utf_8 =
 (* Bars and rules fill their cells with a glyph, cluster by cluster. *)
 let fills () =
   run "bar 80 cells" ~n:10_000 (fun () ->
-      View.pp utf_8 (Bar.view ~width:80 0.5));
+      View.pp utf_8 (Bar.horizontal ~width:80 0.5));
   let rule = Rule.view ~glyph:"\u{2550}" ~label:(View.text mixed) () in
   run "rule 120 cells, mixed label" ~n:10_000 (fun () -> View.pp utf_8 rule)
 
