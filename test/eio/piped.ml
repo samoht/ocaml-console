@@ -8,7 +8,9 @@
     many steps, enough to write far more than a pipe holds, so that a reader
     that stops early closes the pipe under it; with [bare], it prints the
     results alone, without console; with [exit], it calls [exit] inside a task,
-    and an [at_exit] function it registered first logs and prints. *)
+    and an [at_exit] function it registered first logs and prints. With
+    [quiet-long] or [quiet-prompt], quiet, it leaves a line unended on standard
+    error, a line too long to hold or a question, before a task fails. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -17,7 +19,7 @@ let step display i =
 
 let () =
   Logs.set_level (Some Logs.Info);
-  Eio_main.run @@ fun _ ->
+  Eio_main.run @@ fun env ->
   (* A clock that does not move, so that every time printed is 0.0s. *)
   let clock =
     (Eio_mock.Clock.Mono.make () :> Eio.Time.Mono.ty Eio.Resource.t)
@@ -44,6 +46,17 @@ let () =
           Console.Display.with_task display "work" (fun _ ->
               Fmt.pr "result 1@.";
               exit 3))
+  | [| _; "quiet-long" |] ->
+      Console_eio.run ~clock ~progress:`Quiet (fun display ->
+          Fmt.epr "%s%!" (String.make 70_000 'x');
+          Console.Display.with_task display "work" Console.Display.fail)
+  | [| _; "quiet-prompt" |] ->
+      Console_eio.run ~clock ~progress:`Quiet (fun display ->
+          let prompt =
+            Console_eio.Prompt.v ~interactive:true (Eio.Stdenv.stdin env)
+          in
+          ignore (Console_eio.Prompt.line prompt "name? ");
+          Console.Display.with_task display "work" Console.Display.fail)
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do
