@@ -5,9 +5,10 @@
 
 (* The same title, tree, table and progress rows in the theme its argument
    names, the title graded through the theme's palette: the README's
-   gallery is screenshots of this program, one per theme. The
-   table is drawn above the rows while they run, so a theme with motion
-   shows its frame moving, and is printed once they are done. *)
+   gallery is screenshots of this program, one per theme. The table is
+   drawn above the rows while they run, so a theme with motion shows its
+   frame moving, and stays, still, in the view's last frame once they are
+   done. *)
 
 open Console
 
@@ -67,6 +68,5 @@ let () =
       Fmt.pr "%a@.%a@.@." Span.pp
         (Span.with_style Style.bold title)
         Tree.pp tree;
-      ( Eio_main.run @@ fun env ->
-        progress ~clock:(Eio.Stdenv.mono_clock env) table );
-      Fmt.pr "@.%a@." Table.pp table
+      Eio_main.run @@ fun env ->
+      progress ~clock:(Eio.Stdenv.mono_clock env) table
