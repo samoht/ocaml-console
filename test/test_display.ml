@@ -1439,6 +1439,19 @@ let test_plain_output_not_sibling () =
     "the parent's output and its child start in different columns" true
     (indent_of (find "parent says") <> indent_of (find "child"))
 
+(* On a pipe a failure's output is printed once: the lines streamed as they
+   came are not printed again under the failure. *)
+let test_plain_failure_output_once () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let job = Display.task d "job" in
+        Display.log job "checksum mismatch";
+        Display.fail job)
+  in
+  Alcotest.(check int)
+    "the line once" 1
+    (List.length (List.filter (contains "checksum mismatch") (split out)))
+
 let suite =
   ( "display",
     [
@@ -1516,4 +1529,6 @@ let suite =
         test_last_frame_label_readable;
       Alcotest.test_case "a pipe's output is not a sibling of the children"
         `Quick test_plain_output_not_sibling;
+      Alcotest.test_case "a pipe prints a failure's output once" `Quick
+        test_plain_failure_output_once;
     ] )
