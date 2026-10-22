@@ -41,7 +41,20 @@ that sleeps 26 times 0.11 seconds takes 2.8s.
   [+] macos  2.8s
   [+] Building 2.8s (9/9)
 
+Its time is the sum of the sleeps that ended, whatever the program does
+between them: two fibers that sleep 0.1 seconds four times and 0.13
+seconds three times give the same events whether one of them works before
+each sleep or not.
+
+  $ ../piped.exe sleeps 0 2> idle
+  $ ../piped.exe sleeps 0.1 2> busy
+  $ cmp idle busy
+  $ cat idle
+  {"time":0,"event":"start","id":0,"task":["build"]}
+  {"time":0.79,"event":"end","id":0,"task":["build"],"status":"succeeded","elapsed":0.79}
+
 The empty string leaves the clock running:
+
 
   $ CONSOLE_DETERMINISTIC_CLOCK= ../../../examples/progress/main.exe 2>&1 | grep -c ' 0\.0s'
   0

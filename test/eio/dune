@@ -20,7 +20,7 @@
 (executable
  (name piped)
  (modules piped)
- (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt))
+ (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt unix))
 
 ; Reads JSON events back with Console.Progress.Event, for the cram tests.
 
