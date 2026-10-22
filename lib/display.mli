@@ -469,9 +469,10 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
     - A running task's row is drawn by the {!Layout} of the display, its window
       under it; a task that ended is its line ({!Layout}), and a transient one
       leaves its place to the tasks under it.
-    - [width] (defaults to the terminal's width, at most 100) is the width of
-      each line, and [height] (defaults to no limit) the most lines it takes.
-      When the tree does not fit, it folds as {!design} says.
+    - [width] (defaults to the terminal's width, 80 without one, at most 100) is
+      the width of each line, and [height] (defaults to no limit) the most lines
+      it takes. When the tree does not fit, it folds as {!design} says. A
+      [width] or a [height] below [1] gives {!Span.empty}.
     - In the last frame, once the display closes, the tree holds every task,
       none folded, each failure or cancellation followed by its output, and a
       line too wide goes on over the next ones. A label is never cut there: one
