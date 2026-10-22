@@ -242,9 +242,19 @@ let test_tty () =
     "auto on a terminal too" true
     (contains hide (shown ~size:(fun () -> (80, 24)) `Auto))
 
+(* Rounding the largest finite float to 15 digits must still read back. *)
+let test_json_max_float () =
+  let e =
+    Progress.Event.make ~time:Float.max_float
+      (`End ((0, [ "work" ]), `Succeeded, Float.max_float, None))
+  in
+  reads_back (Progress.Event.to_string e)
+
 let suite =
   ( "progress",
     [
+      Alcotest.test_case "largest finite event times read back" `Quick
+        test_json_max_float;
       Alcotest.test_case "names" `Quick test_names;
       Alcotest.test_case "quiet" `Quick test_quiet;
       Alcotest.test_case "json" `Quick test_json;
