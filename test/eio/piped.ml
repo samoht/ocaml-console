@@ -10,7 +10,9 @@
     results alone, without console; with [exit], it calls [exit] inside a task,
     and an [at_exit] function it registered first logs and prints. With
     [quiet-long] or [quiet-prompt], quiet, it leaves a line unended on standard
-    error, a line too long to hold or a question, before a task fails. *)
+    error, a line too long to hold or a question, before a task fails. With
+    [json-stdout], as JSON events, a task prints a line on standard output and
+    one on standard error. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -57,6 +59,11 @@ let () =
           in
           ignore (Console_eio.Prompt.line prompt "name? ");
           Console.Display.with_task display "work" Console.Display.fail)
+  | [| _; "json-stdout" |] ->
+      Console_eio.run ~clock ~progress:`Json (fun display ->
+          Console.Display.with_task display "build" (fun _ ->
+              Fmt.pr "from stdout@.";
+              Fmt.epr "from stderr@."))
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do
