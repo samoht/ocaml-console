@@ -40,11 +40,13 @@
     - {!within} makes a task current again, for example from another fiber, and
       {!log} gives it a line from code where it is not current.
 
-    Output is what the program prints while a task is current ({!tasks}),
-    without its escape codes:
+    A task's output, without its escape codes, is:
     - its {!log} lines;
-    - under [Console_eio.run], its [Logs] messages and the lines it prints with
-      [Fmt.pr] or [Fmt.epr] on the display's terminal.
+    - under [Console_eio.run], the [Logs] messages logged while it is current
+      ({!tasks}), and the lines that [Console_eio.run] takes from [Fmt.pr] or
+      [Fmt.epr] whose line feed is written while it is current. A line begun in
+      one task and ended in another is the output of the second, and a line
+      never ended is the output of no task.
 
     A task that succeeds leaves its line alone, while one that fails or is
     cancelled prints up to 1 MiB of its output under its line. Beyond that, the

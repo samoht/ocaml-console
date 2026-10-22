@@ -26,8 +26,17 @@
 
     - its [Logs] messages ({{!logs}Logs messages});
     - its [Display.log] lines;
-    - the lines of {!Fmt.stdout} and {!Fmt.stderr} on the display's terminal
+    - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes
       ({{!Console.Display.output}where text goes}).
+
+    A line that [run] takes is the output of the task current in the fiber that
+    writes its line feed, so a line begun in one task and ended in another is
+    the output of the second. A line the program never ends is the output of no
+    task, and goes out when the display closes:
+    - as it is, after the display's last line, also with [`Quiet] after a run in
+      which every task succeeded;
+    - with [`Json], as an [output] event of no task, before the events that the
+      closing writes, such as [result].
 
     Text that [print_string], [Printf] or a child process writes on the terminal
     goes past the display and garbles the rows, so print it with

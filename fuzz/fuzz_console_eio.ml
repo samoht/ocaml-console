@@ -509,9 +509,112 @@ let test_forced_tty_screen k label =
            (fun line -> String.contains line 'Z')
            (Console_vte.screen ~scrollback:true screen)))
 
+(* What [run] writes on {!Fmt.stdout} as [ppf], which it also takes the
+   program's lines from under [progress]. *)
+let capture_stdout progress f =
+  Eio_mock.Backend.run @@ fun () ->
+  Format.pp_print_flush Fmt.stdout ();
+  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
+  let out = Buffer.create 256 in
+  Format.pp_set_formatter_out_functions Fmt.stdout
+    {
+      saved with
+      out_string = Buffer.add_substring out;
+      out_flush = (fun () -> ());
+    };
+  Fun.protect
+    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
+    (fun () ->
+      Console_eio.run
+        ~clock:(Eio_mock.Clock.Mono.make ())
+        ~ppf:Fmt.stdout ~progress f;
+      Format.pp_print_flush Fmt.stdout ());
+  Buffer.contents out
+
+(* Quiet, a line that a task leaves unended, flushed or not, is the output
+   of no task: it goes out as it is when the display closes, after a run in
+   which every task succeeded too, and the terminal is left usable. *)
+let test_quiet_unended_line size flush =
+  let text = String.make (1 + (size mod 64)) 'x' in
+  let out =
+    capture_stdout `Quiet (fun d ->
+        Console.Display.with_task d "success" (fun _ ->
+            Fmt.pr "%s" text;
+            if flush then Format.pp_print_flush Fmt.stdout ();
+            Eio.Fiber.yield ()))
+  in
+  check_eq ~pp:Fmt.Dump.string text out;
+  let screen = Console_vte.v ~raw:true ~rows:8 ~cols:80 () in
+  Console_vte.feed screen out;
+  check (Console_vte.cursor_visible screen)
+
+(* Two tasks that each begin a line and yield share the line under way: a
+   line is the output of the task current where its line feed is written,
+   inside that task's start and end, and a line never ended is one root
+   output event after every end. No byte is lost or repeated. *)
+let test_json_line_attribution size newline =
+  let prefix i = string_of_int i ^ String.make (1 + (size mod 32)) 'x' in
+  let out =
+    capture_stdout `Json (fun d ->
+        Eio.Fiber.List.iter
+          (fun i ->
+            Console.Display.with_task d (string_of_int i) (fun _ ->
+                Fmt.pr "%s%!" (prefix i);
+                Eio.Fiber.yield ();
+                Fmt.pr "done";
+                if newline then Fmt.pr "@."
+                else Format.pp_print_flush Fmt.stdout ()))
+          [ 0; 1 ])
+  in
+  let records = events out in
+  let active = Hashtbl.create 2 and ended = ref 0 in
+  let text = Buffer.create 64 in
+  List.iter
+    (fun fields ->
+      let is event = json_event event fields in
+      let id =
+        match List.assoc_opt "id" fields with
+        | Some (`Int i) -> Some i
+        | _ -> None
+      in
+      let output () =
+        match List.assoc_opt "text" fields with
+        | Some (`String s) -> Buffer.add_string text s
+        | _ -> fail "an output event with no text"
+      in
+      match id with
+      | Some i when is "start" -> Hashtbl.replace active i ()
+      | Some i when is "end" ->
+          Hashtbl.remove active i;
+          incr ended
+      | Some i when is "output" ->
+          check newline;
+          check (Hashtbl.mem active i);
+          (match List.assoc_opt "text" fields with
+          | Some (`String s) -> check (String.ends_with ~suffix:"done" s)
+          | _ -> ());
+          output ()
+      | None when is "output" ->
+          check (not newline);
+          check_eq ~pp:Fmt.int 2 !ended;
+          output ()
+      | _ -> ())
+    records;
+  let sorted s =
+    String.to_seq s |> List.of_seq |> List.sort Char.compare |> List.to_seq
+    |> String.of_seq
+  in
+  check_eq ~pp:Fmt.Dump.string
+    (sorted (prefix 0 ^ prefix 1 ^ "donedone"))
+    (sorted (Buffer.contents text))
+
 let suite =
   ( "console_eio",
     [
+      test_case "a line goes to the task of its line feed" [ uint8; bool ]
+        test_json_line_attribution;
+      test_case "quiet prints an unended line at exit" [ uint8; bool ]
+        test_quiet_unended_line;
       test_case "concurrent JSON records stay whole and complete"
         [ uint8; uint8 ] test_json_concurrent_records;
       test_case "quiet captures every terminal output source" [ uint8 ]

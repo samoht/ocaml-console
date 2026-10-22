@@ -205,9 +205,93 @@ let test_json_concurrent_writes () =
     lines;
   Alcotest.(check int) "four events per task" 12 (List.length lines)
 
+(* Capture the standard formatter itself: run only takes program output
+   from Fmt.stdout and Fmt.stderr in quiet and JSON modes. *)
+let capture_stdout progress f =
+  Eio_mock.Backend.run @@ fun () ->
+  Format.pp_print_flush Fmt.stdout ();
+  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
+  let out = Buffer.create 256 in
+  Format.pp_set_formatter_out_functions Fmt.stdout
+    {
+      saved with
+      out_string = Buffer.add_substring out;
+      out_flush = (fun () -> ());
+    };
+  Fun.protect
+    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
+    (fun () ->
+      Console_eio.run
+        ~clock:(Eio_mock.Clock.Mono.make ())
+        ~ppf:Fmt.stdout ~progress f;
+      Format.pp_print_flush Fmt.stdout ());
+  Buffer.contents out
+
+(* A line the program never ends is the output of no task: quiet, it goes
+   out as it is when the display closes, after a run in which every task
+   succeeded too. *)
+let test_quiet_unended_line () =
+  let out =
+    capture_stdout `Quiet (fun d ->
+        D.with_task d "ok" (fun _ -> Fmt.pr "unended%!"))
+  in
+  Alcotest.(check string) "the line, at exit" "unended" out
+
+(* A line is the output of the task current where its line feed is
+   written; a line never ended is root output, after the end events. *)
+let test_json_line_attribution () =
+  let out =
+    capture_stdout `Json (fun d ->
+        D.with_task d "first" (fun _ -> Fmt.pr "begun%!");
+        D.with_task d "second" (fun task ->
+            Fmt.pr " ended@.";
+            D.fail task);
+        D.with_task d "third" (fun _ -> Fmt.pr "unended%!"))
+  in
+  let shown =
+    String.split_on_char '\n' out
+    |> List.filter (( <> ) "")
+    |> List.map Yojson.Safe.from_string
+    |> List.filter_map (function
+      | `Assoc fields ->
+          let field key = List.assoc_opt key fields in
+          let str = function Some (`String s) -> s | _ -> "-" in
+          let id = function Some (`Int i) -> string_of_int i | _ -> "-" in
+          let task =
+            match field "task" with
+            | Some (`List []) -> "root"
+            | Some (`List l) ->
+                String.concat "/" (List.map (fun t -> str (Some t)) l)
+            | _ -> "-"
+          in
+          Some
+            (String.concat " "
+               [
+                 str (field "event"); id (field "id"); task; str (field "text");
+               ])
+      | _ -> None)
+  in
+  Alcotest.(check (list string))
+    "the line feed's task, and no task for an unended line"
+    [
+      "start 0 first -";
+      "end 0 first -";
+      "start 1 second -";
+      "output 1 second begun ended";
+      "end 1 second -";
+      "start 2 third -";
+      "end 2 third -";
+      "output - root unended";
+    ]
+    shown
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "a line goes to the task of its line feed" `Quick
+        test_json_line_attribution;
+      Alcotest.test_case "quiet prints an unended line at exit" `Quick
+        test_quiet_unended_line;
       Alcotest.test_case "concurrent JSON writes remain whole" `Quick
         test_json_concurrent_writes;
       ("run banner", `Quick, test_run_banner);
