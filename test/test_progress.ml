@@ -79,6 +79,23 @@ let test_json () =
         (contains "\"status\":\"failed\"" out))
     [ None; Some (fun () -> (80, 24)) ]
 
+(* As JSON, each change of a count is one event, unthrottled, and a call
+   that changes nothing is none. *)
+let test_json_counts () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let d = Display.v ~progress:`Json ~now:(fun () -> 0.) ppf in
+  Display.with_task d "work" (fun t ->
+      List.iter (fun cur -> Display.set_count t ~cur ~total:3) [ 1; 1; 2; 3 ]);
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check int)
+    "three progress events" 3
+    (List.length
+       (List.filter
+          (contains "\"event\":\"progress\"")
+          (lines (Buffer.contents buf))))
+
 (* [`Plain] prints the lines of a pipe on a terminal too, and [`Auto] as
    [size] says. *)
 let test_plain () =
@@ -106,6 +123,7 @@ let suite =
       Alcotest.test_case "names" `Quick test_names;
       Alcotest.test_case "quiet" `Quick test_quiet;
       Alcotest.test_case "json" `Quick test_json;
+      Alcotest.test_case "json counts" `Quick test_json_counts;
       Alcotest.test_case "plain" `Quick test_plain;
       Alcotest.test_case "tty" `Quick test_tty;
     ] )

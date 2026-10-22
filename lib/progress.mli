@@ -70,7 +70,9 @@ val to_string : t -> string
     - ["start"]: the task started. [parent] is the [id] of the task it is under,
       if any.
     - ["progress"]: its count changed. [count] and [total] are integers, and
-      [unit] is ["items"] or ["bytes"].
+      [unit] is ["items"] or ["bytes"]. Each call to {!Display.set_count} or
+      {!Display.set_bytes} that changes them is one event, however often it
+      comes.
     - ["label"]: its label changed to [text].
     - ["output"]: [text] is a line of its output. [level], only for a [Logs]
       message, is that message's level: ["app"], ["error"], ["warning"],
