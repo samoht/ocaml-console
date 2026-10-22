@@ -1627,6 +1627,22 @@ let test_quiet_transient_failure () =
     "the failure's output shows" true
     (contains "disk full" (Buffer.contents buffer))
 
+(* Between two tasks the work still runs: the summary must not say it has
+   succeeded while the display is open. examples/display shows a green
+   "✓ Building" for one redraw between its fetch and its test. *)
+let test_summary_between_tasks () =
+  let t = terminal ~width:40 ~summary:"Build" () in
+  let a = Display.task t.display "fetch" in
+  Display.succeed a;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "still running" true
+    (List.exists (contains "[-] Build") (screen t));
+  Alcotest.(check bool)
+    "not a success" false
+    (List.exists (contains "[+] Build") (screen t));
+  Display.close t.display
+
 let suite =
   ( "display",
     [
@@ -1720,4 +1736,6 @@ let suite =
         `Quick test_plain_interleaved_children;
       Alcotest.test_case "a quiet transient failure shows" `Quick
         test_quiet_transient_failure;
+      Alcotest.test_case "the summary runs between two tasks" `Quick
+        test_summary_between_tasks;
     ] )
