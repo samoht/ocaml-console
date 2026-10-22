@@ -151,20 +151,23 @@ let test_failed_child_in_place () =
     (List.map untimed (lines t))
 
 (* A tree too tall folds the tasks that ended under each task into one
-   line, and keeps every running one. *)
+   line, which says how many failed, and keeps every running one. *)
 let test_fold () =
   let t = terminal ~width:40 ~height:6 ~summary:"S" () in
   let d = t.display in
   let p = Display.task d "p" in
   for i = 1 to 6 do
-    Display.succeed (Display.task ~parent:p d (Fmt.str "done %d" i))
+    let c = Display.task ~parent:p d (Fmt.str "done %d" i) in
+    if i mod 3 = 0 then Display.fail c
+    else if i = 4 then Display.cancel c
+    else Display.succeed c
   done;
   let r = Display.task ~parent:p d "running" in
   Display.redraw d;
   check_lines "folded"
     [
       "\u{280b} p";
-      "  \u{251c}\u{2500}\u{2500} \u{2713} 6 done";
+      "  \u{251c}\u{2500}\u{2500} \u{2717} 6 done, 2 failed, 1 cancelled";
       "  \u{2514}\u{2500}\u{2500} \u{280b} running";
       "\u{2022} S 0.0s (6/8)";
     ]
