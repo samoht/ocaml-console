@@ -14,13 +14,26 @@ let has_vs16 c =
   in
   from 0
 
+(* Whether a VS16 in [s] follows a character that is no emoji. *)
+let selects_nothing s =
+  let rec from i prev =
+    i < String.length s
+    &&
+    let d = String.get_utf_8_uchar s i in
+    let u = Uchar.utf_decode_uchar d in
+    (Uchar.to_int u = 0xfe0f && not (Uucp.Emoji.is_emoji prev))
+    || from (i + Uchar.utf_decode_length d) u
+  in
+  from 0 Uchar.min
+
 (* matrix 0.1.0 draws a cluster with a VS16 two cells wide, whatever console
-   counts. *)
+   counts, and widens the cell of a spacing mark a VS16 follows. *)
 let discard_stray_vs16 s =
   discard_if
     (List.exists
        (fun c -> has_vs16 c && Width.string_width c <> 2)
-       (Width.clusters s))
+       (Width.clusters s)
+    || selects_nothing s)
 
 let is_printable_ascii c = c >= ' ' && c <= '~'
 
@@ -51,3 +64,28 @@ let discard_newer_unicode s =
     || from (i + Uchar.utf_decode_length d)
   in
   discard_if (from 0)
+
+(* The cells of the first character of [c] with any, and of its widest
+   one that is not a spacing mark after the first. *)
+let first_and_widest c =
+  let rec go i first widest =
+    if i >= String.length c then (first, widest)
+    else
+      let d = String.get_utf_8_uchar c i in
+      let u = Uchar.utf_decode_uchar d in
+      let w = max 0 (Uucp.Break.tty_width_hint u) in
+      let widest =
+        if i > 0 && Uucp.Gc.general_category u = `Mc then widest
+        else max widest w
+      in
+      go (i + Uchar.utf_decode_length d) (if first = 0 then w else first) widest
+  in
+  go 0 0 0
+
+let discard_wide_after_first s =
+  discard_if
+    (List.exists
+       (fun c ->
+         let first, widest = first_and_widest c in
+         widest > first)
+       (Width.clusters s))

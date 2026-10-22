@@ -17,8 +17,10 @@ val discard_stray_vs16 : string -> unit
 (** [discard_stray_vs16 s] discards the sample being tested, with
     {!Alcobar.bad_test}, when [s] holds a grapheme cluster with a VS16 (U+FE0F)
     that console does not count two cells wide, as after a character with no
-    emoji presentation. matrix 0.1.0 draws such a cluster two cells wide
-    (invariant-hq/mosaic#89). *)
+    emoji presentation, or with a VS16 after a character that is no emoji.
+    matrix 0.1.0 draws such a cluster two cells wide, and the cell of a spacing
+    mark that a VS16 follows, which the test terminal draws apart, two cells
+    wide too (invariant-hq/mosaic#89). *)
 
 val discard_dropped_mark : string -> unit
 (** [discard_dropped_mark s] discards the sample being tested when [s] holds a
@@ -31,3 +33,10 @@ val discard_newer_unicode : string -> unit
     character assigned after Unicode 16.0. matrix 0.1.0's emulator reads Unicode
     16.0, where such a character is unassigned and takes one cell, while console
     measures it with uucp's Unicode. *)
+
+val discard_wide_after_first : string -> unit
+(** [discard_wide_after_first s] discards the sample being tested when [s] holds
+    a grapheme cluster with a character wider than its first character with any
+    width, such as U+2764 U+200D U+1F469, a ZWJ sequence. console counts the
+    cells of the widest character, two there, while matrix 0.1.0's emulator
+    draws the cluster in the cells of the first, one there. *)
