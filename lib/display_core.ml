@@ -342,19 +342,20 @@ let kept r =
   @ List.concat_map (Display_row.under r) (List.rev all)
 
 (* What a task prints when it ends without a terminal: quiet, its line and
-   all its lines if it failed or was cancelled, compact; in turn, its line,
-   then its window again if it failed. Its event says the rest. *)
+   all its lines if it failed or was cancelled, a transient task too, since
+   nothing else shows the failure; in turn, its line, then its window again
+   if it failed. Its event says the rest. *)
 let ending r outcome window =
   let t = r.disp in
   let failed =
     match outcome with `Succeeded -> false | `Failed | `Cancelled -> true
   in
-  if r.transient then []
-  else
-    match t.form with
-    | Json -> []
-    | Quiet -> if failed then Display_row.appended r :: kept r else []
-    | Plain ->
+  match t.form with
+  | Json -> []
+  | Quiet -> if failed then Display_row.appended r :: kept r else []
+  | Plain ->
+      if r.transient then []
+      else
         Display_row.appended r
         ::
         (match outcome with

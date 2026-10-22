@@ -360,7 +360,8 @@ val task :
       its row while it runs (defaults to [8]).
     - [transient] (defaults to [false]) makes a task that shows only while it
       runs, and leaves neither a line of its own nor any of its output when it
-      ends.
+      ends. With [`Quiet], where nothing else would show it, one that fails or
+      is cancelled prints its line and its output as any other does.
 
     @raise Invalid_argument
       if [key] is empty, [log_lines] is negative, or [parent] belongs to another
