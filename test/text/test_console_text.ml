@@ -265,6 +265,21 @@ let test_boundary () =
       ("all one escape", "\027]0;t\xe2\x9d", 5);
     ]
 
+(* An emoji tag sequence, such as the flag of Scotland (U+1F3F4, the tags of
+   "gbsct", then U+E007F), is one picture: sanitize keeps its tags, where
+   it removes a tag outside such a sequence. *)
+let test_tag_sequence () =
+  let scotland =
+    "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
+  in
+  Alcotest.(check string)
+    "the flag whole"
+    ("a" ^ scotland ^ "b")
+    (Console_text.sanitize ("a" ^ scotland ^ "b"));
+  Alcotest.(check string)
+    "a stray tag removed" "ab"
+    (Console_text.sanitize "a\u{E0067}b")
+
 let suite =
   ( "console_text",
     [
@@ -276,6 +291,8 @@ let suite =
         test_truncated_colour;
       Alcotest.test_case "line ends" `Quick test_line_ends;
       Alcotest.test_case "strip" `Quick test_strip;
+      Alcotest.test_case "an emoji tag sequence is kept" `Quick
+        test_tag_sequence;
       Alcotest.test_case "strip drops what prints nothing" `Quick
         test_strip_silent;
       Alcotest.test_case "strip leaves no control" `Quick
