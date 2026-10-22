@@ -46,6 +46,8 @@
 0078 0940                  | 2     | 2   | 1     | ?       | 2       | 2      | 2       | a spacing mark
 0915 093F                  | 2     | 2   | 1     | ?       | 2       | 2      | 2       | a consonant and its vowel sign
 093F                       | 1     | 1   | 1     | ?       | ?       | 1      | 1       | a spacing mark alone
+0E01 0E33                  | 2     | 2   | ?     | ?       | ?       | ?      | 2       | a Thai consonant and SARA AM
+0E81 0EB3                  | 2     | 2   | ?     | ?       | ?       | ?      | 2       | a Lao consonant and AM
 1F389                      | 2     | 2   | 2     | 2       | 2       | 2      | 2       | an emoji
 1F468 200D 1F469 200D 1F467 | 6    | 6   | 2     | 2       | 2       | 2      | 2       | a ZWJ family
 1F1EB 1F1F7                | 2     | 2   | 2     | 2       | 2       | 2      | 2       | a flag

@@ -46,6 +46,12 @@ let test_widest () =
    cluster. *)
 let test_marks () =
   check "a spacing mark after a mark of no width" 1 "\u{0301}\u{0940}";
+  check "Thai SARA AM after its consonant" 2 "\u{0E01}\u{0E33}";
+  check "Lao AM after its consonant" 2 "\u{0E81}\u{0EB3}";
+  check "Thai SARA AM alone" 1 "\u{0E33}";
+  Alcotest.(check bool)
+    "SARA AM is a spacing mark" true
+    (Width.is_spacing_mark 0x0E33);
   check "a wide spacing mark after a ZWJ" 2 "\u{200D}\u{302E}"
 
 (* A VS16 that selects nothing still splits the text as it is: it does
