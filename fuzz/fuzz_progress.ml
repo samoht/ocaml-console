@@ -426,6 +426,8 @@ let test_retained_cut k =
 let suite =
   ( "progress",
     [
+      test_case "retained labels and messages cut between characters at 4 KiB"
+        [ uint8 ] test_retained_cut;
       test_case "every event accessor exposes its schema" [ bytes; int; int64 ]
         test_accessors;
       test_case "each invalid byte gets a replacement character"
