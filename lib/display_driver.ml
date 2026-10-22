@@ -14,3 +14,4 @@ let v ?layout ?header ?size ?progress ~scope ~now ppf =
 let is_json = Display_event.is_json
 let report = Display_core.report
 let current = Display_core.current
+let watch = Display_core.watch

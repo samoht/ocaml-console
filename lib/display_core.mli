@@ -115,3 +115,7 @@ val report : t -> level -> string -> unit
 
 val current : t -> task option
 (** See {!Display_driver.current}. *)
+
+val watch :
+  t -> Format.formatter_out_functions -> Format.formatter_out_functions
+(** See {!Display_driver.watch}. *)

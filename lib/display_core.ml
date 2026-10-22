@@ -29,10 +29,9 @@ let local () =
 
 let pp = Display_state.pp
 
-(* [tap ppf note] makes [ppf] call [note] with the last byte of each write, a
-   space for blanks, and is the out functions [ppf] had and those it has. *)
-let tap ppf note =
-  let out = Format.pp_get_formatter_out_functions ppf () in
+(* [tapped out note] is [out] calling [note] with the last byte of each
+   write, a space for blanks. *)
+let tapped (out : Format.formatter_out_functions) note =
   let out_string s o l =
     if l > 0 then note s.[o + l - 1];
     out.out_string s o l
@@ -45,24 +44,30 @@ let tap ppf note =
     if n > 0 then note ' ';
     write n
   in
-  let ours =
-    {
-      out with
-      out_string;
-      out_newline;
-      out_spaces = blank out.out_spaces;
-      out_indent = blank out.out_indent;
-    }
-  in
+  {
+    out with
+    out_string;
+    out_newline;
+    out_spaces = blank out.out_spaces;
+    out_indent = blank out.out_indent;
+  }
+
+(* [tap ppf note] makes [ppf] call [note] as {!tapped} does, and is the out
+   functions [ppf] had and those it has. *)
+let tap ppf note =
+  let out = Format.pp_get_formatter_out_functions ppf () in
+  let ours = tapped out note in
   Format.pp_set_formatter_out_functions ppf ours;
   (out, ours)
+
+let note_line t c = t.partial <- c <> '\n'
 
 (* Without a terminal, what the program and the display write on [ppf] is
    watched for its last byte, so that a line the display prints starts at
    the first column. *)
 let watch_lines t =
   Format.pp_print_flush t.ppf ();
-  let out, ours = tap t.ppf (fun c -> t.partial <- c <> '\n') in
+  let out, ours = tap t.ppf (note_line t) in
   t.release <-
     (fun () ->
       let now = Format.pp_get_formatter_out_functions t.ppf () in
@@ -133,6 +138,8 @@ let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
   else watch_lines t;
   t
 
+(* What a driver sends on to [t]'s output past [t.ppf] is watched too. *)
+let watch t out = tapped out (note_line t)
 let redraw t = Display_region.paint t
 
 let touch t =

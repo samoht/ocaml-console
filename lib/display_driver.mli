@@ -53,6 +53,13 @@ val report : Display.t -> level -> string -> unit
     [`Debug] comes after the mark of its level, one of level [`App] or [`Info]
     after none. *)
 
+val watch :
+  Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
+(** [watch display out] is [out], which also tells [display] whether what it
+    writes ends its line. A driver sends on through it what it takes from a
+    formatter that writes where [display] does, so that the next line [display]
+    prints without a terminal starts on a line of its own. *)
+
 val current : Display.t -> Display.task option
 (** [current display] is the task of [display] current where it is called, if it
     still runs and is not the {!Display.root}. A driver gives it what the

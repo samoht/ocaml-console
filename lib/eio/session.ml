@@ -109,7 +109,8 @@ let release () =
 
 type intercepted = {
   ppf : Format.formatter;
-  out : Format.formatter_out_functions;
+  out : Format.formatter_out_functions; (* given back by {!restore} *)
+  pass : Format.formatter_out_functions; (* [out], watched by the display *)
   held : Buffer.t; (* whole lines for above the region *)
   pending : Buffer.t; (* the line not ended yet *)
 }
@@ -138,8 +139,8 @@ let send_held display i =
     let s = Buffer.contents i.held in
     Buffer.clear i.held;
     Display.with_output display (fun _ ->
-        i.out.out_string s 0 (String.length s);
-        i.out.out_flush ())
+        i.pass.out_string s 0 (String.length s);
+        i.pass.out_flush ())
   end
 
 (* [s], written in the calling fiber: the current task's output, or held
@@ -158,9 +159,12 @@ let write display i s =
 let intercept display ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
-  let i = { ppf; out; held = Buffer.create 256; pending = Buffer.create 256 } in
+  let pass = Display_driver.watch display out in
+  let i =
+    { ppf; out; pass; held = Buffer.create 256; pending = Buffer.create 256 }
+  in
   let add s o l =
-    if Atomic.get direct > 0 then out.out_string s o l
+    if Atomic.get direct > 0 then pass.out_string s o l
     else begin
       Buffer.add_substring i.pending s o l;
       let ends_a_line =
@@ -181,7 +185,7 @@ let intercept display ppf =
     end
   in
   let flush () =
-    if Atomic.get direct > 0 then out.out_flush () else send_held display i
+    if Atomic.get direct > 0 then pass.out_flush () else send_held display i
   in
   Format.pp_set_formatter_out_functions ppf
     {
