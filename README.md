@@ -58,7 +58,7 @@ let test clock display (name, total) =
 let main color theme =
   Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
   let ok = Span.role `Ok "passed" in
@@ -576,7 +576,6 @@ the program does between them, and each sleep still lasts its duration.
 The times then read the same on every machine, and the rows still move as
 the program runs. The examples wait on that clock, so their recordings
 show the times a test checks.
-
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes

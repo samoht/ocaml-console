@@ -38,7 +38,7 @@ let build ~fail clock display =
 
 let main progress fail =
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   if Console_eio.run ~clock ~progress ~summary:"Building" (build ~fail clock)
   then 0
   else 1

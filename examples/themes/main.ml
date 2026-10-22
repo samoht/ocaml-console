@@ -69,4 +69,4 @@ let () =
         (Span.with_style Style.bold title)
         Tree.pp tree;
       Eio_main.run @@ fun env ->
-      progress ~clock:(Eio.Stdenv.mono_clock env) table
+      progress ~clock:(Console_eio.clock (Eio.Stdenv.mono_clock env)) table

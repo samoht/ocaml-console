@@ -22,7 +22,7 @@ let test clock display (name, total) =
 let main color theme =
   Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
   let ok = Span.role `Ok "passed" in

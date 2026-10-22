@@ -106,7 +106,7 @@ let () =
   in
   Console_tty.setup ~theme ();
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Building" ~view (fun display ->
       Eio.Fiber.both
         (fun () -> fetch clock display)
