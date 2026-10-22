@@ -211,5 +211,11 @@ let suite =
       test_case "inserting a cluster redraws its suffix" [ uint8; uint8; bool ]
         test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
-      test_case "the echo shows the line" [ list key ] test_echo_shows_the_line;
-    ] )
+    ]
+    @ Display_harness.drop_on_matrix_0_1
+        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
+        [
+          test_case "the echo shows the line"
+            [ list key ]
+            test_echo_shows_the_line;
+        ] )

@@ -460,7 +460,10 @@ let suite =
       Alcotest.test_case "wide char left" `Quick test_wide_left_steps_two_cells;
       Alcotest.test_case "backspace erases a cluster" `Quick
         test_cluster_backspace;
-      Alcotest.test_case "arrows step over a cluster" `Quick test_cluster_arrows;
+      Alcotest.test_case "arrows step over a cluster" `Quick
+        (Display_harness.skip_on_matrix_0_1
+           "invariant-hq/mosaic@65da7988 (a combining mark after ASCII)"
+           test_cluster_arrows);
       Alcotest.test_case "history up" `Quick test_history_up;
       Alcotest.test_case "history up clamps" `Quick test_history_up_twice_clamps;
       Alcotest.test_case "history down restores draft" `Quick

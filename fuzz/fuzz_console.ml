@@ -616,13 +616,17 @@ let suite =
         test_hcat_combining_suffix;
       test_case "hcat widgets take the cells of their widths" [ uint8; uint8 ]
         test_hcat_margin;
-      test_case "any tree of widgets printed anywhere"
-        [ block_gen; uint16; uint8 ]
-        test_printed;
       test_case "a scene of widgets moves only its lines"
         [ block_gen; uint16; uint8; uint8 ]
         test_scene;
       test_case "hcat lines are the blocks' widths and gaps"
         [ list bytes; uint8 ]
         test_hcat;
-    ] )
+    ]
+    @ Display_harness.drop_on_matrix_0_1
+        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
+        [
+          test_case "any tree of widgets printed anywhere"
+            [ block_gen; uint16; uint8 ]
+            test_printed;
+        ] )

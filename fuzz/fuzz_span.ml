@@ -403,11 +403,15 @@ let suite =
       test_case "truncate turns styles off" [ bytes; int ] test_truncate_closes;
       test_case "wrap fits and keeps the text" [ bytes; int ] test_wrap;
       test_case "wrap takes any bytes" [ bytes; int ] test_wrap_bytes;
-      test_case "cuts fit with joiners and selectors" [ bytes; int ]
-        test_joiners_fit;
       test_case "wrap refuses a non-positive width" [ int ] test_wrap_refuses;
       test_case "link" [ bytes; bytes ] test_link;
       test_case "concat" [ bytes; bytes; bytes ] test_concat;
       test_case "a gradient is its text, as wide" [ bytes; uint8 ] test_gradient;
       test_case "a role is its text, as wide" [ bytes; uint8 ] test_role;
-    ] )
+    ]
+    @ Display_harness.drop_on_matrix_0_1
+        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
+        [
+          test_case "cuts fit with joiners and selectors" [ bytes; int ]
+            test_joiners_fit;
+        ] )

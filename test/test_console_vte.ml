@@ -175,6 +175,8 @@ let test_raw_line_feed () =
 let test_split_sequence () =
   check_screen "erased" [ "a" ] (read [ "abc\r\027[1"; "C\027["; "K" ])
 
+let skip = Display_harness.skip_on_matrix_0_1
+
 let suite =
   ( "console_vte",
     [
@@ -192,11 +194,17 @@ let suite =
         test_screen_trims_what_no_reader_sees;
       Alcotest.test_case "a backspace moves" `Quick test_backspace_moves;
       Alcotest.test_case "SGR 39 and 49 are the default colours" `Quick
-        test_default_colours;
+        (skip "invariant-hq/mosaic@70316cb9 (default colours)"
+           test_default_colours);
       Alcotest.test_case "a character of no width is kept" `Quick
-        test_zero_width_kept;
-      Alcotest.test_case "controls from the last column" `Quick test_last_column;
+        (skip
+           "invariant-hq/mosaic@65da7988, @311b71f8 and #79 (zero-width \
+            characters)"
+           test_zero_width_kept);
+      Alcotest.test_case "controls from the last column" `Quick
+        (skip "invariant-hq/mosaic@62ae9fc1 (pending wrap)" test_last_column);
       Alcotest.test_case "a raw line feed keeps the column" `Quick
-        test_raw_line_feed;
+        (skip "invariant-hq/mosaic@2dd1c517 (LF keeps the column)"
+           test_raw_line_feed);
       Alcotest.test_case "a sequence across writes" `Quick test_split_sequence;
     ] )
