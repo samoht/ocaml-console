@@ -320,6 +320,14 @@ let test_prompt_leaves_other_fibers_attributed () =
        {|"event":"output","id":0,"task":["work"],"text":"from work"|}
        (Buffer.contents out))
 
+let test_pp_error () =
+  Alcotest.(check string)
+    "end of input" "end of input"
+    (Fmt.str "%a" Prompt.pp_error `End_of_input);
+  Alcotest.(check string)
+    "a message" "no terminal"
+    (Fmt.str "%a" Prompt.pp_error (`Msg "no terminal"))
+
 let suite =
   ( "prompt",
     [
@@ -354,4 +362,5 @@ let suite =
         test_secret_keeps_bytes;
       Alcotest.test_case "a prompt leaves other fibers' output to their task"
         `Quick test_prompt_leaves_other_fibers_attributed;
+      Alcotest.test_case "an error formats" `Quick test_pp_error;
     ] )

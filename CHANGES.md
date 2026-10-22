@@ -77,9 +77,10 @@ Initial release of `console` and `console-eio`.
   of Cmdliner, as `Theme.all` makes a `--theme` option, and
   `Progress.to_string` names a mode. `Display.v ~progress` takes
   the same values without Eio, so a program with its own scheduler can be
-  quiet or write JSON events too. `Console_eio.Prompt` asks a line, a yes or no, or a password, taking
-  the rows off the screen while it asks, and tells the end of the input
-  (`` `End_of_input ``) from its other errors.
+  quiet or write JSON events too. `Console_eio.Prompt` asks a line, a yes
+  or no, or a password, taking the rows off the screen while it asks, and
+  tells the end of the input (`` `End_of_input ``) from its other errors,
+  which `Prompt.pp_error` formats.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
   `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix

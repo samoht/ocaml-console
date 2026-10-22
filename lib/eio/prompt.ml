@@ -40,6 +40,10 @@ let v ?interactive ?(ppf = Fmt.stderr) stdin =
 
 type error = [ `End_of_input | `Msg of string ]
 
+let pp_error ppf = function
+  | `End_of_input -> Fmt.string ppf "end of input"
+  | `Msg m -> Fmt.string ppf m
+
 let interactive t = t.interactive
 
 let line t question =

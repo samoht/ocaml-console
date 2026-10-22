@@ -43,6 +43,10 @@ type error = [ `End_of_input | `Msg of string ]
     input before an answer, such as Ctrl-D on a terminal; [`Msg] is any other
     error, a prompt that is not {!interactive} among them. *)
 
+val pp_error : error Fmt.t
+(** [pp_error] formats an error, [`End_of_input] as ["end of input"] and
+    [`Msg m] as [m]. *)
+
 val line : t -> string -> (string, error) result
 (** [line t question] is the next line of input, without its terminator (LF or
     CRLF), after writing [question]. The question is flushed, with no newline
