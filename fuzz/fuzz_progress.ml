@@ -325,6 +325,53 @@ let test_invalid_bytes raw =
   check (Event.text (Event.output ~time:0. raw) = Some expected);
   check_eq ~pp:Fmt.Dump.string expected (Console_text.sanitize raw)
 
+(* Accessors expose just the members of their event, including optional
+   members; the constructor and the codec must agree on their absence. *)
+let test_accessors raw id n =
+  let text = cleaned raw and task = [ cleaned raw ] in
+  let verify ?id ?(task = []) ?parent ?count ?total ?unit ?status ?outcome
+      ?elapsed ?text ?level ?detail kind e =
+    List.iter
+      (fun e ->
+        check_eq ~pp:Fmt.float 1.25 (Event.time e);
+        List.iter
+          (fun (name, equal) ->
+            if not equal then
+              failf "%s accessor disagrees with %a" name Event.pp e)
+          [
+            ("kind", Event.kind e = kind);
+            ("id", Event.id e = id);
+            ("task", Event.task e = task);
+            ("parent", Event.parent e = parent);
+            ("count", Event.count e = count);
+            ("total", Event.total e = total);
+            ("unit", Event.unit e = unit);
+            ("status", Event.status e = status);
+            ("outcome", Event.outcome e = outcome);
+            ("elapsed", Event.elapsed e = elapsed);
+            ("text", Event.text e = text);
+            ("level", Event.level e = level);
+            ("detail", Event.detail e = detail);
+          ])
+      [ e; decode (Event.to_string e) ]
+  in
+  verify ~id ~task ~parent:id `Start
+    (Event.start ~parent:id ~time:1.25 ~id [ raw ]);
+  verify ~id ~task ~count:n ~total:n ~unit:`Bytes `Progress
+    (Event.progress ~time:1.25 ~id ~count:n ~total:n ~unit:`Bytes [ raw ]);
+  verify ~id ~task ~text `Label (Event.label ~time:1.25 ~id ~text:raw [ raw ]);
+  verify ~id ~task ~text ~level:`Warning `Output
+    (Event.output ~id ~task:[ raw ] ~level:`Warning ~time:1.25 raw);
+  verify ~text `Output (Event.output ~time:1.25 raw);
+  verify ~id ~task ~text ~status:`Failed ~elapsed:0.5 `End
+    (Event.end' ~text:raw ~time:1.25 ~id ~status:`Failed ~elapsed:0.5 [ raw ]);
+  verify ~id ~task ~status:`Cancelled ~elapsed:0.5 `End
+    (Event.end' ~time:1.25 ~id ~status:`Cancelled ~elapsed:0.5 [ raw ]);
+  verify ~outcome:`Error ~text ~detail:text `Result
+    (Event.result ~detail:raw ~time:1.25 ~outcome:`Error raw);
+  verify ~outcome:`Ok ~text `Result (Event.result ~time:1.25 ~outcome:`Ok raw);
+  verify (`Other "pause") (Event.other ~time:1.25 "pause")
+
 (* The retained 4 KiB texts include complete decoded characters and ASCII
    dots, also where a combining mark, a joiner or an escape meets the cap. *)
 let test_retained_cut k =
@@ -379,6 +426,8 @@ let test_retained_cut k =
 let suite =
   ( "progress",
     [
+      test_case "every event accessor exposes its schema" [ bytes; int; int64 ]
+        test_accessors;
       test_case "each invalid byte gets a replacement character"
         [ invalid_prefix ] test_invalid_bytes;
       test_case "unknown events ignore members of other schemas" [ uint8 ]
