@@ -307,6 +307,8 @@ let test_invalid_bytes_individually () =
 let suite =
   ( "progress",
     [
+      Alcotest.test_case "each invalid byte is replaced" `Quick
+        test_invalid_bytes_individually;
       Alcotest.test_case "unknown events own their member schemas" `Quick
         test_unknown_event_members;
       Alcotest.test_case "largest finite event times read back" `Quick
