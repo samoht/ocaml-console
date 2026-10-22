@@ -200,9 +200,10 @@ let test_line_ends () =
     (Console_text.strip ~keep_newlines:false)
     "a\rb"
 
-(* Characters that reorder or hide the text around them are removed: the
-   bidirectional embeddings, overrides, isolates and marks, and the
-   interlinear annotation characters. *)
+(* Characters that reorder or hide the text around them, or that are
+   invisible text, are removed: the bidirectional embeddings, overrides,
+   isolates and marks, the interlinear annotation characters and the tag
+   characters. *)
 let test_reordering () =
   let hidden =
     [
@@ -221,6 +222,9 @@ let test_reordering () =
       "\u{FFF9}";
       "\u{FFFA}";
       "\u{FFFB}";
+      "\u{E0001}";
+      "\u{E0041}";
+      "\u{E007F}";
     ]
   in
   List.iter
