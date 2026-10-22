@@ -1506,6 +1506,22 @@ let test_plain_interleaved_children () =
     "each fetch line names its build" true
     (List.for_all (fun l -> contains "linux" l || contains "macos" l) fetches)
 
+(* With [`Quiet] only what fails shows, and a transient task that fails is
+   no exception: its output is the run's only trace of the failure. *)
+let test_quiet_transient_failure () =
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Theme.set ppf theme;
+  let d = Display.v ~progress:`Quiet ~now:(fun () -> 0.) ppf in
+  let t = Display.task ~transient:true d "probe" in
+  Display.log t "fatal: disk full";
+  Display.fail t;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "the failure's output shows" true
+    (contains "disk full" (Buffer.contents buffer))
+
 let suite =
   ( "display",
     [
@@ -1591,4 +1607,6 @@ let suite =
         test_quiet_failure_context;
       Alcotest.test_case "a pipe names the parent of an interleaved child"
         `Quick test_plain_interleaved_children;
+      Alcotest.test_case "a quiet transient failure shows" `Quick
+        test_quiet_transient_failure;
     ] )
