@@ -1436,7 +1436,9 @@ let test_window_age n newest_child =
   let d = t.display in
   let parent = Display.task d "parent" in
   let child = Display.task ~parent d "child" in
-  let older, newer = if newest_child then (parent, child) else (child, parent) in
+  let older, newer =
+    if newest_child then (parent, child) else (child, parent)
+  in
   for i = 0 to n mod 6 do
     Display.log older (Fmt.str "old-%d" i);
     t.advance 1.
@@ -1451,9 +1453,35 @@ let test_window_age n newest_child =
   if not (List.exists (Display_harness.contains "newest-output") rows) then
     failf "the newest output was dropped: %a" Fmt.(Dump.list string) rows
 
+(* The newest completed child cannot exempt an arbitrarily large label
+   or ending message from the bound on tasks waiting for their parent. *)
+let test_oversized_waiting_task n message =
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
+  let d = Display.v ~size:(fun () -> (40, 8)) ~now:(fun () -> 0.) ppf in
+  let parent = Display.task d "parent" in
+  let live_bytes () =
+    Gc.full_major ();
+    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  in
+  let before = live_bytes () in
+  let add () =
+    let text = String.make ((2 * 1024 * 1024) + (n * 1024)) 'x' in
+    if message then
+      Display.succeed ~message:text (Display.task ~parent d "child")
+    else Display.succeed (Display.task ~parent d text)
+  in
+  add ();
+  let retained = live_bytes () - before in
+  Display.succeed (Display.task ~parent d "replacement");
+  Display.close d;
+  if retained > 1_048_576 + 65_536 then
+    failf "one completed child retains %d bytes (limit 1 MiB)" retained
+
 let suite =
   ( "display",
     [
+      test_case "one oversized waiting task stays bounded" [ uint8; bool ]
+        test_oversized_waiting_task;
       test_case "windows give way oldest first across tasks" [ uint8; bool ]
         test_window_age;
       test_case "switching themes redraws like a fresh display"
