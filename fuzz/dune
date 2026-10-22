@@ -64,6 +64,7 @@
   console.text
   eio
   eio.mock
+  mtime
   cmdliner
   unix
   logs

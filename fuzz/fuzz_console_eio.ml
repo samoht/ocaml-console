@@ -821,6 +821,8 @@ let test_deterministic_concurrency a b =
 let suite =
   ( "console_eio",
     [
+      test_case "concurrent deterministic sleeps give reproducible JSON"
+        [ uint8; uint8 ] test_deterministic_concurrency;
       test_case
         "progress names are a Cmdliner enum and errors list every choice"
         [ bytes ] test_progress_enum;
