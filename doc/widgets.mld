@@ -6,39 +6,39 @@ on a pipe, so its output is exactly the text a terminal shows.
 
 {1:text Styled text}
 
-A {{!Console.Span}span} is text in one or more styles. Parts of it can be
+A {{!Console.View}view} is text in one or more styles. Parts of it can be
 links, which a terminal that supports them opens on a click. Without colour
 a link prints as its label:
 
 {@ocaml[
 # let docs =
-    Console.Span.(
-      styled Console.Style.bold "Read "
-      ++ link ~style:Console.Style.underline ~uri:"https://ocaml.org/docs"
-           "the manual");;
-val docs : Console.Span.t = <abstr>
-# Fmt.pr "%a@." Console.Span.pp docs;;
+    Console.View.(
+      styled Console.Style.bold (text "Read ")
+      ++ link ~uri:"https://ocaml.org/docs"
+           (styled Console.Style.underline (text "the manual")));;
+val docs : Console.View.t = <abstr>
+# Fmt.pr "%a@." Console.View.pp docs;;
 Read the manual
 - : unit = ()
 ]}
 
-A role gives text one of the theme's colours, chosen only when the span is
+A role gives a view one of the theme's colours, chosen only when the view is
 printed:
 
 {ul
-{- {!Console.Span.role} styles a string, as [Span.role `Ok "passed"] does.}
-{- {!Console.Span.with_role} lays a role under any span, a link for
-   example.}
+{- {!Console.View.role} styles any view, as [View.(role `Ok (text "passed"))]
+   does, a link for example.}
 {- The roles are [`Accent], [`Ok], [`Warn], [`Fail], [`Muted] and
    [`Header] ({!Console.Theme.type-role}).}}
 
-{!Console.Span.gradient} grades text through the colours it is given, or
+{!Console.View.gradient} grades text through the colours it is given, or
 through the theme's palette, one grapheme cluster at a time. Without colour
 it is its text:
 
 {@ocaml[
-# Fmt.pr "%a@." Console.Span.pp
-    (Console.Span.gradient ~colors:Console.Color.[ red; blue ] "console");;
+# Fmt.pr "%a@." Console.View.pp
+    (Console.View.gradient ~colors:Console.Color.[ red; blue ]
+       (Console.View.text "console"));;
 console
 - : unit = ()
 ]}
@@ -52,12 +52,12 @@ console
     (Console.Table.to_string
        (Console.Table.v ~border:Console.Border.simple
           [
-            Console.Table.column (Console.Span.text "Name");
-            Console.Table.column ~align:`Right (Console.Span.text "Size");
+            Console.Table.column (Console.View.text "Name");
+            Console.Table.column ~align:`Right (Console.View.text "Size");
           ]
           [
-            [ Console.Span.text "README.md"; Console.Span.text "2.4K" ];
-            [ Console.Span.text "src/"; Console.Span.text "4.0K" ];
+            [ Console.View.text "README.md"; Console.View.text "2.4K" ];
+            [ Console.View.text "src/"; Console.View.text "4.0K" ];
           ]));;
 Name       Size
 ───────────────
@@ -74,12 +74,12 @@ hold several lines:
     (Console.Table.to_string
        (Console.Table.v ~rules:true
           [
-            Console.Table.column (Console.Span.text "Step");
-            Console.Table.column (Console.Span.text "Status");
+            Console.Table.column (Console.View.text "Step");
+            Console.Table.column (Console.View.text "Status");
           ]
           [
-            [ Console.Span.text "fetch"; Console.Span.text "done" ];
-            [ Console.Span.text "compile"; Console.Span.text "2 warnings\n1 error" ];
+            [ Console.View.text "fetch"; Console.View.text "done" ];
+            [ Console.View.text "compile"; Console.View.text "2 warnings\n1 error" ];
           ]));;
 ╭─────────┬────────────╮
 │ Step    │ Status     │
@@ -94,19 +94,19 @@ hold several lines:
 
 {1:nesting Widgets side by side}
 
-Every widget can become a span with its [to_span], and that span is laid
-out only when it is printed. {!Console.Span.hcat} puts such spans side by
+Every widget can become a view with its [to_span], and that view is laid
+out only when it is printed. {!Console.View.hcat} puts such views side by
 side, each at the width its [to_span] gives it and in its own colours. The
-result is one more span, which can go in a cell, a panel or a display's
-view. {!Console.Span.vcat} puts spans one under the other:
+result is one more view, which can go in a cell, a panel or a display's
+view. {!Console.View.vcat} puts views one under the other:
 
 {@ocaml[
 # let tree =
-    Console.Tree.v (Console.Span.text "src")
-      [ Console.Tree.v (Console.Span.text "lib") [] ]
-  and panel = Console.Panel.v (Console.Span.text "2 files") in
-  Fmt.pr "%a@." Console.Span.pp
-    (Console.Span.hcat
+    Console.Tree.v (Console.View.text "src")
+      [ Console.Tree.v (Console.View.text "lib") [] ]
+  and panel = Console.Panel.v (Console.View.text "2 files") in
+  Fmt.pr "%a@." Console.View.pp
+    (Console.View.hcat
        [ Console.Tree.to_span tree; Console.Panel.to_span panel ]);;
 src      ╭─────────╮
 └── lib  │ 2 files │

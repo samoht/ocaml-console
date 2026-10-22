@@ -5,10 +5,10 @@
 
 (** Styled text.
 
-    A span is text in one or more {!Style.t}s, parts of it possibly a link. It
+    A view is text in one or more {!Style.t}s, parts of it possibly a link. It
     is the text every widget lays out.
 
-    A span only holds text that prints. The constructors:
+    A view only holds text that prints. The constructors:
     - replace each control character with a space;
     - replace a line end ({!Console_text.sanitize}'s) with a line feed;
     - replace each malformed UTF-8 sequence with U+FFFD;
@@ -16,7 +16,7 @@
       or hide the text around them, such as the bidirectional controls, as
       {!Console_text.sanitize} does.
 
-    So no span can move the cursor, change the colours of what follows it, or
+    So no view can move the cursor, change the colours of what follows it, or
     show its text in another order. A line feed starts a new line, and the
     functions below work line by line.
 
@@ -25,105 +25,98 @@
     accent added to a letter takes none, even when it is in another style than
     the letter. *)
 
-(** {1:spans Spans} *)
+(** {1:views Views} *)
 
-type t = Span_core.t
-(** The type for spans. *)
+type t = View_core.t
+(** The type for views. *)
 
 val empty : t
-(** [empty] is the span with no text. *)
+(** [empty] is the view with no text. *)
 
 val text : string -> t
 (** [text s] is [s], unstyled. *)
 
-val styled : Style.t -> string -> t
-(** [styled style s] is [s] drawn in [style]. *)
+val styled : Style.t -> t -> t
+(** [styled base v] is [v] with [base] under each of its styles: each part of
+    [v] in [style] is in [Style.(base + style)]. *)
 
-val link : ?style:Style.t -> uri:string -> string -> t
-(** [link ~style ~uri label] is [label] drawn in [style] (defaults to
-    {!Style.none}) as a link to [uri], which a terminal that supports links
-    opens on a click. Printed without colours, it is [label] alone.
+val link : uri:string -> t -> t
+(** [link ~uri v] is [v] as a link to [uri], which a terminal that supports
+    links opens on a click. Printed without colours, it is the text of [v]
+    alone.
 
     Each byte of [uri] that a URI may not hold
     ({{:https://www.rfc-editor.org/rfc/rfc3986#section-2}RFC 3986}) is written
     percent-encoded. Control characters, spaces and the bytes of non-ASCII
     characters are such bytes. The other bytes, escapes included, are written as
-    they are. An empty [uri] links nowhere: the span is [label] in [style]. *)
+    they are. An empty [uri] links nowhere: the view is [v]. *)
 
-val role : Theme.role -> string -> t
-(** [role r s] is [with_role r (text s)]: [s] in the part [r] of the formatter's
-    theme ({!Theme.get}), taken when it is printed. [role `Ok "passed"] is green
-    in {!Theme.default} and Nord's green in {!Theme.nord}.
+val role : Theme.role -> t -> t
+(** [role r v] is [v] with the part [r] of the formatter's theme ({!Theme.get})
+    under each of its styles, taken when it is printed, as {!styled} lays a
+    style. [role `Ok (text "passed")] is green in {!Theme.default} and Nord's
+    green in {!Theme.nord}. A part of [v] in a colour of its own keeps it, so
+    [role `Ok (link ~uri (text "report"))] is a link in the success colour.
 
-    It is as wide as [s]. It is printed in colours at the formatter's
-    {!Color.val-depth}, and as the text of [s] without colour. {!to_string}
+    It is as wide as [v]. It is printed in colours at the formatter's
+    {!Color.val-depth}, and as the text of [v] without colour. {!to_string}
     styles it in {!Theme.default}. *)
 
-val with_role : Theme.role -> t -> t
-(** [with_role r s] is [s] with the part [r] of the formatter's theme under each
-    of its styles, as {!with_style} lays a style. A part of [s] in a colour of
-    its own keeps it, so [with_role `Ok (link ~uri "report")] is a link in the
-    success colour. *)
-
-val gradient : ?colors:Color.t list -> string -> t
-(** [gradient ~colors s] is [s] in colours graded along each of its lines. The
-    stops are [colors] (defaults to the {!Theme.palette} of the formatter's
-    theme, and [[]] is taken as the default).
+val gradient : ?colors:Color.t list -> t -> t
+(** [gradient ~colors v] is [v] in colours graded along each of its lines, over
+    its own styles. The stops are [colors] (defaults to the {!Theme.palette} of
+    the formatter's theme, and [[]] is taken as the default).
 
     The stops spread evenly along a line, the first on its first grapheme
     cluster and the last on its last, and each cluster takes the {!Color.blend}
-    of the two stops around its place. The span is as wide as [s], printed in
-    colours at the formatter's {!Color.val-depth} and as the text of [s] without
+    of the two stops around its place. The view is as wide as [v], printed in
+    colours at the formatter's {!Color.val-depth} and as the text of [v] without
     colour. *)
 
 val ( ++ ) : t -> t -> t
 (** [s0 ++ s1] is [s0] followed by [s1]. *)
 
 val concat : ?sep:t -> t list -> t
-(** [concat ~sep spans] is [spans] in order, [sep] (defaults to {!empty})
+(** [concat ~sep views] is [views] in order, [sep] (defaults to {!empty})
     between each two. *)
 
-val with_style : Style.t -> t -> t
-(** [with_style base s] is [s] with [base] under each of its styles: each part
-    of [s] in [style] is in [Style.(base + style)]. *)
-
 val hcat : ?gap:int -> t list -> t
-(** [hcat ~gap spans] is [spans] side by side, [gap] spaces apart (defaults to
+(** [hcat ~gap views] is [views] side by side, [gap] spaces apart (defaults to
     [2]).
 
-    - Its line [i] is the line [i] of each span. Each span but the last is
-      padded to its {!width}, and a span with fewer lines gives blank ones. A
-      span with no text, such as {!empty}, takes no column and no gap, as it
+    - Its line [i] is the line [i] of each view. Each view but the last is
+      padded to its {!width}, and a view with fewer lines gives blank ones. A
+      view with no text, such as {!empty}, takes no column and no gap, as it
       takes no line in {!vcat}.
-    - A line ends at its last span with text on it, so no line ends with spaces
+    - A line ends at its last view with text on it, so no line ends with spaces
       that [hcat] adds.
 
     A widget goes in it by its [to_span], at the width it is given, and the
     result goes in a table cell, a panel, a tree or a display's view, as any
-    span does:
+    view does:
 
     {[
     let report tree panel =
-      Console.(Span.hcat [ Tree.to_span tree; Panel.to_span ~width:30 panel ])
+      Console.(View.hcat [ Tree.to_span tree; Panel.to_span ~width:30 panel ])
     ]}
 
     @raise Invalid_argument if [gap] is negative. *)
 
 val vcat : t list -> t
-(** [vcat spans] is
-    [concat ~sep:(text "\n") (List.filter (fun s -> height s > 0) spans)]: the
-    lines of each span in turn. A span with no text, such as {!empty}, takes no
+(** [vcat views] is
+    [concat ~sep:(text "\n") (List.filter (fun s -> height s > 0) views)]: the
+    lines of each view in turn. A view with no text, such as {!empty}, takes no
     line, so a part left out leaves no blank line.
 
     {[
     let report title table =
-      Console.(Span.vcat [ title; Table.to_span ~width:60 table ])
+      Console.(View.vcat [ title; Table.to_span ~width:60 table ])
     ]} *)
 
 (** {1:measuring Measuring and fitting} *)
 
 type align = [ `Left | `Center | `Right ]
-(** The type for the place of a span in a room wider than it: at its left edge,
+(** The type for the place of a view in a room wider than it: at its left edge,
     in its middle or at its right edge, as a {!Table} column or a {!Rule} label
     sits. *)
 
@@ -132,9 +125,9 @@ val width : t -> int
     [width (s0 ++ s1) <= width s0 + width s1] holds. *)
 
 val height : t -> int
-(** [height s] is the number of lines of [s]: [0] for a span with no text, and
+(** [height s] is the number of lines of [s]: [0] for a view with no text, and
     otherwise one more than its line feeds, so [height (text "a\n")] is [2]. The
-    invariant [height (vcat spans)] is the sum of the [height]s of [spans]. *)
+    invariant [height (vcat views)] is the sum of the [height]s of [views]. *)
 
 val truncate : int -> t -> t
 (** [truncate w s] is [s] with each line wider than [w] cells cut between two
@@ -166,7 +159,7 @@ val wrap : int -> t -> t list
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a span with its styles and links iff the formatter's style
+(** [pp] formats a view with its styles and links iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty]. Its colours are those the
     formatter's {!Color.val-depth} shows. Each style that is turned on is turned
     off after the text it covers, and before each line feed. A part drawn when
@@ -174,9 +167,9 @@ val pp : t Fmt.t
     ({!Theme.get}) and {!Fmt.utf_8}.
 
     The formatter's margin does not apply: each line is printed whole.
-    {!truncate} or {!wrap} fit a span to a width first. A line feed is printed
+    {!truncate} or {!wrap} fit a view to a width first. A line feed is printed
     as it is, not as a break of the enclosing box, so the box's indentation does
-    not apply to the next line. Print a span of several lines on lines of its
+    not apply to the next line. Print a view of several lines on lines of its
     own, as ["%a@."] does. *)
 
 val to_string : ?styled:bool -> t -> string

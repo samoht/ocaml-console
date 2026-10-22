@@ -46,8 +46,8 @@ val bar : look -> Theme.bar
 val ellipsis : look -> string
 (** [ellipsis look] ends a cut line: U+2026 in UTF-8, three dots in ASCII. *)
 
-val truncate : look -> int -> Span.t -> Span.t
-(** [truncate look w s] is {!Span.truncate}[ w s] with {!ellipsis}. *)
+val truncate : look -> int -> View.t -> View.t
+(** [truncate look w s] is {!View.truncate}[ w s] with {!ellipsis}. *)
 
 val muted : look -> Style.t
 (** [muted look] is the style of the muted colour of [look]'s theme. *)
@@ -55,7 +55,7 @@ val muted : look -> Style.t
 val accent : look -> Style.t
 (** [accent look] is the style of the main colour of [look]'s theme. *)
 
-val one_line : Span.t -> Span.t
+val one_line : View.t -> View.t
 (** [one_line s] is [s] with each line feed a space. *)
 
 val cells : string -> int
@@ -83,22 +83,22 @@ val pad_glyph : int -> string -> string
 (** [pad_glyph n g] is [g] followed by the spaces that make it [n] cells wide.
 *)
 
-val pad : int -> Span.t
+val pad : int -> View.t
 (** [pad n] is [n] spaces, none if [n] is not positive. *)
 
 val to_span :
-  (look -> margin:int -> 'a -> Span.t list) -> ?width:int -> 'a -> Span.t
+  (look -> margin:int -> 'a -> View.t list) -> ?width:int -> 'a -> View.t
 (** [to_span lines ~width v] is the [lines] of [v] at a margin of [width]
-    (defaults to [max_int]: its natural width) as a span, laid out when it is
+    (defaults to [max_int]: its natural width) as a view, laid out when it is
     printed in the look of the formatter it is printed on, each line in the
     cells it takes in {!default_look}: cut or padded to them in another look. *)
 
-val pp : (look -> margin:int -> 'a -> Span.t list) -> 'a Fmt.t
+val pp : (look -> margin:int -> 'a -> View.t list) -> 'a Fmt.t
 (** [pp lines] formats the [lines] of a widget in the formatter's {!look} and at
     its margin, one per line, with no line end after the last. *)
 
 val to_string :
-  (look -> margin:int -> 'a -> Span.t list) ->
+  (look -> margin:int -> 'a -> View.t list) ->
   ?styled:bool ->
   ?width:int ->
   'a ->

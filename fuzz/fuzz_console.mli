@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Properties of {!Console.Span.hcat} and of widgets put together. *)
+(** Properties of {!Console.View.hcat} and of widgets put together. *)
 
 val suite : string * Alcobar.test_case list
 (** [suite] is the property suite. *)

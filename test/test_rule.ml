@@ -17,7 +17,7 @@ let test_plain () =
   Alcotest.(check string) "unlabelled" "-----" (at 5 (Rule.v ~glyph:"-" ()))
 
 let test_label () =
-  let label = Span.styled Style.bold "Build" in
+  let label = View.styled Style.bold (View.text "Build") in
   Alcotest.(check string)
     "center" "-- Build --"
     (at 11 (Rule.v ~glyph:"-" ~label ()));
@@ -32,12 +32,12 @@ let test_label () =
 let test_long_label_is_cut () =
   Alcotest.(check string)
     "cut to the margin" "lo…"
-    (at 3 (Rule.v ~label:(Span.text "long") ()))
+    (at 3 (Rule.v ~label:(View.text "long") ()))
 
 (* [to_string] draws a rule as [pp] does at a margin of [width], in
    {!Theme.default} and UTF-8. *)
 let test_to_string () =
-  let rule = Rule.v ~label:(Span.text "Build") () in
+  let rule = Rule.v ~label:(View.text "Build") () in
   Alcotest.(check string)
     "plain"
     "\u{2500}\u{2500}\u{2500}\u{2500} Build \u{2500}\u{2500}\u{2500}\u{2500}"

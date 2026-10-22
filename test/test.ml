@@ -8,7 +8,7 @@ let () =
     [
       Test_color.suite;
       Test_style.suite;
-      Test_span.suite;
+      Test_view.suite;
       Test_table.suite;
       Test_tree.suite;
       Test_rule.suite;

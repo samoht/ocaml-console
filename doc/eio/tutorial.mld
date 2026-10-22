@@ -76,7 +76,7 @@ that scheme.
 
 {1:table A table}
 
-A table is a list of columns and rows of {{!Console.Span}spans}. It is as
+A table is a list of columns and rows of {{!Console.View}views}. It is as
 wide as its content needs, and no wider than the formatter's margin. Its
 frame, header style and colours come from the theme of the formatter that
 prints it:
@@ -86,13 +86,13 @@ prints it:
 val suites : (string * int) list = [("parser", 3); ("layout", 2)]
 # let results suites =
     let row (name, n) =
-      [ Console.Span.text name; Console.Span.text (Int.to_string n) ]
+      [ Console.View.text name; Console.View.text (Int.to_string n) ]
     in
     Console.Table.(
       v
         [
-          column (Console.Span.text "Suite");
-          column ~align:`Right (Console.Span.text "Tests");
+          column (Console.View.text "Suite");
+          column ~align:`Right (Console.View.text "Tests");
         ]
         (List.map row suites));;
 val results : (string * int) list -> Console.Table.t = <fun>
@@ -152,13 +152,13 @@ Output printed outside any task goes above the rows instead, as
 {{!Console_eio.output}where text goes} explains in more detail.
 
 The rows and the summary are the display's default view. A program can put
-its own view together from spans ({!Console.Display.views}): the table of
+its own view together from views ({!Console.Display.views}): the table of
 results above the rows, for instance, filled in as the suites run, which
 stays once they are done:
 
 {@ocaml[
 let with_table ~table display ~width ~height =
-  Console.Span.vcat
+  Console.View.vcat
     [
       Console.Table.to_span ~width:(min width 100) (table ());
       Console.Display.default_view display ~width ~height;

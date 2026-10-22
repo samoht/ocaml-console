@@ -58,7 +58,7 @@ let check_closed raw =
    controls made spaces, is refused. *)
 let test_rule s n =
   let margin = 1 + (abs n mod 80) in
-  let glyph = pick s 0 and label = Span.text (pick s 1) in
+  let glyph = pick s 0 and label = View.text (pick s 1) in
   match Rule.v ~glyph ~label () with
   | r ->
       let raw, lines = render Rule.pp margin r in

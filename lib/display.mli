@@ -205,7 +205,7 @@ end
 type t = Display_state.t
 (** The type for displays. *)
 
-type view = t -> width:int -> height:int -> Span.t
+type view = t -> width:int -> height:int -> View.t
 (** The type for views: [view display ~width ~height] is the region of [display]
     on a terminal [width] columns wide, at most [height] lines tall ({!views}).
 
@@ -433,12 +433,12 @@ val cancel : ?message:string -> task -> unit
 
 (** {1:views Views}
 
-    A view is the region of a display on a terminal, as a span ({!Span}). The
+    A view is the region of a display on a terminal, as a view ({!View}). The
     display calls it each time it draws, with the terminal's width and the
     number of lines the region may take, draws the last lines that fit, each cut
-    to the width, and redraws only those that changed. Any span goes in a view:
-    a {!Table.to_span} above the tasks, trees side by side with {!Span.hcat},
-    one under the other with {!Span.vcat}.
+    to the width, and redraws only those that changed. Any view goes in a view:
+    a {!Table.to_span} above the tasks, trees side by side with {!View.hcat},
+    one under the other with {!View.vcat}.
 
     A view of trees side by side wants [keep_ended] ({!v}), so that a column
     does not empty while the others run:
@@ -451,13 +451,13 @@ val cancel : ?message:string -> task -> unit
       in
       match Console.Display.(children (root display)) with
       | [ a; b ] ->
-          Console.Span.(
+          Console.View.(
             vcat [ hcat [ tree a; tree b ]; Console.Display.summary display ])
       | _ -> Console.Display.default_view display ~width ~height
     ]}
 
-    - The view is drawn in [display]'s theme. A span keeps its styles, and a
-      widget's span is laid out in that theme.
+    - The view is drawn in [display]'s theme. A view keeps its styles, and a
+      widget's view is laid out in that theme.
     - While [display] draws in colour, a frame drawn in a theme with a
       {!Theme.val-motion} moves, by the time since [display] started, and on a
       terminal without colour it stands still.
@@ -473,7 +473,7 @@ val set_view : t -> view -> unit
 
 val default_view : view
 (** [default_view display ~width ~height] is
-    [Span.vcat [tree ~width:w ~height:(height - Span.height s) (root display);
+    [View.vcat [tree ~width:w ~height:(height - View.height s) (root display);
      s]] with [w = min width 100] and [s = summary ~width:w display]: the tree
     of every top task, then the summary line, at most [w] cells wide. *)
 
@@ -484,7 +484,7 @@ val children : task -> task list
     only with [keep_ended]. Without a terminal a task that ended is printed and
     forgotten, so these are only the tasks that run. *)
 
-val tree : ?width:int -> ?height:int -> task -> Span.t
+val tree : ?width:int -> ?height:int -> task -> View.t
 (** [tree task] is the tree of [task] in the region: the row of [task], then the
     rows of the tasks under it, each under its parent with the guides of a
     {!Tree}, in the order they started. The tree of {!root} is those of the top
@@ -496,7 +496,7 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
     - [width] (defaults to the terminal's width, 80 without one, at most 100) is
       the width of each line, and [height] (defaults to no limit) the most lines
       it takes. When the tree does not fit, it folds as {!design} says. A
-      [width] or a [height] below [1] gives {!Span.empty}.
+      [width] or a [height] below [1] gives {!View.empty}.
     - In the last frame, once the display closes, the tree holds every task,
       none folded, each failure or cancellation followed by its output, and a
       line too wide goes on over the next ones. A label is never cut there: one
@@ -504,11 +504,11 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
       leave, and never in fewer than 12 cells, and its count and time go at the
       end of its last line, or give way as {!Layout} says. They are never
       squeezed.
-    - The tree of a task that moved to the scrollback is {!Span.empty}. *)
+    - The tree of a task that moved to the scrollback is {!View.empty}. *)
 
-val summary : ?width:int -> t -> Span.t
+val summary : ?width:int -> t -> View.t
 (** [summary ~width display] is the summary line of [display], if it has a name
-    ({!v}), and {!Span.empty} otherwise: the mark of its state, its name, the
+    ({!v}), and {!View.empty} otherwise: the mark of its state, its name, the
     time since it started and the count of the tasks that ended out of those
     started. On a terminal it is at most [width] cells (defaults to the
     terminal's width, at most 100), the time and the count giving way before the
@@ -520,16 +520,16 @@ val summary : ?width:int -> t -> Span.t
       let open Console in
       let tree = Display.tree ~width ~height:(height - 1) (Display.root display)
       and summary = Display.summary ~width:(width - 12) display in
-      Span.(vcat [ tree; summary ++ text "  3 warnings" ])
+      View.(vcat [ tree; summary ++ text "  3 warnings" ])
     ]} *)
 
 (** {1:design Design}
 
     On a terminal, a display writes in two places: the {e scrollback}, where a
     line is printed once and never rewritten, and the {e region} below it, which
-    it redraws in place. The region is a {e view} ({!views}): a span the program
+    it redraws in place. The region is a {e view} ({!views}): a view the program
     may put together from the display's parts, a tree of tasks ({!tree}) and the
-    summary line ({!summary}), and any other span, such as a {!Table.to_span}.
+    summary line ({!summary}), and any other view, such as a {!Table.to_span}.
     The default view is the tree of every top task, then the summary.
 
     - The summary is the last line of the default view, so the line that says
@@ -555,7 +555,7 @@ val summary : ?width:int -> t -> Span.t
       never scrolls the terminal: a view taller than that loses its first lines,
       and a summary at its bottom stays. A widget, such as a table or a panel,
       that this would cut in its height loses all its lines, so that no fragment
-      of its frame shows, in a {!Span.hcat} too.
+      of its frame shows, in a {!View.hcat} too.
     - A tree too tall for its height first folds the tasks that ended under each
       task into one line, such as [12 done, 2 failed] after the mark of the
       worst ending among them, then the lines of its windows give way, the

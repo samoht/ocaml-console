@@ -10,28 +10,28 @@ let str = Alcotest.(check string)
 (* Each strict ancestor is a vertical line if siblings follow it and spaces
    if not, and the node is a branch or the last one. *)
 let test_guides () =
-  let leaf s = Tree.v (Span.text s) [] in
+  let leaf s = Tree.v (View.text s) [] in
   let tree =
-    Tree.v (Span.text "r")
+    Tree.v (View.text "r")
       [
-        Tree.v (Span.text "a")
-          [ leaf "a1"; Tree.v (Span.text "a2") [ leaf "x" ] ];
-        Tree.v (Span.text "b") [ leaf "b1" ];
+        Tree.v (View.text "a")
+          [ leaf "a1"; Tree.v (View.text "a2") [ leaf "x" ] ];
+        Tree.v (View.text "b") [ leaf "b1" ];
       ]
   in
   str "unicode"
     "r\n├── a\n│   ├── a1\n│   └── a2\n│       └── x\n└── b\n    └── b1"
     (Tree.to_string tree);
   let tree =
-    Tree.v ~guide:Guide.ascii (Span.text "r")
-      [ Tree.v (Span.text "a") [ leaf "a1" ]; leaf "b" ]
+    Tree.v ~guide:Guide.ascii (View.text "r")
+      [ Tree.v (View.text "a") [ leaf "a1" ]; leaf "b" ]
   in
   str "ascii" "r\n+-- a\n|   +-- a1\n+-- b" (Tree.to_string tree)
 
 (* A multi-level tree renders one node per line, each ancestor's branch drawn
    once. *)
 let test_render_exact () =
-  let n label children = Tree.v (Span.text label) children in
+  let n label children = Tree.v (View.text label) children in
   let tree = n "root" [ n "a" [ n "a1" []; n "a2" [] ]; n "b" [ n "b1" [] ] ] in
   let expected =
     String.concat "\n"
@@ -40,14 +40,14 @@ let test_render_exact () =
   str "exact tree" expected (Tree.to_string tree)
 
 let test_render_single () =
-  let tree = Tree.v (Span.text "root") [ Tree.v (Span.text "child") [] ] in
+  let tree = Tree.v (View.text "root") [ Tree.v (View.text "child") [] ] in
   str "single child" "root\n└── child" (Tree.to_string tree)
 
 (* The formatter's margin is a ceiling on every row: a label wider than the
    room left by its guide wraps, hanging under the text after its first word,
    and the guide of its level runs on beside the continuation. *)
 let test_margin_wraps () =
-  let n label children = Tree.v (Span.text label) children in
+  let n label children = Tree.v (View.text label) children in
   let tree = n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ] in
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
@@ -73,8 +73,8 @@ let test_guide_style () =
   let blue = Color.rgb 0 0 255 in
   let guide = Guide.with_style (Style.fg blue) Guide.unicode in
   let tree =
-    Tree.v ~guide (Span.text "r")
-      [ Tree.v (Span.text "a") []; Tree.v (Span.text "b") [] ]
+    Tree.v ~guide (View.text "r")
+      [ Tree.v (View.text "a") []; Tree.v (View.text "b") [] ]
   in
   Alcotest.(check string)
     "rows"
@@ -105,10 +105,10 @@ let at_margin margin t =
 let test_wrap_hang () =
   Alcotest.(check string)
     "hanging" "abcd efgh\n     ijkl\n     mnop"
-    (at_margin 10 (Tree.v (Span.text "abcd efgh ijkl mnop") []));
+    (at_margin 10 (Tree.v (View.text "abcd efgh ijkl mnop") []));
   Alcotest.(check string)
     "clamped" "abcdef\n   gh\n   ij"
-    (at_margin 7 (Tree.v (Span.text "abcdef gh ij") []))
+    (at_margin 7 (Tree.v (View.text "abcdef gh ij") []))
 
 let test_to_string_width () =
   List.iter
@@ -116,11 +116,11 @@ let test_to_string_width () =
       Alcotest.(check bool)
         ("within 12 cells: " ^ line)
         true
-        (Span.width (Span.text line) <= 12))
+        (View.width (View.text line) <= 12))
     (String.split_on_char '\n'
        (Tree.to_string ~width:12
-          (Tree.v (Span.text "root")
-             [ Tree.v (Span.text "a label longer than twelve") [] ])))
+          (Tree.v (View.text "root")
+             [ Tree.v (View.text "a label longer than twelve") [] ])))
 
 let suite =
   ( "tree",

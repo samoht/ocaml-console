@@ -46,11 +46,11 @@ val v :
 
 (** {1:converting Converting} *)
 
-val to_span : t -> Span.t
-(** [to_span bar] is [bar] as a span, to put in a table cell, a tree or a panel.
+val to_span : t -> View.t
+(** [to_span bar] is [bar] as a view, to put in a table cell, a tree or a panel.
     It is drawn when it is printed, as {!pp} draws it, in the formatter's theme
     and {!Fmt.utf_8}, and takes the cells {!pp} gives it. A part that
-    {!Span.truncate} or {!Span.wrap} keep is drawn as those cells of the bar. *)
+    {!View.truncate} or {!View.wrap} keep is drawn as those cells of the bar. *)
 
 val to_string : ?styled:bool -> t -> string
 (** [to_string bar] is [bar] as {!pp} formats it on a formatter of unbounded

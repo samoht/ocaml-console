@@ -512,7 +512,7 @@ let tty_destination width height k =
         check (String.is_valid_utf_8 chunk);
         String.split_on_char '\n' (Console_text.strip chunk)
         |> List.iter (fun line ->
-            check (Console.Span.width (Console.Span.text line) <= width));
+            check (Console.View.width (Console.View.text line) <= width));
         Buffer.add_string written chunk;
         Console_vte.feed screen chunk)
       (fun () -> ())

@@ -14,8 +14,8 @@
 
 type overflow = [ `Wrap | `Truncate ]
 (** The type for what a cell wider than its column does: [`Wrap] goes on over
-    several lines ({!Span.wrap}), while [`Truncate] keeps one line, ended with
-    an ellipsis ({!Span.truncate}). *)
+    several lines ({!View.wrap}), while [`Truncate] keeps one line, ended with
+    an ellipsis ({!View.truncate}). *)
 
 type column
 (** The type for column specifications. *)
@@ -24,13 +24,13 @@ type t
 (** The type for tables. *)
 
 val column :
-  ?align:Span.align ->
+  ?align:View.align ->
   ?min_width:int ->
   ?max_width:int ->
   ?overflow:overflow ->
   ?shrinkable:bool ->
   ?style:Style.t ->
-  Span.t ->
+  View.t ->
   column
 (** [column header] is a column headed [header], in the table's header style
     under its own styles, such that:
@@ -56,7 +56,7 @@ val v :
   ?header_style:Style.t ->
   ?rules:bool ->
   column list ->
-  Span.t list list ->
+  View.t list list ->
   t
 (** [v ~rules columns rows] is the table of [rows] under [columns].
 
@@ -69,7 +69,7 @@ val v :
       ({!Theme.val-motion}) moves the ends of the rules with its edges.
 
     A cell may hold line feeds, which start new lines inside its row. A row with
-    fewer cells than there are columns ends in a cell that spans the columns
+    fewer cells than there are columns ends in a cell that views the columns
     left. In a table without a frame, whose border has no glyph in its vertical
     lines ({!Border.none}, {!Border.simple}), a line ends at its last cell that
     is not empty.
@@ -79,8 +79,8 @@ val v :
 
 (** {1:converting Converting} *)
 
-val to_span : ?width:int -> t -> Span.t
-(** [to_span ~width table] is [table] as a span, to put in a cell, a panel, a
+val to_span : ?width:int -> t -> View.t
+(** [to_span ~width table] is [table] as a view, to put in a cell, a panel, a
     tree or beside other text. When it is printed, it is laid out as {!pp} lays
     it out at a margin of [width] (defaults to its natural width), in the
     formatter's theme and [Fmt.utf_8].

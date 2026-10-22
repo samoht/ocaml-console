@@ -34,15 +34,15 @@ val eol : t -> string
 (** [eol t] is the line end [t] writes: ["\r\n"] on a terminal, ["\n"]
     otherwise. *)
 
-val render : t -> Span.t -> string
+val render : t -> View.t -> string
 (** [render t s] is [s] as [t] writes it: styled at its depth, its frames moving
     by the time since [t] started, or plain and still. *)
 
-val frame : t -> Span.t list
+val frame : t -> View.t list
 (** [frame t] is the region of [t]: the last [t.height - 1] lines of its view,
     each cut to [t.width]. *)
 
-val final : t -> Span.t list
+val final : t -> View.t list
 (** [final t] is the last frame of [t], printed once it closes: its view drawn
     still, with no limit on its height, or the default view if [t]'s raises.
     Without a terminal, no line is cut. *)
@@ -65,7 +65,7 @@ val paint_if_stale : t -> unit
 (** [paint_if_stale t] is {!paint} if the region was drawn a tenth of a second
     ago or more. *)
 
-val commit : t -> Span.t list -> unit
+val commit : t -> View.t list -> unit
 (** [commit t lines] prints [lines] once: above the region, which is drawn again
     below them, or in turn without a terminal. *)
 

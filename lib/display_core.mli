@@ -32,7 +32,7 @@ val scope :
 val v :
   ?layout:Layout.t ->
   ?summary:string ->
-  ?view:(t -> width:int -> height:int -> Span.t) ->
+  ?view:(t -> width:int -> height:int -> View.t) ->
   ?keep_ended:bool ->
   ?size:(unit -> int * int) ->
   ?progress:Progress.t ->
@@ -50,19 +50,19 @@ val redraw : t -> unit
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** See {!Display.with_output}. *)
 
-val set_view : t -> (t -> width:int -> height:int -> Span.t) -> unit
+val set_view : t -> (t -> width:int -> height:int -> View.t) -> unit
 (** See {!Display.set_view}. *)
 
-val default_view : t -> width:int -> height:int -> Span.t
+val default_view : t -> width:int -> height:int -> View.t
 (** See {!Display.default_view}. *)
 
 val children : task -> task list
 (** See {!Display.children}. *)
 
-val tree : ?width:int -> ?height:int -> task -> Span.t
+val tree : ?width:int -> ?height:int -> task -> View.t
 (** See {!Display.tree}. *)
 
-val summary : ?width:int -> t -> Span.t
+val summary : ?width:int -> t -> View.t
 (** See {!Display.summary}. *)
 
 val set_result : ?detail:string -> t -> (string, string) result -> unit

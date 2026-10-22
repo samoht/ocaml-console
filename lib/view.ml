@@ -3,7 +3,6 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Properties of {!Span}. *)
+include View_core
 
-val suite : string * Alcobar.test_case list
-(** [suite] is the property suite. *)
+let truncate w t = truncate w t

@@ -3,8 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-include Span_core
+(** Tests for the View module. *)
 
-type align = [ `Left | `Center | `Right ]
-
-let truncate w t = truncate w t
+val suite : string * unit Alcotest.test_case list
+(** [suite] is the Alcotest test suite for {!Test_view}. *)

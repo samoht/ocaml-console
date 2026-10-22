@@ -448,7 +448,7 @@ let test_output_exception s cancel =
   ignore (Display.task d "interrupted");
   Display.redraw d;
   let partial = Console_text.sanitize ~keep_newlines:false s in
-  let partial = Span.to_string (Span.truncate 30 (Span.text partial)) in
+  let partial = View.to_string (View.truncate 30 (View.text partial)) in
   (match
      Display.with_output d (fun ppf ->
          t.in_output := true;
@@ -929,28 +929,28 @@ let clusters = Width.clusters
    its lines, as a printer and as a span at a width. *)
 let widget kind cells =
   let cells = List.filteri (fun i _ -> i < 4) cells in
-  let cells = List.map (fun c -> Span.text (label c)) cells in
-  let cells = if cells = [] then [ Span.text "x" ] else cells in
+  let cells = List.map (fun c -> View.text (label c)) cells in
+  let cells = if cells = [] then [ View.text "x" ] else cells in
   if kind then
     let table =
       Table.v
         ~rules:(List.length cells mod 2 = 0)
         [
-          Table.column (Span.text "a");
-          Table.column ~align:`Right (Span.text "b");
+          Table.column (View.text "a");
+          Table.column ~align:`Right (View.text "b");
         ]
         (List.map (fun c -> [ c; c ]) cells)
     in
     ((fun ppf -> Table.pp ppf table), fun width -> Table.to_span ~width table)
   else
     let panel =
-      Panel.v ~title:(List.hd cells) (Span.concat ~sep:(Span.text "\n") cells)
+      Panel.v ~title:(List.hd cells) (View.concat ~sep:(View.text "\n") cells)
     in
     ((fun ppf -> Panel.pp ppf panel), fun width -> Panel.to_span ~width panel)
 
 (* [top] above the default view. *)
 let above top d ~width ~height =
-  Span.vcat [ top; Display.default_view d ~width ~height ]
+  View.vcat [ top; Display.default_view d ~width ~height ]
 
 (* The rows above the summary, at each of [times] in tenths of a second.
    A terminal of eight columns cuts the summary after its third letter. *)
@@ -1032,7 +1032,7 @@ let test_view_pipe kind cells n m =
   Theme.set ppf theme;
   let d = Display.v ~summary:header ~now:(fun () -> 1.5) ppf in
   Display.set_view d (fun d ~width ~height ->
-      above (Span.text "VIEW_SENTINEL") d ~width ~height);
+      above (View.text "VIEW_SENTINEL") d ~width ~height);
   Display.succeed (Display.task d "t");
   Display.close d;
   Format.pp_print_flush ppf ();
@@ -1076,7 +1076,7 @@ let test_view_exception_close n k styled =
   ignore (Display.task d "running");
   (match
      Display.set_view d (fun _ ~width:_ ~height:_ ->
-         ignore (Span.styled Style.bold "partial view");
+         ignore (View.styled Style.bold (View.text "partial view"));
          raise Exit)
    with
   | () -> fail "view exception swallowed"
@@ -1168,7 +1168,7 @@ let theme_switch_display width theme =
   Display.set_view display (fun d ~width ~height ->
       above
         (Panel.to_span ~width:(min width 100)
-           (Panel.v ~title:(Span.text "result") (Span.text "hello")))
+           (Panel.v ~title:(View.text "result") (View.text "hello")))
         d ~width ~height);
   Display.redraw display;
   (ppf, display, term, writes)
@@ -1359,9 +1359,9 @@ let test_columns steps h =
     let tops = Display.(children (root d)) in
     let n = max 1 (List.length tops) in
     let column = (min width 100 - (2 * (n - 1))) / n in
-    Span.vcat
+    View.vcat
       [
-        Span.hcat
+        View.hcat
           (List.map (Display.tree ~width:column ~height:(height - 1)) tops);
         Display.summary d;
       ]
@@ -1422,7 +1422,7 @@ let test_default_view steps h =
     Buffer.contents buf
   in
   let explicit d ~width:_ ~height =
-    Span.vcat
+    View.vcat
       [ Display.tree ~height:(height - 1) (Display.root d); Display.summary d ]
   in
   check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
@@ -1485,17 +1485,17 @@ let test_tree_local_dimensions w h =
   Display.log parent "parent output";
   Display.log child "child output";
   Display.redraw d;
-  let frame () = Span.to_string (Display.default_view d ~width:80 ~height:11) in
+  let frame () = View.to_string (Display.default_view d ~width:80 ~height:11) in
   let before = frame () in
   let writes = List.length !(t.chunks) in
   let width = 1 + (w mod 200) and height = h mod 11 in
   List.iter
     (fun task ->
       let fitted = Display.tree ~width ~height task in
-      check (Span.width fitted <= width);
-      check (Span.height fitted <= height);
-      check_eq ~pp:Fmt.Dump.string (Span.to_string fitted)
-        (Span.to_string (Display.tree ~width ~height task)))
+      check (View.width fitted <= width);
+      check (View.height fitted <= height);
+      check_eq ~pp:Fmt.Dump.string (View.to_string fitted)
+        (View.to_string (Display.tree ~width ~height task)))
     [ Display.root d; parent; child ];
   let after = frame () in
   Display.redraw d;

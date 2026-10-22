@@ -7,7 +7,7 @@ open Console
 
 (* The escape code a style starts its text with, as a span prints it. *)
 let to_ansi style =
-  let s = Span.to_string ~styled:true (Span.styled style "x") in
+  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
   String.sub s 0 (String.index s 'x')
 
 let test_none () =

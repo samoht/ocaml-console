@@ -10,6 +10,8 @@
    the same cells in every look, and measures it. A line feed alone in an
    atom with [block] joins two lines of one widget, which a region too short
    for it drops together. *)
+type align = [ `Left | `Center | `Right ]
+
 type atom = {
   style : Style.t;
   link : string option;
@@ -60,10 +62,13 @@ let atom ?link style text =
 let empty = []
 let is_empty = function [] -> true | _ :: _ -> false
 let text s = atom Style.none s
-let styled style s = atom style s
+let ink style s = atom style s
 
-let link ?(style = Style.none) ~uri s =
-  atom ?link:(if uri = "" then None else Some (target uri)) style s
+let link ~uri t =
+  if uri = "" then t
+  else
+    let link = Some (target uri) in
+    List.map (fun a -> { a with link }) t
 
 let ( ++ ) = ( @ )
 
@@ -71,7 +76,7 @@ let concat ?(sep = empty) = function
   | [] -> empty
   | x :: xs -> List.concat (x :: List.concat_map (fun y -> [ sep; y ]) xs)
 
-let with_style base t =
+let styled base t =
   List.map (fun a -> { a with style = Style.(base + a.style) }) t
 
 let is_drawn a = Option.is_some a.draw
@@ -83,7 +88,7 @@ let rec resolve look t =
       (fun a ->
         match a.draw with
         | None -> [ a ]
-        | Some draw -> with_style a.style (resolve look (draw look)))
+        | Some draw -> styled a.style (resolve look (draw look)))
       t
 
 let drawn draw =
@@ -112,27 +117,6 @@ let at stops p =
   else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
 
 let color_at stops p = at (Array.of_list stops) p
-let clusters = Width.clusters
-
-(* Each line is graded from its first cluster to its last. *)
-let graded stops line =
-  let stops = Array.of_list stops and n = List.length line in
-  List.concat
-    (List.mapi
-       (fun i g ->
-         let p = if n = 1 then 0. else float_of_int i /. float_of_int (n - 1) in
-         atom (Style.fg (at stops p)) g)
-       line)
-
-let gradient ?(colors = []) s =
-  let line text =
-    let line = clusters text in
-    match colors with
-    | [] -> drawn (fun look -> graded (Theme.palette look.Look.theme) line)
-    | colors -> graded colors line
-  in
-  concat ~sep:(atom Style.none "\n")
-    (List.map line (String.split_on_char '\n' (clean s)))
 
 (* {1 Lines} *)
 
@@ -184,14 +168,12 @@ let role_style theme = function
   | `Header -> Theme.header theme
 
 (* Each line is a part of its own: {!lines} splits text, not a drawing. *)
-let with_role r t =
+let role r t =
   unlines
     (List.map
        (fun line ->
-         drawn (fun look -> with_style (role_style look.Look.theme r) line))
+         drawn (fun look -> styled (role_style look.Look.theme r) line))
        (lines t))
-
-let role r s = with_role r (text s)
 
 (* {1 Layout}
 
@@ -348,6 +330,28 @@ let recell f line =
   done;
   if !out = [] then line else List.concat (List.rev (sub l !run l.n :: !out))
 
+(* Each line is graded from its first cluster to its last, each cluster in
+   the colour of its place over its own style. *)
+let graded stops line =
+  let stops = Array.of_list stops and l = layout line in
+  List.concat
+    (List.init l.n (fun i ->
+         let p =
+           if l.n = 1 then 0. else float_of_int i /. float_of_int (l.n - 1)
+         in
+         let c = at stops p in
+         List.map
+           (fun a -> { a with style = Style.(a.style + fg c) })
+           (sub l i (i + 1))))
+
+let gradient ?(colors = []) t =
+  let line l =
+    match colors with
+    | [] -> drawn (fun look -> graded (Theme.palette look.Look.theme) l)
+    | colors -> graded colors l
+  in
+  unlines (List.map line (lines t))
+
 let line_width = function
   | [ a ] -> Width.string_width a.text
   | line ->
@@ -366,7 +370,7 @@ let spaces n = if n <= 0 then empty else text (String.make n ' ')
    included: the spans before it are padded to their widths and followed by
    the gap, and nothing follows. *)
 let hcat ?(gap = 2) spans =
-  if gap < 0 then invalid_arg "Console.Span.hcat: negative gap";
+  if gap < 0 then invalid_arg "Console.View.hcat: negative gap";
   let blocks =
     List.filter (fun s -> not (is_empty s)) spans
     |> List.map (fun s -> (Array.of_list (seamed s), width s))
@@ -615,7 +619,7 @@ let hanging line =
   if !i >= l.n then 0 else !w
 
 let wrap_with ~hanging:h w t =
-  if w <= 0 then invalid_arg "Console.Span.wrap: non-positive width";
+  if w <= 0 then invalid_arg "Console.View.wrap: non-positive width";
   List.concat_map
     (fun line ->
       let hang = if h then max 0 (min (hanging line) (w / 2)) else 0 in

@@ -15,11 +15,11 @@ type t
 
 val v :
   ?border:Border.t ->
-  ?title:Span.t ->
-  ?subtitle:Span.t ->
+  ?title:View.t ->
+  ?subtitle:View.t ->
   ?padding:int ->
   ?width:int ->
-  Span.t ->
+  View.t ->
   t
 (** [v content] is a panel around [content].
 
@@ -38,8 +38,8 @@ val v :
 
 (** {1:converting Converting} *)
 
-val to_span : ?width:int -> t -> Span.t
-(** [to_span ~width panel] is [panel] as a span, to put in a cell, another
+val to_span : ?width:int -> t -> View.t
+(** [to_span ~width panel] is [panel] as a view, to put in a cell, another
     panel, a tree or beside other text. When it is printed, it is laid out as
     {!pp} lays it out at a margin of [width] (defaults to its natural width), in
     the formatter's theme and [Fmt.utf_8].
@@ -63,7 +63,7 @@ val pp : t Fmt.t
     is a rectangle [width] cells wide.
 
     A line wider than the room inside the frame:
-    - wraps at its words in a box sized to its content ({!Span.wrap}), hanging
+    - wraps at its words in a box sized to its content ({!View.wrap}), hanging
       under the text after its first word;
-    - is cut in a box of fixed width ({!Span.truncate}), and so are edge labels.
+    - is cut in a box of fixed width ({!View.truncate}), and so are edge labels.
 *)

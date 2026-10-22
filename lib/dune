@@ -25,9 +25,9 @@
   escape
   look
   sgr
-  span_core))
+  view_core))
 
 (mdx
  (package console)
- (files tree.mli display.mli console.mli span.mli)
+ (files tree.mli display.mli console.mli view.mli)
  (libraries console fmt))

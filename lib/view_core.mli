@@ -3,78 +3,78 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Styled text, with the operations the widgets share. {!Span} is its public
+(** Styled text, with the operations the widgets share. {!View} is its public
     face and documents the values both have. *)
 
 type t
-(** The type for spans. *)
+(** The type for views. *)
+
+type align = [ `Left | `Center | `Right ]
+(** See {!View.align}. *)
 
 val empty : t
-(** See {!Span.empty}. *)
+(** See {!View.empty}. *)
 
 val is_empty : t -> bool
 (** [is_empty s] is [true] iff [s] holds no text, not even a character that
     takes no cell. *)
 
 val text : string -> t
-(** See {!Span.text}. *)
+(** See {!View.text}. *)
 
-val styled : Style.t -> string -> t
-(** See {!Span.styled}. *)
+val ink : Style.t -> string -> t
+(** [ink style s] is [styled style (text s)]. *)
 
-val link : ?style:Style.t -> uri:string -> string -> t
-(** See {!Span.link}. *)
+val link : uri:string -> t -> t
+(** See {!View.link}. *)
 
-val gradient : ?colors:Color.t list -> string -> t
-(** See {!Span.gradient}. *)
+val gradient : ?colors:Color.t list -> t -> t
+(** See {!View.gradient}. *)
 
-val role : Theme.role -> string -> t
-(** See {!Span.role}. *)
-
-val with_role : Theme.role -> t -> t
-(** See {!Span.with_role}. *)
+val role : Theme.role -> t -> t
+(** See {!View.role}. *)
 
 val ( ++ ) : t -> t -> t
-(** See {!Span.( ++ )}. *)
+(** See {!View.( ++ )}. *)
 
 val concat : ?sep:t -> t list -> t
-(** See {!Span.concat}. *)
+(** See {!View.concat}. *)
 
-val with_style : Style.t -> t -> t
-(** See {!Span.with_style}. *)
+val styled : Style.t -> t -> t
+(** See {!View.styled}. *)
 
 val hcat : ?gap:int -> t list -> t
-(** See {!Span.hcat}. *)
+(** See {!View.hcat}. *)
 
 val vcat : t list -> t
-(** See {!Span.vcat}. *)
+(** See {!View.vcat}. *)
 
 val width : t -> int
-(** See {!Span.width}. *)
+(** See {!View.width}. *)
 
 val height : t -> int
-(** See {!Span.height}. *)
+(** See {!View.height}. *)
 
 val ellipsis : string
 (** [ellipsis] is U+2026, which ends a line {!truncate} cuts. *)
 
 val truncate : ?ellipsis:string -> int -> t -> t
-(** [truncate ~ellipsis w s] is like {!Span.truncate} but ends a cut line with
+(** [truncate ~ellipsis w s] is like {!View.truncate} but ends a cut line with
     [ellipsis] (defaults to U+2026). An ellipsis wider than [w] cells keeps only
     its first grapheme clusters that fit in them. *)
 
 val wrap : int -> t -> t list
-(** See {!Span.wrap}. *)
+(** See {!View.wrap}. *)
 
 val fit : int -> t -> t
 (** [fit w line] is the line [line] cut to its first [w] cells, between two
     clusters, then padded with spaces to exactly [w] cells. *)
 
 val pp : t Fmt.t
-(** See {!Span.pp}. *)
+(** See {!View.pp}. *)
 
 val to_string : ?styled:bool -> t -> string
-(** See {!Span.to_string}. *)
+(** See {!View.to_string}. *)
 
 (** {1:widgets For the widgets} *)
 
@@ -108,7 +108,7 @@ val render : look:Look.t -> ?depth:Color.depth -> t -> string
     or its text alone without [depth]. *)
 
 val drawn : (Look.t -> t) -> t
-(** [drawn draw] is the span [draw look] when it is printed in [look], and
+(** [drawn draw] is the view [draw look] when it is printed in [look], and
     measured as [draw Look.default]. Every [draw look] must take the same cells
     as [draw Look.default], one cluster for one. A part of it that {!truncate}
     or {!wrap} keep is drawn as the same cells of [draw look]. *)
@@ -124,7 +124,7 @@ val recell :
     control character, is [g]; a cluster of a {!drawn} part is kept. *)
 
 val pp_lines : t list Fmt.t
-(** [pp_lines] formats spans one per line, with no line end after the last. *)
+(** [pp_lines] formats views one per line, with no line end after the last. *)
 
 val string_of_lines : ?styled:bool -> t list -> string
 (** [string_of_lines lines] is [lines] joined by line feeds, each as

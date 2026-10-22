@@ -69,11 +69,11 @@ let table ?(border = Border.rounded) s =
         Table.column
           ~align:(match i mod 3 with 0 -> `Left | 1 -> `Right | _ -> `Center)
           ~overflow:(if i mod 2 = 0 then `Wrap else `Truncate)
-          (Span.text (pick s (i + 1))))
+          (View.text (pick s (i + 1))))
   in
   let rows =
     List.init 3 (fun r ->
-        List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))
+        List.init ncol (fun c -> View.text (pick s (2 + (r * ncol) + c))))
   in
   (ncol, Table.v ~border columns rows)
 
@@ -116,22 +116,22 @@ let test_simple s n =
 
 (* A right-aligned column's cells end in the same column. *)
 let test_right_aligned s =
-  let cells_of i = Span.text (pick s i) in
-  let rows = List.init 4 (fun i -> [ cells_of i; Span.text "|" ]) in
+  let cells_of i = View.text (pick s i) in
+  let rows = List.init 4 (fun i -> [ cells_of i; View.text "|" ]) in
   let t =
     Table.v ~border:Border.none
       [
-        Table.column ~align:`Right (Span.text "a"); Table.column (Span.text "b");
+        Table.column ~align:`Right (View.text "a"); Table.column (View.text "b");
       ]
       rows
   in
-  let firsts = Span.text "a" :: List.map List.hd rows in
-  let w = List.fold_left (fun n c -> max n (Span.width c)) 0 firsts in
+  let firsts = View.text "a" :: List.map List.hd rows in
+  let w = List.fold_left (fun n c -> max n (View.width c)) 0 firsts in
   List.iter2
     (fun cell line ->
-      let text = Span.to_string cell in
+      let text = View.to_string cell in
       if not (String.contains text '\n') then begin
-        let expected = String.make (w - Span.width cell) ' ' ^ text in
+        let expected = String.make (w - View.width cell) ' ' ^ text in
         if not (String.starts_with ~prefix:expected line) then
           failf "%S does not start with %S" line expected
       end)
@@ -141,9 +141,9 @@ let test_right_aligned s =
 (* A row with more cells than columns, or none, is refused. *)
 let test_shape s n =
   let k = abs n mod 4 in
-  let rows = [ List.init k (fun i -> Span.text (pick s i)) ] in
+  let rows = [ List.init k (fun i -> View.text (pick s i)) ] in
   match
-    Table.v [ Table.column (Span.text "a"); Table.column (Span.text "b") ] rows
+    Table.v [ Table.column (View.text "a"); Table.column (View.text "b") ] rows
   with
   | _ -> if k = 0 || k > 2 then fail "bad row accepted"
   | exception Invalid_argument _ -> if k >= 1 && k <= 2 then fail "row refused"
@@ -153,10 +153,10 @@ let test_huge_min_width n =
   let t =
     Table.v
       [
-        Table.column ~min_width:minimum (Span.text "A");
-        Table.column (Span.text "B");
+        Table.column ~min_width:minimum (View.text "A");
+        Table.column (View.text "B");
       ]
-      [ [ Span.text "x"; Span.text "y" ] ]
+      [ [ View.text "x"; View.text "y" ] ]
   in
   let out = Table.to_string ~width:20 t in
   check_fits 20 (String.split_on_char '\n' out)
@@ -186,8 +186,8 @@ let test_wide_border n =
   in
   let t =
     Table.v ~border
-      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
-      [ [ Span.text "x"; Span.text "y" ] ]
+      [ Table.column (View.text "A"); Table.column (View.text "B") ]
+      [ [ View.text "x"; View.text "y" ] ]
   in
   let lines = String.split_on_char '\n' (Table.to_string ~width:40 t) in
   check_fits 40 lines;
@@ -201,14 +201,14 @@ let check_marker_columns mixed s =
   let t =
     Table.v ~border:Border.none
       [
-        Table.column ~align:`Right (Span.text ""); Table.column (Span.text "|");
+        Table.column ~align:`Right (View.text ""); Table.column (View.text "|");
       ]
       (List.map
-         (fun cell -> [ cell; Span.text "|" ])
+         (fun cell -> [ cell; View.text "|" ])
          [
            mixed;
-           Span.text (Console_text.sanitize ~keep_newlines:false s);
-           Span.empty;
+           View.text (Console_text.sanitize ~keep_newlines:false s);
+           View.empty;
          ])
   in
   let lines = String.split_on_char '\n' (Table.to_string t) in
@@ -223,17 +223,17 @@ let check_marker_columns mixed s =
 
 let test_mixed_script_themes s n =
   let mixed =
-    Span.(
-      styled Style.bold "\u{754c}e"
-      ++ styled (Style.fg Color.red) "\u{0301}\u{1f469}\u{200d}\u{1f4bb}"
+    View.(
+      styled Style.bold (text "\u{754c}e")
+      ++ styled (Style.fg Color.red) (text "\u{0301}\u{1f469}\u{200d}\u{1f4bb}")
       ++ text " \u{0645}\u{0631}\u{062d}\u{0628}\u{0627} \u{1f1eb}\u{1f1f7}")
   in
   let rows =
     [
-      [ mixed; Span.text "1" ];
-      [ Span.text s; Span.text "999" ];
-      [ Span.empty; Span.text "42" ];
-      [ Span.text "\n\n"; Span.empty ];
+      [ mixed; View.text "1" ];
+      [ View.text s; View.text "999" ];
+      [ View.empty; View.text "42" ];
+      [ View.text "\n\n"; View.empty ];
     ]
   in
   let margin = 12 + (n mod 69) in
@@ -242,8 +242,8 @@ let test_mixed_script_themes s n =
       let t =
         Table.v
           [
-            Table.column (Span.text "name");
-            Table.column ~align:`Right (Span.text "size");
+            Table.column (View.text "name");
+            Table.column ~align:`Right (View.text "size");
           ]
           rows
       in
@@ -261,10 +261,10 @@ let test_mixed_script_themes s n =
 let test_rules s n =
   let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
   let nrows = 1 + (abs n mod 6) in
-  let columns = List.init ncol (fun _ -> Table.column (Span.text "h")) in
+  let columns = List.init ncol (fun _ -> Table.column (View.text "h")) in
   let rows =
     List.init nrows (fun r ->
-        List.init ncol (fun c -> Span.text (pick s (2 + (r * ncol) + c))))
+        List.init ncol (fun c -> View.text (pick s (2 + (r * ncol) + c))))
   in
   let t = Table.v ~rules:true ~border:Border.rounded columns rows in
   let _, lines = render Table.pp 1000 t in
@@ -286,8 +286,8 @@ let test_independent_edges a b empty_right =
   in
   let table =
     Table.v ~border
-      [ Table.column (Span.text "A"); Table.column (Span.text "B") ]
-      [ [ Span.text (String.make a 'x'); Span.text (String.make b 'y') ] ]
+      [ Table.column (View.text "A"); Table.column (View.text "B") ]
+      [ [ View.text (String.make a 'x'); View.text (String.make b 'y') ] ]
   in
   let expected_width = a + b + 7 in
   let raw, lines = render Table.pp 80 table in

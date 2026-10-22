@@ -131,8 +131,8 @@ let test_keep_styles_closes_what_it_opens () =
 open Console
 
 let lines s = String.split_on_char '\n' s
-let side ?gap spans = Span.to_string (Span.hcat ?gap spans)
-let text = Span.text
+let side ?gap spans = View.to_string (View.hcat ?gap spans)
+let text = View.text
 
 (* [hcat] puts spans side by side, [gap] spaces apart, each padded to its
    widest line and a shorter one with blank lines, a line ending at its last
@@ -151,8 +151,8 @@ let test_hcat () =
   Alcotest.(check string) "none" "" (side []);
   Alcotest.(check string)
     "an empty span takes no gap" "a  b"
-    (side [ text "a"; Span.empty; text "b" ]);
-  let panel = Panel.v (Span.text "p") and tree = Tree.v (Span.text "t") [] in
+    (side [ text "a"; View.empty; text "b" ]);
+  let panel = Panel.v (View.text "p") and tree = Tree.v (View.text "t") [] in
   let panel_lines = lines (Panel.to_string panel) in
   Alcotest.(check (list string))
     "widgets"
@@ -162,8 +162,8 @@ let test_hcat () =
       List.nth panel_lines 2;
     ]
     (lines (side [ Panel.to_span panel; Tree.to_span tree ]));
-  Display_harness.check_invalid "Console.Span.hcat: negative gap" (fun () ->
-      ignore (Span.hcat ~gap:(-1) [] : Span.t))
+  Display_harness.check_invalid "Console.View.hcat: negative gap" (fun () ->
+      ignore (View.hcat ~gap:(-1) [] : View.t))
 
 (* Each widget is as wide as the width it is given, and each span keeps
    its colours. *)
@@ -172,18 +172,18 @@ let test_hcat_widths () =
   Alcotest.(check (list int))
     "two rules of 9 cells, 3 apart" [ 21 ]
     (List.map Width.string_width (lines (side ~gap:3 [ rule; rule ])));
-  let red = Span.styled (Style.fg Color.red) "red"
-  and blue = Span.styled (Style.fg Color.blue) "blue" in
+  let red = View.styled (Style.fg Color.red) (View.text "red")
+  and blue = View.styled (Style.fg Color.blue) (View.text "blue") in
   Alcotest.(check string)
     "colours"
-    (Span.to_string ~styled:true red ^ "  " ^ Span.to_string ~styled:true blue)
-    (Span.to_string ~styled:true (Span.hcat [ red; blue ]))
+    (View.to_string ~styled:true red ^ "  " ^ View.to_string ~styled:true blue)
+    (View.to_string ~styled:true (View.hcat [ red; blue ]))
 
 (* Spans side by side are a span: they go in a panel, as any span does, in
    the theme of the formatter that prints it. *)
 let test_hcat_nests () =
-  let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ] in
-  let inner = Span.hcat [ Tree.to_span tree; Span.text "2 files" ] in
+  let tree = Tree.v (View.text "src") [ Tree.v (View.text "lib") [] ] in
+  let inner = View.hcat [ Tree.to_span tree; View.text "2 files" ] in
   let want = [ "src      2 files"; "\u{2514}\u{2500}\u{2500} lib" ] in
   let panel = Panel.v ~border:Border.ascii inner in
   Alcotest.(check (list string))
@@ -200,28 +200,28 @@ let test_hcat_nests () =
 let test_vcat () =
   Alcotest.(check string)
     "one under the other" "a\nbb\nc"
-    (Span.to_string (Span.vcat [ text "a\nbb"; Span.empty; text "c" ]));
-  Alcotest.(check string) "none" "" (Span.to_string (Span.vcat []));
+    (View.to_string (View.vcat [ text "a\nbb"; View.empty; text "c" ]));
+  Alcotest.(check string) "none" "" (View.to_string (View.vcat []));
   Alcotest.(check string)
     "a line feed is two blank lines" "a\n\n\nb"
-    (Span.to_string (Span.vcat [ text "a"; text "\n"; text "b" ]));
+    (View.to_string (View.vcat [ text "a"; text "\n"; text "b" ]));
   Alcotest.(check (list int))
     "heights" [ 0; 1; 2; 2; 3 ]
-    (List.map Span.height
+    (List.map View.height
        [
-         Span.empty;
+         View.empty;
          text "a";
          text "a\nb";
          text "\n";
-         Span.vcat [ text "a"; text "b\nc" ];
+         View.vcat [ text "a"; text "b\nc" ];
        ]);
-  let panel = Panel.v (Span.text "p") and rule = Rule.v () in
+  let panel = Panel.v (View.text "p") and rule = Rule.v () in
   Alcotest.(check (list string))
     "widgets"
     (lines (Panel.to_string panel) @ [ Rule.to_string ~width:5 rule ])
     (lines
-       (Span.to_string
-          (Span.vcat [ Panel.to_span panel; Rule.to_span ~width:5 rule ])))
+       (View.to_string
+          (View.vcat [ Panel.to_span panel; Rule.to_span ~width:5 rule ])))
 
 (* {1 Widgets as spans} *)
 
@@ -239,27 +239,27 @@ let shown ?(utf_8 = true) theme ~margin pp =
 
 let steps =
   Table.v
-    [ Table.column (Span.text "step"); Table.column (Span.text "time") ]
+    [ Table.column (View.text "step"); Table.column (View.text "time") ]
     [
-      [ Span.text "fetch"; Span.text "1.2s" ];
-      [ Span.text "build the whole tree"; Span.text "7.4s" ];
+      [ View.text "fetch"; View.text "1.2s" ];
+      [ View.text "build the whole tree"; View.text "7.4s" ];
     ]
 
 (* A widget as a span is laid out where it is printed, in that formatter's
    theme and UTF-8, at the width it was given, as its [pp] lays it out. *)
 let test_to_span () =
-  let tree = Tree.v (Span.text "src") [ Tree.v (Span.text "lib") [] ] in
+  let tree = Tree.v (View.text "src") [ Tree.v (View.text "lib") [] ] in
   let panel =
-    Panel.v ~title:(Span.text "t") (Span.text "a long line of text")
+    Panel.v ~title:(View.text "t") (View.text "a long line of text")
   in
-  let rule = Rule.v ~label:(Span.text "r") () in
+  let rule = Rule.v ~label:(View.text "r") () in
   List.iter
     (fun (theme, utf_8) ->
       let same what ~width pp span =
         Alcotest.(check string)
           (Theme.name theme ^ ": " ^ what)
           (shown ~utf_8 theme ~margin:width pp)
-          (shown ~utf_8 theme ~margin:200 (fun ppf -> Span.pp ppf span))
+          (shown ~utf_8 theme ~margin:200 (fun ppf -> View.pp ppf span))
       in
       List.iter
         (fun width ->
@@ -284,7 +284,7 @@ let test_to_span () =
     ];
   Alcotest.(check string)
     "natural width" (Table.to_string steps)
-    (Span.to_string (Table.to_span steps))
+    (View.to_string (Table.to_span steps))
 
 (* Widgets nest as spans: a table in a panel in a table cell, drawn in the
    theme of the formatter that prints the outermost. *)
@@ -292,8 +292,8 @@ let test_nested () =
   let inner = Panel.v (Table.to_span steps) in
   let outer =
     Table.v
-      [ Table.column (Span.text "a"); Table.column (Span.text "panel") ]
-      [ [ Span.text "x"; Panel.to_span inner ] ]
+      [ Table.column (View.text "a"); Table.column (View.text "panel") ]
+      [ [ View.text "x"; Panel.to_span inner ] ]
   in
   let lines s = String.split_on_char '\n' s in
   let panel = lines (Panel.to_string inner) in
@@ -335,7 +335,7 @@ let test_to_span_cells () =
   Alcotest.(check (list int))
     "the default theme's cells"
     (widths (Table.to_string steps))
-    (widths (shown wide ~margin:200 (fun ppf -> Span.pp ppf span)))
+    (widths (shown wide ~margin:200 (fun ppf -> View.pp ppf span)))
 
 (* A span of no cell is still text: here its accent belongs to the span
    before it when there is no gap. *)
@@ -379,27 +379,27 @@ let test_put_together () =
   check_fits "a gradient in a cell" 14
     (Fmt.const Table.pp
        (Table.v
-          [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
-          [ [ Span.gradient (emoji ^ " " ^ emoji); Span.text "x" ] ]));
+          [ Table.column (View.text "a"); Table.column (View.text "b") ]
+          [ [ View.gradient (View.text (emoji ^ " " ^ emoji)); View.text "x" ] ]));
   (* A panel's hanging lines have less room than its first one. *)
   check_fits "a narrow panel" 4
     (Fmt.const Panel.pp
        (Panel.v ~border:Border.ascii ~padding:0
-          (Span.text
+          (View.text
              "\u{1f468}\u{200d}\u{1f469}1\u{fe0f}\u{20e3}x 1\u{fe0f}\u{20e3}")));
   (* A table and a tree side by side, each at half of less room than they
      need. *)
   let half m = max 1 ((m - 1) / 2) in
   let side_by_side m =
-    Fmt.const Span.pp
-      (Span.hcat ~gap:1
+    Fmt.const View.pp
+      (View.hcat ~gap:1
          [
            Table.to_span ~width:(half m)
              (Table.v
-                [ Table.column (Span.text "h") ]
-                [ [ Span.text "\u{754c}\u{754c}" ] ]);
+                [ Table.column (View.text "h") ]
+                [ [ View.text "\u{754c}\u{754c}" ] ]);
            Tree.to_span ~width:(half m)
-             (Tree.v (Span.text "root") [ Tree.v (Span.text "leaf") [] ]);
+             (Tree.v (View.text "root") [ Tree.v (View.text "leaf") [] ]);
          ])
   in
   List.iter
@@ -408,12 +408,14 @@ let test_put_together () =
   (* In colour, a panel with a gradient title by a rule with a bar in its
      label is its plain text with escape codes. *)
   let scene m =
-    Fmt.const Span.pp
-      (Span.hcat
+    Fmt.const View.pp
+      (View.hcat
          [
            Panel.to_span
              ~width:(half (m - 1))
-             (Panel.v ~title:(Span.gradient "title") (Span.text emoji));
+             (Panel.v
+                ~title:(View.gradient (View.text "title"))
+                (View.text emoji));
            Rule.to_span
              ~width:(half (m - 1))
              (Rule.v ~label:(Bar.to_span (Bar.v ~width:4 0.5)) ());
@@ -434,13 +436,13 @@ let test_put_together () =
 let test_nested_wrap_ascii () =
   let open Console in
   let rule =
-    Rule.to_span ~width:4 (Rule.v ~label:(Span.text "\u{754c}\n\u{754c}") ())
+    Rule.to_span ~width:4 (Rule.v ~label:(View.text "\u{754c}\n\u{754c}") ())
   in
   let source =
-    Table.to_span (Table.v [ Table.column (Span.text "h") ] [ [ rule ] ])
+    Table.to_span (Table.v [ Table.column (View.text "h") ] [ [ rule ] ])
   in
   let render span =
-    shown ~utf_8:false Theme.default ~margin:80 (fun ppf -> Span.pp ppf span)
+    shown ~utf_8:false Theme.default ~margin:80 (fun ppf -> View.pp ppf span)
   in
   let compact s =
     String.to_seq s
@@ -451,7 +453,7 @@ let test_nested_wrap_ascii () =
   Alcotest.(check string)
     "the unwrapped widget has three ellipsis dots" expected
     (compact (render source));
-  let pieces = Span.wrap 2 source in
+  let pieces = View.wrap 2 source in
   Alcotest.(check string)
     "wrapping preserves every non-space character" expected
     (compact (String.concat "" (List.map render pieces)))
@@ -467,9 +469,9 @@ let suite =
       Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
       Alcotest.test_case "one under the other" `Quick test_vcat;
-      Alcotest.test_case "widgets as spans" `Quick test_to_span;
-      Alcotest.test_case "widgets nest as spans" `Quick test_nested;
-      Alcotest.test_case "a widget span keeps its cells" `Quick
+      Alcotest.test_case "widgets as views" `Quick test_to_span;
+      Alcotest.test_case "widgets nest as views" `Quick test_nested;
+      Alcotest.test_case "a widget view keeps its cells" `Quick
         test_to_span_cells;
       Alcotest.test_case "side by side goes in a panel" `Quick test_hcat_nests;
       Alcotest.test_case "side by side, the widths given" `Quick

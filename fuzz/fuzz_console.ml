@@ -26,12 +26,12 @@ let test_hcat texts gap =
   let gap = gap mod 5 in
   (* A span with no text takes no column. *)
   let kept =
-    List.filter (fun s -> Span.height (Span.text (text s)) > 0) texts
+    List.filter (fun s -> View.height (View.text (text s)) > 0) texts
   in
   let blocks = List.map (fun s -> lines (text s)) kept in
   let out =
-    Span.to_string
-      (Span.hcat ~gap (List.map (fun s -> Span.text (text s)) texts))
+    View.to_string
+      (View.hcat ~gap (List.map (fun s -> View.text (text s)) texts))
   in
   let widths =
     List.map (List.fold_left (fun n l -> max n (width l)) 0) blocks
@@ -75,14 +75,14 @@ let test_hcat_margin n k =
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
   Fmt.set_style_renderer ppf `Ansi_tty;
-  Span.pp ppf (Span.hcat ~gap blocks);
+  View.pp ppf (View.hcat ~gap blocks);
   Format.pp_print_flush ppf ();
   let raw = Buffer.contents buf in
   let vte = Console_vte.v ~rows:32 ~cols:margin () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int 0 (fst (Console_vte.cursor_pos vte));
   check (String.is_valid_utf_8 raw);
-  check_eq ~pp:Fmt.int margin (Span.width (Span.text (Console_text.strip raw)))
+  check_eq ~pp:Fmt.int margin (View.width (View.text (Console_text.strip raw)))
 
 (* With no gap, a trailing block of combining marks is still text and
    must produce the same visible glyph as ordinary span concatenation. *)
@@ -96,7 +96,7 @@ let test_hcat_combining_suffix n =
   let base = String.make 1 (Char.chr (Char.code 'a' + (n mod 26))) in
   Buffer.clear buf;
   let got =
-    Span.to_string (Span.hcat ~gap:0 [ Span.text base; Span.text suffix ])
+    View.to_string (View.hcat ~gap:0 [ View.text base; View.text suffix ])
   and want = base ^ suffix in
   let actual = Console_vte.v ~rows:2 ~cols:10 ()
   and expected = Console_vte.v ~rows:2 ~cols:10 () in
@@ -112,19 +112,19 @@ let test_hcat_combining_suffix n =
    none. *)
 let test_vcat texts =
   let spans =
-    List.map (fun s -> if s = "" then Span.empty else Span.text (text s)) texts
+    List.map (fun s -> if s = "" then View.empty else View.text (text s)) texts
   in
-  let stacked = Span.vcat spans in
+  let stacked = View.vcat spans in
   let want = List.filter (fun s -> not (String.equal s "")) texts in
   check_eq ~pp:Fmt.Dump.string
     (String.concat "\n" (List.map text want))
-    (Span.to_string stacked);
+    (View.to_string stacked);
   check_eq ~pp:Fmt.int
-    (List.fold_left (fun n s -> n + Span.height s) 0 spans)
-    (Span.height stacked);
+    (List.fold_left (fun n s -> n + View.height s) 0 spans)
+    (View.height stacked);
   check_eq ~pp:Fmt.int
-    (List.fold_left (fun n s -> max n (Span.width s)) 0 spans)
-    (Span.width stacked)
+    (List.fold_left (fun n s -> max n (View.width s)) 0 spans)
+    (View.width stacked)
 
 (* {1 Widgets put together}
 
@@ -177,7 +177,7 @@ type span =
   | Cat of span list
 
 and block =
-  | Span of span
+  | View of span
   | Table of int * span list list
   | Panel of int * span * span option
   | Tree of span * span list
@@ -196,7 +196,7 @@ let rec pp_span ppf = function
   | Cat l -> Fmt.pf ppf "cat%a" Fmt.(Dump.list pp_span) l
 
 and pp_block ppf = function
-  | Span s -> pp_span ppf s
+  | View s -> pp_span ppf s
   | Table (k, rows) ->
       Fmt.pf ppf "table(%d,%a)" k Fmt.(Dump.list (Dump.list pp_span)) rows
   | Panel (k, s, t) ->
@@ -226,7 +226,7 @@ let block_gen =
       in
       choose
         [
-          map [ span ] (fun s -> Span s);
+          map [ span ] (fun s -> View s);
           map
             [ uint8; list1 (list1 span) ]
             (fun k rows -> Table (k, take 4 (List.map (take 3) rows)));
@@ -261,27 +261,27 @@ let borders =
 let pick a k = a.(k mod Array.length a)
 
 let rec span = function
-  | Text (k, s) -> Span.styled (pick styles k) s
-  | Gradient s -> Span.gradient s
-  | Link s -> Span.link ~uri:"https://example.org/a" s
+  | Text (k, s) -> View.styled (pick styles k) (View.text s)
+  | Gradient s -> View.gradient (View.text s)
+  | Link s -> View.link ~uri:"https://example.org/a" (View.text s)
   | Bar (w, f) -> Bar.to_span (Bar.v ~width:w (Float.of_int f /. 255.))
-  | Role (k, s) -> Span.with_role (pick roles k) (span s)
+  | Role (k, s) -> View.role (pick roles k) (span s)
   | Nest (k, b) -> nested k b
-  | Cat l -> Span.concat (List.map span l)
+  | Cat l -> View.concat (List.map span l)
 
 (* A block as a span: a widget by its [to_span], at its natural width or at
    one [k] gives. *)
 and nested k b =
   let width = if k land 1 = 0 then None else Some (1 + (k / 2 mod 60)) in
   match b with
-  | Span s -> span s
+  | View s -> span s
   | Table (k, rows) -> Table.to_span ?width (table k rows)
   | Panel (k, s, t) -> Panel.to_span ?width (panel k s t)
   | Tree (s, l) -> Tree.to_span ?width (tree s l)
   | Rule l -> Rule.to_span ~width:(Option.value width ~default:20) (rule l)
-  | Styled (j, b) -> Span.with_style (pick styles j) (nested k b)
-  | Hcat (gap, l) -> Span.hcat ~gap (List.map (nested k) l)
-  | Vcat l -> Span.vcat (List.map (nested k) l)
+  | Styled (j, b) -> View.styled (pick styles j) (nested k b)
+  | Hcat (gap, l) -> View.hcat ~gap (List.map (nested k) l)
+  | Vcat l -> View.vcat (List.map (nested k) l)
 
 and table k rows =
   let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
@@ -290,8 +290,8 @@ and table k rows =
         Table.column
           ~align:[| `Left; `Center; `Right |].((k + i) mod 3)
           ~overflow:(if (k + i) land 4 = 0 then `Wrap else `Truncate)
-          (if i = 1 then Span.role `Header ("c" ^ string_of_int i)
-           else Span.text ("c" ^ string_of_int i)))
+          (if i = 1 then View.role `Header (View.text ("c" ^ string_of_int i))
+           else View.text ("c" ^ string_of_int i)))
   in
   let border = if k land 8 = 0 then None else Some (pick borders (k / 16)) in
   Table.v ?border ~rules:(k land 1 = 1) columns (List.map (List.map span) rows)
@@ -307,13 +307,13 @@ and tree s l = Tree.v (span s) (List.map (fun c -> Tree.v (span c) []) l)
 and rule l = Rule.v ?label:(Option.map span l) ()
 
 let rec pp = function
-  | Span s -> Fmt.const Span.pp (span s)
+  | View s -> Fmt.const View.pp (span s)
   | Table (k, rows) -> Fmt.const Table.pp (table k rows)
   | Panel (k, s, t) -> Fmt.const Panel.pp (panel k s t)
   | Tree (s, l) -> Fmt.const Tree.pp (tree s l)
   | Rule l -> Fmt.const Rule.pp (rule l)
   | Styled (k, b) -> Style.styled (pick styles k) (pp b)
-  | (Hcat _ | Vcat _) as b -> Fmt.const Span.pp (nested 0 b)
+  | (Hcat _ | Vcat _) as b -> Fmt.const View.pp (nested 0 b)
 
 (* {1 Printing} *)
 
@@ -383,7 +383,7 @@ let rec texts_span = function
   | Cat l -> List.concat_map texts_span l
 
 and texts = function
-  | Span s | Rule (Some s) -> texts_span s
+  | View s | Rule (Some s) -> texts_span s
   | Rule None -> []
   | Table (_, rows) -> List.concat_map (List.concat_map texts_span) rows
   | Panel (_, s, t) -> texts_span s @ Option.fold ~none:[] ~some:texts_span t
@@ -395,7 +395,7 @@ and texts = function
    other included, and a rule's
    label wider than the margin makes the rule two cells wider. *)
 let rec may_overflow = function
-  | Span _ | Rule (Some _) | Hcat _ | Vcat _ -> true
+  | View _ | Rule (Some _) | Hcat _ | Vcat _ -> true
   | Styled (_, b) -> may_overflow b
   | _ -> false
 
@@ -520,14 +520,18 @@ let test_nested_wrap s k n =
          (min 16 (String.length s))
          (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
   in
-  let content = Span.with_style Style.bold (Span.gradient input) in
+  let content = View.styled Style.bold (View.gradient (View.text input)) in
   let inner =
     match k mod 5 with
     | 0 -> Panel.to_span (Panel.v content)
     | 1 ->
         Table.to_span
-          (Table.v [ Table.column (Span.role `Header "h") ] [ [ content ] ])
-    | 2 -> Tree.to_span (Tree.v content [ Tree.v (Span.role `Ok "leaf") [] ])
+          (Table.v
+             [ Table.column (View.role `Header (View.text "h")) ]
+             [ [ content ] ])
+    | 2 ->
+        Tree.to_span
+          (Tree.v content [ Tree.v (View.role `Ok (View.text "leaf")) [] ])
     | 3 -> Rule.to_span ~width:20 (Rule.v ~label:content ())
     | _ -> Bar.to_span (Bar.v ~width:12 0.6)
   in
@@ -535,10 +539,10 @@ let test_nested_wrap s k n =
     match k / 5 mod 3 with
     | 0 -> Panel.to_span (Panel.v inner)
     | 1 ->
-        Table.to_span (Table.v [ Table.column (Span.text "h") ] [ [ inner ] ])
-    | _ -> Tree.to_span (Tree.v (Span.text "root") [ Tree.v inner [] ])
+        Table.to_span (Table.v [ Table.column (View.text "h") ] [ [ inner ] ])
+    | _ -> Tree.to_span (Tree.v (View.text "root") [ Tree.v inner [] ])
   in
-  let source = Span.with_role `Warn nested in
+  let source = View.role `Warn nested in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
   let render span =
     let buf = Buffer.create 256 in
@@ -547,13 +551,13 @@ let test_nested_wrap s k n =
     Color.set_depth ppf `True_color;
     Fmt.set_utf_8 ppf (k land 128 = 0);
     Theme.set ppf theme;
-    Span.pp ppf span;
+    View.pp ppf span;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
   let width = 2 + (n mod 19) in
-  let pieces = Span.wrap width source in
-  List.iter (fun piece -> check (Span.width piece <= width)) pieces;
+  let pieces = View.wrap width source in
+  List.iter (fun piece -> check (View.width piece <= width)) pieces;
   let expected = nested_cells (render source) in
   let actual =
     List.concat_map (fun piece -> nested_cells (render piece)) pieces
@@ -590,21 +594,21 @@ let test_hcat_nested_wrap input k n =
          (min 12 (String.length input))
          (fun i -> clusters.(Char.code input.[i] mod Array.length clusters)))
   in
-  let left = Panel.to_span (Panel.v (Span.gradient content)) in
+  let left = Panel.to_span (Panel.v (View.gradient (View.text content))) in
   let right =
     Tree.to_span
       (Tree.v
-         (Span.link ~uri:"https://example.org/report" "tree")
-         [ Tree.v (Span.role `Ok "leaf") [] ])
+         (View.link ~uri:"https://example.org/report" (View.text "tree"))
+         [ Tree.v (View.role `Ok (View.text "leaf")) [] ])
   in
-  let joined = Span.hcat ~gap:(k mod 4) [ left; right ] in
+  let joined = View.hcat ~gap:(k mod 4) [ left; right ] in
   let source =
-    Span.with_style Style.bold
+    View.styled Style.bold
       (match k / 4 mod 3 with
       | 0 -> Panel.to_span (Panel.v joined)
       | 1 ->
           Table.to_span
-            (Table.v [ Table.column (Span.text "h") ] [ [ joined ] ])
+            (Table.v [ Table.column (View.text "h") ] [ [ joined ] ])
       | _ -> Tree.to_span (Tree.v joined []))
   in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
@@ -615,15 +619,15 @@ let test_hcat_nested_wrap input k n =
     Fmt.set_utf_8 ppf (k land 128 = 0);
     Fmt.set_style_renderer ppf `Ansi_tty;
     Color.set_depth ppf `True_color;
-    Span.pp ppf s;
+    View.pp ppf s;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
   let width = 4 + (n mod 29) in
-  let pieces = Span.wrap width source in
+  let pieces = View.wrap width source in
   List.iter
     (fun s ->
-      check (Span.width s <= width);
+      check (View.width s <= width);
       List.iter (fun line -> check (on_screen line <= width)) (lines (render s)))
     pieces;
   let expected = nested_cells (render source)
@@ -649,7 +653,7 @@ let suite =
       test_case "a view of widgets moves only its lines"
         [ block_gen; uint16; uint8; uint8 ]
         test_view;
-      test_case "vcat lines are the spans' lines in turn"
+      test_case "vcat lines are the views' lines in turn"
         [ list bytes ]
         test_vcat;
       test_case "hcat lines are the blocks' widths and gaps"

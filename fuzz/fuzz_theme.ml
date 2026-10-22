@@ -42,7 +42,7 @@ let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 let test_ascii s n =
   let n = n land max_int in
   let s = String.map (fun c -> if Char.code c < 0x80 then c else '?') s in
-  let text = Span.text s and margin = 1 + (n mod 60) in
+  let text = View.text s and margin = 1 + (n mod 60) in
   let theme = List.nth themes (n mod List.length themes) in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -54,8 +54,8 @@ let test_ascii s n =
   Fmt.pf ppf "%a@.%a@.%a@.%a@.%a@." Table.pp
     (Table.v
        [
-         Table.column (Span.text s);
-         Table.column ~overflow:`Truncate (Span.text s);
+         Table.column (View.text s);
+         Table.column ~overflow:`Truncate (View.text s);
        ]
        [ [ text; text ]; [ text ] ])
     Panel.pp

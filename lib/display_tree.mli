@@ -8,7 +8,7 @@
 
 open Display_state
 
-val region : t -> width:int -> height:int -> row -> Span.t list
+val region : t -> width:int -> height:int -> row -> View.t list
 (** [region t ~width ~height r] are the lines of the tree of [r] in the region,
     at most [height], each of at most [width] cells: [r] and the tasks under it,
     or the top tasks if [r] is the root. When they do not fit, the tasks that
@@ -16,20 +16,20 @@ val region : t -> width:int -> height:int -> row -> Span.t list
     way, the oldest of all first, then only the latest running tasks show, after
     a line that counts the others. *)
 
-val scrollback : t -> width:int -> row -> Span.t list
+val scrollback : t -> width:int -> row -> View.t list
 (** [scrollback t ~width r] are the lines of the tree of [r] as the scrollback
     keeps them: every task, none folded, each failure or cancellation with its
     output under it, a line too wide going on over the next ones. *)
 
-val tree : ?width:int -> ?height:int -> row -> Span.t
+val tree : ?width:int -> ?height:int -> row -> View.t
 (** See {!Display.tree}. *)
 
-val summary : ?width:int -> t -> Span.t
+val summary : ?width:int -> t -> View.t
 (** See {!Display.summary}. *)
 
-val default_view : t -> width:int -> height:int -> Span.t
+val default_view : t -> width:int -> height:int -> View.t
 (** See {!Display.default_view}. *)
 
-val default_lines : t -> width:int -> height:int -> Span.t list
+val default_lines : t -> width:int -> height:int -> View.t list
 (** [default_lines t ~width ~height] are the lines of
     [default_view t ~width ~height], none of which holds a line feed. *)

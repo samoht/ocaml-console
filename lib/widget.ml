@@ -88,9 +88,12 @@ let mark look m =
   glyph look (Theme.mark look.theme m) ~ascii:(Theme.mark Theme.ascii m)
 
 let bar look = if look.utf_8 then Theme.bar look.theme else `Ascii
-let ellipsis look = if look.utf_8 then Span_core.ellipsis else "..."
-let truncate look w s = Span_core.truncate ~ellipsis:(ellipsis look) w s
-let one_line span = Span.concat ~sep:(Span.text " ") (Span_core.lines span)
+let ellipsis look = if look.utf_8 then View_core.ellipsis else "..."
+let truncate look w s = View_core.truncate ~ellipsis:(ellipsis look) w s
+
+let one_line span =
+  View_core.concat ~sep:(View_core.text " ") (View_core.lines span)
+
 let cells = Width.string_width
 let widest glyphs = List.fold_left (fun n g -> max n (cells g)) 0 glyphs
 
@@ -125,7 +128,7 @@ let branch g = function
   | own :: up -> rails g up ^ if own then Guide.last g else Guide.branch g
 
 let pad_glyph n glyph = glyph ^ String.make (max 0 (n - cells glyph)) ' '
-let pad n = Span.text (String.make (max 0 n) ' ')
+let pad n = View_core.text (String.make (max 0 n) ' ')
 
 (* A widget as a span is a part drawn when printed for each of its lines in
    {!default_look}; drawn in another look, it is laid out once for all its
@@ -142,21 +145,21 @@ let to_span lines ?(width = max_int) v =
         last := Some (look, lines);
         lines
   in
-  Span_core.block
+  View_core.block
     (List.mapi
        (fun i line ->
-         let w = Span_core.width line in
-         Span_core.drawn (fun look ->
+         let w = View_core.width line in
+         View_core.drawn (fun look ->
              if look == default_look then line
              else
                let lines = laid look in
-               Span_core.fit w
-                 (if i < Array.length lines then lines.(i) else Span_core.empty)))
+               View_core.fit w
+                 (if i < Array.length lines then lines.(i) else View_core.empty)))
        base)
 
 let pp lines ppf v =
-  Span_core.pp_lines ppf
+  View_core.pp_lines ppf
     (lines (look ppf) ~margin:(Format.pp_get_margin ppf ()) v)
 
 let to_string lines ?styled ?(width = max_int) v =
-  Span_core.string_of_lines ?styled (lines default_look ~margin:width v)
+  View_core.string_of_lines ?styled (lines default_look ~margin:width v)

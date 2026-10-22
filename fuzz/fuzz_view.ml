@@ -47,14 +47,16 @@ let span s =
       in
       let j = char_end i (1 + (Char.code s.[i] mod 3)) in
       go j
-        Span.(
+        View.(
           acc
-          ++ Span.styled styles.(Char.code s.[i] mod 4) (String.sub s i (j - i)))
+          ++ View.styled
+               styles.(Char.code s.[i] mod 4)
+               (View.text (String.sub s i (j - i))))
   in
-  go 0 Span.empty
+  go 0 View.empty
 
 let width n = 1 + (abs n mod 40)
-let plain = Span.to_string
+let plain = View.to_string
 
 let no_space s =
   String.concat ""
@@ -63,32 +65,32 @@ let no_space s =
 (* Every span prints, whatever its bytes: a control is a space and
    malformed UTF-8 the replacement character. *)
 let test_sanitized s =
-  let p = plain (Span.text s) in
+  let p = plain (View.text s) in
   check (String.is_valid_utf_8 p);
   String.iter
     (fun c ->
       let c = Char.code c in
       if (c < 0x20 && c <> 0x0a) || c = 0x7f then failf "control %d in %S" c p)
     p;
-  ignore (Span.to_string ~styled:true (Span.styled Style.bold s))
+  ignore (View.to_string ~styled:true (View.styled Style.bold (View.text s)))
 
 (* [width (s0 ++ s1) <= width s0 + width s1]. *)
 let test_width_subadditive a b =
   let a = span (text a) and b = span (text b) in
-  check (Span.width Span.(a ++ b) <= Span.width a + Span.width b)
+  check (View.width View.(a ++ b) <= View.width a + View.width b)
 
 (* A style boundary adds no cell: the styled span is as wide as its text. *)
 let test_width_styles s =
   let s = text s in
-  check_eq ~pp:Fmt.int (Span.width (Span.text s)) (Span.width (span s))
+  check_eq ~pp:Fmt.int (View.width (View.text s)) (View.width (span s))
 
 (* [width (truncate w s) <= max 0 w], [truncate w s = s] when it fits, a cut
    line ends with an ellipsis, and what is kept is a prefix of the line. *)
 let test_truncate s n =
   let s = span (text s) and w = abs n mod 50 in
-  let t = Span.truncate w s in
-  check (Span.width t <= max 0 w);
-  if w > 0 && Span.width s <= w then
+  let t = View.truncate w s in
+  check (View.width t <= max 0 w);
+  if w > 0 && View.width s <= w then
     check_eq ~pp:Fmt.Dump.string (plain s) (plain t);
   let lines = String.split_on_char '\n' (plain s)
   and cut = String.split_on_char '\n' (plain t) in
@@ -103,12 +105,12 @@ let test_truncate s n =
             failf "%S is not a prefix of %S" kept l
         end)
       lines cut;
-  check_eq ~pp:Fmt.Dump.string (plain t) (plain (Span.truncate w t))
+  check_eq ~pp:Fmt.Dump.string (plain t) (plain (View.truncate w t))
 
 (* The styled form of a cut span turns every style off. *)
 let test_truncate_closes s n =
   let t =
-    Span.to_string ~styled:true (Span.truncate (width n) (span (text s)))
+    View.to_string ~styled:true (View.truncate (width n) (span (text s)))
   in
   (* The last escape code written is the reset. *)
   match String.rindex_opt t '\027' with
@@ -128,9 +130,9 @@ let widest s =
    drawn. *)
 let test_wrap s n =
   let s = span (text s) and w = width n in
-  let lines = Span.wrap w s in
+  let lines = View.wrap w s in
   check (lines <> []);
-  List.iter (fun l -> check (Span.width l <= w)) lines;
+  List.iter (fun l -> check (View.width l <= w)) lines;
   if w >= widest (plain s) then
     check_eq ~pp:Fmt.Dump.string
       (no_space (plain s))
@@ -173,22 +175,22 @@ let on_screen s =
 (* With VS16, VS15, joiners and marks, a cut line and every wrapped line
    fit their width, as console measures it and on the terminal. *)
 let test_joiners_fit s n =
-  let s = Span.text (joined s) and w = 1 + (abs n mod 12) in
+  let s = View.text (joined s) and w = 1 + (abs n mod 12) in
   let fits what l =
     Matrix_0_1.discard_stray_vs16 (plain l);
     let cells = on_screen (plain l) in
-    if Span.width l > w || cells > w then
-      failf "%s to %d is %d cells, %d on the terminal: %S" what w (Span.width l)
+    if View.width l > w || cells > w then
+      failf "%s to %d is %d cells, %d on the terminal: %S" what w (View.width l)
         cells (plain l)
   in
-  fits "truncated" (Span.truncate w s);
-  List.iter (fits "wrapped") (Span.wrap w s)
+  fits "truncated" (View.truncate w s);
+  List.iter (fits "wrapped") (View.wrap w s)
 
-let test_wrap_bytes s n = ignore (Span.wrap (width n) (Span.text s))
+let test_wrap_bytes s n = ignore (View.wrap (width n) (View.text s))
 
 let test_wrap_refuses n =
   let w = -abs n in
-  match Span.wrap w Span.empty with
+  match View.wrap w View.empty with
   | _ -> fail "a non-positive width is refused"
   | exception Invalid_argument _ -> ()
 
@@ -208,9 +210,9 @@ let uri_char = function
    them; an empty URI writes no link, and neither does a label of line ends
    alone, which has no text to click. *)
 let test_link label uri =
-  let l = Span.link ~uri label in
-  check_eq ~pp:Fmt.Dump.string (plain (Span.text label)) (plain l);
-  let ansi = Span.to_string ~styled:true l in
+  let l = View.link ~uri (View.text label) in
+  check_eq ~pp:Fmt.Dump.string (plain (View.text label)) (plain l);
+  let ansi = View.to_string ~styled:true l in
   match Re.exec_opt (Re.compile (Re.str "\027]8;;")) ansi with
   | None ->
       if uri <> "" && String.exists (( <> ) '\n') (plain l) then
@@ -229,16 +231,17 @@ let test_link label uri =
 
 (* [concat ~sep] puts [sep] between each two. *)
 let test_concat a b c =
-  let parts = List.map Span.text [ a; b; c ] in
+  let parts = List.map View.text [ a; b; c ] in
   check_eq ~pp:Fmt.Dump.string
     (String.concat "," (List.map plain parts))
-    (plain (Span.concat ~sep:(Span.text ",") parts))
+    (plain (View.concat ~sep:(View.text ",") parts))
 
 (* Each line must release its attributes before another writer can print. *)
 let test_multiline_resets s =
   let line = Console_text.sanitize ~keep_newlines:false s ^ "x" in
   let raw =
-    Span.to_string ~styled:true (Span.styled Style.bold (line ^ "\n" ^ line))
+    View.to_string ~styled:true
+      (View.styled Style.bold (View.text (line ^ "\n" ^ line)))
   in
   List.iter
     (fun l ->
@@ -249,17 +252,18 @@ let test_multiline_resets s =
 let test_linked_unicode_cuts s n =
   let line = Console_text.sanitize ~keep_newlines:false s in
   let source =
-    Span.(
-      styled Style.bold "\u{754c}\u{1f1eb}\u{1f1f7}"
-      ++ link ~style:(Style.fg Color.red) ~uri:"https://example.invalid"
-           ("\u{1f469}\u{200d}\u{1f4bb}" ^ line)
-      ++ styled Style.underline "e\u{0301}\u{2764}\u{fe0f}")
+    View.(
+      styled Style.bold (text "\u{754c}\u{1f1eb}\u{1f1f7}")
+      ++ link ~uri:"https://example.invalid"
+           (styled (Style.fg Color.red)
+              (text ("\u{1f469}\u{200d}\u{1f4bb}" ^ line)))
+      ++ styled Style.underline (text "e\u{0301}\u{2764}\u{fe0f}"))
   in
   let w = n mod 80 in
-  let fitted = Span.truncate w source in
-  let raw = Span.to_string ~styled:true fitted in
+  let fitted = View.truncate w source in
+  let raw = View.to_string ~styled:true fitted in
   check (String.is_valid_utf_8 raw);
-  check (Span.width fitted <= w);
+  check (View.width fitted <= w);
   let escapes =
     Re.compile
       (Re.alt
@@ -274,7 +278,7 @@ let test_linked_unicode_cuts s n =
          ])
   in
   let stripped = Re.replace_string escapes ~by:"" raw in
-  check_eq ~pp:Fmt.Dump.string (Span.to_string fitted) stripped;
+  check_eq ~pp:Fmt.Dump.string (View.to_string fitted) stripped;
   let occurrences needle =
     let re = Re.compile (Re.str needle) in
     List.length (Re.all re raw)
@@ -285,14 +289,14 @@ let test_linked_unicode_cuts s n =
   Matrix_0_1.discard_newer_unicode line;
   let vte = Console_vte.v ~rows:1 ~cols:81 () in
   Console_vte.feed vte raw;
-  check_eq ~pp:Fmt.int (Span.width fitted) (snd (Console_vte.cursor_pos vte))
+  check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
 
 (* A gradient is as wide as its text, which it is without colour; in
    colour, at any depth and in any theme, it is that text and escape codes. *)
 (* [span] is as wide as [t] and prints as [t]'s text in [theme], without
    colour and, its escapes taken out, at every depth. *)
 let check_is_text ~theme t span =
-  check_eq ~pp:Fmt.int (Span.width t) (Span.width span);
+  check_eq ~pp:Fmt.int (View.width t) (View.width span);
   check_eq ~pp:Fmt.Dump.string (plain t) (plain span);
   let printed depth =
     let buf = Buffer.create 64 in
@@ -303,7 +307,7 @@ let check_is_text ~theme t span =
         Fmt.set_style_renderer ppf `Ansi_tty;
         Color.set_depth ppf depth)
       depth;
-    Span.pp ppf span;
+    View.pp ppf span;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
@@ -330,14 +334,15 @@ let test_gradient s k =
                if i = 0 then Color.palette k
                else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
   in
-  check_is_text ~theme:(theme_of k) (Span.text s) (Span.gradient ?colors s)
+  check_is_text ~theme:(theme_of k) (View.text s)
+    (View.gradient ?colors (View.text s))
 
 let roles = [| `Accent; `Ok; `Warn; `Fail; `Muted; `Header |]
 
 let test_role s k =
   let s = if k land 1 = 0 then text s else s in
   let role = roles.(k / 2 mod Array.length roles) in
-  check_is_text ~theme:(theme_of k) (Span.text s) (Span.role role s)
+  check_is_text ~theme:(theme_of k) (View.text s) (View.role role (View.text s))
 
 (* Fitting a gradient changes line breaks, not the colours of the text
    kept. Compare terminal cells after joining the wrapped pieces again. *)
@@ -351,7 +356,7 @@ let test_gradient_wrap s k =
          (min 64 (String.length s))
          (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
   in
-  let gradient = Span.with_style Style.bold (Span.gradient input) in
+  let gradient = View.styled Style.bold (View.gradient (View.text input)) in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
   let render span =
     let buf = Buffer.create 64 in
@@ -359,17 +364,17 @@ let test_gradient_wrap s k =
     Theme.set ppf theme;
     Fmt.set_style_renderer ppf `Ansi_tty;
     Color.set_depth ppf `True_color;
-    Span.pp ppf span;
+    View.pp ppf span;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
   let width = 2 + (k mod 11) in
-  let pieces = Span.wrap width gradient in
-  List.iter (fun piece -> check (Span.width piece <= width)) pieces;
+  let pieces = View.wrap width gradient in
+  List.iter (fun piece -> check (View.width piece <= width)) pieces;
   let raw = String.concat "" (List.map render pieces) in
   check (String.is_valid_utf_8 raw);
   check_eq ~pp:Fmt.Dump.string input (Console_text.strip raw);
-  let cols = Span.width gradient + 2 in
+  let cols = View.width gradient + 2 in
   let expected = Console_vte.v ~rows:1 ~cols ()
   and actual = Console_vte.v ~rows:1 ~cols () in
   Console_vte.feed expected (render gradient ^ "!");
@@ -386,18 +391,16 @@ let test_gradient_wrap s k =
 (* Vertical composition preserves every line, including trailing blank
    lines, and omits parts that contain no text. *)
 let test_vcat_height inputs =
-  let spans =
-    List.map (fun s -> Span.with_style Style.bold (Span.text s)) inputs
-  in
-  let combined = Span.vcat spans in
+  let spans = List.map (fun s -> View.styled Style.bold (View.text s)) inputs in
+  let combined = View.vcat spans in
   check_eq ~pp:Fmt.int
-    (List.fold_left (fun n span -> n + Span.height span) 0 spans)
-    (Span.height combined);
+    (List.fold_left (fun n span -> n + View.height span) 0 spans)
+    (View.height combined);
   let expected =
-    List.filter (fun span -> Span.height span > 0) spans
-    |> List.map Span.to_string |> String.concat "\n"
+    List.filter (fun span -> View.height span > 0) spans
+    |> List.map View.to_string |> String.concat "\n"
   in
-  check_eq ~pp:Fmt.Dump.string expected (Span.to_string combined)
+  check_eq ~pp:Fmt.Dump.string expected (View.to_string combined)
 
 let suite =
   ( "span",
@@ -411,7 +414,7 @@ let suite =
         [ bytes; uint8 ] test_linked_unicode_cuts;
       test_case "multiline styles reset before LF" [ bytes ]
         test_multiline_resets;
-      test_case "every span prints" [ bytes ] test_sanitized;
+      test_case "every view prints" [ bytes ] test_sanitized;
       test_case "width is subadditive" [ bytes; bytes ] test_width_subadditive;
       test_case "styles add no cell" [ bytes ] test_width_styles;
       test_case "truncate fits, keeps a prefix, ends with an ellipsis"

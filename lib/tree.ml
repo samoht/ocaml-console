@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = { guide : Guide.t option; label : Span.t; children : t list }
+type t = { guide : Guide.t option; label : View_core.t; children : t list }
 
 let v ?guide label children = { guide; label; children }
 
@@ -11,10 +11,10 @@ let v ?guide label children = { guide; label; children }
 let label_lines ~room label =
   List.concat_map
     (fun line ->
-      if room <= 0 then [ Span.empty ]
-      else if Span.width line <= room then [ line ]
-      else Span_core.wrap_hanging room line)
-    (Span_core.lines label)
+      if room <= 0 then [ View_core.empty ]
+      else if View_core.width line <= room then [ line ]
+      else View_core.wrap_hanging room line)
+    (View_core.lines label)
 
 let lines look ~margin t =
   let guide = Widget.guide look t.guide in
@@ -26,12 +26,12 @@ let lines look ~margin t =
   let rec go lasts node =
     let first = Widget.branch guide lasts
     and after = Widget.rails guide lasts in
-    let room = margin - Span.width (Span.text first) in
+    let room = margin - View_core.width (View_core.text first) in
     (match label_lines ~room node.label with
     | [] -> ()
     | l :: rest ->
-        emit Span.(styled style first ++ l);
-        List.iter (fun l -> emit Span.(styled style after ++ l)) rest);
+        emit View_core.(ink style first ++ l);
+        List.iter (fun l -> emit View_core.(ink style after ++ l)) rest);
     let n = List.length node.children in
     List.iteri (fun i child -> go ((i = n - 1) :: lasts) child) node.children
   in

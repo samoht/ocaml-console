@@ -70,7 +70,7 @@ let moving t =
   if Option.is_some t.depth then { look with elapsed = Some (since_start t) }
   else look
 
-let render t span = Span_core.render ~look:(moving t) ?depth:t.depth span
+let render t span = View_core.render ~look:(moving t) ?depth:t.depth span
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -108,12 +108,12 @@ let lines t ~look ~height view =
     match view with
     | None ->
         drop_first height
-          (List.map (Span_core.resolve look)
+          (List.map (View_core.resolve look)
              (Display_tree.default_lines t ~width:t.width ~height))
     | Some view -> (
         match view t ~width:t.width ~height with
-        | span when Span_core.is_empty span -> []
-        | span -> last height (Span_core.seamed (Span_core.resolve look span)))
+        | span when View_core.is_empty span -> []
+        | span -> last height (View_core.seamed (View_core.resolve look span)))
   in
   if is_live t then List.map (Widget.truncate look t.width) lines else lines
 
@@ -222,7 +222,7 @@ let draw buf t ~resized spans =
         lines
     end;
     t.frame <- lines;
-    t.frame_widths <- Array.of_list (List.map Span.width spans)
+    t.frame_widths <- Array.of_list (List.map View_core.width spans)
   end
 
 (* What a frame depends on: what the tasks were told, the tenth of a second

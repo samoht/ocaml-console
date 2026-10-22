@@ -32,10 +32,10 @@ let test_dos () =
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
   let table =
     Table.v
-      [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
-      [ [ Span.text "1"; Span.text "2" ] ]
+      [ Table.column (View.text "a"); Table.column (View.text "b") ]
+      [ [ View.text "1"; View.text "2" ] ]
   in
-  let tree = Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ] in
+  let tree = Tree.v (View.text "r") [ Tree.v (View.text "c") [] ] in
   Alcotest.(check string)
     "double-line frame, single-line inside"
     "\u{2554}\u{2550}\u{2550}\u{2550}\u{2564}\u{2550}\u{2550}\u{2550}\u{2557}\n\
@@ -49,7 +49,7 @@ let test_dos () =
     "\u{2554}\u{2550}\u{2550}\u{2550}\u{2557}\n\
      \u{2551} 1 \u{2551}\n\
      \u{255a}\u{2550}\u{2550}\u{2550}\u{255d}"
-    (printed ~theme:t Panel.pp (Panel.v (Span.text "1")));
+    (printed ~theme:t Panel.pp (Panel.v (View.text "1")));
   Alcotest.(check string)
     "single-line tree guides" "r\n\u{2514}\u{2500}\u{2500} c"
     (printed ~theme:t Tree.pp tree);
@@ -138,22 +138,22 @@ let test_widgets_read_it () =
       (contains default (printed pp v))
   in
   check "table" Table.pp
-    (Table.v [ Table.column (Span.text "a") ] [ [ Span.text "1" ] ])
+    (Table.v [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
     ~ascii:"+---+" ~default:"\u{256d}\u{2500}";
   check "panel" Panel.pp
-    (Panel.v (Span.text "1"))
+    (Panel.v (View.text "1"))
     ~ascii:"+---+" ~default:"\u{256d}\u{2500}";
   check "tree" Tree.pp
-    (Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ])
+    (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ])
     ~ascii:"+-- c" ~default:"\u{2514}\u{2500}\u{2500} c";
   let amber s =
-    Span.to_string ~styled:true
-      (Span.styled (Style.fg (Theme.accent Theme.dos)) s)
+    View.to_string ~styled:true
+      (View.styled (Style.fg (Theme.accent Theme.dos)) (View.text s))
   in
   Alcotest.(check string)
     "rule in the muted colour"
-    (Span.to_string ~styled:true
-       (Span.styled (Style.fg (Theme.muted Theme.dos)) "-----"))
+    (View.to_string ~styled:true
+       (View.styled (Style.fg (Theme.muted Theme.dos)) (View.text "-----")))
     (printed ~theme:Theme.dos ~styled:true ~margin:5 Rule.pp
        (Rule.v ~glyph:"-" ()));
   Alcotest.(check bool)
@@ -193,7 +193,8 @@ let test_display_palette () =
   List.iter
     (fun c ->
       let sgr =
-        Span.to_string ~styled:true (Span.styled (Style.fg c) "\u{2501}")
+        View.to_string ~styled:true
+          (View.styled (Style.fg c) (View.text "\u{2501}"))
       in
       let sgr = String.sub sgr 0 (String.index sgr 'm' + 1) ^ "\u{2501}" in
       Alcotest.(check bool)
@@ -244,7 +245,7 @@ let presets =
 (* Text a theme colours reads on its background at 4.5:1 or more, and a
    glyph it colours alone at 3:1 or more, as WCAG 2.1 asks of text and of
    graphics. The muted colour and the header's are text: counts, timers and
-   headings; so are the colours of the roles, which [Span.role] gives text,
+   headings; so are the colours of the roles, which [View.role] gives text,
    on a theme that names its background. A theme without one is read on
    black and on white alike, where 4.5:1 on both asks a luminance of 0.175
    to 0.183, which no amber of the 256-colour palette has: its roles are
@@ -305,7 +306,7 @@ let test_header () =
 
 (* The escape code that selects [style], as a span in it starts. *)
 let sgr style =
-  let s = Span.to_string ~styled:true (Span.styled style "x") in
+  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
   String.sub s 0 (String.index s 'x')
 
 (* Frames, guides, rules, the track of a bar and the counts and timers of a
@@ -321,15 +322,15 @@ let test_roles () =
   in
   let table =
     print Table.pp
-      (Table.v [ Table.column (Span.text "a") ] [ [ Span.text "1" ] ])
+      (Table.v [ Table.column (View.text "a") ] [ [ View.text "1" ] ])
   in
   check "table frame" (muted ^ "\u{256d}") table;
   check "table header" (header ^ "a") table;
-  let panel = print Panel.pp (Panel.v ~title:(Span.text "T") (Span.text "1")) in
+  let panel = print Panel.pp (Panel.v ~title:(View.text "T") (View.text "1")) in
   check "panel frame" (muted ^ "\u{256d}") panel;
   check "panel title" (header ^ "T") panel;
   check "tree guide" (muted ^ "\u{2514}")
-    (print Tree.pp (Tree.v (Span.text "r") [ Tree.v (Span.text "c") [] ]));
+    (print Tree.pp (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ]));
   check "rule" (muted ^ "\u{2500}") (print Rule.pp (Rule.v ()));
   check "bar track" muted (print Bar.pp (Bar.v ~width:4 0.5));
   let term = terminal ~theme:t ~styled:true ~summary:"Build" () in
@@ -416,7 +417,7 @@ let display_bytes theme =
 (* A formatter that is not UTF-8 gets ASCII alone from every widget, in
    every theme, a line cut to fit included. *)
 let test_ascii_fallback () =
-  let long = Span.text "a label much wider than the margin" in
+  let long = View.text "a label much wider than the margin" in
   let widgets theme =
     let print pp v = printed ~theme ~utf_8:false ~margin:12 pp v in
     [
@@ -424,10 +425,10 @@ let test_ascii_fallback () =
         print Table.pp
           (Table.v
              [
-               Table.column (Span.text "a");
-               Table.column ~overflow:`Truncate (Span.text "b");
+               Table.column (View.text "a");
+               Table.column ~overflow:`Truncate (View.text "b");
              ]
-             [ [ Span.text "1"; long ] ]) );
+             [ [ View.text "1"; long ] ]) );
       ("panel", print Panel.pp (Panel.v ~title:long long));
       ( "tree",
         print Tree.pp
@@ -492,10 +493,10 @@ let test_still () =
 let test_still_printed () =
   let table =
     Table.v
-      [ Table.column (Span.text "a"); Table.column (Span.text "b") ]
-      [ [ Span.text "1"; Span.text "2" ] ]
+      [ Table.column (View.text "a"); Table.column (View.text "b") ]
+      [ [ View.text "1"; View.text "2" ] ]
   in
-  let panel = Panel.v ~title:(Span.text "T") (Span.text "body") in
+  let panel = Panel.v ~title:(View.text "T") (View.text "body") in
   let colours s =
     let re =
       Re.compile
@@ -541,10 +542,10 @@ let frames theme times =
   let table =
     Table.v
       [
-        Table.column (Span.text "step");
-        Table.column ~align:`Right (Span.text "time");
+        Table.column (View.text "step");
+        Table.column ~align:`Right (View.text "time");
       ]
-      [ [ Span.text "fetch"; Span.text "1.2s" ] ]
+      [ [ View.text "fetch"; View.text "1.2s" ] ]
   in
   Display.set_view term.display (fun _ ~width ~height:_ ->
       Table.to_span ~width table);

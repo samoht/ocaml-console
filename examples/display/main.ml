@@ -16,31 +16,32 @@ open Console
 *)
 let src = Logs.Src.create "ocamlopt" ~doc:"The compiler's diagnostics"
 
-type step = { name : string; mutable status : Span.t; mutable detail : string }
+type step = { name : string; mutable status : View.t; mutable detail : string }
 
-let step name = { name; status = Span.text "waiting"; detail = "" }
+let step name = { name; status = View.text "waiting"; detail = "" }
 let steps = [ step "fetch"; step "compile"; step "test" ]
 
 let title =
-  Span.with_style Style.bold (Span.gradient "console, built step by step")
+  View.styled Style.bold
+    (View.gradient (View.text "console, built step by step"))
 
 let table () =
   Table.v ~rules:true
     [
-      Table.column (Span.text "Step");
-      Table.column ~min_width:7 (Span.text "Status");
-      Table.column ~min_width:19 (Span.text "Detail");
+      Table.column (View.text "Step");
+      Table.column ~min_width:7 (View.text "Status");
+      Table.column ~min_width:19 (View.text "Detail");
     ]
     (List.map
-       (fun s -> [ Span.text s.name; s.status; Span.text s.detail ])
+       (fun s -> [ View.text s.name; s.status; View.text s.detail ])
        steps)
 
 (* What a step's row of the table says, from start to end. *)
 let started name =
   let s = List.find (fun s -> String.equal s.name name) steps in
-  s.status <- Span.role `Accent "running";
+  s.status <- View.role `Accent (View.text "running");
   fun detail ->
-    s.status <- Span.with_style Style.bold (Span.role `Ok "done");
+    s.status <- View.styled Style.bold (View.role `Ok (View.text "done"));
     s.detail <- detail
 
 (* What a step's commands print shows under its row while it runs, and goes
@@ -88,7 +89,7 @@ let test clock display =
 (* The title and the table above the rows and the summary; they give way
    first when the rows need the room. *)
 let view display ~width ~height =
-  Span.vcat
+  View.vcat
     [
       title;
       Table.to_span ~width:(min width 100) (table ());

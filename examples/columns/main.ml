@@ -5,7 +5,7 @@
 
 (* Two builds side by side: a table of their status above, the tree of each
    build's steps in a column of its own, and the summary below, all put
-   together with Span.vcat and Span.hcat. With [~keep_ended:true] the steps that
+   together with View.vcat and View.hcat. With [~keep_ended:true] the steps that
    end stay in their column, and the last frame stays once the builds are
    done. On a terminal too narrow for two columns, the trees go one under the
    other. Pipe it through [cat] to see the lines a CI log gets. *)
@@ -34,16 +34,16 @@ let set_status b s = Hashtbl.replace status b.name s
 let table () =
   Table.v
     [
-      Table.column (Span.text "Build");
-      Table.column ~min_width:7 (Span.text "Status");
+      Table.column (View.text "Build");
+      Table.column ~min_width:7 (View.text "Status");
     ]
     (List.map
        (fun b ->
          [
-           Span.text b.name;
+           View.text b.name;
            Option.value
              (Hashtbl.find_opt status b.name)
-             ~default:(Span.text "waiting");
+             ~default:(View.text "waiting");
          ])
        builds)
 
@@ -57,18 +57,18 @@ let view display ~width ~height =
   let trees =
     match Display.(children (root display)) with
     | [ a; b ] when half >= 30 ->
-        Span.hcat
+        View.hcat
           [
             Display.tree ~width:half ~height a;
             Display.tree ~width:half ~height b;
           ]
     | _ -> Display.tree ~height (Display.root display)
   in
-  Span.vcat
+  View.vcat
     [ Table.to_span ~width:room (table ()); trees; Display.summary display ]
 
 let run clock display b =
-  set_status b (Span.role `Accent "running");
+  set_status b (View.role `Accent (View.text "running"));
   Display.with_task display b.name (fun _ ->
       List.iter
         (fun (step, total) ->
@@ -78,7 +78,7 @@ let run clock display b =
                 Display.set_count task ~cur ~total
               done))
         b.steps);
-  set_status b (Span.role `Ok "done")
+  set_status b (View.role `Ok (View.text "done"))
 
 let () =
   Console_tty.setup ();

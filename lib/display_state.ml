@@ -62,7 +62,7 @@ type t = {
   mutable failed : int;
   mutable cancelled : int;
   mutable result : ((string, string) result * string list) option;
-  mutable view : (t -> width:int -> height:int -> Span_core.t) option;
+  mutable view : (t -> width:int -> height:int -> View_core.t) option;
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;

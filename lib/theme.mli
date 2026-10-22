@@ -15,7 +15,7 @@
     A formatter has one theme ({!set}), and every widget printed on it is drawn
     in that theme, with ASCII glyphs alone when the formatter is not
     {!Fmt.utf_8}. Text takes a colour of the theme, such as that of a success,
-    with {!Span.role}.
+    with {!View.role}.
 
     The predefined themes suit different terminals:
     - {!default} reads on any background at 256 colours or more, which makes it
@@ -40,7 +40,7 @@ type role =
   | `Fail  (** The colour of a failure, {!fail}. *)
   | `Muted  (** The colour of what frames and annotates, {!muted}. *)
   | `Header  (** The style of headers, {!header}. *) ]
-(** The type for the parts of a theme that style text. A {!Span.role} takes one
+(** The type for the parts of a theme that style text. A {!View.role} takes one
     from the theme of the formatter that prints it. *)
 
 type mark =
@@ -333,7 +333,7 @@ val pp : t Fmt.t
     it has ({!Color.val-depth}). Contrast is measured as WCAG 2.1 measures it,
     against the theme's {!background}, and in every predefined theme:
     - the colours of text are at 4.5:1 or more, that is the {!muted} colour,
-      that of the {!header}, and the colours {!Span.role} gives text (the main
+      that of the {!header}, and the colours {!View.role} gives text (the main
       colour and the colours of a success, a warning and a failure);
     - the colours of the progress rows are at 3:1 or more.
 

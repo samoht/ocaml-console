@@ -6,8 +6,8 @@
 type overflow = [ `Wrap | `Truncate ]
 
 type column = {
-  header : Span.t;
-  align : Span.align;
+  header : View_core.t;
+  align : View_core.align;
   min_width : int option;
   max_width : int option;
   overflow : overflow;
@@ -27,8 +27,8 @@ type drawn = {
   header_style : Style.t;
   rules : bool;
   columns : column array;
-  headers : Span.t list array;
-  rows : Span.t list array list;
+  headers : View_core.t list array;
+  rows : View_core.t list array list;
 }
 
 (* A table is drawn in the look of the formatter it is printed on. *)
@@ -65,11 +65,11 @@ let v ?border ?header_style ?(rules = false) columns rows =
         if got > expected || (got = 0 && expected > 0) then
           Fmt.invalid_arg "Console.Table.v: expected 1 to %d cells, got %d"
             expected got;
-        Array.of_list (List.map Span_core.lines cells))
+        Array.of_list (List.map View_core.lines cells))
       rows
   in
   let columns = Array.of_list columns in
-  let headers = Array.map (fun c -> Span_core.lines c.header) columns in
+  let headers = Array.map (fun c -> View_core.lines c.header) columns in
   fun look ->
     let border = Widget.border look border in
     let header_style =
@@ -108,12 +108,12 @@ let ( +| ) a b = if a > max_int - b then max_int else a + b
 let rendered_width t widths =
   Array.fold_left ( +| ) (overhead t (Array.length widths)) widths
 
-let lines_width = List.fold_left (fun n l -> max n (Span.width l)) 0
+let lines_width = List.fold_left (fun n l -> max n (View_core.width l)) 0
 
 (* The widest word of a cell: the width a column keeps while another column
    can still give room, so that an identifier stays whole. *)
 let word_width lines =
-  List.fold_left (fun n line -> max n (Span_core.widest_word line)) 0 lines
+  List.fold_left (fun n line -> max n (View_core.widest_word line)) 0 lines
 
 (* A short row's last cell spans the columns it leaves and is measured
    against none of them. *)
@@ -188,7 +188,7 @@ let rule t widths ~left ~mid ~right ~line =
   if line = "" then []
   else if not (edged t) then
     [
-      Span.styled (Border.style t.border)
+      View_core.ink (Border.style t.border)
         (Widget.fill (rendered_width t widths) line);
     ]
   else
@@ -204,12 +204,12 @@ let rule t widths ~left ~mid ~right ~line =
     in
     let left = Widget.pad_glyph t.frame.left left
     and right = Widget.pad_glyph t.frame.right right in
-    [ Span.styled style (String.concat "" ((left :: parts) @ [ right ])) ]
+    [ View_core.ink style (String.concat "" ((left :: parts) @ [ right ])) ]
 
 let pad = Widget.pad
 
 let align_span ~pad_right align target span =
-  let padding = target - Span.width span in
+  let padding = target - View_core.width span in
   if padding <= 0 then span
   else
     let left, right =
@@ -218,17 +218,17 @@ let align_span ~pad_right align target span =
       | `Right -> (padding, 0)
       | `Center -> (padding / 2, padding - (padding / 2))
     in
-    Span.(pad left ++ span ++ if pad_right then pad right else empty)
+    View_core.(pad left ++ span ++ if pad_right then pad right else empty)
 
 (* The physical lines of a cell in [width] cells; [None] is a cell nothing
    bounds, the last of a line without edges and no width. *)
 let fit t overflow width lines =
   match width with
   | None -> lines
-  | Some width when width <= 0 -> [ Span.empty ]
+  | Some width when width <= 0 -> [ View_core.empty ]
   | Some width -> (
       match overflow with
-      | `Wrap -> List.concat_map (Span.wrap width) lines
+      | `Wrap -> List.concat_map (View_core.wrap width) lines
       | `Truncate -> List.map (Widget.truncate t.look width) lines)
 
 (* The width each cell of [row] fills. A short row's last cell fills the
@@ -251,8 +251,8 @@ let slot_width ?max_width t widths row i =
     done;
     Option.map (fun w -> max 0 (w - !before)) max_width
 
-let at lines k = if k < Array.length lines then lines.(k) else Span.empty
-let edge t s = Span.styled (Border.style t.border) s
+let at lines k = if k < Array.length lines then lines.(k) else View_core.empty
+let edge t s = View_core.ink (Border.style t.border) s
 
 (* Line [k] of a row of [(column, width, lines)] cells in [style]. *)
 let edged_line t style cells k =
@@ -261,9 +261,9 @@ let edged_line t style cells k =
     Array.to_list
       (Array.mapi
          (fun i (col, w, ls) ->
-           Span.(
+           View_core.(
              text " "
-             ++ with_style
+             ++ styled
                   Style.(style + col.style)
                   (align_span ~pad_right:true col.align w (at ls k))
              ++ text " "
@@ -273,7 +273,7 @@ let edged_line t style cells k =
              else empty))
          cells)
   in
-  Span.concat
+  View_core.concat
     ((edge t (Widget.pad_glyph t.frame.left chars.left) :: parts)
     @ [ edge t (Widget.pad_glyph t.frame.right chars.right) ])
 
@@ -281,18 +281,18 @@ let edged_line t style cells k =
 let bare_line style cells k =
   let shown = ref 0 in
   Array.iteri
-    (fun i (_, _, lines) -> if Span.width (at lines k) > 0 then shown := i)
+    (fun i (_, _, lines) -> if View_core.width (at lines k) > 0 then shown := i)
     cells;
   let parts =
     List.filteri (fun i _ -> i <= !shown) (Array.to_list cells)
     |> List.mapi (fun i (col, w, ls) ->
-        Span.(
+        View_core.(
           (if i > 0 then text "  " else empty)
-          ++ with_style
+          ++ styled
                Style.(style + col.style)
                (align_span ~pad_right:(i < !shown) col.align w (at ls k))))
   in
-  Span.concat parts
+  View_core.concat parts
 
 let row_lines ?max_width t widths style row =
   let cells =
@@ -359,9 +359,9 @@ let to_span ?width t =
     ?width t
 
 let pp ppf t =
-  Span_core.pp_lines ppf
+  View_core.pp_lines ppf
     (lines ~max_width:(Format.pp_get_margin ppf ()) (t (Widget.look ppf)))
 
 let to_string ?styled ?width t =
-  Span_core.string_of_lines ?styled
+  View_core.string_of_lines ?styled
     (lines ?max_width:width (t Widget.default_look))

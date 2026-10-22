@@ -6,11 +6,11 @@
 type drawn = {
   look : Widget.look;
   border : Border.t;
-  title : Span.t option;
-  subtitle : Span.t option;
+  title : View_core.t option;
+  subtitle : View_core.t option;
   padding : int;
   width : int option;
-  lines : Span.t list;
+  lines : View_core.t list;
 }
 
 (* A panel is drawn in the look of the formatter it is printed on. *)
@@ -46,16 +46,16 @@ let v ?border ?title ?subtitle ?(padding = 1) ?width content =
     invalid_arg "Console.Panel.v: padding too large";
   let title = Option.map Widget.one_line title
   and subtitle = Option.map Widget.one_line subtitle in
-  let lines = Span_core.lines content in
+  let lines = View_core.lines content in
   fun look ->
     let border = Widget.border look border in
-    let title = Option.map (Span.with_style (Theme.header look.theme)) title in
+    let title = Option.map (View_core.styled (Theme.header look.theme)) title in
     { look; border; title; subtitle; padding; width; lines }
 
 let natural_width panel =
-  let label = function Some span -> Span.width span + 2 | None -> 0 in
+  let label = function Some span -> View_core.width span + 2 | None -> 0 in
   List.fold_left
-    (fun acc line -> max acc (Span.width line))
+    (fun acc line -> max acc (View_core.width line))
     (max (label panel.title) (label panel.subtitle) - (2 * panel.padding))
     panel.lines
 
@@ -74,13 +74,13 @@ let content_width ~margin panel =
    words, hanging under the text after its first word; a box of fixed width
    cuts it instead. *)
 let fitted_lines panel cw =
-  if cw <= 0 then List.map (fun _ -> Span.empty) panel.lines
+  if cw <= 0 then List.map (fun _ -> View_core.empty) panel.lines
   else
     List.concat_map
       (fun line ->
-        if Span.width line <= cw then [ line ]
+        if View_core.width line <= cw then [ line ]
         else if panel.width <> None then [ Widget.truncate panel.look cw line ]
-        else Span_core.wrap_hanging cw line)
+        else View_core.wrap_hanging cw line)
       panel.lines
 
 let pad = Widget.pad
@@ -88,20 +88,20 @@ let pad = Widget.pad
 (* A top or bottom edge, [label] centred in it, and the cells the label and
    the spaces around it take. *)
 let edge look style ~left ~mid ~right inner label =
-  let draw n = Span.styled style (Widget.fill n mid) in
+  let draw n = View_core.ink style (Widget.fill n mid) in
   let middle, gap =
     match label with
     | Some label when inner >= 3 ->
         let label = Widget.truncate look (inner - 2) label in
-        let w = Span.width label in
+        let w = View_core.width label in
         let l = (inner - w - 2) / 2 in
         let at = Widget.cells left + l in
-        ( Span.(
+        ( View_core.(
             draw l ++ text " " ++ label ++ text " " ++ draw (inner - w - 2 - l)),
           Some (at, at + w + 2) )
     | _ -> (draw inner, None)
   in
-  (Span.(styled style left ++ middle ++ styled style right), gap)
+  (View_core.(ink style left ++ middle ++ ink style right), gap)
 
 (* A frame that fits the margin and has its two edges moves; one cut to a
    margin too narrow for the border still bounds every line. *)
@@ -150,11 +150,11 @@ let lines ~margin panel =
   let body =
     List.map
       (fun line ->
-        Span.(
-          styled style (l chars.left)
+        View_core.(
+          ink style (l chars.left)
           ++ pad panel.padding ++ line
           ++ pad (cw - width line + panel.padding)
-          ++ styled style (r chars.right)))
+          ++ ink style (r chars.right)))
       (fitted_lines panel cw)
   in
   let width = lw + inner + rw in

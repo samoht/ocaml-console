@@ -66,8 +66,8 @@ let check_closed raw =
 let test_fits s n m =
   let margin = 1 + (abs m mod 80) in
   let width = 4 + (abs n mod 40) in
-  let content = Span.text (pick s 0 ^ "\n" ^ pick s 1) in
-  let title = Span.text (pick s 2) in
+  let content = View.text (pick s 0 ^ "\n" ^ pick s 1) in
+  let title = View.text (pick s 2) in
   List.iter
     (fun p ->
       let raw, lines = render Panel.pp margin p in
@@ -79,7 +79,7 @@ let test_fits s n m =
     List.iter (fun l -> check_eq ~pp:Fmt.int width (cells l)) lines
 
 let test_refused n =
-  match Panel.v ~padding:(n mod 3) ~width:(n mod 7) Span.empty with
+  match Panel.v ~padding:(n mod 3) ~width:(n mod 7) View.empty with
   | _ -> if n mod 3 < 0 || n mod 7 < 2 + (2 * (n mod 3)) then fail "accepted"
   | exception Invalid_argument _ -> ()
 
@@ -107,7 +107,7 @@ let test_wide_border n =
         }
   in
   let width = 20 in
-  let out = Panel.to_string (Panel.v ~border ~width (Span.text "x")) in
+  let out = Panel.to_string (Panel.v ~border ~width (View.text "x")) in
   List.iter
     (fun l -> check_eq ~pp:Fmt.int width (cells l))
     (String.split_on_char '\n' out)
@@ -117,7 +117,7 @@ let test_wide_border n =
 let test_overflowing_padding n fixed =
   let padding = max_int - (n mod 1024) in
   let width = if fixed then Some (4 + (n mod 77)) else None in
-  match Panel.v ~padding ?width Span.empty with
+  match Panel.v ~padding ?width View.empty with
   | _ -> failf "accepted padding %d" padding
   | exception Invalid_argument _ -> ()
 

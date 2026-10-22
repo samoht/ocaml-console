@@ -16,7 +16,7 @@ let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 (* [above top] is the view of [top] above the default view, which gives way
    first when they do not fit. *)
 let above top d ~width ~height =
-  Span.vcat [ top; Display.default_view d ~width ~height ]
+  View.vcat [ top; Display.default_view d ~width ~height ]
 
 (* {1 Without a terminal} *)
 
@@ -235,7 +235,7 @@ let test_tall_header () =
   let t = terminal ~width:40 ~height:8 ~summary:"S" () in
   let d = t.display in
   let rows =
-    Span.vcat (List.init 20 (fun i -> Span.text (Fmt.str "row %d" i)))
+    View.vcat (List.init 20 (fun i -> View.text (Fmt.str "row %d" i)))
   in
   Display.set_view d (above rows);
   let a = Display.task d "a" in
@@ -339,7 +339,7 @@ let test_alignment () =
       else find (i + 1)
     in
     let byte = find 0 in
-    Span.width (Span.text (String.sub row 0 byte))
+    View.width (View.text (String.sub row 0 byte))
   in
   Alcotest.(check (list int))
     "counts end in one column" [ 32; 32; 32 ]
@@ -357,7 +357,7 @@ let test_label_truncated () =
   Display.redraw t.display;
   let row = List.nth (screen t) 0 in
   Alcotest.(check bool) "ellipsis" true (contains "\xe2\x80\xa6" row);
-  Alcotest.(check bool) "fits" true (Span.width (Span.text row) <= 20)
+  Alcotest.(check bool) "fits" true (View.width (View.text row) <= 20)
 
 (* More running tasks than rows: the latest show, after a line that counts
    the others, and the summary stays last. No redraw scrolls the terminal. *)
@@ -509,7 +509,7 @@ let test_height_changes () =
   Display.redraw t.display;
   Alcotest.(check bool)
     "no line wider than the terminal" true
-    (List.for_all (fun r -> Span.width (Span.text r) <= 30) (screen t));
+    (List.for_all (fun r -> View.width (View.text r) <= 30) (screen t));
   List.iter Display.succeed tasks;
   Display.close t.display
 
@@ -711,7 +711,7 @@ let test_closed () =
       Display.cancel task)
     [ running; late ];
   Display.redraw d;
-  Display.set_view d (fun _ ~width:_ ~height:_ -> Span.text "view");
+  Display.set_view d (fun _ ~width:_ ~height:_ -> View.text "view");
   Display.set_result d (Ok "late");
   Alcotest.(check string) "nothing written" before (written t);
   Alcotest.(check int)
@@ -1133,12 +1133,12 @@ let test_iter () =
 let steps =
   Table.v
     [
-      Table.column (Span.text "step");
-      Table.column ~align:`Right (Span.text "time");
+      Table.column (View.text "step");
+      Table.column ~align:`Right (View.text "time");
     ]
     [
-      [ Span.text "fetch"; Span.text "1.2s" ];
-      [ Span.text "compile"; Span.text "3.4s" ];
+      [ View.text "fetch"; View.text "1.2s" ];
+      [ View.text "compile"; View.text "3.4s" ];
     ]
 
 (* [pp v] printed on a formatter in [theme], at [margin]. *)
@@ -1178,9 +1178,9 @@ let test_view () =
    room loses its first lines, so that the summary at its bottom stays. *)
 let test_view_fits () =
   let t = terminal ~theme ~width:20 ~height:6 ~summary:"Build" () in
-  let tall = Span.text "a view line much wider than twenty\nb\nc\nd\ne\nf" in
+  let tall = View.text "a view line much wider than twenty\nb\nc\nd\ne\nf" in
   Display.set_view t.display (fun d ~width ~height:_ ->
-      Span.vcat [ tall; Display.default_view d ~width ~height:2 ]);
+      View.vcat [ tall; Display.default_view d ~width ~height:2 ]);
   ignore (Display.task t.display "compile");
   Display.redraw t.display;
   let rows = screen t in
@@ -1192,7 +1192,7 @@ let test_view_fits () =
     (contains "[-] Build" (List.nth rows 4));
   Alcotest.(check int) "within the screen less one" 5 (List.length rows);
   Display.set_view t.display (fun _ ~width:_ ~height:_ ->
-      Span.text "a view line much wider than twenty\nb");
+      View.text "a view line much wider than twenty\nb");
   check_lines "cut to the width"
     [ "a view line much wi\u{2026}"; "b" ]
     (screen t);
@@ -1205,7 +1205,7 @@ let test_view_short () =
   let t = terminal ~theme ~width:40 ~height:6 ~summary:"Build" () in
   let table = Table.to_span ~width:30 steps in
   Display.set_view t.display (fun d ~width ~height:_ ->
-      Span.vcat [ table; Display.default_view d ~width ~height:2 ]);
+      View.vcat [ table; Display.default_view d ~width ~height:2 ]);
   ignore (Display.task t.display "compile");
   Display.redraw t.display;
   let rows = screen t in
@@ -1214,11 +1214,11 @@ let test_view_short () =
     "nothing of the table" false
     (List.exists (fun r -> contains "+-" r || contains "s |" r) rows);
   Display.set_view t.display (fun d ~width ~height:_ ->
-      Span.vcat
+      View.vcat
         [
-          Span.text "a\nb\nc";
-          Span.hcat [ table; Span.text "x" ];
-          Span.text "d\ne";
+          View.text "a\nb\nc";
+          View.hcat [ table; View.text "x" ];
+          View.text "d\ne";
           Display.default_view d ~width ~height:2;
         ]);
   check_lines "past the table, the text" [ "d"; "e" ]
@@ -1242,17 +1242,17 @@ let test_view_width () =
    view puts them in a column narrower than the terminal. *)
 let test_default_view_column () =
   let t = terminal ~theme ~width:120 ~height:12 ~summary:"Building" () in
-  let panel = Panel.to_span ~width:30 (Panel.v (Span.text "status")) in
+  let panel = Panel.to_span ~width:30 (Panel.v (View.text "status")) in
   Display.set_view t.display (fun d ~width ~height ->
-      Span.hcat [ Display.default_view d ~width:(width - 32) ~height; panel ]);
+      View.hcat [ Display.default_view d ~width:(width - 32) ~height; panel ]);
   let step = Display.task t.display "compile" in
   Display.set_count step ~cur:1 ~total:2;
   Display.redraw t.display;
   let view = Display.default_view t.display ~width:30 ~height:10 in
-  Alcotest.(check bool) "the view in 30 cells" true (Span.width view <= 30);
+  Alcotest.(check bool) "the view in 30 cells" true (View.width view <= 30);
   Alcotest.(check bool)
     "the summary in 12" true
-    (Span.width (Display.summary ~width:12 t.display) <= 12);
+    (View.width (Display.summary ~width:12 t.display) <= 12);
   Alcotest.(check bool)
     "the panel on the screen" true
     (List.for_all (fun r -> Width.string_width r <= 120) (screen t)
@@ -1262,16 +1262,16 @@ let test_default_view_column () =
 (* Widgets side by side make a view, each at the width it is given. *)
 let test_view_hcat () =
   let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
-  let panel = Panel.v (Span.text "status") in
+  let panel = Panel.v (View.text "status") in
   let side width =
     let half = (width - 2) / 2 in
-    Span.hcat
+    View.hcat
       [ Table.to_span ~width:half steps; Panel.to_span ~width:half panel ]
   in
   Display.set_view t.display (fun d ~width ~height ->
       above (side width) d ~width ~height);
   Display.redraw t.display;
-  let want = printed ~margin:40 Span.pp (side 40) in
+  let want = printed ~margin:40 View.pp (side 40) in
   let rows = screen t in
   check_lines "side by side" want
     (List.filteri (fun i _ -> i < List.length want) rows);
@@ -1283,9 +1283,9 @@ let test_view_hcat () =
    display closes. *)
 let test_view_replaced () =
   let t = terminal ~theme ~width:30 () in
-  Display.set_view t.display (fun _ ~width:_ ~height:_ -> Span.text "first");
+  Display.set_view t.display (fun _ ~width:_ ~height:_ -> View.text "first");
   Display.redraw t.display;
-  Display.set_view t.display (fun _ ~width:_ ~height:_ -> Span.text "second");
+  Display.set_view t.display (fun _ ~width:_ ~height:_ -> View.text "second");
   check_lines "the second view, at once" [ "second" ] (screen t);
   Display.close t.display;
   check_lines "its last frame stays" [ "second" ] (lines t)
@@ -1296,7 +1296,7 @@ let test_view_plain () =
   let (), out =
     plain ~theme ~summary:"Build" (fun d _ ->
         Display.set_view d (fun d ~width ~height ->
-            above (Span.text "TOP") d ~width ~height);
+            above (View.text "TOP") d ~width ~height);
         Display.succeed (Display.task d "compile"))
   in
   check_lines "the last frame, at the end"
@@ -1384,12 +1384,12 @@ let test_simple_view_stands_still () =
   let simple =
     Table.v ~border:Border.simple
       [
-        Table.column (Span.text "step");
-        Table.column ~align:`Right (Span.text "time");
+        Table.column (View.text "step");
+        Table.column ~align:`Right (View.text "time");
       ]
       [
-        [ Span.text "fetch"; Span.text "1.2s" ];
-        [ Span.text "compile"; Span.text "3.4s" ];
+        [ View.text "fetch"; View.text "1.2s" ];
+        [ View.text "compile"; View.text "3.4s" ];
       ]
   in
   List.iter
@@ -1466,7 +1466,7 @@ let test_label_before_bar_hcat () =
     let half = (min width 100 - 2) / 2 in
     match Display.(children (root d)) with
     | [ a; b ] ->
-        Span.hcat
+        View.hcat
           [
             Display.tree ~width:half ~height a;
             Display.tree ~width:half ~height b;
@@ -1684,7 +1684,7 @@ let test_label_not_cut_for_an_empty_count () =
   let leaf = nest (Display.root d) 8 in
   Display.set_count leaf ~cur:1 ~total:4;
   let tree =
-    Span.to_string (Display.tree ~width:40 ~height:30 (Display.root d))
+    View.to_string (Display.tree ~width:40 ~height:30 (Display.root d))
   in
   Alcotest.(check bool)
     ("level-5-label whole in\n" ^ tree)
@@ -1793,14 +1793,14 @@ let region_stands_still ~width ~bars =
   let table () =
     Table.v
       [
-        Table.column (Span.text "Build");
-        Table.column ~min_width:7 (Span.text "Status");
+        Table.column (View.text "Build");
+        Table.column ~min_width:7 (View.text "Status");
       ]
       (List.map
          (fun b ->
            [
-             Span.text b;
-             Span.text
+             View.text b;
+             View.text
                (Option.value (Hashtbl.find_opt status b) ~default:"waiting");
            ])
          [ "linux"; "macos" ])
@@ -1808,10 +1808,10 @@ let region_stands_still ~width ~bars =
   let view d ~width ~height =
     match Display.(children (root d)) with
     | [ a; b ] ->
-        Span.vcat
+        View.vcat
           [
             Table.to_span ~width (table ());
-            Span.hcat
+            View.hcat
               [
                 Display.tree ~width:((width - 2) / 2) ~height a;
                 Display.tree ~width:((width - 2) / 2) ~height b;

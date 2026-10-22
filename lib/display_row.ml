@@ -5,18 +5,18 @@
 
 open Display_state
 
-let text = Span.text
+let text = View_core.text
 let pad = Widget.pad
 
 let pad_left n span =
-  let w = Span.width span in
-  if w >= n then span else Span.(pad (n - w) ++ span)
+  let w = View_core.width span in
+  if w >= n then span else View_core.(pad (n - w) ++ span)
 
 (* The display is drawn in the look of its formatter. *)
 let look t = Widget.look t.ppf
 let theme t = (look t).theme
 let cut t w s = Widget.truncate (look t) w s
-let muted t s = Span.styled (Widget.muted (look t)) s
+let muted t s = View_core.ink (Widget.muted (look t)) s
 
 (* Successive rows take the colours of the theme's palette in turn. *)
 let color r =
@@ -32,7 +32,7 @@ let mark_style t (m : Theme.mark) =
   | `Running -> Style.(bold + fg (Theme.accent theme))
   | `Info | `Debug -> Widget.muted (look t)
 
-let mark t m = Span.styled (mark_style t m) (Widget.mark (look t) m)
+let mark t m = View_core.ink (mark_style t m) (Widget.mark (look t) m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
 
 (* {1 Guides} *)
@@ -47,7 +47,7 @@ let prefix t lasts =
   match nested lasts with [] -> "" | l -> "  " ^ Widget.branch (guide t) l
 
 let continuation t lasts = "  " ^ Widget.rails (guide t) (nested lasts)
-let guided t s = Span.styled (Guide.style (guide t)) s
+let guided t s = View_core.ink (Guide.style (guide t)) s
 
 (* {1 Live rows} *)
 
@@ -70,8 +70,8 @@ let bar t r width =
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
-      Span_core.resolve (look t) (Bar.to_span (Bar.v ~width f))
-  | _ -> Span.empty
+      View_core.resolve (look t) (Bar.to_span (Bar.v ~width f))
+  | _ -> View_core.empty
 
 let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))
 
@@ -79,7 +79,7 @@ let count_cell t r = pad_left t.count_cell (muted t (count_text r.metric))
    column shared with the other rows. *)
 let compact_count t r =
   match r.metric with
-  | Spin -> Span.empty
+  | Spin -> View_core.empty
   | Count _ -> muted t (count_text r.metric)
   | Bytes (cur, total) ->
       muted t
@@ -91,18 +91,18 @@ let timer t d =
 let piece t r ~time (p : Display_layout.piece) =
   match p with
   | Spinner ->
-      Span.styled (Style.fg (color r)) (Widget.spinner (look t) ~elapsed:time)
-  | Label | Spacer -> Span.empty
+      View_core.ink (Style.fg (color r)) (Widget.spinner (look t) ~elapsed:time)
+  | Label | Spacer -> View_core.empty
   | Bar n -> bar t r n
   | Percent -> (
       match percent r.metric with
       | Some p -> Fmt.kstr (muted t) "%3d%%" p
-      | None -> Span.empty)
+      | None -> View_core.empty)
   | Count -> count_cell t r
   | Rate -> pad_left t.rate_cell (muted t (rate_text r.metric r.rate))
   | Elapsed -> timer t (elapsed r)
   | Text s -> text s
-  | Accent s -> Span.styled Style.(bold + fg (color r)) s
+  | Accent s -> View_core.ink Style.(bold + fg (color r)) s
 
 (* {2 What gives way}
 
@@ -159,8 +159,8 @@ let live t ~width ~lasts r =
   let layout = Display_layout.pieces t.layout in
   let prefix = prefix t lasts in
   let has p = List.mem p layout in
-  let label = Span.styled Style.bold r.label in
-  let want = if has Display_layout.Label then Span.width label else 0 in
+  let label = View_core.ink Style.bold r.label in
+  let want = if has Display_layout.Label then View_core.width label else 0 in
   let reserve = if has Display_layout.Spacer then 1 else 0 in
   let at stage =
     let pieces =
@@ -174,8 +174,8 @@ let live t ~width ~lasts r =
         (left stage layout)
     in
     let fixed =
-      Span.width (Span.text prefix)
-      + List.fold_left (fun n (_, s) -> n + Span.width s) 0 pieces
+      View_core.width (View_core.text prefix)
+      + List.fold_left (fun n (_, s) -> n + View_core.width s) 0 pieces
     in
     (pieces, fixed)
   in
@@ -187,13 +187,13 @@ let live t ~width ~lasts r =
   let pieces, fixed = fit 0 in
   let room = width - fixed - reserve in
   let label =
-    if want = 0 && not (has Display_layout.Label) then Span.empty
-    else if Span.width label <= room then label
+    if want = 0 && not (has Display_layout.Label) then View_core.empty
+    else if View_core.width label <= room then label
     else cut t room label
   in
-  let slack = max reserve (width - fixed - Span.width label) in
+  let slack = max reserve (width - fixed - View_core.width label) in
   let line =
-    Span.concat
+    View_core.concat
       (guided t prefix
       :: List.map
            (fun ((p : Display_layout.piece), s) ->
@@ -203,24 +203,26 @@ let live t ~width ~lasts r =
   cut t width line
 
 let gap_suffix t gap =
-  if gap >= 1. then muted t ("  +" ^ Display_text.duration gap) else Span.empty
+  if gap >= 1. then muted t ("  +" ^ Display_text.duration gap)
+  else View_core.empty
 
 (* A task's output after the mark of its kind; a Logs message after the
    mark of its level, none for an application or an information message. *)
 let lead_mark t = function
-  | Output -> Span.(mark t `Info ++ text " ")
-  | Logs (`App | `Info) -> Span.empty
+  | Output -> View_core.(mark t `Info ++ text " ")
+  | Logs (`App | `Info) -> View_core.empty
   | Logs ((`Warning | `Error | `Debug) as l) ->
-      Span.(mark t (l :> Theme.mark) ++ text " ")
+      View_core.(mark t (l :> Theme.mark) ++ text " ")
 
-let body t (line : line) = Span.(text line.text ++ gap_suffix t line.gap)
+let body t (line : line) = View_core.(text line.text ++ gap_suffix t line.gap)
 
 let tail t ~width ~lasts r =
   let prefix = guided t (continuation t lasts) in
   Queue.fold
     (fun acc line ->
       ( line.seq,
-        cut t width Span.(prefix ++ lead_mark t line.kind ++ body t line) )
+        cut t width View_core.(prefix ++ lead_mark t line.kind ++ body t line)
+      )
       :: acc)
     [] r.window
   |> List.rev
@@ -235,12 +237,13 @@ let mark_of t r =
 (* [lead], then the lines of [body] broken to [width], each after the
    first under its start. *)
 let hanging t ~width lead body =
-  let w = Span.width lead in
+  let w = View_core.width lead in
   (* Only a terminal narrower than the lead cuts a line. *)
   List.map (cut t width)
-    (match Span.wrap (max 1 (width - w)) body with
+    (match View_core.wrap (max 1 (width - w)) body with
     | first :: rest ->
-        Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
+        View_core.(lead ++ first)
+        :: List.map (fun l -> View_core.(pad w ++ l)) rest
     | [] -> [ lead ])
 
 (* The count and the timer of a task that ended, at a stage of what gives
@@ -255,22 +258,22 @@ let meta t r stage =
     if stage = 0 then if t.count_cell = 0 then None else Some (count_cell t r)
     else
       let c = compact_count t r in
-      if Span_core.is_empty c then None else Some c
+      if View_core.is_empty c then None else Some c
   in
   match (stage, count) with
   | (0 | 1), None -> timer
-  | (0 | 1), Some c -> Span.(c ++ text "  " ++ timer)
-  | _, None -> Span.empty
+  | (0 | 1), Some c -> View_core.(c ++ text "  " ++ timer)
+  | _, None -> View_core.empty
   | _, Some c -> c
 
 let meta_stages = 2
 
 (* [line] and [meta] against the right edge, two cells apart at least. *)
 let against t ~width line meta =
-  if Span_core.is_empty meta then cut t width line
+  if View_core.is_empty meta then cut t width line
   else
-    let gap = width - Span.width line - Span.width meta in
-    cut t width Span.(line ++ pad gap ++ meta)
+    let gap = width - View_core.width line - View_core.width meta in
+    cut t width View_core.(line ++ pad gap ++ meta)
 
 (* A label is never wrapped in fewer cells than it keeps when it is cut. *)
 let narrowest = 12
@@ -282,44 +285,47 @@ let narrowest = 12
    cut: it goes on over the lines below, at the full width left, and the
    count and the timer go at the end of its last line, or give way. *)
 let ended t ~width ~lasts ~whole r =
-  let lead = Span.(guided t (prefix t lasts) ++ mark_of t r ++ text " ") in
-  let lead_w = Span.width lead in
+  let lead = View_core.(guided t (prefix t lasts) ++ mark_of t r ++ text " ") in
+  let lead_w = View_core.width lead in
   let label = text (label_of r) in
-  let label_w = Span.width label in
+  let label_w = View_core.width label in
   let room m =
-    width - lead_w - if Span_core.is_empty m then 0 else Span.width m + 2
+    width - lead_w - if View_core.is_empty m then 0 else View_core.width m + 2
   in
   let full = meta t r 0 in
-  if room full >= label_w then [ against t ~width Span.(lead ++ label) full ]
+  if room full >= label_w then
+    [ against t ~width View_core.(lead ++ label) full ]
   else if not whole then
     let rec fit stage =
       let m = meta t r stage in
       if room m >= label_w || stage = meta_stages then m else fit (stage + 1)
     in
     let m = fit 0 in
-    [ against t ~width Span.(lead ++ cut t (room m) label) m ]
+    [ against t ~width View_core.(lead ++ cut t (room m) label) m ]
   else
     let lines =
       if width - lead_w >= min narrowest label_w then
-        match Span.wrap (max 1 (width - lead_w)) label with
+        match View_core.wrap (max 1 (width - lead_w)) label with
         | first :: rest ->
-            Span.(lead ++ first)
-            :: List.map (fun l -> Span.(pad lead_w ++ l)) rest
+            View_core.(lead ++ first)
+            :: List.map (fun l -> View_core.(pad lead_w ++ l)) rest
         | [] -> [ lead ]
       else
         let indent = max 0 (min lead_w (width - narrowest)) in
         lead
         :: List.map
-             (fun l -> Span.(pad indent ++ l))
-             (Span.wrap (max 1 (width - indent)) label)
+             (fun l -> View_core.(pad indent ++ l))
+             (View_core.wrap (max 1 (width - indent)) label)
     in
     let rev = List.rev lines in
     let last = List.hd rev in
     let rec place stage =
-      if stage > meta_stages then Span.empty
+      if stage > meta_stages then View_core.empty
       else
         let m = meta t r stage in
-        if Span_core.is_empty m || Span.width last + 2 + Span.width m <= width
+        if
+          View_core.is_empty m
+          || View_core.width last + 2 + View_core.width m <= width
         then m
         else place (stage + 1)
     in
@@ -332,7 +338,7 @@ let output t ~width ~lasts r =
     else
       [
         cut t width
-          Span.(
+          View_core.(
             lead
             ++ muted t
                  (Fmt.str "%s %d %s dropped"
@@ -344,13 +350,13 @@ let output t ~width ~lasts r =
   dropped
   @ List.concat_map
       (fun line ->
-        hanging t ~width Span.(lead ++ lead_mark t line.kind) (body t line))
+        hanging t ~width View_core.(lead ++ lead_mark t line.kind) (body t line))
       (List.rev (Queue.fold (fun acc l -> l :: acc) [] r.output))
 
 let finished t ~width ~lasts ~failed ~cancelled n (m : Theme.mark) =
   let some n what = if n = 0 then "" else Fmt.str ", %d %s" n what in
   cut t width
-    Span.(
+    View_core.(
       guided t (prefix t lasts)
       ++ mark t m ++ text " "
       ++ muted t
@@ -359,7 +365,7 @@ let finished t ~width ~lasts ~failed ~cancelled n (m : Theme.mark) =
 
 let shed t ~width ~lasts n =
   cut t width
-    Span.(
+    View_core.(
       guided t (prefix t lasts)
       ++ muted t
            (Fmt.str "%s %d %s dropped"
@@ -387,7 +393,7 @@ let separator t = Widget.glyph (look t) " \u{25B8} " ~ascii:" > "
 
 (* The labels above the task, muted, then [own]. *)
 let path t r own =
-  Span.concat
+  View_core.concat
     (List.map (fun l -> muted t (l ^ separator t)) (ancestors r) @ [ text own ])
 
 (* A line of output is two columns in from the lines of tasks. *)
@@ -404,7 +410,7 @@ let appended r =
     | `Failed -> "  failed"
     | `Cancelled -> "  cancelled"
   in
-  Span.(
+  View_core.(
     mark_of t r ++ text " "
     ++ path t r (label_of r)
     ++ muted t (count ^ "  " ^ Display_text.duration (elapsed r) ^ ended))
@@ -412,7 +418,7 @@ let appended r =
 (* On a terminal a line that does not fit goes on over the lines below,
    under its start; without one it is a line of its own, as long as it is. *)
 let folded t ~width lead body =
-  if not (is_live t) then [ Span.(lead ++ body) ]
+  if not (is_live t) then [ View_core.(lead ++ body) ]
   else hanging t ~width lead body
 
 (* The mark leads, so that a line that goes on over the next ones goes on
@@ -420,19 +426,19 @@ let folded t ~width lead body =
 let labelled r line =
   let t = r.disp in
   folded t ~width:(room t)
-    Span.(under_task ++ lead_mark t line.kind)
-    Span.(path t r r.label ++ muted t ": " ++ body t line)
+    View_core.(under_task ++ lead_mark t line.kind)
+    View_core.(path t r r.label ++ muted t ": " ++ body t line)
 
 let under r line =
   let t = r.disp in
   folded t ~width:(room t)
-    Span.(under_task ++ lead_mark t line.kind)
+    View_core.(under_task ++ lead_mark t line.kind)
     (body t line)
 
 let dropped r n =
   let t = r.disp in
   let look = look t in
-  Span.(
+  View_core.(
     under_task
     ++ muted t
          (Fmt.str "%s %d %s dropped" (Widget.ellipsis look) n
@@ -440,7 +446,7 @@ let dropped r n =
 
 let started r =
   let t = r.disp in
-  Span.(mark t `Running ++ text " " ++ path t r r.label)
+  View_core.(mark t `Running ++ text " " ++ path t r r.label)
 
 let message t level msg =
   folded t ~width:t.width (lead_mark t (Logs level)) (text msg)
@@ -466,30 +472,31 @@ let summary ?width t =
           (Display_text.duration (since_start t))
           t.finished t.started
       in
-      let lead = Span.(mark t (state t) ++ text " ") in
-      let h = Span.styled (Theme.header (theme t)) h in
-      let full = Span.(lead ++ h ++ meta) in
-      if (not (is_live t)) || Span.width full <= width then full
-      else cut t width Span.(lead ++ h))
+      let lead = View_core.(mark t (state t) ++ text " ") in
+      let h = View_core.ink (Theme.header (theme t)) h in
+      let full = View_core.(lead ++ h ++ meta) in
+      if (not (is_live t)) || View_core.width full <= width then full
+      else cut t width View_core.(lead ++ h))
     t.summary
 
 let verdict t result =
   let m, msg =
     match result with Ok m -> (`Succeeded, m) | Error m -> (`Failed, m)
   in
-  let lead = Span.(mark t m ++ text " ") in
-  let msg = Span.styled Style.bold msg in
-  if not (is_live t) then [ Span.(lead ++ msg) ]
+  let lead = View_core.(mark t m ++ text " ") in
+  let msg = View_core.ink Style.bold msg in
+  if not (is_live t) then [ View_core.(lead ++ msg) ]
   else
-    let w = Span.width lead in
-    match Span.wrap (max 1 (room t - w)) msg with
+    let w = View_core.width lead in
+    match View_core.wrap (max 1 (room t - w)) msg with
     | first :: rest ->
-        Span.(lead ++ first) :: List.map (fun l -> Span.(pad w ++ l)) rest
+        View_core.(lead ++ first)
+        :: List.map (fun l -> View_core.(pad w ++ l)) rest
     | [] -> [ lead ]
 
 let detail t lines =
   List.concat_map
     (fun l ->
       let l = muted t l in
-      if is_live t then Span.wrap (max 1 (room t)) l else [ l ])
+      if is_live t then View_core.wrap (max 1 (room t)) l else [ l ])
     lines

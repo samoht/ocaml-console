@@ -17,8 +17,8 @@ type t
 val v :
   ?style:Style.t ->
   ?glyph:string ->
-  ?align:Span.align ->
-  ?label:Span.t ->
+  ?align:View.align ->
+  ?label:View.t ->
   unit ->
   t
 (** [v ()] is a horizontal line.
@@ -35,8 +35,8 @@ val v :
 
 (** {1:converting Converting} *)
 
-val to_span : width:int -> t -> Span.t
-(** [to_span ~width rule] is [rule] as a span [width] cells wide, to put in a
+val to_span : width:int -> t -> View.t
+(** [to_span ~width rule] is [rule] as a view [width] cells wide, to put in a
     cell, a panel, a tree or beside other text. When it is printed, it is drawn
     as {!pp} draws it at a margin of [width], in the formatter's theme and
     [Fmt.utf_8]. *)

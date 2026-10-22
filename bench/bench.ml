@@ -45,31 +45,31 @@ let sink = ref 0
 
 let widths () =
   run "width ascii 80" ~n:100_000 (fun () ->
-      sink := Span.width (Span.text ascii));
-  run "width cjk 40" ~n:100_000 (fun () -> sink := Span.width (Span.text cjk));
+      sink := View.width (View.text ascii));
+  run "width cjk 40" ~n:100_000 (fun () -> sink := View.width (View.text cjk));
   run "width emoji 20" ~n:10_000 (fun () ->
-      sink := Span.width (Span.text emoji));
+      sink := View.width (View.text emoji));
   run "width mixed 80" ~n:10_000 (fun () ->
-      sink := Span.width (Span.text mixed));
+      sink := View.width (View.text mixed));
   run "width ascii 10k" ~n:1_000 (fun () ->
-      sink := Span.width (Span.text long_ascii));
+      sink := View.width (View.text long_ascii));
   run "width mixed 10k" ~n:100 (fun () ->
-      sink := Span.width (Span.text long_mixed))
+      sink := View.width (View.text long_mixed))
 
 let fitting () =
-  let span = Span.text prose in
+  let span = View.text prose in
   run "truncate prose to 40" ~n:10_000 (fun () ->
-      sink := Span.width (Span.truncate 40 span));
+      sink := View.width (View.truncate 40 span));
   run "wrap prose to 30" ~n:10_000 (fun () ->
-      sink := List.length (Span.wrap 30 span));
-  let span = Span.text mixed in
+      sink := List.length (View.wrap 30 span));
+  let span = View.text mixed in
   run "truncate mixed to 40" ~n:10_000 (fun () ->
-      sink := Span.width (Span.truncate 40 span));
+      sink := View.width (View.truncate 40 span));
   run "wrap mixed to 30" ~n:10_000 (fun () ->
-      sink := List.length (Span.wrap 30 span));
-  let span = Span.text long_mixed in
+      sink := List.length (View.wrap 30 span));
+  let span = View.text long_mixed in
   run "wrap mixed 10k to 80" ~n:100 (fun () ->
-      sink := List.length (Span.wrap 80 span))
+      sink := List.length (View.wrap 80 span))
 
 let null = Format.make_formatter (fun _ _ _ -> ()) ignore
 
@@ -82,7 +82,7 @@ let utf_8 =
 (* Bars and rules fill their cells with a glyph, cluster by cluster. *)
 let fills () =
   run "bar 80 cells" ~n:10_000 (fun () -> Bar.pp utf_8 (Bar.v ~width:80 0.5));
-  let rule = Rule.v ~glyph:"\u{2550}" ~label:(Span.text mixed) () in
+  let rule = Rule.v ~glyph:"\u{2550}" ~label:(View.text mixed) () in
   run "rule 120 cells, mixed label" ~n:10_000 (fun () -> Rule.pp utf_8 rule)
 
 (* The line editor measures the line and steps over its clusters as it
@@ -97,31 +97,31 @@ let line_editor () =
 let table () =
   let rows =
     List.init 1000 (fun i ->
-        [ Fmt.kstr Span.text "row %d" i; Span.text prose; Span.text "42" ])
+        [ Fmt.kstr View.text "row %d" i; View.text prose; View.text "42" ])
   in
   let columns =
     Table.
       [
-        column (Span.text "Name");
-        column (Span.text "Text");
-        column ~align:`Right (Span.text "N");
+        column (View.text "Name");
+        column (View.text "Text");
+        column ~align:`Right (View.text "N");
       ]
   in
   Format.pp_set_margin null 120;
   run "table 1k rows" ~n:10 (fun () -> Table.pp null (Table.v columns rows));
   let rows =
     List.init 1000 (fun i ->
-        [ Fmt.kstr Span.text "row %d" i; Span.text mixed; Span.text "42" ])
+        [ Fmt.kstr View.text "row %d" i; View.text mixed; View.text "42" ])
   in
   run "table 1k mixed rows" ~n:10 (fun () ->
       Table.pp utf_8 (Table.v columns rows))
 
 let tree () =
-  let leaf i = Tree.v (Fmt.kstr Span.text "leaf %d" i) [] in
+  let leaf i = Tree.v (Fmt.kstr View.text "leaf %d" i) [] in
   let tree =
-    Tree.v (Span.text "root")
+    Tree.v (View.text "root")
       (List.init 10 (fun i ->
-           Tree.v (Fmt.kstr Span.text "dir %d" i) (List.init 100 leaf)))
+           Tree.v (Fmt.kstr View.text "dir %d" i) (List.init 100 leaf)))
   in
   run "tree 1k nodes" ~n:10 (fun () -> Tree.pp null tree)
 

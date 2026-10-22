@@ -15,12 +15,12 @@ pipe:
     Console.Table.(
       v
         [
-          column (Console.Span.text "Package");
-          column ~align:`Right (Console.Span.text "Size");
+          column (Console.View.text "Package");
+          column ~align:`Right (Console.View.text "Size");
         ]
         [
-          [ Console.Span.text "console"; Console.Span.text "42 KiB" ];
-          [ Console.Span.text "console-eio"; Console.Span.text "9 KiB" ];
+          [ Console.View.text "console"; Console.View.text "42 KiB" ];
+          [ Console.View.text "console-eio"; Console.View.text "9 KiB" ];
         ]);;
 val sizes : Console.Table.t = <abstr>
 # Fmt.pr "%a@." Console.Table.pp sizes;;
@@ -49,7 +49,7 @@ val sizes : Console.Table.t = <abstr>
 The [console] package has four libraries:
 
 {ul
-{- [console], the module {!Console}: styles, spans, the widgets, the themes
+{- [console], the module {!Console}: styles, views, the widgets, the themes
    and the live {!Console.Display}. It needs neither Eio nor Unix.}
 {- [console.tty], the module {!Console_tty}: colour, colour depth and UTF-8
    for the standard outputs, decided from the terminal and the environment
@@ -63,7 +63,7 @@ The [console] package has four libraries:
 {1:start Where to start}
 
 {ul
-{- {!Console.Span} and {!Console.Style} for text in colour.}
+{- {!Console.View} and {!Console.Style} for text in colour.}
 {- {!Console.Table}, {!Console.Tree}, {!Console.Panel}, {!Console.Rule} and
    {!Console.Bar} for the widgets.}
 {- {!Console.Theme} to choose a look, and to let users choose one with a

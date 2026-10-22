@@ -5,7 +5,7 @@
 
 module Color = Color
 module Style = Style
-module Span = Span
+module View = View
 module Border = Border
 module Guide = Guide
 module Spinner = Spinner

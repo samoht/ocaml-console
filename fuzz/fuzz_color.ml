@@ -70,7 +70,10 @@ let test_downsample r g b =
       let once = Color.downsample d c in
       check (Color.equal once (Color.downsample d once));
       let code =
-        let s = Span.to_string ~styled:true (Span.styled (Style.fg once) "x") in
+        let s =
+          View.to_string ~styled:true
+            (View.styled (Style.fg once) (View.text "x"))
+        in
         String.sub s 2 (String.index s 'm' - 2)
       in
       match d with
@@ -100,7 +103,8 @@ let test_sgr_in_range n r g b f =
         (fun d ->
           let c = Color.downsample d c in
           let s =
-            Span.to_string ~styled:true Span.(styled Style.(fg c + bg c) "x")
+            View.to_string ~styled:true
+              View.(styled Style.(fg c + bg c) (text "x"))
           in
           let params = String.sub s 2 (String.index s 'm' - 2) in
           List.iter

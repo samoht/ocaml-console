@@ -23,7 +23,8 @@ let framed ~glyphs ~track ~brackets body =
     match glyphs with `Line -> ("\u{2595}", "\u{258f}") | _ -> ("[", "]")
   in
   if brackets then
-    Span.concat [ Span.styled track left; body; Span.styled track right ]
+    View_core.concat
+      [ View_core.ink track left; body; View_core.ink track right ]
   else body
 
 (* The fill and the track. Heavy lines go to the half cell, the track
@@ -55,25 +56,25 @@ let cells ~glyphs ~width frac =
    empty. *)
 let fill ~style ~width look glyphs =
   match (style, Theme.palette look.Widget.theme) with
-  | Some style, _ -> Span.styled style glyphs
-  | None, [] -> Span.styled (Widget.accent look) glyphs
-  | None, [ c ] -> Span.styled (Style.fg c) glyphs
+  | Some style, _ -> View_core.ink style glyphs
+  | None, [] -> View_core.ink (Widget.accent look) glyphs
+  | None, [ c ] -> View_core.ink (Style.fg c) glyphs
   | None, palette ->
       let last = float_of_int (max 1 (width - 1)) in
-      Span_core.recell
+      View_core.recell
         (fun ~cell ->
-          let c = Span_core.color_at palette (float_of_int cell /. last) in
+          let c = View_core.color_at palette (float_of_int cell /. last) in
           Some (fun style glyph -> (Style.(style + fg c), glyph)))
-        (Span.text glyphs)
+        (View_core.text glyphs)
 
 let draw t look =
   let track = Option.value t.track ~default:(Widget.muted look) in
   let glyphs = Widget.bar look in
   let filled, rest = cells ~glyphs ~width:t.width t.frac in
   framed ~glyphs ~track ~brackets:t.brackets
-    Span.(fill ~style:t.style ~width:t.width look filled ++ styled track rest)
+    View_core.(fill ~style:t.style ~width:t.width look filled ++ ink track rest)
 
-let to_span t = Span_core.drawn (draw t)
+let to_span t = View_core.drawn (draw t)
 let lines look ~margin t = [ Widget.truncate look margin (draw t look) ]
 let pp = Widget.pp lines
 let to_string ?styled t = Widget.to_string lines ?styled t

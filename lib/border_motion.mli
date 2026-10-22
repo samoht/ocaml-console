@@ -12,11 +12,11 @@ val frame :
   left:int ->
   right:int ->
   ?gaps:(int * int * int) list ->
-  Span_core.t list ->
-  Span_core.t list
+  View_core.t list ->
+  View_core.t list
 (** [frame look border ~left ~right lines] is [lines], a frame of [border] laid
     out in [look] whose edges take [left] and [right] cells, each line a part
-    drawn when printed ({!Span_core.drawn}) whose border cells move as [look]'s
+    drawn when printed ({!View_core.drawn}) whose border cells move as [look]'s
     motion says at the {!Look.t.elapsed} time of the look it is printed in. The
     border cells are those of the first and last lines and of the edges, but for
     each [(y, first, last)] of [gaps] (defaults to [[]]) cells [first] to

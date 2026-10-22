@@ -65,11 +65,11 @@ let check_closed raw =
    own when the margin leaves room for every label. *)
 let test_fits s n =
   let margin = 1 + (abs n mod 80) in
-  let leaf i = Tree.v (Span.text (pick s i)) [] in
+  let leaf i = Tree.v (View.text (pick s i)) [] in
   let tree =
     Tree.v
-      (Span.text (pick s 0))
-      [ Tree.v (Span.text (pick s 1)) [ leaf 2; leaf 3 ]; leaf 4 ]
+      (View.text (pick s 0))
+      [ Tree.v (View.text (pick s 1)) [ leaf 2; leaf 3 ]; leaf 4 ]
   in
   let raw, lines = render Tree.pp margin tree in
   check_fits margin lines;

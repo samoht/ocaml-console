@@ -6,77 +6,77 @@
 open Console
 open Display_harness
 
-let strings = List.map Span.to_string
+let strings = List.map View.to_string
 
 let test_text () =
-  Alcotest.(check int) "span width" 5 (Span.width (Span.text "hello"));
+  Alcotest.(check int) "span width" 5 (View.width (View.text "hello"));
   Alcotest.(check int)
     "concat width" 11
-    (Span.width Span.(text "hello" ++ text " world"));
+    (View.width View.(text "hello" ++ text " world"));
   Alcotest.(check string)
     "plain string" "hello"
-    (Span.to_string (Span.styled Style.bold "hello"))
+    (View.to_string (View.styled Style.bold (View.text "hello")))
 
 (* A span holds only text that prints: a control is a space, malformed UTF-8
    the replacement character, and a line feed starts a line. *)
 let test_sanitized () =
-  let span = Span.styled Style.bold "a\tb\nc\027[2Jd\255" in
+  let span = View.styled Style.bold (View.text "a\tb\nc\027[2Jd\255") in
   Alcotest.(check string)
-    "controls are spaces" "a b\nc [2Jd\u{FFFD}" (Span.to_string span);
+    "controls are spaces" "a b\nc [2Jd\u{FFFD}" (View.to_string span);
   Alcotest.(check bool)
     "no escape from the caller" false
-    (contains "[2J\027" (Span.to_string ~styled:true span));
-  Alcotest.(check int) "widest line" 7 (Span.width span)
+    (contains "[2J\027" (View.to_string ~styled:true span));
+  Alcotest.(check int) "widest line" 7 (View.width span)
 
 let test_width_boundaries () =
   let suffix = "\xea\xa8\xb4" in
-  let joined = Span.text ("x" ^ suffix) in
-  let split = Span.(text "x" ++ styled Style.bold suffix) in
+  let joined = View.text ("x" ^ suffix) in
+  let split = View.(text "x" ++ styled Style.bold (text suffix)) in
   Alcotest.(check int)
-    "a spacing mark adds a cell to its cluster" 2 (Span.width joined);
-  Alcotest.(check int) "style changes do not add cells" 2 (Span.width split);
-  Alcotest.(check int) "wide" 4 (Span.width (Span.text "界界"))
+    "a spacing mark adds a cell to its cluster" 2 (View.width joined);
+  Alcotest.(check int) "style changes do not add cells" 2 (View.width split);
+  Alcotest.(check int) "wide" 4 (View.width (View.text "界界"))
 
 let test_truncate () =
   Alcotest.(check string)
     "fits" "hello"
-    (Span.to_string (Span.truncate 5 (Span.text "hello")));
+    (View.to_string (View.truncate 5 (View.text "hello")));
   Alcotest.(check string)
     "ellipsis" "hel…"
-    (Span.to_string (Span.truncate 4 (Span.text "hello")));
+    (View.to_string (View.truncate 4 (View.text "hello")));
   Alcotest.(check string)
     "one cell" "…"
-    (Span.to_string (Span.truncate 1 (Span.text "hello")));
+    (View.to_string (View.truncate 1 (View.text "hello")));
   Alcotest.(check string)
     "nothing" ""
-    (Span.to_string (Span.truncate 0 (Span.text "hello")));
+    (View.to_string (View.truncate 0 (View.text "hello")));
   Alcotest.(check string)
     "a wide character is not cut" "界…"
-    (Span.to_string (Span.truncate 4 (Span.text "界界界")));
+    (View.to_string (View.truncate 4 (View.text "界界界")));
   (* A VS16 stays with its letter, at whatever width they take. *)
-  let cut = Span.truncate 3 (Span.text "a\u{fe0f}bcdef") in
+  let cut = View.truncate 3 (View.text "a\u{fe0f}bcdef") in
   Alcotest.(check bool)
     "a variation selector stays with its letter" true
-    (Span.width cut <= 3
-    && List.mem (Span.to_string cut) [ "a\u{fe0f}…"; "a\u{fe0f}b…" ]);
+    (View.width cut <= 3
+    && List.mem (View.to_string cut) [ "a\u{fe0f}…"; "a\u{fe0f}b…" ]);
   Alcotest.(check string)
     "every line" "ab…\nc"
-    (Span.to_string (Span.truncate 3 (Span.text "abcd\nc")));
+    (View.to_string (View.truncate 3 (View.text "abcd\nc")));
   Alcotest.(check string)
     "the style is closed" "\027[1mhe…\027[0m"
-    (Span.to_string ~styled:true
-       (Span.truncate 3 (Span.styled Style.bold "hello")))
+    (View.to_string ~styled:true
+       (View.truncate 3 (View.styled Style.bold (View.text "hello"))))
 
 let test_truncate_preserves_link () =
-  let span = Span.link ~uri:"https://example.com" "documentation" in
-  let shown = Span.truncate 5 span in
-  Alcotest.(check string) "visible prefix" "docu…" (Span.to_string shown);
+  let span = View.link ~uri:"https://example.com" (View.text "documentation") in
+  let shown = View.truncate 5 span in
+  Alcotest.(check string) "visible prefix" "docu…" (View.to_string shown);
   Alcotest.(check bool)
     "link metadata remains" true
-    (contains "\027]8;;https://example.com" (Span.to_string ~styled:true shown))
+    (contains "\027]8;;https://example.com" (View.to_string ~styled:true shown))
 
 let test_wrap () =
-  let wrap w s = strings (Span.wrap w (Span.text s)) in
+  let wrap w s = strings (View.wrap w (View.text s)) in
   Alcotest.(check (list string))
     "words" [ "hello"; "world" ] (wrap 6 "hello world");
   Alcotest.(check (list string))
@@ -92,30 +92,30 @@ let test_wrap () =
   Alcotest.(check (list string)) "empty" [ "" ] (wrap 3 "");
   Alcotest.(check (list string)) "lines" [ "a"; "b" ] (wrap 3 "a\nb");
   Alcotest.check_raises "zero width"
-    (Invalid_argument "Console.Span.wrap: non-positive width") (fun () ->
-      ignore (Span.wrap 0 (Span.text "a")))
+    (Invalid_argument "Console.View.wrap: non-positive width") (fun () ->
+      ignore (View.wrap 0 (View.text "a")))
 
 let test_wrap_malformed () =
   Alcotest.(check (list string))
     "each byte sequence remains visible" [ "\u{FFFD}"; "a" ]
-    (strings (Span.wrap 1 (Span.text "\255a")))
+    (strings (View.wrap 1 (View.text "\255a")))
 
 let test_wrap_oversized () =
   (* The two-cell glyph cannot fit, but the following ASCII character can. *)
   Alcotest.(check (list string))
     "retain the suffix" [ "a" ]
-    (strings (Span.wrap 1 (Span.text "界a")))
+    (strings (View.wrap 1 (View.text "界a")))
 
 let test_wrap_preserves_styles () =
   let span =
-    Span.(
-      styled Style.(fg Color.red) "hello "
-      ++ styled Style.(fg Color.blue) "world")
+    View.(
+      styled Style.(fg Color.red) (text "hello ")
+      ++ styled Style.(fg Color.blue) (text "world"))
   in
-  let lines = Span.wrap 6 span in
+  let lines = View.wrap 6 span in
   Alcotest.(check (list string))
     "visible lines" [ "hello"; "world" ] (strings lines);
-  let ansi = List.map (Span.to_string ~styled:true) lines in
+  let ansi = List.map (View.to_string ~styled:true) lines in
   Alcotest.(check bool)
     "red first line" true
     (contains "\027[31m" (List.nth ansi 0));
@@ -125,10 +125,11 @@ let test_wrap_preserves_styles () =
 
 let test_link () =
   let span =
-    Span.link ~style:Style.underline ~uri:"https://example.com" "docs"
+    View.link ~uri:"https://example.com"
+      (View.styled Style.underline (View.text "docs"))
   in
-  Alcotest.(check string) "plain label" "docs" (Span.to_string span);
-  let ansi = Span.to_string ~styled:true span in
+  Alcotest.(check string) "plain label" "docs" (View.to_string span);
+  let ansi = View.to_string ~styled:true span in
   Alcotest.(check bool)
     "OSC 8 open" true
     (String.starts_with ~prefix:"\027]8;;https://example.com\027\\" ansi);
@@ -138,7 +139,7 @@ let test_link () =
   (* RFC 3986, section 2.1: a byte that may not appear in a URI is
      percent-encoded, as two upper-case hexadecimal digits. *)
   let target uri =
-    let ansi = Span.to_string ~styled:true (Span.link ~uri "x") in
+    let ansi = View.to_string ~styled:true (View.link ~uri (View.text "x")) in
     match String.index_opt ansi '\027' with
     | Some 0 when String.starts_with ~prefix:"\027]8;;" ansi ->
         let rest = String.sub ansi 5 (String.length ansi - 5) in
@@ -160,22 +161,24 @@ let test_link () =
     "https://u:p@example.com:8/a-b._~c/!$&'()*+,;=?q=[1]#f%20";
   Alcotest.(check string)
     "an empty URI links nowhere" "x"
-    (Span.to_string ~styled:true (Span.link ~uri:"" "x"));
+    (View.to_string ~styled:true (View.link ~uri:"" (View.text "x")));
   (* A form feed ends a line, as a line feed does: such a label has no text
      to click, and the link is written over the lines that have some. *)
   Alcotest.(check string)
     "a label of line ends links nothing" "\n\n"
-    (Span.to_string ~styled:true (Span.link ~uri:"https://x" "\012\n"));
+    (View.to_string ~styled:true
+       (View.link ~uri:"https://x" (View.text "\012\n")));
   Alcotest.(check string)
     "only the lines with text" "\n\027]8;;https://x\027\\a\027]8;;\027\\"
-    (Span.to_string ~styled:true (Span.link ~uri:"https://x" "\012a"))
+    (View.to_string ~styled:true
+       (View.link ~uri:"https://x" (View.text "\012a")))
 
 (* One run of a style is written under one escape code. *)
 let test_runs () =
   Alcotest.(check string)
     "merged" "\027[1mab\027[0m"
-    (Span.to_string ~styled:true
-       Span.(styled Style.bold "a" ++ styled Style.bold "b"))
+    (View.to_string ~styled:true
+       View.(styled Style.bold (text "a") ++ styled Style.bold (text "b")))
 
 (* The colours of a formatter's depth. *)
 let test_depth () =
@@ -184,7 +187,7 @@ let test_depth () =
     let ppf = Format.formatter_of_buffer buf in
     Fmt.set_style_renderer ppf `Ansi_tty;
     Option.iter (Color.set_depth ppf) depth;
-    Span.pp ppf (Span.styled (Style.fg (Color.rgb 255 0 0)) "x");
+    View.pp ppf (View.styled (Style.fg (Color.rgb 255 0 0)) (View.text "x"));
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
@@ -199,7 +202,9 @@ let test_depth () =
     "16 colours" "\027[91mx\027[0m" (render (Some `Ansi_16))
 
 let test_multiline_resets () =
-  let output = Span.to_string ~styled:true (Span.styled Style.bold "a\nb") in
+  let output =
+    View.to_string ~styled:true (View.styled Style.bold (View.text "a\nb"))
+  in
   Alcotest.(check string)
     "close before LF and reopen on the next line"
     "\027[1ma\027[0m\n\027[1mb\027[0m" output
@@ -207,7 +212,7 @@ let test_multiline_resets () =
 let test_zero_width_blank_lines () =
   Alcotest.(check string)
     "zero width returns empty even for blank lines" ""
-    (Span.to_string (Span.truncate 0 (Span.text "\n")))
+    (View.to_string (View.truncate 0 (View.text "\n")))
 
 (* [span] printed on a formatter in [theme] at [depth], in colour iff
    [depth] is given. *)
@@ -220,11 +225,11 @@ let printed ?(theme = Theme.default) ?depth span =
       Fmt.set_style_renderer ppf `Ansi_tty;
       Color.set_depth ppf depth)
     depth;
-  Span.pp ppf span;
+  View.pp ppf span;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-let fg c s = Span.styled (Style.fg c) s
+let fg c s = View.styled (Style.fg c) (View.text s)
 
 (* Each grapheme cluster of a line takes the blend of the stops at its
    place, the first cluster the first stop and the last the last one. *)
@@ -237,11 +242,11 @@ let test_gradient () =
       (printed ~depth:`True_color got)
   in
   check "three stops of two colours"
-    Span.(fg red "a" ++ fg (Color.blend red blue 0.5) "b" ++ fg blue "c")
-    (Span.gradient ~colors:[ red; blue ] "abc");
+    View.(fg red "a" ++ fg (Color.blend red blue 0.5) "b" ++ fg blue "c")
+    (View.gradient ~colors:[ red; blue ] (View.text "abc"));
   let green = Color.rgb 0 255 0 in
   check "five clusters, three stops"
-    Span.(
+    View.(
       concat
         [
           fg red "a";
@@ -250,32 +255,34 @@ let test_gradient () =
           fg (Color.blend green blue 0.5) "d";
           fg blue "e";
         ])
-    (Span.gradient ~colors:[ red; green; blue ] "abcde");
+    (View.gradient ~colors:[ red; green; blue ] (View.text "abcde"));
   check "a cluster is one colour"
-    Span.(fg red "e\u{301}" ++ fg blue "\u{754c}")
-    (Span.gradient ~colors:[ red; blue ] "e\u{301}\u{754c}");
-  check "one colour" (fg red "ab") (Span.gradient ~colors:[ red ] "ab");
+    View.(fg red "e\u{301}" ++ fg blue "\u{754c}")
+    (View.gradient ~colors:[ red; blue ] (View.text "e\u{301}\u{754c}"));
+  check "one colour" (fg red "ab")
+    (View.gradient ~colors:[ red ] (View.text "ab"));
   check "each line its own gradient"
-    Span.(fg red "a" ++ fg blue "b" ++ text "\n" ++ fg red "c" ++ fg blue "d")
-    (Span.gradient ~colors:[ red; blue ] "ab\ncd");
+    View.(fg red "a" ++ fg blue "b" ++ text "\n" ++ fg red "c" ++ fg blue "d")
+    (View.gradient ~colors:[ red; blue ] (View.text "ab\ncd"));
   Alcotest.(check int)
     "as wide as its text" 5
-    (Span.width (Span.gradient ~colors:[ red; blue ] "x\u{754c}e\u{301}y"));
+    (View.width
+       (View.gradient ~colors:[ red; blue ] (View.text "x\u{754c}e\u{301}y")));
   Alcotest.(check string)
     "plain without colour" "x\u{754c}y"
-    (printed (Span.gradient ~colors:[ red; blue ] "x\u{754c}y"));
+    (printed (View.gradient ~colors:[ red; blue ] (View.text "x\u{754c}y")));
   Alcotest.(check string)
     "sanitized" "a b"
-    (Span.to_string (Span.gradient "a\027b"));
-  Alcotest.(check int) "empty" 0 (Span.width (Span.gradient ""))
+    (View.to_string (View.gradient (View.text "a\027b")));
+  Alcotest.(check int) "empty" 0 (View.width (View.gradient (View.text "")))
 
 (* Without colours, a gradient takes the palette of the theme it is printed
    in, at the formatter's depth. *)
 let test_gradient_theme () =
-  let span = Span.gradient "abcdef" in
+  let span = View.gradient (View.text "abcdef") in
   let palette = Theme.palette Theme.rainbow in
   let want =
-    Span.concat
+    View.concat
       (List.mapi (fun i c -> fg c (String.make 1 "abcdef".[i])) palette)
   in
   List.iter
@@ -307,42 +314,45 @@ let test_role () =
       let name = Theme.name theme in
       check (name ^ " accent") theme
         (fg (Theme.accent theme) "x")
-        (Span.role `Accent "x");
-      check (name ^ " ok") theme (fg (Theme.ok theme) "x") (Span.role `Ok "x");
+        (View.role `Accent (View.text "x"));
+      check (name ^ " ok") theme
+        (fg (Theme.ok theme) "x")
+        (View.role `Ok (View.text "x"));
       check (name ^ " warn") theme
         (fg (Theme.warn theme) "x")
-        (Span.role `Warn "x");
+        (View.role `Warn (View.text "x"));
       check (name ^ " fail") theme
         (fg (Theme.fail theme) "x")
-        (Span.role `Fail "x");
+        (View.role `Fail (View.text "x"));
       check (name ^ " muted") theme
         (fg (Theme.muted theme) "x")
-        (Span.role `Muted "x");
+        (View.role `Muted (View.text "x"));
       check (name ^ " header") theme
-        (Span.styled (Theme.header theme) "x")
-        (Span.role `Header "x"))
+        (View.styled (Theme.header theme) (View.text "x"))
+        (View.role `Header (View.text "x")))
     [ Theme.default; Theme.nord; Theme.dos ];
   let nord = Theme.ok Theme.nord in
   check "under a style" Theme.nord
-    (Span.styled Style.(bold + fg nord) "passed")
-    (Span.with_style Style.bold (Span.role `Ok "passed"));
-  check "each line" Theme.nord (fg nord "a\nb") (Span.role `Ok "a\nb");
+    (View.styled Style.(bold + fg nord) (View.text "passed"))
+    (View.styled Style.bold (View.role `Ok (View.text "passed")));
+  check "each line" Theme.nord (fg nord "a\nb")
+    (View.role `Ok (View.text "a\nb"));
   check "cut" Theme.nord
-    (Span.truncate 3 (fg nord "abcdef"))
-    (Span.truncate 3 (Span.role `Ok "abcdef"));
+    (View.truncate 3 (fg nord "abcdef"))
+    (View.truncate 3 (View.role `Ok (View.text "abcdef")));
   Alcotest.(check string)
     "plain without colour" "passed"
-    (printed ~theme:Theme.nord (Span.role `Ok "passed"));
+    (printed ~theme:Theme.nord (View.role `Ok (View.text "passed")));
   Alcotest.(check string)
     "to_string in the default theme"
-    (Span.to_string ~styled:true (fg (Theme.ok Theme.default) "x"))
-    (Span.to_string ~styled:true (Span.role `Ok "x"));
+    (View.to_string ~styled:true (fg (Theme.ok Theme.default) "x"))
+    (View.to_string ~styled:true (View.role `Ok (View.text "x")));
   Alcotest.(check int)
     "as wide as its text" 3
-    (Span.width (Span.role `Ok "a\u{754c}"));
+    (View.width (View.role `Ok (View.text "a\u{754c}")));
   Alcotest.(check string)
     "sanitized" "a b"
-    (Span.to_string (Span.role `Fail "a\027b"))
+    (View.to_string (View.role `Fail (View.text "a\027b")))
 
 (* A role laid under a span: its own styles and links win, a line of it at
    a time. *)
@@ -354,18 +364,22 @@ let test_with_role () =
       (printed ~theme:Theme.nord ~depth:`True_color got)
   in
   let nord = Theme.ok Theme.nord in
-  check "a role is a role laid under text" (Span.role `Ok "a\nb")
-    (Span.with_role `Ok (Span.text "a\nb"));
+  check "a role is a role laid under text"
+    (View.role `Ok (View.text "a\nb"))
+    (View.role `Ok (View.text "a\nb"));
   check "a link in a role"
-    (Span.link ~style:(Style.fg nord) ~uri:"https://ocaml.org" "docs")
-    (Span.with_role `Ok (Span.link ~uri:"https://ocaml.org" "docs"));
+    (View.link ~uri:"https://ocaml.org"
+       (View.styled (Style.fg nord) (View.text "docs")))
+    (View.role `Ok (View.link ~uri:"https://ocaml.org" (View.text "docs")));
   check "the span's own colour wins"
-    Span.(styled Style.(fg nord) "a" ++ styled Style.(fg Color.red) "b")
-    (Span.with_role `Ok Span.(text "a" ++ styled Style.(fg Color.red) "b"));
+    View.(
+      styled Style.(fg nord) (text "a")
+      ++ styled Style.(fg Color.red) (text "b"))
+    (View.role `Ok View.(text "a" ++ styled Style.(fg Color.red) (text "b")));
   Alcotest.(check string)
     "plain without colour" "ab"
     (printed ~theme:Theme.nord
-       (Span.with_role `Ok Span.(text "a" ++ styled Style.bold "b")))
+       (View.role `Ok View.(text "a" ++ styled Style.bold (text "b"))))
 
 let suite =
   ( "span",

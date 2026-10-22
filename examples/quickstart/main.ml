@@ -25,14 +25,14 @@ let main color theme =
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = Span.role `Ok "passed" in
-  let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
+  let ok = View.role `Ok (View.text "passed") in
+  let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =
     Table.
       [
-        column (Span.text "Suite");
-        column ~align:`Right (Span.text "Tests");
-        column (Span.text "Result");
+        column (View.text "Suite");
+        column ~align:`Right (View.text "Tests");
+        column (View.text "Result");
       ]
   in
   Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))

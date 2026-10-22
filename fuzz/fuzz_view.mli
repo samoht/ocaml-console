@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tests for the Span module. *)
+(** Properties of {!View}. *)
 
-val suite : string * unit Alcotest.test_case list
-(** [suite] is the Alcotest test suite for {!Test_span}. *)
+val suite : string * Alcobar.test_case list
+(** [suite] is the property suite. *)

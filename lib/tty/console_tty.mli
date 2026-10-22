@@ -13,8 +13,8 @@
     {[
     let () =
       Console_tty.setup ();
-      Fmt.pr "%a@." Console.Span.pp
-        (Console.Span.styled Console.Style.bold "ready")
+      Fmt.pr "%a@." Console.View.pp
+        Console.View.(styled Console.Style.bold (text "ready"))
     ]}
 
     This library is [console.tty], which needs Unix but not Eio. *)

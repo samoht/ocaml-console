@@ -36,15 +36,15 @@ let colourless _env =
 let widgets _env =
   let open Console in
   Console_tty.setup ();
-  let long = Span.text (String.concat " " (List.init 20 (Fun.const "word"))) in
+  let long = View.text (String.concat " " (List.init 20 (Fun.const "word"))) in
   let leaf = Tree.v long [] in
   Fmt.pr "%a@.%a@.%a@.%a@.%a@." Table.pp
     (Table.v
        [
-         Table.column (Span.text "a");
-         Table.column ~overflow:`Truncate (Span.text "b");
+         Table.column (View.text "a");
+         Table.column ~overflow:`Truncate (View.text "b");
        ]
-       [ [ Span.text "1"; long ] ])
+       [ [ View.text "1"; long ] ])
     Panel.pp (Panel.v ~title:long long) Tree.pp
     (Tree.v long [ Tree.v long [ leaf ]; leaf ])
     Rule.pp (Rule.v ~label:long ()) Bar.pp

@@ -61,14 +61,14 @@ let main color theme =
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = Span.role `Ok "passed" in
-  let row (name, n) = [ Span.text name; Span.text (Int.to_string n); ok ] in
+  let ok = View.role `Ok (View.text "passed") in
+  let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =
     Table.
       [
-        column (Span.text "Suite");
-        column ~align:`Right (Span.text "Tests");
-        column (Span.text "Result");
+        column (View.text "Suite");
+        column ~align:`Right (View.text "Tests");
+        column (View.text "Result");
       ]
   in
   Fmt.pr "%a@." Table.pp (Table.v cols (List.map row suites))
@@ -130,7 +130,7 @@ console comes as two packages and five libraries:
 
 ## Styled text
 
-Styles combine with `+`, and text in a style is a `Span.t`, which a
+Styles combine with `+`, and text in a style is a `View.t`, which a
 [Fmt](https://erratique.ch/software/fmt) printer prints:
 
 ```ocaml
@@ -141,8 +141,8 @@ let error = Style.(bold + fg Color.red)
 
 let () =
   Console_tty.setup ();
-  Fmt.pr "%a@." Span.pp (Span.styled success "✓ Build passed");
-  Fmt.pr "%a@." Span.pp (Span.styled error "✗ Tests failed")
+  Fmt.pr "%a@." View.pp (View.styled success (View.text "✓ Build passed"));
+  Fmt.pr "%a@." View.pp (View.styled error (View.text "✗ Tests failed"))
 ```
 
 `Console_tty.setup` turns colour on when the output is a terminal, and
@@ -156,17 +156,17 @@ printer:
 let () = Fmt.pr "%a tests passed@." Console.Style.(styled bold Fmt.int) 42
 ```
 
-Spans can also hold links and take their colours from the theme, as the
+Views can also hold links and take their colours from the theme, as the
 [manual](doc/widgets.mld) shows.
 
 ## Tables
 
-All the widgets take their text as spans. A table is as wide as its
+All the widgets take their text as views. A table is as wide as its
 content needs, but never wider than the formatter's margin:
 
 ```ocaml
 open Console
-open Span
+open View
 
 let print_files () =
   let table = Table.(
@@ -204,12 +204,12 @@ between the rows.
 Trees and framed panels print the same way:
 
 ```ocaml
-# let file name = Tree.v (Span.text name) [] in
+# let file name = Tree.v (View.text name) [] in
   Fmt.pr "%a@." Tree.pp
-    (Tree.v (Span.text "src")
+    (Tree.v (View.text "src")
        [
-         Tree.v (Span.text "lib") [ file "console.ml"; file "table.ml" ];
-         Tree.v (Span.text "test") [ file "test.ml" ];
+         Tree.v (View.text "lib") [ file "console.ml"; file "table.ml" ];
+         Tree.v (View.text "test") [ file "test.ml" ];
        ]);;
 src
 ├── lib
@@ -219,7 +219,7 @@ src
     └── test.ml
 - : unit = ()
 # Fmt.pr "%a@." Panel.pp
-    (Panel.v ~title:(Span.text "Status") (Span.text "All tests passed"));;
+    (Panel.v ~title:(View.text "Status") (View.text "All tests passed"));;
 ╭───── Status ─────╮
 │ All tests passed │
 ╰──────────────────╯
@@ -232,7 +232,7 @@ and a bar shows a fraction, here 65% of twenty cells:
 ```ocaml
 # Format.set_margin 40;;
 - : unit = ()
-# Fmt.pr "%a@." Rule.pp (Rule.v ~label:(Span.text "Results") ());;
+# Fmt.pr "%a@." Rule.pp (Rule.v ~label:(View.text "Results") ());;
 ─────────────── Results ────────────────
 - : unit = ()
 # print_endline (Bar.to_string (Bar.v ~width:20 0.65));;
@@ -242,23 +242,23 @@ and a bar shows a fraction, here 65% of twenty cells:
 
 ## Widgets inside widgets
 
-Every widget can also become a span, with its `to_span`. That span is laid
+Every widget can also become a view, with its `to_span`. That view is laid
 out only when it is printed, in the theme of the formatter that prints it,
-so a widget can go wherever a span goes. Here two bars sit in a table, and
+so a widget can go wherever a view goes. Here two bars sit in a table, and
 the table sits in a panel:
 
 ```ocaml
 # let downloads =
     Table.v ~border:Border.none
-      [ Table.column (Span.text "File"); Table.column (Span.text "Progress") ]
+      [ Table.column (View.text "File"); Table.column (View.text "Progress") ]
       [
-        [ Span.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
-        [ Span.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];
+        [ View.text "boot.img"; Bar.to_span (Bar.v ~width:10 0.4) ];
+        [ View.text "rootfs.tar"; Bar.to_span (Bar.v ~width:10 0.9) ];
       ]
   in
   print_endline
     (Panel.to_string
-       (Panel.v ~title:(Span.text "Downloads") (Table.to_span downloads)));;
+       (Panel.v ~title:(View.text "Downloads") (Table.to_span downloads)));;
 ╭────── Downloads ───────╮
 │ File        Progress   │
 │ boot.img    ━━━━╺━━━━━ │
@@ -267,7 +267,7 @@ the table sits in a panel:
 - : unit = ()
 ```
 
-`Span.hcat` puts widgets side by side in the same way, and the
+`View.hcat` puts widgets side by side in the same way, and the
 [manual](doc/widgets.mld) has an example.
 
 ## Themes
@@ -277,7 +277,7 @@ the table sits in a panel:
 A theme holds the colours and glyphs that every widget shares. `Theme.set`
 gives a formatter its theme, and `Console_tty.setup ~theme` sets the same
 theme on both standard outputs. Text can take one of the theme's colours
-with `Span.role`, as ``Span.role `Ok "passed"`` does in the quick start.
+with `View.role`, as ``View.role `Ok (View.text "passed")`` does in the quick start.
 
 `Theme.all` lists the eighteen themes by name, in the form a `--theme`
 option reads:
@@ -291,7 +291,7 @@ let theme =
 
 let greet theme =
   Console.Theme.set Fmt.stdout theme;
-  Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.Span.text "hello"))
+  Fmt.pr "%a@." Console.Panel.pp (Console.Panel.v (Console.View.text "hello"))
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "greet") Cmdliner.Term.(const greet $ theme)
@@ -410,16 +410,16 @@ without colour.
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
 
-The region is a view: a span the program puts together from the display's
-parts and any other span, as it puts widgets together. `Display.tree` is
+The region is a view: a view the program puts together from the display's
+parts and any other view, as it puts widgets together. `Display.tree` is
 the tree of a task, or of every top task, and `Display.summary` the summary
 line; `Display.default_view` is the one, then the other. A table of results
-above the rows is a span above the default view:
+above the rows is a view above the default view:
 
 ```ocaml
 let view results display ~width ~height =
   Console.(
-    Span.vcat
+    View.vcat
       [
         Table.to_span ~width:(min width 100) (results ());
         Display.default_view display ~width ~height;
@@ -429,16 +429,16 @@ let view results display ~width ~height =
 The view is given the terminal's width and the lines the region may take,
 and the display draws its last lines that fit, so the table gives way
 before the rows. With `~keep_ended:true` the tasks that ended stay in the region
-until it closes, and trees side by side make columns, with `Span.hcat`, as
+until it closes, and trees side by side make columns, with `View.hcat`, as
 [examples/columns](examples/columns/main.ml) does:
 
 ```ocaml
 let columns display ~width ~height =
   let half = (min width 100 - 2) / 2 in
   let tree task = Console.Display.tree ~width:half ~height:(height - 1) task in
-  Console.Span.vcat
+  Console.View.vcat
     [
-      Console.Span.hcat
+      Console.View.hcat
         (List.map tree Console.Display.(children (root display)));
       Console.Display.summary display;
     ]
@@ -534,7 +534,7 @@ it left alone:
 ```ocaml
 let ready style_renderer =
   Console_tty.setup ?style_renderer ();
-  Fmt.pr "%a@." Console.Span.pp (Console.Span.styled Console.Style.bold "ready")
+  Fmt.pr "%a@." Console.View.pp (Console.View.(styled Console.Style.bold (text "ready")))
 
 let cmd =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "ready")
@@ -637,7 +637,7 @@ character that reorders the text around it:
 |---|---|
 | `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
 | `Console.Style` | Bold, italic, underline and colours, combined with `+` |
-| `Console.Span` | Text in a style, with links, wrapping and truncation |
+| `Console.View` | Text in a style, with links, wrapping and truncation |
 | `Console.Border` | Frame styles for tables and panels |
 | `Console.Guide` | The lines that connect the branches of a tree |
 | `Console.Theme` | One look for every widget |

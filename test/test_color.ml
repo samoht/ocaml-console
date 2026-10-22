@@ -65,7 +65,7 @@ let test_invalid_constructors () =
 (* The parameters of the escape code that selects a colour, as a span in
    that colour prints it. *)
 let code style c =
-  let s = Span.to_string ~styled:true (Span.styled (style c) "x") in
+  let s = View.to_string ~styled:true (View.styled (style c) (View.text "x")) in
   String.sub s 2 (String.index s 'm' - 2)
 
 let to_fg_code = code Style.fg

@@ -10,13 +10,13 @@
     that takes over the whole screen is better served by a full-screen library.
     Windows consoles are not supported.
 
-    A {!Span.t} is text in a {!Style.t}: colours, bold, italic and so on. The
-    widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out spans and
+    A {!View.t} is text in a {!Style.t}: colours, bold, italic and so on. The
+    widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out views and
     print with {!Format}, and a {!Theme} gives them one look.
 
-    Every widget is also a span, by its [to_span], laid out only when it is
+    Every widget is also a view, by its [to_span], laid out only when it is
     printed. So a table goes in a panel, the panel in a cell of another table,
-    beside a tree ({!Span.hcat}) or in a display's view, and each of them is
+    beside a tree ({!View.hcat}) or in a display's view, and each of them is
     drawn in the theme of the formatter that prints it. [Console_eio.run] runs a
     {!Display}.
 
@@ -25,9 +25,9 @@
       wide character, such as a Chinese one or an emoji, takes two cells, and an
       accent added to a letter takes none.
     - A widget printed by its [pp] is no wider than the formatter's margin, and
-      as a span it is as wide as its [to_span] lays it out. Either way it ends
+      as a view it is as wide as its [to_span] lays it out. Either way it ends
       without a line end, so ["%a@."] prints it on its own lines.
-    - A span holds only text that prints: a line end in it starts a new line and
+    - A view holds only text that prints: a line end in it starts a new line and
       any other control character is a space, so caller text cannot move the
       cursor or change colours.
     - Every style a printer turns on, it turns off before the line ends.
@@ -53,7 +53,7 @@
 
     let demo_styled () =
       let style = Style.(bold + fg Color.green) in
-      Fmt.pr "%a@." Span.pp (Span.styled style "Success!")
+      Fmt.pr "%a@." View.pp (View.styled style (View.text "Success!"))
     ]}
 
     {2:tables Tables}
@@ -66,11 +66,11 @@
         Table.(
           v ~border:Border.rounded
             [
-              column (Span.text "Name"); column ~align:`Right (Span.text "Age");
+              column (View.text "Name"); column ~align:`Right (View.text "Age");
             ]
             [
-              [ Span.text "Alice"; Span.text "30" ];
-              [ Span.text "Bob"; Span.text "25" ];
+              [ View.text "Alice"; View.text "30" ];
+              [ View.text "Bob"; View.text "25" ];
             ])
       in
       Fmt.pr "%a@." Table.pp table
@@ -83,10 +83,10 @@
 
     let demo_tree () =
       let tree =
-        Tree.v (Span.text "src")
+        Tree.v (View.text "src")
           [
-            Tree.v (Span.text "lib") [ Tree.v (Span.text "parser.ml") [] ];
-            Tree.v (Span.text "test") [];
+            Tree.v (View.text "lib") [ Tree.v (View.text "parser.ml") [] ];
+            Tree.v (View.text "test") [];
           ]
       in
       Fmt.pr "%a@." Tree.pp tree
@@ -99,8 +99,8 @@
 
     let demo_panel () =
       let panel =
-        Panel.v ~title:(Span.text "Status")
-          (Span.text "All systems operational")
+        Panel.v ~title:(View.text "Status")
+          (View.text "All systems operational")
       in
       Fmt.pr "%a@." Panel.pp panel
     ]}
@@ -132,7 +132,7 @@ module Color = Color
 module Style = Style
 (** Bold, italic, underline and colours, combined with [+]. *)
 
-module Span = Span
+module View = View
 (** Text in a style. *)
 
 module Border = Border

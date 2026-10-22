@@ -11,10 +11,10 @@
     {[
     let tree =
       Console.(
-        Tree.v ~guide:Guide.ascii (Span.text "root")
+        Tree.v ~guide:Guide.ascii (View.text "root")
           [
-            Tree.v (Span.text "bin") [];
-            Tree.v (Span.text "etc") [ Tree.v (Span.text "hosts") [] ];
+            Tree.v (View.text "bin") [];
+            Tree.v (View.text "etc") [ Tree.v (View.text "hosts") [] ];
           ])
 
     let () =
@@ -27,7 +27,7 @@
 type t
 (** The type for trees. *)
 
-val v : ?guide:Guide.t -> Span.t -> t list -> t
+val v : ?guide:Guide.t -> View.t -> t list -> t
 (** [v label children] is the tree of [label] above [children]. Its lines are
     those of [guide] if given, else the guide of the formatter's theme
     ({!Theme.get}). A tree drawn under another takes the lines of the one above
@@ -35,8 +35,8 @@ val v : ?guide:Guide.t -> Span.t -> t list -> t
 
 (** {1:converting Converting} *)
 
-val to_span : ?width:int -> t -> Span.t
-(** [to_span ~width tree] is [tree] as a span, to put in a cell, a panel, the
+val to_span : ?width:int -> t -> View.t
+(** [to_span ~width tree] is [tree] as a view, to put in a cell, a panel, the
     label of another tree or beside other text. When it is printed, it is laid
     out as {!pp} lays it out at a margin of [width] (defaults to its natural
     width), in the formatter's theme and [Fmt.utf_8].

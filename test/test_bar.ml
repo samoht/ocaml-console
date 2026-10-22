@@ -16,7 +16,7 @@ let check_plain msg want span = Alcotest.(check string) msg want (plain span)
 let check_ansi msg want span =
   Alcotest.(check string)
     msg
-    (Span.to_string ~styled:true (Span.concat want))
+    (View.to_string ~styled:true (View.concat want))
     (ansi span)
 
 (* bar.mli, v: a cell is a heavy line, filled or track, and a half filled
@@ -47,24 +47,24 @@ let test_v_clamped () =
    [track], and a part with no cell adds no style. *)
 let test_v_styles () =
   check_ansi "fill and track"
-    [ Span.styled red "━╸"; Span.styled dim "━" ]
+    [ View.styled red (View.text "━╸"); View.styled dim (View.text "━") ]
     (Bar.v ~style:red ~track:dim ~width:3 0.5);
   check_ansi "a gap before the track"
-    [ Span.styled red "━"; Span.styled dim "╺━" ]
+    [ View.styled red (View.text "━"); View.styled dim (View.text "╺━") ]
     (Bar.v ~style:red ~track:dim ~width:3 0.34);
   check_ansi "full bar, no track"
-    [ Span.styled red "━━" ]
+    [ View.styled red (View.text "━━") ]
     (Bar.v ~style:red ~track:dim ~width:2 1.);
   check_ansi "empty bar, no fill"
-    [ Span.styled dim "━━" ]
+    [ View.styled dim (View.text "━━") ]
     (Bar.v ~style:red ~track:dim ~width:2 0.);
   check_plain "brackets" "▕━╸━▏" (Bar.v ~brackets:true ~width:3 0.5);
   check_ansi "brackets in the track style"
     [
-      Span.styled dim "▕";
-      Span.styled red "━╸";
-      Span.styled dim "━";
-      Span.styled dim "▏";
+      View.styled dim (View.text "▕");
+      View.styled red (View.text "━╸");
+      View.styled dim (View.text "━");
+      View.styled dim (View.text "▏");
     ]
     (Bar.v ~style:red ~track:dim ~brackets:true ~width:3 0.5)
 
@@ -136,29 +136,35 @@ let test_palette () =
   let palette = Array.of_list (Theme.palette Theme.rainbow) in
   let muted = Style.fg (Theme.muted Theme.rainbow) in
   let cells n =
-    List.init n (fun i -> Span.styled (Style.fg palette.(i)) "\u{2501}")
+    List.init n (fun i ->
+        View.styled (Style.fg palette.(i)) (View.text "\u{2501}"))
   in
-  let want spans = Span.to_string ~styled:true (Span.concat spans) in
+  let want spans = View.to_string ~styled:true (View.concat spans) in
   Alcotest.(check string)
     "full"
     (want (cells 6))
     (styled Theme.rainbow (Bar.v ~width:6 1.));
   Alcotest.(check string)
     "half"
-    (want (cells 3 @ [ Span.styled muted "\u{257a}\u{2501}\u{2501}" ]))
+    (want
+       (cells 3 @ [ View.styled muted (View.text "\u{257a}\u{2501}\u{2501}") ]))
     (styled Theme.rainbow (Bar.v ~width:6 0.5));
   Alcotest.(check string)
     "a style given"
-    (want [ Span.styled red "\u{2501}\u{2501}" ])
+    (want [ View.styled red (View.text "\u{2501}\u{2501}") ])
     (styled Theme.rainbow (Bar.v ~style:red ~width:2 1.));
   Alcotest.(check string)
     "one colour"
     (want
-       [ Span.styled (Style.fg (Theme.accent Theme.nord)) "\u{2501}\u{2501}" ])
+       [
+         View.styled
+           (Style.fg (Theme.accent Theme.nord))
+           (View.text "\u{2501}\u{2501}");
+       ])
     (styled Theme.nord (Bar.v ~width:2 1.));
   Alcotest.(check string)
     "a palette of one colour gives that colour"
-    (want [ Span.styled (Style.fg Color.red) "\u{2501}\u{2501}" ])
+    (want [ View.styled (Style.fg Color.red) (View.text "\u{2501}\u{2501}") ])
     (styled
        (Theme.v ~palette:[ Color.red ] ~accent:Color.blue ())
        (Bar.v ~width:2 1.));

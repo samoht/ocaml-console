@@ -81,10 +81,10 @@ let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
   match (Theme.motion look.theme, lines) with
   | None, _ | _, ([] | [ _ ]) -> lines
   | Some motion, first :: _ ->
-      let width = Span_core.width first and height = List.length lines in
+      let width = View_core.width first and height = List.length lines in
       if
         left = 0 || right = 0 || width < 2
-        || List.exists (fun l -> Span_core.width l <> width) lines
+        || List.exists (fun l -> View_core.width l <> width) lines
       then lines
       else
         let n = (2 * width) + (2 * (height - 2)) in
@@ -107,11 +107,11 @@ let frame (look : Look.t) border ~left ~right ?(gaps = []) lines =
             in
             (* Still, a sweep keeps its colours, which cover the whole frame;
                a moving highlight is no pattern to keep. *)
-            Span_core.drawn (fun (now : Look.t) ->
+            View_core.drawn (fun (now : Look.t) ->
                 match (now.elapsed, motion) with
                 | Some elapsed, _ when Float.is_finite elapsed && elapsed >= 0.
                   ->
-                    Span_core.recell (border ~elapsed) line
-                | _, `Sweep -> Span_core.recell (border ~elapsed:0.) line
+                    View_core.recell (border ~elapsed) line
+                | _, `Sweep -> View_core.recell (border ~elapsed:0.) line
                 | _ -> line))
           lines

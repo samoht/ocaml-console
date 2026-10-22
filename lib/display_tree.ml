@@ -50,7 +50,7 @@ type form = Full | Fold | Bare | Whole
 
 (* A line of a window gives way before the lines of tasks, the oldest
    first. *)
-type item = Line of Span.t | Tail of int * Span.t
+type item = Line of View_core.t | Tail of int * View_core.t
 
 let line = function Line s | Tail (_, s) -> s
 
@@ -225,7 +225,7 @@ let tree_lines ?width ?(height = max_int) r =
   let width = match width with Some w -> w | None -> room t in
   if t.closing then scrollback t ~width r else region t ~width ~height r
 
-let unlines lines = Span_core.concat ~sep:(Span_core.text "\n") lines
+let unlines lines = View_core.concat ~sep:(View_core.text "\n") lines
 let tree ?width ?height r = unlines (tree_lines ?width ?height r)
 
 let default_lines t ~width ~height =
@@ -236,6 +236,6 @@ let default_lines t ~width ~height =
       tree_lines ~width ~height:(height - 1) (root t) @ [ summary ]
 
 let summary ?width t =
-  Option.value (Display_row.summary ?width t) ~default:Span_core.empty
+  Option.value (Display_row.summary ?width t) ~default:View_core.empty
 
 let default_view t ~width ~height = unlines (default_lines t ~width ~height)
