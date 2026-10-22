@@ -15,6 +15,15 @@ let test_printable () =
   Alcotest.(check string)
     "pending holds the line" "abc" (Console_input.pending t)
 
+(* A control sequence with intermediate bytes, such as DECSCUSR (ESC [ 1 SP
+   q) or SR (ESC [ 2 SP A), ends at its final byte: none of it is typed, and
+   its final byte is no arrow. *)
+let test_csi_intermediate () =
+  let t = Console_input.v () in
+  let echo, _ = Console_input.feed t "ab\027[1 qc\027[2 Ad" in
+  Alcotest.(check string) "echo" "abcd" echo;
+  Alcotest.(check string) "the line" "abcd" (Console_input.pending t)
+
 let test_submit_cr () =
   let t = Console_input.v () in
   let echo, ls = Console_input.feed t "abc\r" in
@@ -430,6 +439,8 @@ let suite =
       Alcotest.test_case "completion inserts only complete UTF-8 characters"
         `Quick test_complete_utf8;
       Alcotest.test_case "printable" `Quick test_printable;
+      Alcotest.test_case "a control sequence with intermediates" `Quick
+        test_csi_intermediate;
       Alcotest.test_case "submit on CR" `Quick test_submit_cr;
       Alcotest.test_case "submit on LF" `Quick test_submit_lf;
       Alcotest.test_case "CRLF is one line" `Quick test_crlf_is_one_line;
