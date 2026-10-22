@@ -120,16 +120,20 @@ val progress : (string * progress) list
 (** {1:json JSON events}
 
     With [`Json] the display writes one JSON object on each line of [ppf] for
-    each event, in the order the events happen. Objects may gain fields and new
-    events may be added, but the fields below keep their meaning.
+    each event, in the order the events happen. Objects may gain fields, new
+    events may be added, and a field whose values are listed below may gain
+    values, but the fields below keep their meaning. A consumer skips an event
+    or a value it does not know. The header of the display is not an event.
 
     Every object has:
     - [time], the seconds since the display started, a number with three
-      decimals ([0] under [CONSOLE_FROZEN_CLOCK]);
+      decimals ([0.000] under [CONSOLE_FROZEN_CLOCK]);
     - [event], one of the strings below.
 
     An event of a task also has:
-    - [id], an integer that names the task in the display;
+    - [id], an integer that names the task in the display: the tasks are
+      numbered from [0] in the order they start, and no two tasks of a display
+      have the same number;
     - [task], the labels from the top task down to it, an array of strings.
 
     The events are:
@@ -138,18 +142,20 @@ val progress : (string * progress) list
     - ["progress"]: its count changed. [count] and [total] are integers, and
       [unit] is ["items"] or ["bytes"].
     - ["label"]: its label changed to [text].
-    - ["output"]: [text] is a line of its output. [level] is that of a [Logs]
-      message: ["app"], ["error"], ["warning"], ["info"] or ["debug"]. Output
-      outside any task has [task] at [[]] and no [id].
+    - ["output"]: [text] is a line of its output. [level], only for a [Logs]
+      message, is that message's level: ["app"], ["error"], ["warning"],
+      ["info"] or ["debug"]. Output outside any task has [task] at [[]] and no
+      [id].
     - ["end"]: it ended. [status] is ["succeeded"], ["failed"] or ["cancelled"],
-      [elapsed] is the seconds it ran, and [text] is the message it ended with,
-      if any.
+      [elapsed] is the seconds it ran, with three decimals, and [text] is the
+      message it ended with, if any.
     - ["result"]: the result of {!Console.Display.set_result}, when the display
       closes. [status] is ["ok"] or ["error"], [text] is its message and
       [detail] its detail, if any.
 
-    Strings are valid UTF-8. A control character in them is always escaped. The
-    task in the example of {!Console.Display} gives these events:
+    A transient task ({!Console.Display.task}) has its events as any other task
+    has. Strings are valid UTF-8. A control character in them is always escaped.
+    The task in the example of {!Console.Display} gives these events:
     {v
     {"time":0.000,"event":"start","id":0,"task":["compile"]}
     {"time":0.000,"event":"progress","id":0,"task":["compile"],"count":1,"total":2,"unit":"items"}
