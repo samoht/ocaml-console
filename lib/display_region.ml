@@ -67,8 +67,7 @@ let write t s =
    change its glyphs. *)
 let moving t =
   let look = Widget.look t.ppf in
-  if Option.is_some t.depth then
-    { look with elapsed = Some (t.now () -. t.start) }
+  if Option.is_some t.depth then { look with elapsed = Some (since_start t) }
   else look
 
 let render t span = Span_core.render ~look:(moving t) ?depth:t.depth span
@@ -226,8 +225,7 @@ let draw buf t ~resized spans =
 (* What a frame depends on: what the tasks were told, the tenth of a second
    the timers and spinners show, and the terminal's size. A redraw with all
    of them as they were draws nothing and computes nothing. *)
-let stamp t =
-  (t.changes, int_of_float ((t.now () -. t.start) *. 10.), t.width, t.height)
+let stamp t = (t.changes, int_of_float (since_start t *. 10.), t.width, t.height)
 
 let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin

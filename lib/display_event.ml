@@ -15,7 +15,7 @@ let rec labels acc r =
   match r.parent with None -> acc | Some p -> labels acc p
 
 let write t event =
-  let time = t.now () -. t.start in
+  let time = since_start t in
   Display_region.write t (Event.to_string (event ~time) ^ "\n")
 
 let started r =

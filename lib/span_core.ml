@@ -136,40 +136,6 @@ let gradient ?(colors = []) s =
 
 (* {1 Lines} *)
 
-let lines t =
-  if not (List.exists (fun a -> String.contains a.text '\n') t) then [ t ]
-  else
-    let rec go lines line = function
-      | [] -> List.rev (List.rev line :: lines)
-      | a :: rest -> (
-          match String.index_opt a.text '\n' with
-          | None -> go lines (a :: line) rest
-          | Some i ->
-              let before = String.sub a.text 0 i in
-              let after =
-                String.sub a.text (i + 1) (String.length a.text - i - 1)
-              in
-              let line =
-                if before = "" then line else { a with text = before } :: line
-              in
-              let rest =
-                if after = "" then rest else { a with text = after } :: rest
-              in
-              go (List.rev line :: lines) [] rest)
-    in
-    go [] [] t
-
-let unlines = function
-  | [] -> empty
-  | l :: ls -> List.concat (l :: List.map (fun l -> text "\n" @ l) ls)
-
-let joint =
-  [
-    { style = Style.none; link = None; text = "\n"; draw = None; block = true };
-  ]
-
-let block lines = concat ~sep:joint lines
-
 let seamed t =
   let rec go acc joined line = function
     | [] -> List.rev ((joined, List.rev line) :: acc)
@@ -191,6 +157,21 @@ let seamed t =
             go ((joined, List.rev line) :: acc) next [] rest)
   in
   go [] false [] t
+
+let lines t =
+  if not (List.exists (fun a -> String.contains a.text '\n') t) then [ t ]
+  else List.map snd (seamed t)
+
+let unlines = function
+  | [] -> empty
+  | l :: ls -> List.concat (l :: List.map (fun l -> text "\n" @ l) ls)
+
+let joint =
+  [
+    { style = Style.none; link = None; text = "\n"; draw = None; block = true };
+  ]
+
+let block lines = concat ~sep:joint lines
 
 (* {1 Roles} *)
 

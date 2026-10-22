@@ -164,6 +164,9 @@ val keeps_output : t -> bool
 (** [keeps_output t] is [true] iff [t] keeps the output of its tasks for their
     failure: on a terminal, and when quiet. *)
 
+val since_start : t -> float
+(** [since_start t] is the seconds since [t] started. *)
+
 val is_running : row -> bool
 (** [is_running r] is [true] iff [r] has not ended. *)
 

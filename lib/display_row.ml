@@ -149,7 +149,7 @@ let left stage pieces =
    until it has [want]; one spacer takes the slack, so the pieces after it
    sit at the right edge. *)
 let live t ~width ~lasts r =
-  let time = t.now () -. t.start in
+  let time = since_start t in
   let layout = Display_layout.pieces t.layout in
   let prefix = prefix t lasts in
   let has p = List.mem p layout in
@@ -452,7 +452,7 @@ let summary ?width t =
     (fun h ->
       let meta =
         Fmt.kstr (muted t) " %s (%d/%d)"
-          (Display_text.duration (t.now () -. t.start))
+          (Display_text.duration (since_start t))
           t.finished t.started
       in
       let lead = Span.(mark t (state t) ++ text " ") in

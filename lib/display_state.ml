@@ -121,6 +121,7 @@ let is_plain t =
 let keeps_output t =
   is_live t || match t.form with Quiet -> true | Plain | Json -> false
 
+let since_start t = t.now () -. t.start
 let is_running r = r.ended_at = None
 let is_root r = r.id < 0
 

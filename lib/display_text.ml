@@ -5,12 +5,16 @@
 
 let units = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB" |]
 
-let bytes n =
+(* [n] bytes as a number below 1024 of the unit [units.(i)]. *)
+let scaled n =
   let rec pick i v =
     if v < 1024. || i = Array.length units - 1 then (v, i)
     else pick (i + 1) (v /. 1024.)
   in
-  let v, i = pick 0 (Float.max 0. (Int64.to_float n)) in
+  pick 0 (Float.max 0. (Int64.to_float n))
+
+let bytes n =
+  let v, i = scaled n in
   if i = 0 then Fmt.str "%d B" (int_of_float (Float.round v))
   else
     (* Hundredths, rounded, carried into the whole part. *)
@@ -18,11 +22,7 @@ let bytes n =
     Fmt.str "%d.%02d %s" (h / 100) (h mod 100) units.(i)
 
 let bytes_short n =
-  let rec pick i v =
-    if v < 1024. || i = Array.length units - 1 then (v, i)
-    else pick (i + 1) (v /. 1024.)
-  in
-  let v, i = pick 0 (Float.max 0. (Int64.to_float n)) in
+  let v, i = scaled n in
   let unit = units.(i).[0] in
   if i = 0 then Fmt.str "%d%c" (int_of_float v) unit
   else if v < 9.95 then Fmt.str "%.1f%c" v unit
