@@ -611,10 +611,11 @@ character that reorders the text around it:
 - `Console_eio.run` takes what the program prints on `Fmt.stdout` and
   `Fmt.stderr` where the display writes, so that `` `Quiet `` hides the
   output of a task that succeeds and `` `Json `` makes each line an event.
-  `Display.v` takes nothing. With it, or with `Console_eio.run` on another
-  formatter, what the program prints on the display's formatter goes out as
-  it is: `` `Quiet `` shows it, and it breaks the lines of JSON events.
-  `Display.log` gives such a line to a task instead.
+  `Display.v` takes none of the program's output. With it, or with
+  `Console_eio.run` on another formatter, what the program prints on the
+  display's formatter goes out as it is: `` `Quiet `` shows it, and it breaks
+  the lines of JSON events. `Display.log` gives such a line to a task
+  instead.
 
 ## Related work
 

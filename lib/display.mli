@@ -11,7 +11,7 @@
     its line is printed once above the region and stays in the scrollback.
 
     When the output is not a terminal, such as a pipe or a CI log, nothing is
-    redrawn. Instead:
+    redrawn, unless the [`Tty] {!Progress} mode asks for the rows. Instead:
     - a task prints a line when it starts;
     - it prints a line when it ends, with [failed] or [cancelled] at the end
       when it did not succeed;
@@ -197,17 +197,20 @@ val v :
   now:(unit -> float) ->
   Format.formatter ->
   t
-(** [v ~now ppf] is a display writing on [ppf] and timed by the clock [now], in
-    seconds.
+(** [v ~progress ~now ppf] is a display writing on [ppf] and timed by the clock
+    [now], in seconds.
 
     - [size], if given, says that [ppf] is a terminal and gives its width and
       height. The display reads it again before each redraw, hides the cursor
       and redraws its rows in place. A width or a height is taken in
       \[[1];[4096]\]: a larger one is [4096], and a smaller one [1]. Without
-      [size] the display prints lines in turn.
+      [size], with [`Auto], the display prints lines in turn.
     - [progress] says how progress shows (defaults to [`Auto]). [`Auto] is as
       [size] says. [`Tty] redraws the rows, on 80 columns by 24 rows without
       [size]. [`Plain], [`Quiet] and [`Json] print lines, whatever [size] says.
+      The display takes none of what the program prints on [ppf]: with [`Quiet]
+      it shows, and with [`Json] it breaks the lines of events. {!log} gives
+      such a line to a task, and [Console_eio.run] takes the standard outputs.
     - [header], if given, names the work on a line above the rows.
     - [layout] (defaults to {!Layout.default}) gives the pieces of each row
       redrawn on a terminal; the lines printed in turn have their own
