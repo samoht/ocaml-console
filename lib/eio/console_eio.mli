@@ -57,7 +57,8 @@ type progress =
     (** One JSON object on each line for each event, and nothing else
         ({{!json}JSON events}). *) ]
 (** The type for how a display shows progress, as the [--progress] option of
-    [docker build] does. *)
+    [docker build] does. Constructors may be added, so a match on a progress has
+    a case for the others. *)
 
 val run :
   clock:_ Eio.Time.Mono.t ->

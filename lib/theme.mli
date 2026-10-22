@@ -64,7 +64,8 @@ type bar =
     (** Whole cells of full blocks (U+2588) on a light shade (U+2591), in square
         brackets, as DOS programs drew progress. *)
   | `Ascii  (** Whole cells of [#] on [-], in square brackets. *) ]
-(** The type for the glyphs of a {!Bar}. *)
+(** The type for the glyphs of a {!Bar}. Constructors may be added, so a match
+    on a bar has a case for the others. *)
 
 type motion =
   [ `Rain
