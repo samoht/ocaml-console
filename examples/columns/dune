@@ -6,7 +6,7 @@
 ; record it again, from the root of the repository:
 ;
 ;   dune build examples/columns/main.exe
-;   vhs-cram --setup examples/columns/setup.sh \
+;   k7 cram --cols 100 --setup examples/columns/setup.sh \
 ;     --output examples/columns/columns.svg examples/columns/columns.t
 
 (cram
