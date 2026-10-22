@@ -46,8 +46,14 @@ val with_style : Style.t -> t -> t
 val hcat : ?gap:int -> t list -> t
 (** See {!Span.hcat}. *)
 
+val vcat : t list -> t
+(** See {!Span.vcat}. *)
+
 val width : t -> int
 (** See {!Span.width}. *)
+
+val height : t -> int
+(** See {!Span.height}. *)
 
 val ellipsis : string
 (** [ellipsis] is U+2026, which ends a line {!truncate} cuts. *)

@@ -363,6 +363,14 @@ let hcat ?(gap = 2) spans =
   in
   unlines (List.init height row)
 
+(* {1 One under the other} *)
+
+let vcat spans =
+  unlines
+    (List.concat_map lines (List.filter (fun s -> not (is_empty s)) spans))
+
+let height t = if is_empty t then 0 else List.length (lines t)
+
 (* {1 Truncating} *)
 
 let ellipsis = "\xe2\x80\xa6"

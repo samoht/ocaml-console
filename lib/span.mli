@@ -105,6 +105,16 @@ val hcat : ?gap:int -> t list -> t
 
     @raise Invalid_argument if [gap] is negative. *)
 
+val vcat : t list -> t
+(** [vcat spans] is [spans] one under the other: the lines of each span in turn.
+    A span with no text, such as {!empty}, takes no line, so a part left out
+    leaves no blank line.
+
+    {[
+    let report title table =
+      Console.(Span.vcat [ title; Table.to_span ~width:60 table ])
+    ]} *)
+
 (** {1:measuring Measuring and fitting} *)
 
 type align = [ `Left | `Center | `Right ]
@@ -115,6 +125,11 @@ type align = [ `Left | `Center | `Right ]
 val width : t -> int
 (** [width s] is the number of cells the widest line of [s] takes. The invariant
     [width (s0 ++ s1) <= width s0 + width s1] holds. *)
+
+val height : t -> int
+(** [height s] is the number of lines of [s]: [0] for a span with no text, and
+    otherwise one more than its line feeds. The invariant [height (vcat spans)]
+    is the sum of the [height]s of [spans]. *)
 
 val truncate : int -> t -> t
 (** [truncate w s] is [s] with each line wider than [w] cells cut between two

@@ -192,6 +192,34 @@ let test_hcat_nests () =
     @ [ "+------------------+" ])
     (lines (Panel.to_string panel))
 
+(* [vcat] puts spans one under the other; a span with no text takes no
+   line, and [height] counts the lines. *)
+let test_vcat () =
+  Alcotest.(check string)
+    "one under the other" "a\nbb\nc"
+    (Span.to_string (Span.vcat [ text "a\nbb"; Span.empty; text "c" ]));
+  Alcotest.(check string) "none" "" (Span.to_string (Span.vcat []));
+  Alcotest.(check string)
+    "a line feed is two blank lines" "a\n\n\nb"
+    (Span.to_string (Span.vcat [ text "a"; text "\n"; text "b" ]));
+  Alcotest.(check (list int))
+    "heights" [ 0; 1; 2; 2; 3 ]
+    (List.map Span.height
+       [
+         Span.empty;
+         text "a";
+         text "a\nb";
+         text "\n";
+         Span.vcat [ text "a"; text "b\nc" ];
+       ]);
+  let panel = Panel.v (Span.text "p") and rule = Rule.v () in
+  Alcotest.(check (list string))
+    "widgets"
+    (lines (Panel.to_string panel) @ [ Rule.to_string ~width:5 rule ])
+    (lines
+       (Span.to_string
+          (Span.vcat [ Panel.to_span panel; Rule.to_span ~width:5 rule ])))
+
 (* {1 Widgets as spans} *)
 
 (* [shown theme ~margin pp] is what [pp] prints on a formatter in [theme] at
@@ -435,6 +463,7 @@ let suite =
       Alcotest.test_case "public surface" `Quick test_public_surface;
       Alcotest.test_case "widgets put together" `Quick test_put_together;
       Alcotest.test_case "side by side" `Quick test_hcat;
+      Alcotest.test_case "one under the other" `Quick test_vcat;
       Alcotest.test_case "widgets as spans" `Quick test_to_span;
       Alcotest.test_case "widgets nest as spans" `Quick test_nested;
       Alcotest.test_case "a widget span keeps its cells" `Quick

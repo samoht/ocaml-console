@@ -103,6 +103,25 @@ let test_hcat_combining_suffix n =
     (Console_vte.to_string actual);
   check_eq ~pp:Fmt.Dump.string want got
 
+(* [vcat] puts the lines of each span with text under those of the span
+   before it: its lines are theirs, in order, and a span with no text adds
+   none. *)
+let test_vcat texts =
+  let spans =
+    List.map (fun s -> if s = "" then Span.empty else Span.text (text s)) texts
+  in
+  let stacked = Span.vcat spans in
+  let want = List.filter (fun s -> not (String.equal s "")) texts in
+  check_eq ~pp:Fmt.Dump.string
+    (String.concat "\n" (List.map text want))
+    (Span.to_string stacked);
+  check_eq ~pp:Fmt.int
+    (List.fold_left (fun n s -> n + Span.height s) 0 spans)
+    (Span.height stacked);
+  check_eq ~pp:Fmt.int
+    (List.fold_left (fun n s -> max n (Span.width s)) 0 spans)
+    (Span.width stacked)
+
 (* {1 Widgets put together}
 
    Each guarantee a widget states alone, checked on widgets put together:
@@ -160,6 +179,7 @@ and block =
   | Rule of span option
   | Styled of int * block
   | Hcat of int * block list
+  | Vcat of block list
 
 let rec pp_span ppf = function
   | Text (k, s) -> Fmt.pf ppf "text(%d,%S)" k s
@@ -180,6 +200,7 @@ and pp_block ppf = function
   | Rule l -> Fmt.pf ppf "rule(%a)" Fmt.(Dump.option pp_span) l
   | Styled (k, b) -> Fmt.pf ppf "styled(%d,%a)" k pp_block b
   | Hcat (g, l) -> Fmt.pf ppf "hcat(%d,%a)" g Fmt.(Dump.list pp_block) l
+  | Vcat l -> Fmt.pf ppf "vcat%a" Fmt.(Dump.list pp_block) l
 
 let take n l = List.filteri (fun i _ -> i < n) l
 
@@ -209,6 +230,7 @@ let block_gen =
           map [ option span ] (fun l -> Rule l);
           map [ uint8; block ] (fun k b -> Styled (k, b));
           map [ uint8; list1 block ] (fun g l -> Hcat (g mod 4, take 3 l));
+          map [ list1 block ] (fun l -> Vcat (take 3 l));
         ])
 
 let block_gen = with_printer pp_block block_gen
@@ -254,6 +276,7 @@ and nested k b =
   | Rule l -> Rule.to_span ~width:(Option.value width ~default:20) (rule l)
   | Styled (j, b) -> Span.with_style (pick styles j) (nested k b)
   | Hcat (gap, l) -> Span.hcat ~gap (List.map (nested k) l)
+  | Vcat l -> Span.vcat (List.map (nested k) l)
 
 and table k rows =
   let n = List.fold_left (fun n r -> max n (List.length r)) 1 rows in
@@ -285,7 +308,7 @@ let rec pp = function
   | Tree (s, l) -> Fmt.const Tree.pp (tree s l)
   | Rule l -> Fmt.const Rule.pp (rule l)
   | Styled (k, b) -> Style.styled (pick styles k) (pp b)
-  | Hcat _ as b -> Fmt.const Span.pp (nested 0 b)
+  | (Hcat _ | Vcat _) as b -> Fmt.const Span.pp (nested 0 b)
 
 (* {1 Printing} *)
 
@@ -361,12 +384,13 @@ and texts = function
   | Panel (_, s, t) -> texts_span s @ Option.fold ~none:[] ~some:texts_span t
   | Tree (s, l) -> List.concat_map texts_span (s :: l)
   | Styled (_, b) -> texts b
-  | Hcat (_, l) -> List.concat_map texts l
+  | Hcat (_, l) | Vcat l -> List.concat_map texts l
 
-(* A span is text, printed whole, spans side by side included, and a rule's
+(* A span is text, printed whole, spans side by side or one under the
+   other included, and a rule's
    label wider than the margin makes the rule two cells wider. *)
 let rec may_overflow = function
-  | Span _ | Rule (Some _) | Hcat _ -> true
+  | Span _ | Rule (Some _) | Hcat _ | Vcat _ -> true
   | Styled (_, b) -> may_overflow b
   | _ -> false
 
@@ -620,6 +644,9 @@ let suite =
       test_case "a scene of widgets moves only its lines"
         [ block_gen; uint16; uint8; uint8 ]
         test_scene;
+      test_case "vcat lines are the spans' lines in turn"
+        [ list bytes ]
+        test_vcat;
       test_case "hcat lines are the blocks' widths and gaps"
         [ list bytes; uint8 ]
         test_hcat;

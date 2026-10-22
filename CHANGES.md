@@ -15,7 +15,8 @@ Initial release of `console` and `console-eio`.
   span too, by its `to_span`, laid out when it is printed in the theme of
   the formatter that prints it, so widgets nest: a bar or a table in a
   cell, a table in a panel, and `Span.hcat` puts spans, widgets among
-  them, side by side, as one more span. Widths are counted in terminal
+  them, side by side, as one more span, and `Span.vcat` one under the
+  other (`Span.height` counts its lines). Widths are counted in terminal
   cells, by grapheme cluster with uuseg and uucp, wide characters and emoji
   included, a widget is no wider than its formatter's margin, and every
   widget is drawn in ASCII on a formatter that is not UTF-8. Each has a
