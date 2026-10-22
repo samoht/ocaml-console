@@ -8,7 +8,7 @@
     A theme holds the choices the widgets share:
     - the main colour, and the colours of a success, a warning and a failure;
     - a muted colour for what frames and annotates, and the style of headers;
-    - the marks that say how a task ended;
+    - the marks that say how a task runs or ended and the level of a message;
     - the frame of tables and panels, and how it moves;
     - the lines of a tree and the spinner of a {!Display}.
 
@@ -28,7 +28,7 @@
     - {!still} takes the motion out of any theme, for the users who ask for no
       animation.
 
-    A program lets its users choose with a [--theme] option ({!all}), and every
+    A program lets its users choose with a [--theme] option ({!all}). Every
     predefined theme keeps to the ratios given under {{!contrast}Contrast}. *)
 
 (** {1:themes Themes} *)
@@ -119,7 +119,7 @@ val v :
     - [accent] is the main colour (defaults to {!default}'s teal);
     - [palette] are the colours that successive progress rows take in turn, and
       that a bar without a style spreads along its length when there are several
-      (defaults to [[accent]], as does [[]]);
+      (defaults to [[accent]], and [[]] is taken as the default);
     - [ok] colours the mark of a success, [warn] that of a warning or a
       cancellation, and [fail] that of a failure or an error (default to
       {!default}'s green, amber and red);

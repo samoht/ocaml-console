@@ -60,11 +60,12 @@ val v :
     as a space, so none of them can move the cursor or change colours.
 
     With [mask], {!pending} and the lines of {!feed} still hold the bytes typed
-    as they are, other than the keys. The replacement character, the space for a
-    C1 control and the dropped mark of {!feed} are for an echo only, and a byte
-    above [0x7F] that is no character is kept. A masked editor, for a password
-    or a token, completes nothing and recalls nothing, and its {!history} stays
-    empty because it drops the [history] seed and keeps no line it submits. *)
+    as they are, other than the keys. A byte above [0x7F] that is no character
+    is kept. The replacement character, the space for a C1 control and the
+    dropped mark of {!feed} are only in the echo. A masked editor, for a
+    password or a token, completes nothing and recalls nothing, and its
+    {!history} stays empty because it drops the [history] seed and keeps no line
+    it submits. *)
 
 val feed : t -> string -> string * string list
 (** [feed t input] is [(echo, lines)] once each byte of [input] is read in turn,

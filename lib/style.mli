@@ -61,7 +61,7 @@ val equal : t -> t -> bool
 (** [equal s0 s1] is [true] iff [s0] and [s1] are the same style. *)
 
 val compare : t -> t -> int
-(** [compare] is a total order on styles, compatible with {!equal}. *)
+(** [compare s0 s1] is a total order on styles, compatible with {!equal}. *)
 
 (** {1:fmt Formatting} *)
 

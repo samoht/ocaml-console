@@ -54,8 +54,8 @@ val role : Theme.role -> string -> t
     theme ({!Theme.get}), taken when it is printed. [role `Ok "passed"] is green
     in {!Theme.default} and Nord's green in {!Theme.nord}.
 
-    It is as wide as [s], printed in colours at the formatter's
-    {!Color.val-depth} and as the text of [s] without colour, and {!to_string}
+    It is as wide as [s]. It is printed in colours at the formatter's
+    {!Color.val-depth}, and as the text of [s] without colour. {!to_string}
     styles it in {!Theme.default}. *)
 
 val with_role : Theme.role -> t -> t
@@ -67,7 +67,7 @@ val with_role : Theme.role -> t -> t
 val gradient : ?colors:Color.t list -> string -> t
 (** [gradient ~colors s] is [s] in colours graded along each of its lines. The
     stops are [colors] (defaults to the {!Theme.palette} of the formatter's
-    theme, as is [[]]).
+    theme, and [[]] is taken as the default).
 
     The stops spread evenly along a line, the first on its first grapheme
     cluster and the last on its last, and each cluster takes the {!Color.blend}

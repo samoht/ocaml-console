@@ -108,10 +108,12 @@ val scale : float -> t -> t
 (** {1:preds Predicates and comparisons} *)
 
 val equal : t -> t -> bool
-(** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour. *)
+(** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour as given:
+    [red] and [palette 1] are not equal, although a terminal may draw them
+    alike. *)
 
 val compare : t -> t -> int
-(** [compare] is a total order on colours, compatible with {!equal}. *)
+(** [compare c0 c1] is a total order on colours, compatible with {!equal}. *)
 
 (** {1:depths Colour depth} *)
 

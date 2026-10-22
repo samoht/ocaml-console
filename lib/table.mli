@@ -41,8 +41,8 @@ val column :
       The table goes below [min_width] only when nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
       [`Wrap]);
-    - [shrinkable] (defaults to [true]) at [false] makes the column the last to
-      narrow;
+    - [shrinkable] is [false] for a column that is the last to narrow (defaults
+      to [true]);
     - [style] is the style of its cells (defaults to {!Style.none}).
 
     @raise Invalid_argument

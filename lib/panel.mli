@@ -25,8 +25,8 @@ val v :
 
     - The border is [border] if given, else the border of the formatter's theme
       ({!Theme.get}).
-    - [title] / [subtitle] label the top / bottom edge, the title in the theme's
-      {!Theme.header}.
+    - [title] labels the top edge, in the theme's {!Theme.header}, and
+      [subtitle] labels the bottom edge.
     - [padding] is the internal horizontal padding (defaults to [1]).
     - [width] fixes the width, cutting content and edge labels to keep the box a
       rectangle; by default it is sized to the content.

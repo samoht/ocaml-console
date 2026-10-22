@@ -38,24 +38,26 @@ module Prompt = Prompt
 
 type progress =
   [ `Auto
-    (** Rows redrawn in place on a terminal ({!run}), lines in turn otherwise.
-    *)
+    (** The rows are redrawn in place on a terminal ({!run}), and lines are
+        printed in turn otherwise. *)
   | `Tty
-    (** Rows redrawn in place on any output, such as a pipe that a terminal
-        recorder reads. The rows take the size of the terminal behind the
-        output, if there is one, else [$COLUMNS] by [$LINES], else 80 by 24. *)
+    (** The rows are redrawn in place on any output, such as a pipe that a
+        terminal recorder reads. The rows take the size of the terminal behind
+        the output, if there is one, else [$COLUMNS] by [$LINES], else 80 by 24.
+    *)
   | `Plain
-    (** Lines in turn, as on a pipe. A task prints a line when it starts, its
-        output at once and a line when it ends. The header comes last. The lines
-        are in colour if the output has colour. *)
+    (** Lines are printed in turn, as on a pipe. A task prints a line when it
+        starts, its output at once and a line when it ends. The header comes
+        last. The lines are in colour if the output has colour. *)
   | `Quiet
-    (** Only what fails. There are no rows, no task lines and no header. A task
-        that fails or is cancelled prints its line, then its output under it, as
-        on a terminal ({!output}). What goes above the rows is printed as usual,
-        the result of {!Console.Display.set_result} included. *)
+    (** Only what fails is printed. There are no rows, no task lines and no
+        header. A task that fails or is cancelled prints its line, then its
+        output under it, as on a terminal ({!output}). What goes above the rows
+        is printed as usual, the result of {!Console.Display.set_result}
+        included. *)
   | `Json
-    (** One JSON object on each line for each event, and nothing else
-        ({{!json}JSON events}). *) ]
+    (** Each event is one JSON object on a line of its own, and nothing else is
+        printed ({{!json}JSON events}). *) ]
 (** The type for how a display shows progress, as the [--progress] option of
     [docker build] does. Constructors may be added, so a match on a progress has
     a case for the others. *)

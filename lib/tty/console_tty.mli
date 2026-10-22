@@ -46,10 +46,11 @@ val setup :
       reads a [--theme] option. Otherwise each output keeps its own. *)
 
 val ensure : unit -> unit
-(** [ensure ()] is like {!setup}[ ()] but leaves alone each of {!Fmt.stdout} and
-    {!Fmt.stderr} on which the program chose something already. Such a choice is
-    a style renderer or {!Fmt.utf_8}, set with [Fmt], [Fmt_tty] or {!setup}, or
-    a {!Console.Color.val-depth}. A {!Console.Theme} is not one.
+(** [ensure ()] is like [setup ()] ({!setup}) but leaves alone each of
+    {!Fmt.stdout} and {!Fmt.stderr} on which the program chose something
+    already. Such a choice is a style renderer or {!Fmt.utf_8}, set with [Fmt],
+    [Fmt_tty] or {!setup}, or a {!Console.Color.val-depth}. A {!Console.Theme}
+    is not one.
 
     A library that prints in colour on the standard outputs calls [ensure], as
     [Console_eio.run] does. A program that did not call {!setup} still gets
