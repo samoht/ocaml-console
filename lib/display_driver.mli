@@ -66,6 +66,10 @@ val watch :
     formatter that writes where [display] does, so that the next line [display]
     prints without a terminal starts on a line of its own. *)
 
+val ending : Display.t -> (Display.task -> unit) -> unit
+(** [ending display f] has [display] call [f task] as each of its tasks ends,
+    while it still runs, so that a driver gives it the last of its output. *)
+
 val current : Display.t -> Display.task option
 (** [current display] is the task of [display] current where it is called, if it
     still runs and is not the {!Display.root}. A driver gives it what the

@@ -127,6 +127,7 @@ let v ?(layout = Layout.default) ?header ?size ?(progress = `Auto) ?scope ~now
       writes = Queue.create ();
       writing = false;
       release = ignore;
+      ending = ignore;
       root = None;
       scope = (match scope with Some s -> s | None -> local ());
     }
@@ -325,6 +326,7 @@ let rec finish outcome ?message r =
   if is_root r || not (is_running r) then []
   else begin
     let t = r.disp in
+    t.ending r;
     let child_outcome =
       match outcome with
       | `Succeeded -> `Succeeded

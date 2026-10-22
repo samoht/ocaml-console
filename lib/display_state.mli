@@ -72,6 +72,7 @@ type t = {
   writes : string Queue.t;
   mutable writing : bool;
   mutable release : unit -> unit;
+  mutable ending : row -> unit;
   mutable root : row option;
   scope : scope;
 }
@@ -119,8 +120,9 @@ and row = {
     under way. Without a terminal, {!field-partial} is [true] iff the last byte
     written on {!field-ppf} did not end a line, and {!field-release} gives
     {!field-ppf} its own output functions back, and {!field-form} says what it
-    prints. {!field-root} is the top task, once asked for, the only one with a
-    negative {!field-id}. *)
+    prints. {!field-ending} is called with each task as it ends, before it ends.
+    {!field-root} is the top task, once asked for, the only one with a negative
+    {!field-id}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a display for diagnostics. *)

@@ -60,6 +60,7 @@ type t = {
   writes : string Queue.t;
   mutable writing : bool;
   mutable release : unit -> unit;
+  mutable ending : row -> unit;
   mutable root : row option;
   scope : scope;
 }
