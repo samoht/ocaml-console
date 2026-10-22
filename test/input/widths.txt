@@ -39,6 +39,14 @@
 # and iTerm2 draw it. Where every terminal agrees, console must too; where
 # they differ, console takes one of their counts.
 #
+# One exception widens "spacing mark" beyond Mc: Thai SARA AM U+0E33 and Lao
+# AM U+0EB3 are letters (Lo), but UAX #29 makes them SpacingMark, so they
+# join their consonant's cluster, and terminals draw them in a cell of their
+# own. Console counts every Grapheme_Cluster_Break=SpacingMark too, which in
+# Unicode 18 adds exactly these two to Mc. A code point width (xterm, VTE)
+# gives the consonant and its AM one cell each; the clustering terminals were
+# not established for them.
+#
 # code points              | xterm | vte | kitty | wezterm | ghostty | iterm2 | console | what
 0068 0065 006C 006C 006F   | 5     | 5   | 5     | 5       | 5       | 5      | 5       | ASCII
 754C 754C                  | 4     | 4   | 4     | 4       | 4       | 4      | 4       | two CJK ideographs

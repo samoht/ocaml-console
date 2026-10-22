@@ -17,7 +17,9 @@ let uchars s =
   go 0 []
 
 let cells u = max 0 (Uucp.Break.tty_width_hint u)
-let is_spacing_mark u = Uucp.Gc.general_category u = `Mc
+
+let is_spacing_mark u =
+  Uucp.Gc.general_category u = `Mc || Uucp.Break.grapheme_cluster u = `SM
 
 let is_regional_indicator u =
   0x1f1e6 <= Uchar.to_int u && Uchar.to_int u <= 0x1f1ff

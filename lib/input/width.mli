@@ -13,10 +13,11 @@ val string_width : string -> int
       a control none, and any other character one;
     - an emoji sequence takes two cells. A ZWJ sequence, a skin tone, a flag, a
       keycap and a character that VS16 shows as an emoji are emoji sequences;
-    - a spacing mark (general category Mc) after the first character of its
-      cluster adds the cells it takes alone, as xterm, VTE, Ghostty and iTerm2
-      draw it. A consonant and its vowel sign take two, and a wide mark adds
-      two;
+    - a spacing mark after the first character of its cluster adds the cells it
+      takes alone, as xterm, VTE, Ghostty and iTerm2 draw it. A consonant and
+      its vowel sign take two, and a wide mark adds two. A spacing mark is of
+      general category Mc, or is Thai SARA AM U+0E33 or Lao AM U+0EB3, letters
+      that UAX #29 makes spacing marks;
     - a VS16 shows as an emoji only the character before it that is text by
       default, a base of emoji-variation-sequences.txt; after any other it
       selects nothing and adds no cell.
@@ -43,8 +44,8 @@ val iter_clusters :
     [cells], its {!string_width}. *)
 
 val is_spacing_mark : int -> bool
-(** [is_spacing_mark c] is [true] iff the code point [c] is a spacing mark, of
-    general category Mc. *)
+(** [is_spacing_mark c] is [true] iff the code point [c] is a spacing mark
+    ({!string_width}). *)
 
 val is_ascii : string -> bool
 (** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)

@@ -9,7 +9,13 @@ let is_ascii_sub s ~pos ~len =
   let rec go i = i >= pos + len || (Char.Ascii.is_print s.[i] && go (i + 1)) in
   go pos
 
-let is_mark u = Uucp.Gc.general_category u = `Mc
+(* A spacing mark is of general category Mc, or a SpacingMark of UAX #29
+   that is not: Thai SARA AM U+0E33 and Lao AM U+0EB3, letters (Lo) that
+   join their consonant's cluster and that terminals draw in a cell of
+   their own. *)
+let is_mark u =
+  Uucp.Gc.general_category u = `Mc || Uucp.Break.grapheme_cluster u = `SM
+
 let is_spacing_mark c = Uchar.is_valid c && is_mark (Uchar.unsafe_of_int c)
 
 (* A character that is text by default and that VS16 shows as an emoji:
