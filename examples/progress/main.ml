@@ -39,7 +39,7 @@ let main progress fail =
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) `Auto
+    & opt (enum Console.Progress.all) `Auto
     & info [ "progress" ]
         ~doc:
           "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \

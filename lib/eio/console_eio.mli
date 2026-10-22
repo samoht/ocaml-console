@@ -36,38 +36,12 @@
 module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
 
-type progress =
-  [ `Auto
-    (** The rows are redrawn in place on a terminal ({!run}), and lines are
-        printed in turn otherwise. *)
-  | `Tty
-    (** The rows are redrawn in place on any output, such as a pipe that a
-        terminal recorder reads. The rows take the size of the terminal behind
-        the output, if there is one, else [$COLUMNS] by [$LINES], else 80 by 24.
-    *)
-  | `Plain
-    (** Lines are printed in turn, as on a pipe. A task prints a line when it
-        starts, its output at once and a line when it ends. The header comes
-        last. The lines are in colour if the output has colour. *)
-  | `Quiet
-    (** Only what fails is printed. There are no rows, no task lines and no
-        header. A task that fails or is cancelled prints its line, then its
-        output under it, as on a terminal ({!output}). What goes above the rows
-        is printed as usual, the result of {!Console.Display.set_result}
-        included. *)
-  | `Json
-    (** Each event is one JSON object on a line of its own, and nothing else is
-        printed ({{!json}JSON events}). *) ]
-(** The type for how a display shows progress, as the [--progress] option of
-    [docker build] does. Constructors may be added, so a match on a progress has
-    a case for the others. *)
-
 val run :
   clock:_ Eio.Time.Mono.t ->
   ?ppf:Format.formatter ->
   ?layout:Console.Display.Layout.t ->
   ?header:string ->
-  ?progress:progress ->
+  ?progress:Console.Progress.t ->
   (Console.Display.t -> 'a) ->
   'a
 (** [run ~clock f] is [f display], for a display that closes when [f] ends.
@@ -80,7 +54,9 @@ val run :
       standard output stays the program's). The display is drawn in [ppf]'s
       theme ({!Console.Theme.get}).
     - [header] and [layout] are those of {!Console.Display.v}.
-    - [progress] says how progress shows (defaults to [`Auto]).
+    - [progress] says how progress shows ({!Console.Progress}, defaults to
+      [`Auto]). With [`Tty] the rows take the size of the terminal behind the
+      output, if there is one, else [$COLUMNS] by [$LINES], else 80 by 24.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
     the program chose nothing gets the colours its terminal and environment
@@ -112,60 +88,6 @@ val run :
     {{!frozen}frozen clock}.
 
     @raise Invalid_argument if a display runs in another domain. *)
-
-val progress : (string * progress) list
-(** [progress] is the choices of a [--progress] option, as
-    [Cmdliner.Arg.enum progress] reads them, for the [progress] argument of
-    {!run}:
-    [[("auto", `Auto); ("tty", `Tty); ("plain", `Plain); ("quiet", `Quiet);
-     ("json", `Json)]]. *)
-
-(** {1:json JSON events}
-
-    With [`Json] the display writes one JSON object on each line of [ppf] for
-    each event, in the order the events happen. Objects may gain fields, new
-    events may be added, and a field whose values are listed below may gain
-    values, but the fields below keep their meaning. A consumer skips an event
-    or a value it does not know. The header of the display is not an event.
-
-    Every object has:
-    - [time], the seconds since the display started, a number with three
-      decimals ([0.000] under [CONSOLE_FROZEN_CLOCK]);
-    - [event], one of the strings below.
-
-    An event of a task also has:
-    - [id], an integer that names the task in the display: the tasks are
-      numbered from [0] in the order they start, and no two tasks of a display
-      have the same number;
-    - [task], the labels from the top task down to it, an array of strings.
-
-    The events are:
-    - ["start"]: the task started. [parent] is the [id] of the task it is under,
-      if any.
-    - ["progress"]: its count changed. [count] and [total] are integers, and
-      [unit] is ["items"] or ["bytes"].
-    - ["label"]: its label changed to [text].
-    - ["output"]: [text] is a line of its output. [level], only for a [Logs]
-      message, is that message's level: ["app"], ["error"], ["warning"],
-      ["info"] or ["debug"]. Output outside any task has [task] at [[]] and no
-      [id].
-    - ["end"]: it ended. [status] is ["succeeded"], ["failed"] or ["cancelled"],
-      [elapsed] is the seconds it ran, with three decimals, and [text] is the
-      message it ended with, if any.
-    - ["result"]: the result of {!Console.Display.set_result}, when the display
-      closes. [status] is ["ok"] or ["error"], [text] is its message and
-      [detail] its detail, if any.
-
-    A transient task ({!Console.Display.task}) has its events as any other task
-    has. Strings are valid UTF-8. A control character in them is always escaped.
-    The task in the example of {!Console.Display} gives these events:
-    {v
-    {"time":0.000,"event":"start","id":0,"task":["compile"]}
-    {"time":0.000,"event":"progress","id":0,"task":["compile"],"count":1,"total":2,"unit":"items"}
-    {"time":0.000,"event":"output","id":0,"task":["compile"],"text":"ocamlopt parser.ml"}
-    {"time":0.000,"event":"progress","id":0,"task":["compile"],"count":2,"total":2,"unit":"items"}
-    {"time":0.000,"event":"end","id":0,"task":["compile"],"status":"succeeded","elapsed":0.000}
-    v} *)
 
 (** {1:running Running a display}
 
@@ -231,7 +153,8 @@ val progress : (string * progress) list
 
     [CONSOLE_FROZEN_CLOCK], set in the environment to a value other than the
     empty string, stops the display's clock at zero:
-    - every elapsed time reads [0.0s];
+    - every elapsed time reads [0.0s], and every [time] and [elapsed] of a
+      {{!Console.Progress.json}JSON event} reads [0.000];
     - no rate shows;
     - the spinners and the motion stand still.
 

@@ -65,6 +65,7 @@ unit).
 | `Border`, `Guide` | accessors give back what was given | `fuzz/fuzz_border.ml` "accessors" (property); `fuzz/fuzz_guide.ml` "accessors" (property) |
 | `Spinner.frame` | one of its frames, the first before time; refusals | `fuzz/fuzz_spinner.ml` "frame" (property) |
 | `Theme` | parts kept, a mark is one line, `of_string` reads back the names of `Theme.all` | `fuzz/fuzz_theme.ml` "parts and marks" (property) |
+| `Progress` | `of_string` reads back the names of `Progress.all`, and an unknown name's error lists them | `test/test_progress.ml` "names" (unit) |
 | `Bar.v` | exactly `width` cells, two more with brackets; without a style, a palette of several colours spread along it and one of one colour in that colour | `fuzz/fuzz_bar.ml` "width" (property); `test/test_bar.ml` "a palette along the bar" (unit) |
 | `Rule.pp` | exactly the margin | `fuzz/fuzz_rule.ml` "as wide as the margin" (property) |
 | `Panel.pp` | fits the margin, a fixed panel is a rectangle, a box too small refused, also for a padding that would overflow | `fuzz/fuzz_panel.ml` "fits the margin" (property); `fuzz/fuzz_panel.ml` "multi-cell borders respect fixed width" (property); `fuzz/fuzz_panel.ml` "refuses a box too small" (property); `fuzz/fuzz_panel.ml` "overflowing padding is refused at construction" (property); `test/test_panel.ml` "huge padding is refused before drawing" (unit) |

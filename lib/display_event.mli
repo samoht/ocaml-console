@@ -5,8 +5,8 @@
 
 (** The events of a display whose form is {!Display_state.Json}, each written as
     one JSON object on a line of its own. The fields are those of
-    [Console_eio.progress]: [time], [event], [id], [parent], [task], [count],
-    [total], [unit], [level], [status], [elapsed], [text] and [detail]. *)
+    {!Progress.json}: [time], [event], [id], [parent], [task], [count], [total],
+    [unit], [level], [status], [elapsed], [text] and [detail]. *)
 
 open Display_state
 

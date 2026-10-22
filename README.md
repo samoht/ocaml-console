@@ -351,7 +351,7 @@ remaining rules, for cancelled tasks, nested displays, domains and prompts.
 
 Users can choose how progress is shown with a `--progress` option, as they
 can with [`docker build`](https://docs.docker.com/reference/cli/docker/buildx/build/).
-`Console_eio.progress` lists the option's five values:
+`Console.Progress.all` lists the option's five values:
 
 - `auto`, the default, redraws the rows on a terminal and prints lines
   everywhere else.
@@ -360,14 +360,14 @@ can with [`docker build`](https://docs.docker.com/reference/cli/docker/buildx/bu
 - `plain` prints lines, as on a CI log, but keeps the colour.
 - `quiet` prints only what fails.
 - `json` writes one JSON object per line for each event. Its fields are
-  documented in `Console_eio`, and keep their meaning as new ones are
+  documented in `Console.Progress`, and keep their meaning as new ones are
   added.
 
 ```ocaml
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) `Auto
+    & opt (enum Console.Progress.all) `Auto
     & info [ "progress" ]
         ~doc:
           "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \
@@ -581,6 +581,7 @@ character that reorders the text around it:
 | `Console.Bar` | Horizontal bars, for progress and for figures |
 | `Console.Spinner` | Spinners for work of unknown length |
 | `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
+| `Console.Progress` | How a display shows progress, the values of a `--progress` option |
 | `Console_tty` | Colour and UTF-8 on the standard outputs (`console.tty`) |
 | `Console_text` | Untrusted text made safe for a terminal (`console.text`) |
 | `Console_input` | A line editor that does no input or output (`console.input`) |

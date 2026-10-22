@@ -1,5 +1,5 @@
 A --progress option asks Console_eio.run how progress shows, as docker
-build's does. The example reads it with Console_eio.progress, as
+build's does. The example reads it with Console.Progress.all, as
 Cmdliner.Arg.enum does.
 
   $ export CONSOLE_FROZEN_CLOCK=1

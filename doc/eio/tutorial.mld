@@ -156,16 +156,16 @@ option of the same name does for
 {- [plain] prints lines in turn, as on a pipe, even on a terminal;}
 {- [quiet] prints only what fails;}
 {- [json] writes one JSON object for each event
-   ({{!Console_eio.json}JSON events}).}}
+   ({{!Console.Progress.json}JSON events}).}}
 
-{!Console_eio.val-progress} lists these values in the form Cmdliner reads,
-for the [progress] argument of {!Console_eio.run}:
+{!Console.Progress.all} lists these values in the form Cmdliner reads, for
+the [progress] argument of {!Console_eio.run}:
 
 {@ocaml[
 let progress =
   Cmdliner.Arg.(
     value
-    & opt (enum Console_eio.progress) `Auto
+    & opt (enum Console.Progress.all) `Auto
     & info [ "progress" ]
         ~doc:
           "How progress shows: $(b,auto), $(b,tty), $(b,plain), $(b,quiet) or \
@@ -242,7 +242,7 @@ only the table remains:
 ]}
 
 With [--progress=json], [check] writes the events for another program to
-read instead, one JSON object to a line ({{!Console_eio.json}JSON
+read instead, one JSON object to a line ({{!Console.Progress.json}JSON
 events}).
 
 {1:testing Testing the output}

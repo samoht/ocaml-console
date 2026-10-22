@@ -16,3 +16,4 @@ module Table = Table
 module Tree = Tree
 module Rule = Rule
 module Display = Display
+module Progress = Progress

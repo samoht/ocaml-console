@@ -164,3 +164,6 @@ module Rule = Rule
 
 module Display = Display
 (** Progress rows that are redrawn in place while work runs. *)
+
+module Progress = Progress
+(** How a display shows progress: rows, lines, only failures or JSON. *)

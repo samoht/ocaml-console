@@ -29,7 +29,7 @@ val scope :
 
 type form = [ `Plain | `Quiet | `Json ]
 (** The type for what a display prints without a terminal, as the [`Plain],
-    [`Quiet] and [`Json] forms of [Console_eio.progress] describe. *)
+    [`Quiet] and [`Json] forms of {!Progress.t} describe. *)
 
 val v :
   ?layout:Display.Layout.t ->

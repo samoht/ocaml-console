@@ -80,8 +80,6 @@ let reading clock =
   | None | Some "" -> seconds clock
   | Some _ -> fun () -> 0.
 
-type progress = [ `Auto | `Tty | `Plain | `Quiet | `Json ]
-
 (* The display, the formatters whose lines it takes and what shows or hides
    the cursor. On a terminal it takes the standard formatters on that
    terminal; quiet, those that write where [ppf] does, as a task's output
@@ -149,12 +147,3 @@ let run ~clock ?(ppf = Fmt.stderr) ?layout ?header ?(progress = `Auto) f =
       match Session.join f with
       | Some v -> v
       | None -> open_display ~clock ~ppf ?layout ?header ~progress f)
-
-let progress =
-  [
-    ("auto", `Auto);
-    ("tty", `Tty);
-    ("plain", `Plain);
-    ("quiet", `Quiet);
-    ("json", `Json);
-  ]
