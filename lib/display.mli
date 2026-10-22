@@ -348,7 +348,8 @@ val with_task :
     starts it and current while [f] runs. The task succeeds when [f] returns and
     fails when [f] raises, with the message
     [label ^ ": " ^ Printexc.to_string e] for the exception [e] ({!fail}), which
-    is raised again; but if [f] ended the task itself, that ending counts.
+    is raised again; but if [f] ended the task itself, that ending counts. Under
+    [Console_eio.run], a cancelled fiber cancels the task instead of failing it.
 
     When [key] names a task that runs, [with_task] is
     [within task (fun () -> f task)] for that task. It ends nothing, and the
