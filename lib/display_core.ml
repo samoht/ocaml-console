@@ -346,10 +346,8 @@ let kept r =
   @ List.concat_map (Display_row.under r) (List.rev all)
 
 (* What a task prints when it ends without a terminal: quiet, its line and
-   all its lines if it failed or was cancelled, a transient task too, since
-   nothing else shows the failure; in turn, its line alone, its lines having
-   been printed as they came, and for a transient task only if it failed or
-   was cancelled, for the same reason. Its event says the rest. *)
+   all its lines if it failed or was cancelled; in turn, its line alone,
+   unless it is transient and succeeded. *)
 let ending r outcome =
   let t = r.disp in
   let failed =

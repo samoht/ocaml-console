@@ -51,8 +51,6 @@ let ellipsis = "..."
 
 exception Cut of int
 
-(* The cut falls between two grapheme clusters, a character in console, at
-   the last boundary that leaves room for the dots. *)
 let capped s =
   if String.length s <= kept_bytes then s
   else

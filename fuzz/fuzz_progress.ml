@@ -372,9 +372,8 @@ let test_accessors raw id n =
   verify ~outcome:`Ok ~text `Result (Event.result ~time:1.25 ~outcome:`Ok raw);
   verify (`Other "pause") (Event.other ~time:1.25 "pause")
 
-(* The retained 4 KiB texts are cut between two grapheme clusters, a
-   character in console, then end in ASCII dots, also where a combining
-   mark, a joiner, a flag or an escape meets the cap. *)
+(* A retained text is cut between two grapheme clusters, then ends in
+   ASCII dots. *)
 let test_retained_cut k =
   let tails =
     [|

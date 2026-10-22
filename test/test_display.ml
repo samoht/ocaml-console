@@ -1627,9 +1627,7 @@ let test_quiet_transient_failure () =
     "the failure's output shows" true
     (contains "disk full" (Buffer.contents buffer))
 
-(* Between two tasks the work still runs: the summary must not say it has
-   succeeded while the display is open. examples/display shows a green
-   "✓ Building" for one redraw between its fetch and its test. *)
+(* The summary runs while the display is open. *)
 let test_summary_between_tasks () =
   let t = terminal ~theme ~width:40 ~summary:"Build" () in
   let a = Display.task t.display "fetch" in
@@ -1643,9 +1641,7 @@ let test_summary_between_tasks () =
     (List.exists (contains "[+] Build") (screen t));
   Display.close t.display
 
-(* The 4 KiB cut is between two characters, as console.mli guarantees for
-   any text cut to fit: a flag, two regional indicators, is one character
-   and must not lose its second half. *)
+(* The 4 KiB cut keeps a flag, one grapheme cluster, whole. *)
 let test_cap_keeps_a_flag () =
   let flag = "\u{1F1EB}\u{1F1F7}" in
   let label = String.make 4089 'a' ^ flag ^ "b" in
@@ -1659,8 +1655,7 @@ let test_cap_keeps_a_flag () =
     "the flag whole or not at all" true
     (has flag || not (has "\u{1F1EB}"))
 
-(* On a pipe the mark of an output line and the separator of a path are
-   the same glyph, U+203A, so "› a › b: x" reads as a path of three. *)
+(* The mark of a line of output is not the separator of its path. *)
 let test_pipe_output_mark_not_separator () =
   let (), out =
     plain (fun d _ ->
@@ -1674,10 +1669,7 @@ let test_pipe_output_mark_not_separator () =
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
   Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
 
-(* A row with no count keeps the label that fits: it does not cut its label
-   for a count column it leaves empty, and a deeper row does not show more
-   of its label than a shallower one. Seen in a tree eight deep at 40
-   columns: "level-5-lab…" above "level-4-label". *)
+(* A label is not cut for a count column its row leaves empty. *)
 let test_label_not_cut_for_an_empty_count () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -1699,11 +1691,7 @@ let test_label_not_cut_for_an_empty_count () =
     true
     (contains "level-5-label" tree)
 
-(* On a pipe a failed transient task with no output leaves no line, not
-   even the reason with_task gives it, yet the summary says the work
-   failed: a CI log then reads "✗ S" with nothing that failed.
-   Quiet prints such a failure ("where nothing else would show it"), and a
-   pipe has nothing else to show it either. *)
+(* On a pipe a failed transient task prints its line and its reason. *)
 let test_plain_transient_failure () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -1719,8 +1707,6 @@ let test_plain_transient_failure () =
     ("the failure shows in\n" ^ out)
     true (contains "probe" out)
 
-(* On a terminal too, nothing but its own line would show that a transient
-   task failed: it keeps its line and its output. *)
 let test_tty_transient_failure () =
   let t = terminal ~theme ~width:40 ~summary:"S" () in
   (try
@@ -1736,10 +1722,6 @@ let test_tty_transient_failure () =
     (List.exists (contains "[x] probe") all
     && List.exists (contains "disk full") all)
 
-(* What gives way: a row's label is cut only once its rate, its bar, its
-   count and its time have all given way, the count to its short form out
-   of its column. A row of 30 cells of label that counts bytes, from 80
-   columns down. *)
 let test_label_gives_way_last () =
   let label = "a-label-of-thirty-cells-long-x" in
   let given = Re.Perl.compile_pat "MiB|GiB|[0-9]s|\u{2588}|\u{2591}" in
@@ -1760,8 +1742,6 @@ let test_label_gives_way_last () =
       Display.close t.display)
     [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
 
-(* The cell column of the last bar glyph in [row], if any; every glyph on
-   these rows takes one cell. *)
 let bar_end row =
   let cells = ref 0 and last = ref None in
   String.iteri
@@ -1777,9 +1757,6 @@ let bar_end row =
     row;
   !last
 
-(* The bars of the rows that show one end in the same column, whatever
-   their counts and rates: examples/progress's step, which counts items,
-   and its layer, which counts bytes and shows a rate. *)
 let test_bars_line_up () =
   let t = terminal ~theme ~width:80 ~height:8 () in
   let step = Display.task t.display "RUN make" in
