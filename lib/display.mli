@@ -116,7 +116,14 @@
     Only once all of them have is the label cut, with an ellipsis. The line of a
     task that ended gives way in the same order: its count gets shorter and
     leaves its column, then its time goes, and only then is its label cut. In
-    the last frame a label is never cut ({!tree}). *)
+    the last frame a label is never cut ({!tree}).
+
+    {b Columns.} The count and the rate each take a column that the rows of a
+    display share, as wide as the widest it has shown, and the elapsed time a
+    column of six cells; a row without a count or a rate leaves its column
+    blank. The pieces after the {!Layout.spacer} sit against the right edge, so
+    while no piece gives way each sits in the same columns on every row: the
+    bars of the rows that show one end in one column. *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
@@ -139,10 +146,11 @@ module Layout : sig
 
   val count : piece
   (** [count] is the count of items or bytes done and the total, such as [3/10].
-      The counts of all rows are right-aligned in one column. *)
+      The counts of all rows are right-aligned in one column ({!Layout}). *)
 
   val rate : piece
-  (** [rate] is the bytes per second of a task that counts bytes. *)
+  (** [rate] is the bytes per second of a task that counts bytes. The rates of
+      all rows are right-aligned in one column ({!Layout}). *)
 
   val elapsed : piece
   (** [elapsed] is the time since the task started, such as [6.4s], [1m05s] or
@@ -577,9 +585,9 @@ val summary : ?width:int -> t -> Span.t
       code, and it ends with an ellipsis that turns its style off.
     - While no piece gives way ({!Layout}), the counts, rates and timers of all
       rows sit in the same columns, whatever the width of the labels: at the
-      right edge of the first [min w 100] columns. On a wide terminal they stay
-      near their labels, and they do not move when the terminal is resized
-      wider.
+      right edge of the first [min w 100] columns, and so do the ends of their
+      bars. On a wide terminal they stay near their labels, and they do not move
+      when the terminal is resized wider.
 
     - After a resize the old frame is erased, counting the rows that a terminal
       which reflows its lines gives it. On one that does not reflow, such as

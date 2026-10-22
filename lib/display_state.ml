@@ -27,6 +27,11 @@ let count_width metric =
   in
   max (String.length (count_text metric)) (String.length (count_text full))
 
+let rate_text metric rate =
+  match metric with
+  | Bytes _ when rate > 1. -> Display_text.bytes (Int64.of_float rate) ^ "/s"
+  | Spin | Count _ | Bytes _ -> ""
+
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
@@ -42,6 +47,7 @@ type t = {
   running : row Queue.t;
   mutable stale : int;
   mutable count_cell : int;
+  mutable rate_cell : int;
   by_key : (string, row) Hashtbl.t;
   mutable next_id : int;
   mutable next_line : int;

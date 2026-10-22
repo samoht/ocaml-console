@@ -140,6 +140,7 @@ let v ?(layout = Layout.default) ?summary ?view ?(keep_ended = false) ?size
       running = Queue.create ();
       stale = 0;
       count_cell = 0;
+      rate_cell = 0;
       by_key = Hashtbl.create 16;
       next_id = 0;
       next_line = 0;
@@ -619,6 +620,9 @@ let set_bytes r ~cur ~total =
       r.last_cur <- cur;
       r.last_t <- now
     end;
+    r.disp.rate_cell <-
+      max r.disp.rate_cell
+        (String.length (rate_text (Bytes (cur, total)) r.rate));
     set_metric r (Bytes (cur, total))
   end
 

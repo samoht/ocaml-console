@@ -99,11 +99,7 @@ let piece t r ~time (p : Display_layout.piece) =
       | Some p -> Fmt.kstr (muted t) "%3d%%" p
       | None -> Span.empty)
   | Count -> count_cell t r
-  | Rate -> (
-      match r.metric with
-      | Bytes _ when r.rate > 1. ->
-          muted t (Display_text.bytes (Int64.of_float r.rate) ^ "/s")
-      | _ -> Span.empty)
+  | Rate -> pad_left t.rate_cell (muted t (rate_text r.metric r.rate))
   | Elapsed -> timer t (elapsed r)
   | Text s -> text s
   | Accent s -> Span.styled Style.(bold + fg (color r)) s

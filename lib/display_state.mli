@@ -40,6 +40,10 @@ val count_width : metric -> int
 (** [count_width m] is the cells [m] needs now and once done, whichever is
     wider, so a count does not walk left as it grows. *)
 
+val rate_text : metric -> float -> string
+(** [rate_text m rate] is what a row's rate cell shows: [rate] bytes per second
+    for {!constructor-Bytes} once it is above one, or [""]. *)
+
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
@@ -55,6 +59,7 @@ type t = {
   running : row Queue.t;
   mutable stale : int;
   mutable count_cell : int;
+  mutable rate_cell : int;
   by_key : (string, row) Hashtbl.t;
   mutable next_id : int;
   mutable next_line : int;
