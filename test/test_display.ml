@@ -616,6 +616,28 @@ let test_invalid () =
       ignore Display.Layout.(v [ label; label ]));
   Display.close d
 
+(* [size] has no documented bound, and a terminal reports what it is told
+   ($COLUMNS under [`Tty] without a terminal): a display on a terminal of
+   any width runs, and writes in proportion to what it draws, not to the
+   width. *)
+let test_any_width () =
+  List.iter
+    (fun w ->
+      let buf = Buffer.create 256 in
+      let ppf = Format.formatter_of_buffer buf in
+      match
+        let d = Display.v ~size:(fun () -> (w, 24)) ~now:(fun () -> 0.) ppf in
+        Display.with_task d "work" (fun t ->
+            Display.set_count t ~cur:1 ~total:2);
+        Display.close d
+      with
+      | () ->
+          Format.pp_print_flush ppf ();
+          if Buffer.length buf > 100_000 then
+            Alcotest.failf "width %d: %d bytes written" w (Buffer.length buf)
+      | exception e -> Alcotest.failf "width %d: %s" w (Printexc.to_string e))
+    [ 1_000_000; Sys.max_string_length; max_int ]
+
 (* A fiber that outlives the display, or a library that holds on to it,
    is ignored once it closed: nothing raises and nothing is written. *)
 let test_closed () =
@@ -1296,6 +1318,7 @@ let suite =
       Alcotest.test_case "counts" `Quick test_counts;
       Alcotest.test_case "large counts" `Quick test_large_counts;
       Alcotest.test_case "invalid" `Quick test_invalid;
+      Alcotest.test_case "a terminal of any width" `Quick test_any_width;
       Alcotest.test_case "a closed display ignores calls" `Quick test_closed;
       Alcotest.test_case "colours" `Quick test_colours;
       Alcotest.test_case "pipe lines" `Quick test_pipe_lines;
