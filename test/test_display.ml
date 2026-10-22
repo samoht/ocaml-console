@@ -1719,6 +1719,23 @@ let test_plain_transient_failure () =
     ("the failure shows in\n" ^ out)
     true (contains "probe" out)
 
+(* On a terminal too, nothing but its own line would show that a transient
+   task failed: it keeps its line and its output. *)
+let test_tty_transient_failure () =
+  let t = terminal ~theme ~width:40 ~summary:"S" () in
+  (try
+     Display.with_task ~transient:true t.display "probe" (fun r ->
+         Display.log r "disk full";
+         failwith "boom")
+   with Failure _ -> ());
+  Display.close t.display;
+  let all = lines t in
+  Alcotest.(check bool)
+    ("the failure shows in\n" ^ String.concat "\n" all)
+    true
+    (List.exists (contains "[x] probe") all
+    && List.exists (contains "disk full") all)
+
 let suite =
   ( "display",
     [
@@ -1822,4 +1839,6 @@ let suite =
         test_label_not_cut_for_an_empty_count;
       Alcotest.test_case "a pipe shows a transient failure" `Quick
         test_plain_transient_failure;
+      Alcotest.test_case "a terminal shows a transient failure" `Quick
+        test_tty_transient_failure;
     ] )
