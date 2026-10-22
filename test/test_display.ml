@@ -1443,22 +1443,36 @@ let test_plain_failure_output_once () =
     "the line once" 1
     (List.length (List.filter (contains "checksum mismatch") (split out)))
 
-(* A task whose child failed does not read as a success. *)
+(* A task's mark is what the program says of it: a task under it that
+   failed does not fail it, and a program that fails it marks it so. *)
 let test_parent_of_failure () =
   let (), out =
     plain ~theme (fun d _ ->
         Display.with_task d "parent" (fun p ->
-            Display.fail (Display.task ~parent:p d "child")))
+            Display.fail (Display.task ~parent:p d "child"));
+        Display.with_task d "step" (fun p ->
+            Display.fail (Display.task ~parent:p d "layer");
+            Display.fail p))
   in
-  Alcotest.(check bool)
-    "no success mark on the parent" false
-    (List.mem "[+] parent  0.0s" (split out));
+  check_lines "each mark as the program said"
+    [
+      "[-] parent";
+      "[-] parent \u{203A} child";
+      "[x] parent \u{203A} child  0.0s  failed";
+      "[+] parent  0.0s";
+      "[-] step";
+      "[-] step \u{203A} layer";
+      "[x] step \u{203A} layer  0.0s  failed";
+      "[x] step  0.0s  failed";
+      "";
+    ]
+    (split out);
   let t = terminal ~theme ~width:40 ~height:8 () in
   Display.with_task t.display "parent" (fun p ->
       Display.fail (Display.task ~parent:p t.display "child"));
   Display.close t.display;
   Alcotest.(check bool)
-    "nor on a terminal" false
+    "on a terminal too" true
     (List.exists (fun r -> untimed r = "[+] parent") (lines t))
 
 (* With [`Quiet] a nested failure says where it is: its parent's label goes
@@ -1592,7 +1606,7 @@ let suite =
         `Quick test_plain_output_not_sibling;
       Alcotest.test_case "a pipe prints a failure's output once" `Quick
         test_plain_failure_output_once;
-      Alcotest.test_case "the parent of a failure is no success" `Quick
+      Alcotest.test_case "a parent's mark is what the program says" `Quick
         test_parent_of_failure;
       Alcotest.test_case "a quiet failure names its parent" `Quick
         test_quiet_failure_context;

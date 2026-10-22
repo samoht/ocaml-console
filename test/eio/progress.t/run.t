@@ -66,13 +66,35 @@ recorder reads: the bytes leave the screen a terminal shows. The rows are
   [+] Building 0.0s (2/2)
 
 --progress=quiet prints nothing when the work succeeds, and a failed task's
-line and its output when it fails:
+line and its output when it fails. With --fail the layer fails, and the
+example fails its step too, since a task under it does not:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet --fail
   [x] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s  failed
     # checksum mismatch
+  [x] RUN make  5/5  0.0s  failed
+    #   CC src/file0.c
+    #   CC src/file1.c
+    #   CC src/file2.c
+    #   CC src/file3.c
+    #   CC src/file4.c
+    #   CC src/file5.c
+
+The example then exits with 1:
+
+  $ ../../../examples/progress/main.exe --progress=quiet --fail
+  [x] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  0.0s  failed
+    # checksum mismatch
+  [x] RUN make  5/5  0.0s  failed
+    #   CC src/file0.c
+    #   CC src/file1.c
+    #   CC src/file2.c
+    #   CC src/file3.c
+    #   CC src/file4.c
+    #   CC src/file5.c
+  [1]
 
 --progress=json writes one JSON object on each line for each event, on a
 terminal as on a pipe:
@@ -103,7 +125,7 @@ terminal as on a pipe:
   {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":2147483648,"total":2147483648,"unit":"bytes"}
   {"time":0,"event":"output","id":1,"task":["RUN make","sha256:abcd..."],"text":"checksum mismatch"}
   {"time":0,"event":"end","id":1,"task":["RUN make","sha256:abcd..."],"status":"failed","elapsed":0}
-  {"time":0,"event":"end","id":0,"task":["RUN make"],"status":"succeeded","elapsed":0}
+  {"time":0,"event":"end","id":0,"task":["RUN make"],"status":"failed","elapsed":0}
 
 Console.Progress.Event.jsont reads each of these events back, and writes it
 as it was:

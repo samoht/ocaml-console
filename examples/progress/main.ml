@@ -7,7 +7,8 @@
    [main.exe 2>&1 | cat] shows the plain lines a pipe gets,
    [main.exe --progress=plain] prints them on a terminal too, and
    [--progress=tty], [quiet] and [json] show the other modes. With [fail],
-   the layer fails. *)
+   the layer fails, so does the step, which a task under it does not fail
+   on its own, and the program exits with 1. *)
 
 let build ~fail clock display =
   let step = Console.Display.task ~log_lines:4 display "RUN make" in
@@ -26,15 +27,21 @@ let build ~fail clock display =
   done;
   if fail then begin
     Console.Display.log layer "checksum mismatch";
-    Console.Display.fail layer
+    Console.Display.fail layer;
+    Console.Display.fail step
   end
-  else Console.Display.succeed layer;
-  Console.Display.succeed step
+  else begin
+    Console.Display.succeed layer;
+    Console.Display.succeed step
+  end;
+  not fail
 
 let main progress fail =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  Console_eio.run ~clock ~progress ~summary:"Building" (build ~fail clock)
+  if Console_eio.run ~clock ~progress ~summary:"Building" (build ~fail clock)
+  then 0
+  else 1
 
 let progress =
   Cmdliner.Arg.(
@@ -50,4 +57,4 @@ let fail = Cmdliner.Arg.(value & flag & info [ "fail" ] ~doc:"Fail the layer.")
 let cmd =
   Cmdliner.Cmd.(v (info "build") Cmdliner.Term.(const main $ progress $ fail))
 
-let () = exit (Cmdliner.Cmd.eval cmd)
+let () = exit (Cmdliner.Cmd.eval' cmd)

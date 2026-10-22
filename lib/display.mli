@@ -453,7 +453,8 @@ val log : task -> string -> unit
 val succeed : ?message:string -> task -> unit
 (** [succeed task] ends [task] as a success, with [message] in place of its
     label if given. A task ends once: the first of {!succeed}, {!fail} and
-    {!cancel} counts, and the others do nothing.
+    {!cancel} counts, and the others do nothing. A task's mark is what the
+    program says of it: a task that failed under [task] does not fail it.
 
     The tasks under [task] that still run end first, each with a line of its
     own: they succeed with it, and are cancelled when it fails or is cancelled.
