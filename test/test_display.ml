@@ -1659,6 +1659,21 @@ let test_cap_keeps_a_flag () =
     "the flag whole or not at all" true
     (has flag || not (has "\u{1F1EB}"))
 
+(* On a pipe the mark of an output line and the separator of a path are
+   the same glyph, U+203A, so "› a › b: x" reads as a path of three. *)
+let test_pipe_output_mark_not_separator () =
+  let (), out =
+    plain (fun d _ ->
+        let a = Display.task d "a" in
+        let b = Display.task ~parent:a d "b" in
+        Display.log b "x";
+        Display.succeed b;
+        Display.succeed a)
+  in
+  let line = List.find (contains ": x") (String.split_on_char '\n' out) in
+  let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
+  Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
+
 let suite =
   ( "display",
     [
@@ -1756,4 +1771,6 @@ let suite =
         test_summary_between_tasks;
       Alcotest.test_case "the 4 KiB cut keeps a flag whole" `Quick
         test_cap_keeps_a_flag;
+      Alcotest.test_case "a pipe's output mark is not the path separator" `Quick
+        test_pipe_output_mark_not_separator;
     ] )
