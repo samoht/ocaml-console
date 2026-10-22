@@ -6,9 +6,8 @@
 (** Horizontal bars, for progress and for figures.
 
     A bar is [width] cells, filled in its colour to a fraction of its length,
-    with the rest drawn as a track in the [track] style (defaults to the muted
-    colour of the formatter's theme, {!Theme.get}). The glyphs are those of that
-    theme ({!Theme.val-bar}):
+    with the rest drawn as a track. The glyphs are those of the formatter's
+    theme ({!Theme.get}, {!Theme.val-bar}):
 
     - [`Line] draws a heavy horizontal line (U+2501), in which a half filled
       cell is the left half of the line (U+2578). After a whole filled cell the
@@ -19,10 +18,7 @@
       shade (U+2591), in brackets [\[] and [\]].
     - [`Ascii] fills whole cells with [#] on a track of [-], in brackets [\[]
       and [\]]. Every theme draws its bars so on a formatter that is not
-      {!Fmt.utf_8}.
-
-    [brackets] (defaults to [false]) frames the bar in the track style, which
-    makes it two cells wider. *)
+      {!Fmt.utf_8}. *)
 
 (** {1:bars Bars} *)
 
@@ -31,10 +27,15 @@ type t
 
 val v :
   ?style:Style.t -> ?track:Style.t -> ?brackets:bool -> width:int -> float -> t
-(** [v ~style ~width frac] is a [width]-cell bar in [style], filled to [frac] of
-    its length, with [frac] clamped to the range 0 to 1 and NaN taken as 0. The
-    fill is rounded to the nearest half cell in [`Line] glyphs, and to the
-    nearest cell in the others.
+(** [v ~style ~track ~brackets ~width frac] is a [width]-cell bar in [style],
+    filled to [frac] of its length, with [frac] clamped to the range 0 to 1 and
+    NaN taken as 0. The fill is rounded to the nearest half cell in [`Line]
+    glyphs, and to the nearest cell in the others.
+
+    - [track] is the style of the rest (defaults to the muted colour of the
+      formatter's theme).
+    - [brackets] (defaults to [false]) frames the bar in the [track] style,
+      which makes it two cells wider.
 
     Without [style], the bar takes the {!Theme.palette} of the formatter's
     theme. A palette of several colours is spread along the bar's whole length,
