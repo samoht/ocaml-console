@@ -312,8 +312,9 @@ val task :
       its row while it runs (defaults to [8]).
     - [transient] (defaults to [false]) makes a task that shows only while it
       runs, and leaves neither a line of its own nor any of its output when it
-      ends. With [`Quiet], where nothing else would show it, one that fails or
-      is cancelled prints its line and its output as any other does.
+      succeeds. One that fails or is cancelled prints its line, with its
+      message, and its output as any other task does, on a terminal, on a pipe
+      and with [`Quiet] alike, since nothing else would show the failure.
 
     @raise Invalid_argument
       if [key] is empty, [log_lines] is negative, or [parent] belongs to another
@@ -469,7 +470,8 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
 
     - A running task's row is drawn by the {!Layout} of the display, its window
       under it; a task that ended is its line ({!Layout}), and a transient one
-      leaves its place to the tasks under it.
+      that succeeded leaves its place to the tasks under it.
+
     - [width] (defaults to the terminal's width, 80 without one, at most 100) is
       the width of each line, and [height] (defaults to no limit) the most lines
       it takes. When the tree does not fit, it folds as {!design} says. A

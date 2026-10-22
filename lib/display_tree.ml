@@ -5,9 +5,10 @@
 
 open Display_state
 
-(* A transient task that ended has no line: the tasks under it take its
-   place. *)
-let shows r = is_running r || not r.transient
+(* A transient task that succeeded has no line: the tasks under it take
+   its place. One that failed or was cancelled keeps its line, since
+   nothing else would show it. *)
+let shows r = is_running r || (not r.transient) || r.outcome <> Some `Succeeded
 
 type node = { row : row; kids : node list }
 

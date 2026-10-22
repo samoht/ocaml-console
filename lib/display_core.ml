@@ -347,7 +347,8 @@ let kept r =
 (* What a task prints when it ends without a terminal: quiet, its line and
    all its lines if it failed or was cancelled, a transient task too, since
    nothing else shows the failure; in turn, its line alone, its lines having
-   been printed as they came. Its event says the rest. *)
+   been printed as they came, and for a transient task only if it failed or
+   was cancelled, for the same reason. Its event says the rest. *)
 let ending r outcome =
   let t = r.disp in
   let failed =
@@ -356,7 +357,8 @@ let ending r outcome =
   match t.form with
   | Json -> []
   | Quiet -> if failed then Display_row.appended r :: kept r else []
-  | Plain -> if r.transient then [] else [ Display_row.appended r ]
+  | Plain ->
+      if r.transient && not failed then [] else [ Display_row.appended r ]
 
 (* {2 The scrollback}
 
