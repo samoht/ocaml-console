@@ -259,7 +259,16 @@ let test_cluster_joins_after () =
     ~shown:"\u{2764}\u{200D}\u{1F469}b" ~line:"\u{2764}\u{200D}\u{1F469}b";
   check_typed "a flag's second half before its first"
     [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
-    ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x"
+    ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x";
+  (* matrix 0.1.0's emulator draws ❤‍👩 in the one cell of ❤, where
+     console counts the two of 👩, so this reads the echo. *)
+  let t = Console_input.v () in
+  ignore (Console_input.feed t ("x\u{1F469}" ^ left ^ "\u{2764}\u{200D}"));
+  Alcotest.(check string)
+    "erasing the joined cluster" "\b\b  \b\b"
+    (fst (Console_input.feed t "\127"));
+  Alcotest.(check string)
+    "erasing the joined cluster: the line" "x" (Console_input.pending t)
 
 (* ---- History ----------------------------------------------------------- *)
 

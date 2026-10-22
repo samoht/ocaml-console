@@ -93,6 +93,11 @@ val feed : t -> string -> string * string list
       act the same;
     - any other byte is ignored.
 
+    The cursor always stands between two grapheme clusters of the line. When a
+    character typed joins the cluster after the cursor, as a ZWJ typed before an
+    emoji does, or an erased cluster lets the clusters on either side join, the
+    cursor goes after the joined cluster.
+
     Feeding [input] at once or in pieces gives the same echo and lines, and the
     echo holds no escape code, since the cursor moves by backspaces. *)
 

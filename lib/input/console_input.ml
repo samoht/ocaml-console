@@ -25,6 +25,7 @@ type t = {
   mutable esc : esc; (* escape-sequence parser state *)
   mutable after_cr : bool; (* last byte was '\r', so swallow a following '\n' *)
   mutable partial : string; (* the start of a character, to be completed *)
+  widths : (string, int) Hashtbl.t; (* the cells of clusters met, a few *)
 }
 
 (* What the editor echoes is text, never a control the terminal acts on. *)
@@ -43,6 +44,7 @@ let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
     esc = Normal;
     after_cr = false;
     partial = "";
+    widths = Hashtbl.create 64;
   }
 
 let line t = String.concat "" (List.rev_append t.left t.right)
@@ -65,51 +67,111 @@ let reposition t echo =
   let tail = cols t t.right in
   if tail > 0 then add echo (String.make tail '\b')
 
-(* Insert [s] (one or more whole characters) at the cursor, its first joining
-   the cluster before the cursor if it extends it. A cluster [s] extends is
-   drawn again from its first cell, as a terminal does not join a mark
-   written after the text that follows it; then the tail [s] pushed right is
-   redrawn, the cells a narrower cluster leaves are blanked, and the cursor
-   steps back to just after [s]. A cluster of no width with nothing before
-   it to join is dropped, as a terminal drops it in the first column,
-   except from a secret. *)
-let insert t echo s =
-  t.pos <- None;
-  let prev, rest = match t.left with c :: l -> (c, l) | [] -> ("", []) in
-  let kept =
-    match clusters (prev ^ s) with
-    | c :: cs when prev = "" && t.mask = None && Width.string_width c = 0 -> cs
-    | cs -> cs
-  in
-  t.left <- List.rev_append kept rest;
-  let redrawn, back =
-    match kept with
-    | c :: cs when prev <> "" && display_char t c = display_char t prev ->
-        (cs, 0)
-    | _ when prev = "" -> (kept, 0)
-    | _ -> (kept, width t prev)
-  in
-  let blank = max 0 (back - cols t redrawn) in
-  add echo (String.make back '\b');
-  add echo (display_chars t redrawn);
-  add echo (display_chars t t.right);
-  add echo (String.make blank ' ');
-  add echo (String.make (cols t t.right + blank) '\b')
+(* The cells of the cluster [c], remembered: an edit measures the clusters
+   around the cursor several times. *)
+let cluster_cells t c =
+  match Hashtbl.find_opt t.widths c with
+  | Some n -> n
+  | None ->
+      let n = Width.string_width c in
+      if Hashtbl.length t.widths >= 1024 then Hashtbl.reset t.widths;
+      Hashtbl.add t.widths c n;
+      n
 
-(* Erase the character before the cursor: step left, redraw the tail with a
-   trailing space to clear the vacated cell, then step back. At end of line this
-   is the familiar "\b \b". *)
-let backspace t echo =
+(* [cols t cs], as the sum of the cells of each cluster where the line
+   shows the clusters themselves. *)
+let cells t cs =
+  match t.mask with
+  | None -> List.fold_left (fun n c -> n + cluster_cells t c) 0 cs
+  | Some _ -> cols t cs
+
+let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
+let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
+
+(* The number of first clusters of [a] and [b], at most [max], that show
+   the same. *)
+let rec same t ~max n a b =
+  match (a, b) with
+  | x :: a, y :: b
+    when n < max && String.equal (display_char t x) (display_char t y) ->
+      same t ~max (n + 1) a b
+  | _ -> n
+
+(* The clusters [cs] split [at] bytes into their text or, if that is inside
+   a cluster, after it: those before, nearest-first, and those after. *)
+let split cs ~at =
+  let rec go acc off = function
+    | c :: rest when off < at -> go (c :: acc) (off + String.length c) rest
+    | rest -> (acc, rest)
+  in
+  go [] 0 cs
+
+(* The clusters of [text] followed by those of [right] that it changes,
+   with the rest of [right]. An edit changes the clusters from the one
+   before the cursor up to the first one of [right] that is still a cluster
+   of its own after it: past it, the segmenter is in the state it was, as a
+   cluster after another starts with no mark to carry state across it. *)
+let rec rejoin text taken right =
+  let cs = clusters (text ^ String.concat "" (List.rev taken)) in
+  match (taken, right) with
+  | r :: _, _ when String.equal (List.nth cs (List.length cs - 1)) r ->
+      (cs, List.rev taken, right)
+  | _, [] -> (cs, List.rev taken, [])
+  | _, r :: right -> rejoin text (r :: taken) right
+
+(* Replace the cluster before the cursor, and [erased] if any, with that
+   cluster followed by [s]. The line is segmented again from that cluster,
+   since [s] can join the clusters on either side of the cursor and an
+   erased cluster can let its neighbours join. The cursor goes after [s],
+   or after the cluster [s] ends inside, so that it never stands inside a
+   cluster. On the screen, the line is drawn again from its first changed
+   cluster, whole, as a terminal does not join a mark written after the
+   text that follows it; the cells a narrower line leaves are blanked, and
+   the cursor steps back. A cluster of no width with nothing before it to
+   join is dropped, as a terminal drops it in the first column, except
+   from a secret. *)
+let edit t echo ~erased s =
   t.pos <- None;
-  match t.left with
-  | [] -> ()
-  | c :: tl ->
-      t.left <- tl;
-      let w = width t c in
-      add echo (String.make w '\b');
-      add echo (display_chars t t.right);
-      add echo (String.make w ' ');
-      add echo (String.make (cols t t.right + w) '\b')
+  let left = if erased = "" then t.left else List.tl t.left in
+  let s =
+    if left <> [] || t.mask <> None then s
+    else
+      match clusters s with
+      | c :: cs when Width.string_width c = 0 -> String.concat "" cs
+      | _ -> s
+  in
+  if s <> "" || erased <> "" then begin
+    let prev, before =
+      match left with c :: l -> ([ c ], l) | [] -> ([], [])
+    in
+    let prev_text = String.concat "" prev in
+    let changed, old_right, rest = rejoin (prev_text ^ s) [] t.right in
+    let now_left, now_right =
+      split changed ~at:(String.length prev_text + String.length s)
+    in
+    t.left <- now_left @ before;
+    t.right <- now_right @ rest;
+    let before_cursor = prev @ if erased = "" then [] else [ erased ] in
+    let was = before_cursor @ old_right in
+    let n = List.length before_cursor in
+    let k = same t ~max:n 0 was changed in
+    let redrawn = drop k changed in
+    let cursor = cells t before_cursor in
+    let kept = if k = n then cursor else cells t (take k was) in
+    let blank = max 0 (cursor + cells t old_right - (kept + cells t redrawn)) in
+    add echo (String.make (cursor - kept) '\b');
+    add echo (display_chars t redrawn);
+    add echo (display_chars t rest);
+    add echo (String.make blank ' ');
+    add echo (String.make (cells t now_right + cells t rest + blank) '\b')
+  end
+
+let insert t echo s = edit t echo ~erased:"" s
+
+(* Erase the cluster before the cursor. At the end of the line this is the
+   familiar "\b \b". *)
+let backspace t echo =
+  match t.left with [] -> () | c :: _ -> edit t echo ~erased:c ""
 
 let cursor_left t echo =
   match t.left with
