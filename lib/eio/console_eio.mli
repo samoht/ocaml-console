@@ -172,20 +172,22 @@ val run :
     sleeps alone, so that the progress a test captures from the program reads
     the same on every machine.
 
-    On a clock that {!clock} made, the time is the sum of the sleeps on it that
-    ended, and never the real time. Each sleep still waits its whole duration on
-    the clock behind it, so the rows move as the program runs, but what the
-    program does between two sleeps, and how long that takes, does not change
-    the times it shows or the [time] and [elapsed] of its
-    {{!Console.Progress.json}JSON events}. Fibers that sleep at once each add
-    their sleep when it ends, so a task counts the sleeps of the other fibers
-    that end while it runs, and the times depend on the order in which the
-    sleeps end, which their durations set when nothing else runs long.
+    On a clock that {!clock} made, the time is virtual, as on a mock clock, and
+    never the real time. It starts at zero, and a sleep that starts at time [t]
+    for [d] wakes at [t + d]: sleeps at once overlap, and the clock reads the
+    latest time a sleep woke at. Sleeps wake in the order of their wake-up
+    times, those due at once in the order they started. Each sleep also lasts at
+    least [d] on the clock behind it, so the rows move as the program runs, and
+    one whose real duration ended waits for those due before it. What the
+    program does between two sleeps, and how long that takes, then does not
+    change the times it shows or the [time] and [elapsed] of its
+    {{!Console.Progress.json}JSON events}, unless that work itself waits, on
+    input or output for example: a sleep can then wake in the meantime and move
+    the time from which the next sleep starts.
 
-    [Eio.Time.with_timeout] on such a clock times out after its duration on the
-    clock behind it, as it would without the variable. A timeout that fires
-    counts as a sleep that ended, and one that the function beats counts
-    nothing.
+    [Eio.Time.with_timeout] on such a clock times out once its duration has
+    passed on the clock behind it and the sleeps due before it have woken, and a
+    timeout that fires moves the time as a sleep does.
 
     On any other clock the time stays at zero:
     - every elapsed time reads [0.0s], and every [time] and [elapsed] of a JSON
@@ -197,8 +199,8 @@ val run :
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]},
-    a clock whose time starts at zero and is the sum of the sleeps on it that
-    ended. A sleep until [t] on it waits [d] on [c], with [d] the time from its
-    own time when the sleep starts to [t], then adds [d] to its time, so the
-    elapsed times, the rates and the spinners of a display that {!run} draws on
-    it follow the program's sleeps. *)
+    a virtual clock that starts at zero and moves to the time each sleep on it
+    wakes at ({!deterministic}). A sleep until [t] on it lasts at least the time
+    from its clock's time to [t] on [c], so the elapsed times, the rates and the
+    spinners of a display that {!run} draws on it follow the program's sleeps.
+*)

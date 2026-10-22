@@ -1,9 +1,9 @@
 CONSOLE_DETERMINISTIC_CLOCK, set to any value but the empty string, makes
 the time of every Console_eio.run depend on the program alone, so a
 transcript of a program's progress holds nothing of how fast the machine
-ran it. The examples/progress program sleeps on Console_eio.clock, so its
-time is the sum of its sleeps, fifteen of 0.2 seconds. The example takes
-three seconds.
+ran it. The examples/progress program sleeps on Console_eio.clock, fifteen
+times 0.2 seconds one after the other, so its time reads 3.0s. The example
+takes three seconds.
 
   $ export CONSOLE_DETERMINISTIC_CLOCK=1
 
@@ -29,16 +29,16 @@ On a terminal, the screen it leaves:
     +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    3.0s
   [+] Building 3.0s (2/2)
 
-The examples/columns program sleeps on Console_eio.clock, whose time is
-the sum of the sleeps that ended: two of its runs print the same bytes,
-and the time of the build counts the sleeps of both its columns.
+The examples/columns program sleeps on Console_eio.clock: two of its runs
+print the same bytes, and its two builds, which sleep at once, take the
+time of the longer, 26 sleeps of 0.11 seconds.
 
   $ ../../../examples/columns/main.exe > first 2>&1
   $ ../../../examples/columns/main.exe > second 2>&1
   $ cmp first second
   $ grep -e '] macos  ' -e Building first
-  [+] macos  4.7s
-  [+] Building 4.7s (9/9)
+  [+] macos  2.9s
+  [+] Building 2.9s (9/9)
 
 A sleep wakes at the time it started plus its duration, and sleeps at once
 overlap, whatever the program does between them: two fibers that sleep 0.1

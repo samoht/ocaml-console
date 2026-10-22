@@ -576,10 +576,10 @@ executable:
 
 A program that sleeps on the clock `Console_eio.clock` gives it, and
 passes that clock to `Console_eio.run`, keeps its times under the
-variable: the clock's time is the sum of the sleeps that ended, whatever
-the program does between them, and each sleep still lasts its duration.
-The times then read the same on every machine, and the rows still move as
-the program runs. The examples wait on that clock, so their recordings
+variable: the clock's time is virtual, a sleep waking at the time it
+started plus its duration, whatever the program computes between them, and
+each sleep still lasts its duration. The times then read the same on every
+machine, and the rows still move as the program runs. The examples wait on that clock, so their recordings
 show the times a test checks.
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,

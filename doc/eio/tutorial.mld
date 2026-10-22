@@ -321,8 +321,9 @@ v}
 
 A program that sleeps on the clock {!Console_eio.clock} gives it, and
 passes that clock to {!Console_eio.run}, keeps its times: the clock's time
-is the sum of the sleeps that ended, whatever the program does between
-them, so the times read the same on every machine
+is virtual, a sleep waking at the time it started plus its duration,
+whatever the program computes between them, so the times read the same on
+every machine
 ({{!Console_eio.section-deterministic}a deterministic clock}).
 
 The widgets need no clock at all. [Console.Table.to_string] and the other

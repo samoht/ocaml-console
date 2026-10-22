@@ -78,19 +78,70 @@ let deterministic () =
   | None | Some "" -> false
   | Some _ -> true
 
-(* A clock whose time is the sum of the sleeps on it that ended. A sleep
-   waits its duration, from the clock's time when it starts, on [real]. *)
+(* A virtual clock: a sleep from [now] until [time] wakes at [time], after
+   it has also lasted its duration on [real]. Sleeps wake in the order of
+   their wake-up times, then of their start, so a sleep whose real
+   duration ended first still waits for those due before it, and the time
+   never depends on how long the program worked between its sleeps. *)
 module Sleeps = struct
-  type t = { real : Eio.Time.Mono.ty Eio.Resource.t; mutable now : Mtime.t }
+  type sleep = {
+    until : Mtime.t;
+    seq : int;
+    mutable elapsed : bool;
+    mutable pending : bool;
+    wake : unit Eio.Promise.u;
+  }
+
+  type t = {
+    real : Eio.Time.Mono.ty Eio.Resource.t;
+    mutable now : Mtime.t;
+    mutable sleeps : sleep list;
+    mutable next : int;
+  }
+
   type time = Mtime.t
 
   let now t = t.now
 
+  let before a b =
+    match Mtime.compare a.until b.until with 0 -> a.seq < b.seq | c -> c < 0
+
+  let rec insert s = function
+    | x :: rest when before x s -> x :: insert s rest
+    | l -> s :: l
+
+  let remove t s =
+    if s.pending then begin
+      s.pending <- false;
+      t.sleeps <- List.filter (fun x -> x != s) t.sleeps
+    end
+
+  let rec advance t =
+    match t.sleeps with
+    | s :: _ when s.elapsed ->
+        remove t s;
+        if Mtime.is_later s.until ~than:t.now then t.now <- s.until;
+        Eio.Promise.resolve s.wake ();
+        advance t
+    | _ -> ()
+
   let sleep_until t time =
     if Mtime.is_later time ~than:t.now then begin
-      let d = Mtime.span t.now time in
-      Eio.Time.Mono.sleep_span t.real d;
-      t.now <- Option.value (Mtime.add_span t.now d) ~default:t.now
+      let turn, wake = Eio.Promise.create () in
+      let s =
+        { until = time; seq = t.next; elapsed = false; pending = true; wake }
+      in
+      t.next <- t.next + 1;
+      t.sleeps <- insert s t.sleeps;
+      Fun.protect
+        ~finally:(fun () ->
+          remove t s;
+          advance t)
+        (fun () ->
+          Eio.Time.Mono.sleep_span t.real (Mtime.span t.now time);
+          s.elapsed <- true;
+          advance t;
+          Eio.Promise.await turn)
     end
 end
 
@@ -109,7 +160,9 @@ let sleeps =
 let clock c =
   let real = (c :> Eio.Time.Mono.ty Eio.Resource.t) in
   if deterministic () then
-    Eio.Resource.T ({ Sleeps.real; now = Mtime.of_uint64_ns 0L }, sleeps)
+    Eio.Resource.T
+      ( { Sleeps.real; now = Mtime.of_uint64_ns 0L; sleeps = []; next = 0 },
+        sleeps )
   else real
 
 (* The clock that [clock] waits on, if it is one of {!clock}'s. *)
