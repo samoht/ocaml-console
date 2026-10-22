@@ -281,6 +281,45 @@ let test_secret_drops_typeahead () = secret_after ~before:"" "early\n"
    alone, and [secret] discards the rest, which the terminal echoed. *)
 let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
 
+(* While one fiber waits for an answer, the output of another fiber is
+   still its task's: only the prompting fiber writes straight out. Run takes
+   the program's output from Fmt.stdout, which writes into a buffer here. *)
+let test_prompt_leaves_other_fibers_attributed () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let clock = Eio.Stdenv.mono_clock env in
+  let source, sink = Eio_unix.pipe sw in
+  let questions = Buffer.create 64 in
+  let t =
+    Prompt.v ~interactive:true
+      ~ppf:(Format.formatter_of_buffer questions)
+      source
+  in
+  Format.pp_print_flush Fmt.stdout ();
+  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
+  let out = Buffer.create 256 in
+  Format.pp_set_formatter_out_functions Fmt.stdout
+    { saved with out_string = Buffer.add_substring out; out_flush = ignore };
+  let answer =
+    Fun.protect
+      ~finally:(fun () ->
+        Format.pp_set_formatter_out_functions Fmt.stdout saved)
+      (fun () ->
+        Console_eio.run ~clock ~ppf:Fmt.stdout ~progress:`Json (fun display ->
+            Eio.Fiber.pair
+              (fun () -> Prompt.line t "name: ")
+              (fun () ->
+                Console.Display.with_task display "work" (fun _ ->
+                    Fmt.pr "from work@.");
+                Eio.Flow.copy_string "alice\n" sink)))
+  in
+  Alcotest.check string_answer "the answer" (Got "alice") (seen (fst answer));
+  Alcotest.(check bool)
+    "the line is the task's output" true
+    (Display_harness.contains
+       {|"event":"output","id":0,"task":["work"],"text":"from work"|}
+       (Buffer.contents out))
+
 let suite =
   ( "prompt",
     [
@@ -313,4 +352,6 @@ let suite =
         test_secret_after_a_line;
       Alcotest.test_case "a password is the bytes typed" `Quick
         test_secret_keeps_bytes;
+      Alcotest.test_case "a prompt leaves other fibers' output to their task"
+        `Quick test_prompt_leaves_other_fibers_attributed;
     ] )
