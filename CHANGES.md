@@ -65,7 +65,8 @@ Initial release of `console` and `console-eio`.
   within `Display.root` goes above the rows, from inside a task too. In a
   pipe or a CI log, every line is printed once, in order with standard
   output under `2>&1`, and names its task by its path, such as
-  `linux › compile`, so the lines of trees that run at once read apart.
+  `linux ▸ compile`, so the lines
+ of trees that run at once read apart.
 - `console-eio`. `Console_eio.run ~clock` runs a display on standard error
   with Eio: it gives it the `Logs` messages, those of other Eio domains
   included, and the program's output on its terminal, and gives the

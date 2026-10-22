@@ -383,7 +383,7 @@ let ancestors r =
   in
   up [] r
 
-let separator t = Widget.glyph (look t) " \u{203A} " ~ascii:" > "
+let separator t = Widget.glyph (look t) " \u{25B8} " ~ascii:" > "
 
 (* The labels above the task, muted, then [own]. *)
 let path t r own =

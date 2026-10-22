@@ -557,10 +557,10 @@ let test_nested_plain () =
   check_lines "a start line and an end line each"
     [
       "[-] parent";
-      "[-] parent \u{203A} one";
-      "[-] parent \u{203A} two";
-      "[+] parent \u{203A} one  0.0s";
-      "[~] parent \u{203A} two  0.0s  cancelled";
+      "[-] parent \u{25B8} one";
+      "[-] parent \u{25B8} two";
+      "[+] parent \u{25B8} one  0.0s";
+      "[~] parent \u{25B8} two  0.0s  cancelled";
       "[x] parent  0.0s  failed";
       "";
     ]
@@ -807,7 +807,7 @@ let test_pipe_start () =
   ignore (Display.task ~parent:p d "index");
   Format.pp_print_flush ppf ();
   check_lines "the start lines, at once"
-    [ "[-] fetch"; "[-] fetch \u{203A} index"; "" ]
+    [ "[-] fetch"; "[-] fetch \u{25B8} index"; "" ]
     (split (Buffer.contents buffer));
   Display.close d
 
@@ -1019,11 +1019,11 @@ let test_within () =
       "[-] a";
       "[-] b";
       "  a: for a";
-      "[-] a \u{203A} under a";
+      "[-] a \u{25B8} under a";
       "  b: for b";
       "[+] b  0.0s";
       "  # a: still runs";
-      "[+] a \u{203A} under a  0.0s";
+      "[+] a \u{25B8} under a  0.0s";
       "[+] a  0.0s";
       "";
     ]
@@ -1063,14 +1063,14 @@ let test_with_task () =
   check_lines "nested under the current task"
     [
       "[-] outer";
-      "[-] outer \u{203A} inner";
-      "  outer \u{203A} inner: deep";
-      "[+] outer \u{203A} inner  0.0s";
-      "[-] outer \u{203A} child";
-      "[-] outer \u{203A} ended";
-      "[x] outer \u{203A} ended  0.0s  failed";
-      "  outer \u{203A} ended: after its end";
-      "[+] outer \u{203A} child  0.0s";
+      "[-] outer \u{25B8} inner";
+      "  outer \u{25B8} inner: deep";
+      "[+] outer \u{25B8} inner  0.0s";
+      "[-] outer \u{25B8} child";
+      "[-] outer \u{25B8} ended";
+      "[x] outer \u{25B8} ended  0.0s  failed";
+      "  outer \u{25B8} ended: after its end";
+      "[+] outer \u{25B8} child  0.0s";
       "[+] outer  0.0s";
       "";
     ]
@@ -1522,9 +1522,9 @@ let test_plain_output_not_sibling () =
   check_lines "each line names its task"
     [
       "[-] parent";
-      "[-] parent \u{203A} child";
+      "[-] parent \u{25B8} child";
       "  # parent: parent says";
-      "[+] parent \u{203A} child  0.0s";
+      "[+] parent \u{25B8} child  0.0s";
       "[+] parent  0.0s";
       "";
     ]
@@ -1557,12 +1557,12 @@ let test_parent_of_failure () =
   check_lines "each mark as the program said"
     [
       "[-] parent";
-      "[-] parent \u{203A} child";
-      "[x] parent \u{203A} child  0.0s  failed";
+      "[-] parent \u{25B8} child";
+      "[x] parent \u{25B8} child  0.0s  failed";
       "[+] parent  0.0s";
       "[-] step";
-      "[-] step \u{203A} layer";
-      "[x] step \u{203A} layer  0.0s  failed";
+      "[-] step \u{25B8} layer";
+      "[x] step \u{25B8} layer  0.0s  failed";
       "[x] step  0.0s  failed";
       "";
     ]

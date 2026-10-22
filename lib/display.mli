@@ -563,9 +563,13 @@ val summary : ?width:int -> t -> Span.t
     The lines of tasks that run at once interleave on a pipe, so no line is
     placed by its indentation: each line a task prints, as it starts, as it ends
     and before each line of its output, names the task by its {e path}, the
-    labels from its top task down to it, such as [linux > compile] with a single
-    right-pointing angle quotation mark, U+203A, in UTF-8. The lines of tasks
-    start at the first column, and a line of output two columns in. With
+    labels from its top task down to it, such as [linux > compile]. On a UTF-8
+    formatter the separator is a small black right-pointing triangle, U+25B8, a
+    glyph that no mark takes and that a label seldom holds, so that a line of
+    output, which starts with its mark, reads apart from its path; on another it
+    is [>]. The lines of tasks start at the first column, and a line of output
+    two columns in. With
+
     [`Quiet], the line of a failure names its path too, and its output follows
     it, two columns in.
 
