@@ -3,9 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [Ss3] is after ESC O, which a terminal in application cursor mode sends
-   before an arrow's letter. *)
-type esc = Normal | Esc | Csi | Ss3
+(* [Csi_intermediate] is after an intermediate byte of a control sequence,
+   which only intermediates and the final byte follow. [Ss3] is after ESC O,
+   which a terminal in application cursor mode sends before an arrow's
+   letter. *)
+type esc = Normal | Esc | Csi | Csi_intermediate | Ss3
 
 (* The line is a zipper of grapheme clusters split at the cursor: [left]
    holds the clusters before the cursor nearest-first (reversed), [right]
@@ -277,13 +279,18 @@ let arrow t echo = function
   | 'D' -> cursor_left t echo
   | _ -> ()
 
-let csi t echo c =
+(* ECMA-48 5.4: parameter bytes 03/00-03/15, intermediate bytes
+   02/00-02/15, then the final byte, 04/00-07/14. With intermediates, the
+   final byte names another function than an arrow. *)
+let csi t echo ~intermediate c =
   let code = Char.code c in
   if code >= 0x40 && code <= 0x7e then begin
-    arrow t echo c;
+    if not intermediate then arrow t echo c;
     t.esc <- Normal
   end
-  else if not (code >= 0x30 && code <= 0x3f) then t.esc <- Normal
+  else if code >= 0x20 && code <= 0x2f then t.esc <- Csi_intermediate
+  else if intermediate || not (code >= 0x30 && code <= 0x3f) then
+    t.esc <- Normal
 
 let feed t input =
   let echo = Buffer.create (String.length input) in
@@ -294,7 +301,8 @@ let feed t input =
       t.after_cr <- false;
       match t.esc with
       | Esc -> t.esc <- (match c with '[' -> Csi | 'O' -> Ss3 | _ -> Normal)
-      | Csi -> csi t echo c
+      | Csi -> csi t echo ~intermediate:false c
+      | Csi_intermediate -> csi t echo ~intermediate:true c
       | Ss3 ->
           arrow t echo c;
           t.esc <- Normal
