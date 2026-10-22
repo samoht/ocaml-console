@@ -281,7 +281,10 @@ val set_result : ?detail:string -> t -> (string, string) result -> unit
 (** [set_result display result] says how the work ended. When [display] closes,
     it prints [result]'s message after a success or failure mark, and [detail]
     (if any) in the muted colour above it. With [Ok] the tasks still running
-    succeed, and with [Error] they are cancelled. A second call does nothing. *)
+    succeed, and with [Error] they are cancelled. A second call does nothing.
+    With [`Json], the work's ["end"] event, which has no task, says it, after
+    its [detail] as output of no task, and a display closed with no result ends
+    the work cancelled. *)
 
 val close : t -> unit
 (** [close display] cancels the tasks still running, unless {!set_result} with

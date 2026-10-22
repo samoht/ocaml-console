@@ -8,9 +8,10 @@ is a JSON event (README, Known limitations):
   {"time":0,"event":"output","id":0,"task":["build"],"text":"from stdout"}
   {"time":0,"event":"output","id":0,"task":["build"],"text":"from stderr"}
   {"time":0,"event":"end","id":0,"task":["build"],"status":"succeeded","elapsed":0}
+  {"time":0,"event":"end","status":"cancelled","elapsed":0}
 
 Console.Progress.Event.jsont reads each of these events back, and writes it
 as it was:
 
   $ ../piped.exe json-stdout 2>&1 | ../events.exe
-  4 events read back
+  5 events read back

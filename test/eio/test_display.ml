@@ -205,7 +205,8 @@ let test_json_concurrent_writes () =
       | Error error ->
           Alcotest.failf "interleaved JSON record %S: %s" line error)
     lines;
-  Alcotest.(check int) "four events per task" 12 (List.length lines)
+  Alcotest.(check int)
+    "four events per task, and the end of the work" 13 (List.length lines)
 
 (* The events of the lines of [out], each written back as it was. *)
 let events out =
@@ -226,9 +227,7 @@ let output_events out =
   List.filter_map
     (fun e ->
       match (Event.kind e, Event.text e) with
-      | `Output, Some text ->
-          let task = Option.map (fun id -> (id, Event.task e)) (Event.id e) in
-          Some (task, text)
+      | `Output, Some text -> Some (Event.task e, text)
       | _ -> None)
     (events out)
 

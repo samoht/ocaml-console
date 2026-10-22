@@ -172,7 +172,7 @@ module Event = Console.Progress.Event
 
 (* [e] as a variant of its members, to match on. *)
 let members e =
-  let task () = (Option.get (Event.id e), Event.task e) in
+  let task () = Option.get (Event.task e) in
   let get = Option.get in
   match Event.kind e with
   | `Start -> `Start (task (), Event.parent e)
@@ -180,13 +180,13 @@ let members e =
       `Progress
         (task (), get (Event.count e), get (Event.total e), get (Event.unit e))
   | `Label -> `Label (task (), get (Event.text e))
-  | `Output ->
-      let task = Option.map (fun id -> (id, Event.task e)) (Event.id e) in
-      `Output (task, get (Event.text e), Event.level e)
+  | `Output -> `Output (Event.task e, get (Event.text e), Event.level e)
   | `End ->
-      `End (task (), get (Event.status e), get (Event.elapsed e), Event.text e)
-  | `Result ->
-      `Result (get (Event.outcome e), get (Event.text e), Event.detail e)
+      `End
+        ( Event.task e,
+          get (Event.status e),
+          get (Event.elapsed e),
+          Event.message e )
   | `Other name -> `Other name
 
 (* The events of the lines of [out], each checked to be valid UTF-8 and to
@@ -221,7 +221,8 @@ let test_json_events label text =
   let labels =
     List.filter_map
       (function
-        | `Start ((_, labels), _) | `End ((_, labels), _, _, _) -> Some labels
+        | `Start ((_, labels), _) | `End (Some (_, labels), _, _, _) ->
+            Some labels
         | _ -> None)
       events
   in
@@ -252,8 +253,8 @@ let of_task = function
   | `Progress ((id, _), _, _, _) -> Some (id, "progress")
   | `Label ((id, _), _) -> Some (id, "label")
   | `Output (Some (id, _), _, _) -> Some (id, "output")
-  | `End ((id, _), _, _, _) -> Some (id, "end")
-  | `Output (None, _, _) | `Result _ | `Other _ -> None
+  | `End (Some (id, _), _, _, _) -> Some (id, "end")
+  | `Output (None, _, _) | `End (None, _, _, _) | `Other _ -> None
 
 (* A formatter backed by an Eio flow may yield after any chunk. Records
    still form a complete event stream, regardless of the task interleaving. *)
@@ -285,7 +286,7 @@ let test_json_concurrent_records chunk tasks =
         (List.init tasks Fun.id));
   Format.pp_print_flush ppf ();
   let records = events (Buffer.contents out) in
-  check_eq ~pp:Fmt.int (tasks * 4) (List.length records);
+  check_eq ~pp:Fmt.int ((tasks * 4) + 1) (List.length records);
   let records = List.filter_map of_task records in
   List.iter
     (fun i ->
@@ -404,9 +405,9 @@ let labels_of = function
   | `Progress ((_, l), _, _, _)
   | `Label ((_, l), _)
   | `Output (Some (_, l), _, _)
-  | `End ((_, l), _, _, _) ->
+  | `End (Some (_, l), _, _, _) ->
       Some l
-  | `Output (None, _, _) | `Result _ | `Other _ -> None
+  | `Output (None, _, _) | `End (None, _, _, _) | `Other _ -> None
 
 let check_lifecycle_pairs count records =
   let tasks = List.filter_map of_task records in
@@ -482,10 +483,14 @@ let test_json_lifecycle k =
   check
     (List.find_map
        (function
-         | `End ((_, [ "left running" ]), s, _, _) -> Some s | _ -> None)
+         | `End (Some (_, [ "left running" ]), s, _, _) -> Some s | _ -> None)
        records
     = Some `Cancelled);
-  check (List.hd (List.rev records) = `Result (`Error, "result", Some "detail"))
+  match List.rev records with
+  | `End (None, `Failed, _, Some "result") :: `Output (None, "detail", _) :: _
+    ->
+      ()
+  | _ -> fail "the work does not end failed, after its detail"
 
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
@@ -623,7 +628,7 @@ let test_json_partial_attribution size newline =
         | `Progress ((i, _), _, _, _)
         | `Label ((i, _), _)
         | `Output (Some (i, _), _, _)
-        | `End ((i, _), _, _, _)
+        | `End (Some (i, _), _, _, _)
           when i >= 0 && i < 2 ->
             i
         | _ -> fail "a task's partial line became root output"
@@ -636,7 +641,7 @@ let test_json_partial_attribution size newline =
           | `End _ -> Hashtbl.remove active id
           | `Output (_, s, _) -> text.(id) <- text.(id) ^ s
           | _ -> ()))
-    records;
+    (List.filter (function `End (None, _, _, _) -> false | _ -> true) records);
   List.iter
     (fun i -> check_eq ~pp:Fmt.Dump.string (prefix i ^ "done") text.(i))
     [ 0; 1 ];
@@ -803,9 +808,10 @@ let test_deterministic_concurrency a b =
       |> List.filter (( <> ) "")
       |> List.filter_map (fun line ->
           match Console.Progress.Event.of_string line with
-          | Ok e when Console.Progress.Event.kind e = `End ->
-              Some
-                (Console.Progress.Event.task e, Console.Progress.Event.elapsed e)
+          | Ok e when Console.Progress.Event.kind e = `End -> (
+              match Console.Progress.Event.task e with
+              | Some (_, path) -> Some (path, Console.Progress.Event.elapsed e)
+              | None -> None)
           | Ok _ -> None
           | Error (`Msg m) -> fail m)
     in

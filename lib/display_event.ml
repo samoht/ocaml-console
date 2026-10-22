@@ -18,44 +18,51 @@ let write t event =
   let time = since_start t in
   Display_region.write t (Event.to_string (event ~time) ^ "\n")
 
+let task r = (r.id, labels [] r)
+
 let started r =
   let parent = Option.map (fun p -> p.id) r.parent in
-  write r.disp (Event.start ?parent ~id:r.id (labels [] r))
+  write r.disp (Event.start ?parent (task r))
 
 let progress r =
   let count cur total unit =
-    write r.disp (Event.progress ~id:r.id ~count:cur ~total ~unit (labels [] r))
+    write r.disp (Event.progress ~count:cur ~total ~unit (task r))
   in
   match r.metric with
   | Spin -> (* A count never goes back to a spinner. *) ()
   | Count (cur, total) -> count (Int64.of_int cur) (Int64.of_int total) `Items
   | Bytes (cur, total) -> count cur total `Bytes
 
-let renamed r = write r.disp (Event.label ~id:r.id ~text:r.label (labels [] r))
+let renamed r = write r.disp (fun ~time -> Event.label ~time (task r) r.label)
 
 let output t r line =
   let level =
     match line.kind with Output -> None | Logs l -> Some (l :> Event.level)
   in
-  let task = Option.map (fun r -> (r.id, labels [] r)) r in
+  let task = Option.map task r in
   write t (Event.output ?task ?level line.text)
 
-let ended r =
-  let status = (Option.value r.outcome ~default:`Cancelled :> Event.status) in
-  write r.disp
-    (Event.end' ?text:r.message ~id:r.id ~status ~elapsed:(elapsed r)
-       (labels [] r))
+let ending = function
+  | `Succeeded -> Event.succeeded
+  | `Failed -> Event.failed
+  | `Cancelled -> Event.cancelled
 
+let ended r =
+  let e = ending (Option.value r.outcome ~default:`Cancelled) in
+  write r.disp (fun ~time ->
+      e ~task:(task r) ?message:r.message ~time ~elapsed:(elapsed r) ())
+
+(* The work ends as its result says, after the lines of its detail, and is
+   cancelled without one. *)
 let result t =
+  let elapsed = since_start t in
   match t.result with
-  | None -> ()
+  | None -> write t (fun ~time -> Event.cancelled ~time ~elapsed ())
   | Some (result, detail) ->
-      let outcome, text =
-        match result with Ok m -> (`Ok, m) | Error m -> (`Error, m)
+      List.iter (fun l -> write t (Event.output l)) detail;
+      let e, message =
+        match result with
+        | Ok m -> (Event.succeeded, m)
+        | Error m -> (Event.failed, m)
       in
-      let detail =
-        match detail with
-        | [] -> None
-        | lines -> Some (String.concat "\n" lines)
-      in
-      write t (Event.result ?detail ~outcome text)
+      write t (fun ~time -> e ~message ~time ~elapsed ())

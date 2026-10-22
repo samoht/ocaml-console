@@ -1095,7 +1095,7 @@ let test_with_task_reason () =
     (contains "[x] fetch: Failure(\"disk full\")" (run `Plain));
   Alcotest.(check bool)
     "in the end event" true
-    (contains "\"status\":\"failed\",\"elapsed\":0,\"text\":\"fetch: Failure"
+    (contains "\"status\":\"failed\",\"elapsed\":0,\"message\":\"fetch: Failure"
        (run `Json))
 
 (* [children] are the tasks under a task, the top tasks under the root,

@@ -51,6 +51,7 @@ one of them works before each sleep or not.
   $ cat idle
   {"time":0,"event":"start","id":0,"task":["build"]}
   {"time":0.4,"event":"end","id":0,"task":["build"],"status":"succeeded","elapsed":0.4}
+  {"time":0.4,"event":"end","status":"cancelled","elapsed":0.4}
 
 The empty string leaves the clock running:
 

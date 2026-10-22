@@ -6,7 +6,7 @@
 open Alcobar
 module Event = Console.Progress.Event
 
-let known_events = [ "start"; "progress"; "label"; "output"; "end"; "result" ]
+let known_events = [ "start"; "progress"; "label"; "output"; "end" ]
 
 (* Strings that are, often, a listed value of a member. *)
 let value listed = choose (bytes :: List.map const listed)
@@ -29,15 +29,11 @@ let level =
       ("debug", `Debug);
     ]
 
-let status =
-  open_value
-    [
-      ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
-    ]
+let ending =
+  choose [ const Event.succeeded; const Event.failed; const Event.cancelled ]
 
-let outcome = open_value [ ("ok", `Ok); ("error", `Error) ]
-let task = list bytes
 let nat = map [ int ] (fun n -> n land max_int)
+let task = map [ nat; list bytes ] (fun id path -> (id, path))
 let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
 
 (* Any event, but for its time: [other] names an event that is not
@@ -45,23 +41,16 @@ let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
 let kind =
   choose
     [
+      map [ task; option nat ] (fun t parent -> Event.start ?parent t);
+      map [ task; nat64; nat64; count_unit ] (fun t count total unit ->
+          Event.progress ~count ~total ~unit t);
+      map [ task; bytes ] (fun t text ~time -> Event.label ~time t text);
       map
-        [ nat; task; option nat ]
-        (fun id t parent -> Event.start ?parent ~id t);
-      map [ nat; task; nat64; nat64; count_unit ] (fun id t count total unit ->
-          Event.progress ~id ~count ~total ~unit t);
-      map [ nat; task; bytes ] (fun id t text -> Event.label ~id ~text t);
+        [ option task; bytes; option level ]
+        (fun task s level -> Event.output ?task ?level s);
       map
-        [ option nat; task; bytes; option level ]
-        (fun id t s level ->
-          Event.output ?task:(Option.map (fun id -> (id, t)) id) ?level s);
-      map
-        [ nat; task; status; float; option bytes ]
-        (fun id t status elapsed text ->
-          Event.end' ?text ~id ~status ~elapsed t);
-      map
-        [ outcome; bytes; option bytes ]
-        (fun outcome s detail -> Event.result ?detail ~outcome s);
+        [ ending; option task; float; option bytes ]
+        (fun e task elapsed message ~time -> e ?task ?message ~time ~elapsed ());
       map [ bytes ] (fun s ->
           if List.mem s known_events then bad_test () else Event.other s);
     ]
@@ -108,11 +97,13 @@ let test_other s =
   List.iter
     (fun e -> check (decode (Event.to_string e) = e))
     [
-      Event.progress ~time:0. ~id:0 ~count:0L ~total:0L ~unit:(`Other s) [];
+      Event.progress ~time:0. ~count:0L ~total:0L ~unit:(`Other s) (0, []);
       Event.output ~level:(`Other s) ~time:0. "";
-      Event.end' ~time:0. ~id:0 ~status:(`Other s) ~elapsed:0. [];
-      Event.result ~time:0. ~outcome:(`Other s) "";
-    ]
+    ];
+  let status = Fmt.str {|{"time":0,"event":"end","status":%S,"elapsed":0}|} s in
+  match Event.of_string status with
+  | Ok e -> check (decode (Event.to_string e) = e)
+  | Error _ -> ()
 
 (* [s] as an event holds it: each maximal subpart of an ill-formed
    sequence and each C1 control is U+FFFD. *)
@@ -135,9 +126,9 @@ let cleaned s =
 (* Any bytes read back as valid UTF-8 without a C1 control, the bytes of
    each other character kept. *)
 let test_string s =
-  let e = decode (Event.to_string (Event.label ~time:0. ~id:0 ~text:s [ s ])) in
+  let e = decode (Event.to_string (Event.label ~time:0. (0, [ s ]) s)) in
   match (Event.task e, Event.text e) with
-  | [ l ], Some t ->
+  | Some (_, [ l ]), Some t ->
       check_eq ~pp:Fmt.Dump.string (cleaned s) l;
       check_eq ~pp:Fmt.Dump.string (cleaned s) t
   | _ -> fail "not the label event"
@@ -163,7 +154,7 @@ let contains ~affix s =
 let test_count c n =
   let line =
     Event.to_string
-      (Event.progress ~time:0. ~id:0 ~count:c ~total:n ~unit:`Bytes [])
+      (Event.progress ~time:0. ~count:c ~total:n ~unit:`Bytes (0, []))
   in
   let exact = Int64.compare c 1_000_000_000_000_000L < 0 in
   check
@@ -204,9 +195,9 @@ let public_schema_events k raw =
   Display.log task "line";
   let ending, status =
     match k mod 3 with
-    | 0 -> (Display.succeed, `Succeeded)
-    | 1 -> (Display.fail, `Failed)
-    | _ -> (Display.cancel, `Cancelled)
+    | 0 -> (Display.succeed, Event.succeeded)
+    | 1 -> (Display.fail, Event.failed)
+    | _ -> (Display.cancel, Event.cancelled)
   in
   ending ~message:(raw ^ "/end") task;
   Display.succeed parent;
@@ -237,24 +228,28 @@ let kept s =
     let head = String.sub s 0 (4096 - 3) in
     String.sub head 0 (Console_text.boundary head) ^ "..."
 
-let public_schema_expected k raw ((count, unit), status, detail) =
+let public_schema_expected k raw
+    ((count, unit), (ending : ?task:_ -> ?message:_ -> _), detail) =
   let clean s = Console_text.sanitize ~keep_newlines:false s in
   let label = kept (clean raw) and child = kept (clean (raw ^ "/child")) in
   let renamed = kept (clean (raw ^ "/new"))
   and message = kept (clean (raw ^ "/end")) in
-  let outcome = if k land 2 = 0 then `Ok else `Error in
-  let child_task = [ renamed; child ] in
+  let work = if k land 2 = 0 then Event.succeeded else Event.failed in
+  let child_task = (1, [ renamed; child ]) in
   [
-    Event.start ~time:0. ~id:0 [ label ];
-    Event.start ~parent:0 ~time:0.125 ~id:1 [ label; child ];
-    Event.label ~time:0.375 ~id:0 ~text:renamed [ renamed ];
-    Event.progress ~time:0.375 ~id:1 ~count ~total:count ~unit child_task;
-    Event.output ~task:(1, child_task) ~time:0.375 "line";
-    Event.end' ~text:message ~time:0.375 ~id:1 ~status ~elapsed:0.25 child_task;
-    Event.end' ~time:0.375 ~id:0 ~status:`Succeeded ~elapsed:0.375 [ renamed ];
+    Event.start ~time:0. (0, [ label ]);
+    Event.start ~parent:0 ~time:0.125 (1, [ label; child ]);
+    Event.label ~time:0.375 (0, [ renamed ]) renamed;
+    Event.progress ~time:0.375 ~count ~total:count ~unit child_task;
+    Event.output ~task:child_task ~time:0.375 "line";
+    ending ~task:child_task ~message ~time:0.375 ~elapsed:0.25 ();
+    Event.succeeded ~task:(0, [ renamed ]) ~time:0.375 ~elapsed:0.375 ();
     Event.output ~time:0.375 "root";
-    Event.result ~detail ~time:0.375 ~outcome (clean raw);
   ]
+  @ List.map
+      (fun l -> Event.output ~time:0.375 l)
+      (String.split_on_char '\n' detail)
+  @ [ work ~message:(clean raw) ~time:0.375 ~elapsed:0.375 () ]
 
 let test_public_schema k text =
   let raw = if k mod 16 = 0 then String.make 65537 'x' ^ text else text in
@@ -279,7 +274,7 @@ let extreme_seconds =
 
 let test_extreme_seconds time =
   test_round_trip time (fun ~time:t ->
-      Event.end' ~time:t ~id:0 ~status:`Succeeded ~elapsed:time [ "work" ])
+      Event.succeeded ~task:(0, [ "work" ]) ~time:t ~elapsed:time ())
 
 (* A future event may reuse a current member's name for another JSON type.
    None of those members belongs to the unknown event's schema here. *)
@@ -295,8 +290,8 @@ let test_unknown_schema k =
       ("status", "[]");
       ("elapsed", {|"later"|});
       ("text", "5");
+      ("message", "[]");
       ("level", "{}");
-      ("detail", "false");
     |]
   in
   let name, json = members.(k mod Array.length members) in
@@ -316,9 +311,9 @@ let test_invalid_bytes raw =
 (* Accessors expose just the members of their event, including optional
    members; the constructor and the codec must agree on their absence. *)
 let test_accessors raw id n =
-  let text = cleaned raw and task = [ cleaned raw ] in
-  let verify ?id ?(task = []) ?parent ?count ?total ?unit ?status ?outcome
-      ?elapsed ?text ?level ?detail kind e =
+  let text = cleaned raw and task = (id, [ cleaned raw ]) in
+  let verify ?task ?parent ?count ?total ?unit ?status ?elapsed ?text ?message
+      ?level kind e =
     List.iter
       (fun e ->
         check_eq ~pp:Fmt.float 1.25 (Event.time e);
@@ -328,36 +323,33 @@ let test_accessors raw id n =
               failf "%s accessor disagrees with %a" name Event.pp e)
           [
             ("kind", Event.kind e = kind);
-            ("id", Event.id e = id);
             ("task", Event.task e = task);
             ("parent", Event.parent e = parent);
             ("count", Event.count e = count);
             ("total", Event.total e = total);
             ("unit", Event.unit e = unit);
             ("status", Event.status e = status);
-            ("outcome", Event.outcome e = outcome);
             ("elapsed", Event.elapsed e = elapsed);
             ("text", Event.text e = text);
+            ("message", Event.message e = message);
             ("level", Event.level e = level);
-            ("detail", Event.detail e = detail);
           ])
       [ e; decode (Event.to_string e) ]
   in
-  verify ~id ~task ~parent:id `Start
-    (Event.start ~parent:id ~time:1.25 ~id [ raw ]);
-  verify ~id ~task ~count:n ~total:n ~unit:`Bytes `Progress
-    (Event.progress ~time:1.25 ~id ~count:n ~total:n ~unit:`Bytes [ raw ]);
-  verify ~id ~task ~text `Label (Event.label ~time:1.25 ~id ~text:raw [ raw ]);
-  verify ~id ~task ~text ~level:`Warning `Output
-    (Event.output ~task:(id, [ raw ]) ~level:`Warning ~time:1.25 raw);
+  let raw_task = (id, [ raw ]) in
+  verify ~task ~parent:id `Start (Event.start ~parent:id ~time:1.25 raw_task);
+  verify ~task ~count:n ~total:n ~unit:`Bytes `Progress
+    (Event.progress ~time:1.25 ~count:n ~total:n ~unit:`Bytes raw_task);
+  verify ~task ~text `Label (Event.label ~time:1.25 raw_task raw);
+  verify ~task ~text ~level:`Warning `Output
+    (Event.output ~task:raw_task ~level:`Warning ~time:1.25 raw);
   verify ~text `Output (Event.output ~time:1.25 raw);
-  verify ~id ~task ~text ~status:`Failed ~elapsed:0.5 `End
-    (Event.end' ~text:raw ~time:1.25 ~id ~status:`Failed ~elapsed:0.5 [ raw ]);
-  verify ~id ~task ~status:`Cancelled ~elapsed:0.5 `End
-    (Event.end' ~time:1.25 ~id ~status:`Cancelled ~elapsed:0.5 [ raw ]);
-  verify ~outcome:`Error ~text ~detail:text `Result
-    (Event.result ~detail:raw ~time:1.25 ~outcome:`Error raw);
-  verify ~outcome:`Ok ~text `Result (Event.result ~time:1.25 ~outcome:`Ok raw);
+  verify ~task ~message:text ~status:`Failed ~elapsed:0.5 `End
+    (Event.failed ~task:raw_task ~message:raw ~time:1.25 ~elapsed:0.5 ());
+  verify ~task ~status:`Cancelled ~elapsed:0.5 `End
+    (Event.cancelled ~task:raw_task ~time:1.25 ~elapsed:0.5 ());
+  verify ~message:text ~status:`Succeeded ~elapsed:0.5 `End
+    (Event.succeeded ~message:raw ~time:1.25 ~elapsed:0.5 ());
   verify (`Other "pause") (Event.other ~time:1.25 "pause")
 
 (* A retained text is cut between two grapheme clusters, then ends in
@@ -403,7 +395,10 @@ let test_retained_cut k =
   in
   List.iter
     (fun e ->
-      List.iter (check_eq ~pp:Fmt.Dump.string expected) (Event.task e);
+      Option.iter
+        (fun (_, path) ->
+          List.iter (check_eq ~pp:Fmt.Dump.string expected) path)
+        (Event.task e);
       Option.iter (check_eq ~pp:Fmt.Dump.string expected) (Event.text e))
     events
 
