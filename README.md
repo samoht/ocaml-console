@@ -26,7 +26,7 @@ consoles are not supported.
 - [Themes](#themes)
 - [Progress rows](#progress-rows)
   - [Choosing how progress is shown](#choosing-how-progress-is-shown)
-  - [A live table above the rows](#a-live-table-above-the-rows)
+  - [Putting the region together](#putting-the-region-together)
 - [Output on pipes and in CI logs](#output-on-pipes-and-in-ci-logs)
 - [Deciding on colour](#deciding-on-colour)
 - [Testing the output](#testing-the-output)

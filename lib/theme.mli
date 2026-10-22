@@ -44,7 +44,9 @@ type role =
     from the theme of the formatter that prints it. *)
 
 type mark =
-  [ `Running  (** Work still going on, in a display's header. *)
+  [ `Running
+    (** Work still going on: a task's line as it starts on a pipe, and the
+        summary while work runs. *)
   | `Succeeded  (** A task or a session that succeeded. *)
   | `Failed  (** A task or a session that failed. *)
   | `Cancelled  (** A task or a session that was cancelled. *)
@@ -125,8 +127,8 @@ val v :
       {!default}'s green, amber and red);
     - [muted] colours frames, tree lines, rules, the track of a bar and the
       counts and timers of a display (defaults to {!default}'s grey);
-    - [header] is the style of table headers, panel titles and a display's
-      header (defaults to {!Style.bold});
+    - [header] is the style of table headers, panel titles and the name on a
+      display's summary line (defaults to {!Style.bold});
     - [background] is the light or dark background the colours are chosen for
       (defaults to none: the terminal's own), which the widgets do not paint;
     - [motion] is how frames move in a live display (defaults to none: they
@@ -166,8 +168,8 @@ val muted : t -> Color.t
     the counts and timers of a display. *)
 
 val header : t -> Style.t
-(** [header t] is the style of table headers, panel titles and a display's
-    header. *)
+(** [header t] is the style of table headers, panel titles and the name on a
+    display's summary line. *)
 
 val background : t -> Color.t option
 (** [background t] is the background the colours of [t] are chosen for, if any.
