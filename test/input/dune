@@ -8,6 +8,7 @@
  (deps widths.txt)
  (libraries
   console.input
+  console.text
   console_vte
   display_harness
   matrix.glyph

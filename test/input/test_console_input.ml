@@ -348,18 +348,37 @@ let test_complete_utf8 () =
   Alcotest.(check string)
     "no complete character is shared" "" (Console_input.pending t)
 
-(* A byte sequence that is not a character is one replacement character, in
-   the line and on the screen, so the cursor stays where the terminal puts
-   it. *)
+(* Bytes that are not a character are replacement characters, one for each
+   maximal part of a character that [String.get_utf_8_uchar] reads, as
+   [Console_text.sanitize] shows them, in the line and on the screen, so the
+   cursor stays where the terminal puts it. *)
 let test_invalid_utf8 () =
   List.iter
     (fun bad ->
+      let shown = Console_text.sanitize bad in
+      let check t echo =
+        Alcotest.(check string)
+          (String.escaped bad) shown (Console_input.pending t);
+        Alcotest.(check string) "echo" shown echo
+      in
       let t = Console_input.v () in
       let echo, _ = Console_input.feed t bad in
-      Alcotest.(check string)
-        (String.escaped bad) "\u{FFFD}" (Console_input.pending t);
-      Alcotest.(check string) "echo" "\u{FFFD}" echo)
-    [ "\xed\xa0\x80"; "\xc0\xaf"; "\xf4\x90\x80\x80" ]
+      check t echo;
+      let t = Console_input.v () in
+      let echo =
+        String.concat ""
+          (List.init (String.length bad) (fun i ->
+               fst (Console_input.feed t (String.make 1 bad.[i]))))
+      in
+      check t echo)
+    [
+      "\xed\xa0\x80";
+      "\xc0\xaf";
+      "\xf4\x90\x80\x80";
+      "\xff";
+      "a\x80b";
+      "\xe2\x82a";
+    ]
 
 let test_echo_is_text () =
   let no_escape msg (echo, _) =
