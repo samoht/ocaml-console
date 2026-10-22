@@ -59,23 +59,24 @@ let text buf ~keep_newlines seen u =
 (* UTS #51 ED-14a: an emoji tag sequence is a base, tag characters U+E0020
    to U+E007E, then the cancel tag U+E007F. Its only base in
    emoji-sequences.txt is the black flag U+1F3F4, which this library takes
-   alone, so that it needs no table. [tag_sequence s i] is where the tag
-   sequence at [i] ends, if one starts there. *)
-let tag_sequence str i =
-  let rec tags j n =
-    if j >= String.length str then None
-    else
-      let d = String.get_utf_8_uchar str j in
-      let next = j + Uchar.utf_decode_length d in
-      match Uchar.to_int (Uchar.utf_decode_uchar d) with
-      | _ when not (Uchar.utf_decode_is_valid d) -> None
-      | c when c >= 0xe0020 && c <= 0xe007e -> tags next (n + 1)
-      | 0xe007f when n > 0 -> Some next
-      | _ -> None
-  in
-  let d = String.get_utf_8_uchar str i in
+   alone, so that it needs no table. [tags str j n] is where the tag
+   sequence ends whose [n] tags so far end at [j], if it does. *)
+let rec tags str j n =
+  if j >= String.length str then None
+  else
+    let d = String.get_utf_8_uchar str j in
+    let next = j + Uchar.utf_decode_length d in
+    match Uchar.to_int (Uchar.utf_decode_uchar d) with
+    | _ when not (Uchar.utf_decode_is_valid d) -> None
+    | c when c >= 0xe0020 && c <= 0xe007e -> tags str next (n + 1)
+    | 0xe007f when n > 0 -> Some next
+    | _ -> None
+
+(* [tag_sequence str i d] is where the tag sequence at [i], whose first
+   character [d] decodes, ends, if one starts there. *)
+let tag_sequence str i d =
   if Uchar.to_int (Uchar.utf_decode_uchar d) = 0x1f3f4 then
-    tags (i + Uchar.utf_decode_length d) 0
+    tags str (i + Uchar.utf_decode_length d) 0
   else None
 
 let sanitize_into buf ~keep_newlines seen str =
@@ -90,7 +91,7 @@ let sanitize_into buf ~keep_newlines seen str =
         go (i + Uchar.utf_decode_length d)
       end
       else
-        match tag_sequence str i with
+        match tag_sequence str i d with
         | Some stop ->
             seen.cr <- false;
             seen.base <- true;
