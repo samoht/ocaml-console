@@ -237,12 +237,12 @@ let public_schema_events k raw =
   (events, (count, status, detail))
 
 (* A display keeps the first 4 KiB of a label or a message, cut between
-   two characters and ended with an ellipsis. *)
+   two characters and ended with three dots. *)
 let kept s =
   if String.length s <= 4096 then s
   else
     let head = String.sub s 0 (4096 - 3) in
-    String.sub head 0 (Console_text.boundary head) ^ "\u{2026}"
+    String.sub head 0 (Console_text.boundary head) ^ "..."
 
 let public_schema_expected k raw ((count, unit), status, detail) =
   let clean s = Console_text.sanitize ~keep_newlines:false s in

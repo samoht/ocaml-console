@@ -44,7 +44,10 @@ let duration secs =
 let duration_cells = 6
 let clean = Console_text.sanitize ~keep_newlines:false
 let kept_bytes = 4096
-let ellipsis = "\xe2\x80\xa6"
+
+(* ASCII dots, so that a line of ASCII cut stays ASCII, which the
+   sanitizing of each redraw passes over at once. *)
+let ellipsis = "..."
 
 (* The text is sanitized, so a cut needs only to fall between two
    characters, which [boundary] finds. *)

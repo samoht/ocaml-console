@@ -33,8 +33,8 @@ val kept_bytes : int
 
 val capped : string -> string
 (** [capped s] is [s] if it has at most {!kept_bytes} bytes, and otherwise its
-    longest prefix of whole characters that leaves room for an ellipsis, then
-    U+2026: at most {!kept_bytes} bytes in all. *)
+    longest prefix of whole characters that leaves room for three dots, then
+    ["..."]: at most {!kept_bytes} bytes in all. *)
 
 val label : string -> string
 (** [label s] is [capped (clean s)], the label or the message of a task as a

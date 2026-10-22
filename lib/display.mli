@@ -56,7 +56,7 @@
     oldest lines are dropped first and a line of their own counts them. A line
     too wide for the terminal is cut under a running task, and nowhere else. A
     line a task keeps for its window or its failure, and a task's label or
-    message, keeps its first 4 KiB, ended with an ellipsis, so that the bounds
+    message, keeps its first 4 KiB, ended with three dots, so that the bounds
     above hold for each task however long its text.
 
     [Console_eio.run] sees standard output through {!Fmt.stdout} and [Logs]
