@@ -28,8 +28,8 @@ let table () =
   Table.v ~rules:true
     [
       Table.column (Span.text "Step");
-      Table.column (Span.text "Status");
-      Table.column (Span.text "Detail");
+      Table.column ~min_width:7 (Span.text "Status");
+      Table.column ~min_width:19 (Span.text "Detail");
     ]
     (List.map
        (fun s -> [ Span.text s.name; s.status; Span.text s.detail ])
