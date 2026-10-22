@@ -33,6 +33,21 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
+(* The file, pipe or device a descriptor writes to. *)
+let file unix =
+  match Unix.fstat unix with
+  | st -> Some (st.Unix.st_dev, st.Unix.st_ino)
+  | exception Unix.Unix_error _ -> None
+
+(* The standard formatters that write where [unix] does. *)
+let sharing unix =
+  let shares std =
+    match (descriptor std, file unix) with
+    | Some (_, u), Some f -> file u = Some f
+    | _ -> false
+  in
+  List.filter shares [ Fmt.stdout; Fmt.stderr ]
+
 (* The display writes on a formatter of its own, to the same output as
    [ppf] and with the same tag functions, which hold its colours, its theme
    and whether it is UTF-8, as [Fmt.with_buffer ~like] does, so that [ppf]
@@ -69,7 +84,9 @@ type progress = [ `Auto | `Tty | `Plain | `Quiet | `Json ]
 
 (* The display, the formatters whose lines it takes and what shows or hides
    the cursor. On a terminal it takes the standard formatters on that
-   terminal; drawn on another output, or as events, [ppf] alone. *)
+   terminal; quiet, those that write where [ppf] does, as a task's output
+   is printed only if it fails; drawn on another output, or as events,
+   [ppf] alone. *)
 let display ~progress ~now ?layout ?header ppf =
   let scope = Session.scope in
   let live ~size ~intercept ~cursor =
@@ -87,11 +104,12 @@ let display ~progress ~now ?layout ?header ppf =
   in
   let std = match descriptor ppf with Some _ -> [ ppf ] | None -> [] in
   let lines form =
-    match (form, std) with
-    | `Json, _ :: _ ->
-        ( Display_driver.v ?layout ?header ~form ~scope ~now (own ppf),
-          std,
-          ignore )
+    let taking std =
+      (Display_driver.v ?layout ?header ~form ~scope ~now (own ppf), std, ignore)
+    in
+    match (form, descriptor ppf) with
+    | `Json, Some _ -> taking std
+    | `Quiet, Some (_, unix) -> taking (sharing unix)
     | _ -> (Display_driver.v ?layout ?header ~form ~scope ~now ppf, [], ignore)
   in
   match progress with
