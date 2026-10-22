@@ -236,10 +236,19 @@ let public_schema_events k raw =
   in
   (events, (count, status, detail))
 
+(* A display keeps the first 4 KiB of a label or a message, cut between
+   two characters and ended with an ellipsis. *)
+let kept s =
+  if String.length s <= 4096 then s
+  else
+    let head = String.sub s 0 (4096 - 3) in
+    String.sub head 0 (Console_text.boundary head) ^ "\u{2026}"
+
 let public_schema_expected k raw ((count, unit), status, detail) =
   let clean s = Console_text.sanitize ~keep_newlines:false s in
-  let label = clean raw and child = clean (raw ^ "/child") in
-  let renamed = clean (raw ^ "/new") and message = clean (raw ^ "/end") in
+  let label = kept (clean raw) and child = kept (clean (raw ^ "/child")) in
+  let renamed = kept (clean (raw ^ "/new"))
+  and message = kept (clean (raw ^ "/end")) in
   let outcome = if k land 2 = 0 then `Ok else `Error in
   let child_task = [ renamed; child ] in
   [
@@ -251,7 +260,7 @@ let public_schema_expected k raw ((count, unit), status, detail) =
     Event.end' ~text:message ~time:0.375 ~id:1 ~status ~elapsed:0.25 child_task;
     Event.end' ~time:0.375 ~id:0 ~status:`Succeeded ~elapsed:0.375 [ renamed ];
     Event.output ~time:0.375 "root";
-    Event.result ~detail ~time:0.375 ~outcome label;
+    Event.result ~detail ~time:0.375 ~outcome (clean raw);
   ]
 
 let test_public_schema k text =
