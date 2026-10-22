@@ -133,15 +133,16 @@ let clock () =
 let display ~live () =
   let now, tick = clock () in
   let size = if live then Some (fun () -> (80, 24)) else None in
-  let d = Display.v ?size ~now ~summary:"bench" null in
+  let root = Task.root ~label:"bench" ~now () in
+  let d = Progress.show ?size null root in
   for i = 1 to 10_000 do
-    let t = Fmt.kstr (Display.task d) "task %d" i in
+    let t = Fmt.kstr (Task.start root) "task %d" i in
     for j = 1 to 10 do
       tick ();
-      Display.set_count t ~cur:j ~total:10;
-      Display.log t "a line of output from the task"
+      Task.set_items t ~count:j ~total:10;
+      Task.log t "a line of output from the task"
     done;
-    Display.succeed t
+    Task.succeed t
   done;
   Display.close d
 
@@ -149,10 +150,63 @@ let display ~live () =
    already on screen. *)
 let idle () =
   let now () = 0. in
-  let d = Display.v ~size:(fun () -> (80, 24)) ~now ~summary:"bench" null in
-  let tasks = List.init 10 (fun i -> Fmt.kstr (Display.task d) "task %d" i) in
+  let root = Task.root ~label:"bench" ~now () in
+  let d = Progress.show ~size:(fun () -> (80, 24)) null root in
+  let tasks = List.init 10 (fun i -> Fmt.kstr (Task.start root) "task %d" i) in
   run "redraw with nothing changed" ~n:10_000 (fun () -> Display.redraw d);
-  List.iter Display.succeed tasks;
+  List.iter Task.succeed tasks;
+  Display.close d
+
+(* A live region of 1k running tasks, each with its spinner and its time,
+   drawn frame after frame as the clock moves: the cost of a frame. *)
+let live_tasks () =
+  let t = ref 0. in
+  let root = Task.root ~label:"bench" ~now:(fun () -> !t) () in
+  let d = Progress.show ~size:(fun () -> (100, 40)) null root in
+  let tasks =
+    List.init 1000 (fun i -> Fmt.kstr (Task.start root) "task %d" i)
+  in
+  run "live 1k running tasks, a frame" ~n:200 (fun () ->
+      t := !t +. 0.05;
+      Display.redraw d);
+  List.iter Task.succeed tasks;
+  Display.close d
+
+let results n =
+  Table.view
+    [
+      Table.column (View.text "Name");
+      Table.column ~align:`Right (View.text "N");
+    ]
+    (List.init n (fun i ->
+         [ Fmt.kstr View.text "row %d" i; Fmt.kstr View.text "%d" (i * 7) ]))
+
+(* A view of a 200-row table and a spinner beside it, drawn frame after
+   frame: the spinner turns, the table is laid out once. *)
+let table_and_spinner () =
+  let t = ref 0. in
+  let view = View.vcat [ results 200; Spinner.view () ] in
+  let d =
+    Display.v ~size:(fun () -> (100, 250)) ~now:(fun () -> !t) null view
+  in
+  run "live 200-row table and a spinner, a frame" ~n:200 (fun () ->
+      t := !t +. 0.05;
+      Display.redraw d);
+  Display.close d
+
+(* A view that does not move, redrawn as the clock moves: a tick costs
+   nothing. *)
+let idle_view () =
+  let t = ref 0. in
+  let d =
+    Display.v
+      ~size:(fun () -> (100, 250))
+      ~now:(fun () -> !t)
+      null (results 200)
+  in
+  run "live still view, a tick" ~n:10_000 (fun () ->
+      t := !t +. 0.05;
+      Display.redraw d);
   Display.close d
 
 let () =
@@ -163,5 +217,8 @@ let () =
   fills ();
   line_editor ();
   idle ();
+  live_tasks ();
+  table_and_spinner ();
+  idle_view ();
   run "display plain 10k tasks 100k logs" ~n:1 (display ~live:false);
   run "display live 10k tasks 100k logs" ~n:1 (display ~live:true)
