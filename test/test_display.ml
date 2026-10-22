@@ -1488,6 +1488,24 @@ let test_quiet_failure_context () =
   Alcotest.(check bool) "the failure shows" true (contains "sha256" out);
   Alcotest.(check bool) "with its parent" true (contains "RUN make" out)
 
+(* On a pipe, the lines of two trees that run at once interleave: a child's
+   line says whose child it is, as its output lines say their task. *)
+let test_plain_interleaved_children () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let a = Display.task d "linux" and b = Display.task d "macos" in
+        let fa = Display.task ~parent:a d "fetch" in
+        let fb = Display.task ~parent:b d "fetch" in
+        Display.succeed fa;
+        Display.succeed fb;
+        Display.succeed a;
+        Display.succeed b)
+  in
+  let fetches = List.filter (contains "fetch") (split out) in
+  Alcotest.(check bool)
+    "each fetch line names its build" true
+    (List.for_all (fun l -> contains "linux" l || contains "macos" l) fetches)
+
 let suite =
   ( "display",
     [
@@ -1571,4 +1589,6 @@ let suite =
         test_parent_of_failure;
       Alcotest.test_case "a quiet failure names its parent" `Quick
         test_quiet_failure_context;
+      Alcotest.test_case "a pipe names the parent of an interleaved child"
+        `Quick test_plain_interleaved_children;
     ] )
