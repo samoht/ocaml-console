@@ -40,6 +40,20 @@ jobs:
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
+  release:
+    name: Release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '5.4'
+
+      - run: opam install . --deps-only
+      - run: opam exec -- dune build -p console,console-eio @install
+
   lower-bounds:
     name: Lower bounds
     runs-on: ubuntu-latest

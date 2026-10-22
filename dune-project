@@ -27,8 +27,6 @@
   (fmt (>= 0.9))
   (uucp (>= 18.0.0))
   (uuseg (>= 18.0.0))
-  ; jsont.bytesrw, which writes and reads the JSON events, is built only
-  ; where bytesrw is installed.
   (jsont (>= 0.3.0))
   (bytesrw (>= 0.1.0))
   ; The tests' terminal emulator, from the released matrix. It lacks fixes

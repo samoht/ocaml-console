@@ -98,10 +98,10 @@ program is in [examples/quickstart/main.ml](examples/quickstart/main.ml).
 
 <!-- $MDX skip -->
 ```sh
-$ opam install console console-eio
+$ opam install console console-eio eio_main cmdliner
 ```
 
-The quick start also needs `eio_main` to run
+The quick start needs `eio_main` to run
 [Eio](https://github.com/ocaml-multicore/eio) and
 [Cmdliner](https://erratique.ch/software/cmdliner) to read its options, with
 `Fmt_cli` from `fmt.cli`, but console itself depends on none of them: it
