@@ -1066,6 +1066,28 @@ let test_with_task () =
     ]
     (split out)
 
+(* A task that [with_task] fails when its function raises says why, in its
+   line and in its JSON end event. *)
+let test_with_task_reason () =
+  let run progress =
+    let buf = Buffer.create 256 in
+    let ppf = Format.formatter_of_buffer buf in
+    Theme.set ppf theme;
+    let d = Display.v ~progress ~now:(fun () -> 0.) ppf in
+    (try Display.with_task d "fetch" (fun _ -> failwith "disk full")
+     with Failure _ -> ());
+    Display.close d;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
+  in
+  Alcotest.(check bool)
+    "in the line" true
+    (contains "[x] fetch: Failure(\"disk full\")" (run `Plain));
+  Alcotest.(check bool)
+    "in the end event" true
+    (contains "\"status\":\"failed\",\"elapsed\":0,\"text\":\"fetch: Failure"
+       (run `Json))
+
 (* [iter] is a task whose count follows the list. *)
 let test_iter () =
   let seen = ref [] in
@@ -1637,6 +1659,8 @@ let suite =
       Alcotest.test_case "within a task" `Quick test_within;
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
+      Alcotest.test_case "a failed with_task says why" `Quick
+        test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;
       Alcotest.test_case "view" `Quick test_view;
       Alcotest.test_case "view fits" `Quick test_view_fits;
