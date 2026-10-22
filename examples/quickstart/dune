@@ -15,7 +15,7 @@
  (name tape)
  (modules tape)
  (optional)
- (libraries vhs))
+ (libraries fmt vhs))
 
 (rule
  (enabled_if %{lib-available:vhs})

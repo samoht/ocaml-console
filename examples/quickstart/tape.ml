@@ -42,5 +42,5 @@ let () =
   with
   | Ok t -> print_string (Vhs.to_string t)
   | Error e ->
-      prerr_endline e;
+      Fmt.epr "%a@." Vhs.pp_error e;
       exit 1
