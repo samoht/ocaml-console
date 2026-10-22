@@ -125,12 +125,18 @@
     leaves its column, then its time goes, and only then is its label cut. In
     the last frame a label is never cut ({!tree}).
 
-    {b Columns.} The count and the rate each take a column that the rows of a
-    display share, as wide as the widest it has shown, and the elapsed time a
-    column of six cells; a row without a count or a rate leaves its column
-    blank. The pieces after the {!Layout.spacer} sit against the right edge, so
-    while no piece gives way each sits in the same columns on every row: the
-    bars of the rows that show one end in one column. *)
+    {b Columns.} While the display is open, nothing in the region moves sideways
+    unless the terminal width changes. The count and the rate each take a column
+    that the rows of a display share, and the elapsed time a column of six
+    cells; a row without a count or a rate leaves its column blank. The count
+    column is as wide as [999/999] once a task counts items, as the widest count
+    of bytes once one counts bytes, and widens only for a count of a thousand
+    items or more; the rate column is as wide as the widest rate. The pieces
+    after the {!Layout.spacer} sit against the right edge, so while no piece
+    gives way each sits in the same columns on every row and in every frame: the
+    bars of the rows that show one end in one column. A widget in a view is as
+    wide as its content in each frame, so a table whose cells change gives its
+    columns a [min_width] ({!Table.val-column}). *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)

@@ -33,7 +33,10 @@ let set_status b s = Hashtbl.replace status b.name s
 
 let table () =
   Table.v
-    [ Table.column (Span.text "Build"); Table.column (Span.text "Status") ]
+    [
+      Table.column (Span.text "Build");
+      Table.column ~min_width:7 (Span.text "Status");
+    ]
     (List.map
        (fun b ->
          [

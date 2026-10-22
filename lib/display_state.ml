@@ -25,7 +25,14 @@ let count_width metric =
     | Count (_, total) -> Count (total, total)
     | Bytes (_, total) -> Bytes (total, total)
   in
-  max (String.length (count_text metric)) (String.length (count_text full))
+  let least =
+    match metric with
+    | Spin -> 0
+    | Count _ -> String.length "999/999"
+    | Bytes _ -> String.length "1023.99 MiB / 1023.99 MiB"
+  in
+  max least
+    (max (String.length (count_text metric)) (String.length (count_text full)))
 
 let rate_text metric rate =
   match metric with

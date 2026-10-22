@@ -38,7 +38,9 @@ val count_text : metric -> string
 
 val count_width : metric -> int
 (** [count_width m] is the cells [m] needs now and once done, whichever is
-    wider, so a count does not walk left as it grows. *)
+    wider, and at least those of [999/999] for items and of the widest count of
+    bytes, so a count does not walk left as it grows and a later count below a
+    thousand does not widen the column. *)
 
 val rate_text : metric -> float -> string
 (** [rate_text m rate] is what a row's rate cell shows: [rate] bytes per second

@@ -618,9 +618,12 @@ let set_bytes r ~cur ~total =
       r.last_cur <- cur;
       r.last_t <- now
     end;
-    r.disp.rate_cell <-
-      max r.disp.rate_cell
-        (String.length (rate_text (Bytes (cur, total)) r.rate));
+    (match rate_text (Bytes (cur, total)) r.rate with
+    | "" -> ()
+    | rate ->
+        r.disp.rate_cell <-
+          max r.disp.rate_cell
+            (max (String.length "1023.99 MiB/s") (String.length rate)));
     set_metric r (Bytes (cur, total))
   end
 
