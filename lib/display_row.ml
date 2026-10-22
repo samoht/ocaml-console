@@ -164,6 +164,8 @@ let live t ~width ~lasts r =
         (fun (p : Display_layout.piece) ->
           match p with
           | Count when stage >= 3 -> (p, compact_count t r)
+          | Elapsed when stage >= 3 ->
+              (p, muted t (Display_text.duration (elapsed r)))
           | p -> (p, piece t r ~time p))
         (left stage layout)
     in
@@ -238,10 +240,13 @@ let hanging t ~width lead body =
     | [] -> [ lead ])
 
 (* The count and the timer of a task that ended, at a stage of what gives
-   way: 0 in the columns every task uses, 1 the count shorter, 2 the count
-   alone. *)
+   way: 0 in the columns every task uses, 1 the count shorter and out of
+   them, the timer too, 2 the count alone. *)
 let meta t r stage =
-  let timer = timer t (elapsed r) in
+  let timer =
+    if stage = 0 then timer t (elapsed r)
+    else muted t (Display_text.duration (elapsed r))
+  in
   let count =
     if stage = 0 then if t.count_cell = 0 then None else Some (count_cell t r)
     else
