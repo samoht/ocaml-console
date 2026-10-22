@@ -1699,6 +1699,26 @@ let test_label_not_cut_for_an_empty_count () =
     true
     (contains "level-5-label" tree)
 
+(* On a pipe a failed transient task with no output leaves no line, not
+   even the reason with_task gives it, yet the summary says the work
+   failed: a CI log then reads "✗ S" with nothing that failed.
+   Quiet prints such a failure ("where nothing else would show it"), and a
+   pipe has nothing else to show it either. *)
+let test_plain_transient_failure () =
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Theme.set ppf theme;
+  let d = Display.v ~summary:"S" ~progress:`Plain ~now:(fun () -> 0.) ppf in
+  (try
+     Display.with_task ~transient:true d "probe" (fun _ -> failwith "disk full")
+   with Failure _ -> ());
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buffer in
+  Alcotest.(check bool)
+    ("the failure shows in\n" ^ out)
+    true (contains "probe" out)
+
 let suite =
   ( "display",
     [
@@ -1800,4 +1820,6 @@ let suite =
         test_pipe_output_mark_not_separator;
       Alcotest.test_case "a label is not cut for an empty count" `Quick
         test_label_not_cut_for_an_empty_count;
+      Alcotest.test_case "a pipe shows a transient failure" `Quick
+        test_plain_transient_failure;
     ] )
