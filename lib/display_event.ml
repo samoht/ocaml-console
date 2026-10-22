@@ -50,12 +50,12 @@ let result t =
   match t.result with
   | None -> ()
   | Some (result, detail) ->
-      let outcome, text =
-        match result with Ok m -> (`Ok, m) | Error m -> (`Error, m)
+      let status, text =
+        match result with Ok m -> (`Succeeded, m) | Error m -> (`Failed, m)
       in
       let detail =
         match detail with
         | [] -> None
         | lines -> Some (String.concat "\n" lines)
       in
-      write t (Event.result ?detail ~outcome text)
+      write t (Event.result ?detail ~status text)

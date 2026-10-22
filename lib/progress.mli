@@ -136,12 +136,9 @@ module Event : sig
       ["error"], ["warning"], ["info"], ["debug"] or another string. *)
 
   type status = [ `Succeeded | `Failed | `Cancelled | `Other of string ]
-  (** The type for how a task ended, the [status] member of ["end"]:
-      ["succeeded"], ["failed"], ["cancelled"] or another string. *)
-
-  type outcome = [ `Ok | `Error | `Other of string ]
-  (** The type for how the work ended, the [status] member of ["result"]:
-      ["ok"], ["error"] or another string. *)
+  (** The type for how a task or the work ended, the [status] member of ["end"]
+      and of ["result"]: ["succeeded"], ["failed"], ["cancelled"] or another
+      string. *)
 
   type t
   (** The type for events. A transient task ({!Display.val-task}) has its events
@@ -197,10 +194,11 @@ module Event : sig
       with [status], after [elapsed] seconds, and [text] is the message it ended
       with, if any. *)
 
-  val result : ?detail:string -> time:float -> outcome:outcome -> string -> t
-  (** [result ~detail ~time ~outcome text] is ["result"]: the work ended with
-      [outcome], [text] is its message and [detail] its detail, if any. It has
-      no [id] nor [task], and its [outcome] is its [status] member. *)
+  val result : ?detail:string -> time:float -> status:status -> string -> t
+  (** [result ~detail ~time ~status text] is ["result"]: the work ended with
+      [status], [`Succeeded] for the [Ok] of {!Display.set_result} and [`Failed]
+      for its [Error], [text] is its message and [detail] its detail, if any. It
+      has no [id] nor [task]. *)
 
   val other : ?id:int -> ?task:string list -> time:float -> string -> t
   (** [other ~id ~task ~time name] is the event named [name], of the task [id]
@@ -242,10 +240,8 @@ module Event : sig
   (** [unit e] is the unit of the count of ["progress"]. *)
 
   val status : t -> status option
-  (** [status e] is how the task of ["end"] ended. *)
-
-  val outcome : t -> outcome option
-  (** [outcome e] is how the work of ["result"] ended, its [status] member. *)
+  (** [status e] is how the task of ["end"], or the work of ["result"], ended.
+  *)
 
   val elapsed : t -> float option
   (** [elapsed e] is the seconds the task of ["end"] ran for. *)
@@ -271,11 +267,11 @@ module Event : sig
       event of another name as [`Other] with its [time], and its [id] and [task]
       if they have the types of {{!json}an event of a task}: its other members,
       whatever their types, are skipped. It decodes a value of a
-      {!type-count_unit}, a {!type-level}, a {!type-status} or an
-      {!type-outcome} it does not list as [`Other], and skips the members it
-      does not know. An event of a listed name that lacks a member of its kind,
-      or has a listed member of another type, does not decode, and neither does
-      a negative or fractional integer. *)
+      {!type-count_unit}, a {!type-level} or a {!type-status} it does not list
+      as [`Other], and skips the members it does not know. An event of a listed
+      name that lacks a member of its kind, or has a listed member of another
+      type, does not decode, and neither does a negative or fractional integer.
+  *)
 
   val of_string : string -> (t, [ `Msg of string ]) result
   (** [of_string s] is the event of the JSON object [s], decoded with {!jsont}.

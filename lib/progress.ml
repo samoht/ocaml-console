@@ -29,7 +29,6 @@ module Event = struct
   type count_unit = [ `Items | `Bytes | `Other of string ]
   type level = [ `App | `Error | `Warning | `Info | `Debug | `Other of string ]
   type status = [ `Succeeded | `Failed | `Cancelled | `Other of string ]
-  type outcome = [ `Ok | `Error | `Other of string ]
 
   type t = {
     time : float;
@@ -41,7 +40,6 @@ module Event = struct
     total : int64 option;
     unit : count_unit option;
     status : status option;
-    outcome : outcome option;
     elapsed : float option;
     text : string option;
     level : level option;
@@ -193,8 +191,6 @@ module Event = struct
         ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
       ]
 
-  let outcomes : outcome enum = open_enum [ ("ok", `Ok); ("error", `Error) ]
-
   let natural what n =
     if n < 0 then Fmt.invalid_arg "Console.Progress.Event: negative %s" what
 
@@ -214,7 +210,6 @@ module Event = struct
       total = None;
       unit = None;
       status = None;
-      outcome = None;
       elapsed = None;
       text = None;
       level = None;
@@ -254,10 +249,10 @@ module Event = struct
       text = Option.map clean text;
     }
 
-  let result ?detail ~time ~outcome text =
+  let result ?detail ~time ~status text =
     {
       (event ~time `Result) with
-      outcome = Some (outcomes.other outcome);
+      status = Some (statuses.other status);
       text = Some (clean text);
       detail = Option.map clean detail;
     }
@@ -276,7 +271,6 @@ module Event = struct
   let total e = e.total
   let unit e = e.unit
   let status e = e.status
-  let outcome e = e.outcome
   let elapsed e = e.elapsed
   let text e = e.text
   let level e = e.level
@@ -323,12 +317,7 @@ module Event = struct
   let typed v = Option.map (fun v -> Typed v) v
 
   let to_members (e : t) =
-    let status =
-      match (e.status, e.outcome) with
-      | Some s, _ -> Some (statuses.to_string s)
-      | None, Some o -> Some (outcomes.to_string o)
-      | None, None -> None
-    in
+    let status = Option.map statuses.to_string e.status in
     {
       time = e.time;
       event = kinds.to_string e.kind;
@@ -382,9 +371,8 @@ module Event = struct
         end' ?text:(opt "text" m.text) ~time ~id:(id ()) ~status
           ~elapsed:(get "elapsed" m.elapsed) (task ())
     | `Result ->
-        let outcome = outcomes.of_string (get "status" m.status) in
-        result ?detail:(opt "detail" m.detail) ~time ~outcome
-          (get "text" m.text)
+        let status = statuses.of_string (get "status" m.status) in
+        result ?detail:(opt "detail" m.detail) ~time ~status (get "text" m.text)
     | `Other name ->
         let known = function Some (Typed v) -> Some v | _ -> None in
         other ?id:(known m.id) ?task:(known m.task) ~time name
