@@ -30,6 +30,8 @@
       ({{!Console.Display.output}where text goes}).
 
     Of what [run] takes, bytes belong to the task current when they are written.
+    A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that another
+    fiber printed there without flushing them go to whichever task ends first.
     Each task collects its own lines, so a line is what one task wrote up to a
     line feed, and a task's unended last line is ended when the task ends. Bytes
     written outside any task are the output of no task, ended when the display
