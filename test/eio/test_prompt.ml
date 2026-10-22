@@ -218,6 +218,59 @@ let test_secret_keeps_bytes () =
   let answer, _ = secret_typed (password ^ "\n") in
   Alcotest.check string_answer "the bytes typed" (Got password) answer
 
+(* A domain types the line in pieces, so that the terminal's input queue
+   never fills while the fiber that reads it waits. *)
+let test_secret_cap () =
+  let line = String.make 5000 'a' ^ "\n" in
+  let result =
+    Eio_main.run @@ fun env ->
+    Eio.Switch.run @@ fun sw ->
+    let pty =
+      match Eio_unix.Pty.open_pty ~sw () with
+      | pty -> pty
+      | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+          Alcotest.skip ()
+    in
+    let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
+    let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
+    Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
+    @@ fun () ->
+    let typist =
+      Domain.spawn (fun () ->
+          let deadline = Unix.gettimeofday () +. 10. in
+          while
+            (Unix.tcgetattr tty).Unix.c_echo && Unix.gettimeofday () < deadline
+          do
+            Unix.sleepf 0.01
+          done;
+          let rec go i =
+            if i < String.length line then begin
+              let n = min 64 (String.length line - i) in
+              ignore (Unix.write_substring master line i n : int);
+              (match Unix.select [ master ] [] [] 0.001 with
+              | [], _, _ -> ()
+              | _ -> ignore (Unix.read master (Bytes.create 4096) 0 4096 : int));
+              go (i + n)
+            end
+          in
+          go 0)
+    in
+    let result =
+      with_stdin ~stdin:tty (fun () ->
+          let t =
+            Prompt.v
+              ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
+              (Eio.Stdenv.stdin env)
+          in
+          Prompt.secret t "secret: ")
+    in
+    Domain.join typist;
+    seen result
+  in
+  match result with
+  | Got _ -> Alcotest.fail "a line of 5000 bytes taken"
+  | _ -> ()
+
 (* What is typed before [secret] masks the terminal is echoed, as it is
    under getpass(3), but it is not the answer: [secret] discards it and
    reads what is typed once the question is masked. [typed] is typed first,
@@ -360,6 +413,8 @@ let suite =
         test_secret_after_a_line;
       Alcotest.test_case "a password is the bytes typed" `Quick
         test_secret_keeps_bytes;
+      Alcotest.test_case "secret refuses a line of more than 4096 bytes" `Quick
+        test_secret_cap;
       Alcotest.test_case "a prompt leaves other fibers' output to their task"
         `Quick test_prompt_leaves_other_fibers_attributed;
       Alcotest.test_case "an error formats" `Quick test_pp_error;
