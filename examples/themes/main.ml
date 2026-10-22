@@ -62,7 +62,14 @@ let () =
       prerr_endline e;
       exit 2
   | Ok theme ->
-      Console_tty.setup ~style_renderer:`Ansi_tty ~theme ();
+      let no_color =
+        match Sys.getenv_opt "NO_COLOR" with
+        | Some "" | None -> false
+        | _ -> true
+      in
+      Console_tty.setup
+        ?style_renderer:(if no_color then None else Some `Ansi_tty)
+        ~theme ();
       let ocaml = String.map (function '-' -> '_' | c -> c) name in
       let title = Span.gradient ("Theme." ^ ocaml) in
       Fmt.pr "%a@.%a@.@." Span.pp
