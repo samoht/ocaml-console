@@ -625,9 +625,114 @@ let test_json_long_line size split =
   check (json_field_is "id" (Some (`Int 0)) (List.hd output));
   check (json_field_is "text" (Some (`String text)) (List.hd output))
 
+(* What [run ppf] writes, with [ppf] a buffer's formatter or
+   {!Format.str_formatter}, in [theme]. *)
+let capture_progress_formatter ~theme ~use_str run =
+  let buf = Buffer.create 256 in
+  let ppf =
+    if use_str then begin
+      ignore (Format.flush_str_formatter ());
+      Format.str_formatter
+    end
+    else Format.formatter_of_buffer buf
+  in
+  let old_theme = Console.Theme.get ppf in
+  Console.Theme.set ppf theme;
+  Fun.protect
+    ~finally:(fun () -> Console.Theme.set ppf old_theme)
+    (fun () ->
+      run ppf;
+      Format.pp_print_flush ppf ();
+      if use_str then Format.flush_str_formatter () else Buffer.contents buf)
+
+(* With output the program does not print itself, Display.v and run show
+   each progress mode alike, on Format.str_formatter too and in every
+   theme. *)
+let test_direct_progress_parity k label use_str =
+  let label = String.sub label 0 (min 128 (String.length label)) in
+  let _, theme =
+    List.nth Console.Theme.all (k mod List.length Console.Theme.all)
+  in
+  let program d =
+    Console.Display.with_task d label (fun parent ->
+        let child =
+          Console.Display.task ~parent ~transient:(k land 1 = 0) d "child"
+        in
+        Console.Display.set_bytes child ~cur:3L ~total:5L;
+        Console.Display.log child "child output";
+        Console.Display.cancel child;
+        Console.Display.set_count parent ~cur:1 ~total:1);
+    Console.Display.log (Console.Display.root d) "root output";
+    Console.Display.set_result ~detail:"detail" d (Ok "done")
+  in
+  with_dimensions 80 24 (fun () ->
+      List.iter
+        (fun (_, progress) ->
+          let direct =
+            capture_progress_formatter ~theme ~use_str (fun ppf ->
+                let size =
+                  if progress = `Auto || k land 2 = 0 then None
+                  else Some (fun () -> (80, 24))
+                in
+                let d =
+                  Console.Display.v ?size ~progress ~header:"header"
+                    ~now:(fun () -> 0.)
+                    ppf
+                in
+                program d;
+                Console.Display.redraw d;
+                Console.Display.close d)
+          in
+          let driven =
+            capture_progress_formatter ~theme ~use_str (fun ppf ->
+                Eio_mock.Backend.run (fun () ->
+                    Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ())
+                      ~ppf ~progress ~header:"header" (fun d ->
+                        program d;
+                        Console.Display.redraw d)))
+          in
+          check_eq ~pp:Fmt.Dump.string direct driven)
+        Console.Progress.all)
+
+(* Progress.all is directly usable as a command-line enum, and diagnostics
+   for any unknown spelling enumerate every available choice. *)
+let test_progress_enum text =
+  let parse =
+    Cmdliner.Arg.conv_parser (Cmdliner.Arg.enum Console.Progress.all)
+  in
+  List.iter
+    (fun (name, expected) ->
+      (match parse name with
+      | Ok got -> check (got = expected)
+      | Error _ -> failf "Cmdliner rejects progress %s" name);
+      match Console.Progress.of_string name with
+      | Ok got -> check (got = expected)
+      | Error _ -> failf "of_string rejects progress %s" name)
+    Console.Progress.all;
+  let unknown = "invalid:" ^ text in
+  check (Result.is_error (parse unknown));
+  match Console.Progress.of_string unknown with
+  | Ok _ -> fail "an unknown progress spelling was accepted"
+  | Error (`Msg message) ->
+      List.iter
+        (fun (name, _) ->
+          let rec contains i =
+            i + String.length name <= String.length message
+            && (String.sub message i (String.length name) = name
+               || contains (i + 1))
+          in
+          if not (contains 0) then failf "diagnostic omitted progress %s" name)
+        Console.Progress.all
+
 let suite =
   ( "console_eio",
     [
+      test_case
+        "progress names are a Cmdliner enum and errors list every choice"
+        [ bytes ] test_progress_enum;
+      test_case
+        "direct progress modes agree with run on buffer and string formatters"
+        [ uint8; bytes; bool ] test_direct_progress_parity;
       test_case "JSON preserves long lines across formatter chunks"
         [ uint8; uint8 ] test_json_long_line;
       test_case "a line goes to the task of its line feed" [ uint8; bool ]

@@ -65,6 +65,7 @@
   console.text
   eio
   eio.mock
+  cmdliner
   unix
   logs
   fmt
