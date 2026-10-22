@@ -70,8 +70,35 @@ let sleeps () =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
+(* What a task prints whose two fibers sleep 1 and 2 seconds at once on
+   [Console_eio.clock] of a mock clock. *)
+let overlapping () =
+  Eio_main.run @@ fun _ ->
+  let mock = Eio_mock.Clock.Mono.make () in
+  let clock = Console_eio.clock mock in
+  let buf, ppf = buffer () in
+  let slept = ref 0 in
+  Console_eio.run ~clock ~ppf (fun display ->
+      Console.Display.with_task display "nap" (fun _ ->
+          Eio.Fiber.all
+            [
+              (fun () ->
+                Eio.Time.Mono.sleep clock 1.;
+                incr slept);
+              (fun () ->
+                Eio.Time.Mono.sleep clock 2.;
+                incr slept);
+              (fun () ->
+                while !slept < 2 do
+                  Eio.Fiber.yield ();
+                  Eio_mock.Clock.Mono.advance mock
+                done);
+            ]));
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
 (* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
-   the sum of the sleeps on a clock of [Console_eio.clock], and zero on
+   the time of the sleeps on a clock of [Console_eio.clock], and zero on
    another clock; the waits still run on the clock behind it. *)
 let test_deterministic_clock () =
   let deterministic f =
@@ -82,8 +109,11 @@ let test_deterministic_clock () =
     "another clock stops" true
     (took "0.0s" (deterministic nap));
   let first = deterministic sleeps in
-  Alcotest.(check bool) "the sum of the sleeps" true (took "2.0s" first);
+  Alcotest.(check bool) "one sleep after the other" true (took "2.0s" first);
   Alcotest.(check string) "the same twice" first (deterministic sleeps);
+  Alcotest.(check bool)
+    "sleeps at once overlap" true
+    (took "2.0s" (deterministic overlapping));
   let empty =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "") ] (fun () -> nap ())
   in

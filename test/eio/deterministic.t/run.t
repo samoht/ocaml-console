@@ -40,17 +40,17 @@ and the time of the build counts the sleeps of both its columns.
   [+] macos  4.7s
   [+] Building 4.7s (9/9)
 
-Its time is the sum of the sleeps that ended, whatever the program does
-between them: two fibers that sleep 0.1 seconds four times and 0.13
-seconds three times give the same events whether one of them works before
-each sleep or not.
+A sleep wakes at the time it started plus its duration, and sleeps at once
+overlap, whatever the program does between them: two fibers that sleep 0.1
+seconds four times and 0.13 seconds three times end at 0.4 seconds, whether
+one of them works before each sleep or not.
 
   $ ../piped.exe sleeps 0 2> idle
   $ ../piped.exe sleeps 0.1 2> busy
   $ cmp idle busy
   $ cat idle
   {"time":0,"event":"start","id":0,"task":["build"]}
-  {"time":0.79,"event":"end","id":0,"task":["build"],"status":"succeeded","elapsed":0.79}
+  {"time":0.4,"event":"end","id":0,"task":["build"],"status":"succeeded","elapsed":0.4}
 
 The empty string leaves the clock running:
 

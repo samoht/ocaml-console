@@ -763,8 +763,7 @@ let test_progress_enum text =
         Console.Progress.all
 
 (* How late the backing clock wakes two concurrent sleeps does not change
-   the bytes of the run. The deterministic time is the sum of the sleeps
-   that ended, so the task that ends last ran for both. *)
+   the bytes of the run, and each task runs for its own sleep. *)
 let test_deterministic_concurrency a b =
   let key = "CONSOLE_DETERMINISTIC_CLOCK" in
   let saved = Sys.getenv_opt key in
@@ -810,10 +809,10 @@ let test_deterministic_concurrency a b =
           | Ok _ -> None
           | Error (`Msg m) -> fail m)
     in
-    let ms x = Float.round (x *. 1000.) /. 1000. in
     check
-      (List.sort compare (List.map (fun (_, e) -> Option.map ms e) ends)
-      = [ Some (ms (Float.min first second)); Some (ms (first +. second)) ]);
+      (List.sort compare ends
+      = List.sort compare
+          [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
 
     output
   in
