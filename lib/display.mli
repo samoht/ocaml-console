@@ -563,5 +563,12 @@ val summary : ?width:int -> t -> Span.t
     time since it started and the count of the tasks that ended out of those
     started. On a terminal it is at most [width] cells (defaults to the
     terminal's width, at most 100), the time and the count giving way before the
-    name. A view that wants more says it next to it, such as
-    [Span.(summary display ++ text "  3 warnings")]. *)
+    name. A view that wants more says it next to it:
+
+    {[
+    let view display ~width ~height =
+      let open Console in
+      let tree = Display.tree ~width ~height:(height - 1) (Display.root display)
+      and summary = Display.summary ~width:(width - 12) display in
+      Span.(vcat [ tree; summary ++ text "  3 warnings" ])
+    ]} *)
