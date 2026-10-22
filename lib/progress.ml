@@ -5,14 +5,15 @@
 
 type t = [ `Auto | `Tty | `Plain | `Quiet | `Json ]
 
+let to_string = function
+  | `Auto -> "auto"
+  | `Tty -> "tty"
+  | `Plain -> "plain"
+  | `Quiet -> "quiet"
+  | `Json -> "json"
+
 let all =
-  [
-    ("auto", `Auto);
-    ("tty", `Tty);
-    ("plain", `Plain);
-    ("quiet", `Quiet);
-    ("json", `Json);
-  ]
+  List.map (fun p -> (to_string p, p)) [ `Auto; `Tty; `Plain; `Quiet; `Json ]
 
 let of_string s =
   match List.assoc_opt s all with

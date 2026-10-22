@@ -31,18 +31,21 @@ type t =
   | `Json
     (** Each event is one JSON object on a line of its own, and nothing else is
         printed ({{!json}JSON events}). *) ]
-(** The type for how a display shows progress. Constructors may be added, so a
-    match on a progress has a case for the others. *)
+(** The type for progress modes, how a display shows progress. Constructors may
+    be added, so a match on a progress mode has a case for the others. *)
 
 val all : (string * t) list
-(** [all] is every progress under its name, [`Auto] first, which are the choices
-    of a [--progress] option as [Cmdliner.Arg.enum all] reads them:
+(** [all] is every progress mode under its name, [`Auto] first, which are the
+    choices of a [--progress] option as [Cmdliner.Arg.enum all] reads them:
     [[("auto", `Auto); ("tty", `Tty); ("plain", `Plain); ("quiet", `Quiet);
      ("json", `Json)]]. *)
 
 val of_string : string -> (t, [ `Msg of string ]) result
-(** [of_string s] is the progress of {!all} named [s]. The error message lists
-    the names. *)
+(** [of_string s] is the progress mode of {!all} named [s]. The error message
+    lists the names. *)
+
+val to_string : t -> string
+(** [to_string p] is the name of [p] in {!all}. *)
 
 (** {1:json JSON events}
 

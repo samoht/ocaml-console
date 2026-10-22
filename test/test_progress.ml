@@ -18,7 +18,8 @@ let test_names () =
         ("of_string " ^ name) true
         (match Progress.of_string name with
         | Ok p' -> p' = p
-        | Error _ -> false))
+        | Error _ -> false);
+      Alcotest.(check string) ("to_string " ^ name) name (Progress.to_string p))
     Progress.all;
   match Progress.of_string "silent" with
   | Ok _ -> Alcotest.fail "unknown name accepted"
