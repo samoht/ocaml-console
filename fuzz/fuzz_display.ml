@@ -1430,9 +1430,32 @@ let test_default_view steps h =
   in
   check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
 
+(* Shrinking windows keeps the latest output, regardless of tree order. *)
+let test_window_age n newest_child =
+  let t = Display_harness.terminal ~width:60 ~height:4 () in
+  let d = t.display in
+  let parent = Display.task d "parent" in
+  let child = Display.task ~parent d "child" in
+  let older, newer = if newest_child then (parent, child) else (child, parent) in
+  for i = 0 to n mod 6 do
+    Display.log older (Fmt.str "old-%d" i);
+    t.advance 1.
+  done;
+  Display.log newer "newest-output";
+  Display.redraw d;
+  let rows = Display_harness.screen t in
+  let scrolled = Console_vte.scrollback_size t.vte in
+  Display.close d;
+  check_eq ~pp:Fmt.int 0 scrolled;
+  check_eq ~pp:Fmt.int 3 (List.length rows);
+  if not (List.exists (Display_harness.contains "newest-output") rows) then
+    failf "the newest output was dropped: %a" Fmt.(Dump.list string) rows
+
 let suite =
   ( "display",
     [
+      test_case "windows give way oldest first across tasks" [ uint8; bool ]
+        test_window_age;
       test_case "switching themes redraws like a fresh display"
         [ uint8; uint8; uint8 ] test_theme_switch;
       test_case "a running parent keeps a bounded part of completed children"
