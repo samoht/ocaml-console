@@ -217,10 +217,14 @@ let tree_lines ?width ?(height = max_int) r =
 let unlines lines = Span_core.concat ~sep:(Span_core.text "\n") lines
 let tree ?width ?height r = unlines (tree_lines ?width ?height r)
 
-let default_lines t ~height =
-  match Display_row.summary t with
-  | None -> tree_lines ~height (root t)
-  | Some summary -> tree_lines ~height:(height - 1) (root t) @ [ summary ]
+let default_lines t ~width ~height =
+  let width = min width 100 in
+  match Display_row.summary ~width t with
+  | None -> tree_lines ~width ~height (root t)
+  | Some summary ->
+      tree_lines ~width ~height:(height - 1) (root t) @ [ summary ]
 
-let summary t = Option.value (Display_row.summary t) ~default:Span_core.empty
-let default_view t ~width:_ ~height = unlines (default_lines t ~height)
+let summary ?width t =
+  Option.value (Display_row.summary ?width t) ~default:Span_core.empty
+
+let default_view t ~width ~height = unlines (default_lines t ~width ~height)

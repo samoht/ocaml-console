@@ -1159,6 +1159,27 @@ let test_view_width () =
   Alcotest.(check int) "the width" 160 !given;
   Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
 
+(* The default view and the summary take the width they are given, so a
+   view puts them in a column narrower than the terminal. *)
+let test_default_view_column () =
+  let t = terminal ~theme ~width:120 ~height:12 ~summary:"Building" () in
+  let panel = Panel.to_span ~width:30 (Panel.v (Span.text "status")) in
+  Display.set_view t.display (fun d ~width ~height ->
+      Span.hcat [ Display.default_view d ~width:(width - 32) ~height; panel ]);
+  let step = Display.task t.display "compile" in
+  Display.set_count step ~cur:1 ~total:2;
+  Display.redraw t.display;
+  let view = Display.default_view t.display ~width:30 ~height:10 in
+  Alcotest.(check bool) "the view in 30 cells" true (Span.width view <= 30);
+  Alcotest.(check bool)
+    "the summary in 12" true
+    (Span.width (Display.summary ~width:12 t.display) <= 12);
+  Alcotest.(check bool)
+    "the panel on the screen" true
+    (List.for_all (fun r -> Width.string_width r <= 120) (screen t)
+    && List.exists (contains "status") (screen t));
+  Display.close t.display
+
 (* Widgets side by side make a view, each at the width it is given. *)
 let test_view_hcat () =
   let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
@@ -1593,6 +1614,8 @@ let suite =
       Alcotest.test_case "view" `Quick test_view;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
+      Alcotest.test_case "the default view in a column" `Quick
+        test_default_view_column;
       Alcotest.test_case "view replaced" `Quick test_view_replaced;
       Alcotest.test_case "view on a pipe" `Quick test_view_plain;
       Alcotest.test_case "view moves" `Quick test_view_moves;

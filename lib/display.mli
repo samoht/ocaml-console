@@ -518,9 +518,10 @@ val set_view : t -> view -> unit
     on, in place of the view set before, and draws it at once. *)
 
 val default_view : view
-(** [default_view display ~width ~height] is the tree of every top task of
-    [display], fit to [height] less the summary's line, then {!val-summary}.
-    [width] is ignored: the tree is as wide as {!tree} makes it. *)
+(** [default_view display ~width ~height] is
+    [Span.vcat [tree ~width:w ~height:(height - Span.height s) (root display);
+     s]] with [w = min width 100] and [s = summary ~width:w display]: the tree
+    of every top task, then the summary line, at most [w] cells wide. *)
 
 val tasks : t -> task list
 (** [tasks display] are the top tasks of [display] in its region, in the order
@@ -547,10 +548,11 @@ val tree : ?width:int -> ?height:int -> task -> Span.t
       squeezed.
     - The tree of a task that moved to the scrollback is {!Span.empty}. *)
 
-val summary : t -> Span.t
-(** [summary display] is the summary line of [display], if it has a name ({!v}),
-    and {!Span.empty} otherwise: the mark of its state, its name, the time since
-    it started and the count of the tasks that ended out of those started. On a
-    terminal it is at most 100 cells, the name kept longest. A view that wants
-    more says it next to it, such as
+val summary : ?width:int -> t -> Span.t
+(** [summary ~width display] is the summary line of [display], if it has a name
+    ({!v}), and {!Span.empty} otherwise: the mark of its state, its name, the
+    time since it started and the count of the tasks that ended out of those
+    started. On a terminal it is at most [width] cells (defaults to the
+    terminal's width, at most 100), the time and the count giving way before the
+    name. A view that wants more says it next to it, such as
     [Span.(summary display ++ text "  3 warnings")]. *)

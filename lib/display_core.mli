@@ -62,7 +62,7 @@ val tasks : t -> task list
 val tree : ?width:int -> ?height:int -> task -> Span.t
 (** See {!Display.tree}. *)
 
-val summary : t -> Span.t
+val summary : ?width:int -> t -> Span.t
 (** See {!Display.summary}. *)
 
 val set_result : ?detail:string -> t -> (string, string) result -> unit

@@ -74,11 +74,11 @@ val message : t -> level -> string -> Span.t list
 
 (** {1:summary The summary and the result} *)
 
-val summary : t -> Span.t option
-(** [summary t] is the summary line of [t], if it has a name: the mark of its
-    state, its name, its time and the tasks that ended out of those started. On
-    a terminal it is at most {!Display_state.room} cells, the name kept longest.
-*)
+val summary : ?width:int -> t -> Span.t option
+(** [summary ~width t] is the summary line of [t], if it has a name: the mark of
+    its state, its name, its time and the tasks that ended out of those started.
+    On a terminal it is at most [width] cells (defaults to
+    {!Display_state.room}), the name kept longest. *)
 
 val verdict : t -> (string, string) result -> Span.t list
 (** [verdict t r] is the line of the result [r], wrapped to the terminal. *)

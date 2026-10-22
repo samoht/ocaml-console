@@ -443,7 +443,8 @@ let state t : Theme.mark =
 
 (* On a terminal, the summary's name gives way last: the time and the count
    go first. *)
-let summary t =
+let summary ?width t =
+  let width = Option.value width ~default:(room t) in
   Option.map
     (fun h ->
       let meta =
@@ -454,8 +455,8 @@ let summary t =
       let lead = Span.(mark t (state t) ++ text " ") in
       let h = Span.styled (Theme.header (theme t)) h in
       let full = Span.(lead ++ h ++ meta) in
-      if (not (is_live t)) || Span.width full <= room t then full
-      else cut t (room t) Span.(lead ++ h))
+      if (not (is_live t)) || Span.width full <= width then full
+      else cut t width Span.(lead ++ h))
     t.summary
 
 let verdict t result =

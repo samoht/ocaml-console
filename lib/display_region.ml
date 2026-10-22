@@ -90,7 +90,8 @@ let lines t ~look ~height view =
   let lines =
     match view with
     | None ->
-        List.map (Span_core.resolve look) (Display_tree.default_lines t ~height)
+        List.map (Span_core.resolve look)
+          (Display_tree.default_lines t ~width:t.width ~height)
     | Some view -> (
         match view t ~width:t.width ~height with
         | span when Span_core.is_empty span -> []

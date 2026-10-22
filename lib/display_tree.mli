@@ -24,12 +24,12 @@ val scrollback : t -> width:int -> row -> Span.t list
 val tree : ?width:int -> ?height:int -> row -> Span.t
 (** See {!Display.tree}. *)
 
-val summary : t -> Span.t
+val summary : ?width:int -> t -> Span.t
 (** See {!Display.summary}. *)
 
 val default_view : t -> width:int -> height:int -> Span.t
 (** See {!Display.default_view}. *)
 
-val default_lines : t -> height:int -> Span.t list
-(** [default_lines t ~height] are the lines of [default_view t ~height], none of
-    which holds a line feed. *)
+val default_lines : t -> width:int -> height:int -> Span.t list
+(** [default_lines t ~width ~height] are the lines of
+    [default_view t ~width ~height], none of which holds a line feed. *)
