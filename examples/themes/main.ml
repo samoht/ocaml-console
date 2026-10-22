@@ -35,25 +35,21 @@ let tree =
 
 let progress ~clock table =
   (* The table above the rows and the summary. *)
-  let view d ~width ~height =
-    View.vcat
-      [
-        View.sized ~width:(min width 100) table;
-        Display.default_view d ~width ~height;
-      ]
+  let view root =
+    View.vcat [ View.sized ~width:100 table; Progress.view root ]
   in
-  Console_eio.run ~clock ~ppf:Fmt.stdout ~summary:"Building" ~view (fun d ->
-      let ok = Display.task d "fetch" in
-      Display.set_count ok ~cur:3 ~total:3;
-      Display.succeed ok;
-      let failed = Display.task d "lint" in
-      Display.fail failed;
-      let compile = Display.task ~log_lines:1 d "compile" in
-      Display.set_count compile ~cur:5 ~total:8;
-      Display.log compile "unused variable x";
-      ignore (Display.task d "test");
+  Console_eio.run ~clock ~ppf:Fmt.stdout ~label:"Building" ~view (fun root ->
+      let ok = Task.start root "fetch" in
+      Task.set_items ok ~count:3 ~total:3;
+      Task.succeed ok;
+      let failed = Task.start root "lint" in
+      Task.fail failed;
+      let compile = Task.start ~log_lines:1 root "compile" in
+      Task.set_items compile ~count:5 ~total:8;
+      Task.log compile "unused variable x";
+      ignore (Task.start root "test");
       Eio.Time.Mono.sleep clock 3.;
-      Display.cancel compile)
+      Task.cancel compile)
 
 let () =
   let name = if Array.length Sys.argv > 1 then Sys.argv.(1) else "default" in

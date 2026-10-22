@@ -3,13 +3,14 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Displays on a captured surface, for the {!Console.Display} tests. *)
+(** Tasks shown on a captured surface, for the {!Console.Task},
+    {!Console.Progress} and {!Console.Display} tests. *)
 
 open Console
 
-module Driver = Display_driver
-(** How [Console_eio.run] drives a display: its scope, its [Logs] messages and
-    the current task. *)
+module Driver = Task_driver
+(** How [Console_eio.run] drives tasks: their scope, its [Logs] messages and the
+    current task. *)
 
 val at :
   ?theme:Theme.t ->
@@ -36,17 +37,23 @@ val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
 
 val plain :
-  ?summary:string ->
-  ?layout:Display.Layout.t ->
+  ?label:string ->
+  ?layout:Progress.Layout.t ->
   ?theme:Theme.t ->
-  (Display.t -> (float -> unit) -> 'a) ->
+  ?progress:Progress.t ->
+  ?view:(Task.t -> View.t) ->
+  ?keep_ended:bool ->
+  (Task.t -> (float -> unit) -> 'a) ->
   'a * string
-(** [plain f] is the value of [f display advance] on a display that is not on a
-    terminal, and what it wrote once closed. [theme], if given, is set on the
-    display's formatter. *)
+(** [plain f] is the value of [f root advance] for a [root] whose tasks show on
+    a formatter that is not a terminal, in [progress] (defaults to [`Plain]),
+    and what it wrote once the work succeeded, unless [f] ended it, and the
+    display closed, as under [Console_eio.run]. [theme], if given, is set on the
+    formatter. *)
 
 type term = private {
   vte : Console_vte.t;
+  root : Task.t;
   display : Display.t;
   advance : float -> unit;
   size : (int * int) ref;
@@ -58,20 +65,27 @@ type term = private {
 val terminal :
   ?width:int ->
   ?height:int ->
-  ?summary:string ->
-  ?layout:Display.Layout.t ->
+  ?label:string ->
+  ?layout:Progress.Layout.t ->
   ?theme:Theme.t ->
   ?styled:bool ->
   ?raw:bool ->
   ?before:string ->
+  ?view:(Task.t -> View.t) ->
+  ?keep_ended:bool ->
+  ?commit:(Task.t -> View.t option) ->
   unit ->
   term
-(** [terminal ()] is a display on a terminal of [width] by [height] (defaults to
-    40 by 8), in colour iff [styled] (defaults to [false]). If [raw] (defaults
-    to [false]) the terminal's line discipline is in raw mode: a line feed moves
-    down and keeps the column. [before] (defaults to [""]) is what the host
-    wrote on the terminal before the display started. [theme], if given, is set
-    on the display's formatter. *)
+(** [terminal ()] is a root whose tasks show ({!Progress.show}) on a terminal of
+    [width] by [height] (defaults to 40 by 8), in colour iff [styled] (defaults
+    to [false]). If [raw] (defaults to [false]) the terminal's line discipline
+    is in raw mode: a line feed moves down and keeps the column. [before]
+    (defaults to [""]) is what the host wrote on the terminal before the display
+    started. [theme], if given, is set on the display's formatter. *)
+
+val close : term -> unit
+(** [close t] ends the work as a success, unless it ended, and closes the
+    display, as [Console_eio.run] does once its function returns. *)
 
 val written : term -> string
 (** [written t] is every byte the display wrote, in order. *)

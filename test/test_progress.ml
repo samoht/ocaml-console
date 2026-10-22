@@ -31,15 +31,15 @@ let test_names () =
 let shown ?size progress =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
-  let d =
-    Display.v ?size ~progress ~summary:"Building" ~now:(fun () -> 0.) ppf
-  in
-  Display.with_task d "fine" (fun t -> Display.log t "quiet line");
+  let root = Task.root ~label:"Building" ~now:(fun () -> 0.) () in
+  let d = Progress.show ?size ~progress ppf root in
+  Task.run root "fine" (fun t -> Task.log t "quiet line");
   (try
-     Display.with_task d "broken" (fun t ->
-         Display.log t "loud line";
+     Task.run root "broken" (fun t ->
+         Task.log t "loud line";
          failwith "broken")
    with Failure _ -> ());
+  Task.succeed root;
   Display.close d;
   Format.pp_print_flush ppf ();
   Buffer.contents buffer
@@ -62,14 +62,13 @@ let test_quiet () =
       Alcotest.(check bool) "no escape" false (String.contains out '\027'))
     [ None; Some (fun () -> (80, 24)) ]
 
-let decode line = Jsont_bytesrw.decode_string Progress.Event.jsont line
+let decode line = Jsont_bytesrw.decode_string Task.Event.jsont line
 
-(* Each line decodes with [Progress.Event.jsont], and its event is written
+(* Each line decodes with [Task.Event.jsont], and its event is written
    as the line was. *)
 let reads_back line =
   match decode line with
-  | Ok e ->
-      Alcotest.(check string) "written back" line (Progress.Event.to_string e)
+  | Ok e -> Alcotest.(check string) "written back" line (Task.Event.to_string e)
   | Error e -> Alcotest.failf "%S does not decode: %s" line e
 
 (* [`Json] prints one event a line, and nothing else. *)
@@ -95,9 +94,10 @@ let test_json () =
 let test_json_counts () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let d = Display.v ~progress:`Json ~now:(fun () -> 0.) ppf in
-  Display.with_task d "work" (fun t ->
-      List.iter (fun cur -> Display.set_count t ~cur ~total:3) [ 1; 1; 2; 3 ]);
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ~progress:`Json ppf root in
+  Task.run root "work" (fun t ->
+      List.iter (fun count -> Task.set_items t ~count ~total:3) [ 1; 1; 2; 3 ]);
   Display.close d;
   Format.pp_print_flush ppf ();
   Alcotest.(check int)
@@ -120,20 +120,27 @@ let events ~step result =
     clock := t +. step;
     t
   in
-  let d = Display.v ~progress:`Json ~now ppf in
+  let root = Task.root ~now () in
+  let d = Progress.show ~progress:`Json ppf root in
   Display.with_output d (fun ppf -> Fmt.pf ppf "above \027[1m\xc2\x85@.");
   (try
-     Display.with_task d "q\"uote\\ \xff\xe2\x80\xa8" (fun t ->
-         Display.set_count t ~cur:1 ~total:3;
-         Display.log t "tab\there del\127 nel\xc2\x85 \xf0\x9f\x98\x80";
-         Display.with_task d "child" (fun c ->
-             Display.set_bytes c ~cur:1024L ~total:2048L;
-             Display.set_label c "renamed";
-             Display.succeed ~message:"done" c);
-         Display.with_task d "cancelled" (fun c -> Display.cancel c);
+     Task.run root "q\"uote\\ \xff\xe2\x80\xa8" (fun t ->
+         Task.set_items t ~count:1 ~total:3;
+         Task.log t "tab\there del\127 nel\xc2\x85 \xf0\x9f\x98\x80";
+         Task.run t "child" (fun c ->
+             Task.set_bytes c ~count:1024L ~total:2048L;
+             Task.set_label c "renamed";
+             Task.succeed ~message:"done" c);
+         Task.run t "cancelled" (fun c -> Task.cancel c);
          failwith "broken")
    with Failure _ -> ());
-  Option.iter (fun (detail, r) -> Display.set_result ?detail d r) result;
+  Option.iter
+    (fun (detail, r) ->
+      Option.iter (Task.log root) detail;
+      match r with
+      | Ok m -> Task.succeed ~message:m root
+      | Error m -> Task.fail ~message:m root)
+    result;
   Display.close d;
   Format.pp_print_flush ppf ();
   lines (Buffer.contents buffer)
@@ -152,7 +159,7 @@ let test_json_reads_back () =
       (1e9 +. 0.5, Some (Some "", Ok ""));
     ]
 
-module Event = Progress.Event
+module Event = Task.Event
 
 let event time make = Event.to_string (make ~time)
 

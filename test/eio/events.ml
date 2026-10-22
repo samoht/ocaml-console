@@ -3,11 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Reads JSON events on standard input with [Console.Progress.Event.jsont],
-    prints each line that does not decode or is not written back as it was, then
-    the number of events read back. *)
+(** Reads JSON events on standard input with [Console.Task.Event.jsont], prints
+    each line that does not decode or is not written back as it was, then the
+    number of events read back. *)
 
-module Event = Console.Progress.Event
+module Event = Console.Task.Event
 
 let () =
   let rec loop n =

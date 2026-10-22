@@ -1,0 +1,26 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+module Event = Event
+include Task_core
+
+type level = Task_core.level
+type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
+type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
+
+let root ?label ~now () = Task_core.root ?label ~now ()
+
+let start ?key ?log_lines ?transient parent label =
+  fst (Task_core.start ?key ?log_lines ?transient parent label)
+
+let label (t : t) = t.label
+let parent (t : t) = t.parent
+let message (t : t) = t.message
+
+let progress (t : t) : progress =
+  match t.metric with
+  | Spin -> `Spin
+  | Count (c, n) -> `Items (c, n)
+  | Bytes (c, n) -> `Bytes (c, n)

@@ -669,7 +669,7 @@ module F = struct
   let add_styled buf ~depth t =
     List.iter
       (fun { style; link; text; _ } ->
-        let sgr = Escape.sgr depth style in
+        let sgr = Escape.sgr depth (style :> Color.t Sgr.style) in
         List.iteri
           (fun i line ->
             if i > 0 then Buffer.add_char buf '\n';
@@ -728,7 +728,16 @@ end
 type kind = { live : bool; timed : bool }
 
 let static = { live = false; timed = false }
-let join a b = { live = a.live || b.live; timed = a.timed || b.timed }
+let timed = { live = false; timed = true }
+let live = { live = true; timed = false }
+let moving = { live = true; timed = true }
+
+let join a b =
+  match (a.live || b.live, a.timed || b.timed) with
+  | false, false -> static
+  | false, true -> timed
+  | true, false -> live
+  | true, true -> moving
 
 type t = Flat of F.t | Deferred of node
 
@@ -754,11 +763,14 @@ let deferred ?(kind = fun _ -> static) ?(grow = 0) ?min_width ?(still = false)
 (* Each line of [f] cut or padded to the cells of its line in a still frame,
    blank lines where it has fewer and none past them. *)
 let to_size widths f =
-  let lines = Array.of_list (F.lines f) in
-  F.unlines
+  let lines = Array.of_list (F.seamed f) in
+  F.unseam
     (List.mapi
        (fun i w ->
-         F.fit w (if i < Array.length lines then lines.(i) else F.empty))
+         if i < Array.length lines then
+           let j, l = lines.(i) in
+           (j, F.fit w l)
+         else (false, F.fit w F.empty))
        widths)
 
 let line_widths f = List.map F.width (F.lines f)
@@ -811,13 +823,12 @@ let lift ?(room = Fun.id) ts f =
         let c = room c in
         Flat (f (List.map (flat_in c) ts)))
 
-let map ?room f t =
-  lift ?room [ t ] (function [ x ] -> f x | _ -> assert false)
+let map ?(room = Fun.id) f = function
+  | Flat x -> Flat (f x)
+  | t -> deferred ~kind:(kind t) (fun c -> Flat (f (flat_in (room c) t)))
 
 let fit ?min_width ?grow f =
-  deferred
-    ~kind:(fun _ -> { live = true; timed = true })
-    ?grow ?min_width ~still:true f
+  deferred ~kind:(fun _ -> moving) ?grow ?min_width ~still:true f
 
 let sized ?width ?height t =
   match t with

@@ -108,33 +108,33 @@ val results : (string * int) list -> Console.View.t = <fun>
 
 {1:progress Progress rows}
 
-{!Console_eio.run} opens a display on standard error, passes it to a
-function and closes it when that function returns. Inside, the function
-uses {!Console.Display.with_task} to run each piece of work as a task,
-whose row shows while it runs. The task succeeds when its function returns
-and fails when it raises, and {!Console.Display.set_count} says how much of
-its work is done:
+{!Console_eio.run} shows progress rows on standard error, passes the
+root of the work to a function, and ends the work when that function
+returns. Inside, the function uses {!Console.Task.run} to run each piece
+of work as a task under the root, whose row shows while it runs. The task
+succeeds when its function returns and fails when it raises, and
+{!Console.Task.set_items} says how much of its work is done:
 
 {@ocaml[
-let test display (name, total) =
-  Console.Display.with_task display name @@ fun task ->
-  for cur = 1 to total do
-    Console.Display.set_count task ~cur ~total
+let test root (name, total) =
+  Console.Task.run root name @@ fun task ->
+  for count = 1 to total do
+    Console.Task.set_items task ~count ~total
   done;
   Logs.info (fun m -> m "%d tests passed" total)
 
 let run_all ~clock ~progress suites =
-  Console_eio.run ~clock ~progress ~summary:"Testing" (fun display ->
-      Eio.Fiber.List.iter (test display) suites)
+  Console_eio.run ~clock ~progress ~label:"Testing" (fun root ->
+      Eio.Fiber.List.iter (test root) suites)
 ]}
 
 [Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites
 that wait, for a child process for example, run side by side with one row
-each. Below the rows, the summary line names the work given as [~summary],
+each. Below the rows, the summary line names the work given as [~label],
 with its time and the count of suites that ended. It stays the last line
 while the rows above it come and go, and it is the last line printed when
-the work ends, before the result a program gives with
-{!Console.Display.set_result}.
+the work ends, before the message a program may end the root with
+({!Console.Task.succeed}).
 
 A suite that ends goes above the rows, into the terminal's scrollback,
 where it stays: a task with tasks under it goes when it ends, with all of
@@ -146,22 +146,23 @@ task fails. That output is made of:
 {ul
 {- the [Logs] messages logged inside it, as here;}
 {- the lines it prints with [Fmt.pr];}
-{- the lines it hands to {!Console.Display.log}.}}
+{- the lines it hands to {!Console.Task.log}.}}
 
 Output printed outside any task goes above the rows instead, as
 {{!Console_eio.output}where text goes} explains in more detail.
 
-The rows and the summary are the display's default view. A program can put
-its own view together from views ({!Console.Display.views}): the table of
-results above the rows, for instance, filled in as the suites run, which
-stays once they are done:
+The rows and the summary are the default view, {!Console.Progress.view}.
+A program can put its own view together from views: the table of results
+above the rows, for instance, filled in as the suites run, which stays once
+they are done. A {!Console.View.fit} part is laid out again at every frame,
+so it shows the results so far:
 
 {@ocaml[
-let with_table ~table display ~width ~height =
+let with_table ~table root =
   Console.View.vcat
     [
-      Console.View.sized ~width:(min width 100) (table ());
-      Console.Display.default_view display ~width ~height;
+      Console.View.fit (fun _ -> Console.View.sized ~width:100 (table ()));
+      Console.Progress.view root;
     ]
 ]}
 
@@ -183,7 +184,7 @@ option of the same name does for
 {- [plain] prints lines in turn, as on a pipe, even on a terminal;}
 {- [quiet] prints only what fails;}
 {- [json] writes one JSON object for each event
-   ({{!Console.Progress.json}JSON events}).}}
+   ({{!Console.Task.json}JSON events}).}}
 
 {!Console.Progress.all} lists these values in the form Cmdliner reads, for
 the [progress] argument of {!Console_eio.run}:
@@ -223,7 +224,7 @@ redrawn, and [check] prints lines in turn instead:
    task down to it;}
 {- it prints a line when it ends, with its count and its time, then
    [failed] or [cancelled] if it did not succeed;}
-{- the summary comes last, then the result.}}
+{- the summary comes last, then the message the work ended with, if any.}}
 
 Unless [--color=always] asks for it, a pipe gets no colour. Here [check]
 runs with its output captured and with [CONSOLE_DETERMINISTIC_CLOCK] set,

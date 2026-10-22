@@ -157,8 +157,8 @@ that formatter is drawn in its theme.
 {2:motion Frames that move}
 
 In a theme with {{!Console.Theme.type-motion}motion}, the frame of a table
-or a panel in a display's view ({!Console.Display.set_view}) moves, by the
-time since the display started:
+or a panel in a {!Console.Display}'s view moves, by the time since the
+display started, while the display draws in colour:
 
 {ul
 {- {!Console.Theme.matrix} runs digital rain round it ([`Rain]);}

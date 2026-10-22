@@ -48,34 +48,36 @@ let table () =
        builds)
 
 (* The table, the trees side by side if each has 30 columns, and the
-   summary. The display draws the last lines that fit, so the table gives
-   way first. *)
-let view display ~width ~height =
-  let room = min width 100 in
-  let half = (room - 2) / 2 in
-  let height = height - 1 in
-  let trees =
-    match Display.(children (root display)) with
-    | [ a; b ] when half >= 30 ->
-        View.hcat
-          [
-            Display.tree ~width:half ~height a;
-            Display.tree ~width:half ~height b;
-          ]
-    | _ -> Display.tree ~height (Display.root display)
-  in
-  View.vcat
-    [ View.sized ~width:room (table ()); trees; Display.summary display ]
+   summary, as they are at each frame. The display draws the last lines that
+   fit, so the table gives way first; the trees take the room the summary
+   leaves them, or are whole in the last frame. *)
+let view root =
+  View.fit (fun r ->
+      let room = min 100 (Option.value (Room.width r) ~default:100) in
+      let half = (room - 2) / 2 in
+      let height = Option.map (fun h -> h - 1) (Room.height r) in
+      let trees =
+        match Task.children root with
+        | [ a; b ] when half >= 30 ->
+            View.hcat
+              [
+                View.sized ~width:half ?height (Progress.tree a);
+                View.sized ~width:half ?height (Progress.tree b);
+              ]
+        | _ -> View.sized ?height (Progress.tree root)
+      in
+      View.vcat
+        [ View.sized ~width:room (table ()); trees; Progress.summary root ])
 
-let run clock display b =
+let run clock root b =
   set_status b (View.role `Accent (View.text "running"));
-  Display.with_task display b.name (fun _ ->
+  Task.run root b.name (fun build ->
       List.iter
         (fun (step, total) ->
-          Display.with_task display step (fun task ->
-              for cur = 1 to total do
+          Task.run build step (fun task ->
+              for count = 1 to total do
                 Eio.Time.Mono.sleep clock b.pace;
-                Display.set_count task ~cur ~total
+                Task.set_items task ~count ~total
               done))
         b.steps);
   set_status b (View.role `Succeeded (View.text "done"))
@@ -84,5 +86,5 @@ let () =
   Console_tty.setup ();
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~summary:"Building" ~keep_ended:true ~view
-    (fun display -> Eio.Fiber.List.iter (run clock display) builds)
+  Console_eio.run ~clock ~label:"Building" ~keep_ended:true ~view (fun root ->
+      Eio.Fiber.List.iter (run clock root) builds)

@@ -12,10 +12,10 @@ open Console
 
 let suites = [ ("parser", 120); ("layout", 80); ("render", 60) ]
 
-let test clock display (name, total) =
-  Display.with_task display name @@ fun task ->
-  for cur = 1 to total do
-    Display.set_count task ~cur ~total;
+let test clock root (name, total) =
+  Task.run root name @@ fun task ->
+  for count = 1 to total do
+    Task.set_items task ~count ~total;
     Eio.Time.Mono.sleep clock 0.02
   done
 
@@ -23,8 +23,8 @@ let main color theme =
   Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~summary:"Testing" (fun d ->
-      Eio.Fiber.List.iter (test clock d) suites);
+  Console_eio.run ~clock ~label:"Testing" (fun root ->
+      Eio.Fiber.List.iter (test clock root) suites);
   let ok = View.role `Succeeded (View.text "passed") in
   let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =

@@ -2,7 +2,7 @@
 
 (copy_files input/width.{ml,mli})
 
-; Slot and Display_driver are not private modules, for console.tty and
+; Slot and the drivers are not private modules, for console.tty and
 ; console-eio read them, but the interface of Console does not expose them, so
 ; odoc shows no page for them.
 
@@ -13,16 +13,17 @@
  (private_modules
   border_motion
   ctx
+  event
   frames
   widget
   width
   display_core
-  display_event
-  display_layout
-  display_region
-  display_row
-  display_state
-  display_text
+  progress_layout
+  progress_row
+  progress_show
+  progress_tree
+  task_core
+  task_text
   inked
   escape
   look
@@ -31,5 +32,5 @@
 
 (mdx
  (package console)
- (files tree.mli display.mli console.mli view.mli bar.mli)
+ (files tree.mli display.mli console.mli view.mli bar.mli task.mli)
  (libraries console fmt))

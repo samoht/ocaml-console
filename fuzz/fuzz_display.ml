@@ -147,7 +147,8 @@ type term = {
   chunks : int ref;
   in_output : bool ref;
   mutable display : Display.t option;
-  mutable tasks : Display.task array;
+  mutable root : Task.t option;
+  mutable tasks : Task.t array;
 }
 
 (* The header is on the screen exactly once: the region is never blank, half
@@ -195,6 +196,7 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
       chunks = ref 0;
       in_output = ref false;
       display = None;
+      root = None;
       tasks = [||];
     }
   in
@@ -219,14 +221,17 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   Option.iter (Theme.set ppf) theme;
   let size () = !(t.size) and now () = !(t.time) in
-  t.display <-
-    Some
-      (match scope with
-      | Some scope -> Driver.v ~summary:header ~scope ~size ~now ppf
-      | None -> Display.v ~summary:header ~size ~now ppf);
+  let root =
+    match scope with
+    | Some scope -> Driver.root ~label:header ~scope ~now ()
+    | None -> Task.root ~label:header ~now ()
+  in
+  t.root <- Some root;
+  t.display <- Some (Progress.show ~size ppf root);
   t
 
 let display t = Option.get t.display
+let root t = Option.get t.root
 let label i = labels.(i mod Array.length labels)
 let levels = [| `App; `Error; `Warning; `Info; `Debug |]
 let level i = levels.(i mod Array.length levels)
@@ -242,9 +247,9 @@ let progress t i f =
 
 let finish task o =
   match o mod 3 with
-  | 0 -> Display.succeed task
-  | 1 -> Display.fail task
-  | _ -> Display.cancel task
+  | 0 -> Task.succeed task
+  | 1 -> Task.fail task
+  | _ -> Task.cancel task
 
 (* A redraw changes only the region: the rows from the cursor's up to the
    height of the screen less one. A second redraw at the same time changes
@@ -300,20 +305,17 @@ let program t c n =
 
 let apply t = function
   | Task (l, p) ->
-      let parent = Option.bind p (task t) in
-      let task =
-        Display.task ?parent ~log_lines:(l mod 4) (display t) (label l)
-      in
+      let parent = Option.value (Option.bind p (task t)) ~default:(root t) in
+      let task = Task.start ~log_lines:(l mod 4) parent (label l) in
       t.tasks <- Array.append t.tasks [| task |]
   | Count (i, n) ->
-      progress t i (fun task -> Display.set_count task ~cur:(n / 2) ~total:n)
+      progress t i (fun task -> Task.set_items task ~count:(n / 2) ~total:n)
   | Bytes (i, n) ->
       progress t i (fun task ->
-          Display.set_bytes task ~cur:(Int64.of_int (n * 1000)) ~total:256000L)
-  | Log (i, l) ->
-      Option.iter (fun task -> Display.log task (label l)) (task t i)
+          Task.set_bytes task ~count:(Int64.of_int (n * 1000)) ~total:256000L)
+  | Log (i, l) -> Option.iter (fun task -> Task.log task (label l)) (task t i)
   | End (i, o) -> Option.iter (fun task -> finish task o) (task t i)
-  | Report l -> Driver.report (display t) (level l) (label l)
+  | Report l -> Driver.report (root t) (level l) (label l)
   | Advance n -> t.time := !(t.time) +. (Float.of_int n /. 100.)
   | Resize (w, h) ->
       let w = 8 + (w mod 72) and h = 3 + (h mod 20) in
@@ -352,14 +354,15 @@ let test ops w h styled p =
 let test_plain ops =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let d = Display.v ~summary:header ~now:(fun () -> 0.) ppf in
+  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let d = Progress.show ppf root in
   let tasks = ref [] in
   List.iter
     (function
       | Task (l, _) ->
-          tasks := Display.task d labels.(l mod Array.length labels) :: !tasks
-      | Log (_, l) -> List.iter (fun t -> Display.log t labels.(l mod 7)) !tasks
-      | End _ -> List.iter Display.succeed !tasks
+          tasks := Task.start root labels.(l mod Array.length labels) :: !tasks
+      | Log (_, l) -> List.iter (fun t -> Task.log t labels.(l mod 7)) !tasks
+      | End _ -> List.iter Task.succeed !tasks
       | _ -> ())
     ops;
   Display.close d;
@@ -379,12 +382,13 @@ let test_plain ops =
    holds is not printed. *)
 let test_retained_heap n =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
-  let d = Display.v ~size:(fun () -> (80, 10)) ~now:(fun () -> 0.) ppf in
-  let task = Display.task ~log_lines:2 d "long running" in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ~size:(fun () -> (80, 10)) ppf root in
+  let task = Task.start ~log_lines:2 root "long running" in
   let batch () =
     for i = 1 to 1000 + n do
-      Display.succeed (Display.task ~transient:true d "short lived");
-      Display.log task (string_of_int i ^ String.make 512 'x')
+      Task.succeed (Task.start ~transient:true root "short lived");
+      Task.log task (string_of_int i ^ String.make 512 'x')
     done;
     Display.redraw d;
     Gc.full_major ();
@@ -401,7 +405,7 @@ let test_retained_heap n =
           failf "retained heap grew from %d to %d words" warm retained
       done)
     ~finally:(fun () ->
-      Display.succeed task;
+      Task.succeed task;
       Display.close d)
 
 (* Each call has a unique token, so duplicates, reorderings and misattribution
@@ -409,22 +413,23 @@ let test_retained_heap n =
 let test_pipe_attribution n =
   let b = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer b in
-  let d = Display.v ~summary:"SUMMARY" ~now:(fun () -> 0.) ppf in
+  let root = Task.root ~label:"SUMMARY" ~now:(fun () -> 0.) () in
+  let d = Progress.show ppf root in
   let tasks =
-    Array.init 4 (fun i -> Display.task d ("task" ^ string_of_int i))
+    Array.init 4 (fun i -> Task.start root ("task" ^ string_of_int i))
   in
   let expected =
     List.init (1 + n) (fun i ->
         let task = i mod 4 in
         let token = "record_" ^ string_of_int i ^ "_end" in
-        Display.log tasks.(task) (token ^ "\n" ^ token ^ "_second");
+        Task.log tasks.(task) (token ^ "\n" ^ token ^ "_second");
         [
           "task" ^ string_of_int task ^ ": " ^ token;
           "task" ^ string_of_int task ^ ": " ^ token ^ "_second";
         ])
     |> List.concat
   in
-  Array.iter Display.succeed tasks;
+  Array.iter Task.succeed tasks;
   Display.close d;
   Format.pp_print_flush ppf ();
   let out = Buffer.contents b in
@@ -445,7 +450,7 @@ let test_pipe_attribution n =
 let test_output_exception s cancel =
   let t = terminal ~width:40 ~height:8 ~styled:true () in
   let d = display t in
-  ignore (Display.task d "interrupted");
+  ignore (Task.start (root t) "interrupted");
   Display.redraw d;
   let partial = Console_text.sanitize ~keep_newlines:false s in
   let partial = View.to_string (View.truncate 30 (View.text partial)) in
@@ -464,7 +469,7 @@ let test_output_exception s cancel =
   | exception Exit -> ());
   Display.redraw d;
   check_screen t;
-  if not cancel then Display.set_result d (Ok "done");
+  if not cancel then Task.succeed ~message:"done" (root t);
   Display.close d;
   check (Console_vte.cursor_visible t.vte);
   check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos t.vte));
@@ -485,14 +490,14 @@ let test_output_exception s cancel =
 let test_resize_erases_old_frame n =
   let t = terminal ~width:80 ~height:12 ~styled:true () in
   let d = display t in
-  let a = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'x') in
-  let b = Display.task d ("OLD_SENTINEL_" ^ String.make 45 'y') in
+  let a = Task.start (root t) ("OLD_SENTINEL_" ^ String.make 45 'x') in
+  let b = Task.start (root t) ("OLD_SENTINEL_" ^ String.make 45 'y') in
   Display.redraw d;
   let w = 12 + (n mod 40) in
   t.size := (w, 8);
   Console_vte.resize t.vte ~rows:8 ~cols:w;
-  Display.set_label a "new-a";
-  Display.set_label b "new-b";
+  Task.set_label a "new-a";
+  Task.set_label b "new-b";
   Display.redraw d;
   check_screen t;
   let rows =
@@ -516,7 +521,7 @@ let test_resize_erases_old_frame n =
 let test_static_rows_and_idle n =
   let t = terminal ~width:60 ~height:10 ~styled:true () in
   let d = display t in
-  let task = Display.task d "moving" in
+  let task = Task.start (root t) "moving" in
   Display.with_output d (fun ppf ->
       t.in_output := true;
       Fmt.pf ppf "STATIC_SENTINEL@.";
@@ -529,7 +534,7 @@ let test_static_rows_and_idle n =
   let permanent = prefix before in
   for i = 0 to n do
     t.time := Float.of_int i /. 5.;
-    Display.set_count task ~cur:i ~total:256;
+    Task.set_items task ~count:i ~total:256;
     redraw_twice t;
     check_eq ~pp:Fmt.(Dump.list string) permanent (prefix (screen t.vte))
   done;
@@ -597,22 +602,27 @@ let test_untrusted_arguments s =
     Fmt.set_style_renderer ppf `Ansi_tty;
     let theme = Theme.v ~marks:(fun _ -> input) ~spinner:[ input ] () in
     let layout =
-      Display.Layout.(v [ text input; accent input; label; spacer; elapsed ])
+      Progress.Layout.(
+        list
+          [
+            const (View.text input);
+            custom (fun _ -> View.styled Style.bold (View.text input));
+            label;
+            spacer;
+            elapsed;
+          ])
     in
     Theme.set ppf theme;
-    let d =
-      Display.v ~layout ~summary:input
-        ~size:(fun () -> (40, 8))
-        ~now:(fun () -> 0.)
-        ppf
-    in
-    let task = Display.task d input in
-    Display.set_label task input;
-    Display.log task lines;
-    Driver.report d `Warning lines;
+    let root = Task.root ~label:input ~now:(fun () -> 0.) () in
+    let d = Progress.show ~layout ~size:(fun () -> (40, 8)) ppf root in
+    let task = Task.start root input in
+    Task.set_label task input;
+    Task.log task lines;
+    Driver.report root `Warning lines;
     Display.redraw d;
-    Display.succeed ~message:input task;
-    Display.set_result ~detail:lines d (Ok input);
+    Task.succeed ~message:input task;
+    Task.log root lines;
+    Task.succeed ~message:input root;
     Display.close d;
     Format.pp_print_flush ppf ();
     (Buffer.contents out, List.rev !frames)
@@ -643,11 +653,11 @@ let test_extreme_terminals n styled =
       let d = display t in
       for i = 0 to 20 + (n mod 20) do
         let task =
-          Display.task ~log_lines:1 d
+          Task.start ~log_lines:1 (root t)
             (string_of_int i ^ " \u{754c}\u{1f469}\u{200d}\u{1f4bb}")
         in
-        Display.log task "\u{754c}\u{1f1eb}\u{1f1f7} tail";
-        Display.set_count task ~cur:i ~total:100
+        Task.log task "\u{754c}\u{1f1eb}\u{1f1f7} tail";
+        Task.set_items task ~count:i ~total:100
       done;
       redraw_twice t;
       (* Nothing has completed or logged a permanent line. A region that fits
@@ -664,14 +674,14 @@ let test_wide n label =
   let width = 101 + (n land 0xff) in
   let t = terminal ~width ~height:10 ~styled:true () in
   let d = display t in
-  let task = Display.task ~log_lines:2 d label in
-  Display.set_bytes task ~cur:(Int64.of_int (n land 0xffff)) ~total:1_000_000L;
-  Display.log task label;
-  let child = Display.task ~parent:task d label in
-  Display.set_count child ~cur:1 ~total:(1 + (n land 0xfff));
+  let task = Task.start ~log_lines:2 (root t) label in
+  Task.set_bytes task ~count:(Int64.of_int (n land 0xffff)) ~total:1_000_000L;
+  Task.log task label;
+  let child = Task.start task label in
+  Task.set_items child ~count:1 ~total:(1 + (n land 0xfff));
   redraw_twice t;
-  Display.succeed child;
-  Display.fail task;
+  Task.succeed child;
+  Task.fail task;
   Display.close d;
   List.iter
     (fun l ->
@@ -688,9 +698,9 @@ let test_marker_counts n l h =
   let t = terminal ~width:30 ~height:h ~styled:false () in
   let d = display t in
   for i = 0 to n - 1 do
-    let task = Display.task ~log_lines:l d ("t" ^ string_of_int i) in
+    let task = Task.start ~log_lines:l (root t) ("t" ^ string_of_int i) in
     for j = 1 to l do
-      Display.log task ("l" ^ string_of_int j)
+      Task.log task ("l" ^ string_of_int j)
     done
   done;
   Display.redraw d;
@@ -740,7 +750,7 @@ let pp_step ppf = function
 let step = with_printer pp_step step
 
 type mtask = {
-  task : Display.task;
+  task : Task.t;
   name : string;
   window_size : int;
   mutable window : string list;  (** Newest first. *)
@@ -773,14 +783,13 @@ let scope current =
       current := Some task;
       Fun.protect f ~finally:(fun () -> current := saved))
     ~cancelled:(fun _ -> false)
-    ~write_error:(fun _ -> false)
 
-(* A task of the model, started on [d] under [parent]. *)
-let new_task d parent name window_size =
+(* A task of the model, started under [parent], or [root]. *)
+let new_task root parent name window_size =
   let task =
-    Display.task
-      ?parent:(Option.map (fun p -> p.task) parent)
-      ~log_lines:window_size d name
+    Task.start ~log_lines:window_size
+      (match parent with Some p -> p.task | None -> root)
+      name
   in
   let t = { task; name; window_size; window = []; outcome = None; kids = [] } in
   (match parent with
@@ -793,14 +802,14 @@ let new_task d parent name window_size =
 let end_task t o =
   let o = outcome o in
   (match o with
-  | `Succeeded -> Display.succeed t.task
-  | `Failed -> Display.fail t.task
-  | `Cancelled -> Display.cancel t.task);
+  | `Succeeded -> Task.succeed t.task
+  | `Failed -> Task.fail t.task
+  | `Cancelled -> Task.cancel t.task);
   model_end o t
 
-(* Runs [steps] on [d], whose scope reads its current task from [current],
-   and closes [d]. *)
-let run_steps d current steps =
+(* Runs [steps] on the tasks of [root], whose scope reads its current task
+   from [current], and closes [d], which shows them. *)
+let run_steps root d current steps =
   let tasks = ref [||] and lines = ref [] in
   let pick i =
     let n = Array.length !tasks in
@@ -821,16 +830,16 @@ let run_steps d current steps =
     (function
       | New (p, l) when Array.length !tasks < 16 ->
           let name = "t" ^ string_of_int (Array.length !tasks) in
-          let t = new_task d (Option.bind p pick) name (l mod 4) in
+          let t = new_task root (Option.bind p pick) name (l mod 4) in
           tasks := Array.append !tasks [| t |]
       | New _ -> ()
       | Out i ->
-          Option.iter (fun t -> Display.log t.task (add (Some t) true)) (pick i)
+          Option.iter (fun t -> Task.log t.task (add (Some t) true)) (pick i)
       | Diag i ->
           let t = Option.bind i pick in
           let token = add t false in
           current := Option.map (fun t -> t.task) t;
-          Driver.report d `Info token;
+          Driver.report root `Info token;
           current := None
       | Finish (i, o) -> Option.iter (fun t -> end_task t o) (pick i))
     steps;
@@ -871,8 +880,9 @@ let test_pipe_lines steps =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   let current = ref None in
-  let d = Driver.v ~scope:(scope current) ~now:(fun () -> 0.) ppf in
-  let lines = run_steps d current steps in
+  let root = Driver.root ~scope:(scope current) ~now:(fun () -> 0.) () in
+  let d = Progress.show ppf root in
+  let lines = run_steps root d current steps in
   Format.pp_print_flush ppf ();
   let expected l =
     match l.owner with
@@ -893,7 +903,7 @@ let test_terminal_lines steps =
   let t =
     terminal ~scope:(scope current) ~width:80 ~height:12 ~styled:false ()
   in
-  let lines = run_steps (display t) current steps in
+  let lines = run_steps (root t) (display t) current steps in
   let expected l =
     match l.owner with
     | None -> (0, 1)
@@ -947,17 +957,18 @@ let widget kind cells =
     in
     ((fun ppf -> View.pp ppf panel), fun width -> View.sized ~width panel)
 
-(* [top] above the default view. *)
-let above top d ~width ~height =
-  View.vcat [ top; Display.default_view d ~width ~height ]
+(* [top f] above the default view of [root], [f] given the room's width. *)
+let above top root =
+  View.fit (fun r ->
+      View.vcat
+        [ top (Option.value (Room.width r) ~default:80); Progress.view root ])
 
 (* The rows above the summary, at each of [times] in tenths of a second.
    A terminal of eight columns cuts the summary after its third letter. *)
 let view_frames theme ~width span times =
   let t = terminal ~theme ~width ~height:600 ~styled:true () in
   let d = display t in
-  Display.set_view d (fun d ~width ~height ->
-      above (span (min width 100)) d ~width ~height);
+  Display.set_view d (above (fun width -> span (min width 100)) (root t));
   let header = String.sub header 0 3 in
   let frames =
     List.map
@@ -1029,10 +1040,10 @@ let test_view_pipe kind cells n m =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf theme;
-  let d = Display.v ~summary:header ~now:(fun () -> 1.5) ppf in
-  Display.set_view d (fun d ~width ~height ->
-      above (View.text "VIEW_SENTINEL") d ~width ~height);
-  Display.succeed (Display.task d "t");
+  let root = Task.root ~label:header ~now:(fun () -> 1.5) () in
+  let view = above (fun _ -> View.text "VIEW_SENTINEL") root in
+  let d = Progress.show ~view ppf root in
+  Task.succeed (Task.start root "t");
   Display.close d;
   Format.pp_print_flush ppf ();
   (match List.rev (String.split_on_char '\n' (Buffer.contents buf)) with
@@ -1071,12 +1082,14 @@ let test_view_exception_close n k styled =
   in
   Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
-  let d = Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> 0.) ppf in
-  ignore (Display.task d "running");
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ~size:(fun () -> (width, height)) ppf root in
+  ignore (Task.start root "running");
   (match
-     Display.set_view d (fun _ ~width:_ ~height:_ ->
-         ignore (View.styled Style.bold (View.text "partial view"));
-         raise Exit)
+     Display.set_view d
+       (View.fit (fun _ ->
+            ignore (View.styled Style.bold (View.text "partial view"));
+            raise Exit))
    with
   | () -> fail "view exception swallowed"
   | exception Exit -> ());
@@ -1100,18 +1113,19 @@ let test_view_exception_close n k styled =
 let test_finished_children_heap n terminal =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let size = if terminal then Some (fun () -> (80, 10)) else None in
-  let d = Display.v ?size ~now:(fun () -> 0.) ppf in
-  let parent = Display.task d "long lived parent" in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ?size ppf root in
+  let parent = Task.start root "long lived parent" in
   let serial = ref 0 in
   let batch () =
     for i = 0 to 99 + (n mod 100) do
       incr serial;
-      let child = Display.task ~parent ~key:(string_of_int !serial) d "child" in
-      Display.log child (String.make 8192 'x');
+      let child = Task.start ~key:(string_of_int !serial) parent "child" in
+      Task.log child (String.make 8192 'x');
       match i mod 3 with
-      | 0 -> Display.succeed child
-      | 1 -> Display.fail child
-      | _ -> Display.cancel child
+      | 0 -> Task.succeed child
+      | 1 -> Task.fail child
+      | _ -> Task.cancel child
     done;
     Display.redraw d;
     Gc.full_major ();
@@ -1155,20 +1169,17 @@ let theme_switch_display width theme =
   Fmt.set_utf_8 ppf true;
   Fmt.set_style_renderer ppf `Ansi_tty;
   Theme.set ppf theme;
-  let display =
-    Display.v
-      ~size:(fun () -> (width, 12))
-      ~now:(fun () -> 0.)
-      ~summary:"build" ppf
-  in
-  let task = Display.task display "\u{754c} compile" in
-  Display.set_count task ~cur:1 ~total:2;
-  Display.log task "a log";
-  Display.set_view display (fun d ~width ~height ->
-      above
-        (View.sized ~width:(min width 100)
+  let root = Task.root ~label:"build" ~now:(fun () -> 0.) () in
+  let display = Progress.show ~size:(fun () -> (width, 12)) ppf root in
+  let task = Task.start root "\u{754c} compile" in
+  Task.set_items task ~count:1 ~total:2;
+  Task.log task "a log";
+  Display.set_view display
+    (above
+       (fun width ->
+         View.sized ~width:(min width 100)
            (Panel.view ~title:(View.text "result") (View.text "hello")))
-        d ~width ~height);
+       root);
   Display.redraw display;
   (ppf, display, term, writes)
 
@@ -1212,7 +1223,7 @@ let test_theme_switch old_index next_index n =
    task, the tasks it moves to the scrollback with. *)
 
 type ttask = {
-  tk : Display.task;
+  tk : Task.t;
   tname : string;
   tparent : ttask option;
   mutable tkids : ttask list;  (** Newest first. *)
@@ -1251,7 +1262,7 @@ let tree_step = with_printer pp_tree_step tree_step
 (* Runs [steps] on [d]: the tasks, and the groups of names, in the order
    they move to the scrollback, unless [keep_ended]. [frame] is called after each
    step. *)
-let run_tree ?(keep_ended = false) d ~frame steps =
+let run_tree ?(keep_ended = false) root ~frame steps =
   let tasks = ref [||] and moves = ref [] in
   let pick i =
     let n = Array.length !tasks in
@@ -1270,7 +1281,9 @@ let run_tree ?(keep_ended = false) d ~frame steps =
           let tparent = Option.bind p pick in
           let tname = Fmt.str "n%02d" (Array.length !tasks) in
           let tk =
-            Display.task ?parent:(Option.map (fun p -> p.tk) tparent) d tname
+            Task.start
+              (match tparent with Some p -> p.tk | None -> root)
+              tname
           in
           let x =
             { tk; tname; tparent; tkids = []; ended = false; moved = false }
@@ -1296,7 +1309,7 @@ let run_tree ?(keep_ended = false) d ~frame steps =
               end_model x;
               if x.tparent = None && not keep_ended then move x)
             (pick i)
-      | Note i -> Option.iter (fun x -> Display.log x.tk "note") (pick i));
+      | Note i -> Option.iter (fun x -> Task.log x.tk "note") (pick i));
       frame ())
     steps;
   (!tasks, moves)
@@ -1322,7 +1335,7 @@ let test_scrollback_tree steps h =
     | last :: _ when has header last -> ()
     | _ -> failf "the summary is not last:@.%a" Fmt.(list ~sep:cut string) rows
   in
-  let tasks, moves = run_tree d ~frame steps in
+  let tasks, moves = run_tree (root t) ~frame steps in
   Display.close d;
   (* Closing moves the trees still running, in the order they started. *)
   Array.iter
@@ -1354,22 +1367,27 @@ let test_columns steps h =
         check_chunk_lines ~width s;
         Console_vte.feed vte s)
   in
-  let view d ~width ~height =
-    let tops = Display.(children (root d)) in
-    let n = max 1 (List.length tops) in
-    let column = (min width 100 - (2 * (n - 1))) / n in
-    View.vcat
-      [
-        View.hcat
-          (List.map (Display.tree ~width:column ~height:(height - 1)) tops);
-        Display.summary d;
-      ]
+  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let view =
+    View.fit (fun r ->
+        let width = Option.value (Room.width r) ~default:width in
+        let height = Option.map (fun h -> h - 1) (Room.height r) in
+        let tops = Task.children root in
+        let n = max 1 (List.length tops) in
+        let column = (min width 100 - (2 * (n - 1))) / n in
+        View.vcat
+          [
+            View.hcat
+              (List.map
+                 (fun t -> View.sized ~width:column ?height (Progress.tree t))
+                 tops);
+            Progress.summary root;
+          ])
   in
   let d =
-    Display.v ~summary:header ~view ~keep_ended:true
+    Progress.show ~view ~keep_ended:true
       ~size:(fun () -> (width, height))
-      ~now:(fun () -> 0.)
-      ppf
+      ppf root
   in
   let frame () =
     Display.redraw d;
@@ -1390,7 +1408,7 @@ let test_columns steps h =
         | _ -> true)
       steps
   in
-  let tasks, _ = run_tree ~keep_ended:true d ~frame steps in
+  let tasks, _ = run_tree ~keep_ended:true root ~frame steps in
   Display.close d;
   let lines = Console_vte.screen ~scrollback:true vte in
   Array.iter
@@ -1409,20 +1427,19 @@ let test_default_view steps h =
   let run view =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
-    let d =
-      Display.v ~summary:header ?view
-        ~size:(fun () -> (60, height))
-        ~now:(fun () -> 0.)
-        ppf
-    in
-    ignore (run_tree d ~frame:(fun () -> Display.redraw d) steps);
+    let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+    let view = Option.map (fun f -> f root) view in
+    let d = Progress.show ?view ~size:(fun () -> (60, height)) ppf root in
+    ignore (run_tree root ~frame:(fun () -> Display.redraw d) steps);
     Display.close d;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
-  let explicit d ~width:_ ~height =
-    View.vcat
-      [ Display.tree ~height:(height - 1) (Display.root d); Display.summary d ]
+  let explicit root =
+    View.fit (fun r ->
+        let height = Option.map (fun h -> h - 1) (Room.height r) in
+        View.vcat
+          [ View.sized ?height (Progress.tree root); Progress.summary root ])
   in
   check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
 
@@ -1430,16 +1447,16 @@ let test_default_view steps h =
 let test_window_age n newest_child =
   let t = Display_harness.terminal ~width:60 ~height:4 () in
   let d = t.display in
-  let parent = Display.task d "parent" in
-  let child = Display.task ~parent d "child" in
+  let parent = Task.start t.root "parent" in
+  let child = Task.start parent "child" in
   let older, newer =
     if newest_child then (parent, child) else (child, parent)
   in
   for i = 0 to n mod 6 do
-    Display.log older (Fmt.str "old-%d" i);
+    Task.log older (Fmt.str "old-%d" i);
     t.advance 1.
   done;
-  Display.log newer "newest-output";
+  Task.log newer "newest-output";
   Display.redraw d;
   let rows = Display_harness.screen t in
   let scrolled = Console_vte.scrollback_size t.vte in
@@ -1453,8 +1470,9 @@ let test_window_age n newest_child =
    or ending message from the bound on tasks waiting for their parent. *)
 let test_oversized_waiting_task n message =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let d = Display.v ~size:(fun () -> (40, 8)) ~now:(fun () -> 0.) ppf in
-  let parent = Display.task d "parent" in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
+  let parent = Task.start root "parent" in
   let live_bytes () =
     Gc.full_major ();
     (Gc.stat ()).live_words * (Sys.word_size / 8)
@@ -1462,13 +1480,12 @@ let test_oversized_waiting_task n message =
   let before = live_bytes () in
   let add () =
     let text = String.make ((2 * 1024 * 1024) + (n * 1024)) 'x' in
-    if message then
-      Display.succeed ~message:text (Display.task ~parent d "child")
-    else Display.succeed (Display.task ~parent d text)
+    if message then Task.succeed ~message:text (Task.start parent "child")
+    else Task.succeed (Task.start parent text)
   in
   add ();
   let retained = live_bytes () - before in
-  Display.succeed (Display.task ~parent d "replacement");
+  Task.succeed (Task.start parent "replacement");
   Display.close d;
   if retained > 1_048_576 + 65_536 then
     failf "one completed child retains %d bytes (limit 1 MiB)" retained
@@ -1476,26 +1493,29 @@ let test_oversized_waiting_task n message =
 (* Measuring a tree for one place in a view must not affect its layout
    in another place, nor invalidate an unchanged frame on the terminal. *)
 let test_tree_local_dimensions w h =
-  let t = Display_harness.terminal ~width:80 ~height:12 ~summary:"summary" () in
+  let t = Display_harness.terminal ~width:80 ~height:12 ~label:"summary" () in
   let d = t.display in
-  let parent = Display.task d "parent" in
-  let child = Display.task ~parent d "child" in
-  Display.set_count parent ~cur:1 ~total:10;
-  Display.log parent "parent output";
-  Display.log child "child output";
+  let parent = Task.start t.root "parent" in
+  let child = Task.start parent "child" in
+  Task.set_items parent ~count:1 ~total:10;
+  Task.log parent "parent output";
+  Task.log child "child output";
   Display.redraw d;
-  let frame () = View.to_string (Display.default_view d ~width:80 ~height:11) in
+  let frame () =
+    View.to_string (View.sized ~width:80 ~height:11 (Progress.view t.root))
+  in
   let before = frame () in
   let writes = List.length !(t.chunks) in
   let width = 1 + (w mod 200) and height = h mod 11 in
   List.iter
     (fun task ->
-      let fitted = Display.tree ~width ~height task in
+      let tree () = View.sized ~width ~height (Progress.tree task) in
+      let fitted = tree () in
       check (View.width fitted <= width);
       check (View.height fitted <= height);
       check_eq ~pp:Fmt.Dump.string (View.to_string fitted)
-        (View.to_string (Display.tree ~width ~height task)))
-    [ Display.root d; parent; child ];
+        (View.to_string (tree ())))
+    [ t.root; parent; child ];
   let after = frame () in
   Display.redraw d;
   let unchanged = List.length !(t.chunks) = writes in
@@ -1503,9 +1523,85 @@ let test_tree_local_dimensions w h =
   check_eq ~pp:Fmt.Dump.string before after;
   check unchanged
 
+(* A view that reads neither the time nor the program's state is drawn
+   once: redraws at later times write nothing, whatever the theme, as long
+   as nothing moves it. *)
+let test_static_view w h k times =
+  let width = 8 + (w mod 100) and height = 3 + (h mod 20) in
+  let writes = ref 0 in
+  let ppf =
+    Format.make_formatter (fun _ _ len -> if len > 0 then incr writes) ignore
+  in
+  Theme.set ppf (pick_theme k);
+  let time = ref 0. in
+  let table =
+    Table.view
+      [ Table.column (View.text "name"); Table.column (View.text "size") ]
+      [ [ View.text "a"; View.text "1" ]; [ View.text "b"; View.text "22" ] ]
+  in
+  let d =
+    Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> !time) ppf table
+  in
+  Display.redraw d;
+  let drawn = !writes in
+  List.iter
+    (fun dt ->
+      time := !time +. (Float.of_int dt /. 10.);
+      Display.redraw d)
+    times;
+  check_eq ~pp:Fmt.int drawn !writes;
+  Display.close d
+
+(* What a task leaves in the scrollback, when it moves there, is what
+   [commit] makes of it: one line for each task that moves, and none of the
+   tasks that move with it; or nothing at all. *)
+let test_commit steps policy =
+  let width = 80 and height = 8 in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        Console_vte.feed vte (Buffer.contents buf);
+        Buffer.clear buf)
+  in
+  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let commit t =
+    if policy then Some (View.text ("DONE " ^ Task.label t)) else None
+  in
+  let d = Progress.show ~commit ~size:(fun () -> (width, height)) ppf root in
+  let tasks, moves = run_tree root ~frame:(fun () -> Display.redraw d) steps in
+  Task.succeed root;
+  Display.close d;
+  (* The end of the work moves the trees still running. *)
+  Array.iter
+    (fun x ->
+      if x.tparent = None && not x.moved then moves := preorder x :: !moves)
+    tasks;
+  let heads =
+    List.filter_map (function h :: _ -> Some h | [] -> None) !moves
+  in
+  let lines = Console_vte.screen ~scrollback:true vte in
+  Array.iter
+    (fun x ->
+      let n = List.length (List.filter (has x.tname) lines) in
+      let want = if policy && List.mem x.tname heads then 1 else 0 in
+      if n <> want then
+        failf "%s is %d times, not %d, in:@.%a" x.tname n want
+          Fmt.(list ~sep:cut string)
+          lines;
+      if want = 1 && not (List.exists (has ("DONE " ^ x.tname)) lines) then
+        failf "%s is not committed as DONE" x.tname)
+    tasks
+
 let suite =
   ( "display",
     [
+      test_case "a still view is drawn once"
+        [ uint8; uint8; uint8; list uint8 ]
+        test_static_view;
+      test_case "a top task leaves what its commit makes of it"
+        [ list tree_step; bool ]
+        test_commit;
       test_case "tree dimensions belong to each composition" [ uint8; uint8 ]
         test_tree_local_dimensions;
       test_case "one oversized waiting task stays bounded" [ uint8; bool ]

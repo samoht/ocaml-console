@@ -9,15 +9,18 @@ let v label children = { label; children }
 let label t = t.label
 let children t = t.children
 
-(* A label wider than the room its guides leave it wraps, the rest under its
-   text. *)
-let label_lines ~room label =
-  List.concat_map
-    (fun line ->
-      if room <= 0 then [ View_core.empty ]
-      else if View_core.width line <= room then [ line ]
-      else View_core.wrap_hanging room line)
-    (View_core.lines label)
+(* A label line wider than the room its guides leave it wraps, the rest
+   under its text: the first line in the room of the node's branch, the
+   others in that of its rails. *)
+let label_lines ~first ~rest label =
+  List.concat
+    (List.mapi
+       (fun i line ->
+         let room = if i = 0 then first else rest in
+         if room <= 0 then [ View_core.empty ]
+         else if View_core.width line <= room then [ line ]
+         else View_core.wrap_hanging room line)
+       (View_core.lines label))
 
 let rec labels t = t.label :: List.concat_map labels t.children
 
@@ -28,24 +31,33 @@ let lines c ~guide ~indent t =
   let margin = Option.value (Ctx.width c) ~default:max_int in
   let pad = String.make indent ' ' in
   let acc = ref [] in
-  let emit line = acc := Widget.truncate look margin line :: !acc in
+  (* A line fits its room, so only guides wider than the margin cut it. *)
+  let emit prefix line =
+    let line = View_core.(ink style prefix ++ line) in
+    let line =
+      if Widget.cells prefix > margin then Widget.truncate look margin line
+      else line
+    in
+    acc := line :: !acc
+  in
   (* [lasts] are the node's is-last-of-its-siblings flag and its ancestors'
      below the root, innermost first. *)
   let rec go lasts node =
     let lead = if lasts = [] then "" else pad in
     let first = lead ^ Widget.branch guide lasts
     and after = pad ^ Widget.rails guide lasts in
-    let room = margin - Widget.cells first in
+    let room = margin - Widget.cells first
+    and rest = margin - Widget.cells after in
     let label =
       View_core.resolve
         (Ctx.with_width (Option.map (fun _ -> room) (Ctx.width c)) c)
         node.label
     in
-    (match label_lines ~room label with
+    (match label_lines ~first:room ~rest label with
     | [] -> ()
-    | l :: rest ->
-        emit View_core.(ink style first ++ l);
-        List.iter (fun l -> emit View_core.(ink style after ++ l)) rest);
+    | l :: ls ->
+        emit first l;
+        List.iter (emit after) ls);
     let n = List.length node.children in
     List.iteri (fun i child -> go ((i = n - 1) :: lasts) child) node.children
   in

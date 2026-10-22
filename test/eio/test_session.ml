@@ -134,12 +134,12 @@ let test_run_clock () =
   let out = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer out in
   let value =
-    Console_eio.run ~clock ~ppf ~summary:"build" (fun d ->
-        let task = Console.Display.task d "compile" in
+    Console_eio.run ~clock ~ppf ~label:"build" (fun d ->
+        let task = Console.Task.start d "compile" in
         Eio.Fiber.both
           (fun () ->
             Eio.Time.Mono.sleep clock 0.5;
-            Console.Display.succeed task)
+            Console.Task.succeed task)
           (fun () ->
             Eio.Fiber.yield ();
             Eio_mock.Clock.Mono.set_time clock (Mtime.of_uint64_ns 500_000_000L));
@@ -165,7 +165,7 @@ let test_run_failure () =
   let ppf = Format.formatter_of_buffer out in
   Alcotest.check_raises "body exception" Body_failure (fun () ->
       Console_eio.run ~clock ~ppf (fun d ->
-          ignore (Console.Display.task d "abandoned");
+          ignore (Console.Task.start d "abandoned");
           raise Body_failure));
   Console_eio.run ~clock ~ppf (fun _ -> ());
   Format.pp_print_flush ppf ();
@@ -204,7 +204,7 @@ let test_sibling_fibers () =
         Console_eio.run ~clock ~ppf (fun d ->
             same := Option.fold ~none:false ~some:(( == ) d) !first;
             Eio.Fiber.yield ();
-            Console.Display.with_task d "late" ignore));
+            Console.Task.run d "late" ignore));
     Format.pp_print_flush ppf ();
     (!same, contains "late" (Buffer.contents out))
   in
@@ -234,9 +234,9 @@ let test_failing_first_run_waits () =
       Console_eio.run ~clock ~ppf (fun d ->
           Eio.Promise.resolve enter ();
           Eio.Fiber.yield ();
-          Console.Display.with_task d "sibling" (fun task ->
+          Console.Task.run d "sibling" (fun task ->
               for i = 0 to 2 do
-                Console.Display.log task (Fmt.str "record-%d" i);
+                Console.Task.log task (Fmt.str "record-%d" i);
                 Eio.Fiber.yield ()
               done);
           sibling_finished := true));
@@ -263,15 +263,15 @@ let test_run_from_surviving_fiber () =
   let original = ref None and reused = ref false in
   Eio.Switch.run (fun sw ->
       let ended, finish = Eio.Promise.create () in
-      Console_eio.run ~clock ~ppf ~summary:"first" (fun d ->
+      Console_eio.run ~clock ~ppf ~label:"first" (fun d ->
           original := Some d;
           Eio.Fiber.fork ~sw (fun () ->
               Eio.Promise.await ended;
-              Console_eio.run ~clock ~ppf ~summary:"second" (fun next ->
+              Console_eio.run ~clock ~ppf ~label:"second" (fun next ->
                   reused :=
                     Option.fold ~none:false ~some:(( == ) next) !original;
-                  Console.Display.with_task next "second-task" (fun task ->
-                      Console.Display.log task "hello"))));
+                  Console.Task.run next "second-task" (fun task ->
+                      Console.Task.log task "hello"))));
       Eio.Promise.resolve finish ());
   Format.pp_print_flush ppf ();
   Alcotest.(check bool) "a closed display is not reused" false !reused;
@@ -342,13 +342,13 @@ let test_concurrent_order () =
             Console_eio.run ~clock (fun nested ->
                 Alcotest.(check bool) "same display" true (nested == display);
                 let task =
-                  Console.Display.task nested ("fiber" ^ string_of_int worker)
+                  Console.Task.start nested ("fiber" ^ string_of_int worker)
                 in
                 for i = 0 to count - 1 do
-                  Console.Display.log task (Fmt.str "event%04d" i);
+                  Console.Task.log task (Fmt.str "event%04d" i);
                   Eio.Fiber.yield ()
                 done;
-                Console.Display.succeed task))
+                Console.Task.succeed task))
       in
       let domains =
         List.init 2 (fun worker () ->

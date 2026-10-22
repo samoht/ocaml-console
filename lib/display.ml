@@ -3,9 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-include Display_core
+type t = Display_core.t
 
-type view = t -> width:int -> height:int -> View_core.t
-
-let v ?layout ?summary ?view ?keep_ended ?size ?progress ~now ppf =
-  Display_core.v ?layout ?summary ?view ?keep_ended ?size ?progress ~now ppf
+let v ?size ~now ppf view = Display_core.v ?size ~now ppf view
+let set_view = Display_core.set_view
+let print = Display_core.print
+let with_output = Display_core.with_output
+let redraw = Display_core.redraw
+let close = Display_core.close
+let pp = Display_core.pp

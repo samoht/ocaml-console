@@ -94,11 +94,11 @@ let test_sibling_lifetime k failing =
           Eio.Fiber.yield ();
           check !body_ended;
           check (not !returned);
-          Console.Display.with_task d "sibling" (fun task ->
+          Console.Task.run d "sibling" (fun task ->
               for i = 0 to count - 1 do
                 if !returned then
                   fail "the first run returned while its sibling still logs";
-                Console.Display.log task (Fmt.str "record-%d" i);
+                Console.Task.log task (Fmt.str "record-%d" i);
                 Eio.Fiber.yield ()
               done)));
   Format.pp_print_flush ppf ();
@@ -136,9 +136,9 @@ let test_surviving_fiber k =
                  Eio.Promise.await ended;
                  Console_eio.run ~clock ~ppf (fun d ->
                      actual := Some d;
-                     Console.Display.with_task d "later" (fun task ->
+                     Console.Task.run d "later" (fun task ->
                          for i = 0 to count - 1 do
-                           Console.Display.log task (Fmt.str "record-%d" i)
+                           Console.Task.log task (Fmt.str "record-%d" i)
                          done));
                  Eio.Promise.resolve complete ());
              if failing then failwith "first callback failed")
@@ -168,7 +168,7 @@ let test_surviving_fiber k =
 (* With [`Json], each line the display writes is an event, written back
    as it is, and the labels and lines of output read back as the display
    shows them, whatever bytes they were given. *)
-module Event = Console.Progress.Event
+module Event = Console.Task.Event
 
 (* [e] as a variant of its members, to match on. *)
 let members e =
@@ -210,11 +210,11 @@ let test_json_events label text =
   let out = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer out in
   Console_eio.run ~clock ~ppf ~progress:`Json (fun display ->
-      Console.Display.with_task display label (fun task ->
-          Console.Display.set_count task ~cur:1 ~total:2;
-          Console.Display.log task text;
-          Console.Display.set_label task label;
-          Console.Display.fail task));
+      Console.Task.run display label (fun task ->
+          Console.Task.set_items task ~count:1 ~total:2;
+          Console.Task.log task text;
+          Console.Task.set_label task label;
+          Console.Task.fail task));
   Format.pp_print_flush ppf ();
   let events = events (Buffer.contents out) in
   let shown = Console_text.sanitize ~keep_newlines:false label in
@@ -280,9 +280,9 @@ let test_json_concurrent_records chunk tasks =
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
       Eio.Fiber.List.iter
         (fun i ->
-          Console.Display.with_task d (string_of_int i) (fun t ->
-              Console.Display.log t "line";
-              Console.Display.set_count t ~cur:1 ~total:1))
+          Console.Task.run d (string_of_int i) (fun t ->
+              Console.Task.log t "line";
+              Console.Task.set_items t ~count:1 ~total:1))
         (List.init tasks Fun.id));
   Format.pp_print_flush ppf ();
   let records = events (Buffer.contents out) in
@@ -299,7 +299,7 @@ let test_json_concurrent_records chunk tasks =
     (List.init tasks Fun.id)
 
 (* tty.exe replays the real terminal session through matrix.vte. The same
-   capture rule applies to Display.log, Fmt on either output and Logs. *)
+   capture rule applies to Task.log, Fmt on either output and Logs. *)
 let test_quiet_terminal_records ending =
   let mode =
     match ending mod 3 with
@@ -360,14 +360,14 @@ let lifecycle_worker k d i =
   in
   let ready, announce = Eio.Promise.create () in
   let work () =
-    Console.Display.with_task d label (fun task ->
-        Console.Display.set_bytes task ~cur:Int64.max_int ~total:Int64.max_int;
+    Console.Task.run d label (fun task ->
+        Console.Task.set_bytes task ~count:Int64.max_int ~total:Int64.max_int;
         Eio.Fiber.yield ();
         let reporter = Logs.reporter () in
         reporter.Logs.report Logs.default level ~over:ignore ignore (fun m ->
             m "line-%d" i);
         match ending with
-        | 1 -> Console.Display.fail task
+        | 1 -> Console.Task.fail task
         | 2 ->
             Eio.Promise.resolve announce ();
             Eio.Fiber.await_cancel ()
@@ -387,15 +387,16 @@ let capture_lifecycles k count =
   let ppf = Format.formatter_of_buffer out in
   let expected = ref [] in
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
-      Console.Display.with_task d "parent 界" (fun _ ->
+      Console.Task.run d "parent 界" (fun parent ->
           Eio.Fiber.List.iter
             (fun i ->
-              let ending = lifecycle_worker k d i in
+              let ending = lifecycle_worker k parent i in
               expected := ending :: !expected)
             (List.init count Fun.id));
-      ignore (Console.Display.task d "left running" : Console.Display.task);
-      Console.Display.log (Console.Display.root d) "root line";
-      Console.Display.set_result ~detail:"detail" d (Error "result"));
+      ignore (Console.Task.start d "left running" : Console.Task.t);
+      Console.Task.log d "root line";
+      Console.Task.log d "detail";
+      Console.Task.fail ~message:"result" d);
   Format.pp_print_flush ppf ();
   (events (Buffer.contents out), !expected)
 
@@ -486,11 +487,13 @@ let test_json_lifecycle k =
          | `End (Some (_, [ "left running" ]), s, _, _) -> Some s | _ -> None)
        records
     = Some `Cancelled);
+  check
+    (List.exists
+       (function `Output (None, "detail", _) -> true | _ -> false)
+       records);
   match List.rev records with
-  | `End (None, `Failed, _, Some "result") :: `Output (None, "detail", _) :: _
-    ->
-      ()
-  | _ -> fail "the work does not end failed, after its detail"
+  | `End (None, `Failed, _, Some "result") :: _ -> ()
+  | _ -> fail "the work does not end failed, last"
 
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
@@ -542,12 +545,12 @@ let test_forced_tty_screen k label =
           Console_eio.run ~clock ~ppf ~progress:`Tty (fun d ->
               check (not (Console_vte.cursor_visible screen));
               for i = 0 to k mod 32 do
-                let task = Console.Display.task d (string_of_int i ^ label) in
-                Console.Display.set_count task ~cur:1 ~total:2
+                let task = Console.Task.start d (string_of_int i ^ label) in
+                Console.Task.set_items task ~count:1 ~total:2
               done;
-              Console.Display.redraw d;
+              Console_eio.with_output ignore;
               let before = Buffer.length written in
-              Console.Display.redraw d;
+              Eio.Fiber.yield ();
               check_eq ~pp:Fmt.int before (Buffer.length written);
               if raises then failwith "body failed");
           false
@@ -591,7 +594,7 @@ let test_quiet_unended_success size flush =
   let text = String.make (1 + (size mod 64)) 'x' in
   let out =
     capture_stdout `Quiet (fun d ->
-        Console.Display.with_task d "success" (fun _ ->
+        Console.Task.run d "success" (fun _ ->
             Fmt.pr "%s" text;
             if flush then Format.pp_print_flush Fmt.stdout ();
             Eio.Fiber.yield ()))
@@ -610,7 +613,7 @@ let test_json_partial_attribution size newline =
     capture_stdout `Json (fun d ->
         Eio.Fiber.List.iter
           (fun i ->
-            Console.Display.with_task d (string_of_int i) (fun _ ->
+            Console.Task.run d (string_of_int i) (fun _ ->
                 Fmt.pr "%s%!" (prefix i);
                 Eio.Fiber.yield ();
                 Fmt.pr "done";
@@ -655,7 +658,7 @@ let test_json_long_line size split =
   let cut = min length (split * 257) in
   let out =
     capture_stdout `Json (fun d ->
-        Console.Display.with_task d "large" (fun _ ->
+        Console.Task.run d "large" (fun _ ->
             Fmt.pr "%s%!" (String.sub text 0 cut);
             Fmt.pr "%s@." (String.sub text cut (length - cut))))
   in
@@ -688,7 +691,7 @@ let capture_progress_formatter ~theme ~use_str run =
       Format.pp_print_flush ppf ();
       if use_str then Format.flush_str_formatter () else Buffer.contents buf)
 
-(* With output the program does not print itself, Display.v and run show
+(* With output the program does not print itself, Progress.show and run show
    each progress mode alike, on Format.str_formatter too and in every
    theme. *)
 let test_direct_progress_parity k label use_str =
@@ -697,16 +700,17 @@ let test_direct_progress_parity k label use_str =
     List.nth Console.Theme.all (k mod List.length Console.Theme.all)
   in
   let program d =
-    Console.Display.with_task d label (fun parent ->
+    Console.Task.run d label (fun parent ->
         let child =
-          Console.Display.task ~parent ~transient:(k land 1 = 0) d "child"
+          Console.Task.start ~transient:(k land 1 = 0) parent "child"
         in
-        Console.Display.set_bytes child ~cur:3L ~total:5L;
-        Console.Display.log child "child output";
-        Console.Display.cancel child;
-        Console.Display.set_count parent ~cur:1 ~total:1);
-    Console.Display.log (Console.Display.root d) "root output";
-    Console.Display.set_result ~detail:"detail" d (Ok "done")
+        Console.Task.set_bytes child ~count:3L ~total:5L;
+        Console.Task.log child "child output";
+        Console.Task.cancel child;
+        Console.Task.set_items parent ~count:1 ~total:1);
+    Console.Task.log d "root output";
+    Console.Task.log d "detail";
+    Console.Task.succeed ~message:"done" d
   in
   with_dimensions 80 24 (fun () ->
       List.iter
@@ -717,22 +721,19 @@ let test_direct_progress_parity k label use_str =
                   if progress = `Auto || k land 2 = 0 then None
                   else Some (fun () -> (80, 24))
                 in
-                let d =
-                  Console.Display.v ?size ~progress ~summary:"header"
-                    ~now:(fun () -> 0.)
-                    ppf
+                let root =
+                  Console.Task.root ~label:"header" ~now:(fun () -> 0.) ()
                 in
-                program d;
-                Console.Display.redraw d;
+                let d = Console.Progress.show ?size ~progress ppf root in
+                program root;
                 Console.Display.close d)
           in
           let driven =
             capture_progress_formatter ~theme ~use_str (fun ppf ->
                 Eio_mock.Backend.run (fun () ->
-                    Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ())
-                      ~ppf ~progress ~summary:"header" (fun d ->
-                        program d;
-                        Console.Display.redraw d)))
+                    Console_eio.run
+                      ~clock:(Eio_mock.Clock.Mono.make ())
+                      ~ppf ~progress ~label:"header" program))
           in
           check_eq ~pp:Fmt.Dump.string direct driven)
         Console.Progress.all)
@@ -788,7 +789,7 @@ let test_deterministic_concurrency a b =
     let entered = ref 0 in
     Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
         let work label delay =
-          Console.Display.with_task d label (fun _ ->
+          Console.Task.run d label (fun _ ->
               incr entered;
               if !entered = 2 then Eio.Promise.resolve wake ();
               Eio.Time.Mono.sleep clock delay)
@@ -807,10 +808,10 @@ let test_deterministic_concurrency a b =
       String.split_on_char '\n' output
       |> List.filter (( <> ) "")
       |> List.filter_map (fun line ->
-          match Console.Progress.Event.of_string line with
-          | Ok e when Console.Progress.Event.kind e = `End -> (
-              match Console.Progress.Event.task e with
-              | Some (_, path) -> Some (path, Console.Progress.Event.elapsed e)
+          match Console.Task.Event.of_string line with
+          | Ok e when Console.Task.Event.kind e = `End -> (
+              match Console.Task.Event.task e with
+              | Some (_, path) -> Some (path, Console.Task.Event.elapsed e)
               | None -> None)
           | Ok _ -> None
           | Error (`Msg m) -> fail m)

@@ -10,37 +10,37 @@
    the layer fails, so does the step, which a task under it does not fail
    on its own, and the program exits with 1. *)
 
-let build ~fail clock display =
-  let step = Console.Display.task ~log_lines:4 display "RUN make" in
-  let layer = Console.Display.task ~parent:step display "sha256:abcd..." in
+let build ~fail clock root =
+  let step = Console.Task.start ~log_lines:4 root "RUN make" in
+  let layer = Console.Task.start step "sha256:abcd..." in
   for i = 0 to 5 do
-    Console.Display.set_count step ~cur:i ~total:5;
-    Fmt.kstr (Console.Display.log step) "  CC src/file%d.c" i;
+    Console.Task.set_items step ~count:i ~total:5;
+    Fmt.kstr (Console.Task.log step) "  CC src/file%d.c" i;
     Eio.Time.Mono.sleep clock 0.2
   done;
   let total = 2147483648L in
   for i = 0 to 8 do
-    Console.Display.set_bytes layer
-      ~cur:(Int64.mul (Int64.of_int i) 268435456L)
+    Console.Task.set_bytes layer
+      ~count:(Int64.mul (Int64.of_int i) 268435456L)
       ~total;
     Eio.Time.Mono.sleep clock 0.2
   done;
   if fail then begin
-    Console.Display.log layer "checksum mismatch";
-    Console.Display.fail layer;
-    Console.Display.fail step
+    Console.Task.log layer "checksum mismatch";
+    Console.Task.fail layer;
+    Console.Task.fail step
   end
   else begin
-    Console.Display.succeed layer;
-    Console.Display.succeed step
+    Console.Task.succeed layer;
+    Console.Task.succeed step
   end;
   not fail
 
 let main progress fail =
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  if Console_eio.run ~clock ~progress ~summary:"Building" (build ~fail clock)
-  then 0
+  if Console_eio.run ~clock ~progress ~label:"Building" (build ~fail clock) then
+    0
   else 1
 
 let progress =

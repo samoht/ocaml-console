@@ -57,8 +57,8 @@ let with_fds ~stdout ~stderr ~term f =
 let draw_a_task () =
   let clock = Eio_mock.Clock.Mono.make () in
   Console_eio.run ~clock ~ppf:Fmt.stderr (fun display ->
-      let task = Console.Display.task display "step" in
-      Console.Display.succeed task)
+      let task = Console.Task.start display "step" in
+      Console.Task.succeed task)
 
 (* A mark no display writes, so a reader of the terminal knows it has read
    everything written before it. *)
@@ -227,7 +227,7 @@ let test_run_styles_a_terminal () =
             Console_tty.setup ();
             let clock = Eio_mock.Clock.Mono.make () in
             Console_eio.run ~clock ~ppf (fun display ->
-                Console.Display.succeed (Console.Display.task display "step"));
+                Console.Task.succeed (Console.Task.start display "step"));
             mark Unix.stderr));
     read_to_mark env pty
   in

@@ -22,6 +22,15 @@ type kind = { live : bool; timed : bool }
 val static : kind
 (** [static] reads neither. *)
 
+val timed : kind
+(** [timed] reads the time alone. *)
+
+val moving : kind
+(** [moving] reads both. *)
+
+val join : kind -> kind -> kind
+(** [join k0 k1] reads what [k0] or [k1] reads. *)
+
 val deferred :
   ?kind:(Look.t -> kind) ->
   ?grow:int ->

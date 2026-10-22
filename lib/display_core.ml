@@ -3,33 +3,363 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-open Display_state
-module Layout = Display_layout
+type t = {
+  ppf : Format.formatter;
+  size : (unit -> int * int) option;
+  depth : Color.depth option;
+  now : unit -> float;
+  start : float;
+  write_error : exn -> bool;
+  mutable width : int;
+  mutable height : int;
+  mutable view : View_core.t;
+  mutable fallback : View_core.t;
+  mutable frame : string array;
+  mutable frame_widths : int array;
+  mutable painted_at : float;
+  mutable changes : int;
+  mutable painted : int * int * int * int;
+  mutable closed : bool;
+  mutable closing : bool;
+  mutable suspended : int;
+  mutable partial : bool;
+  writes : string Queue.t;
+  mutable writing : bool;
+  mutable release : unit -> unit;
+  mutable on_close : unit -> unit;
+  mutable on_output : (string -> unit) option;
+  mutable looks : (Look.t * Look.t) option;
+}
 
-type nonrec t = t
-type task = row
-type nonrec scope = scope
-type nonrec level = level
+let pp ppf t =
+  Fmt.pf ppf "<display %dx%d%s%s>" t.width t.height
+    (if Option.is_some t.size then " live" else "")
+    (if t.closed then " closed" else "")
 
-let scope ~current ~within ~cancelled ~write_error =
-  { current; within; cancelled; write_error }
+let is_live t = Option.is_some t.size
+let since_start { now; start; _ } = now () -. start
+let hide_cursor = "\027[?25l"
+let show_cursor = "\027[?25h"
 
-(* Without a driver, the current task is that of the innermost [with_task]
-   that runs. *)
-let local () =
-  let stack = ref [] in
-  {
-    current = (fun () -> match !stack with r :: _ -> Some r | [] -> None);
-    within =
-      (fun r f ->
-        let saved = !stack in
-        stack := r :: saved;
-        Fun.protect f ~finally:(fun () -> stack := saved));
-    cancelled = (fun _ -> false);
-    write_error = (fun _ -> false);
-  }
+(* From any column: [width] spaces from the first column fill the row and
+   leave the cursor on it, from any other they wrap onto the next row; the
+   carriage return then goes to the first column. *)
+let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
-let pp = Display_state.pp
+(* {1 Writing}
+
+   Everything the display writes goes out in one piece per operation, on a
+   terminal as one synchronized update (mode 2026), so that a terminal never
+   shows a region half erased or half drawn. A write error (a closed pipe)
+   is the end of the output, not of the program. *)
+
+let synchronized t s =
+  if is_live t then "\027[?2026h" ^ s ^ "\027[?2026l" else s
+
+(* Without a terminal, standard output may share the display's pipe: what
+   the program printed there goes out first. An error there is the
+   program's, which its own writes meet once console stops flushing. *)
+let stdout_failed = Atomic.make false
+let write_error t = function Sys_error _ -> true | e -> t.write_error e
+
+let flush_stdout t =
+  if (not (is_live t)) && t.ppf != Fmt.stdout && not (Atomic.get stdout_failed)
+  then
+    try Format.pp_print_flush Fmt.stdout ()
+    with Sys_error _ -> Atomic.set stdout_failed true
+
+let write_now t s =
+  try
+    let s =
+      if is_live t then synchronized t s else if t.partial then "\n" ^ s else s
+    in
+    let out = Format.pp_get_formatter_out_functions t.ppf () in
+    out.out_string s 0 (String.length s);
+    out.out_flush ()
+  with e when write_error t e -> ()
+
+(* The output functions of [ppf] may yield to another fiber (an Eio flow)
+   in the middle of a write: what is written meanwhile waits in [writes],
+   and the write under way writes it out in turn, so that writes never mix.
+   A write cut short (a cancelled fiber) leaves the rest to the next. *)
+let write t s =
+  if s <> "" then begin
+    (try
+       flush_stdout t;
+       Format.pp_print_flush t.ppf ()
+     with e when write_error t e -> ());
+    Queue.add s t.writes
+  end;
+  if not t.writing then begin
+    t.writing <- true;
+    Fun.protect
+      ~finally:(fun () -> t.writing <- false)
+      (fun () ->
+        while not (Queue.is_empty t.writes) do
+          write_now t (Queue.pop t.writes)
+        done)
+  end
+
+(* On a terminal the carriage return is written, not left to the tty: with
+   output processing off a line feed keeps the column. *)
+let eol t = if is_live t then "\r\n" else "\n"
+
+(* {1 The look} *)
+
+(* A frame that moves moves only in colour: without it, rain would still
+   change its glyphs. *)
+(* The look of the formatter, still and live, kept while its theme and its
+   UTF-8 stay. *)
+let look ?(live = false) t =
+  let theme = Theme.get t.ppf and utf_8 = Fmt.utf_8 t.ppf in
+  let still, moving =
+    match t.looks with
+    | Some ((l, _) as looks) when l.Look.theme == theme && l.utf_8 = utf_8 ->
+        looks
+    | old ->
+        let still = { Look.theme; utf_8; live = false } in
+        let looks = (still, { still with live = Option.is_some t.depth }) in
+        (* A new theme is a change the frame shows. *)
+        if Option.is_some old then t.changes <- t.changes + 1;
+        t.looks <- Some looks;
+        looks
+  in
+  if live then moving else still
+
+let render_in look t line = View_core.render ~look ?depth:t.depth line
+let render t line = render_in (look t) t line
+
+(* {1 The frame} *)
+
+(* One row stays free for the cursor: a region as tall as the screen would
+   scroll its first line out of reach of the cursor moves that erase it. *)
+let capacity t = max 0 (t.height - 1)
+
+(* The last [height] lines of [lines], those of a block cut in its height
+   dropped with the rest of it, so that no fragment of a table's or a
+   panel's frame shows. *)
+let last height lines =
+  let extra = List.length lines - height in
+  if extra <= 0 then List.map snd lines
+  else
+    let rec past_block = function
+      | (true, _) :: rest -> past_block rest
+      | rest -> rest
+    in
+    List.map snd (past_block (List.drop extra lines))
+
+(* The lines of [view] laid out in [c], the last [height] of them if given,
+   each drawn in [look] and cut to the terminal's width if there is one. *)
+let lines t ~look ?height c view =
+  let lines =
+    match View_core.resolve c view with
+    | v when View_core.is_empty v -> []
+    | v -> (
+        let seamed = View_core.seamed (View_core.paint look v) in
+        match height with
+        | Some h -> last h seamed
+        | None -> List.map snd seamed)
+  in
+  if is_live t then
+    List.map
+      (fun l ->
+        let w = View_core.width l in
+        if w > t.width then
+          let l = Widget.truncate look t.width l in
+          (l, View_core.width l)
+        else (l, w))
+      lines
+  else List.map (fun l -> (l, 0)) lines
+
+let frame t =
+  match capacity t with
+  | 0 -> []
+  | height ->
+      let look = look ~live:true t in
+      let c = Ctx.v ~width:t.width ~height ~time:(since_start t) look in
+      lines t ~look ~height c t.view
+
+(* A view that raises is dropped: what was to be written is written with
+   the fallback view, then the exception is raised again. *)
+let framed t k =
+  match frame t with
+  | spans -> k spans
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      t.view <- t.fallback;
+      k (try frame t with _ -> []);
+      Printexc.raise_with_backtrace e bt
+
+(* What is printed once is still and as tall as it is: as wide as the
+   terminal, or whole without one. *)
+let once t =
+  let look = look t in
+  (look, Ctx.v ?width:(if is_live t then Some t.width else None) look)
+
+(* A view that raises in the last frame gives way to the fallback. *)
+let final t =
+  let look, c = once t in
+  List.map fst
+    (match lines t ~look c t.view with
+    | lines -> lines
+    | exception _ -> ( try lines t ~look c t.fallback with _ -> []))
+
+(* {1 Drawing} *)
+
+let add_up buf n =
+  if n > 0 then begin
+    Buffer.add_string buf "\027[";
+    Buffer.add_string buf (string_of_int n);
+    Buffer.add_char buf 'A'
+  end
+
+(* The rows the frame on screen takes at [width]: a terminal that reflows
+   its lines when it narrows has wrapped each old line onto more rows. *)
+let rows_on_screen t =
+  Array.fold_left
+    (fun acc w -> acc + max 1 ((w + t.width - 1) / max 1 t.width))
+    0 t.frame_widths
+
+(* From the end of the region's last line, to the start of its first, and
+   everything below erased. *)
+let clear buf t =
+  let rows = rows_on_screen t in
+  if rows > 0 then begin
+    Buffer.add_char buf '\r';
+    add_up buf (rows - 1);
+    Buffer.add_string buf "\027[J"
+  end;
+  t.frame <- [||];
+  t.frame_widths <- [||]
+
+(* No screen is this wide or tall, and the display writes a row of its
+   width when it starts: a larger size is taken as this one. *)
+let max_size = 4096
+let bounded n = min max_size (max 1 n)
+
+let refresh_size t =
+  match t.size with
+  | None -> false
+  | Some size ->
+      let w, h = size () in
+      let w = bounded w and h = bounded h in
+      let changed = w <> t.width || h <> t.height in
+      t.width <- w;
+      t.height <- h;
+      changed
+
+(* No line end after the last line: on the bottom row of the screen it would
+   scroll the region up on every redraw. A line is erased before it is
+   written, at the first column, where erasing to the end of the line cannot
+   take the last cell of a full line. *)
+let draw buf t ~resized spans =
+  let look = look t in
+  let lines =
+    Array.of_list (List.map (fun (l, _) -> render_in look t l) spans)
+  in
+  if lines <> t.frame || resized then begin
+    let n = Array.length lines in
+    if (not resized) && n > 0 && n = Array.length t.frame then begin
+      Buffer.add_char buf '\r';
+      add_up buf (n - 1);
+      Array.iteri
+        (fun i line ->
+          if not (String.equal line t.frame.(i)) then begin
+            Buffer.add_string buf "\027[K";
+            Buffer.add_string buf line
+          end;
+          if i < n - 1 then Buffer.add_string buf "\r\n")
+        lines
+    end
+    else begin
+      (* The region drawn afresh starts where the cursor is, which output
+         the display did not see may have left anywhere. *)
+      clear buf t;
+      Array.iteri
+        (fun i line ->
+          Buffer.add_string buf (if i > 0 then "\r\n\027[K" else "\r\027[K");
+          Buffer.add_string buf line)
+        lines
+    end;
+    t.frame <- lines;
+    t.frame_widths <- Array.of_list (List.map snd spans)
+  end
+
+(* What a frame depends on: the changes it was told of, the half tenth of a
+   second when the view reads the time (a spinner turns at each tenth, a
+   time rounded to the tenth at each half), and the terminal's size. A
+   redraw with all of them as they were draws nothing and computes
+   nothing. *)
+let stamp t =
+  let look = look ~live:true t in
+  let timed = (View_core.kind t.view look).timed in
+  ( t.changes,
+    (if timed then int_of_float (since_start t *. 20.) else 0),
+    t.width,
+    t.height )
+
+let paint t =
+  if is_live t && (not t.closed) && t.suspended = 0 then begin
+    let resized = refresh_size t in
+    let stamp = stamp t in
+    if resized || stamp <> t.painted || t.frame = [||] then begin
+      t.painted <- stamp;
+      t.painted_at <- t.now ();
+      (* A narrower terminal has reflowed the old frame: it is cleared with
+         the old frame's rows counted at the new width. *)
+      framed t (fun spans ->
+          let buf = Buffer.create 256 in
+          if resized then clear buf t;
+          draw buf t ~resized spans;
+          write t (Buffer.contents buf))
+    end
+  end
+
+(* A producer that reports often repaints at the eye's pace. *)
+let paint_if_stale t = if t.now () -. t.painted_at >= 0.1 then paint t
+
+let touch t =
+  t.changes <- t.changes + 1;
+  if is_live t then paint_if_stale t
+
+(* Lines printed once, above the region, which is drawn again below them in
+   the same write, or in turn without one. *)
+let commit t lines =
+  t.changes <- t.changes + 1;
+  let look = look t in
+  if is_live t then begin
+    ignore (refresh_size t);
+    let commit spans =
+      let buf = Buffer.create 256 in
+      clear buf t;
+      List.iter
+        (fun line ->
+          Buffer.add_string buf (render_in look t line);
+          Buffer.add_string buf "\r\n")
+        lines;
+      Option.iter
+        (fun spans ->
+          t.painted_at <- t.now ();
+          t.painted <- stamp t;
+          draw buf t ~resized:false spans)
+        spans;
+      write t (Buffer.contents buf)
+    in
+    if t.suspended = 0 && not t.closed then
+      framed t (fun spans -> commit (Some spans))
+    else commit None
+  end
+  else
+    write t
+      (String.concat ""
+         (List.map (fun line -> render_in look t line ^ "\n") lines))
+
+let erase t =
+  let buf = Buffer.create 32 in
+  clear buf t;
+  write t (Buffer.contents buf)
+
+(* {1 Displays} *)
 
 (* [tapped out note] is [out] calling [note] with the last byte of each
    write, a space for blanks. *)
@@ -76,49 +406,9 @@ let watch_lines t =
       if now.out_string == ours.out_string then
         Format.pp_set_formatter_out_functions t.ppf out)
 
-(* The size in which a display redraws its rows, if it does, and the lines
-   it prints otherwise. *)
-let shape ?size = function
-  | `Auto -> (size, Plain)
-  | `Tty -> (Some (Option.value size ~default:(fun () -> (80, 24))), Plain)
-  | `Plain -> (None, Plain)
-  | `Quiet -> (None, Quiet)
-  | `Json -> (None, Json)
+let watch t out = tapped out (note_line t)
 
-let row t ~id ?key ?parent ~log_lines ~transient label =
-  let now = t.now () in
-  {
-    id;
-    key;
-    disp = t;
-    parent;
-    log_lines;
-    window = Queue.create ();
-    output = Queue.create ();
-    output_bytes = 0;
-    dropped = 0;
-    log_prev = now;
-    label = Display_text.label label;
-    metric = Spin;
-    transient;
-    started_at = now;
-    ended_at = None;
-    message = None;
-    outcome = None;
-    children = [];
-    child_limit = 16;
-    gone = false;
-    held = 0;
-    weight = 0;
-    shed = 0;
-    last_cur = 0L;
-    last_t = now;
-    rate = 0.;
-  }
-
-let v ?(layout = Layout.default) ?summary ?view ?(keep_ended = false) ?size
-    ?(progress = `Auto) ?scope ~now ppf =
-  let size, form = shape ?size progress in
+let v ?size ?(write_error = fun _ -> false) ~now ppf view =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -128,28 +418,14 @@ let v ?(layout = Layout.default) ?summary ?view ?(keep_ended = false) ?size
     {
       ppf;
       size;
-      form;
       depth;
       now;
-      summary = Option.map Display_text.clean summary;
-      layout;
-      keep_ended;
       start = now ();
+      write_error;
       width = 80;
       height = 24;
-      running = Queue.create ();
-      stale = 0;
-      count_cell = 0;
-      rate_cell = 0;
-      by_key = Hashtbl.create 16;
-      next_id = 0;
-      next_line = 0;
-      started = 0;
-      finished = 0;
-      failed = 0;
-      cancelled = 0;
-      result = None;
       view;
+      fallback = View_core.empty;
       frame = [||];
       frame_widths = [||];
       painted_at = neg_infinity;
@@ -162,41 +438,51 @@ let v ?(layout = Layout.default) ?summary ?view ?(keep_ended = false) ?size
       writes = Queue.create ();
       writing = false;
       release = ignore;
-      ending = ignore;
-      root = None;
-      scope = (match scope with Some s -> s | None -> local ());
+      on_close = ignore;
+      on_output = None;
+      looks = None;
     }
   in
-  t.root <- Some (row t ~id:(-1) ~log_lines:0 ~transient:true "");
-  ignore (Display_region.refresh_size t);
+  ignore (refresh_size t);
   if is_live t then begin
-    Display_region.write t
-      (Display_region.hide_cursor ^ Display_region.fresh_row t);
-    Display_region.paint t
+    write t (hide_cursor ^ fresh_row t);
+    paint t
   end
   else watch_lines t;
   t
 
-(* What a driver sends on to [t]'s output past [t.ppf] is watched too. *)
-let watch t out = tapped out (note_line t)
-let redraw t = Display_region.paint t
+let redraw t = paint t
 
-let touch t =
-  t.changes <- t.changes + 1;
-  if is_live t then Display_region.paint_if_stale t
+let set_view t view =
+  if not t.closed then begin
+    t.view <- view;
+    t.changes <- t.changes + 1;
+    paint t
+  end
+
+(* A view printed once is laid out still, as wide as the terminal or whole
+   without one, at once. *)
+let print t view =
+  if (not t.closed) || t.closing then begin
+    ignore (refresh_size t);
+    let look, c = once t in
+    match lines t ~look c view with
+    | [] -> touch t
+    | lines -> commit t (List.map fst lines)
+  end
 
 let end_line t (out : Format.formatter_out_functions) last =
   try
     Format.pp_print_flush t.ppf ();
     if !last <> '\n' then begin
-      let eol = Display_region.(synchronized t (eol t)) in
+      let eol = synchronized t (eol t) in
       out.out_string eol 0 (String.length eol);
       out.out_flush ()
     end
   with e when write_error t e -> ()
 
-(* What [f] writes is the output of no task, as events. *)
-let events t f =
+(* What [f] writes is taken by [on_output]: the lines of events. *)
+let taken t on_output f =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_utf_8 ppf (Fmt.utf_8 t.ppf);
@@ -205,10 +491,7 @@ let events t f =
     (fun () -> f ppf)
     ~finally:(fun () ->
       Format.pp_print_flush ppf ();
-      List.iter
-        (fun text ->
-          Display_event.output t None { gap = 0.; kind = Output; text; seq = 0 })
-        (Display_text.lines (Console_text.strip (Buffer.contents buf))))
+      on_output (Buffer.contents buf))
 
 (* What [f] writes is watched for its last byte: output that does not end
    its line is ended, so the region starts on a line of its own. *)
@@ -227,465 +510,48 @@ let with_output t f =
         Format.pp_set_margin t.ppf margin)
   in
   if t.closed then f t.ppf
-  else if Display_event.is_json t then events t f
-  else if (not (is_live t)) || t.suspended > 0 then call ()
-  else begin
-    ignore (Display_region.refresh_size t);
-    Display_region.erase t;
-    t.suspended <- t.suspended + 1;
-    Fun.protect call ~finally:(fun () ->
-        t.suspended <- t.suspended - 1;
-        Display_region.paint t)
-  end
-
-let set_view t view =
-  if not t.closed then begin
-    t.view <- Some view;
-    t.changes <- t.changes + 1;
-    Display_region.paint t
-  end
-
-let children = children
-let tree = Display_tree.tree
-let summary = Display_tree.summary
-let default_view = Display_tree.default_view
-
-(* Lines printed once: above the region, or in turn without one. *)
-let print t = function [] -> touch t | lines -> Display_region.commit t lines
-
-(* {1 Tasks} *)
-
-(* The root is current where no other task is. *)
-let scoped t =
-  match t.scope.current () with
-  | Some r when r.disp == t && not (is_root r) -> Some r
-  | _ -> None
-
-let current t =
-  match scoped t with Some r when is_running r -> Some r | _ -> None
-
-(* The lines a task keeps for its failure, the oldest dropped first. *)
-let output_cap = 1_048_576
-
-let keep_output r line =
-  Queue.add line r.output;
-  r.output_bytes <- r.output_bytes + String.length line.text + 1;
-  while r.output_bytes > output_cap do
-    let old = Queue.take r.output in
-    r.output_bytes <- r.output_bytes - String.length old.text - 1;
-    r.dropped <- r.dropped + 1
-  done
-
-(* A window holds the latest lines its task shows. *)
-let push r line =
-  if r.log_lines > 0 then begin
-    Queue.add line r.window;
-    if Queue.length r.window > r.log_lines then ignore (Queue.take r.window)
-  end
-
-(* A running task takes each line in its window and, on a terminal or
-   quiet, keeps it for its failure; otherwise, and for a task that ended, a
-   line is printed at once after its label, or is an event. *)
-let add r kind text =
-  let t = r.disp in
-  let line text =
-    let now = t.now () in
-    let line = { gap = now -. r.log_prev; kind; text; seq = t.next_line } in
-    t.next_line <- t.next_line + 1;
-    r.log_prev <- now;
-    if Display_event.is_json t then begin
-      Display_event.output t (Some r) line;
-      []
-    end
-    else if not (is_running r) then Display_row.labelled r line
-    else begin
-      let kept =
-        let text = Display_text.capped line.text in
-        if text == line.text then line else { line with text }
-      in
-      push r kept;
-      if keeps_output t then begin
-        keep_output r kept;
-        []
-      end
-      else Display_row.labelled r line
-    end
-  in
-  print t (List.concat_map line (Display_text.lines text))
-
-(* A line of the root goes above the region at once, as a message of no
-   task does. *)
-(* Lines of no task: above the region, in turn, or events. *)
-let above t kind text =
-  let lines = Display_text.lines text in
-  if Display_event.is_json t then
-    List.iter
-      (fun text ->
-        Display_event.output t None { gap = 0.; kind; text; seq = 0 })
-      lines
   else
-    let level = match kind with Logs l -> l | Output -> `App in
-    print t (List.concat_map (Display_row.message t level) lines)
-
-let log r text =
-  let t = r.disp in
-  if t.closed then ()
-  else if is_root r then above t Output text
-  else if is_running r then add r Output text
-
-let report t level text =
-  if not t.closed then
-    match scoped t with
-    | Some r -> add r (Logs level) text
-    | None -> above t (Logs level) text
-
-(* The output a task kept, under its line. *)
-let kept r =
-  let all = Queue.fold (fun acc l -> l :: acc) [] r.output in
-  (if r.dropped > 0 then [ Display_row.dropped r r.dropped ] else [])
-  @ List.concat_map (Display_row.under r) (List.rev all)
-
-(* What a task prints when it ends without a terminal: quiet, its line and
-   all its lines if it failed or was cancelled; in turn, its line alone,
-   unless it is transient and succeeded. *)
-let ending r outcome =
-  let t = r.disp in
-  let failed =
-    match outcome with `Succeeded -> false | `Failed | `Cancelled -> true
-  in
-  match t.form with
-  | Json -> []
-  | Quiet -> if failed then Display_row.appended r :: kept r else []
-  | Plain ->
-      if r.transient && not failed then [] else [ Display_row.appended r ]
-
-(* {2 The scrollback}
-
-   On a terminal, a task that ended waits in the region while a task above
-   it runs, or with [keep_ended] until the display closes, and goes to the
-   scrollback with its top task, as its tree. *)
-
-let rec running_above r =
-  match r.parent with
-  | None -> false
-  | Some p -> is_running p || running_above p
-
-let parent_of r = match r.parent with Some p -> p | None -> root r.disp
-
-let adopt p r =
-  p.children <- r :: p.children;
-  p.child_limit <- p.child_limit - 1;
-  if p.child_limit <= 0 then begin
-    (* The children that are gone are forgotten each time the list doubles. *)
-    p.children <- List.filter (fun c -> not c.gone) p.children;
-    p.child_limit <- max 16 (List.length p.children)
-  end
-
-let rec release r =
-  r.gone <- true;
-  List.iter release r.children;
-  r.children <- [];
-  Queue.clear r.output;
-  r.output_bytes <- 0;
-  r.held <- 0
-
-let rec size r =
-  List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
-
-(* The tasks that wait under a task are bounded: past 1 MiB, the oldest
-   are dropped, down to half of it, never the latest. *)
-let held_cap = 1_048_576
-
-let weight r =
-  256 + String.length r.label
-  + Option.fold ~none:0 ~some:String.length r.message
-  + r.output_bytes + r.held
-
-let shed p latest =
-  let keep c =
-    if
-      p.held > held_cap / 2 && c != latest && (not (is_running c)) && not c.gone
-    then begin
-      p.held <- p.held - c.weight;
-      p.shed <- p.shed + size c;
-      release c;
-      false
-    end
-    else true
-  in
-  p.children <- List.rev (List.filter keep (List.rev p.children))
-
-let hold r =
-  let p = parent_of r in
-  r.weight <- weight r;
-  p.held <- p.held + r.weight;
-  if p.held > held_cap then shed p r
-
-(* A top task that ends, unless [keep_ended], goes to the scrollback as its
-   tree. *)
-let moved r =
-  let t = r.disp in
-  if t.keep_ended || running_above r then begin
-    hold r;
-    []
-  end
-  else
-    let lines = Display_tree.scrollback t ~width:(room t) r in
-    release r;
-    lines
-
-(* The tasks under one that ends end first: they succeed with it, and are
-   cancelled when it fails or is cancelled. *)
-let rec finish outcome ?message r =
-  if is_root r || not (is_running r) then []
-  else begin
-    let t = r.disp in
-    t.ending r;
-    let child_outcome =
-      match outcome with
-      | `Succeeded -> `Succeeded
-      | `Failed | `Cancelled -> `Cancelled
-    in
-    let children =
-      List.concat_map (finish child_outcome) (List.rev (running_children r))
-    in
-    Queue.clear r.window;
-    r.ended_at <- Some (t.now ());
-    r.message <- Option.map Display_text.label message;
-    r.outcome <- Some outcome;
-    t.finished <- t.finished + 1;
-    (match outcome with
-    | `Failed -> t.failed <- t.failed + 1
-    | `Cancelled -> t.cancelled <- t.cancelled + 1
-    | `Succeeded -> ());
-    Option.iter (fun k -> Hashtbl.remove t.by_key k) r.key;
-    if Display_event.is_json t then Display_event.ended r;
-    t.stale <- t.stale + 1;
-    compact t;
-    if is_live t then begin
-      (* A success folds its output away. *)
-      if outcome = `Succeeded then begin
-        Queue.clear r.output;
-        r.output_bytes <- 0
-      end;
-      children @ moved r
-    end
-    else begin
-      let lines = ending r outcome in
-      release r;
-      children @ lines
-    end
-  end
-
-let start t r =
-  t.started <- t.started + 1;
-  Queue.add r t.running;
-  Option.iter (fun k -> Hashtbl.replace t.by_key k r) r.key;
-  if is_plain t && not r.transient then print t [ Display_row.started r ];
-  if Display_event.is_json t then Display_event.started r;
-  let p = parent_of r in
-  if not p.gone then adopt p r;
-  if is_running p then touch t
-  else
-    (* A task started under one that ended takes its ending. *)
-    match p.outcome with
-    | Some `Succeeded -> print t (finish `Succeeded r)
-    | _ -> print t (finish `Cancelled r)
-
-(* The task of [key] that runs, or a new task, and whether it is new. *)
-let keyed ?key ?parent ?(log_lines = 8) ?(transient = false) t label =
-  if log_lines < 0 then invalid_arg "Console.Display.task: negative log_lines";
-  (match key with
-  | Some "" -> invalid_arg "Console.Display.task: empty key"
-  | _ -> ());
-  (match parent with
-  | Some p when p.disp != t ->
-      invalid_arg "Console.Display.task: parent belongs to another display"
-  | _ -> ());
-  match Option.bind key (Hashtbl.find_opt t.by_key) with
-  | Some r -> (r, false)
-  | None ->
-      let parent =
-        match parent with
-        | Some p when is_root p -> None
-        | Some _ -> parent
-        | None -> scoped t
-      in
-      let id = t.next_id in
-      t.next_id <- id + 1;
-      let r = row t ~id ?key ?parent ~log_lines ~transient label in
-      if t.closed then begin
-        (* A task of a closed display has already ended, so it ignores all. *)
-        r.ended_at <- Some r.started_at;
-        r.outcome <- Some `Cancelled
-      end
-      else start t r;
-      (r, true)
-
-let task ?key ?parent ?log_lines ?transient t label =
-  fst (keyed ?key ?parent ?log_lines ?transient t label)
-
-let root = root
-
-let within r f =
-  let value = ref None in
-  r.disp.scope.within r (fun () -> value := Some (f ()));
-  Option.get !value
-
-let succeed ?message r = print r.disp (finish `Succeeded ?message r)
-let fail ?message r = print r.disp (finish `Failed ?message r)
-let cancel ?message r = print r.disp (finish `Cancelled ?message r)
-
-(* A task found by its key ends as the call that started it says. *)
-let with_task ?key ?parent ?log_lines ?transient t label f =
-  match keyed ?key ?parent ?log_lines ?transient t label with
-  | r, false -> within r (fun () -> f r)
-  | r, true -> (
-      let value = ref None in
-      match t.scope.within r (fun () -> value := Some (f r)) with
-      | () ->
-          succeed r;
-          Option.get !value
-      | exception e ->
-          let bt = Printexc.get_raw_backtrace () in
-          if t.scope.cancelled e then cancel r
-          else fail ~message:(r.label ^ ": " ^ Printexc.to_string e) r;
-          Printexc.raise_with_backtrace e bt)
-
-let set_label r label =
-  if is_running r && not (is_root r) then begin
-    r.label <- Display_text.label label;
-    if Display_event.is_json r.disp then Display_event.renamed r;
-    touch r.disp
-  end
-
-let same_metric a b =
-  match (a, b) with
-  | Spin, Spin -> true
-  | Count (c, n), Count (c', n') -> c = c' && n = n'
-  | Bytes (c, n), Bytes (c', n') -> Int64.equal c c' && Int64.equal n n'
-  | _ -> false
-
-let set_metric r metric =
-  let changed = not (same_metric r.metric metric) in
-  r.metric <- metric;
-  if changed && Display_event.is_json r.disp then Display_event.progress r;
-  r.disp.count_cell <- max r.disp.count_cell (count_width metric);
-  touch r.disp
-
-let set_count r ~cur ~total =
-  if cur < 0 || total < 0 then
-    invalid_arg "Console.Display.set_count: negative progress";
-  if is_running r && not (is_root r) then
-    match r.metric with
-    | Bytes _ -> invalid_arg "Console.Display.set_count: the task counts bytes"
-    | Spin -> set_metric r (Count (cur, max cur total))
-    | Count (c, n) ->
-        let cur = max c cur in
-        set_metric r (Count (cur, max cur (max n total)))
-
-let iter t label f items =
-  let total = List.length items in
-  with_task t label (fun r ->
-      set_count r ~cur:0 ~total;
-      List.iteri
-        (fun i x ->
-          f x;
-          set_count r ~cur:(i + 1) ~total)
-        items)
-
-let set_bytes r ~cur ~total =
-  if cur < 0L || total < 0L then
-    invalid_arg "Console.Display.set_bytes: negative progress";
-  if is_running r && not (is_root r) then begin
-    let cur, total =
-      match r.metric with
-      | Count _ ->
-          invalid_arg "Console.Display.set_bytes: the task counts items"
-      | Spin -> (cur, Int64.max cur total)
-      | Bytes (c, n) ->
-          let cur = Int64.max c cur in
-          (cur, Int64.max cur (Int64.max n total))
-    in
-    let now = r.disp.now () in
-    let dt = now -. r.last_t in
-    if dt > 0. then begin
-      let inst =
-        Float.max 0. (Int64.to_float (Int64.sub cur r.last_cur) /. dt)
-      in
-      r.rate <-
-        (if r.rate <= 0. then inst else (0.3 *. inst) +. (0.7 *. r.rate));
-      r.last_cur <- cur;
-      r.last_t <- now
-    end;
-    (match rate_text (Bytes (cur, total)) r.rate with
-    | "" -> ()
-    | rate ->
-        r.disp.rate_cell <-
-          max r.disp.rate_cell
-            (max (String.length "1023.99 MiB/s") (String.length rate)));
-    set_metric r (Bytes (cur, total))
-  end
-
-(* On a terminal, each top task ends with the tasks under it, in the order
-   they started, so that the scrollback reads in that order. *)
-let finish_running outcome ?message t =
-  let rows =
-    if is_live t then List.filter is_running (children (root t))
-    else List.rev (running_rows t)
-  in
-  List.iter (fun r -> print t (finish outcome ?message r)) rows
-
-let set_result ?detail t result =
-  if (not t.closed) && Option.is_none t.result then begin
-    (match result with
-    | Ok _ -> finish_running `Succeeded t
-    | Error _ -> finish_running `Cancelled t);
-    let result =
-      Result.map Display_text.clean result
-      |> Result.map_error Display_text.clean
-    in
-    let detail =
-      match detail with None -> [] | Some d -> Display_text.lines d
-    in
-    t.result <- Some (result, detail);
-    touch t
-  end
-
-(* {1 Closing} *)
+    match t.on_output with
+    | Some on_output -> taken t on_output f
+    | None ->
+        if (not (is_live t)) || t.suspended > 0 then call ()
+        else begin
+          ignore (refresh_size t);
+          erase t;
+          t.suspended <- t.suspended + 1;
+          Fun.protect call ~finally:(fun () ->
+              t.suspended <- t.suspended - 1;
+              paint t)
+        end
 
 let close t =
   if not t.closed then begin
-    (* Closed first, so that the tasks it ends draw no region. *)
+    (* Closed first, so that what the hook ends draws no region. *)
     t.closed <- true;
-    finish_running `Cancelled t;
-    let final =
-      match t.form with
-      | Plain ->
-          ignore (Display_region.refresh_size t);
-          Display_region.final t
-      | Quiet | Json -> []
+    t.closing <- true;
+    Fun.protect t.on_close ~finally:(fun () -> t.closing <- false);
+    ignore (refresh_size t);
+    let out =
+      String.concat "" (List.map (fun l -> render t l ^ eol t) (final t))
     in
-    let lines =
-      match t.result with
-      | None -> final
-      | Some (r, d) -> final @ Display_row.detail t d @ Display_row.verdict t r
-    in
-    t.view <- None;
-    List.iter release (root t).children;
-    (root t).children <- [];
-    let render l = Display_region.render t l ^ Display_region.eol t in
-    let out = String.concat "" (List.map render lines) in
     if is_live t then begin
       let buf = Buffer.create 256 in
-      Display_region.clear buf t;
-      Buffer.add_string buf Display_region.show_cursor;
+      clear buf t;
+      Buffer.add_string buf show_cursor;
       Buffer.add_string buf out;
-      Display_region.write t (Buffer.contents buf)
+      write t (Buffer.contents buf)
     end
     else begin
-      if Display_event.is_json t then Display_event.result t
-      else Display_region.write t out;
+      write t out;
       t.release ()
     end
   end
+
+let print_lines t lines =
+  if ((not t.closed) || t.closing) && lines <> [] then commit t lines
+
+let closed t = t.closed
+let width t = t.width
+let set_fallback t v = t.fallback <- v
+let on_close t f = t.on_close <- f
+let on_output t f = t.on_output <- Some f

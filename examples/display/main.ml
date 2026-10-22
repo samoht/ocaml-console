@@ -46,54 +46,55 @@ let started name =
 
 (* What a step's commands print shows under its row while it runs, and goes
    when it succeeds. *)
-let fetch clock display =
+let fetch clock root =
   let finished = started "fetch" in
-  Display.with_task ~log_lines:2 display "fetch dependencies" @@ fun t ->
+  Task.run ~log_lines:2 root "fetch dependencies" @@ fun t ->
   let total = Int64.mul 48L 1048576L in
   for i = 0 to 12 do
-    Display.set_bytes t
-      ~cur:(Int64.div (Int64.mul total (Int64.of_int i)) 12L)
+    Task.set_bytes t
+      ~count:(Int64.div (Int64.mul total (Int64.of_int i)) 12L)
       ~total;
-    if i mod 4 = 0 then Fmt.kstr (Display.log t) "GET pkg-%d.tar.gz" i;
+    if i mod 4 = 0 then Fmt.kstr (Task.log t) "GET pkg-%d.tar.gz" i;
     Eio.Time.Mono.sleep clock 0.15
   done;
   finished "13 packages, 48 MiB"
 
-let compile clock display =
+let compile clock root =
   let finished = started "compile" in
   let files = [| "lexer.ml"; "parser.ml"; "types.ml"; "eval.ml"; "main.ml" |] in
-  Display.with_task ~log_lines:3 display "compile" (fun t ->
+  Task.run ~log_lines:3 root "compile" (fun t ->
       Array.iteri
         (fun i f ->
-          Display.set_count t ~cur:i ~total:(Array.length files);
-          Fmt.kstr (Display.log t) "ocamlopt %s" f;
+          Task.set_items t ~count:i ~total:(Array.length files);
+          Fmt.kstr (Task.log t) "ocamlopt %s" f;
           Eio.Time.Mono.sleep clock 0.35)
         files;
-      Display.set_count t ~cur:(Array.length files) ~total:(Array.length files));
+      Task.set_items t ~count:(Array.length files) ~total:(Array.length files));
   (* Logged outside the task, the warning outlives its success. *)
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
   finished "5 files, 1 warning"
 
-let test clock display =
+let test clock root =
   let finished = started "test" in
-  Display.with_task display "test" @@ fun _ ->
-  let unit = Display.task display "unit" in
-  let fuzz = Display.task display "properties" in
+  Task.run root "test" @@ fun t ->
+  let unit = Task.start t "unit" in
+  let fuzz = Task.start t "properties" in
   for i = 0 to 10 do
-    Display.set_count unit ~cur:(i * 12) ~total:120;
-    Display.set_count fuzz ~cur:i ~total:10;
+    Task.set_items unit ~count:(i * 12) ~total:120;
+    Task.set_items fuzz ~count:i ~total:10;
     Eio.Time.Mono.sleep clock 0.2
   done;
   finished "130 passed"
 
 (* The title and the table above the rows and the summary; they give way
-   first when the rows need the room. *)
-let view display ~width ~height =
+   first when the rows need the room. The table shows the steps as they are
+   at each frame. *)
+let view root =
   View.vcat
     [
       title;
-      View.sized ~width:(min width 100) (table ());
-      Display.default_view display ~width ~height;
+      View.sized ~width:100 (View.fit (fun _ -> table ()));
+      Progress.view root;
     ]
 
 let () =
@@ -108,9 +109,7 @@ let () =
   Console_tty.setup ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~summary:"Building" ~view (fun display ->
-      Eio.Fiber.both
-        (fun () -> fetch clock display)
-        (fun () -> compile clock display);
-      test clock display;
-      Display.set_result display (Ok "build complete"))
+  Console_eio.run ~clock ~label:"Building" ~view (fun root ->
+      Eio.Fiber.both (fun () -> fetch clock root) (fun () -> compile clock root);
+      test clock root;
+      Task.succeed ~message:"build complete" root)

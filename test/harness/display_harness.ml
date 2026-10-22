@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Console
-module Driver = Display_driver
+module Driver = Task_driver
 
 let at ?(theme = Theme.default) ?(utf_8 = true) ?(live = true) ?width ~time v =
   let look = { Look.theme; utf_8; live } in
@@ -28,27 +28,38 @@ let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
-let plain ?summary ?layout ?theme f =
+(* The work ends as under [Console_eio.run]: it succeeds once [f] returns,
+   unless [f] ended it, and the display then closes. *)
+let finish root d =
+  Task.succeed root;
+  Display.close d
+
+let plain ?label ?layout ?theme ?(progress = `Plain) ?view ?keep_ended f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let d = Display.v ?summary ?layout ~now ppf in
-  let v = f d advance in
-  Display.close d;
+  let root = Task.root ?label ~now () in
+  let view = Option.map (fun f -> f root) view in
+  let d = Progress.show ~progress ?layout ?view ?keep_ended ppf root in
+  let v = f root advance in
+  finish root d;
   Format.pp_print_flush ppf ();
   (v, Buffer.contents buffer)
 
 type term = {
   vte : Console_vte.t;
+  root : Task.t;
   display : Display.t;
   advance : float -> unit;
   size : (int * int) ref;
   chunks : string list ref;
 }
 
-let terminal ?(width = 40) ?(height = 8) ?summary ?layout ?theme
-    ?(styled = false) ?(raw = false) ?(before = "") () =
+let close t = finish t.root t.display
+
+let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
+    ?(raw = false) ?(before = "") ?view ?keep_ended ?commit () =
   let buffer = Buffer.create 512 in
   let vte = Console_vte.v ~raw ~rows:height ~cols:width () in
   let chunks = ref [] and size = ref (width, height) in
@@ -69,8 +80,14 @@ let terminal ?(width = 40) ?(height = 8) ?summary ?layout ?theme
   end;
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let display = Display.v ?summary ?layout ~size:(fun () -> !size) ~now ppf in
-  { vte; display; advance; size; chunks }
+  let root = Task.root ?label ~now () in
+  let view = Option.map (fun f -> f root) view in
+  let display =
+    Progress.show ?layout ?view ?keep_ended ?commit
+      ~size:(fun () -> !size)
+      ppf root
+  in
+  { vte; root; display; advance; size; chunks }
 
 let written t = String.concat "" (List.rev !(t.chunks))
 

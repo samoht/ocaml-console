@@ -107,22 +107,23 @@
 
     {2:progress Progress}
 
-    A program calls [Console_eio.run] once and passes the display it gets to the
-    code that does the work:
+    A program reports its work as {!Task}s under a root, and calls
+    [Console_eio.run] once to show them, which passes the root to the code that
+    does the work:
 
     {[
     open Console
 
-    let build_step display =
-      Display.with_task display "compile" (fun step ->
-          Display.set_count step ~cur:1 ~total:2;
-          Display.log step "ocamlopt parser.ml";
-          Display.set_count step ~cur:2 ~total:2)
+    let build_step root =
+      Task.run root "compile" (fun step ->
+          Task.set_items step ~count:1 ~total:2;
+          Task.log step "ocamlopt parser.ml";
+          Task.set_items step ~count:2 ~total:2)
     ]}
 
-    [Console_eio.run ~clock ~summary:"Building" build_step] runs it, with
-    [clock] as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run]
-    itself, since a run inside another one gets the same display. *)
+    [Console_eio.run ~clock ~label:"Building" build_step] runs it, with [clock]
+    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself,
+    since a run inside another one gets the task current where it is called. *)
 
 (** {1:modules Modules} *)
 
@@ -165,8 +166,11 @@ module Tree = Tree
 module Rule = Rule
 (** Horizontal lines with an optional label. *)
 
+module Task = Task
+(** The work a program reports: tasks under a root, with no drawing. *)
+
 module Display = Display
-(** Progress rows that are redrawn in place while work runs. *)
+(** A view redrawn in place: the live region. *)
 
 module Progress = Progress
-(** How a display shows progress: rows, lines, only failures or JSON. *)
+(** How tasks show: rows, lines, only failures or JSON. *)

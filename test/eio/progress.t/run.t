@@ -125,9 +125,9 @@ terminal as on a pipe:
   {"time":3,"event":"output","id":1,"task":["RUN make","sha256:abcd..."],"text":"checksum mismatch"}
   {"time":3,"event":"end","id":1,"task":["RUN make","sha256:abcd..."],"status":"failed","elapsed":3}
   {"time":3,"event":"end","id":0,"task":["RUN make"],"status":"failed","elapsed":3}
-  {"time":3,"event":"end","status":"cancelled","elapsed":3}
+  {"time":3,"event":"end","status":"succeeded","elapsed":3}
 
-Console.Progress.Event.jsont reads each of these events back, and writes it
+Console.Task.Event.jsont reads each of these events back, and writes it
 as it was:
 
   $ ../../../examples/progress/main.exe --progress=json --fail 2>&1 \

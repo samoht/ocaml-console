@@ -130,5 +130,5 @@ let pad n = View_core.text (String.make (max 0 n) ' ')
 let framed_kind parts look =
   let k = View_core.kinds parts look in
   if look.Look.live && Option.is_some (Theme.motion look.theme) then
-    { k with timed = true }
+    View_core.join k View_core.timed
   else k

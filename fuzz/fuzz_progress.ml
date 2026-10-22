@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Alcobar
-module Event = Console.Progress.Event
+module Event = Console.Task.Event
 
 let known_events = [ "start"; "progress"; "label"; "output"; "end" ]
 
@@ -176,34 +176,37 @@ let public_schema_events k raw =
   let clean s = Console_text.sanitize ~keep_newlines:false s in
   let now = ref 42. and out = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer out in
-  let d = Display.v ~progress:`Json ~now:(fun () -> !now) ppf in
-  let parent = Display.task d raw in
+  let root = Task.root ~now:(fun () -> !now) () in
+  let d = Progress.show ~progress:`Json ppf root in
+  let parent = Task.start root raw in
   now := 42.125;
-  let task = Display.task ~parent ~transient:true d (raw ^ "/child") in
+  let task = Task.start ~transient:true parent (raw ^ "/child") in
   now := 42.375;
-  Display.set_label parent (raw ^ "/new");
+  Task.set_label parent (raw ^ "/new");
   let count =
     if k land 1 = 0 then begin
-      Display.set_count task ~cur:max_int ~total:max_int;
+      Task.set_items task ~count:max_int ~total:max_int;
       (Int64.of_int max_int, `Items)
     end
     else begin
-      Display.set_bytes task ~cur:Int64.max_int ~total:Int64.max_int;
+      Task.set_bytes task ~count:Int64.max_int ~total:Int64.max_int;
       (Int64.max_int, `Bytes)
     end
   in
-  Display.log task "line";
+  Task.log task "line";
   let ending, status =
     match k mod 3 with
-    | 0 -> (Display.succeed, Event.succeeded)
-    | 1 -> (Display.fail, Event.failed)
-    | _ -> (Display.cancel, Event.cancelled)
+    | 0 -> (Task.succeed, Event.succeeded)
+    | 1 -> (Task.fail, Event.failed)
+    | _ -> (Task.cancel, Event.cancelled)
   in
   ending ~message:(raw ^ "/end") task;
-  Display.succeed parent;
-  Display.log (Display.root d) "root";
+  Task.succeed parent;
+  Task.log root "root";
   let detail = clean raw ^ "\ndetail" in
-  Display.set_result ~detail d (if k land 2 = 0 then Ok raw else Error raw);
+  Task.log root detail;
+  if k land 2 = 0 then Task.succeed ~message:raw root
+  else Task.fail ~message:raw root;
   Display.close d;
   Format.pp_print_flush ppf ();
   let events =
@@ -212,9 +215,9 @@ let public_schema_events k raw =
     |> List.map (fun line ->
         check (String.is_valid_utf_8 line);
         check (no_control line);
-        match Progress.Event.of_string line with
+        match Event.of_string line with
         | Ok e ->
-            check_eq ~pp:Fmt.Dump.string line (Progress.Event.to_string e);
+            check_eq ~pp:Fmt.Dump.string line (Event.to_string e);
             e
         | Error (`Msg e) -> failf "%s does not decode: %s" line e)
   in
@@ -249,7 +252,7 @@ let public_schema_expected k raw
   @ List.map
       (fun l -> Event.output ~time:0.375 l)
       (String.split_on_char '\n' detail)
-  @ [ work ~message:(clean raw) ~time:0.375 ~elapsed:0.375 () ]
+  @ [ work ~message:(kept (clean raw)) ~time:0.375 ~elapsed:0.375 () ]
 
 let test_public_schema k text =
   let raw = if k mod 16 = 0 then String.make 65537 'x' ^ text else text in
@@ -382,10 +385,11 @@ let test_retained_cut k =
   in
   let out = Buffer.create 16384 in
   let ppf = Format.formatter_of_buffer out in
-  let d = Console.Display.v ~progress:`Json ~now:(fun () -> 0.) ppf in
-  let t = Console.Display.task d raw in
-  Console.Display.set_label t raw;
-  Console.Display.fail ~message:raw t;
+  let root = Console.Task.root ~now:(fun () -> 0.) () in
+  let d = Console.Progress.show ~progress:`Json ppf root in
+  let t = Console.Task.start root raw in
+  Console.Task.set_label t raw;
+  Console.Task.fail ~message:raw t;
   Console.Display.close d;
   Format.pp_print_flush ppf ();
   let events =

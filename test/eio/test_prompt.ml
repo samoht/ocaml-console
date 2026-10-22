@@ -361,8 +361,7 @@ let test_prompt_leaves_other_fibers_attributed () =
             Eio.Fiber.pair
               (fun () -> Prompt.line t "name: ")
               (fun () ->
-                Console.Display.with_task display "work" (fun _ ->
-                    Fmt.pr "from work@.");
+                Console.Task.run display "work" (fun _ -> Fmt.pr "from work@.");
                 Eio.Flow.copy_string "alice\n" sink)))
   in
   Alcotest.check string_answer "the answer" (Got "alice") (seen (fst answer));

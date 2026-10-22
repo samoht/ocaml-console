@@ -8,42 +8,43 @@ open Display_harness
 (* Console_eio driver, on a buffer: no terminal, so each task line, log line
    and the result is printed as plain text. *)
 
-module D = Console.Display
+module D = Console.Task
 
 (* Run [f] under a fresh display captured into a string, then return the
    text. *)
-let capture ?summary f =
+let capture ?label f =
   Eio_main.run @@ fun _env ->
   let clock = Eio_mock.Clock.Mono.make () in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  Console_eio.run ~clock ~ppf ?summary f;
+  Console_eio.run ~clock ~ppf ?label f;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 let mem ~msg needle haystack =
   Alcotest.(check bool) msg true (contains needle haystack)
 
-(* A finished task commits its label; set_result Ok prints the verdict. *)
+(* A finished task commits its label; the work's success prints its message. *)
 let test_run_banner () =
   let out =
-    capture ~summary:"Build" (fun t ->
-        let step = D.task t "compile foo.ml" in
+    capture ~label:"Build" (fun t ->
+        let step = D.start t "compile foo.ml" in
         D.succeed step;
-        D.set_result t ~detail:"3 files, 0 errors" (Ok "build succeeded"))
+        D.log t "3 files, 0 errors";
+        D.succeed ~message:"build succeeded" t)
   in
   mem ~msg:"task label" "compile foo.ml" out;
   mem ~msg:"detail" "3 files, 0 errors" out;
   mem ~msg:"verdict marker" "✓" out;
   mem ~msg:"verdict message" "build succeeded" out
 
-(* set_result Error prints the failure verdict. *)
+(* The work's failure prints its message. *)
 let test_run_fail () =
   let out =
     capture (fun t ->
-        let step = D.task t "link" in
+        let step = D.start t "link" in
         D.fail step;
-        D.set_result t (Error "link failed"))
+        D.fail ~message:"link failed" t)
   in
   mem ~msg:"fail marker" "✗" out;
   mem ~msg:"fail message" "link failed" out
@@ -53,7 +54,7 @@ let test_run_raises () =
   Alcotest.check_raises "propagates" (Failure "boom") (fun () ->
       ignore
         (capture (fun t ->
-             let _ = D.task t "doomed" in
+             let _ = D.start t "doomed" in
              failwith "boom")))
 
 (* Logs messages are routed into the same permanent semantic history while the
@@ -64,7 +65,7 @@ let test_reporter () =
   let out =
     capture (fun t ->
         Logs.set_level (Some Logs.Debug);
-        let step = D.task t "step" in
+        let step = D.start t "step" in
         Logs.app (fun m -> m "application-line");
         Logs.app (fun m -> m "╭───╮\n│ x │\n╰───╯");
         Logs.warn (fun m -> m "warning-line");
@@ -81,13 +82,13 @@ let test_reporter () =
 let absent ~msg needle haystack =
   Alcotest.(check bool) msg false (contains needle haystack)
 
-(* Logs messages inside [with_task] go under its task, from the fibers its
+(* Logs messages inside [Task.run] go under its task, from the fibers its
    function forks too. *)
 let test_logs_in_task () =
   let out =
     capture (fun d ->
         Logs.set_level (Some Logs.Debug);
-        D.with_task d "build" (fun _ ->
+        D.run d "build" (fun _ ->
             Logs.info (fun m -> m "outer");
             Eio.Fiber.both
               (fun () -> Logs.warn (fun m -> m "forked"))
@@ -105,7 +106,7 @@ let test_two_fibers () =
     capture (fun d ->
         Logs.set_level (Some Logs.Info);
         let work name =
-          D.with_task d name (fun _ ->
+          D.run d name (fun _ ->
               Logs.info (fun m -> m "%s1" name);
               Eio.Fiber.yield ();
               Logs.info (fun m -> m "%s2" name))
@@ -117,13 +118,13 @@ let test_two_fibers () =
     [ "a: a1"; "a: a2"; "b: b1"; "b: b2" ];
   List.iter (fun l -> absent ~msg:l l out) [ "a: b1"; "b: a1" ]
 
-(* A fiber cancelled inside [with_task] cancels its task: it did not fail. *)
+(* A fiber cancelled inside [Task.run] cancels its task: it did not fail. *)
 let test_cancelled_fiber () =
   let out =
     capture (fun d ->
         Eio.Fiber.first
           (fun () ->
-            D.with_task d "slow" (fun t ->
+            D.run d "slow" (fun t ->
                 D.log t "partial";
                 Eio.Fiber.await_cancel ()))
           (fun () -> ()))
@@ -138,18 +139,17 @@ let test_within_fiber () =
   let out =
     capture (fun d ->
         Logs.set_level (Some Logs.Info);
-        let a = D.task d "a" in
+        let a = D.start d "a" in
         Eio.Fiber.both
           (fun () ->
-            D.with_task d "b" (fun _ ->
+            D.run d "b" (fun _ ->
                 D.within a (fun () ->
                     Logs.info (fun m -> m "for a");
                     Eio.Fiber.both
                       (fun () -> Logs.info (fun m -> m "forked for a"))
                       ignore);
                 Logs.info (fun m -> m "for b")))
-          (fun () ->
-            D.within (D.root d) (fun () -> Logs.info (fun m -> m "for root")));
+          (fun () -> D.within d (fun () -> Logs.info (fun m -> m "for root")));
         Eio.Fiber.first
           (fun () -> D.within a Eio.Fiber.await_cancel)
           (fun () -> ());
@@ -186,9 +186,9 @@ let test_json_concurrent_writes () =
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
       Eio.Fiber.List.iter
         (fun label ->
-          D.with_task d label (fun task ->
+          D.run d label (fun task ->
               D.log task "line";
-              D.set_count task ~cur:1 ~total:1))
+              D.set_items task ~count:1 ~total:1))
         [ "1"; "2"; "3" ]);
   Format.pp_print_flush ppf ();
   let lines =
@@ -197,11 +197,11 @@ let test_json_concurrent_writes () =
   in
   List.iter
     (fun line ->
-      match Jsont_bytesrw.decode_string Console.Progress.Event.jsont line with
+      match Jsont_bytesrw.decode_string Console.Task.Event.jsont line with
       | Ok e ->
           Alcotest.(check string)
             "written back" line
-            (Console.Progress.Event.to_string e)
+            (Console.Task.Event.to_string e)
       | Error error ->
           Alcotest.failf "interleaved JSON record %S: %s" line error)
     lines;
@@ -213,17 +213,17 @@ let events out =
   String.split_on_char '\n' out
   |> List.filter (( <> ) "")
   |> List.map (fun line ->
-      match Jsont_bytesrw.decode_string Console.Progress.Event.jsont line with
+      match Jsont_bytesrw.decode_string Console.Task.Event.jsont line with
       | Ok e ->
           Alcotest.(check string)
             "written back" line
-            (Console.Progress.Event.to_string e);
+            (Console.Task.Event.to_string e);
           e
       | Error e -> Alcotest.failf "%S does not decode: %s" line e)
 
 (* The task and the text of the output events of [out]. *)
 let output_events out =
-  let module Event = Console.Progress.Event in
+  let module Event = Console.Task.Event in
   List.filter_map
     (fun e ->
       match (Event.kind e, Event.text e) with
@@ -258,8 +258,7 @@ let capture_stdout progress f =
 (* A successful task's last line is still its output without a newline. *)
 let test_quiet_unended_success () =
   let out =
-    capture_stdout `Quiet (fun d ->
-        D.with_task d "ok" (fun _ -> Fmt.pr "secret%!"))
+    capture_stdout `Quiet (fun d -> D.run d "ok" (fun _ -> Fmt.pr "secret%!"))
   in
   Alcotest.(check string) "a successful run is silent" "" out
 
@@ -267,8 +266,8 @@ let test_quiet_unended_success () =
 let test_json_unended_attribution () =
   let out =
     capture_stdout `Json (fun d ->
-        D.with_task d "ok" (fun _ -> Fmt.pr "secret%!");
-        D.with_task d "fail" (fun task ->
+        D.run d "ok" (fun _ -> Fmt.pr "secret%!");
+        D.run d "fail" (fun task ->
             Fmt.pr "public@.";
             D.fail task))
   in
@@ -281,12 +280,12 @@ let test_json_unended_attribution () =
     [ ("0 ok", "secret"); ("1 fail", "public") ]
     (List.map (fun (task, text) -> (task_name task, text)) (output_events out))
 
-(* A complete long line is one output record, just as with Display.log. *)
+(* A complete long line is one output record, just as with Task.log. *)
 let test_json_long_line () =
   let text = String.make 65537 'x' in
   let out =
     capture_stdout `Json (fun d ->
-        D.with_task d "large" (fun _ -> Fmt.pr "%s@." text))
+        D.run d "large" (fun _ -> Fmt.pr "%s@." text))
   in
   let output = outputs out in
   Alcotest.(check (list int))
@@ -301,7 +300,7 @@ let test_long_line_cut () =
   let cut first rest =
     outputs
       (capture_stdout `Json (fun d ->
-           D.with_task d "large" (fun _ ->
+           D.run d "large" (fun _ ->
                Fmt.pr "%s%s%!" x first;
                Fmt.pr "%s@." rest)))
   in
@@ -326,10 +325,10 @@ let test_flow_write_error () =
       let v =
         Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf ~progress
           (fun d ->
-            D.with_task d "work" (fun task ->
-                D.set_count task ~cur:1 ~total:2;
+            D.run d "work" (fun task ->
+                D.set_items task ~count:1 ~total:2;
                 D.log task "a line");
-            D.set_result d (Ok "done");
+            D.succeed ~message:"done" d;
             42)
       in
       Alcotest.(check int) "the run's value" 42 v)
@@ -462,7 +461,7 @@ module Report_domains = struct
     with_runtime @@ fun env ->
     let sink = sink () in
     run env sink (fun d ->
-        D.with_task d "work" (fun task ->
+        D.run d "work" (fun task ->
             Eio.Switch.run @@ fun sw ->
             Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
                 D.within task (fun () ->

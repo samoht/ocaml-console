@@ -27,7 +27,7 @@ let nap () =
   let clock = Eio_mock.Clock.Mono.make () in
   let buf, ppf = buffer () in
   Console_eio.run ~clock ~ppf (fun display ->
-      Console.Display.with_task display "nap" (fun _ ->
+      Console.Task.run display "nap" (fun _ ->
           Eio.Fiber.both
             (fun () -> Eio.Time.Mono.sleep clock 2.)
             (fun () -> Eio_mock.Clock.Mono.set_time clock (seconds 2.))));
@@ -55,7 +55,7 @@ let sleeps () =
   let buf, ppf = buffer () in
   let slept = ref false in
   Console_eio.run ~clock ~ppf (fun display ->
-      Console.Display.with_task display "nap" (fun _ ->
+      Console.Task.run display "nap" (fun _ ->
           Eio.Fiber.both
             (fun () ->
               Eio.Time.Mono.sleep clock 1.5;
@@ -79,7 +79,7 @@ let overlapping () =
   let buf, ppf = buffer () in
   let slept = ref 0 in
   Console_eio.run ~clock ~ppf (fun display ->
-      Console.Display.with_task display "nap" (fun _ ->
+      Console.Task.run display "nap" (fun _ ->
           Eio.Fiber.all
             [
               (fun () ->
@@ -124,7 +124,7 @@ let test_run_raises () =
       let buf, ppf = buffer () in
       Alcotest.check_raises "propagates" (Failure "boom") (fun () ->
           Console_eio.run ~clock ~ppf (fun display ->
-              ignore (Console.Display.task display "doomed");
+              ignore (Console.Task.start display "doomed");
               failwith "boom"));
       Format.pp_print_flush ppf ();
       Alcotest.(check bool)
@@ -137,7 +137,7 @@ let test_nested_run_reuses_the_display () =
       Console_eio.run ~clock ~ppf (fun outer ->
           Console_eio.run ~clock (fun inner ->
               Alcotest.(check bool) "same display" true (outer == inner);
-              Console.Display.succeed (Console.Display.task inner "nested work")));
+              Console.Task.succeed (Console.Task.start inner "nested work")));
       Format.pp_print_flush ppf ();
       Alcotest.(check bool)
         "nested task uses the outer output" true

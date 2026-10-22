@@ -18,7 +18,7 @@
 
 let step display i =
   Fmt.pr "result %d\n" i;
-  Console.Display.with_task display (Fmt.str "step %d" i) (fun _ ->
+  Console.Task.run display (Fmt.str "step %d" i) (fun _ ->
       Logs.info (fun m -> m "working on %d" i))
 
 let () =
@@ -47,7 +47,7 @@ let () =
           Fmt.epr "printed at exit@.";
           Fmt.pr "result at exit@.");
       Console_eio.run ~clock (fun display ->
-          Console.Display.with_task display "work" (fun _ ->
+          Console.Task.run display "work" (fun _ ->
               Fmt.pr "result 1@.";
               exit 3))
   | [| _; "sleeps"; work |] ->
@@ -58,7 +58,7 @@ let () =
         done
       in
       Console_eio.run ~clock ~progress:`Json (fun display ->
-          Console.Display.with_task display "build" (fun _ ->
+          Console.Task.run display "build" (fun _ ->
               Eio.Fiber.both
                 (fun () ->
                   for _ = 1 to 4 do
@@ -72,17 +72,17 @@ let () =
   | [| _; "quiet-long" |] ->
       Console_eio.run ~clock ~progress:`Quiet (fun display ->
           Fmt.epr "%s%!" (String.make 70_000 'x');
-          Console.Display.with_task display "work" Console.Display.fail)
+          Console.Task.run display "work" Console.Task.fail)
   | [| _; "quiet-prompt" |] ->
       Console_eio.run ~clock ~progress:`Quiet (fun display ->
           let prompt =
             Console_eio.Prompt.v ~interactive:true (Eio.Stdenv.stdin env)
           in
           ignore (Console_eio.Prompt.line prompt "name? ");
-          Console.Display.with_task display "work" Console.Display.fail)
+          Console.Task.run display "work" Console.Task.fail)
   | [| _; "json-stdout" |] ->
       Console_eio.run ~clock ~progress:`Json (fun display ->
-          Console.Display.with_task display "build" (fun _ ->
+          Console.Task.run display "build" (fun _ ->
               Fmt.pr "from stdout@.";
               Fmt.epr "from stderr@."))
   | [| _; n |] ->

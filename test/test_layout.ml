@@ -27,32 +27,32 @@ let last_row t =
 (* The summary is the last line of the region in every frame, whatever
    starts, ends or is printed, and the last line printed at close. *)
 let test_summary_last () =
-  let t = terminal ~width:40 ~height:10 ~summary:"Build" () in
-  let d = t.display in
+  let t = terminal ~width:40 ~height:10 ~label:"Build" () in
+  let d = t.root in
   let check what =
-    Display.redraw d;
+    Display.redraw t.display;
     if not (contains "Build" (last_row t)) then
       Alcotest.failf "%s: the last row is %S" what (last_row t)
   in
   check "no task";
-  let a = Display.task ~log_lines:2 d "a" in
+  let a = Task.start ~log_lines:2 d "a" in
   check "a task";
-  let b = Display.task ~parent:a d "b" in
+  let b = Task.start a "b" in
   check "a child";
-  Display.log a "one";
+  Task.log a "one";
   check "a line of output";
-  Display.log (Display.root d) "outside";
+  Task.log d "outside";
   check "a line outside any task";
-  Display.with_output d (fun ppf -> Fmt.pf ppf "printed@.");
+  Display.with_output t.display (fun ppf -> Fmt.pf ppf "printed@.");
   check "a line printed past the display";
-  Display.succeed b;
+  Task.succeed b;
   check "the child ended";
-  let c = Display.task d "c" in
-  Display.succeed a;
+  let c = Task.start d "c" in
+  Task.succeed a;
   check "a top task ended";
-  Display.fail c;
+  Task.fail c;
   check "the last task ended";
-  Display.close d;
+  close t;
   Alcotest.(check bool)
     "the last line printed" true
     (match List.rev (lines t) with
@@ -63,13 +63,13 @@ let test_summary_last () =
    first. The layer waits in the region under its step, then goes to the
    scrollback with it, under it, and the summary is last. *)
 let test_tree_moves () =
-  let t = terminal ~width:60 ~height:10 ~summary:"Building" () in
-  let d = t.display in
-  let step = Display.task d "RUN make" in
-  let layer = Display.task ~parent:step d "sha256:abcd..." in
-  Display.set_count step ~cur:5 ~total:5;
-  Display.succeed layer;
-  Display.redraw d;
+  let t = terminal ~width:60 ~height:10 ~label:"Building" () in
+  let d = t.root in
+  let step = Task.start d "RUN make" in
+  let layer = Task.start step "sha256:abcd..." in
+  Task.set_items step ~count:5 ~total:5;
+  Task.succeed layer;
+  Display.redraw t.display;
   Alcotest.(check int)
     "nothing in the scrollback yet" 0
     (Console_vte.scrollback_size t.vte);
@@ -81,8 +81,8 @@ let test_tree_moves () =
       "\u{2022} Building 0.0s (1/2)";
     ]
     (List.map squeeze (screen t));
-  Display.succeed step;
-  Display.close d;
+  Task.succeed step;
+  close t;
   check_lines "the step, its layer under it, the summary last"
     [
       "\u{2713} RUN make 5/5 0.0s";
@@ -95,25 +95,25 @@ let test_tree_moves () =
    ends, after the top tasks that ended before it, each in the order of its
    tree. *)
 let test_three_levels () =
-  let t = terminal ~width:40 ~height:12 ~summary:"S" () in
-  let d = t.display in
-  let a = Display.task d "a" in
-  let b = Display.task ~parent:a d "b" in
-  let c = Display.task ~parent:b d "c" in
-  let e = Display.task d "e" in
-  let f = Display.task ~parent:e d "f" in
-  let a2 = Display.task ~parent:a d "a2" in
-  Display.succeed c;
-  Display.fail f;
-  Display.succeed e;
-  Display.succeed a2;
-  Display.redraw d;
+  let t = terminal ~width:40 ~height:12 ~label:"S" () in
+  let d = t.root in
+  let a = Task.start d "a" in
+  let b = Task.start a "b" in
+  let c = Task.start b "c" in
+  let e = Task.start d "e" in
+  let f = Task.start e "f" in
+  let a2 = Task.start a "a2" in
+  Task.succeed c;
+  Task.fail f;
+  Task.succeed e;
+  Task.succeed a2;
+  Display.redraw t.display;
   check_lines "e moved whole, a waits"
     [ "\u{2713} e"; "  \u{2514}\u{2500}\u{2500} \u{2717} f" ]
     (List.filteri (fun i _ -> i < 2) (List.map untimed (screen t)));
-  Display.succeed b;
-  Display.succeed a;
-  Display.close d;
+  Task.succeed b;
+  Task.succeed a;
+  close t;
   check_lines "each top task in the order of its tree"
     [
       "\u{2713} e";
@@ -130,16 +130,16 @@ let test_three_levels () =
    in the tree. *)
 let test_failed_child_in_place () =
   let t = terminal ~width:40 ~height:12 () in
-  let d = t.display in
-  let a = Display.task d "a" in
-  let b = Display.task ~log_lines:1 ~parent:a d "b" in
-  let c = Display.task ~parent:a d "c" in
-  Display.log b "b1";
-  Display.log b "b2";
-  Display.fail b;
-  Display.succeed c;
-  Display.succeed a;
-  Display.close d;
+  let d = t.root in
+  let a = Task.start d "a" in
+  let b = Task.start ~log_lines:1 a "b" in
+  let c = Task.start a "c" in
+  Task.log b "b1";
+  Task.log b "b2";
+  Task.fail b;
+  Task.succeed c;
+  Task.succeed a;
+  close t;
   check_lines "b's lines under b, c after them"
     [
       "\u{2713} a";
@@ -153,17 +153,17 @@ let test_failed_child_in_place () =
 (* A tree too tall folds the tasks that ended under each task into one
    line, which says how many failed, and keeps every running one. *)
 let test_fold () =
-  let t = terminal ~width:40 ~height:6 ~summary:"S" () in
-  let d = t.display in
-  let p = Display.task d "p" in
+  let t = terminal ~width:40 ~height:6 ~label:"S" () in
+  let d = t.root in
+  let p = Task.start d "p" in
   for i = 1 to 6 do
-    let c = Display.task ~parent:p d (Fmt.str "done %d" i) in
-    if i mod 3 = 0 then Display.fail c
-    else if i = 4 then Display.cancel c
-    else Display.succeed c
+    let c = Task.start p (Fmt.str "done %d" i) in
+    if i mod 3 = 0 then Task.fail c
+    else if i = 4 then Task.cancel c
+    else Task.succeed c
   done;
-  let r = Display.task ~parent:p d "running" in
-  Display.redraw d;
+  let r = Task.start p "running" in
+  Display.redraw t.display;
   check_lines "folded"
     [
       "\u{280b} p";
@@ -173,24 +173,24 @@ let test_fold () =
     ]
     (List.map untimed (screen t));
   Alcotest.(check int) "nothing scrolled" 0 (Console_vte.scrollback_size t.vte);
-  Display.succeed r;
-  Display.succeed p;
-  Display.close d;
+  Task.succeed r;
+  Task.succeed p;
+  close t;
   Alcotest.(check int) "every task in the scrollback" 9 (List.length (lines t))
 
 (* Output outside any task goes above the region at once and stays there,
    the region below it, the summary last. *)
 let test_root_above () =
-  let t = terminal ~width:40 ~height:10 ~summary:"S" () in
-  let d = t.display in
-  let a = Display.task d "a" in
-  Display.log (Display.root d) "outside";
-  Display.redraw d;
+  let t = terminal ~width:40 ~height:10 ~label:"S" () in
+  let d = t.root in
+  let a = Task.start d "a" in
+  Task.log d "outside";
+  Display.redraw t.display;
   check_lines "above the region"
     [ "outside"; "\u{280b} a"; "\u{2022} S 0.0s (0/1)" ]
     (List.map untimed (screen t));
-  Display.succeed a;
-  Display.close d;
+  Task.succeed a;
+  close t;
   check_lines "it stays"
     [ "outside"; "\u{2713} a"; "\u{2713} S 0.0s (1/1)" ]
     (List.map untimed (lines t))
@@ -198,13 +198,13 @@ let test_root_above () =
 (* More running tasks than rows: no redraw scrolls the terminal, and the
    summary stays the last line. *)
 let test_no_scroll () =
-  let t = terminal ~width:40 ~height:6 ~summary:"S" () in
-  let d = t.display in
+  let t = terminal ~width:40 ~height:6 ~label:"S" () in
+  let d = t.root in
   let tasks =
     List.init 12 (fun i ->
-        let task = Display.task ~log_lines:2 d (Fmt.str "t%d" i) in
-        Display.log task "a line";
-        Display.redraw d;
+        let task = Task.start ~log_lines:2 d (Fmt.str "t%d" i) in
+        Task.log task "a line";
+        Display.redraw t.display;
         Alcotest.(check int)
           "nothing scrolled" 0
           (Console_vte.scrollback_size t.vte);
@@ -218,21 +218,21 @@ let test_no_scroll () =
   Alcotest.(check bool)
     "within the screen less one" true
     (List.length (screen t) <= 5);
-  List.iter Display.succeed tasks;
-  Display.close d
+  List.iter Task.succeed tasks;
+  close t
 
 (* Window lines give way by age, including across a parent and its child. *)
 let test_window_age () =
   let t = terminal ~width:60 ~height:4 () in
-  let d = t.display in
-  let parent = Display.task d "parent" in
-  let child = Display.task ~parent d "child" in
-  Display.log child "older";
+  let d = t.root in
+  let parent = Task.start d "parent" in
+  let child = Task.start parent "child" in
+  Task.log child "older";
   t.advance 1.;
-  Display.log parent "newer";
-  Display.redraw d;
+  Task.log parent "newer";
+  Display.redraw t.display;
   let rows = screen t in
-  Display.close d;
+  close t;
   Alcotest.(check int) "the region fits" 3 (List.length rows);
   Alcotest.(check bool)
     "the newest window line stays" true
@@ -245,16 +245,17 @@ let test_window_age () =
    Neither the caller nor the output sink retains the task or its label. *)
 let test_oversized_waiting_task () =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let d = Display.v ~size:(fun () -> (40, 8)) ~now:(fun () -> 0.) ppf in
-  let parent = Display.task d "parent" in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
+  let parent = Task.start root "parent" in
   let live_bytes () =
     Gc.full_major ();
     (Gc.stat ()).live_words * (Sys.word_size / 8)
   in
   let before = live_bytes () in
-  Display.succeed (Display.task ~parent d (String.make (4 * 1024 * 1024) 'x'));
+  Task.succeed (Task.start parent (String.make (4 * 1024 * 1024) 'x'));
   let retained = live_bytes () - before in
-  Display.succeed (Display.task ~parent d "replacement");
+  Task.succeed (Task.start parent "replacement");
   Display.close d;
   if retained > 1_048_576 + 65_536 then
     Alcotest.failf "one completed child retains %d bytes (limit 1 MiB)" retained

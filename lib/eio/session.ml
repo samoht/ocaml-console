@@ -4,6 +4,10 @@
   ---------------------------------------------------------------------------*)
 
 module Display = Console.Display
+module Task = Console.Task
+
+(* A display and the root of the work it shows. *)
+type run = { display : Display.t; root : Task.t; json : bool }
 
 (* {1 The one display}
 
@@ -13,15 +17,15 @@ module Display = Console.Display
    joins it, a [run] in another domain is refused, and an exit in the middle
    of the work still closes it. *)
 
-let current : Display.t Eio.Fiber.key = Eio.Fiber.create_key ()
-let task : Display.task Eio.Fiber.key = Eio.Fiber.create_key ()
+let current : run Eio.Fiber.key = Eio.Fiber.create_key ()
+let task : Task.t Eio.Fiber.key = Eio.Fiber.create_key ()
 let busy = Atomic.make false
 let ending : (unit -> unit) option Atomic.t = Atomic.make None
 
 (* The runs that share the display of a domain: the one that opened it and
    those that joined it. It closes once the last of them ends. *)
 type shared = {
-  display : Display.t;
+  run : run;
   owner : Domain.id;
   mutable users : int;
   mutable closing : bool;
@@ -35,8 +39,17 @@ let shared : shared option Atomic.t = Atomic.make None
    closed: that one is no longer found. *)
 let find () =
   match (Eio.Fiber.get current, Atomic.get shared) with
-  | Some d, Some s when d == s.display && not s.closing -> Some d
+  | Some r, Some s when r == s.run && not s.closing -> Some r.root
   | _ -> None
+
+let display () =
+  match (Eio.Fiber.get current, Atomic.get shared) with
+  | Some r, Some s when r == s.run && not s.closing -> Some r.display
+  | _ -> None
+
+(* The task a run inside another is given: the one current where it is
+   called, or the root. *)
+let given root = Option.value (Task_driver.current root) ~default:root
 
 let join f =
   match Atomic.get shared with
@@ -50,7 +63,8 @@ let join f =
       in
       Some
         (Fun.protect ~finally:leave (fun () ->
-             Eio.Fiber.with_binding current s.display (fun () -> f s.display)))
+             Eio.Fiber.with_binding current s.run (fun () ->
+                 f (given s.run.root))))
   | _ -> None
 
 (* A run that starts while the display of its domain closes opens its own
@@ -78,13 +92,16 @@ let at_exit =
   lazy
     (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
 
+let cancelled = function Eio.Cancel.Cancelled _ -> true | _ -> false
+
 (* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
-  Display_driver.scope
+  Task_driver.scope
     ~current:(fun () -> Eio.Fiber.get task)
     ~within:(fun t f -> Eio.Fiber.with_binding task t f)
-    ~cancelled:(function Eio.Cancel.Cancelled _ -> true | _ -> false)
-    ~write_error:(function Eio.Io _ -> true | _ -> false)
+    ~cancelled
+
+let write_error = function Eio.Io _ -> true | _ -> false
 
 let claim () =
   Lazy.force at_exit;
@@ -171,7 +188,7 @@ let give l ~cut task s =
     else s
   in
   l.cut <- cut;
-  if s <> "" then Console.Display.log task (Console_text.strip s)
+  if s <> "" then Task.log task (Console_text.strip s)
 
 (* The lines held for above the region go out. *)
 let send_held display i =
@@ -185,41 +202,41 @@ let send_held display i =
 
 (* [s], written outside any task: held for above the region, or as events
    the output of no task. *)
-let outside display i ~cut s =
-  if Display_driver.is_json display then
-    give i.root ~cut (Display.root display) s
+let outside run i ~cut s =
+  if run.json then give i.root ~cut run.root s
   else begin
     i.root.cut <- false;
     Buffer.add_string i.held s;
-    if cut || Buffer.length i.held > max_pending then send_held display i
+    if cut || Buffer.length i.held > max_pending then send_held run.display i
   end
 
-let task_line (task : Display.task) =
-  match Hashtbl.find_opt lines task.id with
+let task_line task =
+  let id = Task_driver.id task in
+  match Hashtbl.find_opt lines id with
   | Some l -> l
   | None ->
       let l = line () in
-      Hashtbl.replace lines task.id l;
+      Hashtbl.replace lines id l;
       l
 
-let intercept display ppf =
+let intercept run ppf =
   Format.pp_print_flush ppf ();
   let out = Format.pp_get_formatter_out_functions ppf () in
-  let pass = Display_driver.watch display out in
+  let pass = Display_driver.watch run.display out in
   let i = { ppf; out; pass; held = Buffer.create 256; root = line () } in
   let add s o len =
     if is_direct () then pass.out_string s o len
     else
-      match Display_driver.current display with
+      match Task_driver.current run.root with
       | Some task ->
           let l = task_line task in
           take l s o len (fun ~cut piece ->
-              send_held display i;
+              send_held run.display i;
               give l ~cut task piece)
-      | None -> take i.root s o len (outside display i)
+      | None -> take i.root s o len (outside run i)
   in
   let flush () =
-    if is_direct () then pass.out_flush () else send_held display i
+    if is_direct () then pass.out_flush () else send_held run.display i
   in
   Format.pp_set_formatter_out_functions ppf
     {
@@ -248,31 +265,31 @@ let task_ended task =
   (match Atomic.get intercepted with
   | [] -> ()
   | _ -> (
-      try Display.within task flush_all
-      with Effect.Unhandled _ -> flush_all ()));
-  match Hashtbl.find_opt lines task.Display_state.id with
+      try Task.within task flush_all with Effect.Unhandled _ -> flush_all ()));
+  let id = Task_driver.id task in
+  match Hashtbl.find_opt lines id with
   | None -> ()
   | Some l ->
-      Hashtbl.remove lines task.id;
+      Hashtbl.remove lines id;
       let s = Buffer.contents l.pending in
       if s <> "" then give l ~cut:false task s
 
 (* As events, what the formatters still hold outside any task is output
    before the display closes, so that every line it wrote is an event. *)
-let settle display =
-  if Display_driver.is_json display then begin
+let settle run =
+  if run.json then begin
     flush_all ();
     List.iter
       (fun i ->
         let s = Buffer.contents i.root.pending in
         Buffer.clear i.root.pending;
-        if s <> "" then outside display i ~cut:false s)
+        if s <> "" then outside run i ~cut:false s)
       (Atomic.get intercepted)
   end
 
-let close_display display =
-  settle display;
-  Display.close display
+let close_display run =
+  settle run;
+  Display.close run.display
 
 let restore () =
   List.iter
@@ -289,14 +306,15 @@ let restore () =
   Hashtbl.reset lines
 
 let with_terminal f =
-  match find () with
-  | None -> f ()
-  | Some d ->
-      Display.with_output d (fun _ -> Eio.Fiber.with_binding direct () f)
+  match (Eio.Fiber.get current, Atomic.get shared) with
+  | Some r, Some s when r == s.run && not s.closing ->
+      Display.with_output r.display (fun _ ->
+          Eio.Fiber.with_binding direct () f)
+  | _ -> f ()
 
 (* {1 Logs} *)
 
-let level : Logs.level -> Display_driver.level = function
+let level : Logs.level -> Task_driver.level = function
   | Logs.App -> `App
   | Logs.Error -> `Error
   | Logs.Warning -> `Warning
@@ -307,8 +325,8 @@ let level : Logs.level -> Display_driver.level = function
    closed without writing it. It keeps the task current where it was
    logged, which the fiber that writes it does not have. *)
 type request = {
-  within : Display.task option;
-  level : Display_driver.level;
+  within : Task.t option;
+  level : Task_driver.level;
   message : string;
   reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
 }
@@ -316,10 +334,10 @@ type request = {
 (* A message for the display, from the domain that runs it or handed to
    that domain: [`Closed] if the display closes first. A domain that Eio
    does not run cannot wait for the answer, so its message is not taken. *)
-let deliver ~owner ~closed ~requests display level message =
+let deliver ~owner ~closed ~requests root level message =
   if Option.is_some (Eio.Promise.peek closed) then `Closed
   else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then begin
-    Display_driver.report display level message;
+    Task_driver.report root level message;
     `Written
   end
   else
@@ -339,7 +357,7 @@ let deliver ~owner ~closed ~requests display level message =
    to the reporter it replaced, so that a log call never fails. A message from a source of its own is
    prefixed with the source's name, as the reporter of the Logs
    documentation does. *)
-let reporter ~previous ~owner ~closed ~requests display =
+let reporter ~previous ~owner ~closed ~requests root =
   let report src l ~over k msgf =
     if Option.is_some (Eio.Promise.peek closed) then
       previous.Logs.report src l ~over k msgf
@@ -355,7 +373,7 @@ let reporter ~previous ~owner ~closed ~requests display =
                 if shown = "" then `Written
                 else
                   match
-                    deliver ~owner ~closed ~requests display (level l) shown
+                    deliver ~owner ~closed ~requests root (level l) shown
                   with
                   | d -> d
                   | exception
@@ -374,10 +392,10 @@ let reporter ~previous ~owner ~closed ~requests display =
   in
   { Logs.report }
 
-let receive ~sw ~closed requests display =
+let receive ~sw ~closed requests root =
   let rec loop () =
     let { within; level; message; reply } = Eio.Stream.take requests in
-    let report () = Display_driver.report display level message in
+    let report () = Task_driver.report root level message in
     let output =
       Eio.Fiber.fork_promise ~sw (fun () ->
           Eio.Fiber.first
@@ -385,7 +403,7 @@ let receive ~sw ~closed requests display =
               if Option.is_some (Eio.Promise.peek closed) then `Closed
               else begin
                 (match within with
-                | Some task -> Display.within task report
+                | Some task -> Task.within task report
                 | None -> report ());
                 `Written
               end)
@@ -423,7 +441,7 @@ let suspend ~cursor display stop =
 (* [f] for the run that opened [s]'s display. A function that raised waits
    for the others as one that returned does; a cancelled one cannot wait. *)
 let first_run s f =
-  match Eio.Fiber.with_binding current s.display (fun () -> f s.display) with
+  match Eio.Fiber.with_binding current s.run (fun () -> f s.run.root) with
   | v ->
       last_out s;
       v
@@ -433,10 +451,10 @@ let first_run s f =
       Printexc.raise_with_backtrace e bt
 
 (* [display] as the domain's, for the runs that join it. *)
-let share display =
+let share run =
   let s =
     {
-      display;
+      run;
       owner = Domain.self ();
       users = 1;
       closing = false;
@@ -447,7 +465,16 @@ let share display =
   Atomic.set shared (Some s);
   s
 
-let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
+(* The work ends as a task's does: it succeeds when [f] returns, fails when
+   it raises, and is cancelled when its fiber is, unless [f] ended it. The
+   exception goes on to the caller, which says it: the work ends with no
+   message. *)
+let end_work root = function
+  | Ok _ -> Task.succeed root
+  | Error e -> if cancelled e then Task.cancel root else Task.fail root
+
+let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
+  let display = run.display in
   let previous = Logs.reporter () in
   let closed, close = Eio.Promise.create () in
   let give_back () =
@@ -459,34 +486,38 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters display f =
   Atomic.set ending
     (Some
        (fun () ->
-         (try close_display display with Sys_error _ -> ());
+         (try close_display run with Sys_error _ -> ());
          give_back ();
          restore ()));
-  let s = share display in
+  let s = share run in
   Fun.protect ~finally:(fun () ->
       restore ();
       release ())
   @@ fun () ->
-  List.iter (intercept display) formatters;
-  Display_driver.ending display task_ended;
+  List.iter (intercept run) formatters;
+  Task_driver.ending run.root task_ended;
   let value =
     match
       Eio.Switch.run @@ fun sw ->
       let requests = Eio.Stream.create 1 in
-      Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests display);
+      Eio.Fiber.fork_daemon ~sw (fun () ->
+          receive ~sw ~closed requests run.root);
       Logs.set_reporter
-        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests display);
+        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
       animate ~sw ~sleep display;
       Fun.protect ~finally:give_back @@ fun () ->
       Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
-          close_display display)
+          close_display run)
       @@ fun () -> first_run s f
     with
-    | v -> v
+    | v ->
+        end_work run.root (Ok ());
+        v
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
-        close_display display;
+        end_work run.root (Error e);
+        close_display run;
         Printexc.raise_with_backtrace e bt
   in
-  close_display display;
+  close_display run;
   value

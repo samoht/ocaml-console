@@ -3,13 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** How a display shows progress.
+(** How tasks show: rows, lines, failures alone or JSON.
 
-    A program shows its progress as rows redrawn in place, as lines printed in
-    turn, as only what fails, or as JSON events, the choices that the
-    [--progress] option of [docker build] gives. {!Display.v} takes one, and so
-    does [Console_eio.run], which also finds out whether the output is a
-    terminal. *)
+    The tasks of a {!Task.root} show as rows redrawn in place, as lines printed
+    in turn, as only what fails, or as JSON events, the choices that the
+    [--progress] option of [docker build] gives. The rows are ordinary views:
+    {!row} is the row of a task, {!tree} the tree of rows of a task and those
+    under it, drawn with {!Tree.view}, {!summary} the line that says how far the
+    work is, and {!view} all of them. {!show} connects a root to a {!Display} in
+    a mode, and [Console_eio.run] does it for a program.
+
+    The {{!design}design} of the rows and the {{!guarantees}guarantees} they
+    keep close this page. *)
 
 type t =
   [ `Auto
@@ -21,19 +26,19 @@ type t =
   | `Plain
     (** Lines are printed in turn, as on a pipe. A task prints a line when it
         starts, its output at once and a line when it ends, each naming the task
-        by its path ({!Display.design}). The display's view comes last, once: by
-        default its summary line. The lines are in colour if the output has
-        colour. *)
+        by its path ({!design}). The view comes last, once: by default the
+        summary line. The lines are in colour if the output has colour. *)
   | `Quiet
     (** Only what fails is printed: a task that fails or is cancelled prints its
-        line, which names its path, then all its output under it
-        ({!Display.output}). A task that succeeds prints nothing, and there are
-        no rows and no summary. What goes above the rows is printed as usual,
-        the result of {!Display.set_result} included. *)
+        line, which names its path, then all its output under it. A task that
+        succeeds prints nothing, and there are no rows and no summary. The
+        output of the root is printed as it comes, and the message the work
+        ended with last. *)
   | `Json
-    (** Each event is one JSON object on a line of its own, and nothing else is
-        printed ({{!json}JSON events}). *) ]
-(** The type for progress modes, how a display shows progress. Constructors may
+    (** Each event ({!Task.Event}) is one JSON object on a line of its own, and
+        nothing else is printed: what the program prints on the display's
+        formatter is the output of no task, as events too. *) ]
+(** The type for progress modes, how the tasks of a root show. Constructors may
     be added, so a match on a progress mode has a case for the others. *)
 
 val all : (string * t) list
@@ -49,225 +54,242 @@ val of_string : string -> (t, [ `Msg of string ]) result
 val to_string : t -> string
 (** [to_string p] is the name of [p] in {!all}. *)
 
-(** {1:json JSON events}
+(** {1:layout Row layout} *)
 
-    With [`Json] a display writes one JSON object on each line of its formatter
-    for each event, in the order the events happen: the line is the
-    {!Event.to_string} of an {!Event.t}, and {!Event.jsont} reads it back. The
-    summary of the display is not an event.
+(** What a running task's row shows, left to right.
 
-    Objects may gain members, new events may be added, and a member whose values
-    are listed may gain values, but the members of {!Event} keep their meaning.
-    A consumer skips a member, an event or a value it does not know, as
-    {!Event.jsont} does. An event of another name may give a listed member
-    another type: {!Event.jsont} then skips it too. *)
+    A layout is pieces put together with {!Layout.(++)} and {!Layout.list}. The
+    lines of the tasks that ended have pieces of their own, whatever the layout:
+    the mark, the label, the count and the elapsed time.
 
-(** JSON events.
+    {b What gives way.} The label is what tells two rows apart, so it gives way
+    last. When a row does not fit its room, its pieces give way stage by stage,
+    each piece at the stage {!Layout.give_way} sets, by default:
+    + the rate and the time left;
+    + the bar and the percentage;
+    + the count, which leaves the column it shares with the other rows and, for
+      bytes, gets shorter, such as [256M/2.0G];
+    + the elapsed time.
 
-    An event is a JSON object with two members:
-    - [time], the seconds since the display started, a number rounded to the
-      millisecond, such as [1.5] or [0] ({!Event.time}). A time is held in
-      \[[-10{^ 12}];[10{^ 12}]\] seconds: a larger magnitude is the bound, and a
-      time that is not finite is [0];
-    - [event], the name of the event ({!Event.type-kind}).
+    Only once all of them have is the label cut, with an ellipsis. A piece that
+    gives way takes with it the blank {!Layout.const} before it, or after it.
 
-    An event of a task also has:
-    - [id], an integer that names the task in the display: the tasks are
-      numbered from [0] in the order they start, and no two tasks of a display
-      have the same number;
-    - [task], the labels from the top task down to it, an array of strings.
+    {b Columns.} The count and the rate each take a column that the rows of a
+    root share, and the elapsed time a column of six cells; a row without a
+    count or a rate leaves its column blank. The count column is as wide as the
+    widest count a task's total allows, at least [999/999], and the rate column
+    as the widest rate, so they widen only when a task with a larger total
+    starts. The pieces after the {!Layout.spacer} sit against the right edge, so
+    while no piece gives way each sits in the same columns on every row and in
+    every frame. *)
+module Layout : sig
+  type t = Progress_layout.t
+  (** The type for row layouts: at most one {!label} and one {!spacer}. *)
 
-    An event of no task, such as output outside any task or the ["end"] of the
-    work as a whole, has neither.
+  val spinner : t
+  (** [spinner] is the spinner of the row's theme ({!Spinner.view}), in the
+      row's colour: the colour of the {!Theme.palette} the row takes. *)
 
-    The other members are those of each event, in the order of
-    {{!Event.members}its accessors}, a member that an event does not have being
-    absent. Strings are valid UTF-8 and hold no C1 control (U+0080 to U+009F),
-    which a terminal may take for an escape code: each C1 control is U+FFFD, and
-    so is each maximal subpart of an ill-formed sequence, as
-    [String.get_utf_8_uchar] decodes it. The C0 controls and DEL are escaped.
-    Numbers have at most 15 significant digits, so an integer, never negative,
-    is a JSON number below 10{^ 15}, and a string of decimal digits from there.
+  val label : t
+  (** [label] is the task's label, in bold. It takes the room the other pieces
+      leave, once they have given way, and is cut to it with an ellipsis. *)
 
-    A label, in [task] or in ["label"], and the [message] of ["end"] are at most
-    4 KiB: a longer one is cut between two characters and ends with [...]
-    ({!Display.output}). A line of output is whole, up to the pieces of 64 KiB
-    in which [Console_eio.run] reads the program's output.
+  val bar : ?width:int -> unit -> t
+  (** [bar ()] is a progress bar ({!Bar.horizontal}), [width] cells wide, or
+      taking the room the spacer would without [width]. No bar shows before the
+      task counts something.
 
-    The task in the example of {!Display} gives these events:
-    {v
-    {"time":0,"event":"start","id":0,"task":["compile"]}
-    {"time":0,"event":"progress","id":0,"task":["compile"],"count":1,"total":2,"unit":"items"}
-    {"time":0,"event":"output","id":0,"task":["compile"],"text":"ocamlopt parser.ml"}
-    {"time":0,"event":"progress","id":0,"task":["compile"],"count":2,"total":2,"unit":"items"}
-    {"time":0,"event":"end","id":0,"task":["compile"],"status":"succeeded","elapsed":0}
-    v}
+      @raise Invalid_argument if [width] is negative. *)
 
-    A program reads a line with {!Event.of_string}, or with any
-    {{:https://erratique.ch/software/jsont}jsont} decoder of {!Event.jsont}. *)
-module Event : sig
-  (** {1:values Values}
+  val percent : t
+  (** [percent] is the share of the work done, as a percentage. *)
 
-      The types of the names of events and of the values of their members are
-      open: constructors may be added, so a value read as [`Other s] today may
-      read as a constructor of its own later, and a match on one has a case for
-      the others. An event never holds [`Other s] with [s] a listed name: the
-      constructors take it as that name's constructor, and {!jsont} reads [s] as
-      it. *)
+  val count : t
+  (** [count] is the count of items or bytes done and the total, such as [3/10],
+      right-aligned in the column of the counts. *)
 
-  type kind =
-    [ `Start  (** ["start"]: the task started. *)
-    | `Progress  (** ["progress"]: the count of the task changed. *)
-    | `Label  (** ["label"]: the label of the task changed. *)
-    | `Output  (** ["output"]: a line of output, of a task or of none. *)
-    | `End
-      (** ["end"]: the task ended, or the work as a whole, which has no task. *)
-    | `Other of string  (** An event of another name. *) ]
-  (** The type for the names of events, the [event] member. *)
+  val rate : t
+  (** [rate] is the bytes per second of a task that counts bytes, right-aligned
+      in the column of the rates. The rate weighs the past by the time since it
+      was measured, not by how often the count is said, so a program that
+      reports often and one that reports seldom show the same rate for the same
+      work. *)
 
-  type count_unit = [ `Items | `Bytes | `Other of string ]
-  (** The type for the units of a count, the [unit] member: ["items"], ["bytes"]
-      or another string. *)
+  val eta : t
+  (** [eta] is the time the task has left at its rate, such as [ETA 1m05s], once
+      it has a rate. *)
 
-  type level = [ `App | `Error | `Warning | `Info | `Debug | `Other of string ]
-  (** The type for the levels of Logs messages, the [level] member: ["app"],
-      ["error"], ["warning"], ["info"], ["debug"] or another string. *)
+  val elapsed : t
+  (** [elapsed] is the time since the task started, rounded, such as [6.4s],
+      [1m05s] or [1h02m], right-aligned in a column of its own. *)
 
-  type status = [ `Succeeded | `Failed | `Cancelled | `Other of string ]
-  (** The type for how a task or the work ended, the [status] member of ["end"]:
-      ["succeeded"], ["failed"], ["cancelled"] or another string. *)
-
-  type task = int * string list
-  (** The type for the task of an event: its [id] member, and its [task] member,
-      the labels from the top task down to it. *)
-
-  type t
-  (** The type for events. A transient task ({!Display.val-task}) has its events
-      as any other task has. *)
-
-  (** {1:make Constructors}
-
-      Each event has a constructor that takes its members, those it may lack as
-      optional arguments, so that a member added later is an optional argument.
-      The task of an event is its [id] and its [task], the labels from the top
-      task down to it, the last argument. [time] and [elapsed] are taken as
-      {!jsont} writes them, and each string as valid UTF-8 without a C1 control.
-
-      The constructors raise [Invalid_argument] if given a negative [id],
-      [parent], [count] or [total]. *)
-
-  val start : ?parent:int -> time:float -> task -> t
-  (** [start ~parent ~time task] is ["start"]: [task] started, under the task
-      whose [id] is [parent], if any. *)
-
-  val progress :
-    time:float -> count:int64 -> total:int64 -> unit:count_unit -> task -> t
-  (** [progress ~time ~count ~total ~unit task] is ["progress"]: the count of
-      [task] changed to [count] of [total], in [unit]. Each call to
-      {!Display.set_count} or {!Display.set_bytes} that changes them is one
-      event, however often it comes. *)
-
-  val label : time:float -> task -> string -> t
-  (** [label ~time task text] is ["label"]: the label of [task] changed to
-      [text]. *)
-
-  val output : ?task:task -> ?level:level -> time:float -> string -> t
-  (** [output ~task ~level ~time text] is ["output"]: [text] is a line of output
-      of [task], or of no task if [task] is absent, and [level], only for a Logs
-      message, its level. *)
-
-  val succeeded :
-    ?task:task -> ?message:string -> time:float -> elapsed:float -> unit -> t
-  (** [succeeded ~task ~message ~time ~elapsed ()] is ["end"] with [status]
-      ["succeeded"]: [task] ended after [elapsed] seconds, or the work as a
-      whole without [task], and [message] is the message it ended with, if any.
+  val spacer : t
+  (** [spacer] is the space that pushes the pieces after it to the right edge.
   *)
 
-  val failed :
-    ?task:task -> ?message:string -> time:float -> elapsed:float -> unit -> t
-  (** [failed] is {!succeeded} with [status] ["failed"]. *)
+  val const : View.t -> t
+  (** [const v] is [v] on every row, on one line. *)
 
-  val cancelled :
-    ?task:task -> ?message:string -> time:float -> elapsed:float -> unit -> t
-  (** [cancelled] is {!succeeded} with [status] ["cancelled"]. *)
+  val custom : (Task.t -> View.t) -> t
+  (** [custom f] is [f task] on the row of [task], on one line, drawn again at
+      every frame. *)
 
-  val other : ?task:task -> time:float -> string -> t
-  (** [other ~task ~time name] is the event named [name], of [task] if given,
-      with no other member.
+  val give_way : int -> t -> t
+  (** [give_way n l] is [l] whose pieces give way at stage [n] (at least [1])
+      when the row is short of room ({!Layout}). *)
 
-      @raise Invalid_argument if [name] is the name of a listed {!type-kind}. *)
+  val ( ++ ) : t -> t -> t
+  (** [l0 ++ l1] is [l0] then [l1].
 
-  (** {1:members Members}
+      @raise Invalid_argument if they hold two {!label}s or two {!spacer}s. *)
 
-      An event's members are in the order of these accessors. A member that an
-      event does not have is [None], and is absent from its object. *)
+  val list : ?sep:t -> t list -> t
+  (** [list ~sep ls] is [ls] in turn, [sep] between each two.
 
-  val time : t -> float
-  (** [time e] is the seconds since the display started when [e] happened. *)
+      @raise Invalid_argument if they hold two {!label}s or two {!spacer}s. *)
 
-  val kind : t -> kind
-  (** [kind e] is the name of [e]. *)
-
-  val task : t -> task option
-  (** [task e] is the task of [e]: [None] for output outside any task, for the
-      ["end"] of the work and for an event of another name that has none. *)
-
-  val parent : t -> int option
-  (** [parent e] is the [id] of the task over that of ["start"], if any. *)
-
-  val count : t -> int64 option
-  (** [count e] is the count of ["progress"]. It is written as a JSON number
-      below 10{^ 15} in magnitude, and as a string of decimal digits from there.
-  *)
-
-  val total : t -> int64 option
-  (** [total e] is the total of ["progress"], written as {!count} is. *)
-
-  val unit : t -> count_unit option
-  (** [unit e] is the unit of the count of ["progress"]. *)
-
-  val status : t -> status option
-  (** [status e] is how the task or the work of ["end"] ended. *)
-
-  val elapsed : t -> float option
-  (** [elapsed e] is the seconds the task or the work of ["end"] ran for. *)
-
-  val text : t -> string option
-  (** [text e] is the label of ["label"] and the line of ["output"]. *)
-
-  val message : t -> string option
-  (** [message e] is the message of ["end"], if any. *)
-
-  val level : t -> level option
-  (** [level e] is the level of ["output"], for a Logs message. *)
-
-  (** {1:json JSON} *)
-
-  val jsont : t Jsont.t
-  (** [jsont] maps an event to its JSON object. It reads and writes [time] and
-      [elapsed] rounded to the millisecond in \[[-10{^ 12}];[10{^ 12}]\], a
-      larger magnitude as the bound and [0] if not finite, so that each reads
-      back as it was written. It encodes an integer of 10{^ 15} or more as a
-      string, and each string as valid UTF-8 without a C1 control. It decodes an
-      event of another name as [`Other] with its [time], and its [id] and [task]
-      if they have the types of {{!json}an event of a task}: its other members,
-      whatever their types, are skipped. It decodes a value of a
-      {!type-count_unit}, a {!type-level} or a {!type-status} it does not list
-      as [`Other], and skips the members it does not know. An event of a listed
-      name that lacks a member of its kind, or has a listed member of another
-      type, does not decode, and neither does a negative or fractional integer.
-  *)
-
-  val of_string : string -> (t, [ `Msg of string ]) result
-  (** [of_string s] is the event of the JSON object [s], decoded with {!jsont}.
-      This is [Error (`Msg m)] if [s] is not the JSON object of an event, with
-      [m] plain text, without escape codes. *)
-
-  val to_string : t -> string
-  (** [to_string e] is the line a display writes for [e], without the line feed:
-      the object of {!jsont} on one line, its members in order, written by
-      [Jsont_bytesrw.encode_string] with 15 significant digits for numbers. *)
-
-  val pp : Format.formatter -> t -> unit
-  (** [pp] formats an event as {!to_string} does. *)
+  val default : t
+  (** [default] is a spinner, the label, a spacer, a bar 12 cells wide, the
+      count, the rate and the elapsed time, with a space after the spinner and
+      between each two of the last four. *)
 end
+
+(** {1:views Task views} *)
+
+val row : ?layout:Layout.t -> Task.t -> View.t
+(** [row task] is the row of [task] in its room ({!View.fit}): drawn by [layout]
+    (defaults to {!Layout.default}) while it runs, its pieces giving way to fit,
+    and its line once it ended: its mark and label, then its count and time
+    against the right edge. *)
+
+val tree : ?layout:Layout.t -> Task.t -> View.t
+(** [tree task] is the tree of [task] in its room ({!View.fit}): the row of
+    [task], its window of output under it, then the trees of the tasks under it,
+    each under its parent with the guides of a {!Tree.view} two cells in, in the
+    order they started. The tree of a root is those of its top tasks.
+
+    - In a room of a height, a tree too tall folds as {!design} says, and a task
+      that ended is its line.
+    - Without a height, as when the display closes or a task moves to the
+      scrollback, the tree is whole: every task, none folded, each failure or
+      cancellation followed by its output, and a label never cut: one too wide
+      goes on over the next lines, never in fewer than 12 cells, its count and
+      time at the end of its last line, or giving way as {!Layout} says.
+    - A transient task that succeeded leaves its place to the tasks under it,
+      and a task forgotten, once in the scrollback, is {!View.empty}. *)
+
+val summary : Task.t -> View.t
+(** [summary root] is the summary line of the work of [root], if its root has a
+    label ({!Task.root}), and {!View.empty} otherwise: the mark of how the work
+    is, its label, the time since it started and the count of the tasks that
+    ended out of those started. In a room, the time and the count give way
+    before the label. The mark is the running mark until the root ends, then the
+    worst of how the root and its tasks ended. *)
+
+val view : ?layout:Layout.t -> Task.t -> View.t
+(** [view root] is the tree of [root] above its summary, and the message the
+    work ended with under it, if any, at most 100 cells wide: what a display
+    shows by default. *)
+
+(** {1:showing Showing tasks} *)
+
+val show :
+  ?progress:t ->
+  ?layout:Layout.t ->
+  ?view:View.t ->
+  ?keep_ended:bool ->
+  ?commit:(Task.t -> View.t option) ->
+  ?size:(unit -> int * int) ->
+  Format.formatter ->
+  Task.t ->
+  Display.t
+(** [show ppf root] shows the tasks of [root] on [ppf] and is the display that
+    does it. Closing it ends the work as cancelled if [root] still runs.
+
+    - [size], if given, says that [ppf] is a terminal and gives its width and
+      height, as {!Display.v} takes them.
+    - [progress] (defaults to [`Auto]) is the mode: [`Auto] redraws the rows on
+      a terminal, as [size] says, [`Tty] on 80 columns by 24 rows without
+      [size], and [`Plain], [`Quiet] and [`Json] print lines, whatever [size]
+      says.
+    - [view] (defaults to {!val-view}[ root]) is the region, redrawn in place,
+      and the last frame printed when the display closes, with [`Plain] too. A
+      view that raises is dropped for the default one, and the exception is
+      raised again.
+    - [commit] (defaults to the {!tree} of the task) is what a top task that
+      ends leaves in the scrollback; [None] leaves nothing.
+    - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
+      region until the display closes, where they otherwise move to the
+      scrollback with their top task ({!design}).
+    - [layout] (defaults to {!Layout.default}) draws the rows.
+
+    The display takes none of what the program prints on [ppf] but what
+    {!Display.with_output} prints: with [`Quiet] it shows, and with [`Json] it
+    breaks the lines of events. [Console_eio.run] takes the standard outputs. *)
+
+(** {1:design Design}
+
+    On a terminal, the rows are the region of a {!Display}, and what leaves the
+    region goes to its scrollback.
+
+    - The summary is the last line of the default view, so the line that says
+      how far the work is stays where the eye left it, below the rows.
+    - A task that ends stays in the region, marked as it ended, under its
+      parent, while its top task runs.
+    - When a top task ends, it moves to the scrollback with every task under it,
+      as its tree: each task once, under its parent, in the order they started,
+      and a task that failed or was cancelled followed by its output. Work moves
+      by top task so that a task never lands above its parent and the tasks of
+      one top task stay together, however their endings interleave. The tree is
+      laid out, then the task forgotten, then the tree printed with the region
+      drawn again below it, so it never shows twice.
+    - With [keep_ended] ({!show}), no task moves: the tasks that ended stay in
+      the region until the display closes, as in a view of trees side by side,
+      where a column should not empty while the others run.
+    - The output of the root, and a line given to a task that ended, go to the
+      scrollback at once.
+    - Only running rows, their windows and the summary change: a task that ended
+      keeps its line as it ended until it leaves the region, or folds to fit.
+    - A tree too tall for its room first folds the tasks that ended under each
+      task into one line, such as [12 done, 2 failed] after the mark of the
+      worst ending among them, then the lines of its windows give way, the
+      oldest of them first, whichever task's window holds it, then only its
+      latest running tasks show, after a line such as [3 more running].
+    - At close, the root ends cancelled if it runs, its tasks move as above,
+      then the view's last frame is printed once, still, and stays: the summary
+      alone in the default view, unless [keep_ended] kept the tasks.
+    - The tasks that wait in the region under a task are bounded: past 1 MiB,
+      the oldest are dropped, and a line counts them.
+
+    Without a terminal there is no region. The tasks print the lines of
+    [`Plain]: one line when a task starts and one when it ends, in the order
+    they happen, and at close the view's last frame comes once: the summary
+    alone in the default view, since every task has printed its lines, then the
+    message the work ended with.
+
+    The lines of tasks that run at once interleave on a pipe, so no line is
+    placed by its indentation: each line a task prints, as it starts, as it ends
+    and before each line of its output, names the task by its {e path}, the
+    labels from its top task down to it, such as [linux > compile]. On a UTF-8
+    formatter the separator is a small black right-pointing triangle, U+25B8, a
+    glyph that no mark takes and that a label seldom holds; on another it is
+    [>]. The lines of tasks start at the first column, and a line of output two
+    columns in. A task's line when it ends says [failed] or [cancelled] when it
+    did not succeed, as no colour may. With [`Quiet], the line of a failure
+    names its path too, and its output follows it, two columns in.
+
+    A line of output that comes a second or more after the task's line before
+    it, or after the task started, ends with that wait, muted, such as [+3.0s],
+    so that a pause in the work shows where it happened.
+
+    {1:guarantees Guarantees}
+
+    Those of {!Display}, and on a terminal of [w] columns:
+    - While no piece gives way ({!Layout}), the counts, rates and timers of all
+      rows sit in the same columns, whatever the width of the labels: at the
+      right edge of the first [min w 100] columns, and so do the ends of their
+      bars. On a wide terminal they stay near their labels, and they do not move
+      when the terminal is resized wider. Nothing in the region moves sideways
+      unless the terminal width changes.
+    - A label cut to fit is cut between two characters and ends with an ellipsis
+      that turns its style off. *)

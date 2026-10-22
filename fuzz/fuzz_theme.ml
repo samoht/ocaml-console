@@ -67,21 +67,17 @@ let test_ascii s n =
     View.pp (Rule.view ~label:text ()) View.pp
     (Bar.horizontal ~brackets:true ~width:(n mod 30)
        (Float.of_int (n mod 101) /. 100.));
-  let d =
-    Display.v ~summary:s
-      ~size:(fun () -> (margin, 1 + (n mod 7)))
-      ~now:(fun () -> 0.25)
-      ppf
-  in
-  let parent = Display.task d s in
-  let child = Display.task ~parent d s in
-  Display.set_count child ~cur:(n mod 5) ~total:4;
-  Display.log child s;
-  ignore (Display.task d s);
-  Driver.report d `Warning s;
-  Driver.report d `Debug s;
-  Display.fail child;
-  Display.succeed child;
+  let root = Task.root ~label:s ~now:(fun () -> 0.25) () in
+  let d = Progress.show ~size:(fun () -> (margin, 1 + (n mod 7))) ppf root in
+  let parent = Task.start root s in
+  let child = Task.start parent s in
+  Task.set_items child ~count:(n mod 5) ~total:4;
+  Task.log child s;
+  ignore (Task.start root s);
+  Driver.report root `Warning s;
+  Driver.report root `Debug s;
+  Task.fail child;
+  Task.succeed child;
   Display.close d;
   Format.pp_print_flush ppf ();
   let out = Buffer.contents buf in

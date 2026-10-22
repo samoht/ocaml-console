@@ -15,7 +15,7 @@ let view ?frames () =
   in
   let moves look = match frames look with [ _ ] -> false | _ -> true in
   View_core.deferred
-    ~kind:(fun look -> { View_core.static with timed = moves look })
+    ~kind:(fun look -> if moves look then View_core.timed else View_core.static)
     (fun c ->
       let frames = frames (Ctx.look c) in
       let widest =

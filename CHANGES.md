@@ -2,96 +2,97 @@
 
 Initial release of `console` and `console-eio`.
 
-- Styled text. `Style` combines bold, italic, underline and colours with
-  `+`; `Color` names the 16 ANSI colours, the xterm 256-colour palette and
-  RGB, written at the colour depth of their formatter (`Color.set_depth`, 16
-  colours until one is set). A `Span.t` is text in one or more styles, with
-  links (`Span.link`, percent-encoding the bytes a URI may not hold) and
-  colours graded along it (`Span.gradient`). A span holds only text that
-  prints, and `Style.styled` styles any `Fmt` printer.
-- Widgets. `Table` (headers and cells are spans, columns that wrap or
+- Views. A `View.t` is what console prints: text in one or more styles,
+  with links (`View.link`, percent-encoding the bytes a URI may not hold),
+  colours graded along it (`View.gradient`) and the colours of the theme
+  (`View.role`), and every widget built from it. A view holds only text
+  that prints, and `Style.styled` styles any `Fmt` printer. A view is what
+  is drawn in a given room at a given moment: `View.fit` gives a part its
+  `Room`, the width and height it may take, the moment of the frame and the
+  formatter's theme and UTF-8; `View.pp` gives the margin and time 0, a
+  display the terminal and the frame's time, `View.sized` narrows the room,
+  and `View.place` pads or cuts a view to a box. A view's size depends on
+  its room alone. `View.hcat` puts views side by side, those that grow
+  (`?grow`) sharing what the others leave in a room, and `View.vcat` one
+  under the other. Widths are counted in terminal cells, by grapheme
+  cluster with uuseg and uucp, wide characters and emoji included.
+- Widgets. One constructor each, a view: `Table.view` (headers and cells
+  are views, laid out at their column's width, columns that wrap or
   truncate, rules between rows with `~rules:true`, a frameless
-  `Border.simple`), `Tree`, `Panel`, `Rule` and `Bar`. Every widget is a
-  span too, by its `to_span`, laid out when it is printed in the theme of
-  the formatter that prints it, so widgets nest: a bar or a table in a cell,
-  a table in a panel, and `Span.hcat` puts spans, widgets among them, side
-  by side, as one more span, and `Span.vcat` one under the other
-  (`Span.height` counts its lines). Widths are counted in terminal cells, by
-  grapheme cluster with uuseg and uucp, wide characters and emoji included,
-  a widget is no wider than its formatter's margin, and every widget is
-  drawn in ASCII on a formatter that is not UTF-8. Each has a `pp`, a
-  `to_span` and a `to_string ?styled`.
+  `Border.simple`), `Tree.view` (`?guide`, `?indent`), `Panel.view`
+  (`?expand`), `Rule.view`, `Bar.horizontal`, `Bar.vertical`,
+  `Bar.sparkline`, `Bar.chart` and `Spinner.view`. Widgets nest: a bar or
+  a table in a cell, a table in a panel, trees side by side. A widget is no
+  wider than its room, and is drawn in ASCII on a formatter that is not
+  UTF-8. A part laid out for its room alone is laid out once for each room.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
-  gives every widget its colours, marks, frames, tree lines, bars and
-  spinner. Eighteen are predefined: `Theme.default`, which reads on any
+  gives every view its colours, marks, frames, tree lines, bars and spinner
+  frames. Eighteen are predefined: `Theme.default`, which reads on any
   background, `ascii`, `dos`, `matrix`, `rainbow`, and the colour schemes of
   Dracula, Nord, Solarized, gruvbox, Catppuccin, Tokyo Night, One Dark,
   Monokai and GitHub. Text colours, the roles' included, are at 4.5:1
-  contrast on the theme's background and glyph colours at 3:1. `Span.role`
-  styles text as a success, a warning, a failure, the main colour, muted
-  text or a header, in the theme of the formatter it is printed on.
-  `Theme.all` and `Theme.of_string` make a `--theme` option one line of
+  contrast on the theme's background and glyph colours at 3:1. The roles
+  are those of a task's ending: `` `Succeeded ``, `` `Warning ``,
+  `` `Failed ``, and the main colour, muted text and headers. `Theme.all`
+  and `Theme.of_string` make a `--theme` option one line of Cmdliner.
+- Motion. In a display that draws in colour, the frame of a table or a
+  panel moves in the theme's way (`Theme.motion`): digital rain in
+  `Theme.matrix`, a rainbow sweep in `Theme.rainbow`, a shimmer in the
+  colour schemes, with or without tasks. A `Spinner.view` turns at the
+  frame's time. Only colours and glyphs of one width change; printed once,
+  on a pipe or without colour, a frame is still and a spinner shows its
+  first frame, and `Theme.still` stops every motion.
+- Tasks. `Task` is the work a program reports, with no drawing: a root
+  (`Task.root`), and tasks under it (`Task.start parent label`,
+  `Task.run parent label f`, which succeeds when `f` returns and fails,
+  saying why, when it raises), each with a label, a count of items or bytes
+  (`Task.set_items`, `Task.set_bytes`, whose rate weighs the past by time,
+  not by the number of reports), lines of output (`Task.log`, and its
+  `Logs` messages and standard output under `Console_eio.run`) and an end
+  (`Task.succeed`, `fail`, `cancel`). Ending the root says how the work
+  ended, with a message, and ends every task under it, also one started
+  afterwards. `Task.within` makes a task current, which decides only where
+  output goes. Every change is a `Task.Event.t` (`Task.on_event`): an
+  abstract value with a constructor for each event (`Event.succeeded`,
+  `failed` and `cancelled` for the end of a task or of the work), an
+  accessor for each member, and a
+  [jsont](https://erratique.ch/software/jsont) codec that writes them and reads them back, skipping the members, events
+  and values that a later console adds. Times are rounded to the
+  millisecond and held within 10^12 seconds, and strings are valid UTF-8
+  without a C1 control.
+- Live progress. `Display` draws a view at the bottom of the terminal and
+  redraws only the lines that change, in one synchronized update, never
+  taller than the terminal less one row; `Display.print` writes a view once
+  above it, at once. `Progress.show` connects a root to a display:
+  `Progress.view` draws the tree of the running tasks (`Progress.tree`),
+  one row each (`Progress.row`, drawn by a `Progress.Layout` of combinators
+  with a spinner, a bar, a count, a rate, the time left and the elapsed
+  time, which give way in stages before the label is cut), above a summary
+  line (`Progress.summary`). The counts and the rates of all rows sit in
+  columns of their own, so the bars line up and nothing moves sideways. A
+  task that ends stays under its parent, marked, until its top task ends,
+  and the top task then goes to the scrollback as its commit draws it, its
+  whole tree by default (`~commit`). A tree too tall folds the tasks that
+  ended into one line, then drops its windows' oldest lines, then shows the
+  latest running tasks; a table or a panel too tall goes whole. `~progress`
+  chooses how progress shows, as `docker build --progress` does:
+  `` `Auto ``, rows on a terminal and lines elsewhere; `` `Tty ``, rows on
+  any output; `` `Plain ``, the lines a pipe gets, each naming its task by
+  its path, such as `linux ▸ compile`, in order with standard output under
+  `2>&1`; `` `Quiet ``, only what fails; `` `Json ``, one JSON object for
+  each event. `Progress.all` makes a `--progress` option in one line of
   Cmdliner.
-- Motion. In a live display the frame of a table or a panel drawn in a
-  display's view (`Display.set_view`) moves in the theme's way
-  (`Theme.motion`): digital rain in `Theme.matrix`, a rainbow sweep in
-  `Theme.rainbow`, a shimmer in the colour schemes. Only colours and glyphs
-  of one width change; printed with `Fmt`, on a pipe or without colour, a
-  frame is still, and `Theme.still` stops every motion and the spinner.
-- Live progress. `Display` shows the tree of the running tasks, one row
-  each, with a spinner or a bar, a count or bytes and a rate, above a
-  summary line (`~summary`) with the work's time and count, and redraws only
-  those rows. A task that ends stays under its parent, marked, until its top
-  task ends, and the top task's tree then goes to the scrollback whole, each
-  task once under its parent; the summary is the last line printed, before
-  the result. The counts and the rates of all rows sit in columns of their
-  own, so the bars line up. A row too wide gives up its rate, its bar, its
-  count and its time, in that order, before its label is cut. The region
-  never scrolls the terminal: a tree too tall folds the tasks that ended
-  into one line, which counts the failures, then drops its windows' oldest
-  lines, then shows the latest running tasks, and a view too tall drops a
-  widget whole rather than show a fragment of its frame. The region is a
-  view (`Display.set_view`), a span the program puts together from
-  `Display.tree`, `Display.children`, `Display.summary` and any widget, such
-  as a table above the rows or trees side by side with `~keep_ended:true`;
-  its last frame stays when the display closes. `Display.with_task` runs a
-  function as a task, current in the fibers it forks, that succeeds when the
-  function returns and fails, saying why, when it raises. A task's output
-  shows under it while it runs, and stays if the task fails: its `Logs`
-  messages, its `Display.log` lines and its standard output on the display's
-  terminal alike, printed whole (up to 1 MiB) under the line of a failure or
-  a cancellation. `Display.within` makes a task current again, and output
-  within `Display.root` goes above the rows, from inside a task too. In a
-  pipe or a CI log, every line is printed once, in order with standard
-  output under `2>&1`, and names its task by its path, such as `linux ▸
-  compile`, so the lines
- of trees that run at once read apart.
-- `console-eio`. `Console_eio.run ~clock` runs a display on standard error
-  with Eio: it gives it the `Logs` messages, those of other Eio domains
-  included, and the program's output on its terminal, and gives the terminal
-  back when the function returns or raises, when its fiber is cancelled, at
-  exit and on SIGINT or SIGTERM. A `run` inside another, or in a fiber
-  beside it, gets the same display. `~progress` chooses how progress shows,
-  as `docker build --progress` does: `` `Auto ``, rows on a terminal and
-  lines elsewhere; `` `Tty ``, rows on any output; `` `Plain ``, the lines a
-  pipe gets; `` `Quiet ``, only what fails; `` `Json ``, one JSON object for
-  each event. `Console.Progress.Event` types the events: an abstract value
-  with a constructor for each event, whose members are optional arguments
-  where an event may lack them, and an accessor for each member, so that a
-  member added later breaks no match. Its
-  [jsont](https://erratique.ch/software/jsont) codec,
-  `Console.Progress.Event.jsont`, writes them and reads them back
-  (`Event.of_string`), skipping the members, events and values that a later
-  console adds. Times are rounded to the millisecond and held within 10^12
-  seconds, and strings are valid UTF-8 without a C1 control.
-  `Console.Progress.all` makes a `--progress=auto|tty|plain|quiet|json`
-  option of it in one line of Cmdliner, as `Theme.all` makes a `--theme`
-  option, and `Progress.to_string` names a mode. `Display.v ~progress` takes
-  the same values without Eio, so a program with its own scheduler can be
-  quiet or write JSON events too. `Console_eio.Prompt` asks a line, a yes or
-  no, or a password, taking the rows off the screen while it asks, and tells
-  the end of the input (`` `End_of_input ``) from its other errors, which
-  `Prompt.pp_error` formats.
+- `console-eio`. `Console_eio.run ~clock f` makes the root of the work,
+  shows its tasks on standard error with Eio, passes `f` the root and ends
+  the work as `Task.run` ends a task. It gives the current task the `Logs`
+  messages, those of other Eio domains included, and the program's output
+  on its terminal, and gives the terminal back when `f` returns or raises,
+  when its fiber is cancelled, at exit and on SIGINT or SIGTERM. A `run`
+  inside another, or in a fiber beside it, gets the task current where it
+  is called. `Console_eio.with_output` prints what console does not see
+  above the rows. `Console_eio.Prompt` asks a line, a yes or no, or a
+  password, taking the rows off the screen while it asks, and tells the end
+  of the input (`` `End_of_input ``) from its other errors.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
   `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix
@@ -114,5 +115,5 @@ Initial release of `console` and `console-eio`.
 - Known limitations, listed in the README: the tests read the screen through
   matrix 0.1.0's emulator, which they work around until matrix 0.2.0; a
   pictograph with no emoji presentation, such as ❤ or ‼, counts one cell;
-  and `Display.v` does not take the program's own output, which
+  and `Progress.show` does not take the program's own output, which
   `Console_eio.run` does.

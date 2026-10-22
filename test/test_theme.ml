@@ -168,16 +168,17 @@ let test_display_reads_it () =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf Theme.dos;
-  let d = Display.v ~now:(fun () -> 0.) ppf in
-  Display.succeed (Display.task d "done");
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let d = Progress.show ppf root in
+  Task.succeed (Task.start root "done");
   Display.close d;
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "dos marks" true
     (contains "[+] done" (Buffer.contents buf));
   let term = terminal ~theme:Theme.dos () in
-  let task = Display.task term.display "copy" in
-  Display.set_count task ~cur:1 ~total:2;
+  let task = Task.start term.root "copy" in
+  Task.set_items task ~count:1 ~total:2;
   Display.redraw term.display;
   Alcotest.(check bool)
     "dos bars" true
@@ -187,8 +188,8 @@ let test_display_reads_it () =
    their bars in the whole palette, from its first colour to its last. *)
 let test_display_palette () =
   let term = terminal ~theme:Theme.rainbow ~styled:true () in
-  let task = Display.task term.display "copy" in
-  Display.set_count task ~cur:1 ~total:1;
+  let task = Task.start term.root "copy" in
+  Task.set_items task ~count:1 ~total:1;
   Display.redraw term.display;
   let written = written term in
   List.iter
@@ -339,9 +340,9 @@ let test_roles () =
        (Tree.view (Tree.v (View.text "r") [ Tree.v (View.text "c") [] ])));
   check "rule" (muted ^ "\u{2500}") (print View.pp (Rule.view ()));
   check "bar track" muted (print View.pp (Bar.horizontal ~width:4 0.5));
-  let term = terminal ~theme:t ~styled:true ~summary:"Build" () in
-  let task = Display.task term.display "compile" in
-  Display.set_count task ~cur:1 ~total:3;
+  let term = terminal ~theme:t ~styled:true ~label:"Build" () in
+  let task = Task.start term.root "compile" in
+  Task.set_items task ~count:1 ~total:3;
   Display.redraw term.display;
   let out = written term in
   check "display count" (muted ^ "1/3") out;
@@ -403,19 +404,15 @@ let display_bytes theme =
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf theme;
   Fmt.set_utf_8 ppf false;
-  let d =
-    Display.v ~summary:"Build"
-      ~size:(fun () -> (24, 6))
-      ~now:(fun () -> 0.3)
-      ppf
-  in
-  let parent = Display.task d "a label much wider than the terminal" in
-  let child = Display.task ~parent d "child" in
-  Display.set_count child ~cur:1 ~total:3;
-  Display.log parent "careful";
-  Driver.report d `Debug "debug";
-  List.iter (fun l -> ignore (Display.task d l)) [ "b"; "c"; "d"; "e" ];
-  Display.succeed child;
+  let root = Task.root ~label:"Build" ~now:(fun () -> 0.3) () in
+  let d = Progress.show ~size:(fun () -> (24, 6)) ppf root in
+  let parent = Task.start root "a label much wider than the terminal" in
+  let child = Task.start parent "child" in
+  Task.set_items child ~count:1 ~total:3;
+  Task.log parent "careful";
+  Driver.report root `Debug "debug";
+  List.iter (fun l -> ignore (Task.start root l)) [ "b"; "c"; "d"; "e" ];
+  Task.succeed child;
   Display.close d;
   Format.pp_print_flush ppf ();
   Buffer.contents buf
@@ -555,8 +552,7 @@ let frames theme times =
       ]
       [ [ View.text "fetch"; View.text "1.2s" ] ]
   in
-  Display.set_view term.display (fun _ ~width ~height:_ ->
-      View.sized ~width table);
+  Display.set_view term.display table;
   let now = ref 0. in
   List.map
     (fun time ->

@@ -49,8 +49,9 @@ val sizes : Console.View.t = <abstr>
 The [console] package has four libraries:
 
 {ul
-{- [console], the module {!Console}: styles, views, the widgets, the themes
-   and the live {!Console.Display}. It needs neither Eio nor Unix.}
+{- [console], the module {!Console}: styles, views, the widgets, the
+   themes, tasks, the live {!Console.Display} and how tasks show on it,
+   {!Console.Progress}. It needs neither Eio nor Unix.}
 {- [console.tty], the module {!Console_tty}: colour, colour depth and UTF-8
    for the standard outputs, decided from the terminal and the environment
    or from a [--color] option.}
@@ -68,5 +69,6 @@ The [console] package has four libraries:
    {!Console.Bar} for the widgets.}
 {- {!Console.Theme} to choose a look, and to let users choose one with a
    [--theme] option.}
-{- {!Console.Display} for the rules of the live rows: where text goes, what
+{- {!Console.Task} and {!Console.Progress} for the progress rows, and
+   {!Console.Display} for the rules of the live region: where text goes, what
    a pipe gets and what the display guarantees.}}

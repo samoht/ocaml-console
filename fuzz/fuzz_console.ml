@@ -460,10 +460,12 @@ let view_screen theme ~width ~height ~time block =
   Color.set_depth ppf `True_color;
   Theme.set ppf theme;
   let d =
-    Display.v ~size:(fun () -> (width, height)) ~now:(fun () -> time) ppf
+    Display.v
+      ~size:(fun () -> (width, height))
+      ~now:(fun () -> time)
+      ppf View.empty
   in
-  (try Display.set_view d (fun _ ~width:_ ~height:_ -> nested 0 block)
-   with Invalid_argument _ -> ());
+  (try Display.set_view d (nested 0 block) with Invalid_argument _ -> ());
   Display.redraw d;
   let g = Console_vte.grid term in
   let rows =

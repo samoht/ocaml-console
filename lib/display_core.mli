@@ -3,134 +3,67 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Displays, with what a driver needs. {!Display} is their public face and
-    documents the values both have; {!Display_driver} gives a driver the rest.
-*)
+(** Displays, with what {!Progress} and a driver need. {!Display} is their
+    public face and documents the values both have. *)
 
-module Layout = Display_layout
-
-type t = Display_state.t
+type t
 (** The type for displays. *)
 
-type task = Display_state.row
-(** The type for tasks. *)
-
-type scope = Display_state.scope
-(** See {!Display_driver.type-scope}. *)
-
-type level = Display_state.level
-(** See {!Display_driver.type-level}. *)
-
-val scope :
-  current:(unit -> task option) ->
-  within:(task -> (unit -> unit) -> unit) ->
-  cancelled:(exn -> bool) ->
-  write_error:(exn -> bool) ->
-  scope
-(** See {!Display_driver.scope}. *)
-
 val v :
-  ?layout:Layout.t ->
-  ?summary:string ->
-  ?view:(t -> width:int -> height:int -> View.t) ->
-  ?keep_ended:bool ->
   ?size:(unit -> int * int) ->
-  ?progress:Progress.t ->
-  ?scope:scope ->
+  ?write_error:(exn -> bool) ->
   now:(unit -> float) ->
   Format.formatter ->
+  View.t ->
   t
-(** [v ~scope ~now ppf] is {!Display.v}[ ~now ppf] in which [scope] says which
-    task is current (defaults to the task of the innermost {!with_task} that
-    runs). *)
+(** [v ~size ~write_error ~now ppf view] is {!Display.v}, which also takes as
+    the end of its output an exception that [write_error] says is a write error
+    (defaults to none but [Sys_error]). *)
 
-val redraw : t -> unit
-(** See {!Display.redraw}. *)
-
+val set_view : t -> View.t -> unit
+val print : t -> View.t -> unit
 val with_output : t -> (Format.formatter -> 'a) -> 'a
-(** See {!Display.with_output}. *)
-
-val set_view : t -> (t -> width:int -> height:int -> View.t) -> unit
-(** See {!Display.set_view}. *)
-
-val default_view : t -> width:int -> height:int -> View.t
-(** See {!Display.default_view}. *)
-
-val children : task -> task list
-(** See {!Display.children}. *)
-
-val tree : ?width:int -> ?height:int -> task -> View.t
-(** See {!Display.tree}. *)
-
-val summary : ?width:int -> t -> View.t
-(** See {!Display.summary}. *)
-
-val set_result : ?detail:string -> t -> (string, string) result -> unit
-(** See {!Display.set_result}. *)
-
+val redraw : t -> unit
 val close : t -> unit
-(** See {!Display.close}. *)
-
 val pp : t Fmt.t
-(** See {!Display.pp}. *)
 
-val task :
-  ?key:string ->
-  ?parent:task ->
-  ?log_lines:int ->
-  ?transient:bool ->
-  t ->
-  string ->
-  task
-(** See {!Display.val-task}. *)
+(** {1:internal For progress and drivers} *)
 
-val with_task :
-  ?key:string ->
-  ?parent:task ->
-  ?log_lines:int ->
-  ?transient:bool ->
-  t ->
-  string ->
-  (task -> 'a) ->
-  'a
-(** See {!Display.with_task}. *)
+val touch : t -> unit
+(** [touch d] says that what the view shows changed: it is drawn again, at most
+    ten times a second. *)
 
-val within : task -> (unit -> 'a) -> 'a
-(** See {!Display.within}. *)
+val write : t -> string -> unit
+(** [write d s] writes [s] as it is, in turn with what [d] writes. *)
 
-val root : t -> task
-(** See {!Display.root}. *)
+val is_live : t -> bool
+(** [is_live d] is [true] iff [d] redraws a region on a terminal. *)
 
-val iter : t -> string -> ('a -> unit) -> 'a list -> unit
-(** See {!Display.iter}. *)
+val print_lines : t -> View.t list -> unit
+(** [print_lines d lines] is {!print} of [lines], each one line that fits. *)
 
-val set_label : task -> string -> unit
-(** See {!Display.set_label}. *)
+val closed : t -> bool
+(** [closed d] is [true] iff [d] closed. *)
 
-val set_count : task -> cur:int -> total:int -> unit
-(** See {!Display.set_count}. *)
+val width : t -> int
+(** [width d] is the terminal's width, read at the last redraw. *)
 
-val set_bytes : task -> cur:int64 -> total:int64 -> unit
-(** See {!Display.set_bytes}. *)
+val look : ?live:bool -> t -> Look.t
+(** [look d] is the look [d] draws in, live iff [live] (defaults to [false]) and
+    [d] draws in colour. *)
 
-val log : task -> string -> unit
-(** See {!Display.log}. *)
+val set_fallback : t -> View.t -> unit
+(** [set_fallback d v] has [d] draw [v] in place of a view that raises. *)
 
-val succeed : ?message:string -> task -> unit
-(** See {!Display.succeed}. *)
+val on_close : t -> (unit -> unit) -> unit
+(** [on_close d f] has [d] call [f] as it closes, before its last frame. *)
 
-val fail : ?message:string -> task -> unit
-(** See {!Display.fail}. *)
-
-val cancel : ?message:string -> task -> unit
-(** See {!Display.cancel}. *)
-
-val report : t -> level -> string -> unit
-(** See {!Display_driver.report}. *)
-
-val current : t -> task option
-(** See {!Display_driver.current}. *)
+val on_output : t -> (string -> unit) -> unit
+(** [on_output d f] gives [f] what {!with_output} prints, rather than printing
+    it. *)
 
 val watch :
   t -> Format.formatter_out_functions -> Format.formatter_out_functions
-(** See {!Display_driver.watch}. *)
+(** [watch d out] is [out], which also tells [d] whether what it writes ends its
+    line, so that the next line [d] prints without a terminal starts on a line
+    of its own. *)

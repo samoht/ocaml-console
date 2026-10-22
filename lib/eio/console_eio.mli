@@ -5,11 +5,14 @@
 
 (** Console with {{:https://github.com/ocaml-multicore/eio}Eio}.
 
-    [Console_eio] runs a {!Console.Display} on the terminal. {!run}:
+    [Console_eio] shows the tasks of a program ({!Console.Task}) on the
+    terminal. {!run}:
 
-    - finds out whether the output is a terminal, and its size;
+    - makes the root of the work and passes it to the program;
+    - finds out whether the output is a terminal, and its size, and shows the
+      tasks as {!Console.Progress.show} does;
     - redraws the progress rows ten times a second;
-    - gives the display the program's output and its {!Logs} messages;
+    - gives the current task the program's output and its {!Logs} messages;
     - gives the terminal back as it found it when the run ends, when the program
       exits and when SIGINT or SIGTERM ends it ({{!signals}signals and exits}).
 
@@ -19,16 +22,15 @@
 
     - Outside a task, output goes above the rows.
     - On a pipe, each line is printed at once, after its task's path
-      ({!Console.Display.design}).
-    - [Display.log] gives a task lines from where it is not current, such as a
+      ({!Console.Progress.design}).
+    - [Task.log] gives a task lines from where it is not current, such as a
       fiber that reads a child process.
 
     Output is everything the program prints while a task is current:
 
     - its [Logs] messages ({{!logs}Logs messages});
-    - its [Display.log] lines;
-    - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes
-      ({{!Console.Display.output}where text goes}).
+    - its [Task.log] lines;
+    - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes.
 
     Of what [run] takes, bytes belong to the task current when they are written.
     A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that another
@@ -39,8 +41,8 @@
     closes.
 
     Text that [print_string], [Printf] or a child process writes on the terminal
-    goes past the display and garbles the rows, so print it with
-    {!Console.Display.with_output}. *)
+    goes past the display and garbles the rows, so print it with {!with_output}.
+*)
 
 module Prompt = Prompt
 (** Questions asked on the terminal: a line, a yes or no, or a password. *)
@@ -48,24 +50,28 @@ module Prompt = Prompt
 val run :
   clock:_ Eio.Time.Mono.t ->
   ?ppf:Format.formatter ->
-  ?layout:Console.Display.Layout.t ->
-  ?summary:string ->
-  ?view:Console.Display.view ->
-  ?keep_ended:bool ->
   ?progress:Console.Progress.t ->
-  (Console.Display.t -> 'a) ->
+  ?layout:Console.Progress.Layout.t ->
+  ?label:string ->
+  ?view:(Console.Task.t -> Console.View.t) ->
+  ?keep_ended:bool ->
+  (Console.Task.t -> 'a) ->
   'a
-(** [run ~clock f] is [f display], for a display that closes when [f] ends.
+(** [run ~clock f] is [f root], for the root of the work, shown on [ppf] until
+    [f] ends. The root is what {!Console.Task.run} makes of a task: it succeeds
+    when [f] returns, fails when [f] raises and is cancelled when its fiber is,
+    unless [f] ended it ({!Console.Task.succeed}), and its ending ends the tasks
+    still running.
 
     - [clock] is a monotonic clock, such as [Eio.Stdenv.mono_clock env]. The
       elapsed times, the rates, the spinners and the motion of a view read it,
       and the redraws wait on it, so a change of the system's time moves none of
       them. A test passes an [Eio_mock.Clock.Mono] clock and moves it by hand.
-    - [ppf] is where the display draws (defaults to {!Fmt.stderr}, so that
-      standard output stays the program's). The display is drawn in [ppf]'s
-      theme ({!Console.Theme.get}).
-    - [summary], [view], [keep_ended] and [layout] are those of
-      {!Console.Display.v}.
+    - [ppf] is where the tasks show (defaults to {!Fmt.stderr}, so that standard
+      output stays the program's), in [ppf]'s theme ({!Console.Theme.get}).
+    - [label] names the work on the summary line ({!Console.Task.root}).
+    - [view root], [keep_ended] and [layout] are those of
+      {!Console.Progress.show}.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is
@@ -92,17 +98,14 @@ val run :
       printed, and with [`Json] each line is an [output] event, so that every
       line of [ppf] is an event.
 
-    When [f] returns, raises or its fiber is cancelled, the tasks still running
-    are cancelled, unless [f] said the work succeeded with
-    {!Console.Display.set_result}. The display closes either way, and an
-    exception from [f] is raised again. A fiber cancelled inside a
-    {!Console.Display.with_task} cancels its task.
+    The display closes once the work ended, and an exception from [f] is raised
+    again. A fiber cancelled inside a {!Console.Task.run} cancels its task.
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a
     {{!deterministic}deterministic clock}.
 
-    @raise Invalid_argument if a display runs in another domain. *)
+    @raise Invalid_argument if a run starts in another domain while one runs. *)
 
 (** {1:running Running a display}
 
@@ -111,16 +114,17 @@ val run :
     While [f] runs, {!Logs} messages go to the display.
 
     - A message is the output of the task current in the calling fiber: the
-      innermost {!Console.Display.with_task} of that fiber or of the fibers it
-      was forked from. With no such task, it goes above the rows.
+      innermost {!Console.Task.run} or {!Console.Task.within} of that fiber or
+      of the fibers it was forked from. With no such task, it goes above the
+      rows.
     - A message from a source other than {!Logs.default} comes after the
       source's name in brackets, as in [[http] connected].
     - A message logged in another domain that Eio runs, such as one of an
       [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
       not inherit the task of the fiber that submitted its work, so the message
       goes above the rows unless the worker made a task current with
-      {!Console.Display.within}. The display itself belongs to that domain alone
-      ({{!Console.Display.displays}Displays}).
+      {!Console.Task.within}. The tasks and the display belong to that domain
+      alone.
 
     A message the display cannot take goes to the reporter installed before
     [run], so that a log call never fails. Such a message is one of:
@@ -147,18 +151,19 @@ val run :
 
     A closed pipe on [ppf] ends the display's output and nothing else, while one
     on standard output is met by the program's own writes, as without console
-    ({!Console.Display.v}).
+    ({!Console.Display}).
 
     {2:nested Nested runs}
 
     A [run] called while another runs in the same domain passes its own function
-    the same display. This holds inside [f], in a fiber that [f] started and in
-    a fiber beside it, so a library can call [run] without knowing whether its
-    caller already did.
+    the task current where it is called, or the root of the run: so a library
+    that calls [run] adds its tasks under the task of its caller. This holds
+    inside [f], in a fiber that [f] started and in a fiber beside it, so a
+    library can call [run] without knowing whether its caller already did.
 
-    - The [clock], [ppf], [layout], [summary], [view], [keep_ended] and
-      [progress] of the inner [run] are ignored, since the display keeps those
-      of the first [run].
+    - The [clock], [ppf], [layout], [label], [view], [keep_ended] and [progress]
+      of the inner [run] are ignored, since the display keeps those of the first
+      [run], and the inner [run] ends no task.
     - The display closes once the last of their functions ends, and the first
       [run] waits for the others.
     - A [run] that starts while that display closes opens its own once it is
@@ -181,9 +186,9 @@ val run :
     one whose real duration ended waits for those due before it. What the
     program does between two sleeps, and how long that takes, then does not
     change the times it shows or the [time] and [elapsed] of its
-    {{!Console.Progress.json}JSON events}, unless that work itself waits, on
-    input or output for example: a sleep can then wake in the meantime and move
-    the time from which the next sleep starts.
+    {{!Console.Task.json}JSON events}, unless that work itself waits, on input
+    or output for example: a sleep can then wake in the meantime and move the
+    time from which the next sleep starts.
 
     [Eio.Time.with_timeout] on such a clock times out once its duration has
     passed on the clock behind it and the sleeps due before it have woken, and a
@@ -196,6 +201,13 @@ val run :
     - the spinners and the motion stand still.
 
     The redraws wait on the clock behind it, and do not move its time. *)
+
+val with_output : (Format.formatter -> 'a) -> 'a
+(** [with_output f] prints what console does not see, such as the text of
+    [print_string] or of a child process, as {!Console.Display.with_output} does
+    for the display of the run of the calling fiber: [f] is called with the
+    display's formatter, the region off the screen. Outside a run, it is
+    [f Fmt.stderr]. *)
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]},

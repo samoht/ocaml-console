@@ -180,18 +180,19 @@ let reading clock =
     | Some real -> (seconds clock, real)
     | None -> ((fun () -> 0.), clock)
 
-(* The display, the formatters whose lines it takes and what shows or hides
-   the cursor. On a terminal it takes the standard formatters on that
-   terminal; quiet or as events, those that write where [ppf] does, so
-   that a task's output is printed only if it fails, or is an event; drawn
-   on another output, [ppf] alone. *)
-let display ~progress ~now ?layout ?summary ?view ?keep_ended ppf =
-  let scope = Session.scope in
+(* The display of [root], the formatters whose lines it takes and what
+   shows or hides the cursor. On a terminal it takes the standard formatters
+   on that terminal; quiet or as events, those that write where [ppf] does,
+   so that a task's output is printed only if it fails, or is an event;
+   drawn on another output, [ppf] alone. *)
+let display ~progress ?layout ?view ?keep_ended ppf root =
+  let show ?size progress ppf =
+    let view = Option.map (fun f -> f root) view in
+    Progress_driver.show ~write_error:Session.write_error ~progress ?layout
+      ?view ?keep_ended ?size ppf root
+  in
   let live ~size ~intercept ~cursor =
-    ( Display_driver.v ?layout ?summary ?view ?keep_ended ~size ~scope ~now
-        (own ppf),
-      intercept,
-      cursor )
+    (show ~size `Tty (own ppf), intercept, cursor)
   in
   let on_terminal () =
     Option.map
@@ -204,15 +205,8 @@ let display ~progress ~now ?layout ?summary ?view ?keep_ended ppf =
   let lines form =
     match (form, descriptor ppf) with
     | (`Json | `Quiet), Some (_, unix) ->
-        ( Display_driver.v ?layout ?summary ?view ?keep_ended ~progress:form
-            ~scope ~now (own ppf),
-          sharing unix,
-          ignore )
-    | _ ->
-        ( Display_driver.v ?layout ?summary ?view ?keep_ended ~progress:form
-            ~scope ~now ppf,
-          [],
-          ignore )
+        (show (form :> Console.Progress.t) (own ppf), sharing unix, ignore)
+    | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
   in
   match progress with
   | `Auto -> ( match on_terminal () with Some d -> d | None -> lines `Plain)
@@ -231,28 +225,37 @@ let display ~progress ~now ?layout ?summary ?view ?keep_ended ppf =
           live ~size:(fun () -> Terminal.dimensions None) ~intercept ~cursor)
   | (`Plain | `Quiet | `Json) as form -> lines form
 
-(* A display of its own, which [f] is given. *)
-let open_display ~clock ~ppf ?layout ?summary ?view ?keep_ended ~progress f =
+(* A display of its own, and the root of the work, which [f] is given. *)
+let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
   let now, redraws = reading clock in
-  match display ~progress ~now ?layout ?summary ?view ?keep_ended ppf with
-  | display, intercept, cursor ->
-      Session.run ~cursor
-        ~sleep:(Eio.Time.Mono.sleep redraws)
-        ~intercept display f
+  match
+    let root = Task_driver.root ?label ~scope:Session.scope ~now () in
+    let display, intercept, cursor =
+      display ~progress ?layout ?view ?keep_ended ppf root
+    in
+    ({ Session.display; root; json = progress = `Json }, intercept, cursor)
+  with
+  | run, intercept, cursor ->
+      Session.run ~cursor ~sleep:(Eio.Time.Mono.sleep redraws) ~intercept run f
   | exception e ->
       Session.release ();
       raise e
 
-let run ~clock ?(ppf = Fmt.stderr) ?layout ?summary ?view ?keep_ended
-    ?(progress = `Auto) f =
+let run ~clock ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended f
+    =
+  let progress = Option.value progress ~default:`Auto in
   match Session.find () with
-  | Some display -> f display
+  | Some root -> f (Session.given root)
   | None -> (
       match Session.join f with
       | Some v -> v
       | None ->
-          open_display ~clock ~ppf ?layout ?summary ?view ?keep_ended ~progress
-            f)
+          open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ~progress f)
+
+let with_output f =
+  match Session.display () with
+  | Some d -> Console.Display.with_output d f
+  | None -> f Fmt.stderr

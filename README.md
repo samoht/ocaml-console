@@ -48,10 +48,10 @@ open Console
 
 let suites = [ ("parser", 120); ("layout", 80); ("render", 60) ]
 
-let test clock display (name, total) =
-  Display.with_task display name @@ fun task ->
-  for cur = 1 to total do
-    Display.set_count task ~cur ~total;
+let test clock root (name, total) =
+  Task.run root name @@ fun task ->
+  for count = 1 to total do
+    Task.set_items task ~count ~total;
     Eio.Time.Mono.sleep clock 0.02
   done
 
@@ -59,8 +59,8 @@ let main color theme =
   Console_tty.setup ?style_renderer:color ~theme ();
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~summary:"Testing" (fun d ->
-      Eio.Fiber.List.iter (test clock d) suites);
+  Console_eio.run ~clock ~label:"Testing" (fun root ->
+      Eio.Fiber.List.iter (test clock root) suites);
   let ok = View.role `Succeeded (View.text "passed") in
   let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =
@@ -346,54 +346,75 @@ says more about roles, contrast and terminals of 16 colours.
 
 ![A build whose running steps are redrawn in place](examples/display/display.gif)
 
-A display shows the tree of the running tasks, one row each, above a
-summary line, and redraws them in place. A task that ends stays under its
-parent, marked, until its top task ends; then the whole tree is printed
-once above the rows, a task under its parent, and stays in the scrollback.
-The smallest program looks like this:
+A task is a row. `Task.run parent label f` runs `f` as a task under
+`parent`: its row shows while `f` runs, and the task succeeds when `f`
+returns and fails when it raises. `Console_eio.run` gives the program the
+root of its work, under which the top tasks start:
 
 ```ocaml
-let build display =
-  Console.Display.with_task display "compile" (fun step ->
-      Console.Display.set_count step ~cur:1 ~total:2;
-      Console.Display.log step "ocamlopt parser.ml";
-      Console.Display.set_count step ~cur:2 ~total:2)
+let build root =
+  Console.Task.run root "compile" (fun step ->
+      Console.Task.set_items step ~count:1 ~total:2;
+      Console.Task.log step "ocamlopt parser.ml";
+      Console.Task.set_items step ~count:2 ~total:2)
 
 let main () =
   Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~summary:"Building" build
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~label:"Building" build
 ```
 
-`with_task` runs a function as a task, which succeeds when the function
-returns and fails when it raises. A task started inside that function, or
-in a fiber it forks, is drawn under it.
+A task started under another is drawn under it, behind the lines of a tree,
+so steps nest by passing the task down:
 
-While a task runs, its output shows under its row. That output is what the
-program prints while the task is current: its
-[Logs](https://erratique.ch/software/logs) messages, its `Display.log` lines
-and the lines it prints on the terminal with `Fmt.pr`.
+```ocaml
+let release root =
+  Console.Task.run root "release" (fun release ->
+      Console.Task.run release "build" ignore;
+      Console.Task.run release "test" ignore)
+```
 
-If the task fails or is cancelled, up to 1 MiB of its output stays under
-its line. Output from outside any task goes above the rows.
+What a row shows after its label depends on what the task says of its
+progress:
 
-The summary line comes last: it names the work, says whether it still runs
-and how it ended, its time and the count of tasks that ended. It stays at
-the bottom of the region while the rows above it come and go, and it is the
-last line of the work, after everything it counts, but for the result a
-program gives with `Display.set_result`. A region too tall for the terminal
-folds the tasks that ended under each task into one line, such as
-`✓ 12 done`, then drops the oldest lines of the tasks' windows, then shows
-only the latest running tasks, so a redraw never scrolls the terminal.
+| The task says | Its row shows |
+|---|---|
+| nothing | a spinner, and the time since it started |
+| `Task.set_items t ~count ~total` | a bar, `count/total` and the time |
+| `Task.set_bytes t ~count ~total` | a bar, the bytes done of the total, the bytes per second and the time |
 
-A line of a task's output that comes a second or more after the one before
-it, or after the task started, ends with that wait, such as `+3.0s`, so
-that a pause in the work shows where it happened.
+While a task runs, its output shows under its row: its
+[Logs](https://erratique.ch/software/logs) messages, its `Task.log` lines
+and the lines it prints on the terminal with `Fmt.pr`. If the task fails or
+is cancelled, up to 1 MiB of its output stays under its line. The output of
+the root, outside any task, goes above the rows. A line that comes a second
+or more after the one before it ends with that wait, such as `+3.0s`.
+
+A task that ends stays under its parent, marked, until its top task ends;
+then the whole tree is printed once above the rows, and stays in the
+scrollback. The summary line comes last: it names the work, says whether it
+still runs and how it ended, its time and the count of tasks that ended.
+The work ends when `Console_eio.run`'s function returns, or when the
+program ends the root itself, with a message that prints under the
+summary:
+
+```ocaml
+let check root =
+  match Console.Task.run root "lint" (fun _ -> Ok ()) with
+  | Ok () -> Console.Task.succeed ~message:"ready to ship" root
+  | Error e -> Console.Task.fail ~message:e root
+```
+
+A region too tall for the terminal folds the tasks that ended under each
+task into one line, such as `✓ 12 done`, then drops the oldest lines of
+the tasks' windows, then shows only the latest running tasks, so a redraw
+never scrolls the terminal.
 
 The rows are drawn on standard error, which leaves standard output to the
 program. What `print_string`, `Printf` or a child process writes on the
 terminal goes past console and garbles the rows, so print it through
-`Display.with_output`. [console-eio's manual](doc/eio/index.mld) gives the
-remaining rules, for cancelled tasks, nested displays, domains and prompts.
+`Console_eio.with_output`. [console-eio's manual](doc/eio/index.mld) gives
+the remaining rules, for cancelled tasks, nested runs, domains and
+prompts.
 
 ### Choosing how progress is shown
 
@@ -408,10 +429,11 @@ can with [`docker build`](https://docs.docker.com/reference/cli/docker/buildx/bu
 - `plain` prints lines, as on a CI log, but keeps the colour.
 - `quiet` prints only what fails.
 - `json` writes one JSON object per line for each event. Each line is a
-  `Console.Progress.Event.t`, whose members keep their meaning as new ones
-  are added, each read by an accessor such as `Console.Progress.Event.text`,
-  and `Console.Progress.Event.of_string` reads it back with its
-  [jsont](https://erratique.ch/software/jsont) codec.
+  `Console.Task.Event.t`, whose members keep their meaning as new ones
+  are added, each read by an accessor such as `Console.Task.Event.text`,
+  and `Console.Task.Event.of_string` reads it back with its
+  [jsont](https://erratique.ch/software/jsont) codec. A program that
+  wants a format of its own reads the same events with `Task.on_event`.
 
 ```ocaml
 let progress =
@@ -435,38 +457,43 @@ without colour.
 
 ![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
 
-The region is a view: a view the program puts together from the display's
-parts and any other view, as it puts widgets together. `Display.tree` is
-the tree of a task, or of every top task, and `Display.summary` the summary
-line; `Display.default_view` is the one, then the other. A table of results
-above the rows is a view above the default view:
+The region is a view, which the program puts together as it puts widgets
+together. `Progress.tree` is the tree of a task, or of every top task,
+`Progress.summary` the summary line, and `Progress.view` the one, then the
+other. A table of results above the rows is a view above that one:
 
 ```ocaml
-let view results display ~width ~height =
+let view results root =
   Console.(
     View.vcat
       [
-        View.sized ~width:(min width 100) (results ());
-        Display.default_view display ~width ~height;
+        View.fit (fun room ->
+            View.sized ?width:(Option.map (min 100) (Room.width room)) (results ()));
+        Progress.view root;
       ])
 ```
 
-The view is given the terminal's width and the lines the region may take,
-and the display draws its last lines that fit, so the table gives way
-before the rows. With `~keep_ended:true` the tasks that ended stay in the region
-until it closes, and trees side by side make columns, with `View.hcat`, as
+The view is laid out in the terminal's width and the lines the region may
+take, and the display draws its last lines that fit, so the table gives
+way before the rows; a `View.fit` part is laid out again at every frame,
+so the table shows the program's latest results. With `~keep_ended:true`
+the tasks that ended stay in the region until it closes, and trees side by
+side make columns, with `View.hcat`, as
 [examples/columns](examples/columns/main.ml) does:
 
 ```ocaml
-let columns display ~width ~height =
-  let half = (min width 100 - 2) / 2 in
-  let tree task = Console.Display.tree ~width:half ~height:(height - 1) task in
-  Console.View.vcat
-    [
-      Console.View.hcat
-        (List.map tree Console.Display.(children (root display)));
-      Console.Display.summary display;
-    ]
+let columns root =
+  Console.(
+    View.fit (fun room ->
+        let width = Option.value (Room.width room) ~default:80 in
+        let half = (min width 100 - 2) / 2 in
+        let height = Option.map (fun h -> h - 1) (Room.height room) in
+        let tree task = View.sized ~width:half ?height (Progress.tree task) in
+        View.vcat
+          [
+            View.hcat (List.map tree (Task.children root));
+            Progress.summary root;
+          ]))
 ```
 
 The example runs with `dune exec -- examples/columns/main.exe`:
@@ -475,9 +502,8 @@ The example runs with `dune exec -- examples/columns/main.exe`:
 
 When the display closes, the view's last frame is printed once and stays:
 on a pipe too, after the lines of the tasks, but not with
-`--progress=quiet` or `json`. The view is then called with a height of
-`max_int`, so it must not draw a line for each line of its height. A view
-is drawn in the display's theme.
+`--progress=quiet` or `json`. It is laid out with no height, so the trees
+are whole. A view is drawn in the display's theme.
 
 In a theme with motion, the frame of a table or a panel in the view moves:
 
@@ -506,17 +532,18 @@ in between. Each of these lines names the task by its path, such as
 apart.
  The view's last frame comes last: by default, the summary line.
 
-`Display.v` opens a display on any formatter. Here it writes into a buffer,
-with a clock that stays at zero, to show what the `build` function above
-prints in a pipe:
+`Progress.show` shows the tasks of a root on any formatter. Here it writes
+into a buffer, with a clock that stays at zero, to show what the `build`
+function above prints in a pipe:
 
 ```ocaml
 # let pipe = Buffer.create 256 in
+  let root = Console.Task.root ~label:"Building" ~now:(fun () -> 0.) () in
   let display =
-    Console.Display.v ~summary:"Building" ~now:(fun () -> 0.)
-      (Format.formatter_of_buffer pipe)
+    Console.Progress.show (Format.formatter_of_buffer pipe) root
   in
-  build display;
+  build root;
+  Console.Task.succeed root;
   Console.Display.close display;
   print_string (Buffer.contents pipe);;
 • compile
@@ -662,7 +689,8 @@ character that reorders the text around it:
 |---|---|
 | `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
 | `Console.Style` | Bold, italic, underline and colours, combined with `+` |
-| `Console.View` | Text in a style, with links, wrapping and truncation |
+| `Console.Room` | Where and when a view is laid out: its width, height, moment and theme |
+| `Console.View` | Styled text and every widget, laid out in a room |
 | `Console.Border` | Frame styles for tables and panels |
 | `Console.Guide` | The lines that connect the branches of a tree |
 | `Console.Theme` | One look for every widget |
@@ -670,14 +698,15 @@ character that reorders the text around it:
 | `Console.Tree` | Trees, drawn like the output of `tree` |
 | `Console.Panel` | Text in a frame, with an optional title |
 | `Console.Rule` | Horizontal lines with an optional label |
-| `Console.Bar` | Horizontal bars, for progress and for figures |
+| `Console.Bar` | Horizontal and vertical bars, for progress and for charts |
 | `Console.Spinner` | Spinners for work of unknown length |
-| `Console.Display` | Progress rows that update in place, or plain lines outside a terminal |
-| `Console.Progress` | How a display shows progress, the values of a `--progress` option |
+| `Console.Task` | The work a program reports: tasks under a root, and their events |
+| `Console.Display` | A view redrawn in place, with a scrollback above it |
+| `Console.Progress` | How tasks show: rows, lines, failures alone or JSON |
 | `Console_tty` | Colour and UTF-8 on the standard outputs (`console.tty`) |
 | `Console_text` | Untrusted text made safe for a terminal (`console.text`) |
 | `Console_input` | A line editor that does no input or output (`console.input`) |
-| `Console_eio` | Runs a `Display` with Eio (`console-eio`) |
+| `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
 
 ## Known limitations
@@ -699,11 +728,10 @@ character that reorders the text around it:
 - `Console_eio.run` takes what the program prints on `Fmt.stdout` and
   `Fmt.stderr` where the display writes, so that `` `Quiet `` hides the
   output of a task that succeeds and `` `Json `` makes each line an event.
-  `Display.v` takes none of the program's output. With it, or with
+  `Progress.show` takes none of the program's output. With it, or with
   `Console_eio.run` on another formatter, what the program prints on the
   display's formatter goes out as it is: `` `Quiet `` shows it, and it breaks
-  the lines of JSON events. `Display.log` gives such a line to a task
-  instead.
+  the lines of JSON events. `Task.log` gives such a line to a task instead.
 
 ## Related work
 

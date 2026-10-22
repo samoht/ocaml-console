@@ -16,5 +16,6 @@ module Panel = Panel
 module Table = Table
 module Tree = Tree
 module Rule = Rule
+module Task = Task
 module Display = Display
 module Progress = Progress

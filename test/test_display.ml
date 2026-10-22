@@ -13,22 +13,27 @@ let theme = Theme.dos
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 
-(* [above top] is the view of [top] above the default view, which gives way
-   first when they do not fit. *)
-let above top d ~width ~height =
-  View.vcat [ top; Display.default_view d ~width ~height ]
+(* [above top root] is the view of [top] above the default view, which gives
+   way first when they do not fit. *)
+let above top root = View.vcat [ top; Progress.view root ]
+
+(* A root timed by [now] whose tasks show on [ppf], and the display. *)
+let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
+  let root = Task.root ?label ~now () in
+  let view = Option.map (fun f -> f root) view in
+  (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
 
 (* {1 Without a terminal} *)
 
 let test_plain_lines () =
   let (), out =
-    plain ~theme ~summary:"Building" (fun d advance ->
-        let t = Display.task d "compile" in
-        Display.set_count t ~cur:2 ~total:2;
-        Display.log t "compiled parser.ml";
+    plain ~theme ~label:"Building" (fun d advance ->
+        let t = Task.start d "compile" in
+        Task.set_items t ~count:2 ~total:2;
+        Task.log t "compiled parser.ml";
         advance 1.5;
-        Display.log t "slow";
-        Display.succeed t;
+        Task.log t "slow";
+        Task.succeed t;
         Driver.report d `Info "done")
   in
   check_lines "lines in turn, the header last"
@@ -49,28 +54,32 @@ let test_plain_column () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let d = Display.v ~now:(fun () -> 0.) ppf in
+  let d, display = show ~now:(fun () -> 0.) ppf in
   Fmt.pf ppf "partial%!";
   Driver.report d `Info "next";
   Fmt.pf ppf "again";
-  Display.succeed (Display.task d "t");
-  Display.close d;
+  Task.succeed (Task.start d "t");
+  Display.close display;
   Fmt.pf ppf "after@.";
   check_lines "each display line on its own"
     [ "partial"; "next"; "again"; "[-] t"; "[+] t  0.0s"; "after"; "" ]
     (String.split_on_char '\n' (Buffer.contents buffer))
 
-(* A task still running when the display closes did not finish: it is
-   cancelled, unless the program said the work succeeded. *)
+(* A task still running when the work ends ends with it: it is cancelled
+   when the work is, and succeeds when the work succeeds. *)
 let test_plain_unfinished () =
-  let (), out = plain ~theme (fun d _ -> ignore (Display.task d "left")) in
+  let (), out =
+    plain ~theme (fun d _ ->
+        ignore (Task.start d "left");
+        Task.cancel d)
+  in
   check_lines "cancelled"
     [ "[-] left"; "[~] left  0.0s  cancelled"; "" ]
     (String.split_on_char '\n' out);
   let (), out =
     plain ~theme (fun d _ ->
-        ignore (Display.task d "left");
-        Display.set_result d (Ok "done"))
+        ignore (Task.start d "left");
+        Task.succeed ~message:"done" d)
   in
   check_lines "succeeded with the work"
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
@@ -82,11 +91,11 @@ let test_plain_unfinished () =
 let test_plain_outcome_word () =
   let (), out =
     plain ~theme (fun d _ ->
-        Display.succeed (Display.task d "ok");
-        let a = Display.task d "a" in
-        Display.set_count a ~cur:2 ~total:2;
-        Display.fail a;
-        Display.cancel (Display.task d "b"))
+        Task.succeed (Task.start d "ok");
+        let a = Task.start d "a" in
+        Task.set_items a ~count:2 ~total:2;
+        Task.fail a;
+        Task.cancel (Task.start d "b"))
   in
   check_lines "the outcome after the time"
     [
@@ -102,9 +111,9 @@ let test_plain_outcome_word () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_style_renderer ppf `Ansi_tty;
-  let d = Display.v ~now:(fun () -> 0.) ppf in
-  Display.fail (Display.task d "a");
-  Display.close d;
+  let d, display = show ~now:(fun () -> 0.) ppf in
+  Task.fail (Task.start d "a");
+  Display.close display;
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "muted with the time" true
@@ -113,12 +122,12 @@ let test_plain_outcome_word () =
 let test_plain_attribution () =
   let (), out =
     plain ~theme (fun d _ ->
-        let a = Display.task d "a" and b = Display.task d "b" in
-        Display.log a "one";
-        Display.log b "two";
-        Display.log a "three";
-        Display.fail a;
-        Display.cancel b)
+        let a = Task.start d "a" and b = Task.start d "b" in
+        Task.log a "one";
+        Task.log b "two";
+        Task.log a "three";
+        Task.fail a;
+        Task.cancel b)
   in
   check_lines "each line says its task, in order"
     [
@@ -138,9 +147,9 @@ let test_plain_attribution () =
 let test_tabs () =
   let (), out =
     plain ~theme (fun d _ ->
-        let a = Display.task d "a" in
-        Display.log a "x\ty\n\u{754c}\tz\n12345678\tw";
-        Display.fail a)
+        let a = Task.start d "a" in
+        Task.log a "x\ty\n\u{754c}\tz\n12345678\tw";
+        Task.fail a)
   in
   check_lines "tab stops"
     [
@@ -155,38 +164,39 @@ let test_tabs () =
 
 let test_plain_sanitizes () =
   let (), out =
-    plain ~summary:"Build\027[2J" (fun d _ ->
-        let task = Display.task d "a\tb" in
-        Display.log task "x\007y";
-        Display.succeed task)
+    plain ~label:"Build\027[2J" (fun d _ ->
+        let task = Task.start d "a\tb" in
+        Task.log task "x\007y";
+        Task.succeed task)
   in
   Alcotest.(check bool) "no escape" false (String.contains out '\027');
   Alcotest.(check bool) "log text" true (contains "x y" out)
 
 let test_plain_result () =
   let (), out =
-    plain ~theme ~summary:"Work" (fun d _ ->
-        ignore (Display.task d "left running");
-        Display.set_result ~detail:"see the log" d (Error "it broke");
-        Display.set_result d (Ok "changed my mind"))
+    plain ~theme ~label:"Work" (fun d _ ->
+        ignore (Task.start d "left running");
+        Task.log d "see the log";
+        Task.fail ~message:"it broke" d;
+        Task.succeed ~message:"changed my mind" d)
   in
   check_lines "running tasks cancelled, verdict last"
     [
       "[-] left running";
+      "see the log";
       "[~] left running  0.0s  cancelled";
       "[x] Work 0.0s (1/1)";
-      "see the log";
       "[x] it broke";
       "";
     ]
     (String.split_on_char '\n' out)
 
 let test_empty_header_pending () =
-  let t = terminal ~summary:"Building" () in
+  let t = terminal ~label:"Building" () in
   Alcotest.(check bool)
     "pending before any task" true
     (List.exists (contains "\xe2\x80\xa2 Building 0.0s (0/0)") (screen t));
-  Display.close t.display;
+  close t;
   Alcotest.(check bool)
     "succeeded once closed" true
     (List.exists (contains "\xe2\x9c\x93 Building 0.0s (0/0)") (lines t))
@@ -194,10 +204,10 @@ let test_empty_header_pending () =
 (* {1 On a terminal} *)
 
 let test_region () =
-  let t = terminal ~theme ~width:40 ~summary:"Build" () in
-  let a = Display.task t.display "fetch" in
-  let b = Display.task t.display "compile" in
-  Display.set_count b ~cur:1 ~total:4;
+  let t = terminal ~theme ~width:40 ~label:"Build" () in
+  let a = Task.start t.root "fetch" in
+  let b = Task.start t.root "compile" in
+  Task.set_items b ~count:1 ~total:4;
   Display.redraw t.display;
   let rows = screen t in
   Alcotest.(check bool) "first row" true (contains "fetch" (List.nth rows 0));
@@ -206,7 +216,7 @@ let test_region () =
   Alcotest.(check bool)
     "the summary last" true
     (contains "[-] Build" (List.nth rows 2));
-  Display.succeed a;
+  Task.succeed a;
   Display.redraw t.display;
   let rows = screen t in
   Alcotest.(check bool)
@@ -215,8 +225,8 @@ let test_region () =
   Alcotest.(check bool)
     "the summary still last" true
     (contains "[-] Build" (List.nth rows 2));
-  Display.succeed b;
-  Display.close t.display;
+  Task.succeed b;
+  close t;
   check_lines "final screen"
     [
       "[+] fetch                           0.0s";
@@ -232,14 +242,13 @@ let test_region () =
 (* A view with a table taller than the room: the table loses its first
    lines, and the tasks and the summary stay. *)
 let test_tall_header () =
-  let t = terminal ~width:40 ~height:8 ~summary:"S" () in
-  let d = t.display in
+  let t = terminal ~width:40 ~height:8 ~label:"S" () in
   let rows =
     View.vcat (List.init 20 (fun i -> View.text (Fmt.str "row %d" i)))
   in
-  Display.set_view d (above rows);
-  let a = Display.task d "a" in
-  Display.redraw d;
+  Display.set_view t.display (above rows t.root);
+  let a = Task.start t.root "a" in
+  Display.redraw t.display;
   let shown = List.map untimed (screen t) in
   Alcotest.(check int) "the screen less one" 7 (List.length shown);
   check_lines "the table's last lines"
@@ -247,27 +256,27 @@ let test_tall_header () =
     (List.filteri (fun i _ -> i < 5) shown);
   Alcotest.(check bool) "the task" true (contains " a" (List.nth shown 5));
   Alcotest.(check bool) "the summary" true (contains "S" (List.nth shown 6));
-  Display.succeed a;
-  Display.close d
+  Task.succeed a;
+  close t
 
 (* With the tty in raw mode a line feed keeps the column, so a line that
    began with a bare line feed would start where the one above it ended: the
    screen of a raw tty is that of a cooked one. *)
 let test_raw_tty () =
   let run raw =
-    let t = terminal ~theme ~width:40 ~summary:"Build" ~raw () in
-    let a = Display.task t.display "fetch" in
-    let b = Display.task t.display "compile" in
-    Display.set_count b ~cur:1 ~total:4;
+    let t = terminal ~theme ~width:40 ~label:"Build" ~raw () in
+    let a = Task.start t.root "fetch" in
+    let b = Task.start t.root "compile" in
+    Task.set_items b ~count:1 ~total:4;
     Display.redraw t.display;
     let live = screen t in
-    Display.succeed a;
-    Driver.report t.display `Info "note";
-    Display.set_count b ~cur:2 ~total:4;
+    Task.succeed a;
+    Driver.report t.root `Info "note";
+    Task.set_items b ~count:2 ~total:4;
     Display.redraw t.display;
     let later = screen t in
-    Display.succeed b;
-    Display.close t.display;
+    Task.succeed b;
+    close t;
     (live, later, lines t)
   in
   let live, later, final = run false in
@@ -281,15 +290,13 @@ let test_raw_tty () =
    a repaint erases all of it. *)
 let test_after_a_partial_line () =
   let run before =
-    let t =
-      terminal ~theme ~width:40 ~before ~summary:(String.make 28 'h') ()
-    in
+    let t = terminal ~theme ~width:40 ~before ~label:(String.make 28 'h') () in
     Display.redraw t.display;
-    let a = Display.task t.display "fetch" in
+    let a = Task.start t.root "fetch" in
     Display.redraw t.display;
     let first = screen t in
-    Display.succeed a;
-    Display.close t.display;
+    Task.succeed a;
+    close t;
     (first, lines t)
   in
   let first, final = run "" in
@@ -304,33 +311,33 @@ let test_after_a_partial_line () =
 let test_window () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let wide = "wide " ^ String.make 40 'w' in
-  Display.with_task ~log_lines:3 t.display "job" (fun job ->
-      List.iter (Display.log job) [ "one"; "two" ];
-      Driver.report t.display `Info "note";
-      Display.log job wide;
+  Task.run ~log_lines:3 t.root "job" (fun job ->
+      List.iter (Task.log job) [ "one"; "two" ];
+      Driver.report t.root `Info "note";
+      Task.log job wide;
       Display.redraw t.display;
       let rows = screen t in
       Alcotest.(check bool) "the row" true (contains "job" (List.nth rows 0));
       check_lines "the latest three lines"
         [ "  # two"; "  note"; "  # " ^ String.sub wide 0 25 ^ "\u{2026}" ]
         (List.filteri (fun i _ -> i > 0) rows));
-  Display.close t.display;
+  close t;
   check_lines "a success folds them all away"
     [ "[+] job                   0.0s" ]
     (lines t)
 
 let test_alignment () =
   let t = terminal ~theme ~width:40 () in
-  let a = Display.task t.display "\xe7\x95\x8c\xe7\x95\x8c wide" in
+  let a = Task.start t.root "\xe7\x95\x8c\xe7\x95\x8c wide" in
   let b =
-    Display.task t.display "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9 emoji"
+    Task.start t.root "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9 emoji"
   in
-  let c = Display.task t.display "plain" in
-  Display.set_count a ~cur:1 ~total:10;
-  Display.set_count b ~cur:10 ~total:100;
-  Display.set_count c ~cur:3 ~total:3;
-  List.iter Display.succeed [ a; b; c ];
-  Display.close t.display;
+  let c = Task.start t.root "plain" in
+  Task.set_items a ~count:1 ~total:10;
+  Task.set_items b ~count:10 ~total:100;
+  Task.set_items c ~count:3 ~total:3;
+  List.iter Task.succeed [ a; b; c ];
+  close t;
   let rows = lines t in
   let col needle row =
     let rec find i =
@@ -353,7 +360,7 @@ let test_alignment () =
 
 let test_label_truncated () =
   let t = terminal ~theme ~width:20 () in
-  ignore (Display.task t.display "a label much too long for the row");
+  ignore (Task.start t.root "a label much too long for the row");
   Display.redraw t.display;
   let row = List.nth (screen t) 0 in
   Alcotest.(check bool) "ellipsis" true (contains "\xe2\x80\xa6" row);
@@ -362,10 +369,10 @@ let test_label_truncated () =
 (* More running tasks than rows: the latest show, after a line that counts
    the others, and the summary stays last. No redraw scrolls the terminal. *)
 let test_capped () =
-  let t = terminal ~theme ~width:30 ~height:5 ~summary:"H" () in
+  let t = terminal ~theme ~width:30 ~height:5 ~label:"H" () in
   let tasks =
     List.init 8 (fun i ->
-        let task = Display.task t.display (Fmt.str "task %d" i) in
+        let task = Task.start t.root (Fmt.str "task %d" i) in
         Display.redraw t.display;
         task)
   in
@@ -375,27 +382,25 @@ let test_capped () =
     [ "  \u{2026} 6 more running"; "| task 6"; "| task 7"; "[-] H 0.0s (0/8)" ]
     (List.map untimed rows);
   Alcotest.(check int) "nothing scrolled" 0 (Console_vte.scrollback_size t.vte);
-  List.iter Display.cancel tasks;
-  Display.close t.display
+  List.iter Task.cancel tasks;
+  close t
 
 (* Eight running tasks with a log line each fill a budget of eight lines
    exactly: the windows give way and every task shows. Two rows fewer, and
    only the latest tasks show, a line counting the others. *)
 let test_marker_counts () =
   let run height =
-    let t = terminal ~theme ~width:30 ~height ~summary:"H" () in
+    let t = terminal ~theme ~width:30 ~height ~label:"H" () in
     let tasks =
       List.init 8 (fun i ->
-          let task =
-            Display.task ~log_lines:1 t.display (Fmt.str "task %d" i)
-          in
-          Display.log task "line";
+          let task = Task.start ~log_lines:1 t.root (Fmt.str "task %d" i) in
+          Task.log task "line";
           task)
     in
     Display.redraw t.display;
     let rows = List.filter (( <> ) "") (screen t) in
-    List.iter Display.cancel tasks;
-    Display.close t.display;
+    List.iter Task.cancel tasks;
+    close t;
     List.map untimed rows
   in
   check_lines "the windows give way"
@@ -415,18 +420,18 @@ let test_marker_counts () =
 
 let test_marker_fits () =
   let t = terminal ~theme ~width:12 ~height:4 () in
-  let tasks = List.init 6 (fun i -> Display.task t.display (Fmt.str "t%d" i)) in
+  let tasks = List.init 6 (fun i -> Task.start t.root (Fmt.str "t%d" i)) in
   Display.redraw t.display;
   (* A row wider than the terminal would wrap onto a fourth. *)
   Alcotest.(check int)
     "three rows" 3
     (List.length (List.filter (( <> ) "") (screen t)));
-  List.iter Display.cancel tasks;
-  Display.close t.display
+  List.iter Task.cancel tasks;
+  close t
 
 let test_with_output () =
   let t = terminal ~theme ~width:30 () in
-  let a = Display.task t.display "job" in
+  let a = Task.start t.root "job" in
   Display.with_output t.display (fun ppf -> Fmt.pf ppf "hello@.");
   Display.redraw t.display;
   let rows = screen t in
@@ -439,20 +444,20 @@ let test_with_output () =
   Alcotest.(check bool)
     "region drawn again after a raise" true
     (List.exists (contains "job") (screen t));
-  Display.succeed a;
-  Display.close t.display
+  Task.succeed a;
+  close t
 
 (* Output without a line end is ended before the region is drawn again. *)
 let test_with_output_partial () =
   let t = terminal ~theme ~width:30 () in
-  let a = Display.task t.display "job" in
+  let a = Task.start t.root "job" in
   Display.with_output t.display (fun ppf -> Fmt.pf ppf "partial");
   Display.redraw t.display;
   let rows = screen t in
   Alcotest.(check string) "its own line" "partial" (List.nth rows 0);
   Alcotest.(check bool) "region below" true (contains "job" (List.nth rows 1));
-  Display.succeed a;
-  Display.close t.display
+  Task.succeed a;
+  close t
 
 (* Bytes of the program's that move the cursor act above the region, and
    the region is drawn whole below them, on rows it erases first. The tty
@@ -461,7 +466,7 @@ let test_with_output_moves () =
   List.iter
     (fun move ->
       let t = terminal ~theme ~raw:true ~width:30 () in
-      let a = Display.task t.display "job" in
+      let a = Task.start t.root "job" in
       Display.with_output t.display (fun ppf ->
           Fmt.pf ppf "ZZZZZZZZZZ%sZZZZZZZZZZ@." move);
       Display.redraw t.display;
@@ -470,25 +475,25 @@ let test_with_output_moves () =
         (Fmt.str "%S: the row is its own: %S" move row)
         true
         (String.starts_with ~prefix:"| job" row && not (String.contains row 'Z'));
-      Display.succeed a;
-      Display.close t.display)
+      Task.succeed a;
+      close t)
     [ "\027[A"; "\027[2A\r"; "\r"; "\027[K"; "\027[H" ]
 
 let test_redraw_idle () =
   let t = terminal ~theme () in
-  ignore (Display.task t.display "job");
+  ignore (Task.start t.root "job");
   Display.redraw t.display;
   let before = List.length !(t.chunks) in
   Display.redraw t.display;
   Display.redraw t.display;
   Alcotest.(check int) "nothing written" before (List.length !(t.chunks));
-  Display.close t.display
+  close t
 
 (* A terminal that narrows reflows the old frame onto more rows; the redraw
    moves up over all of them. *)
 let test_narrowing () =
-  let t = terminal ~theme ~width:40 ~height:8 ~summary:"Header" () in
-  ignore (Display.task t.display "job");
+  let t = terminal ~theme ~width:40 ~height:8 ~label:"Header" () in
+  ignore (Task.start t.root "job");
   Display.redraw t.display;
   t.chunks := [];
   resize t ~width:20 ~height:8;
@@ -497,11 +502,11 @@ let test_narrowing () =
   Alcotest.(check bool)
     "moved up over the reflowed rows" true
     (contains "\r\027[3A\027[J" (written t));
-  Display.close t.display
+  close t
 
 let test_height_changes () =
   let t = terminal ~theme ~width:30 ~height:4 () in
-  let tasks = List.init 5 (fun i -> Display.task t.display (Fmt.str "t%d" i)) in
+  let tasks = List.init 5 (fun i -> Task.start t.root (Fmt.str "t%d" i)) in
   Display.redraw t.display;
   resize t ~width:30 ~height:10;
   Display.redraw t.display;
@@ -510,14 +515,14 @@ let test_height_changes () =
   Alcotest.(check bool)
     "no line wider than the terminal" true
     (List.for_all (fun r -> View.width (View.text r) <= 30) (screen t));
-  List.iter Display.succeed tasks;
-  Display.close t.display
+  List.iter Task.succeed tasks;
+  close t
 
 let test_nested () =
   let t = terminal ~width:30 ~height:10 () in
-  let p = Display.task t.display "parent" in
-  let c1 = Display.task ~parent:p t.display "one" in
-  let _c2 = Display.task ~parent:p t.display "two" in
+  let p = Task.start t.root "parent" in
+  let c1 = Task.start p "one" in
+  let _c2 = Task.start p "two" in
   Display.redraw t.display;
   let rows = screen t in
   Alcotest.(check bool)
@@ -526,15 +531,15 @@ let test_nested () =
   Alcotest.(check bool)
     "last" true
     (contains "\xe2\x94\x94\xe2\x94\x80\xe2\x94\x80" (List.nth rows 2));
-  Display.succeed c1;
+  Task.succeed c1;
   Display.redraw t.display;
   Alcotest.(check bool)
     "an ended child stays under its parent" true
     (contains "\u{2713} one" (List.nth (screen t) 1));
-  Display.fail p;
-  let late = Display.task ~parent:p t.display "late" in
-  Display.succeed late;
-  Display.close t.display;
+  Task.fail p;
+  let late = Task.start p "late" in
+  Task.succeed late;
+  close t;
   check_lines "the parent first, each child under it, in start order"
     [
       "\u{2717} parent";
@@ -548,11 +553,11 @@ let test_nested () =
 let test_nested_plain () =
   let (), out =
     plain ~theme (fun d _ ->
-        let p = Display.task d "parent" in
-        let c1 = Display.task ~parent:p d "one" in
-        ignore (Display.task ~parent:p d "two");
-        Display.succeed c1;
-        Display.fail p)
+        let p = Task.start d "parent" in
+        let c1 = Task.start p "one" in
+        ignore (Task.start p "two");
+        Task.succeed c1;
+        Task.fail p)
   in
   check_lines "a start line and an end line each"
     [
@@ -569,14 +574,14 @@ let test_nested_plain () =
 let test_keys_and_transient () =
   let (), out =
     plain ~theme (fun d _ ->
-        let a = Display.task ~key:"k" d "first" in
-        let b = Display.task ~key:"k" d "second" in
+        let a = Task.start ~key:"k" d "first" in
+        let b = Task.start ~key:"k" d "second" in
         Alcotest.(check bool) "same task" true (a == b);
-        Display.succeed a;
-        let c = Display.task ~key:"k" d "third" in
+        Task.succeed a;
+        let c = Task.start ~key:"k" d "third" in
         Alcotest.(check bool) "a new task once it ended" false (a == c);
-        Display.succeed c;
-        Display.succeed (Display.task ~transient:true d "gone"))
+        Task.succeed c;
+        Task.succeed (Task.start ~transient:true d "gone"))
   in
   check_lines "no line for a transient task"
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
@@ -587,16 +592,14 @@ let test_keys_and_transient () =
 let test_with_task_shared_key () =
   let (), out =
     plain ~theme (fun d _ ->
-        Display.with_task ~key:"k" d "first" (fun a ->
-            Display.with_task ~key:"k" d "second" (fun b ->
+        Task.run ~key:"k" d "first" (fun a ->
+            Task.run ~key:"k" d "second" (fun b ->
                 Alcotest.(check bool) "same task" true (a == b);
-                Display.log b "inside");
-            Display.log a "after the second";
-            match
-              Display.with_task ~key:"k" d "third" (fun _ -> raise Exit)
-            with
+                Task.log b "inside");
+            Task.log a "after the second";
+            match Task.run ~key:"k" d "third" (fun _ -> raise Exit) with
             | () -> Alcotest.fail "the exception was swallowed"
-            | exception Exit -> Display.log a "after the third"))
+            | exception Exit -> Task.log a "after the third"))
   in
   check_lines "one task, ended once by the first"
     [
@@ -612,16 +615,16 @@ let test_with_task_shared_key () =
 let test_counts () =
   let (), out =
     plain ~theme (fun d _ ->
-        let t = Display.task d "count" in
-        Display.set_count t ~cur:5 ~total:10;
-        Display.set_count t ~cur:3 ~total:8;
-        Display.set_count t ~cur:12 ~total:10;
-        Display.succeed t;
-        let b = Display.task d "bytes" in
-        Display.set_bytes b ~cur:1048576L ~total:2097152L;
-        check_invalid "Console.Display.set_count: the task counts bytes"
-          (fun () -> Display.set_count b ~cur:1 ~total:1);
-        Display.succeed b)
+        let t = Task.start d "count" in
+        Task.set_items t ~count:5 ~total:10;
+        Task.set_items t ~count:3 ~total:8;
+        Task.set_items t ~count:12 ~total:10;
+        Task.succeed t;
+        let b = Task.start d "bytes" in
+        Task.set_bytes b ~count:1048576L ~total:2097152L;
+        check_invalid "Console.Task.set_items: the task counts bytes" (fun () ->
+            Task.set_items b ~count:1 ~total:1);
+        Task.succeed b)
   in
   check_lines "never back, total raised"
     [
@@ -635,39 +638,38 @@ let test_counts () =
 
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
-  let layout = Display.Layout.(v [ label; text " "; percent ]) in
+  let layout =
+    Progress.Layout.(list [ label; const (View.text " "); percent ])
+  in
   let t = terminal ~theme ~layout ~width:30 () in
-  let task = Display.task t.display "big" in
-  Display.set_count task ~cur:(max_int / 2) ~total:max_int;
+  let task = Task.start t.root "big" in
+  Task.set_items task ~count:(max_int / 2) ~total:max_int;
   Display.redraw t.display;
   Alcotest.(check bool)
     "half" true
     (contains " 49%" (List.nth (screen t) 0)
     || contains " 50%" (List.nth (screen t) 0));
-  Display.succeed task;
-  Display.close t.display
+  Task.succeed task;
+  close t
 
 let test_invalid () =
-  let d =
-    Display.v ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
+  let d, display =
+    show ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
   in
-  let other =
-    Display.v ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
-  in
-  check_invalid "Console.Display.task: empty key" (fun () ->
-      ignore (Display.task ~key:"" d "x"));
-  check_invalid "Console.Display.task: negative log_lines" (fun () ->
-      ignore (Display.task ~log_lines:(-1) d "x"));
-  check_invalid "Console.Display.task: parent belongs to another display"
-    (fun () -> ignore (Display.task ~parent:(Display.task other "p") d "x"));
-  let t = Display.task d "t" in
-  check_invalid "Console.Display.set_count: negative progress" (fun () ->
-      Display.set_count t ~cur:(-1) ~total:1);
-  check_invalid "Console.Display.Layout.bar: negative width" (fun () ->
-      ignore (Display.Layout.bar (-1)));
-  check_invalid "Console.Display.Layout.v: more than one label" (fun () ->
-      ignore Display.Layout.(v [ label; label ]));
-  Display.close d
+  check_invalid "Console.Task.start: empty key" (fun () ->
+      ignore (Task.start ~key:"" d "x"));
+  check_invalid "Console.Task.start: negative log_lines" (fun () ->
+      ignore (Task.start ~log_lines:(-1) d "x"));
+  let t = Task.start d "t" in
+  check_invalid "Console.Task.set_items: negative progress" (fun () ->
+      Task.set_items t ~count:(-1) ~total:1);
+  check_invalid "Console.Progress.Layout.bar: negative width" (fun () ->
+      ignore (Progress.Layout.bar ~width:(-1) ()));
+  check_invalid "Console.Progress.Layout: more than one label" (fun () ->
+      ignore Progress.Layout.(label ++ label));
+  check_invalid "Console.Progress.Layout: more than one spacer" (fun () ->
+      ignore Progress.Layout.(list [ spacer; label; spacer ]));
+  Display.close display
 
 (* [size] has no documented bound, and a terminal reports what it is told
    ($COLUMNS under [`Tty] without a terminal): a display on a terminal of
@@ -679,10 +681,11 @@ let test_any_width () =
       let buf = Buffer.create 256 in
       let ppf = Format.formatter_of_buffer buf in
       match
-        let d = Display.v ~size:(fun () -> (w, 24)) ~now:(fun () -> 0.) ppf in
-        Display.with_task d "work" (fun t ->
-            Display.set_count t ~cur:1 ~total:2);
-        Display.close d
+        let d, display =
+          show ~size:(fun () -> (w, 24)) ~now:(fun () -> 0.) ppf
+        in
+        Task.run d "work" (fun t -> Task.set_items t ~count:1 ~total:2);
+        Display.close display
       with
       | () ->
           Format.pp_print_flush ppf ();
@@ -694,25 +697,26 @@ let test_any_width () =
 (* A fiber that outlives the display, or a library that holds on to it,
    is ignored once it closed: nothing raises and nothing is written. *)
 let test_closed () =
-  let t = terminal ~theme ~summary:"Build" () in
+  let t = terminal ~theme ~label:"Build" () in
   let d = t.display in
-  let running = Display.task d "running" in
+  let running = Task.start t.root "running" in
   Display.close d;
   let before = written t in
   Display.close d;
-  let late = Display.task d "late" in
+  let late = Task.start t.root "late" in
   List.iter
     (fun task ->
-      Display.set_label task "renamed";
-      Display.set_count task ~cur:1 ~total:2;
-      Display.log task "late line";
-      Display.succeed task;
-      Display.fail task;
-      Display.cancel task)
+      Task.set_label task "renamed";
+      Task.set_items task ~count:1 ~total:2;
+      Task.log task "late line";
+      Task.succeed task;
+      Task.fail task;
+      Task.cancel task)
     [ running; late ];
   Display.redraw d;
-  Display.set_view d (fun _ ~width:_ ~height:_ -> View.text "view");
-  Display.set_result d (Ok "late");
+  Display.set_view d (View.text "view");
+  Display.print d (View.text "printed");
+  Task.succeed ~message:"late" t.root;
   Alcotest.(check string) "nothing written" before (written t);
   Alcotest.(check int)
     "with_output still calls its function" 42
@@ -720,9 +724,9 @@ let test_closed () =
 
 let test_colours () =
   let t = terminal ~styled:true () in
-  let a = Display.task t.display "job" in
-  Display.fail a;
-  Display.close t.display;
+  let a = Task.start t.root "job" in
+  Task.fail a;
+  close t;
   let out = written t in
   (* The default theme's red is entry 160 of the 256-colour palette. *)
   Alcotest.(check bool) "red failure" true (contains "\027[1;38;5;160m" out);
@@ -732,14 +736,14 @@ let test_colours () =
    tasks keep to 100, so that a count and a timer stay near their label. *)
 let test_wide () =
   let t = terminal ~width:160 ~height:8 () in
-  let task = Display.task t.display "compile" in
-  Display.set_count task ~cur:1 ~total:3;
-  Display.log task "a log line";
+  let task = Task.start t.root "compile" in
+  Task.set_items task ~count:1 ~total:3;
+  Task.log task "a log line";
   Display.redraw t.display;
   let widths () = List.map Width.string_width (lines t) in
   Alcotest.(check int) "the live row" 100 (List.fold_left max 0 (widths ()));
-  Display.succeed task;
-  Display.close t.display;
+  Task.succeed task;
+  close t;
   Alcotest.(check int)
     "the line it ends on" 100
     (List.fold_left max 0 (widths ()))
@@ -749,13 +753,13 @@ let test_wide () =
    such escape. *)
 let test_synchronized () =
   let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
-  let t = terminal ~summary:"Build" () in
-  let task = Display.task t.display "a" in
+  let t = terminal ~label:"Build" () in
+  let task = Task.start t.root "a" in
   t.advance 0.2;
   Display.redraw t.display;
-  Display.log task "x";
-  Display.succeed task;
-  Display.close t.display;
+  Task.log task "x";
+  Task.succeed task;
+  close t;
   let occurrences sub s = List.length (Astring.String.cuts ~sep:sub s) - 1 in
   List.iter
     (fun c ->
@@ -767,7 +771,7 @@ let test_synchronized () =
           && occurrences end_ c = 1)
       then Alcotest.failf "not one synchronized update: %S" c)
     !(t.chunks);
-  let (), out = plain (fun d _ -> Display.succeed (Display.task d "a")) in
+  let (), out = plain (fun d _ -> Task.succeed (Task.start d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
 
 (* {1 Task output and Logs messages} *)
@@ -780,10 +784,10 @@ let split out = String.split_on_char '\n' out
 let test_pipe_lines () =
   let (), out =
     plain ~theme (fun d _ ->
-        Display.with_task d "job" (fun job ->
-            Display.log job "one";
+        Task.run d "job" (fun job ->
+            Task.log job "one";
             Driver.report d `Info "note";
-            Display.log job "two"))
+            Task.log job "two"))
   in
   check_lines "in turn, each after its task's label"
     [
@@ -802,27 +806,27 @@ let test_pipe_start () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let d = Display.v ~now:(fun () -> 0.) ppf in
-  let p = Display.task d "fetch" in
-  ignore (Display.task ~parent:p d "index");
+  let d, display = show ~now:(fun () -> 0.) ppf in
+  let p = Task.start d "fetch" in
+  ignore (Task.start p "index");
   Format.pp_print_flush ppf ();
   check_lines "the start lines, at once"
     [ "[-] fetch"; "[-] fetch \u{25B8} index"; "" ]
     (split (Buffer.contents buffer));
-  Display.close d
+  Display.close display
 
 (* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
 let test_success_drops () =
   let t = terminal ~theme ~width:30 ~height:10 () in
-  let job = Display.task ~log_lines:2 t.display "job" in
-  List.iter (Display.log job) [ "one"; "two"; "three" ];
+  let job = Task.start ~log_lines:2 t.root "job" in
+  List.iter (Task.log job) [ "one"; "two"; "three" ];
   Display.redraw t.display;
   Alcotest.(check bool)
     "not above while it runs" false
     (List.exists (contains "one") (screen t));
-  Display.succeed job;
-  Display.close t.display;
+  Task.succeed job;
+  close t;
   check_lines "only its line" [ "[+] job                   0.0s" ] (lines t)
 
 (* A task that fails prints all its output under its line, in one
@@ -832,13 +836,13 @@ let test_failure_block () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let wide = String.make 45 'w' in
   (match
-     Display.with_task ~log_lines:2 t.display "job" (fun job ->
-         List.iter (Display.log job) [ "l1"; "l2"; "l3"; wide ];
+     Task.run ~log_lines:2 t.root "job" (fun job ->
+         List.iter (Task.log job) [ "l1"; "l2"; "l3"; wide ];
          failwith "boom")
    with
   | () -> Alcotest.fail "no exception"
   | exception Failure _ -> ());
-  Display.close t.display;
+  close t;
   let rows = lines t in
   Alcotest.(check string)
     "the failure first" "[x] job: Failure(\"boom\")"
@@ -861,14 +865,14 @@ let test_failure_block () =
    says how many were dropped. *)
 let test_failure_cap () =
   let t = terminal ~theme ~width:40 ~height:10 () in
-  let job = Display.task t.display "job" in
+  let job = Task.start t.root "job" in
   let n = 1200 in
   let line i = Fmt.str "line%04d%s" i (String.make 992 'x') in
   for i = 0 to n - 1 do
-    Display.log job (line i)
+    Task.log job (line i)
   done;
   t.chunks := [];
-  Display.fail job;
+  Task.fail job;
   let out = written t in
   let tokens =
     Re.all (Re.Perl.compile_pat "line([0-9]{4})") out
@@ -887,7 +891,7 @@ let test_failure_cap () =
   Alcotest.(check bool)
     "how many were dropped" true
     (contains (Fmt.str "%d lines dropped" first) out);
-  Display.close t.display
+  close t
 
 (* On a pipe nothing is kept: every line was printed when it came, and
    none is printed again under the failure. *)
@@ -895,11 +899,11 @@ let test_failure_plain () =
   let n = 2000 in
   let (), out =
     plain ~theme (fun d _ ->
-        let job = Display.task ~log_lines:2 d "job" in
+        let job = Task.start ~log_lines:2 d "job" in
         for i = 0 to n - 1 do
-          Display.log job (Fmt.str "line%04d %s" i (String.make 600 'x'))
+          Task.log job (Fmt.str "line%04d %s" i (String.make 600 'x'))
         done;
-        Display.fail job)
+        Task.fail job)
   in
   let lines = split out in
   Alcotest.(check int)
@@ -916,38 +920,38 @@ let test_failure_plain () =
    too. *)
 let test_cancelled_output () =
   let t = terminal ~theme ~width:30 ~height:10 () in
-  let job = Display.task ~log_lines:2 t.display "job" in
-  let other = Display.task ~log_lines:1 t.display "other" in
-  List.iter (Display.log job) [ "a"; "b"; "c" ];
-  Display.log other "z";
-  Display.cancel job;
+  let job = Task.start ~log_lines:2 t.root "job" in
+  let other = Task.start ~log_lines:1 t.root "other" in
+  List.iter (Task.log job) [ "a"; "b"; "c" ];
+  Task.log other "z";
+  Task.cancel job;
   Display.close t.display;
   check_lines "all of it under each line"
     [ "[~] job"; "  # a"; "  # b"; "  # c"; "[~] other"; "  # z" ]
     (List.map untimed (lines t));
   let (), out =
     plain ~theme (fun d _ ->
-        let job = Display.task ~log_lines:2 d "job" in
-        Display.log job "a";
-        Display.cancel job)
+        let job = Task.start ~log_lines:2 d "job" in
+        Task.log job "a";
+        Task.cancel job)
   in
   check_lines "nothing repeated on a pipe"
     [ "[-] job"; "  # job: a"; "[~] job  0.0s  cancelled"; "" ]
     (split out)
 
-(* [root] is the display's top task: within it, output goes above the rows
-   at once and stays, while a task runs and when that task fails, and a task
-   started there has no parent. It never ends. *)
+(* The root is the work's top task: within it, output goes above the rows
+   at once and stays, while a task runs and when that task fails, and also
+   once the work ended. Ending it ends the work, once. *)
 let test_root () =
   let t = terminal ~theme ~width:30 ~height:10 () in
-  let d = t.display in
-  let root = Display.root d in
+  let d = t.root in
+  let root = d in
   (match
-     Display.with_task ~log_lines:2 d "job" (fun job ->
-         Display.log job "mine";
-         Display.within root (fun () -> Driver.report d `Warning "above");
-         Display.log root "also above";
-         Display.redraw d;
+     Task.run ~log_lines:2 d "job" (fun job ->
+         Task.log job "mine";
+         Task.within root (fun () -> Driver.report d `Warning "above");
+         Task.log root "also above";
+         Display.redraw t.display;
          check_lines "above the rows at once"
            [ "! above"; "also above" ]
            (List.filteri (fun i _ -> i < 2) (screen t));
@@ -958,11 +962,14 @@ let test_root () =
    with
   | () -> Alcotest.fail "no exception"
   | exception Failure _ -> ());
-  Display.succeed root;
-  Display.fail root;
-  Display.cancel root;
-  Display.log root "still there";
-  Display.close d;
+  Task.succeed root;
+  Task.fail root;
+  Task.cancel root;
+  Alcotest.(check bool)
+    "the first ending counts" true
+    (Task.state root = `Succeeded);
+  Task.log root "still there";
+  Display.close t.display;
   check_lines "they stay, the task's own under its failure"
     [
       "! above";
@@ -974,10 +981,10 @@ let test_root () =
     (List.map untimed (lines t));
   let (), out =
     plain ~theme (fun d _ ->
-        Display.with_task d "job" (fun _ ->
-            Display.within (Display.root d) (fun () ->
+        Task.run d "job" (fun _ ->
+            Task.within d (fun () ->
                 Driver.report d `Info "above";
-                Display.succeed (Display.task d "top"));
+                Task.succeed (Task.start d "top"));
             Driver.report d `Info "inside"))
   in
   check_lines "on a pipe, unlabelled"
@@ -998,21 +1005,21 @@ let test_root () =
 let test_within () =
   let (), out =
     plain ~theme (fun d _ ->
-        let a = Display.task d "a" in
-        Display.with_task d "b" (fun _ ->
+        let a = Task.start d "a" in
+        Task.run d "b" (fun _ ->
             let v =
-              Display.within a (fun () ->
+              Task.within a (fun () ->
                   Driver.report d `Info "for a";
-                  ignore (Display.task d "under a");
+                  ignore (Task.start a "under a");
                   7)
             in
             Alcotest.(check int) "its value" 7 v;
             Driver.report d `Info "for b");
-        (match Display.within a (fun () -> failwith "inside") with
+        (match Task.within a (fun () -> failwith "inside") with
         | () -> Alcotest.fail "no exception"
         | exception Failure _ -> ());
-        Display.log a "still runs";
-        Display.succeed a)
+        Task.log a "still runs";
+        Task.succeed a)
   in
   check_lines "the lines of the task given"
     [
@@ -1033,13 +1040,13 @@ let test_within () =
    its own line, never interleaved with the other's. *)
 let test_two_tasks () =
   let t = terminal ~theme ~width:30 ~height:10 () in
-  let a = Display.task t.display "a" and b = Display.task t.display "b" in
+  let a = Task.start t.root "a" and b = Task.start t.root "b" in
   List.iter
-    (fun (task, s) -> Display.log task s)
+    (fun (task, s) -> Task.log task s)
     [ (a, "a1"); (b, "b1"); (a, "a2"); (b, "b2") ];
-  Display.fail a;
-  Display.fail b;
-  Display.close t.display;
+  Task.fail a;
+  Task.fail b;
+  close t;
   check_lines "one block each"
     [ "[x] a"; "  # a1"; "  # a2"; "[x] b"; "  # b1"; "  # b2" ]
     (List.map untimed (lines t))
@@ -1050,17 +1057,17 @@ let test_two_tasks () =
 let test_with_task () =
   let v, out =
     plain ~theme (fun d _ ->
-        Display.with_task d "outer" (fun _ ->
-            Display.with_task d "inner" (fun _ -> Driver.report d `Info "deep");
-            ignore (Display.task d "child");
-            Display.with_task d "ended" (fun t ->
-                Display.fail t;
+        Task.run d "outer" (fun outer ->
+            Task.run outer "inner" (fun _ -> Driver.report d `Info "deep");
+            ignore (Task.start outer "child");
+            Task.run outer "ended" (fun t ->
+                Task.fail t;
                 Driver.report d `Info "after its end";
-                Display.log t "ignored");
+                Task.log t "ignored");
             42))
   in
   Alcotest.(check int) "its value" 42 v;
-  check_lines "nested under the current task"
+  check_lines "nested under the task given"
     [
       "[-] outer";
       "[-] outer \u{25B8} inner";
@@ -1074,6 +1081,23 @@ let test_with_task () =
       "[+] outer  0.0s";
       "";
     ]
+    (split out);
+  let (), out =
+    plain ~theme (fun d _ ->
+        Task.run d "outer" (fun _ ->
+            let top = Task.start d "top" in
+            Driver.report d `Info "to outer";
+            Task.succeed top))
+  in
+  check_lines "a task goes under the task given, output to the current one"
+    [
+      "[-] outer";
+      "[-] top";
+      "  outer: to outer";
+      "[+] top  0.0s";
+      "[+] outer  0.0s";
+      "";
+    ]
     (split out)
 
 (* A task that [with_task] fails when its function raises says why, in its
@@ -1083,10 +1107,10 @@ let test_with_task_reason () =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
     Theme.set ppf theme;
-    let d = Display.v ~progress ~now:(fun () -> 0.) ppf in
-    (try Display.with_task d "fetch" (fun _ -> failwith "disk full")
+    let d, display = show ~progress ~now:(fun () -> 0.) ppf in
+    (try Task.run d "fetch" (fun _ -> failwith "disk full")
      with Failure _ -> ());
-    Display.close d;
+    Display.close display;
     Format.pp_print_flush ppf ();
     Buffer.contents buf
   in
@@ -1102,28 +1126,32 @@ let test_with_task_reason () =
    those that ended among them while their top task runs. *)
 let test_children () =
   let t = terminal ~theme ~width:40 ~height:10 () in
-  let d = t.display in
-  let a = Display.task d "a" and b = Display.task d "b" in
-  let a1 = Display.task ~parent:a d "a1" in
-  let a2 = Display.task ~parent:a d "a2" in
-  Display.succeed a1;
-  Alcotest.(check int)
-    "the top tasks" 2
-    (List.length Display.(children (root d)));
+  let d = t.root in
+  let a = Task.start d "a" and b = Task.start d "b" in
+  let a1 = Task.start a "a1" in
+  let a2 = Task.start a "a2" in
+  Task.succeed a1;
+  Alcotest.(check int) "the top tasks" 2 (List.length (Task.children d));
   Alcotest.(check bool)
     "the tasks under a" true
-    (match Display.children a with
-    | [ x; y ] -> x == a1 && y == a2
-    | _ -> false);
-  Alcotest.(check int) "none under b" 0 (List.length (Display.children b));
-  Display.close d
+    (match Task.children a with [ x; y ] -> x == a1 && y == a2 | _ -> false);
+  Alcotest.(check int) "none under b" 0 (List.length (Task.children b));
+  close t
 
-(* [iter] is a task whose count follows the list. *)
+(* A task whose count follows a list. *)
 let test_iter () =
   let seen = ref [] in
   let (), out =
     plain ~theme (fun d _ ->
-        Display.iter d "items" (fun x -> seen := x :: !seen) [ 1; 2; 3 ])
+        let items = [ 1; 2; 3 ] in
+        let total = List.length items in
+        Task.run d "items" (fun t ->
+            Task.set_items t ~count:0 ~total;
+            List.iteri
+              (fun i x ->
+                seen := x :: !seen;
+                Task.set_items t ~count:(i + 1) ~total)
+              items))
   in
   Alcotest.(check (list int)) "in order" [ 1; 2; 3 ] (List.rev !seen);
   check_lines "counted" [ "[-] items"; "[+] items  3/3  0.0s"; "" ] (split out)
@@ -1153,16 +1181,28 @@ let printed ?(theme = theme) ~margin pp v =
 
 let table ~width = View.sized ~width:(min width 100) steps
 
+(* A view of the display's room: [f root ~width ~height], the width and the
+   height of the region. *)
+let fit root f =
+  View.fit (fun room ->
+      let width = Option.value (Room.width room) ~default:80
+      and height = Option.value (Room.height room) ~default:max_int in
+      f root ~width ~height)
+
+(* The default view in a room [width] wide and [height] tall. *)
+let default root ~width ~height = View.sized ~width ~height (Progress.view root)
+
 (* A view is a span: here a table above the default view, the tree of the
    tasks and then the summary, which stays the last line. The view is given
    the terminal's width and its height less one. *)
 let test_view () =
-  let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
+  let t = terminal ~theme ~width:40 ~height:12 ~label:"Build" () in
   let heights = ref [] in
-  Display.set_view t.display (fun d ~width ~height ->
-      heights := height :: !heights;
-      above (table ~width) d ~width ~height);
-  ignore (Display.task t.display "compile");
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height ->
+         heights := height :: !heights;
+         above (table ~width) d));
+  ignore (Task.start t.root "compile");
   Display.redraw t.display;
   let table = printed ~margin:40 View.pp steps in
   let rows = screen t in
@@ -1177,11 +1217,12 @@ let test_view () =
 (* A view line wider than the terminal is cut, and a view taller than the
    room loses its first lines, so that the summary at its bottom stays. *)
 let test_view_fits () =
-  let t = terminal ~theme ~width:20 ~height:6 ~summary:"Build" () in
+  let t = terminal ~theme ~width:20 ~height:6 ~label:"Build" () in
   let tall = View.text "a view line much wider than twenty\nb\nc\nd\ne\nf" in
-  Display.set_view t.display (fun d ~width ~height:_ ->
-      View.vcat [ tall; Display.default_view d ~width ~height:2 ]);
-  ignore (Display.task t.display "compile");
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height:_ ->
+         View.vcat [ tall; default d ~width ~height:2 ]));
+  ignore (Task.start t.root "compile");
   Display.redraw t.display;
   let rows = screen t in
   check_lines "the last five lines" [ "d"; "e"; "f" ]
@@ -1191,49 +1232,51 @@ let test_view_fits () =
     "the summary" true
     (contains "[-] Build" (List.nth rows 4));
   Alcotest.(check int) "within the screen less one" 5 (List.length rows);
-  Display.set_view t.display (fun _ ~width:_ ~height:_ ->
-      View.text "a view line much wider than twenty\nb");
+  Display.set_view t.display (View.text "a view line much wider than twenty\nb");
   check_lines "cut to the width"
     [ "a view line much wi\u{2026}"; "b" ]
     (screen t);
-  Display.close t.display
+  close t
 
 (* On a terminal too short for the view, the view loses its first lines,
    and a table cut in its height goes whole, beside text in a hcat too: the
    region shows no fragment of its frame. *)
 let test_view_short () =
-  let t = terminal ~theme ~width:40 ~height:6 ~summary:"Build" () in
+  let t = terminal ~theme ~width:40 ~height:6 ~label:"Build" () in
   let table = View.sized ~width:30 steps in
-  Display.set_view t.display (fun d ~width ~height:_ ->
-      View.vcat [ table; Display.default_view d ~width ~height:2 ]);
-  ignore (Display.task t.display "compile");
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height:_ ->
+         View.vcat [ table; default d ~width ~height:2 ]));
+  ignore (Task.start t.root "compile");
   Display.redraw t.display;
   let rows = screen t in
   Alcotest.(check int) "the tree and the summary" 2 (List.length rows);
   Alcotest.(check bool)
     "nothing of the table" false
     (List.exists (fun r -> contains "+-" r || contains "s |" r) rows);
-  Display.set_view t.display (fun d ~width ~height:_ ->
-      View.vcat
-        [
-          View.text "a\nb\nc";
-          View.hcat [ table; View.text "x" ];
-          View.text "d\ne";
-          Display.default_view d ~width ~height:2;
-        ]);
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height:_ ->
+         View.vcat
+           [
+             View.text "a\nb\nc";
+             View.hcat [ table; View.text "x" ];
+             View.text "d\ne";
+             default d ~width ~height:2;
+           ]));
   check_lines "past the table, the text" [ "d"; "e" ]
     (List.filteri (fun i _ -> i < 2) (screen t));
-  Display.close t.display
+  close t
 
 (* On a wide terminal the view is given its width, and the tree keeps to
    100 columns. *)
 let test_view_width () =
   let t = terminal ~theme ~width:160 () in
   let given = ref 0 in
-  Display.set_view t.display (fun d ~width ~height ->
-      given := width;
-      Display.default_view d ~width ~height);
-  ignore (Display.task t.display "compile");
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height ->
+         given := width;
+         default d ~width ~height));
+  ignore (Task.start t.root "compile");
   Display.redraw t.display;
   Alcotest.(check int) "the width" 160 !given;
   Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
@@ -1241,34 +1284,35 @@ let test_view_width () =
 (* The default view and the summary take the width they are given, so a
    view puts them in a column narrower than the terminal. *)
 let test_default_view_column () =
-  let t = terminal ~theme ~width:120 ~height:12 ~summary:"Building" () in
+  let t = terminal ~theme ~width:120 ~height:12 ~label:"Building" () in
   let panel = View.sized ~width:30 (Panel.view (View.text "status")) in
-  Display.set_view t.display (fun d ~width ~height ->
-      View.hcat [ Display.default_view d ~width:(width - 32) ~height; panel ]);
-  let step = Display.task t.display "compile" in
-  Display.set_count step ~cur:1 ~total:2;
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height ->
+         View.hcat [ default d ~width:(width - 32) ~height; panel ]));
+  let step = Task.start t.root "compile" in
+  Task.set_items step ~count:1 ~total:2;
   Display.redraw t.display;
-  let view = Display.default_view t.display ~width:30 ~height:10 in
+  let view = default t.root ~width:30 ~height:10 in
   Alcotest.(check bool) "the view in 30 cells" true (View.width view <= 30);
   Alcotest.(check bool)
     "the summary in 12" true
-    (View.width (Display.summary ~width:12 t.display) <= 12);
+    (View.width (View.sized ~width:12 (Progress.summary t.root)) <= 12);
   Alcotest.(check bool)
     "the panel on the screen" true
     (List.for_all (fun r -> Width.string_width r <= 120) (screen t)
     && List.exists (contains "status") (screen t));
-  Display.close t.display
+  close t
 
 (* Widgets side by side make a view, each at the width it is given. *)
 let test_view_hcat () =
-  let t = terminal ~theme ~width:40 ~height:12 ~summary:"Build" () in
+  let t = terminal ~theme ~width:40 ~height:12 ~label:"Build" () in
   let panel = Panel.view (View.text "status") in
   let side width =
     let half = (width - 2) / 2 in
     View.hcat [ View.sized ~width:half steps; View.sized ~width:half panel ]
   in
-  Display.set_view t.display (fun d ~width ~height ->
-      above (side width) d ~width ~height);
+  Display.set_view t.display
+    (fit t.root (fun d ~width ~height:_ -> above (side width) d));
   Display.redraw t.display;
   let want = printed ~margin:40 View.pp (side 40) in
   let rows = screen t in
@@ -1282,21 +1326,20 @@ let test_view_hcat () =
    display closes. *)
 let test_view_replaced () =
   let t = terminal ~theme ~width:30 () in
-  Display.set_view t.display (fun _ ~width:_ ~height:_ -> View.text "first");
+  Display.set_view t.display (View.text "first");
   Display.redraw t.display;
-  Display.set_view t.display (fun _ ~width:_ ~height:_ -> View.text "second");
+  Display.set_view t.display (View.text "second");
   check_lines "the second view, at once" [ "second" ] (screen t);
-  Display.close t.display;
+  close t;
   check_lines "its last frame stays" [ "second" ] (lines t)
 
 (* Without a terminal a view is drawn once, when the display closes, after
    the tasks' lines. *)
 let test_view_plain () =
   let (), out =
-    plain ~theme ~summary:"Build" (fun d _ ->
-        Display.set_view d (fun d ~width ~height ->
-            above (View.text "TOP") d ~width ~height);
-        Display.succeed (Display.task d "compile"))
+    plain ~theme ~label:"Build"
+      ~view:(above (View.text "TOP"))
+      (fun d _ -> Task.succeed (Task.start d "compile"))
   in
   check_lines "the last frame, at the end"
     [ "[-] compile"; "[+] compile  0.0s"; "TOP"; "[+] Build 0.0s (1/1)"; "" ]
@@ -1331,7 +1374,8 @@ let clusters = Width.clusters
 let test_view_moves () =
   let run theme ~styled =
     let t = terminal ~theme ~styled ~width:40 ~height:12 () in
-    Display.set_view t.display (fun _ ~width ~height:_ -> table ~width);
+    Display.set_view t.display
+      (fit t.root (fun _ ~width ~height:_ -> table ~width));
     Display.redraw t.display;
     let frames =
       List.init 12 (fun _ ->
@@ -1340,7 +1384,7 @@ let test_view_moves () =
           Display.redraw t.display;
           (List.length !(t.chunks) > before, screen t))
     in
-    Display.close t.display;
+    close t;
     frames
   in
   let still = printed ~theme:Theme.matrix ~margin:40 View.pp steps in
@@ -1394,8 +1438,7 @@ let test_simple_view_stands_still () =
   List.iter
     (fun theme ->
       let t = terminal ~theme ~styled:true ~width:40 ~height:12 () in
-      Display.set_view t.display (fun _ ~width ~height:_ ->
-          View.sized ~width simple);
+      Display.set_view t.display simple;
       Display.redraw t.display;
       let still = screen t in
       for _ = 1 to 12 do
@@ -1403,17 +1446,15 @@ let test_simple_view_stands_still () =
         Display.redraw t.display;
         Alcotest.(check (list string)) "still" still (screen t)
       done;
-      Display.close t.display)
+      close t)
     Theme.[ matrix; rainbow; tokyo_night ]
 
 (* A broken view must not prevent teardown from restoring the terminal: it
    is dropped, and the default view drawn in its place. *)
 let test_view_exception_close () =
   let t = terminal ~styled:true ~width:40 ~height:10 () in
-  ignore (Display.task t.display "running");
-  (match
-     Display.set_view t.display (fun _ ~width:_ ~height:_ -> raise Exit)
-   with
+  ignore (Task.start t.root "running");
+  (match Display.set_view t.display (View.fit (fun _ -> raise Exit)) with
   | () -> Alcotest.fail "view exception was swallowed"
   | exception Exit -> ());
   Alcotest.(check bool)
@@ -1421,7 +1462,7 @@ let test_view_exception_close () =
     (List.exists (contains "running") (screen t));
   let raised =
     try
-      Display.close t.display;
+      close t;
       false
     with Exit -> true
   in
@@ -1437,10 +1478,10 @@ let test_view_exception_close () =
    way last, after the bar, and the row still ends with its timer. *)
 let test_label_before_bar () =
   let t = terminal ~theme ~width:40 ~height:8 () in
-  let step = Display.task t.display "RUN make" in
-  let layer = Display.task ~parent:step t.display "sha256:abcd" in
-  Display.set_count step ~cur:5 ~total:5;
-  Display.set_bytes layer ~cur:268435456L ~total:2147483648L;
+  let step = Task.start t.root "RUN make" in
+  let layer = Task.start step "sha256:abcd" in
+  Task.set_items step ~count:5 ~total:5;
+  Task.set_bytes layer ~count:268435456L ~total:2147483648L;
   t.advance 1.5;
   Display.redraw t.display;
   let rows = screen t in
@@ -1455,7 +1496,7 @@ let test_label_before_bar () =
     (List.for_all
        (fun r -> (not (contains "\xe2\x80\xa6" r)) || contains "1.5s" r)
        rows);
-  Display.close t.display
+  close t
 
 (* The same in two trees side by side, as examples/columns lays them out on
    75 columns. *)
@@ -1463,40 +1504,39 @@ let test_label_before_bar_hcat () =
   let t = terminal ~theme ~width:75 ~height:12 () in
   let view d ~width ~height =
     let half = (min width 100 - 2) / 2 in
-    match Display.(children (root d)) with
+    match Task.children d with
     | [ a; b ] ->
         View.hcat
           [
-            Display.tree ~width:half ~height a;
-            Display.tree ~width:half ~height b;
+            View.sized ~width:half ~height (Progress.tree a);
+            View.sized ~width:half ~height (Progress.tree b);
           ]
-    | _ -> Display.default_view d ~width ~height
+    | _ -> default d ~width ~height
   in
-  Display.set_view t.display view;
-  let a = Display.task t.display "linux"
-  and b = Display.task t.display "macos" in
-  let ca = Display.task ~parent:a t.display "compile" in
-  let cb = Display.task ~parent:b t.display "compile" in
-  Display.set_count ca ~cur:4 ~total:12;
-  Display.set_count cb ~cur:2 ~total:12;
+  Display.set_view t.display (fit t.root view);
+  let a = Task.start t.root "linux" and b = Task.start t.root "macos" in
+  let ca = Task.start a "compile" in
+  let cb = Task.start b "compile" in
+  Task.set_items ca ~count:4 ~total:12;
+  Task.set_items cb ~count:2 ~total:12;
   Display.redraw t.display;
   Alcotest.(check bool)
     "compile shows in a 36-cell tree" true
     (List.exists (contains "comp") (screen t));
-  Display.close t.display
+  close t
 
 (* When the display closes, the scrollback keeps each task's label readable:
    a label that does not fit next to its count goes on below, never one
    character a line. *)
 let test_last_frame_label_readable () =
   let t = terminal ~theme ~width:40 ~height:30 () in
-  let step = Display.task t.display "RUN make" in
-  let layer = Display.task ~parent:step t.display "sha256:abcd..." in
-  Display.set_count step ~cur:5 ~total:5;
-  Display.set_bytes layer ~cur:2147483648L ~total:2147483648L;
-  Display.succeed layer;
-  Display.succeed step;
-  Display.close t.display;
+  let step = Task.start t.root "RUN make" in
+  let layer = Task.start step "sha256:abcd..." in
+  Task.set_items step ~count:5 ~total:5;
+  Task.set_bytes layer ~count:2147483648L ~total:2147483648L;
+  Task.succeed layer;
+  Task.succeed step;
+  close t;
   let rows = lines t in
   Alcotest.(check bool)
     "no row holds a lone character" false
@@ -1512,11 +1552,11 @@ let test_last_frame_label_readable () =
 let test_plain_output_not_sibling () =
   let (), out =
     plain ~theme (fun d _ ->
-        let p = Display.task d "parent" in
-        let c = Display.task ~parent:p d "child" in
-        Display.log p "parent says";
-        Display.succeed c;
-        Display.succeed p)
+        let p = Task.start d "parent" in
+        let c = Task.start p "child" in
+        Task.log p "parent says";
+        Task.succeed c;
+        Task.succeed p)
   in
   check_lines "each line names its task"
     [
@@ -1534,9 +1574,9 @@ let test_plain_output_not_sibling () =
 let test_plain_failure_output_once () =
   let (), out =
     plain ~theme (fun d _ ->
-        let job = Display.task d "job" in
-        Display.log job "checksum mismatch";
-        Display.fail job)
+        let job = Task.start d "job" in
+        Task.log job "checksum mismatch";
+        Task.fail job)
   in
   Alcotest.(check int)
     "the line once" 1
@@ -1547,11 +1587,10 @@ let test_plain_failure_output_once () =
 let test_parent_of_failure () =
   let (), out =
     plain ~theme (fun d _ ->
-        Display.with_task d "parent" (fun p ->
-            Display.fail (Display.task ~parent:p d "child"));
-        Display.with_task d "step" (fun p ->
-            Display.fail (Display.task ~parent:p d "layer");
-            Display.fail p))
+        Task.run d "parent" (fun p -> Task.fail (Task.start p "child"));
+        Task.run d "step" (fun p ->
+            Task.fail (Task.start p "layer");
+            Task.fail p))
   in
   check_lines "each mark as the program said"
     [
@@ -1567,9 +1606,8 @@ let test_parent_of_failure () =
     ]
     (split out);
   let t = terminal ~theme ~width:40 ~height:8 () in
-  Display.with_task t.display "parent" (fun p ->
-      Display.fail (Display.task ~parent:p t.display "child"));
-  Display.close t.display;
+  Task.run t.root "parent" (fun p -> Task.fail (Task.start p "child"));
+  close t;
   Alcotest.(check bool)
     "on a terminal too" true
     (List.exists (fun r -> untimed r = "[+] parent") (lines t))
@@ -1580,13 +1618,13 @@ let test_quiet_failure_context () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let d = Display.v ~progress:`Quiet ~now:(fun () -> 0.) ppf in
-  let p = Display.task d "RUN make" in
-  let c = Display.task ~parent:p d "sha256" in
-  Display.log c "checksum mismatch";
-  Display.fail c;
-  Display.succeed p;
-  Display.close d;
+  let d, display = show ~progress:`Quiet ~now:(fun () -> 0.) ppf in
+  let p = Task.start d "RUN make" in
+  let c = Task.start p "sha256" in
+  Task.log c "checksum mismatch";
+  Task.fail c;
+  Task.succeed p;
+  Display.close display;
   Format.pp_print_flush ppf ();
   let out = Buffer.contents buffer in
   Alcotest.(check bool) "the failure shows" true (contains "sha256" out);
@@ -1597,13 +1635,13 @@ let test_quiet_failure_context () =
 let test_plain_interleaved_children () =
   let (), out =
     plain ~theme (fun d _ ->
-        let a = Display.task d "linux" and b = Display.task d "macos" in
-        let fa = Display.task ~parent:a d "fetch" in
-        let fb = Display.task ~parent:b d "fetch" in
-        Display.succeed fa;
-        Display.succeed fb;
-        Display.succeed a;
-        Display.succeed b)
+        let a = Task.start d "linux" and b = Task.start d "macos" in
+        let fa = Task.start a "fetch" in
+        let fb = Task.start b "fetch" in
+        Task.succeed fa;
+        Task.succeed fb;
+        Task.succeed a;
+        Task.succeed b)
   in
   let fetches = List.filter (contains "fetch") (split out) in
   Alcotest.(check bool)
@@ -1616,11 +1654,11 @@ let test_quiet_transient_failure () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let d = Display.v ~progress:`Quiet ~now:(fun () -> 0.) ppf in
-  let t = Display.task ~transient:true d "probe" in
-  Display.log t "fatal: disk full";
-  Display.fail t;
-  Display.close d;
+  let d, display = show ~progress:`Quiet ~now:(fun () -> 0.) ppf in
+  let t = Task.start ~transient:true d "probe" in
+  Task.log t "fatal: disk full";
+  Task.fail t;
+  Display.close display;
   Format.pp_print_flush ppf ();
   Alcotest.(check bool)
     "the failure's output shows" true
@@ -1628,9 +1666,9 @@ let test_quiet_transient_failure () =
 
 (* The summary runs while the display is open. *)
 let test_summary_between_tasks () =
-  let t = terminal ~theme ~width:40 ~summary:"Build" () in
-  let a = Display.task t.display "fetch" in
-  Display.succeed a;
+  let t = terminal ~theme ~width:40 ~label:"Build" () in
+  let a = Task.start t.root "fetch" in
+  Task.succeed a;
   Display.redraw t.display;
   Alcotest.(check bool)
     "still running" true
@@ -1638,7 +1676,7 @@ let test_summary_between_tasks () =
   Alcotest.(check bool)
     "not a success" false
     (List.exists (contains "[+] Build") (screen t));
-  Display.close t.display
+  close t
 
 (* The 4 KiB cut keeps a flag, one grapheme cluster, whole. *)
 let test_cap_keeps_a_flag () =
@@ -1646,8 +1684,8 @@ let test_cap_keeps_a_flag () =
   let label = String.make 4089 'a' ^ flag ^ "b" in
   let (), out =
     plain (fun d _ ->
-        let t = Display.task d label in
-        Display.succeed t)
+        let t = Task.start d label in
+        Task.succeed t)
   in
   let has affix = contains affix out in
   Alcotest.(check bool)
@@ -1658,11 +1696,11 @@ let test_cap_keeps_a_flag () =
 let test_pipe_output_mark_not_separator () =
   let (), out =
     plain (fun d _ ->
-        let a = Display.task d "a" in
-        let b = Display.task ~parent:a d "b" in
-        Display.log b "x";
-        Display.succeed b;
-        Display.succeed a)
+        let a = Task.start d "a" in
+        let b = Task.start a "b" in
+        Task.log b "x";
+        Task.succeed b;
+        Task.succeed a)
   in
   let line = List.find (contains ": x") (String.split_on_char '\n' out) in
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
@@ -1673,17 +1711,16 @@ let test_label_not_cut_for_an_empty_count () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_utf_8 ppf true;
-  let d =
-    Display.v ~size:(fun () -> (40, 30)) ~progress:`Tty ~now:(fun () -> 0.) ppf
+  let d, _display =
+    show ~size:(fun () -> (40, 30)) ~progress:`Tty ~now:(fun () -> 0.) ppf
   in
   let rec nest p n =
-    if n = 0 then p
-    else nest (Display.task ~parent:p d (Fmt.str "level-%d-label" n)) (n - 1)
+    if n = 0 then p else nest (Task.start p (Fmt.str "level-%d-label" n)) (n - 1)
   in
-  let leaf = nest (Display.root d) 8 in
-  Display.set_count leaf ~cur:1 ~total:4;
+  let leaf = nest d 8 in
+  Task.set_items leaf ~count:1 ~total:4;
   let tree =
-    View.to_string (Display.tree ~width:40 ~height:30 (Display.root d))
+    View.to_string (View.sized ~width:40 ~height:30 (Progress.tree d))
   in
   Alcotest.(check bool)
     ("level-5-label whole in\n" ^ tree)
@@ -1695,11 +1732,10 @@ let test_plain_transient_failure () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let d = Display.v ~summary:"S" ~progress:`Plain ~now:(fun () -> 0.) ppf in
-  (try
-     Display.with_task ~transient:true d "probe" (fun _ -> failwith "disk full")
+  let d, display = show ~label:"S" ~progress:`Plain ~now:(fun () -> 0.) ppf in
+  (try Task.run ~transient:true d "probe" (fun _ -> failwith "disk full")
    with Failure _ -> ());
-  Display.close d;
+  Display.close display;
   Format.pp_print_flush ppf ();
   let out = Buffer.contents buffer in
   Alcotest.(check bool)
@@ -1707,13 +1743,13 @@ let test_plain_transient_failure () =
     true (contains "probe" out)
 
 let test_tty_transient_failure () =
-  let t = terminal ~theme ~width:40 ~summary:"S" () in
+  let t = terminal ~theme ~width:40 ~label:"S" () in
   (try
-     Display.with_task ~transient:true t.display "probe" (fun r ->
-         Display.log r "disk full";
+     Task.run ~transient:true t.root "probe" (fun r ->
+         Task.log r "disk full";
          failwith "boom")
    with Failure _ -> ());
-  Display.close t.display;
+  close t;
   let all = lines t in
   Alcotest.(check bool)
     ("the failure shows in\n" ^ String.concat "\n" all)
@@ -1727,9 +1763,9 @@ let test_label_gives_way_last () =
   List.iter
     (fun width ->
       let t = terminal ~theme ~width ~height:4 () in
-      let r = Display.task t.display label in
+      let r = Task.start t.root label in
       t.advance 1.;
-      Display.set_bytes r ~cur:268435456L ~total:2147483648L;
+      Task.set_bytes r ~count:268435456L ~total:2147483648L;
       t.advance 4.;
       Display.redraw t.display;
       let row = List.find (contains "a-label") (screen t) in
@@ -1738,7 +1774,7 @@ let test_label_gives_way_last () =
           (Fmt.str "at %d nothing but the label is left in %S" width row)
           false (Re.execp given row);
 
-      Display.close t.display)
+      close t)
     [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
 
 let bar_end row =
@@ -1758,13 +1794,13 @@ let bar_end row =
 
 let test_bars_line_up () =
   let t = terminal ~theme ~width:80 ~height:8 () in
-  let step = Display.task t.display "RUN make" in
-  let layer = Display.task ~parent:step t.display "sha256:abcd" in
-  Display.set_count step ~cur:2 ~total:5;
+  let step = Task.start t.root "RUN make" in
+  let layer = Task.start step "sha256:abcd" in
+  Task.set_items step ~count:2 ~total:5;
   t.advance 1.;
-  Display.set_bytes layer ~cur:268435456L ~total:2147483648L;
+  Task.set_bytes layer ~count:268435456L ~total:2147483648L;
   t.advance 1.;
-  Display.set_bytes layer ~cur:536870912L ~total:2147483648L;
+  Task.set_bytes layer ~count:536870912L ~total:2147483648L;
   Display.redraw t.display;
   let rows = screen t in
   let ends = List.filter_map bar_end rows in
@@ -1775,7 +1811,7 @@ let test_bars_line_up () =
     ("the bars end in one column in\n" ^ String.concat "\n" rows)
     true
     (List.for_all (( = ) (List.hd ends)) ends);
-  Display.close t.display
+  close t
 
 (* The cell width of [row], every glyph one cell. *)
 let cells row =
@@ -1805,25 +1841,24 @@ let region_stands_still ~width ~bars =
          [ "linux"; "macos" ])
   in
   let view d ~width ~height =
-    match Display.(children (root d)) with
+    match Task.children d with
     | [ a; b ] ->
         View.vcat
           [
             View.sized ~width (table ());
             View.hcat
               [
-                Display.tree ~width:((width - 2) / 2) ~height a;
-                Display.tree ~width:((width - 2) / 2) ~height b;
+                View.sized ~width:((width - 2) / 2) ~height (Progress.tree a);
+                View.sized ~width:((width - 2) / 2) ~height (Progress.tree b);
               ];
           ]
-    | _ -> Display.default_view d ~width ~height
+    | _ -> default d ~width ~height
   in
-  Display.set_view t.display view;
-  let linux = Display.task t.display "linux"
-  and macos = Display.task t.display "macos" in
+  Display.set_view t.display (fit t.root view);
+  let linux = Task.start t.root "linux" and macos = Task.start t.root "macos" in
   Hashtbl.replace status "linux" "running";
-  let fetch = Display.task ~parent:macos t.display "fetch" in
-  let lfetch = Display.task ~parent:linux t.display "fetch" in
+  let fetch = Task.start macos "fetch" in
+  let lfetch = Task.start linux "fetch" in
   let frames = ref [] in
   let frame () =
     Display.redraw t.display;
@@ -1837,12 +1872,12 @@ let region_stands_still ~width ~bars =
     frames := (border, bar, String.concat "\n" rows) :: !frames
   in
   for cur = 1 to 4 do
-    Display.set_count fetch ~cur ~total:4;
-    if cur <= 3 then Display.set_count lfetch ~cur ~total:4;
+    Task.set_items fetch ~count:cur ~total:4;
+    if cur <= 3 then Task.set_items lfetch ~count:cur ~total:4;
     if cur = 3 then begin
-      Display.succeed lfetch;
-      let compile = Display.task ~parent:linux t.display "compile" in
-      Display.set_count compile ~cur:12 ~total:12;
+      Task.succeed lfetch;
+      let compile = Task.start linux "compile" in
+      Task.set_items compile ~count:12 ~total:12;
       Hashtbl.replace status "linux" "done"
     end;
     frame ()
@@ -1868,11 +1903,11 @@ let test_elapsed_rounded () =
       let buffer = Buffer.create 64 in
       let ppf = Format.formatter_of_buffer buffer in
       Theme.set ppf theme;
-      let d = Display.v ~progress:`Plain ~now:(fun () -> !now) ppf in
-      let t = Display.task d "t" in
+      let d, display = show ~progress:`Plain ~now:(fun () -> !now) ppf in
+      let t = Task.start d "t" in
       now := secs;
-      Display.succeed t;
-      Display.close d;
+      Task.succeed t;
+      Display.close display;
       Format.pp_print_flush ppf ();
       let out = Buffer.contents buffer in
       Alcotest.(check bool)
@@ -1887,9 +1922,142 @@ let test_elapsed_rounded () =
       (3599.6, "1h00m");
     ]
 
+(* {1 Rates, time left, events, commits and prints} *)
+
+(* The bytes per second a rate text says, such as "724.00 KiB/s". *)
+let rate_of s =
+  match String.split_on_char ' ' (String.trim s) with
+  | [ n; unit ] ->
+      let k =
+        match unit with
+        | "B/s" -> 1.
+        | "KiB/s" -> 1024.
+        | "MiB/s" -> 1048576.
+        | u -> Alcotest.failf "unit %S" u
+      in
+      float_of_string n *. k
+  | _ -> Alcotest.failf "rate %S" s
+
+(* The rate weighs the past by the time since it was measured: a task that
+   reports every hundredth of a second and one that reports every second
+   show the same rate for the same bytes. *)
+let test_rate_time_weighted () =
+  let now = ref 0. in
+  let root = Task.root ~now:(fun () -> !now) () in
+  let often = Task.start root "often" and seldom = Task.start root "seldom" in
+  (* 1 MiB/s for 3 s, then 256 KiB/s. *)
+  let bytes t =
+    if t <= 3. then t *. 1048576. else (3. *. 1048576.) +. ((t -. 3.) *. 262144.)
+  in
+  let total = 100_000_000L in
+  for i = 1 to 400 do
+    now := float i /. 100.;
+    Task.set_bytes often ~count:(Int64.of_float (bytes !now)) ~total;
+    if i mod 100 = 0 then
+      Task.set_bytes seldom ~count:(Int64.of_float (bytes !now)) ~total
+  done;
+  let rate task =
+    rate_of (View.to_string (Progress.row ~layout:Progress.Layout.rate task))
+  in
+  let a = rate often and b = rate seldom in
+  if Float.abs (a -. b) > 0.1 *. Float.max a b then
+    Alcotest.failf "%.0f B/s reported often, %.0f B/s seldom" a b;
+  Alcotest.(check bool)
+    "between the old rate and the new" true
+    (a > 262144. && a < 1048576.)
+
+(* The time left is what the count leaves at the task's rate. *)
+let test_eta () =
+  let now = ref 0. in
+  let root = Task.root ~now:(fun () -> !now) () in
+  let task = Task.start root "work" in
+  Task.set_items task ~count:0 ~total:4;
+  now := 1.;
+  Task.set_items task ~count:1 ~total:4;
+  Alcotest.(check string)
+    "three items at one a second" "ETA 3.0s"
+    (String.trim
+       (View.to_string (Progress.row ~layout:Progress.Layout.eta task)));
+  let fresh = Task.start root "fresh" in
+  Alcotest.(check string)
+    "none without a rate" ""
+    (String.trim
+       (View.to_string (Progress.row ~layout:Progress.Layout.eta fresh)))
+
+(* A program sees each event of the work, in order, the work's end last. *)
+let test_on_event () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let seen = ref [] in
+  Task.on_event root (fun e -> seen := e :: !seen);
+  Task.run root "a" (fun a ->
+      Task.set_items a ~count:1 ~total:2;
+      Task.log a "line");
+  Task.succeed ~message:"done" root;
+  let kinds =
+    List.rev_map
+      (fun e ->
+        match (Task.Event.kind e, Task.Event.task e) with
+        | `Start, Some (_, [ "a" ]) -> "start a"
+        | `Progress, _ -> "progress"
+        | `Output, Some _ -> "output"
+        | `End, Some _ -> "end a"
+        | `End, None -> (
+            match Task.Event.message e with
+            | Some m -> "end of the work: " ^ m
+            | None -> "end of the work")
+        | _ -> "other")
+      !seen
+  in
+  check_lines "the events in order"
+    [ "start a"; "progress"; "output"; "end a"; "end of the work: done" ]
+    kinds
+
+(* What a top task leaves in the scrollback is what [commit] draws: here one
+   line a task, or nothing. *)
+let test_commit () =
+  let run commit =
+    let t = terminal ~theme ~width:30 ~height:8 ~commit () in
+    let a = Task.start t.root "a" in
+    Task.succeed (Task.start a "a1");
+    Task.succeed a;
+    Task.succeed (Task.start t.root "b");
+    close t;
+    lines t
+  in
+  check_lines "one line a top task" [ "done a"; "done b" ]
+    (run (fun t -> Some (View.text ("done " ^ Task.label t))));
+  check_lines "nothing" [] (run (fun _ -> None))
+
+(* [print] writes at once: above the region on a terminal, with the region
+   drawn again below it, and in turn on a pipe. *)
+let test_print () =
+  let t = terminal ~theme ~width:30 ~height:8 () in
+  ignore (Task.start t.root "job");
+  Display.redraw t.display;
+  let before = List.length !(t.chunks) in
+  Display.print t.display (View.text "printed");
+  Alcotest.(check int) "one write" (before + 1) (List.length !(t.chunks));
+  check_lines "above the region, at once" [ "printed"; "| job" ]
+    (List.map untimed (screen t));
+  close t;
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  let _, display = show ~progress:`Plain ~now:(fun () -> 0.) ppf in
+  Display.print display (View.text "printed");
+  Format.pp_print_flush ppf ();
+  Alcotest.(check string)
+    "on a pipe, at once" "printed\n" (Buffer.contents buffer);
+  Display.close display
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "the rate weighs time, not reports" `Quick
+        test_rate_time_weighted;
+      Alcotest.test_case "the time left" `Quick test_eta;
+      Alcotest.test_case "a program sees the events" `Quick test_on_event;
+      Alcotest.test_case "commit" `Quick test_commit;
+      Alcotest.test_case "print writes at once" `Quick test_print;
       Alcotest.test_case "a view exception still allows close" `Quick
         test_view_exception_close;
       Alcotest.test_case "a view side by side" `Quick test_view_hcat;

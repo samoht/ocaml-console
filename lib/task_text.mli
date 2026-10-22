@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The quantities and caller text a display draws. *)
+(** The quantities and caller text of tasks, as their rows draw them. *)
 
 val bytes : int64 -> string
 (** [bytes n] is [n] bytes in the largest binary unit below 1024 of it, a
