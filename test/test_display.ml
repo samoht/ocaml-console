@@ -1631,7 +1631,7 @@ let test_quiet_transient_failure () =
    succeeded while the display is open. examples/display shows a green
    "✓ Building" for one redraw between its fetch and its test. *)
 let test_summary_between_tasks () =
-  let t = terminal ~width:40 ~summary:"Build" () in
+  let t = terminal ~theme ~width:40 ~summary:"Build" () in
   let a = Display.task t.display "fetch" in
   Display.succeed a;
   Display.redraw t.display;
