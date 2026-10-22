@@ -316,6 +316,22 @@ module Report_domains = struct
       "each continuation acknowledged once" 2 (Atomic.get continued);
     restored previous
 
+  (* A message logged in another domain, within a task, is that task's
+     output, as it would be in the domain that runs the display. *)
+  let worker_task () =
+    with_runtime @@ fun env ->
+    let sink = sink () in
+    run env sink (fun d ->
+        D.with_task d "work" (fun task ->
+            Eio.Switch.run @@ fun sw ->
+            Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
+                D.within task (fun () ->
+                    send (Logs.reporter ()) "from a worker"))));
+    Format.pp_print_flush sink.ppf ();
+    let out = Buffer.contents sink.buffer in
+    if not (contains "work: [console.worker] from a worker" out) then
+      Alcotest.failf "the message is not the task's:\n%s" out
+
   (* An output refusal on the domain that runs the display does not fail
      the worker's log call: the record goes to the prior reporter. *)
   let output_error () =
@@ -457,6 +473,8 @@ module Report_domains = struct
       [
         Alcotest.test_case "worker logs retain formatter ownership" `Quick
           owner_domain;
+        Alcotest.test_case "a worker's message within a task is the task's"
+          `Quick worker_task;
         Alcotest.test_case "a refused Logs record reaches the prior reporter"
           `Quick output_refusal_falls_back;
         Alcotest.test_case
