@@ -108,6 +108,17 @@ let test_limit () =
   let t, _ = prompt ~interactive:true (byte_reads (String.make 4097 'a')) in
   refused (P.line t "too long: ")
 
+(* An answer too long is refused, and the next question reads the line
+   after it, not what is left of it. *)
+let test_limit_skipped () =
+  Eio_mock.Backend.run @@ fun () ->
+  let t, _ =
+    prompt ~interactive:true
+      (byte_reads (String.make 5000 'a' ^ "\nnext\n") @ [ `Raise End_of_file ])
+  in
+  refused (P.line t "too long: ");
+  got "next" (P.line t "next: ")
+
 let test_run_clock () =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -392,6 +403,8 @@ let suite =
       Alcotest.test_case "nonterminal prompts never read" `Quick
         test_nonterminal;
       Alcotest.test_case "answer limit" `Quick test_limit;
+      Alcotest.test_case "an answer too long is skipped" `Quick
+        test_limit_skipped;
       Alcotest.test_case "run with mock clock" `Quick test_run_clock;
       Alcotest.test_case "run failure releases display" `Quick test_run_failure;
       Alcotest.test_case "a surviving fiber opens a fresh display" `Quick
