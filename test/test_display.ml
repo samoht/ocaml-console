@@ -840,7 +840,9 @@ let test_failure_block () =
   | exception Failure _ -> ());
   Display.close t.display;
   let rows = lines t in
-  Alcotest.(check string) "the failure first" "[x] job" (untimed (List.hd rows));
+  Alcotest.(check string)
+    "the failure first" "[x] job: Failure(\"boom\")"
+    (untimed (List.hd rows));
   check_lines "then the block"
     [ "  # l1"; "  # l2"; "  # l3" ]
     (List.filteri (fun i _ -> i >= 1 && i <= 3) rows);
@@ -851,7 +853,9 @@ let test_failure_block () =
        (List.mapi
           (fun i l -> if i = 0 then l else String.sub l 4 (String.length l - 4))
           rest));
-  Alcotest.(check bool) "no label" false (List.exists (contains "job:") rows)
+  Alcotest.(check bool)
+    "no label under the line" false
+    (List.exists (contains "job:") (List.tl rows))
 
 (* The block holds at most 1 MiB, the latest lines, and one line
    says how many were dropped. *)
@@ -960,7 +964,13 @@ let test_root () =
   Display.log root "still there";
   Display.close d;
   check_lines "they stay, the task's own under its failure"
-    [ "! above"; "also above"; "[x] job"; "  # mine"; "still there" ]
+    [
+      "! above";
+      "also above";
+      "[x] job: Failure(\"boom\")";
+      "  # mine";
+      "still there";
+    ]
     (List.map untimed (lines t));
   let (), out =
     plain ~theme (fun d _ ->

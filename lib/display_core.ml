@@ -544,7 +544,8 @@ let with_task ?key ?parent ?log_lines ?transient t label f =
           Option.get !value
       | exception e ->
           let bt = Printexc.get_raw_backtrace () in
-          if t.scope.cancelled e then cancel r else fail r;
+          if t.scope.cancelled e then cancel r
+          else fail ~message:(r.label ^ ": " ^ Printexc.to_string e) r;
           Printexc.raise_with_backtrace e bt)
 
 let set_label r label =

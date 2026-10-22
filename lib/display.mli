@@ -411,8 +411,9 @@ val with_task :
   'a
 (** [with_task display label f] is [f task], for a [task] started as {!val-task}
     starts it and current while [f] runs. The task succeeds when [f] returns and
-    fails when [f] raises, in which case the exception is raised again, but if
-    [f] ended the task itself, that ending counts.
+    fails when [f] raises, with the message
+    [label ^ ": " ^ Printexc.to_string e] for the exception [e] ({!fail}), which
+    is raised again; but if [f] ended the task itself, that ending counts.
 
     When [key] names a task that runs, [with_task] is
     [within task (fun () -> f task)] for that task. It ends nothing, and the
