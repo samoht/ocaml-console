@@ -95,13 +95,25 @@ let masked_attributes attr =
     c_vtime = 0;
   }
 
-let rec read_masked t input =
+let rec skip_line t =
   match Eio.Buf_read.any_char t.input with
   | exception End_of_file -> Error `End_of_input
-  | c -> (
-      let echo, lines = Console_input.feed input (String.make 1 c) in
-      Fmt.pf t.ppf "%s%!" echo;
-      match lines with line :: _ -> Ok line | [] -> read_masked t input)
+  | '\r' | '\n' ->
+      Fmt.pf t.ppf "@.";
+      Error (`Msg "no answer: the line is too long")
+  | _ -> skip_line t
+
+let rec read_masked t input n =
+  if n > max_answer then skip_line t
+  else
+    match Eio.Buf_read.any_char t.input with
+    | exception End_of_file -> Error `End_of_input
+    | c -> (
+        let echo, lines = Console_input.feed input (String.make 1 c) in
+        Fmt.pf t.ppf "%s%!" echo;
+        match lines with
+        | line :: _ -> Ok line
+        | [] -> read_masked t input (n + 1))
 
 let secret t question =
   match t.terminal with
@@ -120,6 +132,6 @@ let secret t question =
            the echo turned off: typed before the question was masked, the
            terminal echoed it. *)
         Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
-        read_masked t (Console_input.v ~mask:"*" ())
+        read_masked t (Console_input.v ~mask:"*" ()) 0
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))

@@ -67,6 +67,8 @@ val secret : t -> string -> (string, error) result
     written for each grapheme cluster typed instead, then a line feed when the
     answer ends. The answer is the bytes typed, as they were typed, less the
     keys that edit the line ({!Console_input.feed}), and it is never retained.
+    As with {!line}, more than 4096 bytes typed before the line ends is
+    [Error (`Msg _)], and the rest of the line is skipped.
 
     Since masking switches echo off on the terminal behind [t]'s input, this is
     also [Error (`Msg _)] when that input is not a terminal. Input typed before
