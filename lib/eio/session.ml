@@ -101,11 +101,11 @@ let release () =
 
    While a display draws a region on a terminal, what the program writes on
    the standard formatters of that terminal is output, a whole line at a
-   time; a line without its end waits for it, up to {!max_pending} bytes. A
-   line goes to the task current in the fiber that writes its end, without
-   its escape codes, or above the region as it is when none is, where it
-   waits for a flush, also up to {!max_pending} bytes. Inside
-   {!with_terminal} the bytes go straight out. *)
+   time; a line without its end waits for it, up to {!max_pending} bytes,
+   and is cut there. A line goes to the task current in the fiber that
+   writes its end, without its escape codes, or above the region as it is
+   when none is, where it waits for a flush, also up to {!max_pending}
+   bytes. Inside {!with_terminal} the bytes go straight out. *)
 
 type intercepted = {
   ppf : Format.formatter;
@@ -113,6 +113,7 @@ type intercepted = {
   pass : Format.formatter_out_functions; (* [out], watched by the display *)
   held : Buffer.t; (* whole lines for above the region *)
   pending : Buffer.t; (* the line not ended yet *)
+  mutable cut : bool; (* the last line given to a task was cut, not ended *)
 }
 
 let intercepted : intercepted list Atomic.t = Atomic.make []
@@ -129,9 +130,19 @@ let whole_lines pending =
       Some (String.sub s 0 (k + 1))
 
 (* What [pending] holds at most, as a channel's buffer: more is written
-   out, a line too long cut where the bound falls. *)
+   out, a line too long cut between two characters, outside an escape code
+   if one does not take it all. *)
 let max_pending = 65536
-let to_task task s = Console.Display.log task (Console_text.strip s)
+
+(* The line feed that ends a line cut short ends no line of its own. *)
+let to_task i ~cut task s =
+  let s =
+    if i.cut && String.starts_with ~prefix:"\n" s then
+      String.sub s 1 (String.length s - 1)
+    else s
+  in
+  i.cut <- cut;
+  if s <> "" then Console.Display.log task (Console_text.strip s)
 
 (* The lines held for above the region go out. *)
 let send_held display i =
@@ -146,13 +157,15 @@ let send_held display i =
 (* [s], written in the calling fiber: the current task's output, or held
    for above the region, after the lines held before it; as events, the
    output of the current task or of none. *)
-let write display i s =
+let write ?(cut = false) display i s =
   match Display_driver.current display with
   | Some task ->
       send_held display i;
-      to_task task s
-  | None when Display_driver.is_json display -> to_task (Display.root display) s
+      to_task i ~cut task s
+  | None when Display_driver.is_json display ->
+      to_task i ~cut (Display.root display) s
   | None ->
+      i.cut <- false;
       Buffer.add_string i.held s;
       if Buffer.length i.held > max_pending then send_held display i
 
@@ -161,7 +174,14 @@ let intercept display ppf =
   let out = Format.pp_get_formatter_out_functions ppf () in
   let pass = Display_driver.watch display out in
   let i =
-    { ppf; out; pass; held = Buffer.create 256; pending = Buffer.create 256 }
+    {
+      ppf;
+      out;
+      pass;
+      held = Buffer.create 256;
+      pending = Buffer.create 256;
+      cut = false;
+    }
   in
   let add s o l =
     if Atomic.get direct > 0 then pass.out_string s o l
@@ -175,11 +195,12 @@ let intercept display ppf =
       match if ends_a_line then whole_lines i.pending else None with
       | Some lines -> write display i lines
       | None ->
-          (* A line too long is cut where the bound falls. *)
           if Buffer.length i.pending > max_pending then begin
             let s = Buffer.contents i.pending in
+            let k = Console_text.boundary s in
             Buffer.clear i.pending;
-            write display i s;
+            Buffer.add_substring i.pending s k (String.length s - k);
+            write ~cut:true display i (String.sub s 0 k);
             send_held display i
           end
     end

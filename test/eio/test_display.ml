@@ -310,9 +310,41 @@ let test_json_long_line () =
     (List.map String.length output);
   Alcotest.(check bool) "the whole line is preserved" true (output = [ text ])
 
+(* A line longer than 64 KiB is cut between two characters, and outside an
+   escape code, where the formatter's write leaves one under way. *)
+let test_long_line_cut () =
+  let x = String.make 65535 'x' in
+  let outputs out =
+    String.split_on_char '\n' out
+    |> List.filter (( <> ) "")
+    |> List.filter_map (fun line ->
+        match Yojson.Safe.from_string line with
+        | `Assoc fields
+          when Yojson.Safe.equal (List.assoc "event" fields) (`String "output")
+          -> (
+            match List.assoc "text" fields with
+            | `String text -> Some text
+            | _ -> None)
+        | _ -> None)
+  in
+  let cut first rest =
+    outputs
+      (capture_stdout `Json (fun d ->
+           D.with_task d "large" (fun _ ->
+               Fmt.pr "%s%s%!" x first;
+               Fmt.pr "%s@." rest)))
+  in
+  Alcotest.(check (list string))
+    "between two characters" [ x; "\u{2764} rest" ]
+    (cut "\xe2\x9d" "\xa4 rest");
+  Alcotest.(check (list string))
+    "outside an escape code" [ x; "red" ] (cut "\027[3" "1mred")
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "a long line is cut between characters" `Quick
+        test_long_line_cut;
       Alcotest.test_case "JSON keeps a 65537-byte line as one output event"
         `Quick test_json_long_line;
       Alcotest.test_case "a line goes to the task of its line feed" `Quick

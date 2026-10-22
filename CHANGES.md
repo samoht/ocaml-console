@@ -72,7 +72,9 @@ Initial release of `console` and `console-eio`.
   clock at zero, so a cram test of a program's progress reads the same on
   every machine.
 - Two small libraries in the `console` package: `console.text`
-  (`Console_text`) makes untrusted text safe to print, and `console.input`
+  (`Console_text`) makes untrusted text safe to print, and says where text
+  read in pieces can be cut outside a character and an escape code
+  (`Console_text.boundary`), and `console.input`
   (`Console_input`) is a line editor, with history and completion, that does
   no input or output itself.
 - Known limitations, listed in the README: console builds on matrix 0.1.0,

@@ -176,6 +176,8 @@ let in_sequence_or_escape state ~valid ~c ~i ~len ~start =
     | Some next -> move next (i + len) start
     | None -> move ~ends:[ (`Escape, start, i) ] Ground i i
 
+(* [fold_tokens f acc str] folds [f] over the tokens of [str], and gives
+   where the escape code under way at its end starts, if one is. *)
 let fold_tokens f acc str =
   let n = String.length str in
   let emit acc (kind, start, stop) =
@@ -183,7 +185,8 @@ let fold_tokens f acc str =
   in
   let rec go acc i state start =
     if i >= n then
-      emit acc ((if state = Ground then `Text else `Escape), start, n)
+      if state = Ground then (emit acc (`Text, start, n), None)
+      else (emit acc (`Escape, start, n), Some start)
     else
       let d = String.get_utf_8_uchar str i in
       let len = Uchar.utf_decode_length d in
@@ -237,7 +240,7 @@ let sgr seq =
 
 let rewrite ~keep_newlines ~keep str =
   let buf = Buffer.create (String.length str) and cr = ref false in
-  let open_style =
+  let open_style, _ =
     fold_tokens
       (fun open_style kind pos len ->
         let token = String.sub str pos len in
@@ -261,3 +264,28 @@ let rewrite ~keep_newlines ~keep str =
 
 let strip ?(keep_newlines = true) ?(keep_styles = false) str =
   rewrite ~keep_newlines ~keep:(if keep_styles then sgr else fun _ -> None) str
+
+(* The length of [str] without the character it ends inside, if it does:
+   one whose lead byte, among the last three, wants more bytes than follow. *)
+let character_end str =
+  let n = String.length str in
+  let rec lead i =
+    if i < 0 || n - i > 4 then n
+    else
+      let c = Char.code str.[i] in
+      if c land 0xc0 = 0x80 then lead (i - 1)
+      else
+        let length =
+          if c land 0xe0 = 0xc0 then 2
+          else if c land 0xf0 = 0xe0 then 3
+          else if c land 0xf8 = 0xf0 then 4
+          else 1
+        in
+        if n - i < length then i else n
+  in
+  lead (n - 1)
+
+let boundary str =
+  match snd (fold_tokens (fun () _ _ _ -> ()) () str) with
+  | Some start when start > 0 -> start
+  | Some _ | None -> character_end str

@@ -52,3 +52,11 @@ val strip : ?keep_newlines:bool -> ?keep_styles:bool -> string -> string
     colours and text attributes are kept, to relay the output of a tool that
     coloured it. A colour left on at the end of [s] is turned off, so [s] cannot
     change the look of what is printed after it. *)
+
+val boundary : string -> int
+(** [boundary s] is where [s] can be cut when the text goes on after it: the
+    length of the longest prefix of [s] that ends neither inside a UTF-8
+    character nor inside an escape code. If an escape code under way takes all
+    of [s], it is the longest prefix that ends outside a character. Text read in
+    pieces, such as a child process's output, cut there, gives each piece to
+    {!strip} with no escape code split between two. *)

@@ -76,7 +76,10 @@ val run :
     that output is a terminal whose [TERM] is set and not [dumb], and [progress]
     does not ask for lines. What the program then prints on {!Fmt.stdout} or
     {!Fmt.stderr} on that terminal is taken a whole line at a time ({!output}).
-    What it prints on another output goes out as it is written.
+    A line longer than 64 KiB is taken in pieces as it is written, each cut
+    between two characters and, unless an escape code holds the whole piece,
+    outside an escape code. What it prints on another output goes out as it is
+    written.
 
     - With [`Tty] on another output, what the program prints on [ppf] itself is
       taken in the same way.

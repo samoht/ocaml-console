@@ -238,9 +238,32 @@ let test_reordering () =
     "joiners kept" "\u{1F468}\u{200D}\u{1F469} \u{200C}"
     (Console_text.sanitize "\u{1F468}\u{200D}\u{1F469} \u{200C}")
 
+(* A text read in pieces is cut where no character and no escape code is
+   under way; an escape code that holds all of it is cut between two
+   characters. *)
+let test_boundary () =
+  List.iter
+    (fun (what, s, k) -> Alcotest.(check int) what k (Console_text.boundary s))
+    [
+      ("empty", "", 0);
+      ("text", "abc", 3);
+      ("a whole character", "a\u{2764}", 4);
+      ("two bytes of three", "a\xe2\x9d", 1);
+      ("a lone lead byte", "ab\xf0", 2);
+      ("an invalid byte", "a\x9d", 2);
+      ("a whole escape", "a\027[31mb", 7);
+      ("an escape under way", "ab\027[31", 2);
+      ("a lone ESC", "ab\027", 2);
+      ("a 8-bit CSI under way", "ab\u{009B}3", 2);
+      ("a control string under way", "ab\027]8;;http", 2);
+      ("a closed control string", "\027]0;t\007x", 7);
+      ("all one escape", "\027]0;t\xe2\x9d", 5);
+    ]
+
 let suite =
   ( "console_text",
     [
+      Alcotest.test_case "boundary" `Quick test_boundary;
       Alcotest.test_case "reordering characters" `Quick test_reordering;
       Alcotest.test_case "truecolour is reset after text" `Quick
         test_truecolour_reset;
