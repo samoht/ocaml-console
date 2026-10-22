@@ -160,8 +160,8 @@ module Layout : sig
       all rows are right-aligned in one column ({!Layout}). *)
 
   val elapsed : piece
-  (** [elapsed] is the time since the task started, such as [6.4s], [1m05s] or
-      [1h02m], right-aligned in a column of its own. *)
+  (** [elapsed] is the time since the task started, rounded, such as [6.4s],
+      [1m05s] or [1h02m], right-aligned in a column of its own. *)
 
   val text : string -> piece
   (** [text s] is [s] on one line. *)

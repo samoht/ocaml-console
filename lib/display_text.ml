@@ -29,14 +29,19 @@ let bytes_short n =
   else Fmt.str "%.0f%c" v unit
 
 let duration secs =
-  let secs = if Float.is_nan secs then 0. else Float.max 0. secs in
-  if secs < 60. then
-    let tenths = int_of_float (secs *. 10.) in
+  let secs =
+    if Float.is_nan secs then 0. else Float.min 1e15 (Float.max 0. secs)
+  in
+  let tenths = Float.round (secs *. 10.) in
+  if tenths < 600. then
+    let tenths = int_of_float tenths in
     Fmt.str "%d.%ds" (tenths / 10) (tenths mod 10)
   else
-    let s = int_of_float (Float.min secs 1e15) in
+    let s = int_of_float (Float.round secs) in
     if s < 3600 then Fmt.str "%dm%02ds" (s / 60) (s mod 60)
-    else Fmt.str "%dh%02dm" (s / 3600) (s / 60 mod 60)
+    else
+      let m = int_of_float (Float.round (secs /. 60.)) in
+      Fmt.str "%dh%02dm" (m / 60) (m mod 60)
 
 (* [duration] is six wide at its widest below a hundred hours ("59m59s",
    "23h59m"). A longer run takes the columns it needs rather than losing a

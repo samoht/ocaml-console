@@ -15,9 +15,10 @@ val bytes_short : int64 -> string
     letter of its unit, such as ["512B"], ["1.5K"] or ["256M"]. *)
 
 val duration : float -> string
-(** [duration s] is [s] seconds as a row draws its elapsed time: tenths of a
-    second below a minute (["6.4s"]), then minutes and seconds (["1m05s"]), then
-    hours and minutes (["1h02m"]). A negative or NaN [s] is ["0.0s"]. *)
+(** [duration s] is [s] seconds as a row draws its elapsed time, rounded to its
+    last digit: tenths of a second below a minute (["6.4s"]), then minutes and
+    seconds (["1m05s"]), then hours and minutes (["1h02m"]). A negative or NaN
+    [s] is ["0.0s"]. *)
 
 val duration_cells : int
 (** [duration_cells] is the cells a row's timer is right-aligned in: the widest
