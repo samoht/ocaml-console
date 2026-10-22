@@ -1422,6 +1422,23 @@ let test_last_frame_label_readable () =
     (List.exists (contains "RUN make") rows
     && List.exists (contains "sha256") rows)
 
+(* On a pipe, a task's output and the tasks under it are told apart by
+   their indentation: its lines do not read as siblings of its children. *)
+let test_plain_output_not_sibling () =
+  let (), out =
+    plain ~theme (fun d _ ->
+        let p = Display.task d "parent" in
+        let c = Display.task ~parent:p d "child" in
+        Display.log p "parent says";
+        Display.succeed c;
+        Display.succeed p)
+  in
+  let lines = split out in
+  let find affix = List.find (contains affix) lines in
+  Alcotest.(check bool)
+    "the parent's output and its child start in different columns" true
+    (indent_of (find "parent says") <> indent_of (find "child"))
+
 let suite =
   ( "display",
     [
@@ -1497,4 +1514,6 @@ let suite =
         `Quick test_label_before_bar_hcat;
       Alcotest.test_case "the last frame keeps labels readable" `Quick
         test_last_frame_label_readable;
+      Alcotest.test_case "a pipe's output is not a sibling of the children"
+        `Quick test_plain_output_not_sibling;
     ] )
