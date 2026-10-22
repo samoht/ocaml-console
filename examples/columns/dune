@@ -2,10 +2,7 @@
  (name main)
  (libraries console console.tty console-eio eio eio_main fmt))
 
-; columns.svg is a recording of this program, on a clock that moves by its
-; sleeps, so it shows the times test/eio/deterministic.t checks. To record
-; it again, from the root of the repository:
-;
+; Record columns.svg:
 ;   dune build examples/columns/main.exe
 ;   k7 run --cols 100 --env CONSOLE_DETERMINISTIC_CLOCK=1 \
 ;     -o examples/columns/columns.svg -- _build/default/examples/columns/main.exe
