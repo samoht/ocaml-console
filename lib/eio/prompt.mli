@@ -10,9 +10,9 @@
 
     The terminal edits the line as the user types it, except under {!secret},
     which switches the terminal's echo off and edits the line with a
-    {!Console_input} editor that shows a [*] for each character. A prompt with
-    nobody to type an answer says so with an [Error] instead of waiting for
-    ever.
+    {!Console_input} editor that shows a [*] for each grapheme cluster typed. A
+    prompt with nobody to type an answer says so with an [Error] instead of
+    waiting for ever.
 
     While a display that [Console_eio.run] opened runs, a question takes its
     progress rows off the screen for the time it is asked. *)
