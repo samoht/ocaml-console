@@ -65,7 +65,9 @@ val to_string : t -> string
 
     An event is a JSON object with two members:
     - [time], the seconds since the display started, a number rounded to the
-      millisecond, such as [1.5] or [0] ({!Event.time});
+      millisecond, such as [1.5] or [0] ({!Event.time}). A time is held in
+      \[[-10{^ 12}];[10{^ 12}]\] seconds: a larger magnitude is the bound, and a
+      time that is not finite is [0];
     - [event], the name of the event ({!Event.type-kind}).
 
     An event of a task also has:
@@ -161,14 +163,15 @@ module Event : sig
   (** {1:json JSON} *)
 
   val jsont : t Jsont.t
-  (** [jsont] maps an event to its JSON object. It encodes [time] and [elapsed]
-      rounded to the millisecond, [0] if not finite, an integer of 10{^ 15} or
-      more as a string, and each string as valid UTF-8 without a C1 control. It
-      decodes an event of another name as [`Other], a value of a
-      {!type-count_unit}, a {!type-level}, a {!type-status} or an
-      {!type-outcome} it does not list as [`Other], and skips the members it
-      does not know. An event that lacks a member of its kind does not decode.
-  *)
+  (** [jsont] maps an event to its JSON object. It reads and writes [time] and
+      [elapsed] rounded to the millisecond in \[[-10{^ 12}];[10{^ 12}]\], a
+      larger magnitude as the bound and [0] if not finite, so that each reads
+      back as it was written. It encodes an integer of 10{^ 15} or more as a
+      string, and each string as valid UTF-8 without a C1 control. It decodes an
+      event of another name as [`Other], a value of a {!type-count_unit}, a
+      {!type-level}, a {!type-status} or an {!type-outcome} it does not list as
+      [`Other], and skips the members it does not know. An event that lacks a
+      member of its kind does not decode. *)
 
   val of_string : string -> (t, [ `Msg of string ]) result
   (** [of_string s] is the event of the JSON object [s], decoded with {!jsont}.

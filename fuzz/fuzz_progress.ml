@@ -112,16 +112,16 @@ let test_string s =
       check_eq ~pp:Fmt.Dump.string (cleaned s) t
   | _ -> fail "not the label event"
 
-(* A time reads back rounded to the millisecond below 10^12 seconds, and
-   is zero if it is not finite. *)
+(* A time reads back rounded to the millisecond, held in [-10^12, 10^12]
+   seconds, and is zero if it is not finite. *)
 let test_time x =
   let back =
     Event.time (decode (Event.to_string (Event.make ~time:x (`Other "x"))))
   in
   if not (Float.is_finite x) then check_eq ~pp:Fmt.float 0. back
-  else if Float.abs x < 1e12 then
-    check_eq ~pp:Fmt.float (Float.round (x *. 1000.) /. 1000.) back
-  else check (Float.abs (back -. x) <= 1e-14 *. Float.abs x)
+  else
+    let x = Float.min 1e12 (Float.max (-1e12) x) in
+    check_eq ~pp:Fmt.float ((Float.round (x *. 1000.) /. 1000.) +. 0.) back
 
 let contains ~affix s =
   let n = String.length affix in

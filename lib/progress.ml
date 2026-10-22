@@ -224,14 +224,17 @@ module Event = struct
   let int = integer ~to_int64:Int64.of_int Jsont.int
   let int64 = integer ~to_int64:Fun.id Jsont.int64
 
-  (* Seconds, rounded to the millisecond below 10^12 seconds; a time that
-     is not finite is zero. *)
-  let seconds =
-    Jsont.map Jsont.number ~dec:Fun.id ~enc:(fun x ->
-        if not (Float.is_finite x) then 0.
-        else if Float.abs x < 1e12 then
-          (Float.round (x *. 1000.) /. 1000.) +. 0.
-        else x)
+  (* Seconds rounded to the millisecond in [-10^12, 10^12]: at most 15
+     significant digits, so that the number written reads back as it was. *)
+  let max_seconds = 1e12
+
+  let to_seconds x =
+    if not (Float.is_finite x) then 0.
+    else
+      let x = Float.min max_seconds (Float.max (-.max_seconds) x) in
+      (Float.round (x *. 1000.) /. 1000.) +. 0.
+
+  let seconds = Jsont.map Jsont.number ~dec:to_seconds ~enc:to_seconds
 
   (* A C1 control, U+0080 to U+009F, acts as an escape code on a terminal
      that reads 8-bit controls; jsont escapes C0 controls and DEL. *)

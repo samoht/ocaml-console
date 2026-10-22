@@ -71,7 +71,8 @@ Initial release of `console` and `console-eio`.
   and its [jsont](https://erratique.ch/software/jsont) codec,
   `Console.Progress.Event.jsont`, writes them and reads them back
   (`Event.of_string`), skipping the members, events and values that a later
-  console adds. Times are rounded to the millisecond, and strings are valid
+  console adds. Times are rounded to the millisecond and held within 10^12
+  seconds, and strings are valid
   UTF-8 without a C1 control. `Console.Progress.all`
   makes a `--progress=auto|tty|plain|quiet|json` option of it in one line
   of Cmdliner, as `Theme.all` makes a `--theme` option, and
