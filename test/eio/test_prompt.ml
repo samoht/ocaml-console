@@ -19,22 +19,26 @@ let prompt ?interactive input =
   (t, out)
 
 (* The wording of a refusal is the implementation's to choose, so an answer is
-   compared after collapsing every error to [Refused]. The one message whose
-   content is itself a specification -- the gate must not echo the word it is
-   asking for -- gets its own assertion. *)
-type 'a answer = Got of 'a | Refused
+   compared after collapsing every error but the end of the input to
+   [Refused]. The one message whose content is itself a specification -- the
+   gate must not echo the word it is asking for -- gets its own assertion. *)
+type 'a answer = Got of 'a | Ended | Refused
 
-let seen = function Ok v -> Got v | Error (`Msg _) -> Refused
+let seen = function
+  | Ok v -> Got v
+  | Error `End_of_input -> Ended
+  | Error (`Msg _) -> Refused
 
 let answer t =
   let equal a b =
     match (a, b) with
     | Got x, Got y -> Alcotest.equal t x y
-    | Refused, Refused -> true
-    | Got _, Refused | Refused, Got _ -> false
+    | Ended, Ended | Refused, Refused -> true
+    | (Got _ | Ended | Refused), _ -> false
   in
   let pp ppf = function
     | Got v -> Fmt.pf ppf "Got %a" (Alcotest.pp t) v
+    | Ended -> Fmt.string ppf "Ended"
     | Refused -> Fmt.string ppf "Refused"
   in
   Alcotest.testable pp equal
@@ -85,7 +89,7 @@ let test_line_drops_a_crlf_terminator () =
 let test_line_at_end_of_input_is_refused () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "" in
-  Alcotest.check string_answer "answer" Refused (seen (Prompt.line t "name: "));
+  Alcotest.check string_answer "answer" Ended (seen (Prompt.line t "name: "));
   Alcotest.(check string) "question" "name: " (Buffer.contents out)
 
 let test_confirm_asks_with_a_default_of_no () =
@@ -115,8 +119,7 @@ let test_confirm_takes_everything_else_as_no () =
 let test_confirm_at_end_of_input_is_refused () =
   run @@ fun () ->
   let t, _ = prompt ~interactive:true "" in
-  Alcotest.check bool_answer "answer" Refused
-    (seen (Prompt.confirm t "delete?"))
+  Alcotest.check bool_answer "answer" Ended (seen (Prompt.confirm t "delete?"))
 
 (* A question is text: an escape in it cannot clear the screen. *)
 let test_question_is_text () =
