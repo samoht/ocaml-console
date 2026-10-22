@@ -76,10 +76,11 @@ val feed : t -> string -> string * string list
     - a printable character is inserted at the cursor and echoed. It is ASCII
       \[[0x20];[0x7E]\], or a UTF-8 character of several bytes, which may arrive
       across several [feed] calls. A mark of no width with nothing before it in
-      the line to join is dropped, as a terminal drops it in the first column. A
-      byte sequence that decodes to no character becomes the replacement
-      character U+FFFD. A C1 control (U+0080 to U+009F), which a terminal would
-      act on, becomes a space, so what is echoed and kept only prints;
+      the line to join is dropped, as a terminal drops it in the first column.
+      Bytes that decode to no character become replacement characters U+FFFD,
+      one for each maximal part of a character, as {!Console_text.sanitize}
+      shows them. A C1 control (U+0080 to U+009F), which a terminal would act
+      on, becomes a space, so what is echoed and kept only prints;
     - [\127] (DEL) and [\008] (BS) erase the cluster before the cursor, echoing
       ["\b \b"] at the end of the line;
     - ['\r'] and ['\n'] submit the line, but a ['\n'] right after a ['\r'], the

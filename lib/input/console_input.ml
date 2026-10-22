@@ -24,8 +24,7 @@ type t = {
   mutable draft : string; (* line in progress, saved while navigating *)
   mutable esc : esc; (* escape-sequence parser state *)
   mutable after_cr : bool; (* last byte was '\r', so swallow a following '\n' *)
-  mutable partial : string; (* bytes of an incomplete multi-byte character *)
-  mutable need : int; (* continuation bytes still expected for [partial] *)
+  mutable partial : string; (* the start of a character, to be completed *)
 }
 
 (* What the editor echoes is text, never a control the terminal acts on. *)
@@ -44,18 +43,12 @@ let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
     esc = Normal;
     after_cr = false;
     partial = "";
-    need = 0;
   }
 
 let line t = String.concat "" (List.rev_append t.left t.right)
 let pending t = line t
 let history t = List.rev t.hist
 let add = Buffer.add_string
-
-let utf8_len c =
-  let b = Char.code c in
-  if b < 0xc0 then 1 else if b < 0xe0 then 2 else if b < 0xf0 then 3 else 4
-
 let clusters = Width.clusters
 let display_char t c = match t.mask with Some mask -> mask | None -> c
 let display t s = String.concat "" (List.map (display_char t) (clusters s))
@@ -224,38 +217,40 @@ let complete t echo =
           reposition t echo
         end
 
-(* The character [t.partial] holds, once its last byte is in. A surrogate,
-   an overlong form or a code point past U+10FFFF is no character: it is
-   one replacement character, and a secret keeps its bytes. *)
-let end_char t echo =
-  let d = String.get_utf_8_uchar t.partial 0 in
-  let valid =
-    Uchar.utf_decode_is_valid d
-    && Uchar.utf_decode_length d = String.length t.partial
-  in
+(* [bytes], a character or a maximal part of one that [String.get_utf_8_uchar]
+   reads as no character: inserted, the latter as one replacement character,
+   or kept as typed in a secret. *)
+let character t echo ~valid bytes =
   let c =
-    if t.mask <> None then t.partial
-    else clean (if valid then t.partial else "\xef\xbf\xbd")
+    if t.mask <> None then bytes
+    else clean (if valid then bytes else "\xef\xbf\xbd")
   in
-  if c <> "" then insert t echo c;
-  t.partial <- ""
+  if c <> "" then insert t echo c
+
+(* [s], a part of a character, is the start of one that more bytes can
+   complete: some continuation byte makes the decoder read further. *)
+let continues s =
+  List.exists
+    (fun next ->
+      Uchar.utf_decode_length (String.get_utf_8_uchar (s ^ next) 0)
+      > String.length s)
+    [ "\x80"; "\x90"; "\xa0" ]
 
 let rec normal t echo lines ~after_cr c =
   let code = Char.code c in
-  if t.need > 0 then
-    if code >= 0x80 && code <= 0xbf then begin
-      t.partial <- t.partial ^ String.make 1 c;
-      t.need <- t.need - 1;
-      if t.need = 0 then end_char t echo
-    end
+  if t.partial <> "" || code >= 0x80 then begin
+    let s = t.partial ^ String.make 1 c in
+    let d = String.get_utf_8_uchar s 0 in
+    let n = Uchar.utf_decode_length d in
+    let valid = Uchar.utf_decode_is_valid d in
+    if (not valid) && n = String.length s && continues s then t.partial <- s
     else begin
-      (* Not a continuation byte: the truncated character is dropped, or
-         kept as typed in a secret, and [c] is read again. *)
-      if t.mask <> None then insert t echo t.partial;
       t.partial <- "";
-      t.need <- 0;
-      normal t echo lines ~after_cr c
+      character t echo ~valid (String.sub s 0 n);
+      (* The byte that ends no character is read again. *)
+      if n < String.length s then normal t echo lines ~after_cr c
     end
+  end
   else
     match c with
     | '\027' -> t.esc <- Esc
@@ -265,11 +260,7 @@ let rec normal t echo lines ~after_cr c =
     | '\n' -> if not after_cr then lines := submit t echo :: !lines
     | '\t' -> complete t echo
     | '\127' | '\008' -> backspace t echo
-    | c when code >= 0xc0 && code <= 0xf7 ->
-        t.partial <- String.make 1 c;
-        t.need <- utf8_len c - 1
-    | c when code >= 0x20 && code < 0x7f -> insert t echo (String.make 1 c)
-    | c when code >= 0x80 && t.mask <> None -> insert t echo (String.make 1 c)
+    | c when code >= 0x20 -> insert t echo (String.make 1 c)
     | _ -> ()
 
 let arrow t echo = function
