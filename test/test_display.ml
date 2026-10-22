@@ -1674,6 +1674,31 @@ let test_pipe_output_mark_not_separator () =
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
   Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
 
+(* A row with no count keeps the label that fits: it does not cut its label
+   for a count column it leaves empty, and a deeper row does not show more
+   of its label than a shallower one. Seen in a tree eight deep at 40
+   columns: "level-5-lab…" above "level-4-label". *)
+let test_label_not_cut_for_an_empty_count () =
+  let buffer = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Fmt.set_utf_8 ppf true;
+  let d =
+    Display.v ~size:(fun () -> (40, 30)) ~progress:`Tty ~now:(fun () -> 0.) ppf
+  in
+  let rec nest p n =
+    if n = 0 then p
+    else nest (Display.task ~parent:p d (Fmt.str "level-%d-label" n)) (n - 1)
+  in
+  let leaf = nest (Display.root d) 8 in
+  Display.set_count leaf ~cur:1 ~total:4;
+  let tree =
+    Span.to_string (Display.tree ~width:40 ~height:30 (Display.root d))
+  in
+  Alcotest.(check bool)
+    ("level-5-label whole in\n" ^ tree)
+    true
+    (contains "level-5-label" tree)
+
 let suite =
   ( "display",
     [
@@ -1773,4 +1798,6 @@ let suite =
         test_cap_keeps_a_flag;
       Alcotest.test_case "a pipe's output mark is not the path separator" `Quick
         test_pipe_output_mark_not_separator;
+      Alcotest.test_case "a label is not cut for an empty count" `Quick
+        test_label_not_cut_for_an_empty_count;
     ] )
