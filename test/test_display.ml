@@ -1401,6 +1401,27 @@ let test_label_before_bar_hcat () =
     (List.exists (contains "comp") (screen t));
   Display.close t.display
 
+(* When the display closes, the scrollback keeps each task's label readable:
+   a label that does not fit next to its count goes on below, never one
+   character a line. *)
+let test_last_frame_label_readable () =
+  let t = terminal ~theme ~width:40 ~height:30 () in
+  let step = Display.task t.display "RUN make" in
+  let layer = Display.task ~parent:step t.display "sha256:abcd..." in
+  Display.set_count step ~cur:5 ~total:5;
+  Display.set_bytes layer ~cur:2147483648L ~total:2147483648L;
+  Display.succeed layer;
+  Display.succeed step;
+  Display.close t.display;
+  let rows = lines t in
+  Alcotest.(check bool)
+    "no row holds a lone character" false
+    (List.exists (fun r -> String.length (String.trim r) = 1) rows);
+  Alcotest.(check bool)
+    "each label on one row" true
+    (List.exists (contains "RUN make") rows
+    && List.exists (contains "sha256") rows)
+
 let suite =
   ( "display",
     [
@@ -1474,4 +1495,6 @@ let suite =
         test_label_before_bar;
       Alcotest.test_case "the label gives way after the bar, side by side"
         `Quick test_label_before_bar_hcat;
+      Alcotest.test_case "the last frame keeps labels readable" `Quick
+        test_last_frame_label_readable;
     ] )
