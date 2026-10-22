@@ -142,6 +142,7 @@ let v ?(layout = Layout.default) ?summary ?view ?(keep = false) ?size
       count_cell = 0;
       by_key = Hashtbl.create 16;
       next_id = 0;
+      next_line = 0;
       started = 0;
       finished = 0;
       failed = 0;
@@ -205,7 +206,7 @@ let events t f =
       Format.pp_print_flush ppf ();
       List.iter
         (fun text ->
-          Display_event.output t None { gap = 0.; kind = Output; text })
+          Display_event.output t None { gap = 0.; kind = Output; text; seq = 0 })
         (Display_text.lines (Console_text.strip (Buffer.contents buf))))
 
 (* What [f] writes is watched for its last byte: output that does not end
@@ -288,7 +289,8 @@ let add r kind text =
   let t = r.disp in
   let line text =
     let now = t.now () in
-    let line = { gap = now -. r.log_prev; kind; text } in
+    let line = { gap = now -. r.log_prev; kind; text; seq = t.next_line } in
+    t.next_line <- t.next_line + 1;
     r.log_prev <- now;
     if Display_event.is_json t then begin
       Display_event.output t (Some r) line;
@@ -313,7 +315,8 @@ let above t kind text =
   let lines = Display_text.lines text in
   if Display_event.is_json t then
     List.iter
-      (fun text -> Display_event.output t None { gap = 0.; kind; text })
+      (fun text ->
+        Display_event.output t None { gap = 0.; kind; text; seq = 0 })
       lines
   else
     let level = match kind with Logs l -> l | Output -> `App in

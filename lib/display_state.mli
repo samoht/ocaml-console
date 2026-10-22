@@ -22,6 +22,7 @@ type line = {
   gap : float;  (** Seconds since the task's previous line. *)
   kind : kind;
   text : string;  (** One line, without control characters. *)
+  seq : int;  (** The order of the line among those of its display. *)
 }
 (** The type for the lines of a task's output: given to {!Display.log}, a line
     of a standard output among them, or a Logs message logged while it was
@@ -56,6 +57,7 @@ type t = {
   mutable count_cell : int;
   by_key : (string, row) Hashtbl.t;
   mutable next_id : int;
+  mutable next_line : int;
   mutable started : int;
   mutable finished : int;
   mutable failed : int;
@@ -129,6 +131,7 @@ and row = {
     {!field-ppf} its own output functions back, and {!field-form} says what it
     prints. {!field-ending} is called with each task as it ends, before it ends.
     {!field-root} is the top task, the only one with a negative {!field-id}.
+    {!field-next_line} is the {!field-seq} of the next line a task takes.
 
     A task's {!field-children} are those started under it, the latest first, a
     top task's those of the root: the running ones and, on a terminal, the ones

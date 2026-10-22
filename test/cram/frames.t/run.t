@@ -76,9 +76,9 @@ oldest log lines give way, and the summary stays last:
   • Build 0.0s (1/3)
   --- more logs after the row closed ---
   ⠋ app                                                             0.0s
+    › still working
     ├── ✓ 1 done
     └── ⠋ compile                                                   0.0s
-        › cc b.o
         › cc c.o
         › link
   • Build 0.0s (1/3)

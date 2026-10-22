@@ -111,9 +111,10 @@
       never scrolls the terminal: a view taller than that loses its first lines,
       and a summary at its bottom stays.
     - A tree too tall for its height first folds the tasks that ended under each
-      task into one line, such as [✓ 12 done], then its windows give way, the
-      oldest line first, then only its latest running tasks show, after a line
-      such as [… 3 more running].
+      task into one line, such as [✓ 12 done], then the lines of its windows
+      give way, the oldest of them first, whichever task's window holds it, then
+      only its latest running tasks show, after a line such as
+      [… 3 more running].
     - At close, the tasks still running are cancelled and move as above, then
       the view's last frame is printed once, still, and stays: the summary alone
       in the default view.

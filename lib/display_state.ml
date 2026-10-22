@@ -7,7 +7,7 @@ type metric = Spin | Count of int * int | Bytes of int64 * int64
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 type kind = Output | Logs of level
-type line = { gap : float; kind : kind; text : string }
+type line = { gap : float; kind : kind; text : string; seq : int }
 type form = Plain | Quiet | Json
 
 let count_text = function
@@ -44,6 +44,7 @@ type t = {
   mutable count_cell : int;
   by_key : (string, row) Hashtbl.t;
   mutable next_id : int;
+  mutable next_line : int;
   mutable started : int;
   mutable finished : int;
   mutable failed : int;

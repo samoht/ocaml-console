@@ -151,7 +151,9 @@ let tail t ~width ~lasts r =
   let prefix = guided t (continuation t lasts) in
   Queue.fold
     (fun acc line ->
-      cut t width Span.(prefix ++ lead_mark t line.kind ++ body t line) :: acc)
+      ( line.seq,
+        cut t width Span.(prefix ++ lead_mark t line.kind ++ body t line) )
+      :: acc)
     [] r.window
   |> List.rev
 

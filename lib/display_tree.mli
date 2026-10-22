@@ -12,9 +12,9 @@ val region : t -> width:int -> height:int -> row -> Span.t list
 (** [region t ~width ~height r] are the lines of the tree of [r] in the region,
     at most [height], each of at most [width] cells: [r] and the tasks under it,
     or the top tasks if [r] is the root. When they do not fit, the tasks that
-    ended under each task fold into one line, then the windows give way, the
-    oldest line first, then only the latest running tasks show, after a line
-    that counts the others. *)
+    ended under each task fold into one line, then the lines of the windows give
+    way, the oldest of all first, then only the latest running tasks show, after
+    a line that counts the others. *)
 
 val scrollback : t -> width:int -> row -> Span.t list
 (** [scrollback t ~width r] are the lines of the tree of [r] as the scrollback

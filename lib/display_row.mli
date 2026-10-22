@@ -20,9 +20,9 @@ val live : t -> width:int -> lasts:bool list -> row -> Span.t
 (** [live t ~width ~lasts r] is the line of the running task [r], its label cut
     to the room the other pieces leave; at most [width] cells. *)
 
-val tail : t -> width:int -> lasts:bool list -> row -> Span.t list
+val tail : t -> width:int -> lasts:bool list -> row -> (int * Span.t) list
 (** [tail t ~width ~lasts r] are the lines of [r]'s window under its line,
-    oldest first, each of at most [width] cells. *)
+    oldest first, each of at most [width] cells, after its {!field-seq}. *)
 
 val ended :
   t -> width:int -> lasts:bool list -> whole:bool -> row -> Span.t list

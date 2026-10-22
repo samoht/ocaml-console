@@ -39,10 +39,11 @@ let rec worst acc nodes =
    it. *)
 type form = Full | Fold | Bare | Whole
 
-(* A line of a window gives way before the lines of tasks. *)
-type item = Line of Span.t | Tail of Span.t
+(* A line of a window gives way before the lines of tasks, the oldest
+   first. *)
+type item = Line of Span.t | Tail of int * Span.t
 
-let line = function Line s | Tail s -> s
+let line = function Line s | Tail (_, s) -> s
 
 (* With [fold], the tasks that ended among [nodes], apart. *)
 let split ~fold nodes =
@@ -86,7 +87,9 @@ and node t ~width ~form lasts n =
       ::
       (match form with
       | Full | Fold ->
-          List.map (fun s -> Tail s) (Display_row.tail t ~width ~lasts r)
+          List.map
+            (fun (seq, s) -> Tail (seq, s))
+            (Display_row.tail t ~width ~lasts r)
       | Bare | Whole -> [])
     else
       let whole = form = Whole in
@@ -130,10 +133,21 @@ and count_node ~form n =
 let count ~form r nodes =
   count_block ~form ~fold:(top_fold form r) ~shed:(top_shed form r) nodes
 
-let rec drop_tails n = function
-  | [] -> []
-  | Tail _ :: rest when n > 0 -> drop_tails (n - 1) rest
-  | i :: rest -> i :: drop_tails n rest
+(* The [n] oldest lines of windows dropped, wherever they are. *)
+let drop_tails n items =
+  let seqs =
+    List.filter_map (function Tail (s, _) -> Some s | Line _ -> None)
+  in
+  match List.sort Int.compare (seqs items) with
+  | [] -> items
+  | sorted ->
+      let n = min n (List.length sorted) in
+      if n <= 0 then items
+      else
+        let newest_dropped = List.nth sorted (n - 1) in
+        List.filter
+          (function Tail (s, _) -> s > newest_dropped | Line _ -> true)
+          items
 
 (* The latest running tasks that fit, after a line that counts the others,
    the tree's own task first. *)
