@@ -1477,9 +1477,41 @@ let test_oversized_waiting_task n message =
   if retained > 1_048_576 + 65_536 then
     failf "one completed child retains %d bytes (limit 1 MiB)" retained
 
+(* Measuring a tree for one place in a view must not affect its layout
+   in another place, nor invalidate an unchanged frame on the terminal. *)
+let test_tree_local_dimensions w h =
+  let t = Display_harness.terminal ~width:80 ~height:12 ~summary:"summary" () in
+  let d = t.display in
+  let parent = Display.task d "parent" in
+  let child = Display.task ~parent d "child" in
+  Display.set_count parent ~cur:1 ~total:10;
+  Display.log parent "parent output";
+  Display.log child "child output";
+  Display.redraw d;
+  let frame () = Span.to_string (Display.default_view d ~width:80 ~height:11) in
+  let before = frame () in
+  let writes = List.length !(t.chunks) in
+  let width = 1 + (w mod 200) and height = h mod 11 in
+  List.iter
+    (fun task ->
+      let fitted = Display.tree ~width ~height task in
+      check (Span.width fitted <= width);
+      check (Span.height fitted <= height);
+      check_eq ~pp:Fmt.Dump.string (Span.to_string fitted)
+        (Span.to_string (Display.tree ~width ~height task)))
+    [ Display.root d; parent; child ];
+  let after = frame () in
+  Display.redraw d;
+  let unchanged = List.length !(t.chunks) = writes in
+  Display.close d;
+  check_eq ~pp:Fmt.Dump.string before after;
+  check unchanged
+
 let suite =
   ( "display",
     [
+      test_case "tree dimensions belong to each composition" [ uint8; uint8 ]
+        test_tree_local_dimensions;
       test_case "one oversized waiting task stays bounded" [ uint8; bool ]
         test_oversized_waiting_task;
       test_case "windows give way oldest first across tasks" [ uint8; bool ]
