@@ -383,9 +383,28 @@ let test_gradient_wrap s k =
     then failf "wrapping changed the glyph or colour at column %d" i
   done
 
+(* Vertical composition preserves every line, including trailing blank
+   lines, and omits parts that contain no text. *)
+let test_vcat_height inputs =
+  let spans =
+    List.map (fun s -> Span.with_style Style.bold (Span.text s)) inputs
+  in
+  let combined = Span.vcat spans in
+  check_eq ~pp:Fmt.int
+    (List.fold_left (fun n span -> n + Span.height span) 0 spans)
+    (Span.height combined);
+  let expected =
+    List.filter (fun span -> Span.height span > 0) spans
+    |> List.map Span.to_string |> String.concat "\n"
+  in
+  check_eq ~pp:Fmt.Dump.string expected (Span.to_string combined)
+
 let suite =
   ( "span",
     [
+      test_case "vertical composition adds heights and preserves lines"
+        [ list bytes ]
+        test_vcat_height;
       test_case "wrapping a gradient preserves glyphs and colours"
         [ bytes; uint8 ] test_gradient_wrap;
       test_case "linked Unicode cuts fit and keep complete escapes"
