@@ -113,10 +113,10 @@
       bytes, gets shorter, such as [256M/2.0G];
     + the elapsed time.
 
-    Until all of them have, the label keeps 12 cells, or all of it if it is
-    shorter. Only then is it cut, with an ellipsis. The line of a task that
-    ended gives way in the same order: its count gets shorter, then its time
-    goes. In the last frame a label is never cut ({!tree}). *)
+    Only once all of them have is the label cut, with an ellipsis. The line of a
+    task that ended gives way in the same order: its count gets shorter and
+    leaves its column, then its time goes, and only then is its label cut. In
+    the last frame a label is never cut ({!tree}). *)
 module Layout : sig
   type piece = Display_layout.piece
   (** The type for the pieces of a row. *)
@@ -580,6 +580,7 @@ val summary : ?width:int -> t -> Span.t
       right edge of the first [min w 100] columns. On a wide terminal they stay
       near their labels, and they do not move when the terminal is resized
       wider.
+
     - After a resize the old frame is erased, counting the rows that a terminal
       which reflows its lines gives it. On one that does not reflow, such as
       xterm or GNU screen, a narrowing below the width of the old lines also

@@ -110,12 +110,10 @@ let piece t r ~time (p : Display_layout.piece) =
 
 (* {2 What gives way}
 
-   A label keeps [want] cells, or all of it if it is shorter, while the
-   other pieces give way, at stages: 1 the rate, 2 the bar and the
-   percentage, 3 the count, which gets shorter, 4 the elapsed time. Only
-   then is the label cut. *)
+   The label is cut only once the other pieces have given way, at stages:
+   1 the rate, 2 the bar and the percentage, 3 the count, which gets
+   shorter and leaves the column it shares, 4 the elapsed time. *)
 
-let want label = min 12 (Span.width label)
 let last_stage = 4
 
 let is_blank (p : Display_layout.piece) =
@@ -131,24 +129,34 @@ let gone stage (p : Display_layout.piece) =
 (* The pieces left at [stage], each gone piece with the blank text before
    it, or after it if none is before. The rate leaves its blanks, so that a
    count keeps its distance to the timer, as on the line of a task that
-   ended. *)
+   ended. A row whose last piece has gone ends with no blank. *)
 let left stage pieces =
   if stage = 0 then pieces
   else
     let a = Array.of_list pieces in
+    let n = Array.length a in
     let keep = Array.map (fun p -> not (gone stage p)) a in
     Array.iteri
       (fun i (p : Display_layout.piece) ->
         if gone stage p && p <> Rate then
           if i > 0 && keep.(i - 1) && is_blank a.(i - 1) then
             keep.(i - 1) <- false
-          else if i + 1 < Array.length a && keep.(i + 1) && is_blank a.(i + 1)
-          then keep.(i + 1) <- false)
+          else if i + 1 < n && keep.(i + 1) && is_blank a.(i + 1) then
+            keep.(i + 1) <- false)
       a;
+    if n > 0 && gone stage a.(n - 1) then begin
+      let rec trim i =
+        if i >= 0 && ((not keep.(i)) || is_blank a.(i)) then begin
+          keep.(i) <- false;
+          trim (i - 1)
+        end
+      in
+      trim (n - 1)
+    end;
     List.filteri (fun i _ -> keep.(i)) pieces
 
 (* The label takes the room the other pieces leave, and they give way
-   until it has [want]; one spacer takes the slack, so the pieces after it
+   until it fits whole; one spacer takes the slack, so the pieces after it
    sit at the right edge. *)
 let live t ~width ~lasts r =
   let time = since_start t in
@@ -156,7 +164,7 @@ let live t ~width ~lasts r =
   let prefix = prefix t lasts in
   let has p = List.mem p layout in
   let label = Span.styled Style.bold r.label in
-  let want = if has Display_layout.Label then want label else 0 in
+  let want = if has Display_layout.Label then Span.width label else 0 in
   let reserve = if has Display_layout.Spacer then 1 else 0 in
   let at stage =
     let pieces =
@@ -274,9 +282,9 @@ let narrowest = 12
 (* The mark and the label, then the count and the timer against the right
    edge, in the cells every task uses, so the columns line up whatever the
    labels. In the region, the count and the timer give way until the label
-   has its [want], and then the label is cut. With [whole], the label is
-   never cut: it goes on over the lines below, at the full width left, and
-   the count and the timer go at the end of its last line, or give way. *)
+   fits, and only then is the label cut. With [whole], the label is never
+   cut: it goes on over the lines below, at the full width left, and the
+   count and the timer go at the end of its last line, or give way. *)
 let ended t ~width ~lasts ~whole r =
   let lead = Span.(guided t (prefix t lasts) ++ mark_of t r ++ text " ") in
   let lead_w = Span.width lead in
@@ -290,7 +298,7 @@ let ended t ~width ~lasts ~whole r =
   else if not whole then
     let rec fit stage =
       let m = meta t r stage in
-      if room m >= want label || stage = meta_stages then m else fit (stage + 1)
+      if room m >= label_w || stage = meta_stages then m else fit (stage + 1)
     in
     let m = fit 0 in
     [ against t ~width Span.(lead ++ cut t (room m) label) m ]

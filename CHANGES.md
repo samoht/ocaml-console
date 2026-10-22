@@ -44,11 +44,11 @@ Initial release of `console` and `console-eio`.
   only those rows. A task that ends stays under its parent, marked, until
   its top task ends, and the top task's tree then goes to the scrollback
   whole, each task once under its parent; the summary is the last line
-  printed. A row too wide gives way its rate, bar, count and time, in that
-  order, before its label. The region never scrolls the terminal: a tree
-  too tall folds the tasks that ended into one line, which counts the
-  failures, then drops its windows' oldest lines, then shows the latest
-  running tasks, and a view too tall drops a widget whole rather than show
+  printed, before the result. A row too wide gives up its rate, its bar,
+  its count and its time, in that order, before its label is cut. The
+  region never scrolls the terminal: a tree too tall folds the tasks that
+  ended into one line, which counts the failures, then drops its windows'
+  oldest lines, then shows the latest running tasks, and a view too tall drops a widget whole rather than show
   a fragment of its frame. The region is a view (`Display.set_view`), a
   span the program puts together from `Display.tree`, `Display.children`,
   `Display.summary` and any widget, such as a table above the rows or trees
