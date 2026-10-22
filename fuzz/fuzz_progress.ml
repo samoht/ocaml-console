@@ -35,6 +35,7 @@ let status =
       ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
     ]
 
+let outcome = open_value [ ("ok", `Ok); ("error", `Error) ]
 let task = list bytes
 let nat = map [ int ] (fun n -> n land max_int)
 let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
@@ -59,8 +60,8 @@ let kind =
         (fun id t status elapsed text ->
           Event.end' ?text ~id ~status ~elapsed t);
       map
-        [ status; bytes; option bytes ]
-        (fun status s detail -> Event.result ?detail ~status s);
+        [ outcome; bytes; option bytes ]
+        (fun outcome s detail -> Event.result ?detail ~outcome s);
       map [ bytes ] (fun s ->
           if List.mem s known_events then bad_test () else Event.other s);
     ]
@@ -110,7 +111,7 @@ let test_other s =
       Event.progress ~time:0. ~id:0 ~count:0L ~total:0L ~unit:(`Other s) [];
       Event.output ~level:(`Other s) ~time:0. "";
       Event.end' ~time:0. ~id:0 ~status:(`Other s) ~elapsed:0. [];
-      Event.result ~time:0. ~status:(`Other s) "";
+      Event.result ~time:0. ~outcome:(`Other s) "";
     ]
 
 (* [s] as an event holds it: each maximal subpart of an ill-formed
@@ -241,7 +242,7 @@ let public_schema_expected k raw ((count, unit), status, detail) =
   let label = kept (clean raw) and child = kept (clean (raw ^ "/child")) in
   let renamed = kept (clean (raw ^ "/new"))
   and message = kept (clean (raw ^ "/end")) in
-  let result_status = if k land 2 = 0 then `Succeeded else `Failed in
+  let outcome = if k land 2 = 0 then `Ok else `Error in
   let child_task = [ renamed; child ] in
   [
     Event.start ~time:0. ~id:0 [ label ];
@@ -252,7 +253,7 @@ let public_schema_expected k raw ((count, unit), status, detail) =
     Event.end' ~text:message ~time:0.375 ~id:1 ~status ~elapsed:0.25 child_task;
     Event.end' ~time:0.375 ~id:0 ~status:`Succeeded ~elapsed:0.375 [ renamed ];
     Event.output ~time:0.375 "root";
-    Event.result ~detail ~time:0.375 ~status:result_status (clean raw);
+    Event.result ~detail ~time:0.375 ~outcome (clean raw);
   ]
 
 let test_public_schema k text =
@@ -316,8 +317,8 @@ let test_invalid_bytes raw =
    members; the constructor and the codec must agree on their absence. *)
 let test_accessors raw id n =
   let text = cleaned raw and task = [ cleaned raw ] in
-  let verify ?id ?(task = []) ?parent ?count ?total ?unit ?status ?elapsed ?text
-      ?level ?detail kind e =
+  let verify ?id ?(task = []) ?parent ?count ?total ?unit ?status ?outcome
+      ?elapsed ?text ?level ?detail kind e =
     List.iter
       (fun e ->
         check_eq ~pp:Fmt.float 1.25 (Event.time e);
@@ -334,6 +335,7 @@ let test_accessors raw id n =
             ("total", Event.total e = total);
             ("unit", Event.unit e = unit);
             ("status", Event.status e = status);
+            ("outcome", Event.outcome e = outcome);
             ("elapsed", Event.elapsed e = elapsed);
             ("text", Event.text e = text);
             ("level", Event.level e = level);
@@ -353,10 +355,9 @@ let test_accessors raw id n =
     (Event.end' ~text:raw ~time:1.25 ~id ~status:`Failed ~elapsed:0.5 [ raw ]);
   verify ~id ~task ~status:`Cancelled ~elapsed:0.5 `End
     (Event.end' ~time:1.25 ~id ~status:`Cancelled ~elapsed:0.5 [ raw ]);
-  verify ~status:`Failed ~text ~detail:text `Result
-    (Event.result ~detail:raw ~time:1.25 ~status:`Failed raw);
-  verify ~status:`Succeeded ~text `Result
-    (Event.result ~time:1.25 ~status:`Succeeded raw);
+  verify ~outcome:`Error ~text ~detail:text `Result
+    (Event.result ~detail:raw ~time:1.25 ~outcome:`Error raw);
+  verify ~outcome:`Ok ~text `Result (Event.result ~time:1.25 ~outcome:`Ok raw);
   verify (`Other "pause") (Event.other ~time:1.25 "pause")
 
 (* A retained text is cut between two grapheme clusters, then ends in
@@ -425,7 +426,7 @@ let suite =
           value
             (known_events
             @ [ "items"; "bytes"; "app"; "error"; "warning"; "info"; "debug" ]
-            @ [ "succeeded"; "failed"; "cancelled" ]);
+            @ [ "succeeded"; "failed"; "cancelled"; "ok" ]);
         ]
         test_other;
       test_case "a string reads back" [ bytes ] test_string;

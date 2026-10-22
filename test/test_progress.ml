@@ -187,8 +187,8 @@ let test_json_lines () =
     {|{"time":1.5,"event":"end","id":2,"task":["a","b"],"status":"failed","elapsed":0.25,"text":"m"}|}
     (Event.end' ~text:"m" ~id:2 ~status:`Failed ~elapsed:0.25 task);
   check "result"
-    {|{"time":1.5,"event":"result","status":"succeeded","text":"t","detail":"d"}|}
-    (Event.result ~detail:"d" ~status:`Succeeded "t");
+    {|{"time":1.5,"event":"result","status":"ok","text":"t","detail":"d"}|}
+    (Event.result ~detail:"d" ~outcome:`Ok "t");
   check "other" {|{"time":1.5,"event":"pause"}|} (Event.other "pause");
   check "other values"
     {|{"time":1.5,"event":"end","id":2,"task":["a","b"],"status":"skipped","elapsed":0}|}
@@ -272,9 +272,9 @@ let test_other_listed () =
   same "status"
     (Event.end' ~time:0. ~id:0 ~status:(`Other "failed") ~elapsed:0. [])
     (Event.end' ~time:0. ~id:0 ~status:`Failed ~elapsed:0. []);
-  same "result status"
-    (Event.result ~time:0. ~status:(`Other "succeeded") "")
-    (Event.result ~time:0. ~status:`Succeeded "");
+  same "outcome"
+    (Event.result ~time:0. ~outcome:(`Other "ok") "")
+    (Event.result ~time:0. ~outcome:`Ok "");
   let files =
     Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "files") []
   in

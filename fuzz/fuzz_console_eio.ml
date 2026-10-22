@@ -185,7 +185,8 @@ let members e =
       `Output (task, get (Event.text e), Event.level e)
   | `End ->
       `End (task (), get (Event.status e), get (Event.elapsed e), Event.text e)
-  | `Result -> `Result (get (Event.status e), get (Event.text e), Event.detail e)
+  | `Result ->
+      `Result (get (Event.outcome e), get (Event.text e), Event.detail e)
   | `Other name -> `Other name
 
 (* The events of the lines of [out], each checked to be valid UTF-8 and to
@@ -484,7 +485,7 @@ let test_json_lifecycle k =
          | `End ((_, [ "left running" ]), s, _, _) -> Some s | _ -> None)
        records
     = Some `Cancelled);
-  check (List.hd (List.rev records) = `Result (`Failed, "result", Some "detail"))
+  check (List.hd (List.rev records) = `Result (`Error, "result", Some "detail"))
 
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)

@@ -78,9 +78,7 @@ Initial release of `console` and `console-eio`.
   each event. `Console.Progress.Event` types the events: an abstract value
   with a constructor for each event, whose members are optional arguments
   where an event may lack them, and an accessor for each member, so that a
-  member added later breaks no match. How a task or the work ended is one
-  `Event.status`, `succeeded`, `failed` or `cancelled`, in an `end` and in
-  the `result` alike. Its
+  member added later breaks no match. Its
   [jsont](https://erratique.ch/software/jsont) codec,
   `Console.Progress.Event.jsont`, writes them and reads them back
   (`Event.of_string`), skipping the members, events and values that a later
