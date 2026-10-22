@@ -12,8 +12,9 @@
     - replace each control character with a space;
     - replace a line end ({!Console_text.sanitize}'s) with a line feed;
     - replace each malformed UTF-8 sequence with U+FFFD;
-    - remove the characters that reorder or hide the text around them, the
-      bidirectional controls.
+    - remove the characters that a terminal draws as nothing, which can reorder
+      or hide the text around them, such as the bidirectional controls, as
+      {!Console_text.sanitize} does.
 
     So no span can move the cursor, change the colours of what follows it, or
     show its text in another order. A line feed starts a new line, and the

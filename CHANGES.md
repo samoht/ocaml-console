@@ -105,8 +105,10 @@ Initial release of `console` and `console-eio`.
   same on every machine.
 - Two small libraries in the `console` package: `console.text`
   (`Console_text`) makes untrusted text safe to print, without the
-  characters that reorder or hide text but with emoji tag sequences, such
-  as the flag of Scotland, whole, and says where text
+  characters that Unicode makes default ignorable, which reorder or hide
+  text, but with the flags of England, Scotland and Wales whole, and says
+  where text
+
   read in pieces can be cut outside a character and an escape code
   (`Console_text.boundary`), and `console.input`
   (`Console_input`) is a line editor, with history and completion, that does

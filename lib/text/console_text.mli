@@ -10,7 +10,8 @@
     escape codes that move the cursor, clear the screen or change colours. These
     functions return text that only prints.
 
-    This library is [console.text]. It does not need the rest of [console], so
+    This library is [console.text]. It needs only
+    {{:https://erratique.ch/software/uucp}uucp}, not the rest of [console], so
     code that must stay small can use it alone. *)
 
 val sanitize : ?keep_newlines:bool -> string -> string
@@ -19,22 +20,27 @@ val sanitize : ?keep_newlines:bool -> string -> string
 
     - Each control character (C0, DEL and C1) is a space.
     - Each invalid UTF-8 byte is the replacement character U+FFFD.
-    - The characters that reorder or hide the text around them, or that are
-      invisible text, are removed. They are the bidirectional marks U+061C,
-      U+200E and U+200F, the embeddings and overrides U+202A to U+202E, the
-      isolates U+2066 to U+2069, the zero-width space U+200B, the word joiner
-      and invisible operators U+2060 to U+2064, the zero-width no-break space
-      U+FEFF, the interlinear annotation characters U+FFF9 to U+FFFB, and the
-      tag characters U+E0000 to U+E007F.
-    - An emoji tag sequence keeps its tags: the black flag U+1F3F4, the only
-      base of such a sequence in Unicode's emoji-sequences.txt, then tag
-      characters U+E0020 to U+E007E, then the cancel tag U+E007F, such as the
-      flag of Scotland.
-    - A variation selector, U+FE00 to U+FE0F or U+E0100 to U+E01EF, is kept
-      after a base and removed after no base: after a space, a control, a line
-      end, a joiner or another selector. At the start of [s] it is kept, since
-      its base may end the text before [s]. A run of selectors thus keeps only
-      its first, and cannot hide text.
+    - The characters a terminal draws as nothing, which can hide text or reorder
+      the text around them, are removed: those of Unicode's
+      Default_Ignorable_Code_Point property, such as the bidirectional controls,
+      the zero-width space U+200B, the word joiner U+2060, the zero-width
+      no-break space U+FEFF, the Hangul fillers and the tag characters U+E0000
+      to U+E007F, and the interlinear annotation characters U+FFF9 to U+FFFB.
+      The soft hyphen U+00AD is one of them: a terminal draws it as a hyphen, as
+      a space or as nothing, so it is removed too, and a word it split reads
+      whole.
+    - The flags of England, Scotland and Wales keep their tags: the black flag
+      U+1F3F4, then the tag characters of [gbeng], [gbsct] or [gbwls], then the
+      cancel tag U+E007F, the emoji tag sequences of Unicode's
+      emoji-sequences.txt. Any other run of tags is removed, so that no hidden
+      text rides on a flag, and the black flag stays alone.
+    - A variation selector, U+FE00 to U+FE0F, U+E0100 to U+E01EF or a Mongolian
+      one, is kept after a base and removed after no base: after a space, a
+      control, a line
+
+    end, a joiner or another selector. At the start of [s] it is kept, since its
+    base may end the text before [s]. A run of selectors thus keeps only its
+    first, and cannot hide text.
     - The joiners U+200C and U+200D, which some scripts and emoji need, are
       kept.
     - A line ends at a line feed, a carriage return, or the two together. VT, FF

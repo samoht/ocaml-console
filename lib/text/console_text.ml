@@ -6,24 +6,14 @@
 (* The escape scanner follows the DEC parser of Paul Williams's state diagram
    (vt100.net/emu/dec_ansi_parser) over ECMA-48 and ECMA-35. *)
 
-(* Format characters that reorder the text around them, hide it or are
-   invisible text: the bidirectional marks (U+061C, U+200E, U+200F),
-   embeddings and overrides (U+202A to U+202E) and isolates (U+2066 to
-   U+2069) of Unicode UAX #9, the zero-width space (U+200B), the word joiner
-   and invisible operators (U+2060 to U+2064), the zero-width no-break space
-   (U+FEFF), the interlinear annotation characters (U+FFF9 to U+FFFB) and
-   the tag characters (U+E0000 to U+E007F) outside an emoji tag sequence. *)
-let removed c =
-  c = 0x061c || c = 0x200b || c = 0x200e || c = 0x200f
-  || (c >= 0x202a && c <= 0x202e)
-  || (c >= 0x2060 && c <= 0x2064)
-  || (c >= 0x2066 && c <= 0x2069)
-  || c = 0xfeff
-  || (c >= 0xfff9 && c <= 0xfffb)
-  || (c >= 0xe0000 && c <= 0xe007f)
+let removed u =
+  let c = Uchar.to_int u in
+  (c >= 0xfff9 && c <= 0xfffb)
+  || Uucp.Gen.is_default_ignorable u
+     && c <> 0x200c && c <> 0x200d
+     && not (Uucp.Gen.is_variation_selector u)
 
-let is_selector c =
-  (c >= 0xfe00 && c <= 0xfe0f) || (c >= 0xe0100 && c <= 0xe01ef)
+let is_selector u = Uucp.Gen.is_variation_selector u
 
 (* What [sanitize] has seen: [cr] after a CR, whose line end a line feed
    then completes, and [base] where a variation selector may follow, which
@@ -39,13 +29,16 @@ let text buf ~keep_newlines seen u =
   let c = Uchar.to_int u in
   let line_end () = Buffer.add_char buf (if keep_newlines then '\n' else ' ') in
   let after_cr = seen.cr in
-  let dropped = removed c || (is_selector c && not seen.base) in
+  let ascii = c < 0x80 in
+  let dropped =
+    (not ascii) && (removed u || (is_selector u && not seen.base))
+  in
   if not dropped then begin
     seen.cr <- c = 0x0d;
     seen.base <-
       c > 0x20
       && (not (c >= 0x7f && c <= 0x9f))
-      && (not (is_selector c))
+      && (ascii || not (is_selector u))
       && c <> 0x200c && c <> 0x200d
   end;
   if c = 0x0d then line_end ()
@@ -56,27 +49,29 @@ let text buf ~keep_newlines seen u =
     Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 
-(* UTS #51 ED-14a: an emoji tag sequence is a base, tag characters U+E0020
-   to U+E007E, then the cancel tag U+E007F. Its only base in
-   emoji-sequences.txt is the black flag U+1F3F4, which this library takes
-   alone, so that it needs no table. [tags str j n] is where the tag
-   sequence ends whose [n] tags so far end at [j], if it does. *)
-let rec tags str j n =
-  if j >= String.length str then None
-  else
-    let d = String.get_utf_8_uchar str j in
-    let next = j + Uchar.utf_decode_length d in
-    match Uchar.to_int (Uchar.utf_decode_uchar d) with
-    | _ when not (Uchar.utf_decode_is_valid d) -> None
-    | c when c >= 0xe0020 && c <= 0xe007e -> tags str next (n + 1)
-    | 0xe007f when n > 0 -> Some next
-    | _ -> None
+let subdivision_flags =
+  let flag code =
+    let b = Buffer.create 28 in
+    Buffer.add_utf_8_uchar b (Uchar.of_int 0x1f3f4);
+    String.iter
+      (fun ch ->
+        Buffer.add_utf_8_uchar b (Uchar.of_int (0xe0000 + Char.code ch)))
+      code;
+    Buffer.add_utf_8_uchar b (Uchar.of_int 0xe007f);
+    Buffer.contents b
+  in
+  List.map flag [ "gbeng"; "gbsct"; "gbwls" ]
 
-(* [tag_sequence str i d] is where the tag sequence at [i], whose first
-   character [d] decodes, ends, if one starts there. *)
+let flag_length = String.length (List.hd subdivision_flags)
+
+(* [tag_sequence str i d] is where the flag at [i], whose first character
+   [d] decodes, ends, if one of {!subdivision_flags} starts there. *)
 let tag_sequence str i d =
-  if Uchar.to_int (Uchar.utf_decode_uchar d) = 0x1f3f4 then
-    tags str (i + Uchar.utf_decode_length d) 0
+  if
+    Uchar.to_int (Uchar.utf_decode_uchar d) = 0x1f3f4
+    && i + flag_length <= String.length str
+    && List.mem (String.sub str i flag_length) subdivision_flags
+  then Some (i + flag_length)
   else None
 
 let sanitize_into buf ~keep_newlines seen str =

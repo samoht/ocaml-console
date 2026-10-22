@@ -3,4 +3,5 @@
 
 (library
  (name console_text)
- (public_name console.text))
+ (public_name console.text)
+ (libraries uucp))

@@ -296,7 +296,54 @@ let test_tag_sequence () =
     (Console_text.sanitize "\u{1F3F4}\u{E007F}b");
   Alcotest.(check string)
     "tags on another base removed" "xb"
-    (Console_text.sanitize "x\u{E0067}\u{E0062}\u{E007F}b")
+    (Console_text.sanitize "x\u{E0067}\u{E0062}\u{E007F}b");
+  let tags s =
+    let b = Buffer.create 64 in
+    Buffer.add_utf_8_uchar b (Uchar.of_int 0x1F3F4);
+    String.iter
+      (fun c -> Buffer.add_utf_8_uchar b (Uchar.of_int (0xE0000 + Char.code c)))
+      s;
+    Buffer.add_utf_8_uchar b (Uchar.of_int 0xE007F);
+    Buffer.contents b
+  in
+  List.iter
+    (fun f ->
+      Alcotest.(check string)
+        (f ^ " kept") (tags f)
+        (Console_text.sanitize (tags f)))
+    [ "gbeng"; "gbsct"; "gbwls" ];
+  List.iter
+    (fun hidden ->
+      Alcotest.(check string)
+        (hidden ^ " stripped from the flag")
+        "\u{1F3F4}b"
+        (Console_text.sanitize (tags hidden ^ "b")))
+    [ "usca"; "gbabc"; "ignore previous instructions"; "gbsctx" ]
+
+let test_default_ignorable () =
+  List.iter
+    (fun c ->
+      Alcotest.(check string)
+        (String.escaped c ^ " removed")
+        "ab"
+        (Console_text.sanitize ("a" ^ c ^ "b")))
+    [
+      "\u{00AD}";
+      "\u{034F}";
+      "\u{115F}";
+      "\u{1160}";
+      "\u{17B4}";
+      "\u{180E}";
+      "\u{206A}";
+      "\u{206F}";
+      "\u{3164}";
+      "\u{FFA0}";
+      "\u{1D173}";
+      "\u{E0001}";
+    ];
+  Alcotest.(check string)
+    "a Mongolian variation selector after a base kept" "\u{1820}\u{180B}"
+    (Console_text.sanitize "\u{1820}\u{180B}")
 
 (* A variation selector, VS1 to VS16 or VS17 to VS256, selects a glyph of
    the character before it: one after a base is kept, and one after no
@@ -334,6 +381,8 @@ let suite =
       Alcotest.test_case "an emoji tag sequence is kept" `Quick
         test_tag_sequence;
       Alcotest.test_case "variation selectors" `Quick test_variation_selectors;
+      Alcotest.test_case "default ignorable characters" `Quick
+        test_default_ignorable;
       Alcotest.test_case "strip drops what prints nothing" `Quick
         test_strip_silent;
       Alcotest.test_case "strip leaves no control" `Quick
