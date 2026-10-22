@@ -46,7 +46,7 @@ type role =
 type mark =
   [ `Running
     (** Work still going on: a task's line as it starts on a pipe, and the
-        summary while work runs. *)
+        summary until the display closes or has its result. *)
   | `Succeeded  (** A task or a session that succeeded. *)
   | `Failed  (** A task or a session that failed. *)
   | `Cancelled  (** A task or a session that was cancelled. *)

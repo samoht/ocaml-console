@@ -443,8 +443,10 @@ let message t level msg =
 
 (* {1 The summary and the verdict} *)
 
+(* The work runs until the display closes or has its result, whatever its
+   tasks do in between: between two tasks it has not succeeded. *)
 let state t : Theme.mark =
-  if (not t.closed) && (t.started = 0 || t.finished < t.started) then `Running
+  if (not t.closed) && Option.is_none t.result then `Running
   else if
     t.failed > 0 || match t.result with Some (Error _, _) -> true | _ -> false
   then `Failed

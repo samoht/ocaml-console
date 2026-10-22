@@ -84,8 +84,9 @@
 
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of a task's output, or the level of
-    a [Logs] message. In the summary, the mark says whether work is still
-    running and how it ended. *)
+    a [Logs] message. The summary's mark is the running mark from the moment the
+    display opens until it closes or has its result ({!set_result}), and then
+    says how the work ended. *)
 
 (** {1:layout Row layout} *)
 
