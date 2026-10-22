@@ -256,11 +256,35 @@ let test_json_max_float () =
   in
   reads_back (Event.to_string e)
 
+(* [`Other s] with [s] a listed name is refused, since its line would read
+   back as that name's constructor; any other name reads back as it is. *)
+let test_other_listed () =
+  let refused name f =
+    match f () with
+    | _ -> Alcotest.failf "%s: a listed name taken as other" name
+    | exception Invalid_argument _ -> ()
+  in
+  refused "event" (fun () -> Event.other ~time:0. "start");
+  refused "unit" (fun () ->
+      Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "items")
+        []);
+  refused "level" (fun () -> Event.output ~level:(`Other "error") ~time:0. "");
+  refused "status" (fun () ->
+      Event.end' ~time:0. ~id:0 ~status:(`Other "failed") ~elapsed:0. []);
+  refused "outcome" (fun () -> Event.result ~time:0. ~outcome:(`Other "ok") "");
+  let files =
+    Event.progress ~time:0. ~id:0 ~count:1L ~total:1L ~unit:(`Other "files") []
+  in
+  Alcotest.(check bool)
+    "another unit reads back" true
+    (Event.of_string (Event.to_string files) = Ok files)
+
 let suite =
   ( "progress",
     [
       Alcotest.test_case "largest finite event times read back" `Quick
         test_json_max_float;
+      Alcotest.test_case "other with a listed name" `Quick test_other_listed;
       Alcotest.test_case "names" `Quick test_names;
       Alcotest.test_case "quiet" `Quick test_quiet;
       Alcotest.test_case "json" `Quick test_json;

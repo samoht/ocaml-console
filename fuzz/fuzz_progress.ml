@@ -85,10 +85,40 @@ let decode line =
 (* An event's line decodes, and its event is written as the line is: valid
    UTF-8 on one line, without a control character. *)
 let test_round_trip time kind =
-  let line = Event.to_string (kind ~time) in
+  let e = kind ~time in
+  let line = Event.to_string e in
   check (String.is_valid_utf_8 line);
   check (no_control line);
-  check_eq ~pp:Fmt.Dump.string line (Event.to_string (decode line))
+  let back = decode line in
+  check_eq ~pp:Fmt.Dump.string line (Event.to_string back);
+  check (back = e)
+
+(* [`Other s] is refused iff [s] is a listed name, and reads back as it
+   is otherwise, for an event's name and for the values of its members. *)
+let test_other s =
+  let is_listed names = List.mem s names in
+  let try_ listed make =
+    match make () with
+    | e ->
+        if listed then failf "%S, a listed name, taken as other" s;
+        check (decode (Event.to_string e) = e)
+    | exception Invalid_argument _ ->
+        if not listed then failf "%S refused as other" s
+  in
+  try_ (is_listed known_events) (fun () -> Event.other ~time:0. s);
+  try_
+    (is_listed [ "items"; "bytes" ])
+    (fun () ->
+      Event.progress ~time:0. ~id:0 ~count:0L ~total:0L ~unit:(`Other s) []);
+  try_
+    (is_listed [ "app"; "error"; "warning"; "info"; "debug" ])
+    (fun () -> Event.output ~level:(`Other s) ~time:0. "");
+  try_
+    (is_listed [ "succeeded"; "failed"; "cancelled" ])
+    (fun () -> Event.end' ~time:0. ~id:0 ~status:(`Other s) ~elapsed:0. []);
+  try_
+    (is_listed [ "ok"; "error" ])
+    (fun () -> Event.result ~time:0. ~outcome:(`Other s) "")
 
 (* [s] as an event holds it: each byte that is not part of a character and
    each C1 control is U+FFFD. *)
@@ -255,6 +285,14 @@ let suite =
       test_case "event times read back at every finite magnitude"
         [ extreme_seconds ] test_extreme_seconds;
       test_case "an event reads back" [ float; kind ] test_round_trip;
+      test_case "other is refused for a listed name"
+        [
+          value
+            (known_events
+            @ [ "items"; "bytes"; "app"; "error"; "warning"; "info"; "debug" ]
+            @ [ "succeeded"; "failed"; "cancelled"; "ok" ]);
+        ]
+        test_other;
       test_case "a string reads back" [ bytes ] test_string;
       test_case "a time reads back to the millisecond" [ float ] test_time;
       test_case "a count reads back" [ int64; int64 ] test_count;
