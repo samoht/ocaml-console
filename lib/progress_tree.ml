@@ -63,6 +63,81 @@ let rec worst acc nodes =
    it. *)
 type form = Full | Fold | Bare | Whole
 
+(* {1 What a task keeps}
+
+   A task keeps its row as it was last laid out, for the room, the look and
+   the moment, until it changes: a running row moves with the time only by
+   its spinner and its timer. A top task whose tree ended keeps that tree.
+   A layout with a piece of its own reads what it likes, and keeps
+   nothing. *)
+
+type key = {
+  version : int;
+  look : Look.t;
+  layout : Progress_layout.t;
+  width : int option;
+  count_cell : int;
+  rate_cell : int;
+  spin : int;
+  timer : string;
+  form : form;
+  cut : int;
+  top : bool;
+}
+
+type Task_core.memo += Row of key * V.t | Tree of key * (int * int) list * V.t
+
+let same a b =
+  a.version = b.version && a.look == b.look && a.layout == b.layout
+  && Option.equal Int.equal a.width b.width
+  && a.count_cell = b.count_cell
+  && a.rate_cell = b.rate_cell && a.spin = b.spin
+  && String.equal a.timer b.timer
+  && a.form = b.form && a.cut = b.cut && Bool.equal a.top b.top
+
+let keeps layout =
+  not
+    (List.exists
+       (fun (p : Progress_layout.piece) ->
+         match p.kind with Custom _ -> true | _ -> false)
+       (Progress_layout.pieces layout))
+
+let key ~layout ~form ~cut ~top ~time look width r =
+  let running = is_running r in
+  {
+    version = r.version;
+    look;
+    layout;
+    width;
+    count_cell = r.work.count_cell;
+    rate_cell = r.work.rate_cell;
+    spin = (if running then int_of_float (Float.floor (time *. 10.)) else 0);
+    timer = (if running then Task_text.duration (elapsed r) else "");
+    form;
+    cut = (if running then cut else -1);
+    top;
+  }
+
+(* What [r] keeps that [find] finds, or [lay ()], which [r] then keeps as
+   [make] makes it, with one more of its kind at most: two views may show a
+   task at once. *)
+let kept r ~kind ~find ~make lay =
+  match List.find_map find r.memo with
+  | Some v -> v
+  | None ->
+      let v = lay () in
+      let rec one seen = function
+        | [] -> []
+        | m :: rest when kind m ->
+            if seen then one seen rest else m :: one true rest
+        | m :: rest -> m :: one seen rest
+      in
+      keep r (make v :: one false r.memo);
+      v
+
+let is_row = function Row _ -> true | _ -> false
+let is_tree = function Tree _ -> true | _ -> false
+
 (* With [fold], the tasks that ended among [nodes], apart. *)
 let split ~fold nodes =
   if fold then List.partition (fun n -> not (is_running n.row)) nodes
@@ -80,8 +155,18 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
   let under width =
     Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
   in
+  let row look ~time width lay =
+    if extra <> [] || not (keeps layout) then lay ()
+    else
+      let key = key ~layout ~form ~cut ~top ~time look width r in
+      kept r ~kind:is_row
+        ~find:(function Row (k, v) when same k key -> Some v | _ -> None)
+        ~make:(fun v -> Row (key, v))
+        lay
+  in
   if is_running r then
     label (fun look ~time width ->
+        row look ~time width @@ fun () ->
         let tail =
           match form with
           | Full | Fold ->
@@ -106,7 +191,8 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
                 | None -> l)
               extra))
   else
-    label (fun look ~time:_ width ->
+    label (fun look ~time width ->
+        row look ~time width @@ fun () ->
         let whole = form = Whole in
         let lines = Progress_row.ended look ?width ~whole r in
         let output =
@@ -120,12 +206,13 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
 
 (* The trees of [nodes], under a task: a line that counts the tasks
    dropped, then the one that folds those that ended, come first. *)
-let rec block ?(top = false) ~layout ~form ~fold ~shed ~cut nodes =
+let heads ~fold ~shed nodes =
   let ended, shown = split ~fold nodes in
-  (if shed > 0 then
-     [ Tree.v (line (fun look -> Progress_row.shed look shed)) [] ]
-   else [])
-  @ (match ended with
+  ( ((if shed > 0 then
+        [ Tree.v (line (fun look -> Progress_row.shed look shed)) [] ]
+      else [])
+    @
+    match ended with
     | [] -> []
     | ns ->
         [
@@ -135,8 +222,12 @@ let rec block ?(top = false) ~layout ~form ~fold ~shed ~cut nodes =
                    ~cancelled:(ending `Cancelled ns) (size ns)
                    (worst `Succeeded ns)))
             [];
-        ])
-  @ List.map (fun n -> node ~top ~layout ~form ~cut n) shown
+        ]),
+    shown )
+
+let rec block ~layout ~form ~fold ~shed ~cut nodes =
+  let heads, shown = heads ~fold ~shed nodes in
+  heads @ List.map (fun n -> node ~layout ~form ~cut n) shown
 
 and node ?(top = false) ~layout ~form ~cut ?extra n =
   let r = n.row in
@@ -149,10 +240,34 @@ and node ?(top = false) ~layout ~form ~cut ?extra n =
 let tops keep r = forest keep (if is_root r then children r else [ r ])
 let top_fold form r = form = Fold && is_root r
 let top_shed form r = if is_root r then shed form r else 0
+let drawn tree = Tree.view ~indent:2 tree
+let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
+
+let rec versions acc n =
+  List.fold_left versions ((n.row.id, n.row.version) :: acc) n.kids
+
+(* A top task's tree, kept whole once every task in it ended. *)
+let top_tree ~layout ~form ~cut n =
+  let tree = drawn (node ~top:true ~layout ~form ~cut n) in
+  if not (keeps layout && ended n) then tree
+  else
+    let seen = versions [] n in
+    V.deferred ~kind:live (fun c ->
+        let key =
+          key ~layout ~form ~cut ~top:true ~time:0. (Ctx.look c) (Ctx.width c)
+            n.row
+        in
+        kept n.row ~kind:is_tree
+          ~find:(function
+            | Tree (k, s, v) when same k key && s = seen -> Some v | _ -> None)
+          ~make:(fun v -> Tree (key, seen, v))
+          (fun () -> V.resolve c tree))
 
 let trees ~layout ~form ~cut r nodes =
-  block ~top:true ~layout ~form ~fold:(top_fold form r) ~shed:(top_shed form r)
-    ~cut nodes
+  let heads, shown =
+    heads ~fold:(top_fold form r) ~shed:(top_shed form r) nodes
+  in
+  List.map drawn heads @ List.map (top_tree ~layout ~form ~cut) shown
 
 (* The lines the trees take in the region, and how many are of windows,
    counted without drawing them. *)
@@ -196,7 +311,7 @@ let cut_tails n nodes =
       let n = min n (List.length sorted) in
       if n <= 0 then -1 else List.nth sorted (n - 1)
 
-let draw trees = V.vcat (List.map (Tree.view ~indent:2) trees)
+let draw views = V.vcat views
 
 (* The first [height] lines of [v] laid out in [c]. *)
 let first c height v =
@@ -242,15 +357,17 @@ let bare ~layout c ~height r =
     else if top = 1 then
       match nodes with
       | n :: rest ->
-          node ~top:true ~layout ~form:Bare ~cut:(-1)
-            ~extra:[ (fun look -> Progress_row.more look hidden) ]
-            n
+          drawn
+            (node ~top:true ~layout ~form:Bare ~cut:(-1)
+               ~extra:[ (fun look -> Progress_row.more look hidden) ]
+               n)
           :: trees ~layout ~form:Bare ~cut:(-1) r rest
       | [] -> []
     else
-      Tree.v
-        (line (fun look -> V.(text "  " ++ Progress_row.more look hidden)))
-        []
+      drawn
+        (Tree.v
+           (line (fun look -> V.(text "  " ++ Progress_row.more look hidden)))
+           [])
       :: trees ~layout ~form:Bare ~cut:(-1) r nodes
   in
   first c height (draw trees)

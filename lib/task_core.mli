@@ -26,6 +26,9 @@ type line = {
 }
 (** The type for the lines of a task's output. *)
 
+type memo = ..
+(** The type for what a view keeps of a task it laid out. *)
+
 type scope = {
   current : unit -> t option;
   within : t -> (unit -> unit) -> unit;
@@ -92,6 +95,8 @@ and t = private {
   mutable last_cur : float;
   mutable last_t : float;
   mutable rate : float;
+  mutable version : int;  (** Counts the changes to what the task shows. *)
+  mutable memo : memo list;
 }
 (** The type for tasks. A task's {!field-window} holds its latest lines, at most
     {!field-log_lines}, and its {!field-output} its lines, kept for its failure,
@@ -100,6 +105,9 @@ and t = private {
     that ended and waits weighs {!field-weight} bytes, and the ones under a task
     {!field-held} bytes in all; {!field-shed} counts the tasks under it dropped
     to keep that bounded. *)
+
+val keep : t -> memo list -> unit
+(** [keep r m] makes [m] what views keep of [r]. *)
 
 val on_ending : t -> (t -> unit) -> unit
 (** [on_ending root f] has [f] called with each task of [root]'s work as it

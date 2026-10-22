@@ -2049,9 +2049,69 @@ let test_print () =
     "on a pipe, at once" "printed\n" (Buffer.contents buffer);
   Display.close display
 
+(* A display that keeps its rows and trees from frame to frame shows what a
+   display that keeps nothing lays out, as tasks start, move, log, are
+   renamed and end, between frames and as the time moves the spinners and
+   timers. A layout with a piece of its own keeps nothing: an empty one adds
+   nothing to a row. *)
+let test_kept_rows () =
+  let time = ref 0. in
+  let now () = !time in
+  let root = Task.root ~label:"build" ~now () in
+  let screen layout =
+    let vte = Console_vte.v ~rows:16 ~cols:60 () in
+    let buf = Buffer.create 256 in
+    let ppf =
+      Format.make_formatter (Buffer.add_substring buf) (fun () ->
+          Console_vte.feed vte (Buffer.contents buf);
+          Buffer.clear buf)
+    in
+    Fmt.set_utf_8 ppf true;
+    let view = Progress.view ~layout root in
+    (vte, Display.v ~size:(fun () -> (60, 16)) ~now ppf view, view)
+  in
+  let kept_vte, kept, kept_view = screen Progress.Layout.default in
+  let fresh_vte, fresh, fresh_view =
+    screen Progress.Layout.(default ++ custom (fun _ -> View.empty))
+  in
+  let check step =
+    Display.set_view kept kept_view;
+    Display.set_view fresh fresh_view;
+    Alcotest.(check (list string))
+      step
+      (Console_vte.screen fresh_vte)
+      (Console_vte.screen kept_vte)
+  in
+  let a = Task.start root "fetch" in
+  let b = Task.start root "compile" in
+  let c = Task.start b "src/a.c" in
+  check "started";
+  for i = 1 to 12 do
+    if i mod 2 = 0 then time := !time +. 0.037;
+    Task.set_items a ~count:i ~total:12;
+    if i mod 3 = 0 then Task.log c (Fmt.str "line %d" i);
+    check (Fmt.str "step %d" i)
+  done;
+  Task.set_label c "src/b.c";
+  check "renamed";
+  Task.succeed a;
+  check "a top task ended";
+  Task.fail c;
+  check "a nested task failed";
+  time := !time +. 0.25;
+  check "the time moves";
+  Task.succeed b;
+  check "every task ended";
+  time := !time +. 1.;
+  check "the time moves on";
+  Display.close kept;
+  Display.close fresh
+
 let suite =
   ( "display",
     [
+      Alcotest.test_case "kept rows are the rows laid out afresh" `Quick
+        test_kept_rows;
       Alcotest.test_case "the rate weighs time, not reports" `Quick
         test_rate_time_weighted;
       Alcotest.test_case "the time left" `Quick test_eta;

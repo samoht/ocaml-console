@@ -8,6 +8,7 @@ type outcome = [ `Succeeded | `Failed | `Cancelled ]
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 type kind = Output | Logs of level
 type line = { gap : float; kind : kind; text : string; seq : int }
+type memo = ..
 
 type scope = {
   current : unit -> t option;
@@ -68,6 +69,8 @@ and t = {
   mutable last_cur : float;
   mutable last_t : float;
   mutable rate : float;
+  mutable version : int;
+  mutable memo : memo list;
 }
 
 let is_root r = r.id < 0
@@ -98,8 +101,13 @@ let rec root_of r = match r.parent with None -> r | Some p -> root_of p
 
 (* {1 Changes} *)
 
+let changed r = r.version <- r.version + 1
+let keep r m = r.memo <- m
+
 let notify w change =
   w.changes <- w.changes + 1;
+  (match change with
+  | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
   List.iter (fun f -> f change) w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
@@ -148,6 +156,8 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     last_cur = 0.;
     last_t = now;
     rate = 0.;
+    version = 0;
+    memo = [];
   }
 
 let root ?label ?scope ~now () =
@@ -197,6 +207,8 @@ let adopt p r =
   end
 
 let rec forget r =
+  changed r;
+  r.memo <- [];
   r.gone <- true;
   List.iter forget r.children;
   r.children <- [];
@@ -223,6 +235,7 @@ let shed p latest =
     then begin
       p.held <- p.held - c.weight;
       p.shed <- p.shed + size c;
+      changed p;
       forget c;
       false
     end
@@ -383,7 +396,8 @@ let measure r cur =
   end
 
 let set_metric r metric =
-  let changed = not (same_metric r.metric metric) in
+  let moved = not (same_metric r.metric metric) in
+  changed r;
   r.metric <- metric;
   let w = r.work in
   w.count_cell <- max w.count_cell (count_width metric);
@@ -393,7 +407,7 @@ let set_metric r metric =
       w.rate_cell <-
         max w.rate_cell
           (max (String.length "1023.99 MiB/s") (String.length rate)));
-  if changed then notify w (Progressed r)
+  if moved then notify w (Progressed r)
 
 let set_items r ~count ~total =
   if count < 0 || total < 0 then
