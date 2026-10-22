@@ -1,8 +1,3 @@
 (executable
  (name main)
  (libraries console console.tty console-eio eio eio_main fmt))
-
-; Record columns.svg:
-;   dune build examples/columns/main.exe
-;   k7 run --cols 100 --env CONSOLE_DETERMINISTIC_CLOCK=1 \
-;     -o examples/columns/columns.svg -- _build/default/examples/columns/main.exe
