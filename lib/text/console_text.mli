@@ -22,9 +22,19 @@ val sanitize : ?keep_newlines:bool -> string -> string
     - The characters that reorder or hide the text around them, or that are
       invisible text, are removed. They are the bidirectional marks U+061C,
       U+200E and U+200F, the embeddings and overrides U+202A to U+202E, the
-      isolates U+2066 to U+2069, the interlinear annotation characters U+FFF9 to
-      U+FFFB, and the tag characters U+E0000 to U+E007F, which also leave a
-      subdivision flag, such as Scotland's, a black flag.
+      isolates U+2066 to U+2069, the zero-width space U+200B, the word joiner
+      and invisible operators U+2060 to U+2064, the zero-width no-break space
+      U+FEFF, the interlinear annotation characters U+FFF9 to U+FFFB, and the
+      tag characters U+E0000 to U+E007F.
+    - An emoji tag sequence keeps its tags: the black flag U+1F3F4, the only
+      base of such a sequence in Unicode's emoji-sequences.txt, then tag
+      characters U+E0020 to U+E007E, then the cancel tag U+E007F, such as the
+      flag of Scotland.
+    - A variation selector, U+FE00 to U+FE0F or U+E0100 to U+E01EF, is kept
+      after a base and removed after no base: after a space, a control, a line
+      end, a joiner or another selector. At the start of [s] it is kept, since
+      its base may end the text before [s]. A run of selectors thus keeps only
+      its first, and cannot hide text.
     - The joiners U+200C and U+200D, which some scripts and emoji need, are
       kept.
     - A line ends at a line feed, a carriage return, or the two together. VT, FF

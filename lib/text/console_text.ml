@@ -9,54 +9,107 @@
 (* Format characters that reorder the text around them, hide it or are
    invisible text: the bidirectional marks (U+061C, U+200E, U+200F),
    embeddings and overrides (U+202A to U+202E) and isolates (U+2066 to
-   U+2069) of Unicode UAX #9, the interlinear annotation characters (U+FFF9
-   to U+FFFB) and the tag characters (U+E0000 to U+E007F). *)
-let reorders c =
-  c = 0x061c || c = 0x200e || c = 0x200f
+   U+2069) of Unicode UAX #9, the zero-width space (U+200B), the word joiner
+   and invisible operators (U+2060 to U+2064), the zero-width no-break space
+   (U+FEFF), the interlinear annotation characters (U+FFF9 to U+FFFB) and
+   the tag characters (U+E0000 to U+E007F) outside an emoji tag sequence. *)
+let removed c =
+  c = 0x061c || c = 0x200b || c = 0x200e || c = 0x200f
   || (c >= 0x202a && c <= 0x202e)
+  || (c >= 0x2060 && c <= 0x2064)
   || (c >= 0x2066 && c <= 0x2069)
+  || c = 0xfeff
   || (c >= 0xfff9 && c <= 0xfffb)
   || (c >= 0xe0000 && c <= 0xe007f)
 
-(* [text buf ~keep_newlines ~cr u] adds what [sanitize] makes of the
-   character [u]: itself, nothing if it {!reorders}, a line end for CR or a
-   line feed (LF, VT, FF and NEL, U+0085), or a space for another control.
-   [cr] is [true] after a CR, whose line end a line feed then completes;
-   a character removed between them leaves it so. *)
-let text buf ~keep_newlines ~cr u =
+let is_selector c =
+  (c >= 0xfe00 && c <= 0xfe0f) || (c >= 0xe0100 && c <= 0xe01ef)
+
+(* What [sanitize] has seen: [cr] after a CR, whose line end a line feed
+   then completes, and [base] where a variation selector may follow, which
+   the start of the text is, since its base may end the text before. A
+   character removed leaves both as they were. *)
+type seen = { mutable cr : bool; mutable base : bool }
+
+(* [text buf seen u] adds what [sanitize] makes of the character [u]:
+   itself, nothing if it is {!removed} or a variation selector with no base,
+   a line end for CR or a line feed (LF, VT, FF and NEL, U+0085), or a space
+   for another control. *)
+let text buf ~keep_newlines seen u =
   let c = Uchar.to_int u in
   let line_end () = Buffer.add_char buf (if keep_newlines then '\n' else ' ') in
-  let after_cr = !cr in
-  if not (reorders c) then cr := c = 0x0d;
+  let after_cr = seen.cr in
+  let dropped = removed c || (is_selector c && not seen.base) in
+  if not dropped then begin
+    seen.cr <- c = 0x0d;
+    seen.base <-
+      c > 0x20
+      && (not (c >= 0x7f && c <= 0x9f))
+      && (not (is_selector c))
+      && c <> 0x200c && c <> 0x200d
+  end;
   if c = 0x0d then line_end ()
   else if (c >= 0x0a && c <= 0x0c) || c = 0x85 then (
     if not after_cr then line_end ())
-  else if reorders c then ()
+  else if dropped then ()
   else if c >= 0x20 && not (c >= 0x7f && c <= 0x9f) then
     Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 
-let sanitize_into buf ~keep_newlines ~cr str =
+(* UTS #51 ED-14a: an emoji tag sequence is a base, tag characters U+E0020
+   to U+E007E, then the cancel tag U+E007F. Its only base in
+   emoji-sequences.txt is the black flag U+1F3F4, which this library takes
+   alone, so that it needs no table. [tag_sequence s i] is where the tag
+   sequence at [i] ends, if one starts there. *)
+let tag_sequence str i =
+  let rec tags j n =
+    if j >= String.length str then None
+    else
+      let d = String.get_utf_8_uchar str j in
+      let next = j + Uchar.utf_decode_length d in
+      match Uchar.to_int (Uchar.utf_decode_uchar d) with
+      | _ when not (Uchar.utf_decode_is_valid d) -> None
+      | c when c >= 0xe0020 && c <= 0xe007e -> tags next (n + 1)
+      | 0xe007f when n > 0 -> Some next
+      | _ -> None
+  in
+  let d = String.get_utf_8_uchar str i in
+  if Uchar.to_int (Uchar.utf_decode_uchar d) = 0x1f3f4 then
+    tags (i + Uchar.utf_decode_length d) 0
+  else None
+
+let sanitize_into buf ~keep_newlines seen str =
   let n = String.length str in
   let rec go i =
     if i < n then begin
       let d = String.get_utf_8_uchar str i in
-      if Uchar.utf_decode_is_valid d then
-        text buf ~keep_newlines ~cr (Uchar.utf_decode_uchar d)
-      else begin
-        cr := false;
-        Buffer.add_utf_8_uchar buf Uchar.rep
-      end;
-      go (i + Uchar.utf_decode_length d)
+      if not (Uchar.utf_decode_is_valid d) then begin
+        seen.cr <- false;
+        seen.base <- true;
+        Buffer.add_utf_8_uchar buf Uchar.rep;
+        go (i + Uchar.utf_decode_length d)
+      end
+      else
+        match tag_sequence str i with
+        | Some stop ->
+            seen.cr <- false;
+            seen.base <- true;
+            Buffer.add_string buf (String.sub str i (stop - i));
+            go stop
+        | None ->
+            text buf ~keep_newlines seen (Uchar.utf_decode_uchar d);
+            go (i + Uchar.utf_decode_length d)
     end
   in
   go 0
+
+let seen () = { cr = false; base = true }
 
 let sanitize ?(keep_newlines = true) str =
   if String.for_all Char.Ascii.is_print str then str
   else
     let buf = Buffer.create (String.length str) in
-    sanitize_into buf ~keep_newlines ~cr:(ref false) str;
+    sanitize_into buf ~keep_newlines (seen ()) str;
     Buffer.contents buf
 
 (* What the scan is inside of. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
@@ -241,17 +294,17 @@ let sgr seq =
     Some (state `Reset params)
 
 let rewrite ~keep_newlines ~keep str =
-  let buf = Buffer.create (String.length str) and cr = ref false in
+  let buf = Buffer.create (String.length str) and seen = seen () in
   let open_style, _ =
     fold_tokens
       (fun open_style kind pos len ->
         let token = String.sub str pos len in
         match kind with
         | `Text ->
-            sanitize_into buf ~keep_newlines ~cr token;
+            sanitize_into buf ~keep_newlines seen token;
             open_style
         | `Escape when token = "\027E" ->
-            sanitize_into buf ~keep_newlines ~cr "\u{0085}";
+            sanitize_into buf ~keep_newlines seen "\u{0085}";
             open_style
         | `Escape -> (
             match keep token with

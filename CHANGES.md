@@ -91,7 +91,9 @@ Initial release of `console` and `console-eio`.
   by exactly each sleep, so a cram test of a program's progress reads the
   same on every machine.
 - Two small libraries in the `console` package: `console.text`
-  (`Console_text`) makes untrusted text safe to print, and says where text
+  (`Console_text`) makes untrusted text safe to print, without the
+  characters that reorder or hide text but with emoji tag sequences, such
+  as the flag of Scotland, whole, and says where text
   read in pieces can be cut outside a character and an escape code
   (`Console_text.boundary`), and `console.input`
   (`Console_input`) is a line editor, with history and completion, that does

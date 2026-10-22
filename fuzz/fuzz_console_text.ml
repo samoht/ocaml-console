@@ -37,13 +37,18 @@ let test_styles_isolated s =
 
 (* A line ends at LF, VT, FF, at NEL (U+0085, which UTF-8 writes C2 85),
    and at a CR that none of them follows once the characters [sanitize]
-   removes are gone: [sanitize] keeps one line feed for each. *)
+   removes are gone: [sanitize] keeps one line feed for each. After a CR, a
+   variation selector has no base and is removed too. *)
 let removed c =
-  c = 0x061c || c = 0x200e || c = 0x200f
+  c = 0x061c || c = 0x200b || c = 0x200e || c = 0x200f
   || (c >= 0x202a && c <= 0x202e)
+  || (c >= 0x2060 && c <= 0x2064)
   || (c >= 0x2066 && c <= 0x2069)
+  || c = 0xfeff
+  || (c >= 0xfe00 && c <= 0xfe0f)
   || (c >= 0xfff9 && c <= 0xfffb)
   || (c >= 0xe0000 && c <= 0xe007f)
+  || (c >= 0xe0100 && c <= 0xe01ef)
 
 let line_ends s =
   let n = String.length s in
@@ -155,9 +160,57 @@ let test_boundary s =
     in
     check_eq ~pp:Fmt.int expected k
 
+(* Characters whose keeping depends on their neighbours: tags, the black
+   flag, the cancel tag, selectors and what may come before one. *)
+let pieces =
+  [|
+    "a"; " "; "\r"; "\n"; "\027[1m"; "\u{1F3F4}"; "\u{E0067}"; "\u{E0062}";
+    "\u{E007F}"; "\u{E0001}"; "\u{FE0F}"; "\u{E0100}"; "\u{200D}";
+    "\u{200F}"; "\u{200B}"; "\u{845B}";
+  |]
+[@@ocamlformat "disable"]
+
+let neighbours =
+  map
+    [ list uint8 ]
+    (fun l ->
+      String.concat ""
+        (List.map (fun k -> pieces.(k mod Array.length pieces)) l))
+
+(* No two selectors are adjacent in what [sanitize] keeps, a tag is kept
+   only inside a whole emoji tag sequence, and the laws hold. *)
+let test_neighbours s =
+  test_laws s;
+  test_line_ends s;
+  let out = Console_text.sanitize s in
+  let cps =
+    List.map
+      (fun (_, _, d) -> Uchar.to_int (Uchar.utf_decode_uchar d))
+      (decodes out)
+  in
+  let selector c = (c >= 0xfe00 && c <= 0xfe0f) || (c >= 0xe0100 && c <= 0xe01ef)
+  and tag c = c >= 0xe0020 && c <= 0xe007e in
+  let rec walk = function
+    | a :: b :: _ when selector a && selector b ->
+        failf "two selectors kept in %S" out
+    | 0x1f3f4 :: rest when match rest with c :: _ -> tag c | [] -> false ->
+        let rec tags = function
+          | c :: rest when tag c -> tags rest
+          | 0xe007f :: rest -> walk rest
+          | _ -> failf "a tag sequence cut short in %S" out
+        in
+        tags rest
+    | c :: _ when tag c || c = 0xe007f -> failf "a stray tag kept in %S" out
+    | _ :: rest -> walk rest
+    | [] -> ()
+  in
+  walk cps
+
 let suite =
   ( "console_text",
     [
+      test_case "selectors and tags by their neighbours" [ neighbours ]
+        test_neighbours;
       test_case "a boundary falls between two decoded characters" [ bytes ]
         test_boundary;
       test_case "extended colours survive and leave the next cell plain"
