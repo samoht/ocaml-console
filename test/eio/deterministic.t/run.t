@@ -46,7 +46,7 @@ seconds four times and 0.13 seconds three times end at 0.4 seconds, whether
 one of them works before each sleep or not.
 
   $ ../piped.exe sleeps 0 2> idle
-  $ ../piped.exe sleeps 0.1 2> busy
+  $ ../piped.exe sleeps 200000000 2> busy
   $ cmp idle busy
   $ cat idle
   {"time":0,"event":"start","id":0,"task":["build"]}

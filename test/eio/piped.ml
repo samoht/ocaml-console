@@ -12,9 +12,9 @@
     [quiet-long] or [quiet-prompt], quiet, it leaves a line unended on standard
     error, a line too long to hold or a question, before a task fails. With
     [json-stdout], as JSON events, a task prints a line on standard output and
-    one on standard error. With [sleeps] and a number of seconds, a task's two
-    fibers sleep on {!Console_eio.clock}, one of them working that long before
-    each sleep. *)
+    one on standard error. With [sleeps] and a number of steps, a task's two
+    fibers sleep on {!Console_eio.clock}, one of them working that many steps
+    before each sleep. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -53,9 +53,8 @@ let () =
   | [| _; "sleeps"; work |] ->
       let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
       let work () =
-        let stop = Unix.gettimeofday () +. float_of_string work in
-        while Unix.gettimeofday () < stop do
-          ()
+        for i = 1 to int_of_string work do
+          ignore (Sys.opaque_identity (i * i))
         done
       in
       Console_eio.run ~clock ~progress:`Json (fun display ->

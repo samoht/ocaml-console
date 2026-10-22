@@ -5,7 +5,7 @@
 
 open Display_harness
 
-let with_clock f = Eio_main.run @@ fun env -> f (Eio.Stdenv.mono_clock env)
+let with_clock f = Eio_main.run @@ fun _env -> f (Eio_mock.Clock.Mono.make ())
 
 let buffer () =
   let buf = Buffer.create 64 in
@@ -149,7 +149,7 @@ let test_nested_run_reuses_the_display () =
    disturbed. *)
 let test_second_display_refused () =
   Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Eio_mock.Clock.Mono.make () in
   let _, ppf = buffer () in
   Console_eio.run ~clock ~ppf (fun _ ->
       Eio.Domain_manager.run (Eio.Stdenv.domain_mgr env) (fun () ->

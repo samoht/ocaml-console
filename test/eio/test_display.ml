@@ -13,8 +13,8 @@ module D = Console.Display
 (* Run [f] under a fresh display captured into a string, then return the
    text. *)
 let capture ?summary f =
-  Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.mono_clock env in
+  Eio_main.run @@ fun _env ->
+  let clock = Eio_mock.Clock.Mono.make () in
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Console_eio.run ~clock ~ppf ?summary f;
@@ -316,7 +316,7 @@ let test_long_line_cut () =
    else, whatever the formatter's output raises it with: on an Eio flow, as
    [Eio.Io]. *)
 let test_flow_write_error () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   let closed =
     Eio.Net.err
       (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", "")))
@@ -325,7 +325,7 @@ let test_flow_write_error () =
   List.iter
     (fun progress ->
       let v =
-        Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf ~progress
+        Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf ~progress
           (fun d ->
             D.with_task d "work" (fun task ->
                 D.set_count task ~cur:1 ~total:2;
@@ -388,8 +388,8 @@ module Report_domains = struct
     Eio_main.run @@ fun env ->
     Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 3. (fun () -> f env)
 
-  let run env sink f =
-    Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf:sink.ppf f
+  let run _env sink f =
+    Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf:sink.ppf f
 
   let pool env sw =
     Eio.Executor_pool.create ~sw ~domain_count:1 (Eio.Stdenv.domain_mgr env)

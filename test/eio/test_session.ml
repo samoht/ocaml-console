@@ -334,7 +334,7 @@ let test_concurrent_order () =
   let count = 20 in
   let output = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer output in
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Eio_mock.Clock.Mono.make () in
   Console_eio.run ~clock ~ppf (fun display ->
       let reporter = Logs.reporter () in
       let fibers =
@@ -384,9 +384,9 @@ let test_handler_kept () =
   let before = Sys.signal Sys.sigterm Sys.Signal_default in
   Fun.protect ~finally:(fun () -> Sys.set_signal Sys.sigterm before)
   @@ fun () ->
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   let ppf = Format.formatter_of_buffer (Buffer.create 64) in
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~ppf (fun _ ->
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf (fun _ ->
       Sys.set_signal Sys.sigterm (Sys.Signal_handle mine));
   Alcotest.(check bool)
     "the program's handler" true

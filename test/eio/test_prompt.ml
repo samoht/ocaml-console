@@ -174,10 +174,9 @@ let secret_typed typed =
   in
   let watchdog =
     Domain.spawn (fun () ->
-        let deadline = Unix.gettimeofday () +. 10. in
-        while
-          (not (Atomic.get typed_once)) && Unix.gettimeofday () < deadline
-        do
+        let polls = ref 1000 in
+        while (not (Atomic.get typed_once)) && !polls > 0 do
+          decr polls;
           Unix.sleepf 0.01
         done;
         type_answer ())
@@ -237,10 +236,9 @@ let test_secret_cap () =
     @@ fun () ->
     let typist =
       Domain.spawn (fun () ->
-          let deadline = Unix.gettimeofday () +. 10. in
-          while
-            (Unix.tcgetattr tty).Unix.c_echo && Unix.gettimeofday () < deadline
-          do
+          let polls = ref 1000 in
+          while (Unix.tcgetattr tty).Unix.c_echo && !polls > 0 do
+            decr polls;
             Unix.sleepf 0.01
           done;
           let rec go i =
@@ -297,9 +295,10 @@ let secret_after ~before typed =
   let answered = Atomic.make false in
   let typist =
     Domain.spawn (fun () ->
-        let deadline = Unix.gettimeofday () +. 10. in
+        let polls = ref 200 in
         let masked = ref false in
-        while (not (Atomic.get answered)) && Unix.gettimeofday () < deadline do
+        while (not (Atomic.get answered)) && !polls > 0 do
+          decr polls;
           if !masked then
             ignore (Unix.write_substring master "late\n" 0 5 : int)
           else masked := not (Unix.tcgetattr tty).Unix.c_echo;
@@ -338,9 +337,9 @@ let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
    still its task's: only the prompting fiber writes straight out. Run takes
    the program's output from Fmt.stdout, which writes into a buffer here. *)
 let test_prompt_leaves_other_fibers_attributed () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
-  let clock = Eio.Stdenv.mono_clock env in
+  let clock = Eio_mock.Clock.Mono.make () in
   let source, sink = Eio_unix.pipe sw in
   let questions = Buffer.create 64 in
   let t =

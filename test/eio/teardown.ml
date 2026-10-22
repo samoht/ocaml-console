@@ -25,15 +25,15 @@ let secret env =
 
 (* The program chose no colour itself, as a [--color=never] does, before
    it runs a display. *)
-let colourless env =
+let colourless _env =
   Fmt.set_style_renderer Fmt.stdout `None;
   Fmt.set_style_renderer Fmt.stderr `None;
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       Console.Display.succeed (Console.Display.task display "plain"))
 
 (* Every widget, on standard output once [setup] has looked at the locale,
    then a display with a bar. *)
-let widgets env =
+let widgets _env =
   let open Console in
   Console_tty.setup ();
   let long = Span.text (String.concat " " (List.init 20 (Fun.const "word"))) in
@@ -49,23 +49,23 @@ let widgets env =
     (Tree.v long [ Tree.v long [ leaf ]; leaf ])
     Rule.pp (Rule.v ~label:long ()) Bar.pp
     (Bar.v ~brackets:true ~width:10 0.55);
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       let task = Display.task display "counting" in
       Display.set_count task ~cur:1 ~total:3;
       Display.redraw display;
       Display.succeed task)
 
 (* The program chose a theme, and no colour, before the display. *)
-let themed env =
+let themed _env =
   Console.Theme.set Fmt.stderr Console.Theme.nord;
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       Console.Display.succeed (Console.Display.task display "themed"))
 
 (* A task's output, a line on each standard output, one within the root task
    and a Logs message from a fiber the task forked; with [fails], the task
    fails. *)
-let logs ~fails env =
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+let logs ~fails _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       Console.Display.with_task display "work" (fun task ->
           Console.Display.log task "an output line";
           Fmt.pr "a result line@.";
@@ -77,8 +77,8 @@ let logs ~fails env =
             Eio.Fiber.yield;
           if fails then Console.Display.fail task))
 
-let suspend env =
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+let suspend _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       let task = Console.Display.task display "pausing" in
       Console.Display.redraw display;
       Unix.kill (Unix.getpid ()) Sys.sigtstp;
@@ -89,8 +89,8 @@ let suspend env =
 (* Lines printed outside a task and never flushed, then a mark written
    straight to the terminal: what came out before the mark is what the
    display did not hold back. *)
-let unflushed env =
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun _ ->
+let unflushed _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun _ ->
       for i = 1 to 100_000 do
         Fmt.pr "line %06d\n" i
       done;
@@ -99,17 +99,17 @@ let unflushed env =
 (* A whole line outside a task, long enough that the formatter writes it,
    waits for a flush; the task's line that comes next must not take it
    along. *)
-let held env =
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) (fun display ->
+let held _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun display ->
       Fmt.pr "a held line %s\n" (String.make 100 '.');
       Console.Display.with_task display "work" (fun task ->
           Fmt.pr "a task line@.";
           Console.Display.fail task))
 
 (* Quiet mode keeps terminal output only for a failed or cancelled task. *)
-let quiet ending env =
+let quiet ending _env =
   Logs.set_level (Some Logs.Info);
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env)
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ())
     ~progress:`Quiet ~summary:"quiet header" (fun display ->
       Console.Display.with_task display "quiet work" (fun task ->
           Console.Display.log task "display line";
@@ -123,8 +123,8 @@ let quiet ending env =
       Console.Display.within (Console.Display.root display) (fun () ->
           Fmt.pr "root line@."))
 
-let display env =
-  let clock = Eio.Stdenv.mono_clock env in
+let display _env =
+  let clock = Eio_mock.Clock.Mono.make () in
   let run () =
     Console_eio.run ~clock (fun display ->
         let task = Console.Display.task display "pushing" in

@@ -5,7 +5,16 @@
 (executable
  (name teardown)
  (modules teardown)
- (libraries console console.tty console-eio eio eio_main fmt logs unix))
+ (libraries
+  console
+  console.tty
+  console-eio
+  eio
+  eio.mock
+  eio_main
+  fmt
+  logs
+  unix))
 
 ; Runs a program on a terminal and prints the screen it leaves, for the
 ; cram tests.
