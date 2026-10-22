@@ -39,7 +39,7 @@ let write_now t s =
     let out = Format.pp_get_formatter_out_functions t.ppf () in
     out.out_string s 0 (String.length s);
     out.out_flush ()
-  with Sys_error _ -> ()
+  with e when write_error t e -> ()
 
 (* The output functions of [ppf] may yield to another fiber (an Eio flow)
    in the middle of a write: what is written meanwhile waits in [writes],
@@ -50,7 +50,7 @@ let write t s =
     (try
        flush_stdout t;
        Format.pp_print_flush t.ppf ()
-     with Sys_error _ -> ());
+     with e when write_error t e -> ());
     Queue.add s t.writes
   end;
   if not t.writing then begin

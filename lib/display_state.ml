@@ -68,6 +68,7 @@ and scope = {
   current : unit -> row option;
   within : row -> (unit -> unit) -> unit;
   cancelled : exn -> bool;
+  write_error : exn -> bool;
 }
 
 and row = {
@@ -103,6 +104,7 @@ let pp ppf t =
 (* On a wide terminal, a count or a timer at the right edge is far from
    its label. *)
 let room t = min t.width 100
+let write_error t = function Sys_error _ -> true | e -> t.scope.write_error e
 let is_live t = Option.is_some t.size
 
 let is_plain t =

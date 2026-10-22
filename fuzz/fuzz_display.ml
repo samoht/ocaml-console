@@ -771,6 +771,7 @@ let scope current =
       current := Some task;
       Fun.protect f ~finally:(fun () -> current := saved))
     ~cancelled:(fun _ -> false)
+    ~write_error:(fun _ -> false)
 
 (* A task of the model, started on [d] under [parent]. *)
 let new_task d parent name window_size =

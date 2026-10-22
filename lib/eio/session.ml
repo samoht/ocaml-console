@@ -84,6 +84,7 @@ let scope =
     ~current:(fun () -> Eio.Fiber.get task)
     ~within:(fun t f -> Eio.Fiber.with_binding task t f)
     ~cancelled:(function Eio.Cancel.Cancelled _ -> true | _ -> false)
+    ~write_error:(function Eio.Io _ -> true | _ -> false)
 
 let claim () =
   Lazy.force at_exit;

@@ -14,18 +14,24 @@
     the display's terminal ({!current}). *)
 
 type scope
-(** The type for the ways to tell which task is current. *)
+(** The type for what a display knows of its scheduler: which task is current,
+    and what its exceptions mean. *)
 
 val scope :
   current:(unit -> Display.task option) ->
   within:(Display.task -> (unit -> unit) -> unit) ->
   cancelled:(exn -> bool) ->
+  write_error:(exn -> bool) ->
   scope
-(** [scope ~current ~within ~cancelled] is the scope in which [current ()] is
-    the task current where it is called, [within task f] calls [f] with [task]
-    current there and in what [f] starts, and [cancelled e] is [true] iff [e]
-    says that the fiber raising it was cancelled: a {!Display.with_task} whose
-    function raises it cancels its task rather than failing it. *)
+(** [scope ~current ~within ~cancelled ~write_error] is the scope in which:
+    - [current ()] is the task current where it is called;
+    - [within task f] calls [f] with [task] current there and in what [f]
+      starts;
+    - [cancelled e] is [true] iff [e] says that the fiber raising it was
+      cancelled: a {!Display.with_task} whose function raises it cancels its
+      task rather than failing it;
+    - [write_error e] is [true] iff [e] is a write error of an output, such as a
+      closed pipe, which ends the display's output as [Sys_error] does. *)
 
 val v :
   ?layout:Display.Layout.t ->

@@ -81,6 +81,7 @@ let test_scope () =
         current := Some task;
         Fun.protect f ~finally:(fun () -> current := saved))
       ~cancelled:(fun _ -> false)
+      ~write_error:(fun _ -> false)
   in
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in

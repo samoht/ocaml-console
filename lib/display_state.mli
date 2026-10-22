@@ -80,6 +80,7 @@ and scope = {
   current : unit -> row option;
   within : row -> (unit -> unit) -> unit;
   cancelled : exn -> bool;
+  write_error : exn -> bool;
 }
 
 and row = {
@@ -127,6 +128,10 @@ val pp : t Fmt.t
 val room : t -> int
 (** [room t] is the width the rows of [t] are laid out in: the terminal's, at
     most 100 columns. *)
+
+val write_error : t -> exn -> bool
+(** [write_error t e] is [true] iff [e] is a write error on the output of [t]: a
+    [Sys_error], or one that the scope of [t] says is. *)
 
 val is_live : t -> bool
 (** [is_live t] is [true] iff [t] draws a region on a terminal. *)

@@ -25,6 +25,7 @@ val scope :
   current:(unit -> task option) ->
   within:(task -> (unit -> unit) -> unit) ->
   cancelled:(exn -> bool) ->
+  write_error:(exn -> bool) ->
   scope
 (** See {!Display_driver.scope}. *)
 

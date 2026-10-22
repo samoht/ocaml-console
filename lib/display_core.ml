@@ -11,7 +11,8 @@ type task = row
 type nonrec scope = scope
 type nonrec level = level
 
-let scope ~current ~within ~cancelled = { current; within; cancelled }
+let scope ~current ~within ~cancelled ~write_error =
+  { current; within; cancelled; write_error }
 
 (* Without a driver, the current task is that of the innermost [with_task]
    that runs. *)
@@ -25,6 +26,7 @@ let local () =
         stack := r :: saved;
         Fun.protect f ~finally:(fun () -> stack := saved));
     cancelled = (fun _ -> false);
+    write_error = (fun _ -> false);
   }
 
 let pp = Display_state.pp
@@ -154,7 +156,7 @@ let end_line t (out : Format.formatter_out_functions) last =
       out.out_string eol 0 (String.length eol);
       out.out_flush ()
     end
-  with Sys_error _ -> ()
+  with e when write_error t e -> ()
 
 (* What [f] writes is the output of no task, as events. *)
 let events t f =
