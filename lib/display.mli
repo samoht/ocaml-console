@@ -21,6 +21,9 @@
     Each of these lines starts on a line of its own, after a line feed when what
     the program wrote on the same formatter did not end its line.
 
+    The {{!design}design} of the display and the {{!guarantees}guarantees} it
+    keeps on a terminal close this page.
+
     [Console_eio.run] opens a display, passes it to a function and closes it
     when the function returns, which is all that most programs need:
 
@@ -82,95 +85,7 @@
     The lines a display prints start with a mark ({!Theme.val-mark}) that says
     what they are: how a task ended, a line of a task's output, or the level of
     a [Logs] message. In the summary, the mark says whether work is still
-    running and how it ended.
-
-    {1:design Design}
-
-    On a terminal, a display writes in two places: the {e scrollback}, where a
-    line is printed once and never rewritten, and the {e region} below it, which
-    it redraws in place. The region is a {e view} ({!views}): a span the program
-    may put together from the display's parts, a tree of tasks ({!tree}) and the
-    summary line ({!summary}), and any other span, such as a {!Table.to_span}.
-    The default view is the tree of every top task, then the summary.
-
-    - The summary is the last line of the default view, so the line that says
-      how far the work is stays where the eye left it, below the rows, and it is
-      the last line printed when the display closes, after all it counts.
-    - A task that ends stays in the region, marked as it ended, under its
-      parent, while its top task runs.
-    - When a top task ends, it moves to the scrollback with every task under it,
-      as its tree: each task once, under its parent, in the order they started,
-      and a task that failed or was cancelled followed by its output. Work moves
-      by top task so that a task never lands above its parent and the tasks of
-      one top task stay together, however their endings interleave.
-    - With [keep_ended] ({!v}), no task moves: the tasks that ended stay in the
-      region until the display closes, as in a view of trees side by side, where
-      a column should not empty while the others run.
-    - Output outside any task goes to the scrollback at once, above the region
-      ({!output}).
-    - In the region, only running rows, their windows and the summary change: a
-      task that ended keeps its line as it ended until it leaves the region, or
-      folds to fit.
-    - The region is never taller than the terminal less one row, so a redraw
-      never scrolls the terminal: a view taller than that loses its first lines,
-      and a summary at its bottom stays. A widget, such as a table or a panel,
-      that this would cut in its height loses all its lines, so that no fragment
-      of its frame shows, in a {!Span.hcat} too.
-    - A tree too tall for its height first folds the tasks that ended under each
-      task into one line, such as [12 done, 2 failed] after the mark of the
-      worst ending among them, then the lines of its windows give way, the
-      oldest of them first, whichever task's window holds it, then only its
-      latest running tasks show, after a line such as [… 3 more running].
-    - At close, the tasks still running are cancelled and move as above, then
-      the view's last frame is printed once, still, and stays ({!type-view}):
-      the summary alone in the default view.
-    - The tasks that wait in the region under a task are bounded: past 1 MiB,
-      the oldest are dropped, and a line counts them. Each weighs at most its
-      output, 1 MiB, and three texts of 4 KiB ({!output}).
-
-    Without a terminal there is no region. The tasks print the lines of
-    {!Progress}: one line when a task starts and one when it ends, in the order
-    they happen, and at close the view's last frame comes last, once: the
-    summary alone in the default view, since every task has printed its lines. A
-    terminal's scrollback keeps one line for each task instead, in the order of
-    its tree, with the tree's guides.
-
-    The lines of tasks that run at once interleave on a pipe, so no line is
-    placed by its indentation: each line a task prints, as it starts, as it ends
-    and before each line of its output, names the task by its {e path}, the
-    labels from its top task down to it, such as [linux > compile] with a single
-    right-pointing angle quotation mark, U+203A, in UTF-8. The lines of tasks
-    start at the first column, and a line of output two columns in. With
-    [`Quiet], the line of a failure names its path too, and its output follows
-    it, two columns in.
-
-    {1:guarantees Guarantees}
-
-    On a terminal of [w] columns and [h] rows:
-    - No line the display draws in its region is wider than [w], so none wraps.
-      The region is never taller than [h - 1] lines.
-    - The region starts at the first column of a row of its own, below any line
-      the program left unended before the display started.
-    - Each change is written in one piece, as one synchronized update (mode
-      2026), which a terminal that supports it shows whole. The region is never
-      shown half erased or half drawn, and only its rows change between two of
-      its frames. On a pipe no such escape is written.
-    - A redraw that would change nothing writes nothing.
-    - A label cut to fit is cut between two characters, never inside an escape
-      code, and it ends with an ellipsis that turns its style off.
-    - While no piece gives way ({!Layout}), the counts, rates and timers of all
-      rows sit in the same columns, whatever the width of the labels: at the
-      right edge of the first [min w 100] columns. On a wide terminal they stay
-      near their labels, and they do not move when the terminal is resized
-      wider.
-    - After a resize the old frame is erased, counting the rows that a terminal
-      which reflows its lines gives it. On one that does not reflow, such as
-      xterm or GNU screen, a narrowing below the width of the old lines also
-      erases the lines above the region that a reflow would have filled.
-    - The cursor is hidden while the display runs, and shown again when it
-      closes.
-    - Every line the display prints ends with ["\r\n"], so a tty with output
-      processing off shows the same screen as one with it on. *)
+    running and how it ended. *)
 
 (** {1:layout Row layout} *)
 
@@ -581,3 +496,91 @@ val summary : ?width:int -> t -> Span.t
       and summary = Display.summary ~width:(width - 12) display in
       Span.(vcat [ tree; summary ++ text "  3 warnings" ])
     ]} *)
+
+(** {1:design Design}
+
+    On a terminal, a display writes in two places: the {e scrollback}, where a
+    line is printed once and never rewritten, and the {e region} below it, which
+    it redraws in place. The region is a {e view} ({!views}): a span the program
+    may put together from the display's parts, a tree of tasks ({!tree}) and the
+    summary line ({!summary}), and any other span, such as a {!Table.to_span}.
+    The default view is the tree of every top task, then the summary.
+
+    - The summary is the last line of the default view, so the line that says
+      how far the work is stays where the eye left it, below the rows, and it is
+      the last line printed when the display closes, after all it counts.
+    - A task that ends stays in the region, marked as it ended, under its
+      parent, while its top task runs.
+    - When a top task ends, it moves to the scrollback with every task under it,
+      as its tree: each task once, under its parent, in the order they started,
+      and a task that failed or was cancelled followed by its output. Work moves
+      by top task so that a task never lands above its parent and the tasks of
+      one top task stay together, however their endings interleave.
+    - With [keep_ended] ({!v}), no task moves: the tasks that ended stay in the
+      region until the display closes, as in a view of trees side by side, where
+      a column should not empty while the others run.
+    - Output outside any task goes to the scrollback at once, above the region
+      ({!output}).
+    - In the default view, only running rows, their windows and the summary
+      change: a task that ended keeps its line as it ended until it leaves the
+      region, or folds to fit.
+    - The region is never taller than the terminal less one row, so a redraw
+      never scrolls the terminal: a view taller than that loses its first lines,
+      and a summary at its bottom stays. A widget, such as a table or a panel,
+      that this would cut in its height loses all its lines, so that no fragment
+      of its frame shows, in a {!Span.hcat} too.
+    - A tree too tall for its height first folds the tasks that ended under each
+      task into one line, such as [12 done, 2 failed] after the mark of the
+      worst ending among them, then the lines of its windows give way, the
+      oldest of them first, whichever task's window holds it, then only its
+      latest running tasks show, after a line such as [3 more running].
+    - At close, the tasks still running are cancelled and move as above, then
+      the view's last frame is printed once, still, and stays ({!type-view}):
+      the summary alone in the default view.
+    - The tasks that wait in the region under a task are bounded: past 1 MiB,
+      the oldest are dropped, and a line counts them. Each weighs at most its
+      output, 1 MiB, and three texts of 4 KiB ({!output}).
+
+    Without a terminal there is no region. The tasks print the lines of
+    {!Progress}: one line when a task starts and one when it ends, in the order
+    they happen, and at close the view's last frame comes last, once: the
+    summary alone in the default view, since every task has printed its lines. A
+    terminal's scrollback keeps one line for each task instead, in the order of
+    its tree, with the tree's guides.
+
+    The lines of tasks that run at once interleave on a pipe, so no line is
+    placed by its indentation: each line a task prints, as it starts, as it ends
+    and before each line of its output, names the task by its {e path}, the
+    labels from its top task down to it, such as [linux > compile] with a single
+    right-pointing angle quotation mark, U+203A, in UTF-8. The lines of tasks
+    start at the first column, and a line of output two columns in. With
+    [`Quiet], the line of a failure names its path too, and its output follows
+    it, two columns in.
+
+    {1:guarantees Guarantees}
+
+    On a terminal of [w] columns and [h] rows:
+    - No line the display draws in its region is wider than [w], so none wraps.
+      The region is never taller than [h - 1] lines.
+    - The region starts at the first column of a row of its own, below any line
+      the program left unended before the display started.
+    - Each change is written in one piece, as one synchronized update (mode
+      2026), which a terminal that supports it shows whole. The region is never
+      shown half erased or half drawn, and only its rows change between two of
+      its frames. On a pipe no such escape is written.
+    - A redraw that would change nothing writes nothing.
+    - A label cut to fit is cut between two characters, never inside an escape
+      code, and it ends with an ellipsis that turns its style off.
+    - While no piece gives way ({!Layout}), the counts, rates and timers of all
+      rows sit in the same columns, whatever the width of the labels: at the
+      right edge of the first [min w 100] columns. On a wide terminal they stay
+      near their labels, and they do not move when the terminal is resized
+      wider.
+    - After a resize the old frame is erased, counting the rows that a terminal
+      which reflows its lines gives it. On one that does not reflow, such as
+      xterm or GNU screen, a narrowing below the width of the old lines also
+      erases the lines above the region that a reflow would have filled.
+    - The cursor is hidden while the display runs, and shown again when it
+      closes.
+    - Every line the display prints ends with ["\r\n"], so a tty with output
+      processing off shows the same screen as one with it on. *)
