@@ -27,7 +27,7 @@ depends: [
   "cmdliner" {with-test}
   "cstruct" {with-test}
   "eio_main" {with-test}
-  "alcobar" {with-test}
+  "alcobar" {with-test & >= "0.3.2"}
   "yojson" {with-test}
   "odoc" {with-doc}
 ]

@@ -21,7 +21,7 @@ depends: [
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}
-  "alcobar" {with-test}
+  "alcobar" {with-test & >= "0.3.2"}
   "re" {with-test}
   "yojson" {with-test}
   "odoc" {with-doc}

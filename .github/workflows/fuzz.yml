@@ -8,6 +8,9 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   VHS_PIN: https://github.com/samoht/ocaml-vhs.git#71185e0410646fea6beb9f6a46f5f026456eaf77
 

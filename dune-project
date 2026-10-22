@@ -31,7 +31,7 @@
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
-  (alcobar :with-test)
+  (alcobar (and :with-test (>= 0.3.2)))
   (re :with-test)
   (yojson :with-test)))
 
@@ -58,5 +58,5 @@
   (cmdliner :with-test)
   (cstruct :with-test)
   (eio_main :with-test)
-  (alcobar :with-test)
+  (alcobar (and :with-test (>= 0.3.2)))
   (yojson :with-test)))

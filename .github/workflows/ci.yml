@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 # merlint is pinned at one commit, so that the lint job checks every commit
 # with the same merlint.
 # The tape examples need vhs, which is not in opam-repository yet. Pinning it
