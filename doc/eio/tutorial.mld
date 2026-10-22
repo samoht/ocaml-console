@@ -157,15 +157,16 @@ results above the rows, for instance, filled in as the suites run, which
 stays once they are done:
 
 {@ocaml[
-let with_table ~results display ~width ~height =
+let with_table ~table display ~width ~height =
   Console.Span.vcat
     [
-      Console.Table.to_span ~width:(min width 100) (results ());
+      Console.Table.to_span ~width:(min width 100) (table ());
       Console.Display.default_view display ~width ~height;
     ]
 ]}
 
-[Console_eio.run ~view:(with_table ~results)] draws it. The display draws
+[Console_eio.run ~view:(with_table ~table)] draws it, with [table] a
+function that gives the table of the results so far. The display draws
 the last lines of the view that fit on the terminal, so the table gives way
 before the rows.
 
