@@ -4,5 +4,5 @@
   ---------------------------------------------------------------------------*)
 
 let sgr depth (style : Color.t Sgr.style) =
-  let down = Option.map (Color.downsample depth) in
+  let down = Option.map (fun c -> (Color.downsample depth c :> Sgr.color)) in
   Sgr.start { style with fg = down style.fg; bg = down style.bg }

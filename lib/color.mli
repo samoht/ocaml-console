@@ -13,7 +13,7 @@
 
 (** {1:colours Colours} *)
 
-type t = Sgr.color
+type t = private Sgr.color
 (** The type for terminal colours. *)
 
 val rgb : int -> int -> int -> t

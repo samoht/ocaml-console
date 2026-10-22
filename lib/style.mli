@@ -10,7 +10,7 @@
 
 (** {1:styles Styles} *)
 
-type t = Color.t Sgr.style
+type t = private Color.t Sgr.style
 (** The type for styles. *)
 
 val none : t
