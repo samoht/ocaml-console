@@ -48,52 +48,6 @@ module Event = struct
     detail : string option;
   }
 
-  (* An open enumeration: the known values, then any other string. *)
-  type 'a enum = { of_string : string -> 'a; to_string : 'a -> string }
-
-  let open_enum known =
-    let of_string s =
-      match List.assoc_opt s known with Some v -> v | None -> `Other s
-    in
-    let to_string v =
-      match v with
-      | `Other s -> s
-      | v -> fst (List.find (fun (_, v') -> v' = v) known)
-    in
-    { of_string; to_string }
-
-  let kinds : kind enum =
-    open_enum
-      [
-        ("start", `Start);
-        ("progress", `Progress);
-        ("label", `Label);
-        ("output", `Output);
-        ("end", `End);
-        ("result", `Result);
-      ]
-
-  let count_units : count_unit enum =
-    open_enum [ ("items", `Items); ("bytes", `Bytes) ]
-
-  let levels : level enum =
-    open_enum
-      [
-        ("app", `App);
-        ("error", `Error);
-        ("warning", `Warning);
-        ("info", `Info);
-        ("debug", `Debug);
-      ]
-
-  let statuses : status enum =
-    open_enum
-      [
-        ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
-      ]
-
-  let outcomes : outcome enum = open_enum [ ("ok", `Ok); ("error", `Error) ]
-
   (* Every number is written with 15 significant digits, the most that a
      float holds exactly: then a time rounded to the millisecond is written
      as short as it can be, 1.5 or 0, and an integer exactly below 10^15.
@@ -165,7 +119,63 @@ module Event = struct
       Buffer.contents buf
 
   let utf_8 = Jsont.map Jsont.string ~dec:Fun.id ~enc:clean
-  let other_text = function `Other s -> `Other (clean s) | v -> v
+
+  (* An open enumeration: the known values, then any other string. *)
+  type 'a enum = {
+    of_string : string -> 'a;
+    to_string : 'a -> string;
+    other : string -> 'a -> 'a;
+  }
+
+  let open_enum known =
+    let of_string s =
+      match List.assoc_opt s known with Some v -> v | None -> `Other s
+    in
+    let to_string v =
+      match v with
+      | `Other s -> s
+      | v -> fst (List.find (fun (_, v') -> v' = v) known)
+    in
+    (* [`Other s] with [s] listed would read back as the listed value. *)
+    let other what = function
+      | `Other s when List.mem_assoc s known ->
+          Fmt.invalid_arg "Console.Progress.Event: %s %S is listed" what s
+      | `Other s -> `Other (clean s)
+      | v -> v
+    in
+    { of_string; to_string; other }
+
+  let kinds : kind enum =
+    open_enum
+      [
+        ("start", `Start);
+        ("progress", `Progress);
+        ("label", `Label);
+        ("output", `Output);
+        ("end", `End);
+        ("result", `Result);
+      ]
+
+  let count_units : count_unit enum =
+    open_enum [ ("items", `Items); ("bytes", `Bytes) ]
+
+  let levels : level enum =
+    open_enum
+      [
+        ("app", `App);
+        ("error", `Error);
+        ("warning", `Warning);
+        ("info", `Info);
+        ("debug", `Debug);
+      ]
+
+  let statuses : status enum =
+    open_enum
+      [
+        ("succeeded", `Succeeded); ("failed", `Failed); ("cancelled", `Cancelled);
+      ]
+
+  let outcomes : outcome enum = open_enum [ ("ok", `Ok); ("error", `Error) ]
 
   let event ?id ?task ~time kind =
     {
@@ -193,7 +203,7 @@ module Event = struct
       (event ~id ~task ~time `Progress) with
       count = Some count;
       total = Some total;
-      unit = Some (other_text unit);
+      unit = Some (count_units.other "unit" unit);
     }
 
   let label ~time ~id ~text task =
@@ -203,13 +213,13 @@ module Event = struct
     {
       (event ?id ~task ~time `Output) with
       text = Some (clean text);
-      level = Option.map other_text level;
+      level = Option.map (levels.other "level") level;
     }
 
   let end' ?text ~time ~id ~status ~elapsed task =
     {
       (event ~id ~task ~time `End) with
-      status = Some (other_text status);
+      status = Some (statuses.other "status" status);
       elapsed = Some (to_seconds elapsed);
       text = Option.map clean text;
     }
@@ -217,12 +227,12 @@ module Event = struct
   let result ?detail ~time ~outcome text =
     {
       (event ~time `Result) with
-      outcome = Some (other_text outcome);
+      outcome = Some (outcomes.other "outcome" outcome);
       text = Some (clean text);
       detail = Option.map clean detail;
     }
 
-  let other ~time name = event ~time (`Other (clean name))
+  let other ~time name = event ~time (kinds.other "event" (`Other name))
   let time e = e.time
   let kind e = e.kind
   let id e = e.id
