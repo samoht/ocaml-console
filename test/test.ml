@@ -21,6 +21,7 @@ let () =
       Test_slot.suite;
       Test_spinner.suite;
       Test_display.suite;
+      Test_layout.suite;
       Test_display_driver.suite;
       Test_console.suite;
       Test_console_vte.suite;

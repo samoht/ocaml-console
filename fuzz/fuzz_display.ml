@@ -1181,6 +1181,139 @@ let test_theme_switch old_index next_index n =
   check (Console_vte.cursor_visible actual);
   check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos actual))
 
+(* {1 The scrollback and the region}
+
+   Random trees of tasks, ended in a random order: a model says, for each
+   task, the tasks it moves to the scrollback with. *)
+
+type ttask = {
+  tk : Display.task;
+  tname : string;
+  tparent : ttask option;
+  mutable tkids : ttask list;  (** Newest first. *)
+  mutable ended : bool;
+  mutable moved : bool;
+}
+
+let rec top x = match x.tparent with None -> x | Some p -> top p
+let rec preorder x = x.tname :: List.concat_map preorder (List.rev x.tkids)
+
+let rec end_model x =
+  if not x.ended then begin
+    List.iter end_model x.tkids;
+    x.ended <- true
+  end
+
+type tree_step = Start of int option | Stop of int * int | Note of int | Wait
+
+let tree_step =
+  choose
+    [
+      map [ option uint8 ] (fun p -> Start p);
+      map [ uint8; uint8 ] (fun i o -> Stop (i, o));
+      map [ uint8 ] (fun i -> Note i);
+      const Wait;
+    ]
+
+let pp_tree_step ppf = function
+  | Start p -> Fmt.pf ppf "start %a" Fmt.(option int) p
+  | Stop (i, o) -> Fmt.pf ppf "stop %d %d" i o
+  | Note i -> Fmt.pf ppf "note %d" i
+  | Wait -> Fmt.string ppf "wait"
+
+let tree_step = with_printer pp_tree_step tree_step
+
+(* Runs [steps] on [d]: the tasks, and the groups of names, in the order
+   they move to the scrollback, unless [keep]. [frame] is called after each
+   step. *)
+let run_tree ?(keep = false) d ~frame steps =
+  let tasks = ref [||] and moves = ref [] in
+  let pick i =
+    let n = Array.length !tasks in
+    if n = 0 then None else Some !tasks.(i mod n)
+  in
+  let move x =
+    if not x.moved then begin
+      x.moved <- true;
+      moves := preorder x :: !moves
+    end
+  in
+  List.iter
+    (fun step ->
+      (match step with
+      | Start p when Array.length !tasks < 16 ->
+          let tparent = Option.bind p pick in
+          let tname = Fmt.str "n%02d" (Array.length !tasks) in
+          let tk =
+            Display.task ?parent:(Option.map (fun p -> p.tk) tparent) d tname
+          in
+          let x =
+            { tk; tname; tparent; tkids = []; ended = false; moved = false }
+          in
+          (match tparent with
+          | Some p when keep || not (top p).moved -> p.tkids <- x :: p.tkids
+          | Some _ ->
+              (* Under a tree already in the scrollback: alone. *)
+              x.ended <- true;
+              moves := [ tname ] :: !moves;
+              x.moved <- true
+          | None -> ());
+          (match tparent with
+          | Some p when p.ended && not x.moved -> x.ended <- true
+          | _ -> ());
+          tasks := Array.append !tasks [| x |]
+      | Start _ | Wait -> ()
+      | Stop (i, o) ->
+          Option.iter
+            (fun x ->
+              finish x.tk o;
+              end_model x;
+              if x.tparent = None && not keep then move x)
+            (pick i)
+      | Note i -> Option.iter (fun x -> Display.log x.tk "note") (pick i));
+      frame ())
+    steps;
+  (!tasks, moves)
+
+let names_in line tasks =
+  List.filter (fun x -> has x.tname line) (Array.to_list tasks)
+
+(* Every frame has the summary last, no redraw scrolls the terminal, and at
+   close the scrollback lists every task once, each
+   top task's tree whole, in the order of the tree: its tasks under it, in
+   the order they started. *)
+let test_scrollback_tree steps h =
+  let height = 6 + (h mod 15) and width = 80 in
+  let t = terminal ~width ~height ~styled:false () in
+  let d = display t in
+  let frame () =
+    let before = Console_vte.scrollback_size t.vte in
+    Display.redraw d;
+    if Console_vte.scrollback_size t.vte <> before then
+      fail "a redraw scrolled the terminal";
+    let rows = List.filter (( <> ) "") (screen t.vte) in
+    match List.rev rows with
+    | last :: _ when has header last -> ()
+    | _ -> failf "the summary is not last:@.%a" Fmt.(list ~sep:cut string) rows
+  in
+  let tasks, moves = run_tree d ~frame steps in
+  Display.close d;
+  (* Closing moves the trees still running, in the order they started. *)
+  Array.iter
+    (fun x ->
+      if x.tparent = None && not x.moved then begin
+        x.moved <- true;
+        moves := preorder x :: !moves
+      end)
+    tasks;
+  let lines = Console_vte.scrollback_lines t.vte @ screen t.vte in
+  let seen =
+    List.concat_map
+      (fun l -> List.map (fun x -> x.tname) (names_in l tasks))
+      lines
+  in
+  check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
+
 let suite =
   ( "display",
     [
@@ -1188,6 +1321,9 @@ let suite =
         [ uint8; uint8; uint8 ] test_theme_switch;
       test_case "a running parent releases completed children" [ uint8; bool ]
         test_finished_children_heap;
+      test_case "the scrollback keeps every tree whole, in its order"
+        [ list tree_step; uint8 ]
+        test_scrollback_tree;
       test_case "scene exceptions leave the terminal usable"
         [ uint8; uint8; bool ] test_scene_exception_close;
       test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]

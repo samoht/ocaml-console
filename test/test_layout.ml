@@ -1,0 +1,234 @@
+(*---------------------------------------------------------------------------
+  Copyright (c) 2026 Thomas Gazagnaire. All rights reserved.
+  SPDX-License-Identifier: ISC
+  ---------------------------------------------------------------------------*)
+
+(* The region and the scrollback on a terminal: the summary last in every
+   frame, a top task's tree moved whole when it ends, and a region that
+   never scrolls the terminal. *)
+
+open Console
+open Display_harness
+
+let check_lines msg expected actual =
+  Alcotest.(check (list string)) msg expected actual
+
+(* [squeeze l] is [l] with each run of spaces one space. *)
+let squeeze = Re.replace_string (Re.Perl.compile_pat " +") ~by:" "
+
+(* [untimed l] is [l] without the timer at its end. *)
+let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
+
+let last_row t =
+  match List.rev (List.filter (( <> ) "") (screen t)) with
+  | r :: _ -> r
+  | [] -> ""
+
+(* The summary is the last line of the region in every frame, whatever
+   starts, ends or is printed, and the last line printed at close. *)
+let test_summary_last () =
+  let t = terminal ~width:40 ~height:10 ~header:"Build" () in
+  let d = t.display in
+  let check what =
+    Display.redraw d;
+    if not (contains "Build" (last_row t)) then
+      Alcotest.failf "%s: the last row is %S" what (last_row t)
+  in
+  check "no task";
+  let a = Display.task ~log_lines:2 d "a" in
+  check "a task";
+  let b = Display.task ~parent:a d "b" in
+  check "a child";
+  Display.log a "one";
+  check "a line of output";
+  Display.log (Display.root d) "outside";
+  check "a line outside any task";
+  Display.with_output d (fun ppf -> Fmt.pf ppf "printed@.");
+  check "a line printed past the display";
+  Display.succeed b;
+  check "the child ended";
+  let c = Display.task d "c" in
+  Display.succeed a;
+  check "a top task ended";
+  Display.fail c;
+  check "the last task ended";
+  Display.close d;
+  Alcotest.(check bool)
+    "the last line printed" true
+    (match List.rev (lines t) with
+    | l :: _ -> contains "\u{2717} Build" l
+    | [] -> false)
+
+(* The tasks of the example: a step with a layer under it, which ends
+   first. The layer waits in the region under its step, then goes to the
+   scrollback with it, under it, and the summary is last. *)
+let test_tree_moves () =
+  let t = terminal ~width:60 ~height:10 ~header:"Building" () in
+  let d = t.display in
+  let step = Display.task d "RUN make" in
+  let layer = Display.task ~parent:step d "sha256:abcd..." in
+  Display.set_count step ~cur:5 ~total:5;
+  Display.succeed layer;
+  Display.redraw d;
+  Alcotest.(check int)
+    "nothing in the scrollback yet" 0
+    (Console_vte.scrollback_size t.vte);
+  let bar = String.concat "" (List.init 12 (fun _ -> "\u{2501}")) in
+  check_lines "the layer waits under its step"
+    [
+      "\u{280b} RUN make " ^ bar ^ " 5/5 0.0s";
+      " \u{2514}\u{2500}\u{2500} \u{2713} sha256:abcd... 0.0s";
+      "\u{2022} Building 0.0s (1/2)";
+    ]
+    (List.map squeeze (screen t));
+  Display.succeed step;
+  Display.close d;
+  check_lines "the step, its layer under it, the summary last"
+    [
+      "\u{2713} RUN make 5/5 0.0s";
+      " \u{2514}\u{2500}\u{2500} \u{2713} sha256:abcd... 0.0s";
+      "\u{2713} Building 0.0s (2/2)";
+    ]
+    (List.map squeeze (lines t))
+
+(* Three levels, the endings interleaved: a top task moves whole when it
+   ends, after the top tasks that ended before it, each in the order of its
+   tree. *)
+let test_three_levels () =
+  let t = terminal ~width:40 ~height:12 ~header:"S" () in
+  let d = t.display in
+  let a = Display.task d "a" in
+  let b = Display.task ~parent:a d "b" in
+  let c = Display.task ~parent:b d "c" in
+  let e = Display.task d "e" in
+  let f = Display.task ~parent:e d "f" in
+  let a2 = Display.task ~parent:a d "a2" in
+  Display.succeed c;
+  Display.fail f;
+  Display.succeed e;
+  Display.succeed a2;
+  Display.redraw d;
+  check_lines "e moved whole, a waits"
+    [ "\u{2713} e"; "  \u{2514}\u{2500}\u{2500} \u{2717} f" ]
+    (List.filteri (fun i _ -> i < 2) (List.map untimed (screen t)));
+  Display.succeed b;
+  Display.succeed a;
+  Display.close d;
+  check_lines "each top task in the order of its tree"
+    [
+      "\u{2713} e";
+      "  \u{2514}\u{2500}\u{2500} \u{2717} f";
+      "\u{2713} a";
+      "  \u{251c}\u{2500}\u{2500} \u{2713} b";
+      "  \u{2502}   \u{2514}\u{2500}\u{2500} \u{2713} c";
+      "  \u{2514}\u{2500}\u{2500} \u{2713} a2";
+      "\u{2717} S 0.0s (6/6)";
+    ]
+    (List.map untimed (lines t))
+
+(* A child that fails keeps its output, under its own line, in its place
+   in the tree. *)
+let test_failed_child_in_place () =
+  let t = terminal ~width:40 ~height:12 () in
+  let d = t.display in
+  let a = Display.task d "a" in
+  let b = Display.task ~log_lines:1 ~parent:a d "b" in
+  let c = Display.task ~parent:a d "c" in
+  Display.log b "b1";
+  Display.log b "b2";
+  Display.fail b;
+  Display.succeed c;
+  Display.succeed a;
+  Display.close d;
+  check_lines "b's lines under b, c after them"
+    [
+      "\u{2713} a";
+      "  \u{251c}\u{2500}\u{2500} \u{2717} b";
+      "  \u{2502}   \u{203a} b1";
+      "  \u{2502}   \u{203a} b2";
+      "  \u{2514}\u{2500}\u{2500} \u{2713} c";
+    ]
+    (List.map untimed (lines t))
+
+(* A tree too tall folds the tasks that ended under each task into one
+   line, and keeps every running one. *)
+let test_fold () =
+  let t = terminal ~width:40 ~height:6 ~header:"S" () in
+  let d = t.display in
+  let p = Display.task d "p" in
+  for i = 1 to 6 do
+    Display.succeed (Display.task ~parent:p d (Fmt.str "done %d" i))
+  done;
+  let r = Display.task ~parent:p d "running" in
+  Display.redraw d;
+  check_lines "folded"
+    [
+      "\u{280b} p";
+      "  \u{251c}\u{2500}\u{2500} \u{2713} 6 done";
+      "  \u{2514}\u{2500}\u{2500} \u{280b} running";
+      "\u{2022} S 0.0s (6/8)";
+    ]
+    (List.map untimed (screen t));
+  Alcotest.(check int) "nothing scrolled" 0 (Console_vte.scrollback_size t.vte);
+  Display.succeed r;
+  Display.succeed p;
+  Display.close d;
+  Alcotest.(check int) "every task in the scrollback" 9 (List.length (lines t))
+
+(* Output outside any task goes above the region at once and stays there,
+   the region below it, the summary last. *)
+let test_root_above () =
+  let t = terminal ~width:40 ~height:10 ~header:"S" () in
+  let d = t.display in
+  let a = Display.task d "a" in
+  Display.log (Display.root d) "outside";
+  Display.redraw d;
+  check_lines "above the region"
+    [ "outside"; "\u{280b} a"; "\u{2022} S 0.0s (0/1)" ]
+    (List.map untimed (screen t));
+  Display.succeed a;
+  Display.close d;
+  check_lines "it stays"
+    [ "outside"; "\u{2713} a"; "\u{2713} S 0.0s (1/1)" ]
+    (List.map untimed (lines t))
+
+(* More running tasks than rows: no redraw scrolls the terminal, and the
+   summary stays the last line. *)
+let test_no_scroll () =
+  let t = terminal ~width:40 ~height:6 ~header:"S" () in
+  let d = t.display in
+  let tasks =
+    List.init 12 (fun i ->
+        let task = Display.task ~log_lines:2 d (Fmt.str "t%d" i) in
+        Display.log task "a line";
+        Display.redraw d;
+        Alcotest.(check int)
+          "nothing scrolled" 0
+          (Console_vte.scrollback_size t.vte);
+        Alcotest.(check bool)
+          "the summary last" true
+          (match List.rev (screen t) with
+          | l :: _ -> contains "S 0.0s" l
+          | [] -> false);
+        task)
+  in
+  Alcotest.(check bool)
+    "within the screen less one" true
+    (List.length (screen t) <= 5);
+  List.iter Display.succeed tasks;
+  Display.close d
+
+let suite =
+  ( "layout",
+    [
+      Alcotest.test_case "the summary is the last line" `Quick test_summary_last;
+      Alcotest.test_case "a tree moves whole" `Quick test_tree_moves;
+      Alcotest.test_case "three levels, endings interleaved" `Quick
+        test_three_levels;
+      Alcotest.test_case "a failed child keeps its lines in place" `Quick
+        test_failed_child_in_place;
+      Alcotest.test_case "tasks that ended fold" `Quick test_fold;
+      Alcotest.test_case "output outside a task goes above" `Quick
+        test_root_above;
+      Alcotest.test_case "no redraw scrolls the terminal" `Quick test_no_scroll;
+    ] )
