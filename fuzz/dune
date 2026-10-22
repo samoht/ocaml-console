@@ -5,6 +5,14 @@
 
 (copy_files ../lib/display_json.{ml,mli})
 
+; The version of matrix the properties are built against: Matrix_0_1 narrows
+; three of them on matrix 0.1.0.
+
+(rule
+ (with-stdout-to
+  matrix_version.ml
+  (echo "let v = \"%{version:matrix}\"\n")))
+
 (executable
  (name fuzz)
  (modules :standard \ fuzz_eio fuzz_console_eio)

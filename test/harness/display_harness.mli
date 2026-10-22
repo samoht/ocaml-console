@@ -81,7 +81,3 @@ val check_invalid : string -> (unit -> unit) -> unit
 val skip_on_matrix_0_1 : string -> ('a -> unit) -> 'a -> unit
 (** [skip_on_matrix_0_1 fix test] is [test], skipped. [fix] names the upstream
     change it needs. *)
-
-val drop_on_matrix_0_1 : string -> 'a list -> 'a list
-(** [drop_on_matrix_0_1 fix tests] is [[]]: a property test cannot be skipped.
-    [fix] names the upstream change [tests] need. *)

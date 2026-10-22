@@ -71,5 +71,3 @@ let check_invalid message f =
 let skip_on_matrix_0_1 fix _ _ =
   Fmt.pr "Skipped on matrix 0.1.0, which lacks %s.@." fix;
   Alcotest.skip ()
-
-let drop_on_matrix_0_1 _ _ = []

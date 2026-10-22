@@ -386,6 +386,7 @@ let test_printed block k m =
   match print look block with
   | None -> ()
   | Some out ->
+      Matrix_0_1.discard_stray_vs16 out;
       check_eq ~pp:Fmt.(option Dump.string) (Some out) (print look block);
       check (String.is_valid_utf_8 out);
       if not (escapes_whole out) then failf "a cut escape in %S" out;
@@ -622,11 +623,7 @@ let suite =
       test_case "hcat lines are the blocks' widths and gaps"
         [ list bytes; uint8 ]
         test_hcat;
-    ]
-    @ Display_harness.drop_on_matrix_0_1
-        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
-        [
-          test_case "any tree of widgets printed anywhere"
-            [ block_gen; uint16; uint8 ]
-            test_printed;
-        ] )
+      test_case "any tree of widgets printed anywhere"
+        [ block_gen; uint16; uint8 ]
+        test_printed;
+    ] )

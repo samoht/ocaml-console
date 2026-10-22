@@ -69,7 +69,10 @@ let test_echo_shows_the_line keys =
   let editor = Console_input.v () in
   let term = Console_vte.v ~raw:true ~rows:1 ~cols:200 () in
   List.iter
-    (fun k -> Console_vte.feed term (fst (Console_input.feed editor k)))
+    (fun k ->
+      Console_vte.feed term (fst (Console_input.feed editor k));
+      Matrix_0_1.discard_stray_vs16 (Console_input.pending editor);
+      Matrix_0_1.discard_dropped_mark (Console_input.pending editor))
     keys;
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
@@ -211,11 +214,5 @@ let suite =
       test_case "inserting a cluster redraws its suffix" [ uint8; uint8; bool ]
         test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
-    ]
-    @ Display_harness.drop_on_matrix_0_1
-        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
-        [
-          test_case "the echo shows the line"
-            [ list key ]
-            test_echo_shows_the_line;
-        ] )
+      test_case "the echo shows the line" [ list key ] test_echo_shows_the_line;
+    ] )

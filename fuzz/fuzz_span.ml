@@ -180,6 +180,7 @@ let on_screen s =
 let test_joiners_fit s n =
   let s = Span.text (joined s) and w = 1 + (abs n mod 12) in
   let fits what l =
+    Matrix_0_1.discard_stray_vs16 (plain l);
     let cells = on_screen (plain l) in
     if Span.width l > w || cells > w then
       failf "%s to %d is %d cells, %d on the terminal: %S" what w (Span.width l)
@@ -408,10 +409,6 @@ let suite =
       test_case "concat" [ bytes; bytes; bytes ] test_concat;
       test_case "a gradient is its text, as wide" [ bytes; uint8 ] test_gradient;
       test_case "a role is its text, as wide" [ bytes; uint8 ] test_role;
-    ]
-    @ Display_harness.drop_on_matrix_0_1
-        "invariant-hq/mosaic#89 (a stray VS16 widens nothing)"
-        [
-          test_case "cuts fit with joiners and selectors" [ bytes; int ]
-            test_joiners_fit;
-        ] )
+      test_case "cuts fit with joiners and selectors" [ bytes; int ]
+        test_joiners_fit;
+    ] )
