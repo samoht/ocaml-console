@@ -139,6 +139,28 @@ let test_bar_cell () =
        (accent Theme.nord "\u{2501}\u{2501}")
        (printed ~theme:Theme.nord ~styled:true half))
 
+(* table.mli, to_span: without a width, a table as a span is laid out at
+   its natural width, so a short row's last cell, which runs to the end of
+   the line in a table without edges, is not aligned against an unbounded
+   line. *)
+let test_span_natural_width () =
+  let table =
+    Table.v ~border:Border.none
+      [
+        Table.column (Span.text "a");
+        Table.column ~align:`Right (Span.text "b");
+        Table.column ~align:`Center (Span.text "c");
+      ]
+      [
+        [ Span.text "x"; Span.text "y"; Span.text "z" ];
+        [ Span.text "s"; Span.text "short" ];
+      ]
+  in
+  let span = Table.to_span table in
+  Alcotest.(check string)
+    "as printed at its natural width" (Table.to_string table)
+    (Span.to_string span)
+
 (* bar.mli, to_span: a bar alone as a span is drawn when printed. *)
 let test_bar_span () =
   let buf = Buffer.create 16 in
@@ -604,6 +626,8 @@ let suite =
     [
       Alcotest.test_case "an empty edge keeps the rest of the frame" `Quick
         test_empty_left_edge;
+      Alcotest.test_case "a table as a span keeps its natural width" `Quick
+        test_span_natural_width;
       Alcotest.test_case "rules" `Quick test_rules;
       Alcotest.test_case "two-cell border stays rectangular" `Quick
         test_wide_border;
