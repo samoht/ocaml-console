@@ -437,6 +437,10 @@ let columns display ~width ~height =
     ]
 ```
 
+The example runs with `dune exec -- examples/columns/main.exe`:
+
+![Two builds, linux and macos, under a table of their status: the steps of each build make a tree in a column of its own, and the summary line comes last](examples/columns/columns.svg)
+
 When the display closes, the view's last frame is printed once and stays:
 on a pipe too, after the lines of the tasks. A view is drawn in the
 display's theme.
@@ -561,6 +565,8 @@ A program that waits on the clock `Console_eio.clock` gives it, and passes
 that clock to `Console_eio.run`, keeps its times under the variable: the
 clock's time moves by exactly the length of each wait, so the times read
 the same on every run and the rows still move as the program runs.
+examples/columns is tested that way: its recording above is a run of
+[its cram test](examples/columns/columns.t).
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes
