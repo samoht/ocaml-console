@@ -214,12 +214,14 @@ let test_secret_keeps_bytes () =
 
 (* What is typed before [secret] masks the terminal is echoed, as it is
    under getpass(3), but it is not the answer: [secret] discards it and
-   reads what is typed once the question is masked. A domain plays the
+   reads what is typed once the question is masked. [typed] is typed first,
+   and a {!Prompt.line} answered [before] is asked first unless [before] is
+   empty. A domain plays the
    terminal: once the echo is off it types the answer until the call
    returns, and it reads what the terminal shows, as masking waits for that
    output to be read. It types nothing while the mask is set: on macOS a
    line typed as the input is discarded can leave the read waiting. *)
-let test_secret_drops_typeahead () =
+let secret_after ~before typed =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty =
@@ -232,7 +234,7 @@ let test_secret_drops_typeahead () =
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
   Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
   @@ fun () ->
-  ignore (Unix.write_substring master "early\n" 0 6 : int);
+  ignore (Unix.write_substring master typed 0 (String.length typed) : int);
   let answered = Atomic.make false in
   let typist =
     Domain.spawn (fun () ->
@@ -256,11 +258,22 @@ let test_secret_drops_typeahead () =
         in
         Fun.protect
           ~finally:(fun () -> Atomic.set answered true)
-          (fun () -> Prompt.secret t "secret: "))
+          (fun () ->
+            if before <> "" then
+              Alcotest.check string_answer "the line" (Got before)
+                (seen (Prompt.line t "line: "));
+            Prompt.secret t "secret: "))
   in
   Domain.join typist;
   Alcotest.check string_answer "the line typed once masked" (Got "late")
     (seen result)
+
+let test_secret_drops_typeahead () = secret_after ~before:"" "early\n"
+
+(* A line typed ahead of a question that {!Prompt.line} answers is not
+   kept for the [secret] after it: the terminal hands [line] its own line
+   alone, and [secret] discards the rest, which the terminal echoed. *)
+let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
 
 let suite =
   ( "prompt",
@@ -290,6 +303,8 @@ let suite =
         test_secret_leaves_the_domain_running;
       Alcotest.test_case "secret drops what was typed before it masks" `Quick
         test_secret_drops_typeahead;
+      Alcotest.test_case "secret drops what was typed after a line" `Quick
+        test_secret_after_a_line;
       Alcotest.test_case "a password is the bytes typed" `Quick
         test_secret_keeps_bytes;
     ] )
