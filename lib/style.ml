@@ -41,9 +41,6 @@ let ( + ) left right =
     bg = merge_opt left.bg right.bg;
   }
 
-let foreground style = style.fg
-let background style = style.bg
-
 let equal left right =
   Bool.equal left.bold right.bold
   && Bool.equal left.faint right.faint

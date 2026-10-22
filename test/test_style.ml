@@ -20,16 +20,16 @@ let test_bold () =
 
 let test_composition () =
   let style = Style.(bold + fg Color.red + underline) in
-  Alcotest.(check bool) "composed style not none" false (Style.is_none style)
+  Alcotest.(check bool)
+    "composed style not none" false
+    (Style.equal style Style.none)
 
 let red = Color.rgb 255 0 0
 let blue = Color.rgb 0 0 255
 
 let test_colours () =
   let s = Style.(bold + fg red + bg blue) in
-  Alcotest.(check (option string))
-    "foreground" (Some "#ff0000")
-    (Option.map (Fmt.str "%a" Color.pp) (Style.foreground s));
+  Alcotest.(check bool) "foreground" true (Style.equal Style.(s + fg red) s);
   Alcotest.(check string)
     "to_ansi" "\027[1;38;2;255;0;0;48;2;0;0;255m" (to_ansi s);
   Alcotest.(check bool)

@@ -46,17 +46,6 @@ val ( + ) : t -> t -> t
     associative: [s + none], [none + s] and [s] are equal, and so are
     [s0 + (s1 + s2)] and [(s0 + s1) + s2]. *)
 
-val foreground : t -> Color.t option
-(** [foreground s] is the foreground colour of [s], if it sets one. *)
-
-val background : t -> Color.t option
-(** [background s] is like {!foreground} for the background. *)
-
-(** {1:preds Predicates and comparisons} *)
-
-val is_none : t -> bool
-(** [is_none s] is [true] iff [s] sets nothing. *)
-
 val equal : t -> t -> bool
 (** [equal s0 s1] is [true] iff [s0] and [s1] are the same style. *)
 

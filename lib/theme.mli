@@ -35,9 +35,9 @@
 
 type role =
   [ `Accent  (** The main colour, {!accent}. *)
-  | `Ok  (** The colour of a success, {!ok}. *)
-  | `Warn  (** The colour of a warning, {!warn}. *)
-  | `Fail  (** The colour of a failure, {!fail}. *)
+  | `Succeeded  (** The colour of a success, {!succeeded}. *)
+  | `Warning  (** The colour of a warning, {!warning}. *)
+  | `Failed  (** The colour of a failure, {!failed}. *)
   | `Muted  (** The colour of what frames and annotates, {!muted}. *)
   | `Header  (** The style of headers, {!header}. *) ]
 (** The type for the parts of a theme that style text. A {!View.role} takes one
@@ -101,9 +101,9 @@ val v :
   ?name:string ->
   ?accent:Color.t ->
   ?palette:Color.t list ->
-  ?ok:Color.t ->
-  ?warn:Color.t ->
-  ?fail:Color.t ->
+  ?succeeded:Color.t ->
+  ?warning:Color.t ->
+  ?failed:Color.t ->
   ?muted:Color.t ->
   ?header:Style.t ->
   ?background:Color.t ->
@@ -122,8 +122,8 @@ val v :
     - [palette] are the colours that successive progress rows take in turn, and
       that a bar without a style spreads along its length when there are several
       (defaults to [[accent]], and [[]] is taken as the default);
-    - [ok] colours the mark of a success, [warn] that of a warning or a
-      cancellation, and [fail] that of a failure or an error (default to
+    - [succeeded] colours the mark of a success, [warning] that of a warning or
+      a cancellation, and [failed] that of a failure or an error (default to
       {!default}'s green, amber and red);
     - [muted] colours frames, tree lines, rules, the track of a bar and the
       counts and timers of a display (defaults to {!default}'s grey);
@@ -135,7 +135,7 @@ val v :
       stand still);
     - [border], [guide] and [spinner] are the frame of tables and panels, the
       lines of a tree and the spinner of a running task (default to
-      {!Border.rounded}, {!Guide.unicode} and {!Spinner.braille});
+      {!Border.rounded}, {!Guide.single} and {!Spinner.braille});
     - [bar] is the glyphs of bars and of a display's progress (defaults to
       [`Line]);
     - [marks] gives the mark of each state (defaults to those of {!default}).
@@ -154,14 +154,14 @@ val palette : t -> Color.t list
     it is never empty. A bar without a style ({!Bar.v}) spreads them along its
     length when there are several, and is in the one colour otherwise. *)
 
-val ok : t -> Color.t
-(** [ok t] is the colour of a success. *)
+val succeeded : t -> Color.t
+(** [succeeded t] is the colour of a success. *)
 
-val warn : t -> Color.t
-(** [warn t] is the colour of a warning and of a cancellation. *)
+val warning : t -> Color.t
+(** [warning t] is the colour of a warning and of a cancellation. *)
 
-val fail : t -> Color.t
-(** [fail t] is the colour of a failure and of an error. *)
+val failed : t -> Color.t
+(** [failed t] is the colour of a failure and of an error. *)
 
 val muted : t -> Color.t
 (** [muted t] is the colour of frames, tree lines, rules, the track of a bar and
@@ -229,7 +229,7 @@ val dos : t
     It draws in the box-drawing characters of code page 437, as Norton Commander
     drew its panels:
     - {!Border.dos} frames, double lines divided by single ones;
-    - {!Guide.unicode}'s single-line tree guides;
+    - {!Guide.single}'s single-line tree guides;
     - [`Block] bars and the ASCII spinner;
     - the marks [[-]], [[+]], [[x]], [[~]], [#], [!], [x] and [.]. *)
 

@@ -331,13 +331,13 @@ let test_gradient s k =
     | n ->
         Some
           (List.init n (fun i ->
-               if i = 0 then Color.palette k
+               if i = 0 then Color.ansi_256 k
                else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
   in
   check_is_text ~theme:(theme_of k) (View.text s)
     (View.gradient ?colors (View.text s))
 
-let roles = [| `Accent; `Ok; `Warn; `Fail; `Muted; `Header |]
+let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
 
 let test_role s k =
   let s = if k land 1 = 0 then text s else s in

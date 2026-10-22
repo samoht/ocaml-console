@@ -41,7 +41,7 @@ let started name =
   let s = List.find (fun s -> String.equal s.name name) steps in
   s.status <- View.role `Accent (View.text "running");
   fun detail ->
-    s.status <- View.styled Style.bold (View.role `Ok (View.text "done"));
+    s.status <- View.styled Style.bold (View.role `Succeeded (View.text "done"));
     s.detail <- detail
 
 (* What a step's commands print shows under its row while it runs, and goes

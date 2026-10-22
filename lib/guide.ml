@@ -6,16 +6,18 @@
 type glyphs = { branch : string; last : string; pipe : string; space : string }
 type t = glyphs Inked.t
 
-let v ~branch ~last ~pipe ~space = Inked.v { branch; last; pipe; space }
+let v ?style ~branch ~last ~pipe ~space () =
+  Inked.v ?style { branch; last; pipe; space }
+
 let branch t = (Inked.get t).branch
 let last t = (Inked.get t).last
 let pipe t = (Inked.get t).pipe
 let space t = (Inked.get t).space
 let style = Inked.style
 let with_style = Inked.with_style
-let ascii = v ~branch:"+-- " ~last:"+-- " ~pipe:"|   " ~space:"    "
+let ascii = v ~branch:"+-- " ~last:"+-- " ~pipe:"|   " ~space:"    " ()
 
-let unicode = v ~branch:"├── " ~last:"└── " ~pipe:"│   " ~space:"    "
+let single = v ~branch:"├── " ~last:"└── " ~pipe:"│   " ~space:"    " ()
 
 let pp ppf t =
   let t = Inked.get t in

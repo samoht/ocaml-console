@@ -61,7 +61,7 @@ let main color theme =
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = View.role `Ok (View.text "passed") in
+  let ok = View.role `Succeeded (View.text "passed") in
   let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =
     Table.
@@ -277,7 +277,7 @@ the table sits in a panel:
 A theme holds the colours and glyphs that every widget shares. `Theme.set`
 gives a formatter its theme, and `Console_tty.setup ~theme` sets the same
 theme on both standard outputs. Text can take one of the theme's colours
-with `View.role`, as ``View.role `Ok (View.text "passed")`` does in the quick start.
+with `View.role`, as ``View.role `Succeeded (View.text "passed")`` does in the quick start.
 
 `Theme.all` lists the eighteen themes by name, in the form a `--theme`
 option reads:

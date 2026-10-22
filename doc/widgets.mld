@@ -26,9 +26,9 @@ A role gives a view one of the theme's colours, chosen only when the view is
 printed:
 
 {ul
-{- {!Console.View.role} styles any view, as [View.(role `Ok (text "passed"))]
+{- {!Console.View.role} styles any view, as [View.(role `Succeeded (text "passed"))]
    does, a link for example.}
-{- The roles are [`Accent], [`Ok], [`Warn], [`Fail], [`Muted] and
+{- The roles are [`Accent], [`Succeeded], [`Warning], [`Failed], [`Muted] and
    [`Header] ({!Console.Theme.type-role}).}}
 
 {!Console.View.gradient} grades text through the colours it is given, or

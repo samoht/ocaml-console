@@ -14,10 +14,18 @@
 type t
 (** The type for the four glyphs that draw one level of nesting. *)
 
-val v : branch:string -> last:string -> pipe:string -> space:string -> t
-(** [v ~branch ~last ~pipe ~space] is a guide with the given glyphs. It is drawn
-    in the muted colour of the formatter's theme ({!Theme.muted}) until
-    {!with_style} gives it a style other than {!Style.none}. *)
+val v :
+  ?style:Style.t ->
+  branch:string ->
+  last:string ->
+  pipe:string ->
+  space:string ->
+  unit ->
+  t
+(** [v ~style ~branch ~last ~pipe ~space ()] is a guide with the given glyphs,
+    drawn in [style] (defaults to {!Style.none}). A guide in {!Style.none} is
+    drawn in the muted colour of the formatter's theme ({!Theme.muted}), as a
+    {!Border.v} is. *)
 
 val branch : t -> string
 (** [branch t] is the non-final child connector. *)
@@ -43,8 +51,9 @@ val with_style : Style.t -> t -> t
 val ascii : t
 (** [ascii] is the guide drawn with [+--], [|] and spaces. *)
 
-val unicode : t
-(** [unicode] is the guide drawn with Unicode light box-drawing lines. *)
+val single : t
+(** [single] is the guide drawn with Unicode light box-drawing lines, those of
+    {!Border.single}. *)
 
 (** {1:fmt Formatting} *)
 

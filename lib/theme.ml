@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type role = [ `Accent | `Ok | `Warn | `Fail | `Muted | `Header ]
+type role = [ `Accent | `Succeeded | `Warning | `Failed | `Muted | `Header ]
 
 type mark =
   [ `Running
@@ -22,9 +22,9 @@ type t = {
   name : string;
   accent : Color.t;
   palette : Color.t list;
-  ok : Color.t;
-  warn : Color.t;
-  fail : Color.t;
+  succeeded : Color.t;
+  warning : Color.t;
+  failed : Color.t;
   muted : Color.t;
   header : Style.t;
   background : Color.t option;
@@ -39,9 +39,9 @@ type t = {
 let name t = t.name
 let accent t = t.accent
 let palette t = t.palette
-let ok t = t.ok
-let warn t = t.warn
-let fail t = t.fail
+let succeeded t = t.succeeded
+let warning t = t.warning
+let failed t = t.failed
 let muted t = t.muted
 let header t = t.header
 let background t = t.background
@@ -76,35 +76,36 @@ let ascii_marks = function
 (* Entries of the xterm 256-colour palette whose contrast is 3:1 or more on
    black and on white alike, for a terminal whose background is unknown, and
    the grey of the palette at 4.5:1 on both. *)
-let teal = Color.palette 30
-let green = Color.palette 28
-let amber = Color.palette 136
-let red = Color.palette 160
-let blue = Color.palette 63
-let magenta = Color.palette 164
-let grey = Color.palette 243
+let teal = Color.ansi_256 30
+let green = Color.ansi_256 28
+let amber = Color.ansi_256 136
+let red = Color.ansi_256 160
+let blue = Color.ansi_256 63
+let magenta = Color.ansi_256 164
+let grey = Color.ansi_256 243
 
 let default =
   {
     name = "default";
     accent = teal;
     palette = [ teal ];
-    ok = green;
-    warn = amber;
-    fail = red;
+    succeeded = green;
+    warning = amber;
+    failed = red;
     muted = grey;
     header = Style.bold;
     background = None;
     border = Border.rounded;
     motion = None;
-    guide = Guide.unicode;
+    guide = Guide.single;
     spinner = Spinner.braille;
     bar = `Line;
     marks = unicode_marks;
   }
 
-let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
-    ?(warn = default.warn) ?(fail = default.fail) ?(muted = default.muted)
+let v ?(name = "custom") ?(accent = default.accent) ?palette
+    ?(succeeded = default.succeeded) ?(warning = default.warning)
+    ?(failed = default.failed) ?(muted = default.muted)
     ?(header = default.header) ?background ?(border = default.border) ?motion
     ?(guide = default.guide) ?(spinner = default.spinner) ?(bar = default.bar)
     ?(marks = default.marks) () =
@@ -115,9 +116,9 @@ let v ?(name = "custom") ?(accent = default.accent) ?palette ?(ok = default.ok)
     name;
     accent;
     palette;
-    ok;
-    warn;
-    fail;
+    succeeded;
+    warning;
+    failed;
     muted;
     header;
     background;
@@ -136,17 +137,17 @@ let ascii =
 let dos_amber = Color.rgb 0xff 0xb0 0x00
 
 let dos =
-  v ~name:"dos" ~accent:dos_amber ~ok:dos_amber ~warn:dos_amber
-    ~fail:(Color.rgb 0xff 0x55 0x55) ~muted:(Color.rgb 0xa1 0x6c 0x00)
+  v ~name:"dos" ~accent:dos_amber ~succeeded:dos_amber ~warning:dos_amber
+    ~failed:(Color.rgb 0xff 0x55 0x55) ~muted:(Color.rgb 0xa1 0x6c 0x00)
     ~header:Style.(bold + fg dos_amber)
-    ~background:Color.black ~border:Border.dos ~guide:Guide.unicode
+    ~background:Color.black ~border:Border.dos ~guide:Guide.single
     ~spinner:Spinner.ascii ~bar:`Block ~marks:ascii_marks ()
 
 let matrix_green = Color.rgb 0x33 0xff 0x33
 
 let matrix =
-  v ~name:"matrix" ~accent:matrix_green ~ok:matrix_green
-    ~warn:(Color.rgb 0xcc 0xff 0x66) ~fail:(Color.rgb 0xff 0x33 0x33)
+  v ~name:"matrix" ~accent:matrix_green ~succeeded:matrix_green
+    ~warning:(Color.rgb 0xcc 0xff 0x66) ~failed:(Color.rgb 0xff 0x33 0x33)
     ~muted:(Color.rgb 0x1c 0x89 0x1c)
     ~header:Style.(bold + fg matrix_green)
     ~background:Color.black ~border:Border.single ~motion:`Rain ()
@@ -167,81 +168,97 @@ let still t = { t with motion = None; spinner = Spinner.static }
    their hue and saturation kept. Headers are bold, in the accent unless
    [header] names another colour, and frames shimmer in the accent. *)
 
-let scheme ~name ~accent ~ok ~warn ~fail ~muted ?(header = accent) ~background
-    () =
-  v ~name ~accent:(Color.hex accent) ~ok:(Color.hex ok) ~warn:(Color.hex warn)
-    ~fail:(Color.hex fail) ~muted:(Color.hex muted)
-    ~header:Style.(bold + fg (Color.hex header))
-    ~background:(Color.hex background) ~motion:`Shimmer ()
+(* A colour written in a theme's source is valid. *)
+let hex s =
+  match Color.of_hex s with Ok c -> c | Error (`Msg m) -> invalid_arg m
+
+let scheme ~name ~accent ~succeeded ~warning ~failed ~muted ?(header = accent)
+    ~background () =
+  v ~name ~accent:(hex accent) ~succeeded:(hex succeeded) ~warning:(hex warning)
+    ~failed:(hex failed) ~muted:(hex muted)
+    ~header:Style.(bold + fg (hex header))
+    ~background:(hex background) ~motion:`Shimmer ()
 
 (* Dracula, by Zeno Rocha (MIT): draculatheme.com/spec. *)
 let dracula =
-  scheme ~name:"dracula" ~accent:"#bd93f9" ~ok:"#50fa7b" ~warn:"#f1fa8c"
-    ~fail:"#ff5555" ~muted:"#8692b7" ~background:"#282a36" ()
+  scheme ~name:"dracula" ~accent:"#bd93f9" ~succeeded:"#50fa7b"
+    ~warning:"#f1fa8c" ~failed:"#ff5555" ~muted:"#8692b7" ~background:"#282a36"
+    ()
 
 (* Nord, by Sven Greb (MIT): nordtheme/nord src/nord.css. *)
 let nord =
-  scheme ~name:"nord" ~accent:"#88c0d0" ~ok:"#a3be8c" ~warn:"#ebcb8b"
-    ~fail:"#cf8a90" ~muted:"#969ead" ~background:"#2e3440" ()
+  scheme ~name:"nord" ~accent:"#88c0d0" ~succeeded:"#a3be8c" ~warning:"#ebcb8b"
+    ~failed:"#cf8a90" ~muted:"#969ead" ~background:"#2e3440" ()
 
 (* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
 let solarized_dark =
-  scheme ~name:"solarized-dark" ~accent:"#3094da" ~ok:"#859900" ~warn:"#b58900"
-    ~fail:"#e56563" ~muted:"#839496" ~header:"#93a1a1" ~background:"#002b36" ()
+  scheme ~name:"solarized-dark" ~accent:"#3094da" ~succeeded:"#859900"
+    ~warning:"#b58900" ~failed:"#e56563" ~muted:"#839496" ~header:"#93a1a1"
+    ~background:"#002b36" ()
 
 (* Solarized, by Ethan Schoonover (MIT): altercation/solarized. *)
 let solarized_light =
-  scheme ~name:"solarized-light" ~accent:"#2075b1" ~ok:"#687700" ~warn:"#8e6b00"
-    ~fail:"#d82824" ~muted:"#5e7379" ~header:"#586e75" ~background:"#fdf6e3" ()
+  scheme ~name:"solarized-light" ~accent:"#2075b1" ~succeeded:"#687700"
+    ~warning:"#8e6b00" ~failed:"#d82824" ~muted:"#5e7379" ~header:"#586e75"
+    ~background:"#fdf6e3" ()
 
 (* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
 let gruvbox_dark =
-  scheme ~name:"gruvbox-dark" ~accent:"#fe8019" ~ok:"#b8bb26" ~warn:"#fabd2f"
-    ~fail:"#fb5642" ~muted:"#a89984" ~background:"#282828" ()
+  scheme ~name:"gruvbox-dark" ~accent:"#fe8019" ~succeeded:"#b8bb26"
+    ~warning:"#fabd2f" ~failed:"#fb5642" ~muted:"#a89984" ~background:"#282828"
+    ()
 
 (* gruvbox, by Pavel Pertsev (MIT/X11): morhetz/gruvbox colors/gruvbox.vim. *)
 let gruvbox_light =
-  scheme ~name:"gruvbox-light" ~accent:"#af3a03" ~ok:"#74700d" ~warn:"#966211"
-    ~fail:"#9d0006" ~muted:"#665c54" ~background:"#fbf1c7" ()
+  scheme ~name:"gruvbox-light" ~accent:"#af3a03" ~succeeded:"#74700d"
+    ~warning:"#966211" ~failed:"#9d0006" ~muted:"#665c54" ~background:"#fbf1c7"
+    ()
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette
    palette.json 1.8.0. *)
 let catppuccin_latte =
-  scheme ~name:"catppuccin-latte" ~accent:"#8839ef" ~ok:"#327c22"
-    ~warn:"#996114" ~fail:"#d20f39" ~muted:"#5c5f77" ~background:"#eff1f5" ()
+  scheme ~name:"catppuccin-latte" ~accent:"#8839ef" ~succeeded:"#327c22"
+    ~warning:"#996114" ~failed:"#d20f39" ~muted:"#5c5f77" ~background:"#eff1f5"
+    ()
 
 (* Catppuccin, by the Catppuccin organisation (MIT): catppuccin/palette
    palette.json 1.8.0. *)
 let catppuccin_mocha =
-  scheme ~name:"catppuccin-mocha" ~accent:"#cba6f7" ~ok:"#a6e3a1"
-    ~warn:"#f9e2af" ~fail:"#f38ba8" ~muted:"#9399b2" ~background:"#1e1e2e" ()
+  scheme ~name:"catppuccin-mocha" ~accent:"#cba6f7" ~succeeded:"#a6e3a1"
+    ~warning:"#f9e2af" ~failed:"#f38ba8" ~muted:"#9399b2" ~background:"#1e1e2e"
+    ()
 
 (* Tokyo Night, by enkia (MIT), night palette of folke/tokyonight.nvim
    (Apache-2.0). *)
 let tokyo_night =
-  scheme ~name:"tokyo-night" ~accent:"#7aa2f7" ~ok:"#9ece6a" ~warn:"#e0af68"
-    ~fail:"#f7768e" ~muted:"#7b83ab" ~background:"#1a1b26" ()
+  scheme ~name:"tokyo-night" ~accent:"#7aa2f7" ~succeeded:"#9ece6a"
+    ~warning:"#e0af68" ~failed:"#f7768e" ~muted:"#7b83ab" ~background:"#1a1b26"
+    ()
 
 (* One Dark, by GitHub (MIT): atom/atom packages/one-dark-syntax and
    packages/one-dark-ui. *)
 let one_dark =
-  scheme ~name:"one-dark" ~accent:"#5990ff" ~ok:"#98c379" ~warn:"#e5c07b"
-    ~fail:"#e17179" ~muted:"#8e95a2" ~header:"#61afef" ~background:"#282c34" ()
+  scheme ~name:"one-dark" ~accent:"#5990ff" ~succeeded:"#98c379"
+    ~warning:"#e5c07b" ~failed:"#e17179" ~muted:"#8e95a2" ~header:"#61afef"
+    ~background:"#282c34" ()
 
 (* Monokai, by Wimer Hazenberg (no licence stated): the 2007 Monokai.tmTheme. *)
 let monokai =
-  scheme ~name:"monokai" ~accent:"#66d9ef" ~ok:"#a6e22e" ~warn:"#e6db74"
-    ~fail:"#fa4b8a" ~muted:"#939080" ~background:"#272822" ()
+  scheme ~name:"monokai" ~accent:"#66d9ef" ~succeeded:"#a6e22e"
+    ~warning:"#e6db74" ~failed:"#fa4b8a" ~muted:"#939080" ~background:"#272822"
+    ()
 
 (* GitHub Dark, by GitHub (MIT): primer/github-vscode-theme. *)
 let github_dark =
-  scheme ~name:"github-dark" ~accent:"#2f81f7" ~ok:"#3fb950" ~warn:"#d29922"
-    ~fail:"#ff7b72" ~muted:"#8b949e" ~background:"#0d1117" ()
+  scheme ~name:"github-dark" ~accent:"#2f81f7" ~succeeded:"#3fb950"
+    ~warning:"#d29922" ~failed:"#ff7b72" ~muted:"#8b949e" ~background:"#0d1117"
+    ()
 
 (* GitHub Light, by GitHub (MIT): primer/github-vscode-theme. *)
 let github_light =
-  scheme ~name:"github-light" ~accent:"#0969da" ~ok:"#116329" ~warn:"#9a6700"
-    ~fail:"#cf222e" ~muted:"#656d76" ~background:"#ffffff" ()
+  scheme ~name:"github-light" ~accent:"#0969da" ~succeeded:"#116329"
+    ~warning:"#9a6700" ~failed:"#cf222e" ~muted:"#656d76" ~background:"#ffffff"
+    ()
 
 let all =
   List.map
@@ -288,9 +305,10 @@ let pp_motion ppf = function
 
 let pp ppf t =
   Fmt.pf ppf
-    "@[<1>(theme %s@ accent=%a@ ok=%a@ warn=%a@ fail=%a@ motion=%a@ marks=%a)@]"
-    t.name Color.pp t.accent Color.pp t.ok Color.pp t.warn Color.pp t.fail
-    pp_motion t.motion
+    "@[<1>(theme %s@ accent=%a@ succeeded=%a@ warning=%a@ failed=%a@ \
+     motion=%a@ marks=%a)@]"
+    t.name Color.pp t.accent Color.pp t.succeeded Color.pp t.warning Color.pp
+    t.failed pp_motion t.motion
     Fmt.(list ~sep:(any " ") string)
     (List.map (mark t)
        [

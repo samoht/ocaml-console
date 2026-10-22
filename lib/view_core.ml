@@ -161,9 +161,9 @@ let block lines = concat ~sep:joint lines
 
 let role_style theme = function
   | `Accent -> Style.fg (Theme.accent theme)
-  | `Ok -> Style.fg (Theme.ok theme)
-  | `Warn -> Style.fg (Theme.warn theme)
-  | `Fail -> Style.fg (Theme.fail theme)
+  | `Succeeded -> Style.fg (Theme.succeeded theme)
+  | `Warning -> Style.fg (Theme.warning theme)
+  | `Failed -> Style.fg (Theme.failed theme)
   | `Muted -> Style.fg (Theme.muted theme)
   | `Header -> Theme.header theme
 

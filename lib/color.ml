@@ -27,14 +27,9 @@ let of_hex s =
     | 3 -> Ok (Rgb (d 0 * 17, d 1 * 17, d 2 * 17))
     | _ -> Error (`Msg "expected 3 or 6 hex digits")
 
-let hex s =
-  match of_hex s with
-  | Ok c -> c
-  | Error (`Msg m) -> invalid_arg ("Console.Color.hex: " ^ m)
-
-let palette index =
+let ansi_256 index =
   if index < 0 || index > 255 then
-    invalid_arg "Console.Color.palette: index outside 0..255";
+    invalid_arg "Console.Color.ansi_256: index outside 0..255";
   Palette index
 
 (* Predefined colors *)
@@ -204,4 +199,4 @@ let pp ppf = function
   | Ansi `Bright_cyan -> Fmt.pf ppf "bright_cyan"
   | Ansi `Bright_white -> Fmt.pf ppf "bright_white"
   | Rgb (r, g, b) -> Fmt.pf ppf "#%02x%02x%02x" r g b
-  | Palette index -> Fmt.pf ppf "palette(%d)" index
+  | Palette index -> Fmt.pf ppf "ansi_256(%d)" index

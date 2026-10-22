@@ -78,7 +78,7 @@ let run clock display b =
                 Display.set_count task ~cur ~total
               done))
         b.steps);
-  set_status b (View.role `Ok (View.text "done"))
+  set_status b (View.role `Succeeded (View.text "done"))
 
 let () =
   Console_tty.setup ();

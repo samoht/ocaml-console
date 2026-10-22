@@ -261,9 +261,9 @@ let test_contrast () =
       let roles =
         [
           ("accent", Theme.accent t);
-          ("ok", Theme.ok t);
-          ("warn", Theme.warn t);
-          ("fail", Theme.fail t);
+          ("ok", Theme.succeeded t);
+          ("warn", Theme.warning t);
+          ("fail", Theme.failed t);
         ]
       in
       let palette =
@@ -271,10 +271,12 @@ let test_contrast () =
       in
       let text =
         ("muted", Theme.muted t)
-        :: Option.to_list
-             (Option.map
-                (fun c -> ("header", c))
-                (Style.foreground (Theme.header t)))
+        :: List.filter_map
+             (fun (n, c) ->
+               if Style.equal Style.(Theme.header t + fg c) (Theme.header t)
+               then Some (n, c)
+               else None)
+             (("header", Theme.accent t) :: palette)
       in
       let glyphs, text =
         match Theme.background t with
@@ -300,7 +302,7 @@ let test_contrast () =
 let test_header () =
   List.iter
     (fun (name, t) ->
-      if Style.is_none (Theme.header t) then
+      if Style.equal (Theme.header t) Style.none then
         Alcotest.failf "%s: plain headers" name)
     presets
 

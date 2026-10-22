@@ -14,14 +14,16 @@ let check_parts ~branch ~last ~pipe ~space guide =
 let test_presets () =
   check_parts ~branch:"+-- " ~last:"+-- " ~pipe:"|   " ~space:"    " Guide.ascii;
   check_parts ~branch:"├── " ~last:"└── " ~pipe:"│   " ~space:"    "
-    Guide.unicode
+    Guide.single
 
 let test_v_preserves_arbitrary_glyphs () =
-  let guide = Guide.v ~branch:"" ~last:"\000\n" ~pipe:"🧪" ~space:"\027[31m" in
+  let guide =
+    Guide.v ~branch:"" ~last:"\000\n" ~pipe:"🧪" ~space:"\027[31m" ()
+  in
   check_parts ~branch:"" ~last:"\000\n" ~pipe:"🧪" ~space:"\027[31m" guide
 
 let test_pp_escapes_control_text () =
-  let guide = Guide.v ~branch:"\n" ~last:"\000" ~pipe:"|" ~space:" " in
+  let guide = Guide.v ~branch:"\n" ~last:"\000" ~pipe:"|" ~space:" " () in
   Alcotest.(check string)
     "diagnostic form"
     "{ branch = \"\\n\"; last = \"\\000\"; pipe = \"|\"; space = \" \" }"

@@ -243,7 +243,7 @@ let block_gen = with_printer pp_block block_gen
 let styles =
   [| Style.none; Style.bold; Style.(fg Color.red); Style.(bold + underline) |]
 
-let roles = [| `Accent; `Ok; `Warn; `Fail; `Muted; `Header |]
+let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
 
 let borders =
   [|
@@ -531,7 +531,8 @@ let test_nested_wrap s k n =
              [ [ content ] ])
     | 2 ->
         Tree.to_span
-          (Tree.v content [ Tree.v (View.role `Ok (View.text "leaf")) [] ])
+          (Tree.v content
+             [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
     | 3 -> Rule.to_span ~width:20 (Rule.v ~label:content ())
     | _ -> Bar.to_span (Bar.v ~width:12 0.6)
   in
@@ -542,7 +543,7 @@ let test_nested_wrap s k n =
         Table.to_span (Table.v [ Table.column (View.text "h") ] [ [ inner ] ])
     | _ -> Tree.to_span (Tree.v (View.text "root") [ Tree.v inner [] ])
   in
-  let source = View.role `Warn nested in
+  let source = View.role `Warning nested in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
   let render span =
     let buf = Buffer.create 256 in
@@ -599,7 +600,7 @@ let test_hcat_nested_wrap input k n =
     Tree.to_span
       (Tree.v
          (View.link ~uri:"https://example.org/report" (View.text "tree"))
-         [ Tree.v (View.role `Ok (View.text "leaf")) [] ])
+         [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
   in
   let joined = View.hcat ~gap:(k mod 4) [ left; right ] in
   let source =

@@ -316,14 +316,14 @@ let test_role () =
         (fg (Theme.accent theme) "x")
         (View.role `Accent (View.text "x"));
       check (name ^ " ok") theme
-        (fg (Theme.ok theme) "x")
-        (View.role `Ok (View.text "x"));
+        (fg (Theme.succeeded theme) "x")
+        (View.role `Succeeded (View.text "x"));
       check (name ^ " warn") theme
-        (fg (Theme.warn theme) "x")
-        (View.role `Warn (View.text "x"));
+        (fg (Theme.warning theme) "x")
+        (View.role `Warning (View.text "x"));
       check (name ^ " fail") theme
-        (fg (Theme.fail theme) "x")
-        (View.role `Fail (View.text "x"));
+        (fg (Theme.failed theme) "x")
+        (View.role `Failed (View.text "x"));
       check (name ^ " muted") theme
         (fg (Theme.muted theme) "x")
         (View.role `Muted (View.text "x"));
@@ -331,28 +331,28 @@ let test_role () =
         (View.styled (Theme.header theme) (View.text "x"))
         (View.role `Header (View.text "x")))
     [ Theme.default; Theme.nord; Theme.dos ];
-  let nord = Theme.ok Theme.nord in
+  let nord = Theme.succeeded Theme.nord in
   check "under a style" Theme.nord
     (View.styled Style.(bold + fg nord) (View.text "passed"))
-    (View.styled Style.bold (View.role `Ok (View.text "passed")));
+    (View.styled Style.bold (View.role `Succeeded (View.text "passed")));
   check "each line" Theme.nord (fg nord "a\nb")
-    (View.role `Ok (View.text "a\nb"));
+    (View.role `Succeeded (View.text "a\nb"));
   check "cut" Theme.nord
     (View.truncate 3 (fg nord "abcdef"))
-    (View.truncate 3 (View.role `Ok (View.text "abcdef")));
+    (View.truncate 3 (View.role `Succeeded (View.text "abcdef")));
   Alcotest.(check string)
     "plain without colour" "passed"
-    (printed ~theme:Theme.nord (View.role `Ok (View.text "passed")));
+    (printed ~theme:Theme.nord (View.role `Succeeded (View.text "passed")));
   Alcotest.(check string)
     "to_string in the default theme"
-    (View.to_string ~styled:true (fg (Theme.ok Theme.default) "x"))
-    (View.to_string ~styled:true (View.role `Ok (View.text "x")));
+    (View.to_string ~styled:true (fg (Theme.succeeded Theme.default) "x"))
+    (View.to_string ~styled:true (View.role `Succeeded (View.text "x")));
   Alcotest.(check int)
     "as wide as its text" 3
-    (View.width (View.role `Ok (View.text "a\u{754c}")));
+    (View.width (View.role `Succeeded (View.text "a\u{754c}")));
   Alcotest.(check string)
     "sanitized" "a b"
-    (View.to_string (View.role `Fail (View.text "a\027b")))
+    (View.to_string (View.role `Failed (View.text "a\027b")))
 
 (* A role laid under a span: its own styles and links win, a line of it at
    a time. *)
@@ -363,23 +363,25 @@ let test_with_role () =
       (printed ~theme:Theme.nord ~depth:`True_color want)
       (printed ~theme:Theme.nord ~depth:`True_color got)
   in
-  let nord = Theme.ok Theme.nord in
+  let nord = Theme.succeeded Theme.nord in
   check "a role is a role laid under text"
-    (View.role `Ok (View.text "a\nb"))
-    (View.role `Ok (View.text "a\nb"));
+    (View.role `Succeeded (View.text "a\nb"))
+    (View.role `Succeeded (View.text "a\nb"));
   check "a link in a role"
     (View.link ~uri:"https://ocaml.org"
        (View.styled (Style.fg nord) (View.text "docs")))
-    (View.role `Ok (View.link ~uri:"https://ocaml.org" (View.text "docs")));
+    (View.role `Succeeded
+       (View.link ~uri:"https://ocaml.org" (View.text "docs")));
   check "the span's own colour wins"
     View.(
       styled Style.(fg nord) (text "a")
       ++ styled Style.(fg Color.red) (text "b"))
-    (View.role `Ok View.(text "a" ++ styled Style.(fg Color.red) (text "b")));
+    (View.role `Succeeded
+       View.(text "a" ++ styled Style.(fg Color.red) (text "b")));
   Alcotest.(check string)
     "plain without colour" "ab"
     (printed ~theme:Theme.nord
-       (View.role `Ok View.(text "a" ++ styled Style.bold (text "b"))))
+       (View.role `Succeeded View.(text "a" ++ styled Style.bold (text "b"))))
 
 let suite =
   ( "span",

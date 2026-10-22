@@ -26,9 +26,9 @@ let color r =
 let mark_style t (m : Theme.mark) =
   let theme = theme t in
   match m with
-  | `Succeeded -> Style.(bold + fg (Theme.ok theme))
-  | `Failed | `Error -> Style.(bold + fg (Theme.fail theme))
-  | `Cancelled | `Warning -> Style.(bold + fg (Theme.warn theme))
+  | `Succeeded -> Style.(bold + fg (Theme.succeeded theme))
+  | `Failed | `Error -> Style.(bold + fg (Theme.failed theme))
+  | `Cancelled | `Warning -> Style.(bold + fg (Theme.warning theme))
   | `Running -> Style.(bold + fg (Theme.accent theme))
   | `Info | `Debug -> Widget.muted (look t)
 

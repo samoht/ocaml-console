@@ -19,7 +19,7 @@ let accent look = Style.fg (Theme.accent look.theme)
 let border look border =
   let border = Option.value border ~default:(Theme.border look.theme) in
   let border =
-    if Style.is_none (Border.style border) then
+    if Style.equal (Border.style border) Style.none then
       Border.with_style (muted look) border
     else border
   in
@@ -69,7 +69,7 @@ let border look border =
 let guide look guide =
   let guide = Option.value guide ~default:(Theme.guide look.theme) in
   let guide =
-    if Style.is_none (Guide.style guide) then
+    if Style.equal (Guide.style guide) Style.none then
       Guide.with_style (muted look) guide
     else guide
   in

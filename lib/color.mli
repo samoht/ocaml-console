@@ -23,17 +23,10 @@ val rgb : int -> int -> int -> t
 
 val of_hex : string -> (t, [ `Msg of string ]) result
 (** [of_hex s] is the colour written [s] in hexadecimal: ["RRGGBB"] or ["RGB"],
-    optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled.
-    {!hex} raises instead, for a literal known to be well formed. *)
+    optionally after a ["#"]. ["RGB"] is ["RRGGBB"] with each digit doubled. *)
 
-val hex : string -> t
-(** [hex s] is like {!of_hex} but raises on a malformed [s].
-
-    @raise Invalid_argument
-      if [s] is malformed. Use {!of_hex} to deal with untrusted input. *)
-
-val palette : int -> t
-(** [palette n] is the entry [n] of the xterm 256-colour palette.
+val ansi_256 : int -> t
+(** [ansi_256 n] is the entry [n] of the xterm 256-colour palette.
 
     @raise Invalid_argument if [n] is not in \[[0];[255]\]. *)
 
@@ -109,7 +102,7 @@ val scale : float -> t -> t
 
 val equal : t -> t -> bool
 (** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour as given:
-    [red] and [palette 1] are not equal, although a terminal may draw them
+    [red] and [ansi_256 1] are not equal, although a terminal may draw them
     alike. *)
 
 val compare : t -> t -> int

@@ -5,18 +5,20 @@
 
 open Console
 
+let hex s = Result.get_ok (Color.of_hex s)
+
 let test_hex_6digit () =
-  let color = Color.hex "#FF5500" in
+  let color = hex "#FF5500" in
   let expected = Color.rgb 255 85 0 in
   Alcotest.(check bool) "6-digit hex" true (Color.equal color expected)
 
 let test_hex_3digit () =
-  let color = Color.hex "#F50" in
+  let color = hex "#F50" in
   let expected = Color.rgb 255 85 0 in
   Alcotest.(check bool) "3-digit hex" true (Color.equal color expected)
 
 let test_hex_no_hash () =
-  let color = Color.hex "FF5500" in
+  let color = hex "FF5500" in
   let expected = Color.rgb 255 85 0 in
   Alcotest.(check bool) "hex without #" true (Color.equal color expected)
 
@@ -49,18 +51,12 @@ let test_of_hex () =
   check "a lone hash" None (parsed "#")
 
 let test_invalid_constructors () =
-  Alcotest.check_raises "malformed hex"
-    (Invalid_argument "Console.Color.hex: expected 3 or 6 hex digits")
-    (fun () -> ignore (Color.hex "1234"));
-  Alcotest.check_raises "invalid hex digit"
-    (Invalid_argument "Console.Color.hex: invalid hex character") (fun () ->
-      ignore (Color.hex "12x"));
   Alcotest.check_raises "palette below range"
-    (Invalid_argument "Console.Color.palette: index outside 0..255") (fun () ->
-      ignore (Color.palette (-1)));
+    (Invalid_argument "Console.Color.ansi_256: index outside 0..255") (fun () ->
+      ignore (Color.ansi_256 (-1)));
   Alcotest.check_raises "palette above range"
-    (Invalid_argument "Console.Color.palette: index outside 0..255") (fun () ->
-      ignore (Color.palette 256))
+    (Invalid_argument "Console.Color.ansi_256: index outside 0..255") (fun () ->
+      ignore (Color.ansi_256 256))
 
 (* The parameters of the escape code that selects a colour, as a span in
    that colour prints it. *)
@@ -76,7 +72,7 @@ let test_codes () =
   check "red foreground" "31" (to_fg_code Color.red);
   check "bright cyan background" "106" (to_bg_code Color.bright_cyan);
   check "RGB foreground" "38;2;1;2;3" (to_fg_code (Color.rgb 1 2 3));
-  check "palette background" "48;5;42" (to_bg_code (Color.palette 42))
+  check "palette background" "48;5;42" (to_bg_code (Color.ansi_256 42))
 
 let color = Alcotest.testable Color.pp Color.equal
 
@@ -109,7 +105,7 @@ let test_formatter_depth () =
    ramp, and a colour nearer a grey than any cube entry. *)
 let test_downsample_256 () =
   let check label expected c =
-    Alcotest.check color label (Color.palette expected)
+    Alcotest.check color label (Color.ansi_256 expected)
       (Color.downsample `Ansi_256 c)
   in
   check "cube corner" 196 (Color.rgb 255 0 0);
@@ -128,16 +124,16 @@ let test_downsample_16 () =
   check "bright red" Color.bright_red (Color.rgb 250 10 10);
   check "red" Color.red (Color.rgb 200 0 0);
   check "grey" Color.bright_black (Color.rgb 130 130 130);
-  check "low palette entry" Color.bright_red (Color.palette 9);
-  check "high palette entry" Color.bright_red (Color.palette 196);
+  check "low palette entry" Color.bright_red (Color.ansi_256 9);
+  check "high palette entry" Color.bright_red (Color.ansi_256 196);
   check "named stays" Color.cyan Color.cyan
 
 let test_rgb () =
   let rgb = Alcotest.(triple int int int) in
-  Alcotest.check rgb "cube" (95, 135, 175) (Color.to_rgb (Color.palette 67));
-  Alcotest.check rgb "grey" (128, 128, 128) (Color.to_rgb (Color.palette 244));
+  Alcotest.check rgb "cube" (95, 135, 175) (Color.to_rgb (Color.ansi_256 67));
+  Alcotest.check rgb "grey" (128, 128, 128) (Color.to_rgb (Color.ansi_256 244));
   Alcotest.check rgb "named" (0, 0, 238) (Color.to_rgb Color.blue);
-  Alcotest.check rgb "low palette" (0, 0, 238) (Color.to_rgb (Color.palette 4));
+  Alcotest.check rgb "low palette" (0, 0, 238) (Color.to_rgb (Color.ansi_256 4));
   Alcotest.check color "blend" (Color.rgb 128 128 128)
     (Color.blend (Color.rgb 0 0 0) (Color.rgb 255 255 255) 0.5);
   Alcotest.check color "blend clamps" (Color.rgb 255 255 255)

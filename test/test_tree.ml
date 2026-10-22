@@ -71,7 +71,7 @@ let test_margin_wraps () =
 (* A styled guide is drawn in its style. *)
 let test_guide_style () =
   let blue = Color.rgb 0 0 255 in
-  let guide = Guide.with_style (Style.fg blue) Guide.unicode in
+  let guide = Guide.with_style (Style.fg blue) Guide.single in
   let tree =
     Tree.v ~guide (View.text "r")
       [ Tree.v (View.text "a") []; Tree.v (View.text "b") [] ]

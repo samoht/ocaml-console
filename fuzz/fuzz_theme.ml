@@ -13,13 +13,15 @@ let marks =
 (* [v] keeps what it is given, its palette is never empty, and a mark is one
    line of text. *)
 let test_theme s n =
-  let c = Color.palette (abs n land 255) in
+  let c = Color.ansi_256 (abs n land 255) in
   let palette = if n land 1 = 0 then [] else [ c; Color.red ] in
-  let t = Theme.v ~accent:c ~palette ~ok:c ~muted:c ~marks:(fun _ -> s) () in
+  let t =
+    Theme.v ~accent:c ~palette ~succeeded:c ~muted:c ~marks:(fun _ -> s) ()
+  in
   check (Color.equal (Theme.muted t) c);
-  check (not (Style.is_none (Theme.header (Theme.v ()))));
+  check (not (Style.equal (Theme.header (Theme.v ())) Style.none));
   check (Theme.palette t <> []);
-  check (Color.equal (Theme.accent t) c && Color.equal (Theme.ok t) c);
+  check (Color.equal (Theme.accent t) c && Color.equal (Theme.succeeded t) c);
   (match Theme.of_string s with
   | Ok t -> check (String.equal (Theme.name t) s)
   | Error (`Msg _) -> check (not (List.mem_assoc s Theme.all)));

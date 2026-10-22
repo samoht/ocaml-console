@@ -25,7 +25,7 @@ let main color theme =
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~summary:"Testing" (fun d ->
       Eio.Fiber.List.iter (test clock d) suites);
-  let ok = View.role `Ok (View.text "passed") in
+  let ok = View.role `Succeeded (View.text "passed") in
   let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
   let cols =
     Table.

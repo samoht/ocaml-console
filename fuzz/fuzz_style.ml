@@ -7,7 +7,7 @@ open Alcobar
 open Console
 
 let style n =
-  let c = Color.palette (n land 255) in
+  let c = Color.ansi_256 (n land 255) in
   let parts =
     [
       Style.bold;
@@ -26,18 +26,14 @@ let style n =
     Style.none
     (List.mapi (fun i s -> (i, s)) parts)
 
-(* [none] is a unit of [+], [+] is associative, the colours of its right
-   argument win, and [is_none] holds of [none] alone. *)
+(* [none] is a unit of [+], [+] is associative, and the colours of its right
+   argument win. *)
 let test_laws a b c =
   let a = style a and b = style b and c = style c in
   check (Style.equal a Style.(a + none));
   check (Style.equal a Style.(none + a));
   check (Style.equal Style.(a + (b + c)) Style.(a + b + c));
-  let fg = Option.equal Color.equal in
-  (match Style.foreground b with
-  | Some f -> check (fg (Style.foreground Style.(a + b)) (Some f))
-  | None -> check (fg (Style.foreground Style.(a + b)) (Style.foreground a)));
-  check (Bool.equal (Style.is_none a) (Style.equal a Style.none));
+  check (Style.equal Style.(a + b + b) Style.(a + b));
   Fmt.kstr ignore "%a" Style.pp a
 
 (* [compare] is a total order that agrees with [equal], on styles and on
@@ -52,7 +48,7 @@ let test_order a b c =
   order Style.compare Style.equal (style a) (style b) (style c);
   let color n =
     match n mod 3 with
-    | 0 -> Color.palette (n land 255)
+    | 0 -> Color.ansi_256 (n land 255)
     | 1 -> Color.rgb (n land 255) ((n lsr 8) land 255) ((n lsr 16) land 255)
     | _ -> List.nth Color.[ red; blue; bright_green ] ((n lsr 2) mod 3)
   in

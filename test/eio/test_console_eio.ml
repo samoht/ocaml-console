@@ -427,7 +427,9 @@ let test_theme_not_a_choice () =
     Console.Color.set_depth ppf `Ansi_256;
     Console.(
       View.pp ppf
-        (View.styled Style.(bold + fg (Theme.ok Theme.nord)) (View.text "x")));
+        (View.styled
+           Style.(bold + fg (Theme.succeeded Theme.nord))
+           (View.text "x")));
     Format.pp_print_flush ppf ();
     let s = Buffer.contents buf in
     String.sub s 0 (String.index s 'x')

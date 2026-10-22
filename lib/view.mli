@@ -54,9 +54,10 @@ val link : uri:string -> t -> t
 val role : Theme.role -> t -> t
 (** [role r v] is [v] with the part [r] of the formatter's theme ({!Theme.get})
     under each of its styles, taken when it is printed, as {!styled} lays a
-    style. [role `Ok (text "passed")] is green in {!Theme.default} and Nord's
-    green in {!Theme.nord}. A part of [v] in a colour of its own keeps it, so
-    [role `Ok (link ~uri (text "report"))] is a link in the success colour.
+    style. [role `Succeeded (text "passed")] is green in {!Theme.default} and
+    Nord's green in {!Theme.nord}. A part of [v] in a colour of its own keeps
+    it, so [role `Succeeded (link ~uri (text "report"))] is a link in the
+    success colour.
 
     It is as wide as [v]. It is printed in colours at the formatter's
     {!Color.val-depth}, and as the text of [v] without colour. {!to_string}

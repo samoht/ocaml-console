@@ -22,20 +22,15 @@ let test_rgb r g b =
 
 (* [palette] accepts exactly [0;255]. *)
 let test_palette n =
-  match Color.palette n with
+  match Color.ansi_256 n with
   | c ->
       if n < 0 || n > 255 then fail "out of range accepted";
       check (in_range (Color.to_rgb c))
   | exception Invalid_argument _ -> if n >= 0 && n <= 255 then fail "refused"
 
-(* [of_hex] and [hex] agree, and a colour printed as hex reads back. *)
+(* A colour printed as hex reads back. *)
 let test_hex s =
-  (match Color.of_hex s with
-  | Ok c -> check (Color.equal c (Color.hex s))
-  | Error _ -> (
-      match Color.hex s with
-      | _ -> fail "hex accepted what of_hex refused"
-      | exception Invalid_argument _ -> ()));
+  ignore (Color.of_hex s);
   let r, g, b =
     ( Char.code (String.get (s ^ "abc") 0),
       Char.code (String.get (s ^ "abc") 1),
@@ -49,7 +44,7 @@ let test_hex s =
 (* [blend] and [scale] stay in range, whatever the factor; [blend c0 c1 0] is
    [c0] and [blend c0 c1 1] is [c1]. *)
 let test_blend_scale a b f =
-  let c0 = Color.palette (a land 255) and c1 = Color.palette (b land 255) in
+  let c0 = Color.ansi_256 (a land 255) and c1 = Color.ansi_256 (b land 255) in
   check (in_range (Color.to_rgb (Color.blend c0 c1 f)));
   check (in_range (Color.to_rgb (Color.scale f c0)));
   check (Color.to_rgb (Color.blend c0 c1 0.) = Color.to_rgb c0);
@@ -91,10 +86,10 @@ let test_sgr_in_range n r g b f =
       (fun make -> try Some (make ()) with Invalid_argument _ -> None)
       [
         (fun () -> Color.rgb r g b);
-        (fun () -> Color.palette n);
-        (fun () -> Fmt.kstr Color.hex "%x" (abs n));
-        (fun () -> Color.scale f (Color.palette (n land 255)));
-        (fun () -> Color.blend (Color.palette (n land 255)) Color.red f);
+        (fun () -> Color.ansi_256 n);
+        (fun () -> Result.get_ok (Fmt.kstr Color.of_hex "%x" (abs n)));
+        (fun () -> Color.scale f (Color.ansi_256 (n land 255)));
+        (fun () -> Color.blend (Color.ansi_256 (n land 255)) Color.red f);
       ]
   in
   List.iter
