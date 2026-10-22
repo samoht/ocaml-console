@@ -433,7 +433,8 @@ let columns display ~width ~height =
   let tree task = Console.Display.tree ~width:half ~height:(height - 1) task in
   Console.Span.vcat
     [
-      Console.Span.hcat (List.map tree (Console.Display.tasks display));
+      Console.Span.hcat
+        (List.map tree Console.Display.(children (root display)));
       Console.Display.summary display;
     ]
 ```

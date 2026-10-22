@@ -56,8 +56,8 @@ val set_view : t -> (t -> width:int -> height:int -> Span.t) -> unit
 val default_view : t -> width:int -> height:int -> Span.t
 (** See {!Display.default_view}. *)
 
-val tasks : t -> task list
-(** See {!Display.tasks}. *)
+val children : task -> task list
+(** See {!Display.children}. *)
 
 val tree : ?width:int -> ?height:int -> task -> Span.t
 (** See {!Display.tree}. *)

@@ -244,7 +244,7 @@ let set_view t view =
     Display_region.paint t
   end
 
-let tasks t = children (root t)
+let children = children
 let tree = Display_tree.tree
 let summary = Display_tree.summary
 let default_view = Display_tree.default_view

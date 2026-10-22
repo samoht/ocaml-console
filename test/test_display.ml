@@ -1098,6 +1098,26 @@ let test_with_task_reason () =
     (contains "\"status\":\"failed\",\"elapsed\":0,\"text\":\"fetch: Failure"
        (run `Json))
 
+(* [children] are the tasks under a task, the top tasks under the root,
+   those that ended among them while their top task runs. *)
+let test_children () =
+  let t = terminal ~theme ~width:40 ~height:10 () in
+  let d = t.display in
+  let a = Display.task d "a" and b = Display.task d "b" in
+  let a1 = Display.task ~parent:a d "a1" in
+  let a2 = Display.task ~parent:a d "a2" in
+  Display.succeed a1;
+  Alcotest.(check int)
+    "the top tasks" 2
+    (List.length Display.(children (root d)));
+  Alcotest.(check bool)
+    "the tasks under a" true
+    (match Display.children a with
+    | [ x; y ] -> x == a1 && y == a2
+    | _ -> false);
+  Alcotest.(check int) "none under b" 0 (List.length (Display.children b));
+  Display.close d
+
 (* [iter] is a task whose count follows the list. *)
 let test_iter () =
   let seen = ref [] in
@@ -1444,7 +1464,7 @@ let test_label_before_bar_hcat () =
   let t = terminal ~theme ~width:75 ~height:12 () in
   let view d ~width ~height =
     let half = (min width 100 - 2) / 2 in
-    match Display.tasks d with
+    match Display.(children (root d)) with
     | [ a; b ] ->
         Span.hcat
           [
@@ -1669,6 +1689,7 @@ let suite =
       Alcotest.test_case "within a task" `Quick test_within;
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
+      Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;

@@ -1356,7 +1356,7 @@ let test_columns steps h =
         Console_vte.feed vte s)
   in
   let view d ~width ~height =
-    let tops = Display.tasks d in
+    let tops = Display.(children (root d)) in
     let n = max 1 (List.length tops) in
     let column = (min width 100 - (2 * (n - 1))) / n in
     Span.vcat

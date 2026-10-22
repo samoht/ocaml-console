@@ -501,13 +501,16 @@ val cancel : ?message:string -> task -> unit
     a {!Table.to_span} above the tasks, trees side by side with {!Span.hcat},
     one under the other with {!Span.vcat}.
 
+    A view of trees side by side wants [keep_ended] ({!v}), so that a column
+    does not empty while the others run:
+
     {[
     let view display ~width ~height =
       let half = (min width 100 - 2) / 2 in
       let tree task =
         Console.Display.tree ~width:half ~height:(height - 1) task
       in
-      match Console.Display.tasks display with
+      match Console.Display.(children (root display)) with
       | [ a; b ] ->
           Console.Span.(
             vcat [ hcat [ tree a; tree b ]; Console.Display.summary display ])
@@ -535,9 +538,12 @@ val default_view : view
      s]] with [w = min width 100] and [s = summary ~width:w display]: the tree
     of every top task, then the summary line, at most [w] cells wide. *)
 
-val tasks : t -> task list
-(** [tasks display] are the top tasks of [display] in its region, in the order
-    they started: those that run, and with [keep_ended] those that ended. *)
+val children : task -> task list
+(** [children task] are the tasks under [task] in the region, in the order they
+    started: those that run, and those that ended and wait under it ({!design}).
+    [children (root display)] are the top tasks, those that ended among them
+    only with [keep_ended]. Without a terminal a task that ended is printed and
+    forgotten, so these are only the tasks that run. *)
 
 val tree : ?width:int -> ?height:int -> task -> Span.t
 (** [tree task] is the tree of [task] in the region: the row of [task], then the

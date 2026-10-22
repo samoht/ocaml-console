@@ -52,7 +52,7 @@ let view display ~width ~height =
   let half = (room - 2) / 2 in
   let height = height - 1 in
   let trees =
-    match Display.tasks display with
+    match Display.(children (root display)) with
     | [ a; b ] when half >= 30 ->
         Span.hcat
           [
