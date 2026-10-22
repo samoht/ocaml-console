@@ -15,7 +15,9 @@
     waiting for ever.
 
     While a display that [Console_eio.run] opened runs, a question takes its
-    progress rows off the screen for the time it is asked. *)
+    progress rows off the screen for the time it is asked. What the asking fiber
+    prints meanwhile goes straight out, and what other fibers print is taken by
+    the display as usual. *)
 
 type t
 (** The type for prompts. *)

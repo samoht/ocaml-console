@@ -35,8 +35,9 @@ val release : unit -> unit
 
 val with_terminal : (unit -> 'a) -> 'a
 (** [with_terminal f] is [f ()] with the region of the calling fiber's display,
-    if any, off the screen, and what [f] writes on the standard formatters going
-    straight out. *)
+    if any, off the screen, and what [f] and the fibers it forks write on the
+    standard formatters going straight out. What other fibers write meanwhile is
+    taken as usual. *)
 
 val run :
   ?cursor:(bool -> unit) ->

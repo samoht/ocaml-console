@@ -108,7 +108,8 @@ let release () =
    line at a time that waits for a flush, and the line under way there goes
    out when the display closes; as events, they are the output of no task.
    A line under way waits for its end up to {!max_pending} bytes, and is cut
-   there. Inside {!with_terminal} the bytes go straight out. *)
+   there. Inside {!with_terminal}, the bytes of the fibers it runs go
+   straight out. *)
 
 (* A line under way, and whether the one before it was cut short rather
    than ended. *)
@@ -125,7 +126,11 @@ type intercepted = {
 }
 
 let intercepted : intercepted list Atomic.t = Atomic.make []
-let direct = Atomic.make 0
+let direct : unit Eio.Fiber.key = Eio.Fiber.create_key ()
+
+(* Out of a fiber, as from an [at_exit] function, no bytes are direct. *)
+let is_direct () =
+  try Option.is_some (Eio.Fiber.get direct) with Effect.Unhandled _ -> false
 
 (* The line under way of each task that wrote one, by the task's id. *)
 let lines : (int, line) Hashtbl.t = Hashtbl.create 16
@@ -203,7 +208,7 @@ let intercept display ppf =
   let pass = Display_driver.watch display out in
   let i = { ppf; out; pass; held = Buffer.create 256; root = line () } in
   let add s o len =
-    if Atomic.get direct > 0 then pass.out_string s o len
+    if is_direct () then pass.out_string s o len
     else
       match Display_driver.current display with
       | Some task ->
@@ -214,7 +219,7 @@ let intercept display ppf =
       | None -> take i.root s o len (outside display i)
   in
   let flush () =
-    if Atomic.get direct > 0 then pass.out_flush () else send_held display i
+    if is_direct () then pass.out_flush () else send_held display i
   in
   Format.pp_set_formatter_out_functions ppf
     {
@@ -287,9 +292,7 @@ let with_terminal f =
   match find () with
   | None -> f ()
   | Some d ->
-      Display.with_output d (fun _ ->
-          Atomic.incr direct;
-          Fun.protect f ~finally:(fun () -> Atomic.decr direct))
+      Display.with_output d (fun _ -> Eio.Fiber.with_binding direct () f)
 
 (* {1 Logs} *)
 
