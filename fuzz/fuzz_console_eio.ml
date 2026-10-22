@@ -762,6 +762,62 @@ let test_progress_enum text =
           if not (contains 0) then failf "diagnostic omitted progress %s" name)
         Console.Progress.all
 
+(* Backing-clock overshoot must not affect the bytes of a run whose two
+   tasks wait concurrently on the deterministic clock. *)
+let test_deterministic_concurrency a b =
+  let key = "CONSOLE_DETERMINISTIC_CLOCK" in
+  let saved = Sys.getenv_opt key in
+  Unix.putenv key "0";
+  Fun.protect ~finally:(fun () ->
+      Unix.putenv key (Option.value saved ~default:""))
+  @@ fun () ->
+  let duration n = float_of_int (1 + (n mod 20)) /. 10. in
+  let first = duration a and second = duration b in
+  let capture overshoot =
+    Eio_mock.Backend.run @@ fun () ->
+    let backing = Eio_mock.Clock.Mono.make () in
+    let clock = Console_eio.clock backing in
+    let out = Buffer.create 512 in
+    let ppf = Format.formatter_of_buffer out in
+    let ready, wake = Eio.Promise.create () in
+    let entered = ref 0 in
+    Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
+        let work label delay =
+          Console.Display.with_task d label (fun _ ->
+              incr entered;
+              if !entered = 2 then Eio.Promise.resolve wake ();
+              Eio.Time.Mono.sleep clock delay)
+        in
+        Eio.Fiber.both
+          (fun () ->
+            Eio.Fiber.both
+              (fun () -> work "first" first)
+              (fun () -> work "second" second))
+          (fun () ->
+            Eio.Promise.await ready;
+            Eio_mock.Clock.Mono.set_time backing (Mtime.of_uint64_ns overshoot)));
+    Format.pp_print_flush ppf ();
+    let output = Buffer.contents out in
+    let ends =
+      String.split_on_char '\n' output
+      |> List.filter (( <> ) "")
+      |> List.filter_map (fun line ->
+          match Console.Progress.Event.of_string line with
+          | Ok e when Console.Progress.Event.kind e = `End ->
+              Some
+                (Console.Progress.Event.task e, Console.Progress.Event.elapsed e)
+          | Ok _ -> None
+          | Error (`Msg m) -> fail m)
+    in
+    check
+      (List.sort compare ends
+      = List.sort compare
+          [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
+    output
+  in
+  check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
+    (capture 20_000_000_000L)
+
 let suite =
   ( "console_eio",
     [

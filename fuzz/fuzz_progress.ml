@@ -288,6 +288,61 @@ let test_extreme_seconds time =
   test_round_trip time (fun ~time:t ->
       Event.end' ~time:t ~id:0 ~status:`Succeeded ~elapsed:time [ "work" ])
 
+(* Deliberately malformed inputs, not prefixes cut out of UTF-8 text. *)
+let invalid_prefix =
+  choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
+
+(* The retained 4 KiB texts include complete decoded characters and ASCII
+   dots, also where a combining mark, a joiner or an escape meets the cap. *)
+let test_retained_cut k =
+  let tails =
+    [|
+      "\u{754C}";
+      "\u{1F600}";
+      "e\u{0301}";
+      "\u{1F468}\u{200D}\u{1F469}";
+      "\027[31mred";
+    |]
+  in
+  let raw =
+    String.make (4090 + (k mod 12)) 'a' ^ tails.(k mod Array.length tails)
+  in
+  let clean = Console_text.sanitize ~keep_newlines:false raw in
+  let expected =
+    if String.length clean <= 4096 then clean
+    else
+      let b = Buffer.create 4096 in
+      let rec prefix i =
+        let d = String.get_utf_8_uchar clean i in
+        let next = i + Uchar.utf_decode_length d in
+        if next <= 4093 then begin
+          Buffer.add_utf_8_uchar b (Uchar.utf_decode_uchar d);
+          prefix next
+        end
+      in
+      prefix 0;
+      Buffer.add_string b "...";
+      Buffer.contents b
+  in
+  let out = Buffer.create 16384 in
+  let ppf = Format.formatter_of_buffer out in
+  let d = Console.Display.v ~progress:`Json ~now:(fun () -> 0.) ppf in
+  let t = Console.Display.task d raw in
+  Console.Display.set_label t raw;
+  Console.Display.fail ~message:raw t;
+  Console.Display.close d;
+  Format.pp_print_flush ppf ();
+  let events =
+    String.split_on_char '\n' (Buffer.contents out)
+    |> List.filter (( <> ) "")
+    |> List.map decode
+  in
+  List.iter
+    (fun e ->
+      List.iter (check_eq ~pp:Fmt.Dump.string expected) (Event.task e);
+      Option.iter (check_eq ~pp:Fmt.Dump.string expected) (Event.text e))
+    events
+
 let suite =
   ( "progress",
     [

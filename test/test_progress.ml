@@ -279,9 +279,36 @@ let test_other_listed () =
     "another unit reads back" true
     (Event.of_string (Event.to_string files) = Ok files)
 
+(* A future event owns its members' schema. Only its time and name are
+   meaningful to a consumer that does not know that event. *)
+let test_unknown_event_members () =
+  let line = {|{"time":0,"event":"pause","id":"bad","text":5}|} in
+  match Event.of_string line with
+  | Ok e ->
+      Alcotest.(check bool)
+        "only the name and time" true
+        (e = Event.other ~time:0. "pause")
+  | Error (`Msg m) -> Alcotest.failf "unknown event rejected: %s" m
+
+(* Neither byte of this truncated four-byte character is a character.
+   Both APIs promise one replacement character per invalid byte. *)
+let test_invalid_bytes_individually () =
+  let raw = "\xf0\x9f" and expected = "\u{FFFD}\u{FFFD}" in
+  let text = Event.text (Event.output ~time:0. raw) in
+  let sanitized = Console_text.sanitize raw in
+  let vte = Console_vte.v ~rows:3 ~cols:8 () in
+  Console_vte.feed vte (sanitized ^ "\r\n" ^ Option.get text);
+  Alcotest.(check (list string))
+    "one visible cell per invalid byte" [ expected; expected ]
+    (Console_vte.screen vte);
+  Alcotest.(check (option string)) "event text" (Some expected) text;
+  Alcotest.(check string) "sanitized text" expected sanitized
+
 let suite =
   ( "progress",
     [
+      Alcotest.test_case "unknown events own their member schemas" `Quick
+        test_unknown_event_members;
       Alcotest.test_case "largest finite event times read back" `Quick
         test_json_max_float;
       Alcotest.test_case "other with a listed name" `Quick test_other_listed;
