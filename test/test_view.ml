@@ -500,9 +500,25 @@ let test_matrix_moves () =
     (at ~live:false ~theme:Theme.matrix ~time:0. table)
     (at ~live:false ~theme:Theme.matrix ~time:0.9 table)
 
+let test_weighted_room () =
+  let part c grow =
+    View.fit ~grow (fun r ->
+        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
+  in
+  let v = View.hcat ~gap:0 [ part 'a' 2; part 'b' 1 ] in
+  let raw = pp_at 11 v in
+  let terminal = Console_vte.v ~rows:4 ~cols:11 () in
+  Console_vte.feed terminal raw;
+  Alcotest.(check int)
+    "one terminal row" 0
+    (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check int) "all eleven cells shared" 11 (View.width (View.text raw))
+
 let suite =
   ( "view",
     [
+      Alcotest.test_case "weighted hcat keeps to its room" `Quick
+        test_weighted_room;
       Alcotest.test_case "zero-width truncation of blank lines is empty" `Quick
         test_zero_width_blank_lines;
       Alcotest.test_case "multiline styles reset before LF" `Quick
