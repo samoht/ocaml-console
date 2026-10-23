@@ -313,9 +313,30 @@ let test_chart_room () =
     (fst (Console_vte.cursor_pos terminal) < 5);
   Alcotest.(check bool) "within its room" true (View.width v <= 5)
 
+(* Without colour, an empty bar and a full one are told apart by their
+   glyphs: in every theme the fill and the track differ. *)
+let test_empty_and_full_differ () =
+  List.iter
+    (fun (name, theme) ->
+      let printed frac =
+        let buf = Buffer.create 32 in
+        let ppf = Format.formatter_of_buffer buf in
+        Fmt.set_utf_8 ppf true;
+        Theme.set ppf theme;
+        View.pp ppf (Bar.horizontal ~width:10 frac);
+        Format.pp_print_flush ppf ();
+        Buffer.contents buf
+      in
+      if String.equal (printed 0.) (printed 1.) then
+        Alcotest.failf "%s: an empty and a full bar are both %S" name
+          (printed 0.))
+    Theme.all
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "an empty and a full bar differ" `Quick
+        test_empty_and_full_differ;
       Alcotest.test_case "charts keep to their room" `Quick test_chart_room;
       Alcotest.test_case "sparklines keep to their room" `Quick
         test_sparkline_room;
