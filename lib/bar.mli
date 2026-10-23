@@ -133,16 +133,19 @@ val chart :
   (string * float) list ->
   View.t
 (** [chart bars] is a bar chart of [bars], a [(label, value)] each: a
-    {!vertical} bar as wide as its label, its value above it in the muted
-    colour, as a plain number (whole below a million, such as [12346], to three
-    digits otherwise, in thousands, millions and so on past ten thousand, such
-    as [12.3k]) and none above a value of [0.], its label under it, the bars one
-    cell apart on a baseline in the muted colour. The bars are [height] lines
-    tall (defaults to the height of the room less the three lines of values,
-    baseline and labels, and to 8 without one), filled to their value over
-    [scale] (defaults to the largest value), each bar in [style label value] if
-    [style] is given, and otherwise in the colours of a {!vertical} bar given no
-    style.
+    {!vertical} bar as wide as the wider of its label and its value, the value
+    above it in the muted colour and the label under it, the bars one cell apart
+    on a baseline in the muted colour. A value is written as a plain number: a
+    whole value below a million in full, such as [12346], another value below
+    ten thousand to three significant digits, or to the unit from a thousand up,
+    such as [3.14], and any other value to three digits in thousands, millions
+    and so on, such as [12.3k] for [12345.5]. A value of [0.] has no number
+    above its bar, and a negative or NaN value has an empty bar under its
+    number. The bars are [height] lines tall (defaults to the height of the room
+    less the three lines of values, baseline and labels, and to 8 without one),
+    filled to their value over [scale] (defaults to the largest value), each bar
+    in [style label value] if [style] is given, and otherwise in the colours of
+    a {!vertical} bar given no style.
 
     The chart keeps to its room: the bars are at most the room's height less
     three lines and at least one line, and in a room too short for all three
