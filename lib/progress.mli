@@ -65,7 +65,8 @@ val to_string : t -> string
     {b What gives way.} The label is what tells two rows apart, so it gives way
     last. When a row does not fit its room, its pieces give way stage by stage,
     each piece at the stage {!Layout.give_way} sets, by default:
-    + the rate and the time left;
+    + the rate and the time left, then the cells the count and rate columns keep
+      while unused (see below);
     + the bar and the percentage;
     + the count, which leaves the column it shares with the other rows and, for
       bytes, gets shorter, such as [256M/2.0G];
@@ -76,12 +77,17 @@ val to_string : t -> string
 
     {b Columns.} The count and the rate each take a column that the rows of a
     root share, and the elapsed time a column of six cells; a row without a
-    count or a rate leaves its column blank. The count column is as wide as the
-    widest count a task's total allows, at least [999/999], and the rate column
-    as the widest rate, so they widen only when a task with a larger total
-    starts. The pieces after the {!Layout.spacer} sit against the right edge, so
-    while no piece gives way each sits in the same columns on every row and in
-    every frame. *)
+    count or a rate leaves its column blank. From the first frame, the count
+    column is kept as wide as the widest count of bytes,
+    [1023.99 KiB / 1023.99 TiB], and the rate column as the widest rate,
+    [1023.99 MiB/s], blank while no task uses them, so that a task that starts
+    counting bytes in the middle of the run opens no column and moves no bar.
+    Where a row is short of room, the kept cells give way after the rate and
+    before the bar; the columns are then as wide as the tasks need, at least
+    [999/999] for the count, and widen when a task with a larger total starts.
+    The pieces after the {!Layout.spacer} sit against the right edge, so while
+    no piece gives way each sits in the same columns on every row and in every
+    frame. *)
 module Layout : sig
   type t = Progress_layout.t
   (** The type for row layouts: at most one {!label} and one {!spacer}. *)

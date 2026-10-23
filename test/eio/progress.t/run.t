@@ -102,7 +102,6 @@ terminal as on a pipe:
   $ ../../../examples/progress/main.exe --progress=json --fail 2>&1 | cat
   {"time":0,"event":"start","id":0,"task":["RUN make"]}
   {"time":0,"event":"start","id":1,"task":["RUN make","sha256:abcd..."],"parent":0}
-  {"time":0,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":0,"total":2147483648,"unit":"bytes"}
   {"time":0,"event":"progress","id":0,"task":["RUN make"],"count":0,"total":5,"unit":"items"}
   {"time":0,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file0.c"}
   {"time":0.2,"event":"progress","id":0,"task":["RUN make"],"count":1,"total":5,"unit":"items"}
@@ -115,6 +114,7 @@ terminal as on a pipe:
   {"time":0.8,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file4.c"}
   {"time":1,"event":"progress","id":0,"task":["RUN make"],"count":5,"total":5,"unit":"items"}
   {"time":1,"event":"output","id":0,"task":["RUN make"],"text":"  CC src/file5.c"}
+  {"time":1.2,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":0,"total":2147483648,"unit":"bytes"}
   {"time":1.4,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":268435456,"total":2147483648,"unit":"bytes"}
   {"time":1.6,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":536870912,"total":2147483648,"unit":"bytes"}
   {"time":1.8,"event":"progress","id":1,"task":["RUN make","sha256:abcd..."],"count":805306368,"total":2147483648,"unit":"bytes"}
