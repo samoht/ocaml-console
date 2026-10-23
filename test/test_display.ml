@@ -2155,6 +2155,31 @@ let test_bar_shrinks_first () =
     "the rate gives way" true
     (List.exists (fun (_, rate, _) -> not rate) rows)
 
+(* A count of bytes that gives way keeps to three digits: 1000 of a unit
+   or more is shown in the next one. *)
+let test_short_bytes () =
+  let row_at width =
+    let t = terminal ~theme ~width ~height:4 () in
+    let r = Task.start t.root "layer" in
+    Task.set_bytes r ~count:1048575L ~total:1048576000L;
+    Display.redraw t.display;
+    let row = List.find (contains "layer") (screen t) in
+    close t;
+    row
+  in
+  let rows = List.init 40 (fun i -> row_at (20 + i)) in
+  Alcotest.(check bool)
+    ("1.0M/1.0G in\n" ^ String.concat "\n" rows)
+    true
+    (List.exists (contains "1.0M/1.0G") rows);
+  List.iter
+    (fun row ->
+      Alcotest.(check bool)
+        ("no four digits in\n" ^ row)
+        false
+        (contains "1024K" row || contains "1000M" row))
+    rows
+
 (* [full row] is [true] iff the bar of [row] has no cell of its track. *)
 let full row =
   match bar_span row with
@@ -2843,6 +2868,8 @@ let suite =
       Alcotest.test_case "rows pack from the left" `Quick test_rows_pack_left;
       Alcotest.test_case "the bar shrinks before anything gives way" `Quick
         test_bar_shrinks_first;
+      Alcotest.test_case "a short count of bytes keeps to three digits" `Quick
+        test_short_bytes;
       Alcotest.test_case "a task that ends keeps its columns" `Quick
         test_ended_keeps_columns;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
