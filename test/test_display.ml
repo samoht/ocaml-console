@@ -970,6 +970,11 @@ let test_root () =
    with
   | () -> Alcotest.fail "no exception"
   | exception Failure _ -> ());
+  Task.set_items root ~count:1 ~total:2;
+  Task.set_bytes root ~count:1L ~total:2L;
+  Alcotest.(check bool)
+    "the root counts nothing" true
+    (Task.progress root = `Spin);
   Task.succeed root;
   Task.fail root;
   Task.cancel root;

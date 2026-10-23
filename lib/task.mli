@@ -100,12 +100,17 @@ val set_items : t -> count:int -> total:int -> unit
     count never goes back: a smaller [count] or [total] than before is ignored,
     and a [count] above [total] raises the total.
 
+    The root counts nothing, as its summary line counts its tasks
+    ({!Progress.summary}): a count of the whole work is that of a task started
+    for it. So a library that a nested [Console_eio.run] gives the root counts
+    as it would under any task.
+
     @raise Invalid_argument
       if [count] or [total] is negative, or [t] counts bytes. *)
 
 val set_bytes : t -> count:int64 -> total:int64 -> unit
 (** [set_bytes t ~count ~total] is like {!set_items} for a task that counts
-    bytes, whose row also shows the bytes per second.
+    bytes, whose row also shows the bytes per second. The root counts nothing.
 
     @raise Invalid_argument
       if [count] or [total] is negative, or [t] counts items. *)
