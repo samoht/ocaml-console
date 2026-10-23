@@ -22,7 +22,7 @@ type t = {
   mutable hist : string list; (* submitted lines, newest first, seed included *)
   mutable pos : int option; (* history index being viewed, newest is 0 *)
   mutable draft : string; (* line in progress, saved while navigating *)
-  mutable esc : esc; (* escape-sequence parser state *)
+  mutable esc : esc;
   mutable after_cr : bool; (* last byte was '\r', so swallow a following '\n' *)
   mutable partial : string; (* the start of a character, to be completed *)
   widths : (string, int) Hashtbl.t; (* the cells of clusters met, a few *)

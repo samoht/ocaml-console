@@ -111,7 +111,6 @@ let replaced keep s =
     go 0;
     Buffer.contents buf
 
-(* [s] as valid UTF-8 without a C1 control. *)
 let clean = replaced (fun u -> not (is_c1 u))
 let utf_8 = Jsont.map Jsont.string ~dec:Fun.id ~enc:clean
 

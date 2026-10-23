@@ -38,8 +38,6 @@ let label_of r = Option.value (message r) ~default:(label r)
 let mark_of look r =
   mark look (outcome_mark (Option.value (outcome r) ~default:`Cancelled))
 
-(* {1 Live rows} *)
-
 (* In floats: [100 * cur] overflows an int long before [cur] does. *)
 let percent m =
   Option.map
@@ -94,8 +92,6 @@ let eta look r =
   match Task_core.eta r with
   | Some s -> muted look ("ETA " ^ Task_text.duration s)
   | None -> V.empty
-
-(* {2 Columns} *)
 
 let bar_max = 40
 let bar_min = 10
@@ -155,9 +151,7 @@ let cell look r ~time ~stage (p : Progress_layout.piece) =
   | Const v -> Shown (if V.is_flat v then v else V.resolve (Ctx.v look) v)
   | Custom f -> Shown (V.resolve (Ctx.v ~time look) (f r))
 
-(* {2 What gives way}
-
-   The label is cut only once the other pieces have given way, at their
+(* The label is cut only once the other pieces have given way, at their
    stages: by default 1 the rate, 2 the bar and the percentage, 3 the
    count, which gets shorter and leaves the column it shares, 4 the elapsed
    time. *)
@@ -347,8 +341,6 @@ let tail look r =
     [] (window r)
   |> List.rev
 
-(* {1 Permanent lines} *)
-
 (* [lead], then the lines of [body] broken to [width], each after the
    first under its start. *)
 let hanging look ~width lead body =
@@ -442,9 +434,7 @@ let shed look n = dropped_line look n "task"
 let more look n =
   muted look (Fmt.str "%s %d more running" (Widget.ellipsis look) n)
 
-(* {2 Without a terminal}
-
-   The lines of tasks that run at once interleave, so each names its task
+(* The lines of tasks that run at once interleave, so each names its task
    by its path, the labels from its top task down, rather than by an
    indentation that the line above may belong to another tree. *)
 
@@ -501,8 +491,6 @@ let started look r = V.(mark look `Running ++ text " " ++ path look r (label r))
 let message look ?width (line : line) =
   let kind = match line.kind with Output -> Logs `App | k -> k in
   folded look ?width (lead_mark look kind) (text line.text)
-
-(* {1 The summary and the verdict} *)
 
 (* The worst of how the work and its tasks ended. *)
 let state root : Theme.mark =

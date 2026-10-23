@@ -80,7 +80,6 @@ let capped s =
 
 let label s = capped (clean s)
 
-(* The cells of the last line of [s]. *)
 let last_line_cells s =
   match String.rindex_opt s '\n' with
   | Some i ->

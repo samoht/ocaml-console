@@ -92,8 +92,6 @@ let horizontal ?style ?track ?(brackets = false) ?width frac =
       in
       View_core.drawn (draw t))
 
-(* {1 Vertical bars} *)
-
 let eighths = [| " "; "▁"; "▂"; "▃"; "▄"; "▅"; "▆"; "▇"; "█" |]
 
 (* Off UTF-8, a cell is a blank, a dot, a colon or a hash, as it is empty,
@@ -123,8 +121,6 @@ let height_style ~style look p =
       in
       Style.fg (View_core.color_at stops p)
 
-(* Cell [i] from the bottom of [height], filled to [e] eighths, [width]
-   cells wide, in [look]. *)
 let vertical_cell ~style ~track ~height ~width i e look =
   let glyphs = if Widget.bar look = `Ascii then ascii_eighths else eighths in
   let glyph = Widget.fill width glyphs.(e) in
@@ -165,8 +161,6 @@ let vertical ?style ?track ?width frac =
         | None, None -> 1
       in
       draw_vertical ~style ~track ~width ~height frac)
-
-(* {1 Charts} *)
 
 (* A sparkline spans its values: the lowest is the least a cell shows, an
    eighth, unless [min] says lower, and the highest fills it. It is one row

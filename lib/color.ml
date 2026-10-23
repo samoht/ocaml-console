@@ -32,7 +32,6 @@ let ansi_256 index =
     invalid_arg "Console.Color.ansi_256: index outside 0..255";
   Palette index
 
-(* Predefined colors *)
 let black = Ansi `Black
 let red = Ansi `Red
 let green = Ansi `Green

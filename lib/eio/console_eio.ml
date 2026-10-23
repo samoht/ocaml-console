@@ -33,7 +33,6 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
-(* The file, pipe or device a descriptor writes to. *)
 let file unix =
   match Unix.fstat unix with
   | st -> Some (st.Unix.st_dev, st.Unix.st_ino)
@@ -61,7 +60,6 @@ let own ppf =
     (Format.pp_get_formatter_stag_functions ppf ());
   own
 
-(* The cursor of the terminal on [unix], shown or hidden. *)
 let cursor unix visible =
   let s = if visible then "\027[?25h" else "\027[?25l" in
   try ignore (Unix.write_substring unix s 0 (String.length s))

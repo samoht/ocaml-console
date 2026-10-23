@@ -19,9 +19,8 @@ type t = {
    [Error] like any other unanswerable question. *)
 let max_answer = 4096
 
-(* The one genuine Unix boundary: whether there is a terminal on the other end
-   of the input is a property of its descriptor, and a flow with no descriptor
-   -- a string source, a pipe from a mock -- has nobody to ask. *)
+(* Whether the input is a terminal is a property of its descriptor: a flow
+   with none, such as a string source or a mock's pipe, is not one. *)
 let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
       if Terminal.is_tty fd then Some fd else None)

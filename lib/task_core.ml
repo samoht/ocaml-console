@@ -99,9 +99,6 @@ let path r =
   up [] r
 
 let rec root_of r = match r.parent with None -> r | Some p -> root_of p
-
-(* {1 Changes} *)
-
 let changed r = r.version <- r.version + 1
 let keep r m = r.memo <- m
 
@@ -125,8 +122,6 @@ let local () =
         Fun.protect f ~finally:(fun () -> stack := saved));
     cancelled = (fun _ -> false);
   }
-
-(* {1 Tasks} *)
 
 let row w ~id ?key ?parent ~log_lines ~transient label =
   let now = w.now () in
@@ -197,8 +192,6 @@ let scoped w =
 let current w =
   match scoped w with Some r when is_running r -> Some r | _ -> None
 
-(* {2 What waits under a task} *)
-
 let adopt p r =
   p.children <- r :: p.children;
   p.child_limit <- p.child_limit - 1;
@@ -252,8 +245,6 @@ let hold r =
       r.weight <- weight r;
       p.held <- p.held + r.weight;
       if p.held > held_cap then shed p r
-
-(* {2 Ending} *)
 
 let child_outcome = function
   | `Succeeded -> `Succeeded
@@ -352,8 +343,6 @@ let set_label r label =
     widen_label r;
     notify r.work (Renamed r)
   end
-
-(* {2 Counts and rates} *)
 
 let count_text = function
   | Spin -> ""
@@ -468,7 +457,6 @@ let fraction = function
   | Bytes (cur, total) ->
       Some (Int64.to_float cur /. Int64.to_float (Int64.max 1L total))
 
-(* The seconds left at the rate the task goes, once it has one. *)
 let eta r =
   let left =
     match r.metric with
@@ -479,8 +467,6 @@ let eta r =
   match left with
   | Some left when r.rate > 0. && is_running r -> Some (left /. r.rate)
   | _ -> None
-
-(* {2 Output} *)
 
 (* The lines a task keeps for its failure, the oldest dropped first. *)
 let output_cap = 1_048_576
@@ -540,8 +526,6 @@ let report root level text =
   | Some r -> add r (Logs level) text
   | None -> above root (Logs level) text
 
-(* {1 Events} *)
-
 let event (ch : change) =
   let task r = if is_root r then None else Some (r.id, path r) in
   let parent r =
@@ -593,8 +577,6 @@ let pp ppf r =
     | Some `Succeeded -> " succeeded"
     | Some `Failed -> " failed"
     | Some `Cancelled -> " cancelled")
-
-(* {1 Reading} *)
 
 let id r = r.id
 let work r = r.work

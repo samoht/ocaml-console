@@ -3,7 +3,6 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The ASCII glyphs the rain flickers through. *)
 let rain_glyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:.=*+-<>|/"
 
 (* The glyph of cell [p] in tenth [k] of a second: the same pair always picks

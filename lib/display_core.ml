@@ -61,9 +61,7 @@ let show_cursor = "\027[?25h"
    carriage return then goes to the first column. *)
 let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
-(* {1 Writing}
-
-   Everything the display writes goes out in one piece per operation, on a
+(* Everything the display writes goes out in one piece per operation, on a
    terminal as one synchronized update (mode 2026), so that a terminal never
    shows a region half erased or half drawn. A write error (a closed pipe)
    is the end of the output, not of the program. *)
@@ -126,8 +124,6 @@ let write t s = send t s
    output processing off a line feed keeps the column. *)
 let eol t = if is_live t then "\r\n" else "\n"
 
-(* {1 The look} *)
-
 (* A frame that moves moves only in colour: without it, rain would still
    change its glyphs. *)
 (* The look of the formatter, still and live, kept while its theme and its
@@ -150,8 +146,6 @@ let look ?(live = false) t =
 
 let render_in look t line = View_core.render ~look ?depth:t.depth line
 let render t line = render_in (look t) t line
-
-(* {1 The frame} *)
 
 (* One row stays free for the cursor: a region as tall as the screen would
    scroll its first line out of reach of the cursor moves that erase it. *)
@@ -232,8 +226,6 @@ let final t =
     (match lines t ~look c t.view with
     | lines -> lines
     | exception _ -> ( try lines t ~look c t.fallback with _ -> []))
-
-(* {1 Drawing} *)
 
 let add_up buf n =
   if n > 0 then begin
@@ -413,8 +405,6 @@ let erase t =
   let buf = Buffer.create 32 in
   clear buf t;
   write t (Buffer.contents buf)
-
-(* {1 Displays} *)
 
 (* [tapped out note] is [out] calling [note] with the last byte of each
    write, a space for blanks. *)

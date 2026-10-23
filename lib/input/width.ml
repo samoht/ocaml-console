@@ -103,7 +103,6 @@ let start c at =
   c.emoji <- false;
   c.after_text_emoji <- false
 
-(* Add [u], at [at], to the cluster under way. *)
 let take c u at =
   let p = props u in
   let w = p land 3 in

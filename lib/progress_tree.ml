@@ -64,9 +64,7 @@ let rec worst acc nodes =
    it. *)
 type form = Full | Fold | Bare | Whole
 
-(* {1 What a task keeps}
-
-   A task keeps its row as it was last laid out, for the room, the look and
+(* A task keeps its row as it was last laid out, for the room, the look and
    the time, until it changes: a running row moves with the time only by
    its spinner and its timer. A top task whose tree ended keeps that tree.
    A layout with a piece of its own reads what it likes, and keeps
@@ -344,7 +342,6 @@ let cut_tails n nodes =
 
 let draw views = V.vcat views
 
-(* The first [height] lines of [v] laid out in [c]. *)
 let first c height v =
   let v = V.resolve c v in
   if V.height v <= height then v

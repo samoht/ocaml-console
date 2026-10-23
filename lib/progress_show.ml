@@ -49,8 +49,6 @@ let view ?(layout = Layout.default) root =
       in
       V.vcat (tree :: below))
 
-(* {1 Showing tasks} *)
-
 type form = Live | Plain | Quiet | Json
 
 (* The size in which the rows are redrawn, if they are, and the lines

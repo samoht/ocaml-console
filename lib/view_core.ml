@@ -106,8 +106,6 @@ module F = struct
           };
         ]
 
-  (* {1 Gradients} *)
-
   (* A stop itself where it stands, so that a palette colour stays one. *)
   let at stops p =
     let n = Array.length stops in
@@ -118,8 +116,6 @@ module F = struct
     else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
 
   let color_at stops p = at (Array.of_list stops) p
-
-  (* {1 Lines} *)
 
   let seamed t =
     let rec go acc joined line = function
@@ -170,8 +166,6 @@ module F = struct
         List.concat
           (l :: List.map (fun (j, l) -> (if j then joint else text "\n") @ l) ls)
 
-  (* {1 Roles} *)
-
   let role_style theme = function
     | `Accent -> Style.fg (Theme.accent theme)
     | `Succeeded -> Style.fg (Theme.succeeded theme)
@@ -191,9 +185,7 @@ module F = struct
            drawn (fun look -> styled (role_style look.Look.theme r) line))
          (lines t))
 
-  (* {1 Layout}
-
-     A line is laid out as the grapheme clusters a terminal draws, each with its
+  (* A line is laid out as the grapheme clusters a terminal draws, each with its
      width. Clusters are found over the line's whole text, so a mark that
      combines with the letter before it joins that letter even across a change
      of style; a cluster takes the style and link of the atom it starts in. A
@@ -201,9 +193,9 @@ module F = struct
      cluster. *)
 
   type layout = {
-    joined : string;  (** The line's text. *)
+    joined : string;
     parts : atom array;
-    part_starts : int array;  (** Where each atom starts in [text]. *)
+    part_starts : int array;  (** Where each atom starts in [joined]. *)
     n : int;  (** The number of clusters. *)
     starts : int array;  (** Where each cluster starts; [[||]] when ASCII. *)
     widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
@@ -384,9 +376,6 @@ module F = struct
             (String.concat "" (List.map (fun a -> a.text) line))
 
   let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
-
-  (* {1 Side by side} *)
-
   let spaces n = if n <= 0 then empty else text (String.make n ' ')
 
   (* A line ends at its last span with text on it, a mark that takes no cell
@@ -421,15 +410,10 @@ module F = struct
            if i = 0 then row i
            else (if joined i then joint else text "\n") @ row i))
 
-  (* {1 One under the other} *)
-
   let vcat spans =
     concat ~sep:(text "\n") (List.filter (fun s -> not (is_empty s)) spans)
 
   let height t = if is_empty t then 0 else List.length (lines t)
-
-  (* {1 Truncating} *)
-
   let ellipsis = "\xe2\x80\xa6"
 
   (* An ellipsis wider than [w], such as ASCII dots, keeps its first clusters
@@ -489,8 +473,6 @@ module F = struct
     match w - line_width line with
     | n when n > 0 -> line @ text (String.make n ' ')
     | _ -> line
-
-  (* {1 Wrapping} *)
 
   (* A line being broken into lines of at most [w] cells, those after the
      first [hang] cells in: the lines done, newest first, and the ranges of
@@ -654,9 +636,6 @@ module F = struct
 
   let wrap w t = wrap_with ~hanging:false w t
   let wrap_hanging w t = wrap_with ~hanging:true w t
-
-  (* {1 Rendering} *)
-
   let osc8_open uri = "\027]8;;" ^ uri ^ "\027\\"
   let osc8_close = "\027]8;;\027\\"
 
@@ -726,9 +705,7 @@ module F = struct
     String.concat "\n" (List.map (to_string ~styled) lines)
 end
 
-(* {1 Room and time}
-
-   A view is either flat, its atoms known, or deferred: laid out in the room
+(* A view is either flat, its atoms known, or deferred: laid out in the room
    and at the time it is printed in. A deferred part says what it reads
    besides its room: the time, the tasks, and other state outside the view.
    One that reads none caches its layout for its room; one that reads the

@@ -6,12 +6,9 @@
 module Display = Console.Display
 module Task = Console.Task
 
-(* A display and the root of the work it shows. *)
 type run = { display : Display.t; root : Task.t; json : bool }
 
-(* {1 The one display}
-
-   A terminal has one live region at a time. The display that holds it is a
+(* A terminal has one live region at a time. The display that holds it is a
    fiber-local value, so a [run] in a fiber under another one finds it and
    adds to it, and a global one, so a [run] in another fiber of its domain
    joins it, a [run] in another domain is refused, and an exit in the middle
@@ -115,9 +112,7 @@ let release () =
   Atomic.set ending None;
   Atomic.set busy false
 
-(* {1 The program's output}
-
-   While a display runs, what the program writes on the standard formatters
+(* While a display runs, what the program writes on the standard formatters
    it takes is output, a whole line at a time. Bytes belong to the task
    current in the fiber that writes them: each task collects its own lines,
    without their escape codes, and its line under way is ended when it ends.
@@ -191,7 +186,6 @@ let give l ~cut task s =
   l.cut <- cut;
   if s <> "" then Task.log task (Console_text.strip s)
 
-(* The lines held for above the region go out. *)
 let send_held display i =
   if Buffer.length i.held > 0 then begin
     let s = Buffer.contents i.held in
@@ -313,8 +307,6 @@ let with_terminal f =
           Eio.Fiber.with_binding direct () f)
   | _ -> f ()
 
-(* {1 Logs} *)
-
 let level : Logs.level -> Task_driver.level = function
   | Logs.App -> `App
   | Logs.Error -> `Error
@@ -417,8 +409,6 @@ let receive ~sw ~closed requests root =
     loop ()
   in
   loop ()
-
-(* {1 Running} *)
 
 (* The display redraws on its clock, so that the spinners turn and the
    timers run while no task reports. *)

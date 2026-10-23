@@ -58,8 +58,6 @@ let frame border =
       Widget.widest [ c.top_right; c.right; c.right_cross; c.bottom_right ];
   }
 
-(* {1 Column widths} *)
-
 let chars t = Border.chars t.border
 
 (* A border whose three columns have no glyph has no edge: no padding
@@ -152,8 +150,6 @@ let widths ?max_width t =
     t.columns;
   Option.iter (fun max_width -> shrink ~max_width t words widths) max_width;
   widths
-
-(* {1 Lines} *)
 
 (* A rule across a table without edges runs under its columns and the gaps
    between them. *)
