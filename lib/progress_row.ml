@@ -52,13 +52,24 @@ let counted r = Work.count_cell (work r) > 0
 (* No bar is drawn before work advances, since an empty track reads as an
    input field; its cells are kept blank, as are those of a task that does
    not count, so that nothing moves when it shows. Once work has advanced,
-   the bar shows the least it can. A task that ended keeps the cells of its
-   bar blank: the line it leaves is its label, count and time. *)
+   the bar shows the least it can. A task that ended keeps its bar as far
+   as it went. *)
+let full = Atomic.make None
+
+let full_bar look width =
+  match Atomic.get full with
+  | Some (l, w, v) when l == look && w = width -> v
+  | _ ->
+      let v = V.paint look (Bar.horizontal ~width 1.) in
+      Atomic.set full (Some (look, width, v));
+      v
+
 let bar look r width =
   if not (counted r) then V.empty
   else
     match fraction (metric r) with
-    | Some f when f > 0. && is_running r ->
+    | Some f when f >= 1. -> full_bar look width
+    | Some f when f > 0. ->
         (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
         let f = Float.max f (1. /. float (max 1 (width * 2))) in
         V.paint look (Bar.horizontal ~width f)
@@ -363,8 +374,8 @@ let meta look r stage =
 let narrowest = 12
 
 (* The line of a task that ended is a row of {!Progress_layout.ended}: its
-   mark, then its label, count, rate and time in the columns of the rows,
-   its bar blank, giving way as they do. With [whole], a label that does not fit is
+   mark, then its label, bar, count, rate and time in the columns of the
+   rows, giving way as they do. With [whole], a label that does not fit is
    never cut: it goes on over the lines below, at the full width left, and
    the count and the time go two cells after its last line, or give way. *)
 let ended look ?width ?columns ~whole r =

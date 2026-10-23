@@ -230,7 +230,9 @@ let test_region () =
   check_lines "final screen"
     [
       "[+] fetch                           0.0s";
-      "[+] compile                   1/4   0.0s";
+      "[+] compile \
+       \u{2588}\u{2588}\u{2588}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}     \
+       1/4   0.0s";
       "[+] Build 0.0s (2/2)";
     ]
     (lines t);
@@ -1906,8 +1908,17 @@ let test_bar_shrinks_first () =
     "the rate gives way" true
     (List.exists (fun (_, rate, _) -> not rate) rows)
 
+(* [full row] is [true] iff the bar of [row] has no cell of its track. *)
+let full row =
+  match bar_span row with
+  | None -> false
+  | Some (i, j) ->
+      Array.for_all
+        (Uchar.equal (Uchar.of_int 0x2588))
+        (Array.sub (glyphs row) i (j - i + 1))
+
 (* A task that ends keeps its count and its time in the columns of the
-   rows that run, and the cells of its bar blank. *)
+   rows that run, and its bar, full, in the cells of theirs. *)
 let test_ended_keeps_columns () =
   let t = terminal ~theme ~width:100 ~height:8 () in
   let build = Task.start t.root "build" in
@@ -1935,8 +1946,48 @@ let test_ended_keeps_columns () =
     ("its time ends in its column " ^ msg)
     (cells (row "running" after))
     (cells (row "ends" after));
-  Alcotest.check span ("its bar blank " ^ msg) None
+  Alcotest.check span
+    ("its bar in the cells of theirs " ^ msg)
+    (bar_span (row "running" after))
     (bar_span (row "ends" after));
+  Alcotest.(check bool) ("its bar full " ^ msg) true (full (row "ends" after));
+  close t
+
+(* The line of a task that ended at its total runs from its label to its
+   count with no gap: its bar is full. One that failed before its total
+   draws its bar as far as it went. *)
+let test_ended_bar () =
+  let t = terminal ~theme ~width:80 ~height:8 () in
+  let total = 60 in
+  let render = Task.start t.root "render" and lint = Task.start t.root "lint" in
+  for count = 1 to total do
+    Task.set_items render ~count ~total;
+    t.advance 0.02
+  done;
+  Task.set_items lint ~count:15 ~total;
+  Task.succeed render;
+  Task.fail lint;
+  Display.redraw t.display;
+  let rows = screen t in
+  let msg = "in\n" ^ String.concat "\n" rows in
+  let row l = List.find (contains l) rows in
+  let render = row "render" and lint = row "lint" in
+  let blanks row =
+    let a = cell_of "render" row + 6 and b = cell_of "60/60" row in
+    Array.fold_left
+      (fun n u -> if Uchar.equal u (Uchar.of_int 0x20) then n + 1 else n)
+      0
+      (Array.sub (glyphs row) a (b - a))
+  in
+  Alcotest.(check bool) ("a full bar " ^ msg) true (full render);
+  Alcotest.(check bool)
+    ("no gap between the label and the count " ^ msg)
+    true
+    (blanks render < 5);
+  Alcotest.check span
+    ("the bar that failed in the same cells " ^ msg)
+    (bar_span render) (bar_span lint);
+  Alcotest.(check bool) ("a part of a bar " ^ msg) false (full lint);
   close t
 
 (* At a fixed width nothing in the region moves sideways while counts grow,
@@ -2515,6 +2566,7 @@ let suite =
         test_bar_shrinks_first;
       Alcotest.test_case "a task that ends keeps its columns" `Quick
         test_ended_keeps_columns;
+      Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
       Alcotest.test_case "the columns widen once for each kind of progress"

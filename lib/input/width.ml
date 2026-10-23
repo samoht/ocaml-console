@@ -35,15 +35,23 @@ let is_regional_indicator u =
 
 let vs16 = Uchar.of_int 0xfe0f
 
+(* A character that no rule of UAX #29 but GB9b and GB999 reads starts a
+   cluster after any character but a prepend, as printable ASCII does. *)
+let is_alone u =
+  Uucp.Break.grapheme_cluster u = `XX
+  && Uucp.Break.indic_conjunct_break u = `None
+  && not (Uucp.Emoji.is_extended_pictographic u)
+
 (* What the widths read of a character, from uucp, in a byte: its cells
-   (bits 0-1), whether it is a spacing mark (bit 2) and a text emoji (bit
-   3), with bit 4 set. *)
+   (bits 0-1), whether it is a spacing mark (bit 2), a text emoji (bit 3)
+   and {!is_alone} (bit 5), with bit 4 set. *)
 let props_of u =
   let w = max 0 (Uucp.Break.tty_width_hint u) in
   w
   lor (if w > 0 && is_mark u then 4 else 0)
   lor (if is_text_emoji u then 8 else 0)
   lor 16
+  lor if is_alone u then 32 else 0
 
 (* The bytes of [props_of] for the first two planes, where most text is,
    each computed once as it is first read: uucp's lookups of general
@@ -172,14 +180,34 @@ let segment f acc s ~pos ~len =
   close stop;
   !acc
 
+(* The bytes of [s] from [i] to [stop] are copies of the [k] at [pos]. No
+   closure, as {!ascii_from}. *)
+let rec copies s ~pos ~k j i stop =
+  i >= stop
+  || String.unsafe_get s i = String.unsafe_get s (pos + j)
+     && copies s ~pos ~k (if j + 1 = k then 0 else j + 1) (i + 1) stop
+
 (* A single character, such as a glyph of a frame, a bar or a spinner, is a
-   cluster alone and takes its own cells. *)
+   cluster alone and takes its own cells, and so is each copy of one that
+   {!is_alone}, such as the fill of a bar or a rule. *)
 let fold_cells f acc s ~pos ~len =
   if len = 0 then acc
   else
     let d = decode s pos (pos + len) in
-    if Uchar.utf_decode_length d = len then
-      f acc ~offset:pos ~len ~cells:(props (Uchar.utf_decode_uchar d) land 3)
+    let k = Uchar.utf_decode_length d in
+    let p = props (Uchar.utf_decode_uchar d) in
+    if k = len then f acc ~offset:pos ~len ~cells:(p land 3)
+    else if
+      p land 32 <> 0
+      && Uchar.utf_decode_is_valid d
+      && len mod k = 0
+      && copies s ~pos ~k 0 (pos + k) (pos + len)
+    then
+      let rec each acc i =
+        if i >= pos + len then acc
+        else each (f acc ~offset:i ~len:k ~cells:(p land 3)) (i + k)
+      in
+      each acc pos
     else segment f acc s ~pos ~len
 
 let iter_clusters f s =
@@ -197,22 +225,40 @@ let sub_width s ~pos ~len =
   if is_ascii_sub s ~pos ~len then len
   else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
 
-(* Printable ASCII starts a cluster after any character but a prepend
-   (UAX #29 GB9b, GB999). *)
+(* The last character of [a], which ends with a byte that is not ASCII. *)
+let last_char a =
+  let n = String.length a in
+  let rec start i =
+    if i > 0 && i > n - 4 && Char.code a.[i] land 0xc0 = 0x80 then start (i - 1)
+    else i
+  in
+  let i = start (n - 1) in
+  let d = String.get_utf_8_uchar a i in
+  if i + Uchar.utf_decode_length d = n then d
+  else
+    let rec last i d =
+      if i >= n then d
+      else
+        let d = String.get_utf_8_uchar a i in
+        last (i + Uchar.utf_decode_length d) d
+    in
+    last 0 (String.get_utf_8_uchar a 0)
+
+(* Printable ASCII, and any character that {!is_alone}, starts a cluster
+   after any character but a prepend (UAX #29 GB9b, GB999). *)
 let joins a b =
   let n = String.length a in
   n > 0
   && String.length b > 0
-  && ((not (Char.Ascii.is_print b.[0]))
+  && ((not
+         (Char.Ascii.is_print b.[0]
+         ||
+         let d = decode b 0 (String.length b) in
+         Uchar.utf_decode_is_valid d
+         && props (Uchar.utf_decode_uchar d) land 32 <> 0))
      || (not (Char.Ascii.is_print a.[n - 1]))
         &&
-        let rec last i d =
-          if i >= n then d
-          else
-            let d = String.get_utf_8_uchar a i in
-            last (i + Uchar.utf_decode_length d) d
-        in
-        let d = last 0 (String.get_utf_8_uchar a 0) in
+        let d = last_char a in
         (not (Uchar.utf_decode_is_valid d))
         || Uucp.Break.grapheme_cluster (Uchar.utf_decode_uchar d) = `PP)
 

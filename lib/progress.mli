@@ -61,7 +61,7 @@ val to_string : t -> string
     A layout is pieces put together with {!Layout.(++)} and {!Layout.list}. The
     lines of the tasks that ended have pieces of their own, whatever the layout:
     those of {!Layout.default}, with the mark of how the task ended in place of
-    the spinner, in the same columns, and the cells of the bar blank.
+    the spinner, in the same columns, and the bar as far as the task went.
 
     {b Packed from the left.} {!Layout.default} packs a row from the left: the
     label, in a column as wide as the widest label; then the bar, which grows to
@@ -215,8 +215,8 @@ end
 val row : ?layout:Layout.t -> Task.t -> View.t
 (** [row task] is the row of [task] in its room ({!View.fit}): drawn by [layout]
     (defaults to {!Layout.default}) while it runs, its pieces giving way to fit,
-    and its line once it ended: its mark, then its label, count, rate and time
-    in the columns of the rows, the cells of its bar blank ({!Layout}). *)
+    and its line once it ended: its mark, then its label, bar, count, rate and
+    time in the columns of the rows ({!Layout}). *)
 
 val tree : ?layout:Layout.t -> Task.t -> View.t
 (** [tree task] is the tree of [task] in its room ({!View.fit}): the row of

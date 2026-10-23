@@ -69,7 +69,8 @@ let alphabet =
     "\u{FE0E}"; "\u{200D}"; "\u{20E3}"; "\u{302E}"; "\u{1100}"; "\u{1161}";
     "\u{11A8}"; "\u{200B}"; "\u{00AD}"; "\u{231A}"; "\u{1F468}"; "\u{0600}";
     "\u{FFFD}"; "\xff"; "\u{0E01}"; "\u{0E33}"; "\u{0EB3}"; "\u{1F3F4}";
-    "\u{E0067}"; "\u{E007F}";
+    "\u{E0067}"; "\u{E007F}"; "\u{2501}"; "\u{2578}"; "\u{2500}";
+    "\u{2588}"; "\u{2591}"; "\u{2550}";
   |]
 [@@ocamlformat "disable"]
 
@@ -79,6 +80,19 @@ let text =
     (fun l ->
       String.concat ""
         (List.map (fun k -> alphabet.(k mod Array.length alphabet)) l))
+
+(* Text of runs of one character, as bars and rules draw. *)
+let runs =
+  map
+    [ list (pair uint8 uint8) ]
+    (fun l ->
+      String.concat ""
+        (List.map
+           (fun (k, n) ->
+             String.concat ""
+               (List.init (n mod 9) (fun _ ->
+                    alphabet.(k mod Array.length alphabet))))
+           l))
 
 (* Console's width is the policy's, on any bytes. *)
 let test_policy s =
@@ -97,6 +111,20 @@ let test_sub s a b =
     (Width.string_width (String.sub s pos len))
     (Width.sub_width s ~pos ~len)
 
+(* Text that does not join the text before it adds its cells and its
+   clusters to those of that text. *)
+let test_joins a b =
+  let a = Console_text.sanitize a and b = Console_text.sanitize b in
+  if not (Width.joins a b) then begin
+    check_eq ~pp:Fmt.int
+      (Width.string_width a + Width.string_width b)
+      (Width.string_width (a ^ b));
+    check_eq
+      ~pp:Fmt.(Dump.list Dump.string)
+      (Width.clusters a @ Width.clusters b)
+      (Width.clusters (a ^ b))
+  end
+
 (* {1 The test terminal} *)
 
 (* For printable UTF-8, the width is the column a terminal's cursor reaches
@@ -114,6 +142,10 @@ let suite =
     [
       test_case "follows the policy" [ bytes ] test_policy;
       test_case "follows the policy, on clusters" [ text ] test_policy;
+      test_case "follows the policy, on runs" [ runs ] test_policy;
       test_case "of a part" [ text; uint8; uint8 ] test_sub;
+      test_case "of a part of runs" [ runs; uint8; uint8 ] test_sub;
+      test_case "joins" [ runs; runs ] test_joins;
+      test_case "joins, on bytes" [ bytes; bytes ] test_joins;
       test_case "matches the terminal" [ bytes ] test_matches_terminal;
     ] )

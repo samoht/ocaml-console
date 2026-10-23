@@ -85,7 +85,7 @@ let test_tree_moves () =
   close t;
   check_lines "the step, its layer under it, the summary last"
     [
-      "\u{2713} RUN make 5/5 0.0s";
+      "\u{2713} RUN make " ^ bar ^ " 5/5 0.0s";
       " \u{2514}\u{2500}\u{2500} \u{2713} sha256:abcd... 0.0s";
       "\u{2713} Building 0.0s (2/2)";
     ]

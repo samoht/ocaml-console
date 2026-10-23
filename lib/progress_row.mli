@@ -62,10 +62,9 @@ val ended :
   t ->
   View_core.t list
 (** [ended look ~width ~columns ~whole r] is the line of [r], which ended: the
-    row {!Progress_layout.ended} draws, its mark, then its label, count, rate
-    and time in the columns of the live rows, the cells of its bar blank. A
-    label that does not fit is cut, or with [whole] goes on over the lines
-    below. *)
+    row {!Progress_layout.ended} draws, its mark, then its label, bar, count,
+    rate and time in the columns of the live rows. A label that does not fit is
+    cut, or with [whole] goes on over the lines below. *)
 
 val output : Look.t -> width:int -> t -> View_core.t list
 (** [output look ~width r] is the output [r] kept, whole: a line that does not

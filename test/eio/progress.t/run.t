@@ -9,13 +9,13 @@ place, and the screen keeps the tree of the tasks that ended, then the
 summary:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=auto
-  [+] RUN make                                                          5/5   3.0s
-    +-- [+] sha256:abcd...                              2.00 GiB / 2.00 GiB   3.0s
+  [+] RUN make             ######################                       5/5   3.0s
+    +-- [+] sha256:abcd... ######################       2.00 GiB / 2.00 GiB   3.0s
   [+] Building 3.0s (2/2)
 
   $ ../tty.exe ../../../examples/progress/main.exe
-  [+] RUN make                                                          5/5   3.0s
-    +-- [+] sha256:abcd...                              2.00 GiB / 2.00 GiB   3.0s
+  [+] RUN make             ######################                       5/5   3.0s
+    +-- [+] sha256:abcd... ######################       2.00 GiB / 2.00 GiB   3.0s
   [+] Building 3.0s (2/2)
 
 A pipe gets plain lines instead, one when a task starts, its output and one
@@ -54,8 +54,8 @@ recorder reads: the bytes leave the screen a terminal shows. The rows are
 80 columns wide unless COLUMNS says otherwise:
 
   $ ../../../examples/progress/main.exe --progress=tty 2>&1 | ../tty.exe -
-  [+] RUN make                                                          5/5   3.0s
-    +-- [+] sha256:abcd...                              2.00 GiB / 2.00 GiB   3.0s
+  [+] RUN make             ######################                       5/5   3.0s
+    +-- [+] sha256:abcd... ######################       2.00 GiB / 2.00 GiB   3.0s
   [+] Building 3.0s (2/2)
 
   $ COLUMNS=50 ../../../examples/progress/main.exe --progress=tty 2>&1 \

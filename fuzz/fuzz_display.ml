@@ -1603,6 +1603,105 @@ let test_rows_pack steps w =
     steps;
   Display.close d
 
+(* The row of a task that ended, from its label on, is the same in every
+   frame while the columns of the rows stay as they are, as the time moves
+   and the other tasks move, start and end. *)
+let test_ended_rows_stay steps w =
+  let width = 40 + (w mod 81) and height = 24 in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        let s = Buffer.contents buf in
+        Buffer.clear buf;
+        Console_vte.feed vte s)
+  in
+  Theme.set ppf Theme.dos;
+  let now = ref 0. in
+  let root = Task.root ~label:header ~now:(fun () -> !now) () in
+  let d =
+    Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
+  in
+  let tasks = ref [] in
+  let pick i =
+    match !tasks with
+    | [] -> None
+    | l -> Some (fst (List.nth l (i mod List.length l)))
+  in
+  let seen = Hashtbl.create 16 in
+  let frame () =
+    Display.redraw d;
+    let rows = nonblank vte in
+    let own label =
+      Option.bind
+        (List.find_opt (fun r -> has (label ^ " ") r) rows)
+        (fun r ->
+          let cells = Display_harness.glyphs r in
+          Option.map
+            (fun at ->
+              let b = Buffer.create 80 in
+              for i = at to Array.length cells - 1 do
+                Buffer.add_utf_8_uchar b cells.(i)
+              done;
+              Buffer.contents b)
+            (find_cell label cells))
+    in
+    let column =
+      List.fold_left
+        (fun n (_, label) ->
+          match List.find_opt (fun r -> has (label ^ " ") r) rows with
+          | None -> n
+          | Some r ->
+              Option.fold ~none:n
+                ~some:(fun l -> max n l.ends)
+                (laid_out label r))
+        0 !tasks
+    in
+    let key = (column, widening !tasks) in
+    List.iter
+      (fun (task, label) ->
+        if Task.state task <> `Running then
+          match own label with
+          | None -> ()
+          | Some row -> (
+              match Hashtbl.find_opt seen label with
+              | Some (key', row') when key = key' && row <> row' ->
+                  failf "the row of %s moved:@.%s@.then@.%s@.in@.%s" label row'
+                    row (String.concat "\n" rows)
+              | _ -> Hashtbl.replace seen label (key, row)))
+      !tasks
+  in
+  List.iter
+    (fun step ->
+      (match step with
+      | Begin (p, n) when List.length !tasks < 12 ->
+          let label =
+            Fmt.str "t%02d%s" (List.length !tasks) (String.make (n mod 24) '-')
+          in
+          let parent = Option.value (Option.bind p pick) ~default:root in
+          tasks := !tasks @ [ (Task.start parent label, label) ]
+      | Begin _ -> ()
+      | Items (i, c, n) ->
+          let total = [| 5; 12; 120; 1200; 99_999 |].(n mod 5) in
+          Option.iter
+            (fun task ->
+              try Task.set_items task ~count:(c mod (total + 1)) ~total
+              with Invalid_argument _ -> ())
+            (pick i)
+      | Bytes_of (i, c) ->
+          let total = 2147483648L in
+          let count = Int64.(div (mul total (of_int c)) 255L) in
+          Option.iter
+            (fun task ->
+              try Task.set_bytes task ~count ~total
+              with Invalid_argument _ -> ())
+            (pick i)
+      | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
+      | Tick -> now := !now +. 0.25);
+      frame ())
+    steps;
+  Display.close d
+
 (* Shrinking windows keeps the latest output, regardless of tree order. *)
 let test_window_age n newest_child =
   let t = Display_harness.terminal ~width:60 ~height:4 () in
@@ -1778,6 +1877,9 @@ let suite =
       test_case "rows pack from the left, their bars in one column"
         [ list pack; uint8 ]
         test_rows_pack;
+      test_case "the row of a task that ended stays as it is"
+        [ list pack; uint8 ]
+        test_ended_rows_stay;
       test_case "trees side by side hold every task once"
         [ list tree_step; uint8 ]
         test_columns;
