@@ -459,9 +459,56 @@ let test_output_suffix n k =
   Task.log task "after the end";
   check_eq ~pp:Fmt.(Dump.list Dump.string) expected (Task.output task)
 
+let test_event_text_limits n unicode =
+  let glyph = if unicode then "界" else "x" in
+  let count = (4080 / String.length glyph) + n in
+  let repeat n = String.concat "" (List.init n (Fun.const glyph)) in
+  let raw = repeat count in
+  let expected =
+    if String.length raw <= 4096 then raw
+    else repeat (4093 / String.length glyph) ^ "..."
+  in
+  let task = (0, [ raw ]) in
+  let events =
+    [
+      Event.start ~time:0. task;
+      Event.progress ~time:0. ~count:1L ~total:2L ~unit:`Items task;
+      Event.label ~time:0. task raw;
+      Event.output ~task ~time:0. raw;
+      Event.succeeded ~task ~message:raw ~time:0. ~elapsed:0. ();
+      Event.failed ~task ~message:raw ~time:0. ~elapsed:0. ();
+      Event.cancelled ~task ~message:raw ~time:0. ~elapsed:0. ();
+      Event.other ~task ~time:0. "pause";
+    ]
+  in
+  let bounded text =
+    check (String.is_valid_utf_8 text);
+    check (String.length text <= 4096);
+    check_eq ~pp:Fmt.Dump.string expected text
+  in
+  List.iter
+    (fun event ->
+      List.iter
+        (fun event ->
+          Option.iter
+            (fun (_, path) -> List.iter bounded path)
+            (Event.task event);
+          Option.iter bounded (Event.message event);
+          match Event.kind event with
+          | `Label -> Option.iter bounded (Event.text event)
+          | `Output ->
+              check_eq
+                ~pp:Fmt.(Dump.option Dump.string)
+                (Some raw) (Event.text event)
+          | _ -> ())
+        [ event; decode (Event.to_string event) ])
+    events
+
 let suite =
   ( "progress",
     [
+      test_case "public event labels and messages respect the 4 KiB bound"
+        [ uint8; bool ] test_event_text_limits;
       test_case "bounded task output is the ordered suffix counted by dropped"
         [ uint8; uint8 ] test_output_suffix;
       test_case "root endings give each task and the work exactly one end"
