@@ -654,6 +654,13 @@ let test_label_style () =
     "faint" "\027[2mjob\027[0m"
     (drawn Progress.Layout.(label ~style:Style.faint ()))
 
+(* [pp_bytes] formats a count of bytes as a row's count and rate do. *)
+let test_pp_bytes () =
+  List.iter
+    (fun (n, s) ->
+      Alcotest.(check string) s s (Fmt.str "%a" Progress.pp_bytes n))
+    [ (512L, "512 B"); (1572864L, "1.50 MiB"); (1023L, "1023 B") ]
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
@@ -2668,6 +2675,7 @@ let suite =
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
+      Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "rate" `Quick test_rate;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;

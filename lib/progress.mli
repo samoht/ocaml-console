@@ -211,6 +211,12 @@ module Layout : sig
       ({!Layout}). *)
 end
 
+val pp_bytes : int64 Fmt.t
+(** [pp_bytes] formats a count of bytes as {!Layout.count} and {!Layout.rate}
+    show it: in bytes below 1 KiB, such as [512 B], and above in the largest
+    binary unit that keeps it below 1024, with two decimals, such as [1.50 MiB].
+*)
+
 (** {1:views Task views} *)
 
 val row : ?layout:Layout.t -> Task.t -> View.t

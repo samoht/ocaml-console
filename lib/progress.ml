@@ -24,6 +24,7 @@ let of_string s =
 
 module Layout = Progress_layout
 
+let pp_bytes ppf n = Fmt.string ppf (Task_text.bytes n)
 let row = Progress_show.row
 let tree = Progress_show.tree
 let summary = Progress_show.summary
