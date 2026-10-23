@@ -514,9 +514,51 @@ let test_crop_cells input left width =
     (View.width cropped + 1)
     (snd (Console_vte.cursor_pos terminal))
 
+let restyles =
+  [
+    View.styled Style.bold;
+    View.role `Succeeded;
+    View.link ~uri:"https://example.invalid";
+    View.gradient ~colors:Color.[ red; blue ];
+  ]
+
+let test_restyled_grow n a b =
+  let width = 1 + (n mod 80) in
+  let a = 1 + a and b = 1 + b in
+  let part glyph grow =
+    View.fit ~grow (fun room ->
+        View.text
+          (String.make (Option.value ~default:1 (Room.width room)) glyph))
+  in
+  let ca = width * a / (a + b) and cb = width * b / (a + b) in
+  let extra = width - ca - cb in
+  let a_first = width * a mod (a + b) >= width * b mod (a + b) in
+  let ca = ca + if a_first then extra else 0 in
+  let cb = cb + if a_first then 0 else extra in
+  let expected = String.make ca 'a' ^ String.make cb 'b' in
+  List.iter
+    (fun outer ->
+      List.iter
+        (fun inner ->
+          let v =
+            View.hcat ~gap:0
+              [ outer (inner (part 'a' a)); outer (inner (part 'b' b)) ]
+            |> View.sized ~width
+          in
+          let raw = View.to_string v in
+          check_eq ~pp:Fmt.Dump.string expected raw;
+          let terminal = Console_vte.v ~rows:2 ~cols:100 () in
+          Console_vte.feed terminal (View.to_string ~styled:true v ^ "|");
+          check_eq ~pp:Fmt.int (width + 1)
+            (snd (Console_vte.cursor_pos terminal)))
+        restyles)
+    restyles
+
 let suite =
   ( "view",
     [
+      test_case "nested restyles preserve the grow weights of deferred views"
+        [ uint8; uint8; uint8 ] test_restyled_grow;
       test_case "crop keeps exactly the complete cells in its window"
         [ bytes; uint8; uint8 ] test_crop_cells;
       test_case "placed cuts fill their box in every alignment" [ uint8; uint8 ]
