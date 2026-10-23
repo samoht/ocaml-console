@@ -956,12 +956,21 @@ let hcat ?(gap = 2) ts =
 
 let width t = F.width (flat t)
 let height t = F.height (flat t)
-let truncate ?ellipsis w t = map ~room:Ctx.natural (F.truncate ?ellipsis w) t
 
-(* A line [w] cells wide at [align], cut with an ellipsis if wider. *)
-let place_line align w line =
+(* A view cut where it is printed ends its lines with the look's ellipsis. *)
+let truncate ?ellipsis w t =
+  match (ellipsis, t) with
+  | Some e, _ -> map ~room:Ctx.natural (F.truncate ~ellipsis:e w) t
+  | None, Flat f when w <= 0 || F.width f <= w -> Flat (F.truncate w f)
+  | None, _ ->
+      deferred ~kind:(kind t) (fun c ->
+          let ellipsis = Look.ellipsis (Ctx.look c) in
+          Flat (F.truncate ~ellipsis w (flat_in (Ctx.natural c) t)))
+
+(* A line [w] cells wide at [align], cut with [ellipsis] if wider. *)
+let place_line ~ellipsis align w line =
   let lw = F.width line in
-  if lw > w then F.truncate w line
+  if lw > w then F.truncate ~ellipsis w line
   else
     let pad = w - lw in
     let left, right =
@@ -974,7 +983,7 @@ let place_line align w line =
     F.concat [ sp left; line; sp right ]
 
 let place ?(align = `Left) ?width ?height t =
-  let placed f =
+  let placed ellipsis f =
     let lines = F.lines f in
     let lines =
       match height with
@@ -985,12 +994,16 @@ let place ?(align = `Left) ?width ?height t =
               match List.nth_opt lines i with Some l -> l | None -> F.empty)
     in
     let w = match width with Some w -> max 0 w | None -> F.width f in
-    F.unlines (List.map (place_line align w) lines)
+    F.unlines (List.map (place_line ~ellipsis align w) lines)
+  in
+  let cuts f =
+    match width with Some w -> F.width f > max 0 w | None -> false
   in
   match t with
-  | Flat f -> Flat (placed f)
-  | Deferred _ ->
+  | Flat f when not (cuts f) -> Flat (placed F.ellipsis f)
+  | _ ->
       deferred ~kind:(kind t) (fun c ->
+          let ellipsis = Look.ellipsis (Ctx.look c) in
           let c =
             Ctx.with_room
               ~width:(match width with Some _ -> width | None -> Ctx.width c)
@@ -998,7 +1011,7 @@ let place ?(align = `Left) ?width ?height t =
                 (match height with Some _ -> height | None -> Ctx.height c)
               c
           in
-          Flat (placed (flat_in c t)))
+          Flat (placed ellipsis (flat_in c t)))
 
 (* A deferred view kept as lines, as {!wrap} and {!lines} keep it, is laid
    out at its natural size in the default look, each line a part drawn in the

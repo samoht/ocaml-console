@@ -90,12 +90,13 @@ val width : t -> int
 val height : t -> int
 
 val ellipsis : string
-(** [ellipsis] is U+2026, which ends a line {!truncate} cuts. *)
+(** [ellipsis] is U+2026. *)
 
 val truncate : ?ellipsis:string -> int -> t -> t
 (** [truncate ~ellipsis w v] is like {!View.truncate} but ends a cut line with
-    [ellipsis] (defaults to U+2026). An ellipsis wider than [w] cells keeps only
-    its first grapheme clusters that fit in them. *)
+    [ellipsis] (defaults to the {!Look.ellipsis} of the look it is printed in).
+    An ellipsis wider than [w] cells keeps only its first grapheme clusters that
+    fit in them. *)
 
 val wrap : int -> t -> t list
 val pp : t Fmt.t

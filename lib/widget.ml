@@ -80,14 +80,7 @@ let guide look guide =
   else Guide.with_style (Guide.style guide) Guide.ascii
 
 let glyph look g ~ascii = if shows look [ g ] then g else ascii
-
-(* A theme draws in ASCII alone, on any formatter, when its bars or the
-   lines of its frames are ASCII. *)
-let ascii_theme look =
-  let theme = look.Look.theme in
-  let line = (Border.chars (Theme.border theme)).horizontal in
-  Theme.bar theme = `Ascii || (Width.is_ascii line && String.trim line <> "")
-
+let ascii_theme = Look.ascii_theme
 let line look g = if ascii_theme look then "-" else glyph look g ~ascii:"-"
 
 let spinner look ~time =
@@ -99,11 +92,7 @@ let mark look m =
   glyph look (Theme.mark look.Look.theme m) ~ascii:(Theme.mark Theme.ascii m)
 
 let bar look = if look.Look.utf_8 then Theme.bar look.Look.theme else `Ascii
-
-let ellipsis look =
-  if look.Look.utf_8 && not (ascii_theme look) then View_core.ellipsis
-  else "..."
-
+let ellipsis = Look.ellipsis
 let truncate look w s = View_core.truncate ~ellipsis:(ellipsis look) w s
 
 let one_line span =

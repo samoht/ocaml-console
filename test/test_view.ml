@@ -475,6 +475,22 @@ let test_place () =
     "one line" "ab  "
     (View.to_string (View.place ~height:1 v))
 
+(* A cut line ends with the ellipsis of the formatter it is printed on. *)
+let test_cut_ellipsis () =
+  let v = View.text "abcdefgh" in
+  let ascii = at ~utf_8:false ~live:false ~time:0. in
+  Alcotest.(check string) "truncate, ASCII" "ab..." (ascii (View.truncate 5 v));
+  Alcotest.(check string) "place, ASCII" "ab..." (ascii (View.place ~width:5 v));
+  Alcotest.(check string)
+    "an ASCII theme" "ab..."
+    (at ~theme:Theme.ascii ~live:false ~time:0. (View.truncate 5 v));
+  Alcotest.(check string)
+    "UTF-8" "abcd\u{2026}"
+    (at ~live:false ~time:0. (View.truncate 5 v));
+  Alcotest.(check string)
+    "a line that fits" "abc  "
+    (ascii (View.place ~width:5 (View.truncate 5 (View.text "abc"))))
+
 (* A view that reads nothing but its room is laid out once for each room it
    is printed in; one that reads state is laid out each time. *)
 let test_cached () =
@@ -579,6 +595,8 @@ let suite =
         test_fit_still_size;
       Alcotest.test_case "hcat shares its room" `Quick test_hcat_grow;
       Alcotest.test_case "place" `Quick test_place;
+      Alcotest.test_case "a cut ends in the formatter's ellipsis" `Quick
+        test_cut_ellipsis;
       Alcotest.test_case "a still view is laid out once a room" `Quick
         test_cached;
       Alcotest.test_case "the matrix frame moves" `Quick test_matrix_moves;

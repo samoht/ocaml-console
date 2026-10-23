@@ -181,9 +181,9 @@ val sized : ?width:int -> ?height:int -> t -> t
 val place : ?align:align -> ?width:int -> ?height:int -> t -> t
 (** [place ~align ~width ~height v] is [v] in a box [width] cells wide and
     [height] lines tall (each defaults to [v]'s): each line at [align] in it
-    (defaults to [`Left]), padded with spaces, or cut with an ellipsis if wider,
-    and blank lines below, or the lines past [height] left out. [v] is laid out
-    in that box. A right-aligned column of a fixed width is a [place]:
+    (defaults to [`Left]), padded with spaces, or cut as {!truncate} cuts if
+    wider, and blank lines below, or the lines past [height] left out. [v] is
+    laid out in that box. A right-aligned column of a fixed width is a [place]:
 
     {[
     let status verb what =
@@ -206,11 +206,12 @@ val height : t -> int
 
 val truncate : int -> t -> t
 (** [truncate w s] is [s] with each line wider than [w] cells cut between two
-    characters and ended with an ellipsis, U+2026, within [w] cells. Lines that
-    fit are kept as they are, and so are the styles and links of what is kept.
-    It is {!empty} if [w] is not positive. The invariants
-    [width (truncate w s) <= max 0 w] and [truncate w s = s] when [width s <= w]
-    hold. *)
+    characters and ended with an ellipsis within [w] cells: U+2026, or three
+    dots on a formatter that is not UTF-8 or in a theme drawn in ASCII, such as
+    {!Theme.ascii}. Lines that fit are kept as they are, and so are the styles
+    and links of what is kept. It is {!empty} if [w] is not positive. The
+    invariants [width (truncate w s) <= max 0 w] and [truncate w s = s] when
+    [width s <= w] hold. *)
 
 val wrap : int -> t -> t list
 (** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.

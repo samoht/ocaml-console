@@ -18,6 +18,14 @@ val default : t
 (** [default] is the look of a formatter given nothing: {!Theme.default}, in
     UTF-8, not live. *)
 
+val ascii_theme : t -> bool
+(** [ascii_theme l] is [true] iff the theme of [l] draws in ASCII on any
+    formatter: its bars are [`Ascii], or the lines of its frames are ASCII. *)
+
+val ellipsis : t -> string
+(** [ellipsis l] ends a line cut in [l]: U+2026 in UTF-8, three dots in ASCII
+    and in an {!ascii_theme}. *)
+
 val equal : t -> t -> bool
 (** [equal l0 l1] is [true] iff [l0] and [l1] have the same theme, physically,
     and the same [utf_8] and [live]. *)
