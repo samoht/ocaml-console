@@ -13,15 +13,16 @@ val v :
   ?size:(unit -> int * int) ->
   ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
+  ?delay:float ->
   ?fallback:View.t ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~once_width ~write_error ~fallback ~now ppf view] is {!Display.v},
-    which also takes as the end of its output an exception that [write_error]
-    says is a write error (defaults to none but [Sys_error]), and draws
-    [fallback] (defaults to {!View.empty}) in place of a view that raises.
+(** [v ~size ~once_width ~write_error ~delay ~fallback ~now ppf view] is
+    {!Display.v}, which also takes as the end of its output an exception that
+    [write_error] says is a write error (defaults to none but [Sys_error]), and
+    draws [fallback] (defaults to {!View.empty}) in place of a view that raises.
     Without [size], what it prints once is [once_width ()] cells wide, and whole
     without [once_width]. *)
 

@@ -159,7 +159,7 @@ let view_of_form ~layout root = function
   | Json -> V.empty
 
 let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
-    ?(keep_ended = false) ?commit ?plain ?size ppf root =
+    ?(keep_ended = false) ?commit ?plain ?delay ?size ppf root =
   let root = root_of root in
   let shown_size, form = shape ?size progress in
   let default = view_of_form ~layout root form in
@@ -174,7 +174,8 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     | _ -> None
   in
   let d =
-    Display_core.v ?size:shown_size ?once_width ?write_error ~fallback:default
+    Display_core.v ?size:shown_size ?once_width ?write_error ?delay
+      ~fallback:default
       ~now:(Work.now (work root))
       ppf shown
   in

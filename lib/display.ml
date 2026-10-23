@@ -5,7 +5,7 @@
 
 type t = Display_core.t
 
-let v ?size ~now ppf view = Display_core.v ?size ~now ppf view
+let v ?size ?delay ~now ppf view = Display_core.v ?size ?delay ~now ppf view
 let set_view = Display_core.set_view
 let print = Display_core.print
 let with_output = Display_core.with_output

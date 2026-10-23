@@ -839,6 +839,33 @@ let test_plain_own_lines () =
     "rows on a terminal" true
     (List.exists (contains "[+] job") (lines t))
 
+(* With [delay], the region shows only once the display has run that long,
+   while what is printed goes out at once; work done sooner leaves only
+   its last frame. *)
+let test_delay () =
+  let t = terminal ~theme ~label:"Build" ~delay:0.5 () in
+  let job = Task.start t.root "job" in
+  Display.print t.display (View.text "printed");
+  Display.redraw t.display;
+  check_lines "nothing yet but the print" [ "printed" ] (screen t);
+  t.advance 0.6;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "the rows once due" true
+    (List.exists (contains "job") (screen t));
+  Task.succeed job;
+  close t;
+  let t = terminal ~theme ~label:"Build" ~delay:0.5 () in
+  Task.succeed (Task.start t.root "quick");
+  Display.redraw t.display;
+  close t;
+  Alcotest.(check bool)
+    "no region for a quick work" false
+    (contains "\027[?25l" (written t));
+  Alcotest.(check bool)
+    "its last frame" true
+    (List.exists (contains "Build") (lines t))
+
 (* The start line is written when the task starts, so a task that hangs
    leaves a trace. *)
 let test_pipe_start () =
@@ -2553,6 +2580,7 @@ let suite =
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_view_stands_still;
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
+      Alcotest.test_case "a delay before the rows" `Quick test_delay;
       Alcotest.test_case "plain lines of the program" `Quick
         test_plain_own_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;

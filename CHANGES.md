@@ -70,7 +70,8 @@ Initial release of `console` and `console-eio`.
 - Live progress. `Display` draws a view at the bottom of the terminal and
   redraws only the lines that change, in one synchronized update, never
   taller than the terminal less one row; `Display.print` writes a view once
-  above it, at once. `Progress.show` connects a root to a display:
+  above it, at once. `~delay` holds the region back for its first seconds,
+  so that quick work draws none. `Progress.show` connects a root to a display:
   `Progress.view` draws the tree of the running tasks (`Progress.tree`),
   one row each (`Progress.row`, drawn by a `Progress.Layout` of combinators
   with a spinner, a bar, a count, a rate, the time left and the elapsed

@@ -57,6 +57,7 @@ val run :
   ?keep_ended:bool ->
   ?commit:(Console.Task.t -> Console.View.t option) ->
   ?plain:(Console.Task.Event.t -> Console.View.t option) ->
+  ?delay:float ->
   (Console.Task.t -> 'a) ->
   'a
 (** [run ~clock f] is [f root], for the root of the work, shown on [ppf] until
@@ -73,8 +74,8 @@ val run :
       output stays the program's), in [ppf]'s theme ({!Console.Theme.get}).
     - [label] names the work on the summary line ({!Console.Task.root}).
     - [view] is applied to the root, and [view root] is the [view] of
-      {!Console.Progress.show}; [keep_ended], [commit], [plain] and [layout] are
-      [show]'s too.
+      {!Console.Progress.show}; [keep_ended], [commit], [plain], [delay] and
+      [layout] are [show]'s too.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is
@@ -170,8 +171,8 @@ val run :
     library can call [run] without knowing whether its caller already did.
 
     - The [clock], [ppf], [layout], [label], [view], [keep_ended], [commit],
-      [plain] and [progress] of the inner [run] are ignored, since the display
-      keeps those of the first [run], and the inner [run] ends no task.
+      [plain], [delay] and [progress] of the inner [run] are ignored, since the
+      display keeps those of the first [run], and the inner [run] ends no task.
     - The display closes once the last of their functions ends, and the first
       [run] waits for the others.
     - A [run] that starts while that display closes opens its own once it is

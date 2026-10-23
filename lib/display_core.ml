@@ -21,6 +21,8 @@ type t = {
   depth : Color.depth option;
   now : unit -> float;
   start : float;
+  delay : float;
+  mutable shown : bool;
   write_error : exn -> bool;
   mutable width : int;
   mutable height : int;
@@ -363,10 +365,19 @@ let framing t f =
     send ~framed:true t s
   end
 
+(* The region starts once the delay passed, on a row of its own, the
+   cursor hidden. *)
+let start_region t =
+  if (not t.shown) && since_start t >= t.delay then begin
+    t.shown <- true;
+    write t (hide_cursor ^ fresh_row t)
+  end
+
 let paint t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
     let resized = refresh_size t in
-    if resized || stale t || t.frame = [||] then begin
+    start_region t;
+    if t.shown && (resized || stale t || t.frame = [||]) then begin
       mark t;
       (* A narrower terminal has reflowed the old frame: it is cleared with
          the old frame's rows counted at the new width. *)
@@ -405,7 +416,8 @@ let commit t lines =
               draw buf t ~resized:false spans)
             spans)
     in
-    if t.suspended = 0 && not t.closed then
+    if t.suspended = 0 && not t.closed then start_region t;
+    if t.suspended = 0 && (not t.closed) && t.shown then
       framed t (fun spans -> commit (Some spans))
     else commit None
   end
@@ -466,7 +478,7 @@ let watch_lines t =
 
 let watch t out = tapped out (note_line t)
 
-let v ?size ?once_width ?(write_error = fun _ -> false)
+let v ?size ?once_width ?(write_error = fun _ -> false) ?(delay = 0.)
     ?(fallback = View_core.empty) ~now ppf view =
   let depth =
     match Fmt.style_renderer ppf with
@@ -481,6 +493,8 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
       depth;
       now;
       start = now ();
+      delay;
+      shown = false;
       write_error;
       width = 80;
       height = 24;
@@ -508,11 +522,7 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
     }
   in
   ignore (refresh_size t);
-  if is_live t then begin
-    write t (hide_cursor ^ fresh_row t);
-    paint t
-  end
-  else watch_lines t;
+  if is_live t then paint t else watch_lines t;
   t
 
 let redraw t =

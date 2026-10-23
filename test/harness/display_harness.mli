@@ -84,6 +84,7 @@ val terminal :
   ?keep_ended:bool ->
   ?commit:(Task.t -> View.t option) ->
   ?plain:(Task.Event.t -> View.t option) ->
+  ?delay:float ->
   unit ->
   term
 (** [terminal ()] is a root whose tasks show ({!Progress.show}) on a terminal of

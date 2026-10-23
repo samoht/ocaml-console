@@ -256,6 +256,7 @@ val show :
   ?keep_ended:bool ->
   ?commit:(Task.t -> View.t option) ->
   ?plain:(Task.Event.t -> View.t option) ->
+  ?delay:float ->
   ?size:(unit -> int * int) ->
   Format.formatter ->
   Task.t ->
@@ -282,6 +283,9 @@ val show :
       or whole, and nothing for [None]. The output of no task and the view's
       last frame print as without it. A program learns so whether the rows show:
       [plain] is called only when they do not.
+    - [delay] (defaults to [0.]) is the seconds before the rows first show, as
+      {!Display.v} takes it: a work that ends sooner shows no rows, only its top
+      tasks in the scrollback and the last frame.
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
       region until the display closes, where they otherwise move to the
       scrollback with their top task ({!design}).

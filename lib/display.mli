@@ -90,6 +90,7 @@ type t = Display_core.t
 
 val v :
   ?size:(unit -> int * int) ->
+  ?delay:float ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
@@ -100,7 +101,10 @@ val v :
     - With [size], [ppf] is a terminal of that width and height, which the
       display reads again before each redraw: [view] is redrawn in place, in a
       room of at most [h - 1] lines of [w] cells. A width or a height is taken
-      in \[[1];[4096]\]: a larger one is [4096], and a smaller one [1].
+      in \[[1];[4096]\]: a larger one is [4096], and a smaller one [1]. The
+      region shows once [delay] seconds (defaults to [0.]) passed on [now], so
+      that work done sooner draws no region: what {!print} prints goes out at
+      once all the same, and {!close} prints the last frame.
     - Without [size], [view] is printed once, still and whole, when the display
       closes. *)
 
