@@ -103,6 +103,15 @@ let test_vcat_gap () =
   Alcotest.(check string)
     "nothing around one view" "a"
     (View.to_string (View.vcat ~gap:1 [ View.empty; a ]));
+  Alcotest.(check string)
+    "no line for no text" "a\nb"
+    (View.to_string (View.vcat [ a; View.text ""; b ]));
+  Alcotest.(check string)
+    "a blank line first" "\na\n\nb"
+    (View.to_string View.(text "\n" ++ vcat ~gap:1 [ a; b ]));
+  Alcotest.(check string)
+    "lines, a blank one too" "a\n\nb"
+    (View.to_string (View.concat ~sep:(View.text "\n") [ a; View.empty; b ]));
   Alcotest.check_raises "a negative gap"
     (Invalid_argument "Console.View.vcat: negative gap") (fun () ->
       ignore (View.vcat ~gap:(-1) [ a ]))

@@ -113,8 +113,11 @@ val hcat : ?gap:int -> t list -> t
 
 val vcat : ?gap:int -> t list -> t
 (** [vcat ~gap views] is the lines of each of [views] in turn, [gap] blank lines
-    apart (defaults to [0]). A view with no text, such as {!empty}, takes no
-    line and no gap, so a part left out leaves no blank line.
+    apart (defaults to [0]). A view with no text, such as {!empty} or [text ""],
+    takes no line and no gap, so a part left out leaves no blank line. A blank
+    line is a line feed: [text "\n" ++ v] is [v] after one, and
+    [concat ~sep:(text "\n") lines] is [lines] one under the other, the blank
+    ones kept.
 
     Each view in it is given the room [vcat] is given:
 
