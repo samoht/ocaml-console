@@ -90,11 +90,24 @@ let test_named_tests_exist () =
             refs)
     rows
 
+let test_stdlib_utf8_boundaries () =
+  let source =
+    read (Filename.concat root "lib/input/width.ml")
+    |> String.lowercase_ascii |> String.to_seq
+    |> Seq.filter (fun c -> not (List.mem c [ ' '; '\t'; '\r'; '\n' ]))
+    |> String.of_seq
+  in
+  Alcotest.(check bool)
+    "UTF-8 boundaries do not scan continuation bytes with a bit mask" false
+    (is_infix ~affix:"land0xc0=0x80" source)
+
 let () =
   Alcotest.run "invariants"
     [
       ( "invariants",
         [
+          Alcotest.test_case "UTF-8 boundaries use the Stdlib decoder" `Quick
+            test_stdlib_utf8_boundaries;
           Alcotest.test_case "every named test exists" `Quick
             test_named_tests_exist;
         ] );
