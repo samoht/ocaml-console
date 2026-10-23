@@ -349,9 +349,45 @@ let test_invalid_bytes_individually () =
       ("\xf0\x9fa", "\u{FFFD}a");
     ]
 
+let test_event_text_limits () =
+  let input = String.make 5000 'x' in
+  let expected = String.make 4093 'x' ^ "..." in
+  let check text =
+    Alcotest.(check int) "retained bytes" 4096 (String.length text);
+    Alcotest.(check string) "cut text" expected text
+  in
+  let events =
+    [
+      Event.start ~time:0. (0, [ input ]);
+      Event.label ~time:0. (0, [ "work" ]) input;
+      Event.failed ~time:0. ~elapsed:0. ~message:input ();
+    ]
+  in
+  List.iter
+    (fun event ->
+      let encoded = Event.to_string event in
+      let decoded =
+        match Event.of_string encoded with
+        | Ok event -> event
+        | Error (`Msg message) -> Alcotest.fail message
+      in
+      List.iter
+        (fun event ->
+          Option.iter
+            (fun (_, path) -> List.iter check path)
+            (match Event.kind event with
+            | `Start -> Event.task event
+            | _ -> None);
+          Option.iter check (Event.text event);
+          Option.iter check (Event.message event))
+        [ event; decoded ])
+    events
+
 let suite =
   ( "progress",
     [
+      Alcotest.test_case "event constructors bound labels and messages to 4 KiB"
+        `Quick test_event_text_limits;
       Alcotest.test_case "each maximal subpart is replaced" `Quick
         test_invalid_bytes_individually;
       Alcotest.test_case "negative integers" `Quick test_negative;
