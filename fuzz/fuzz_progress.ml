@@ -406,9 +406,41 @@ let test_retained_cut k =
       Option.iter (check_eq ~pp:Fmt.Dump.string expected) (Event.text e))
     events
 
+let test_task_endings n ending =
+  let module Task = Console.Task in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let starts = ref [] and ends = ref [] and work_ends = ref 0 in
+  Task.on_event root (fun event ->
+      match (Event.kind event, Event.task event) with
+      | `Start, Some (id, _) -> starts := id :: !starts
+      | `End, Some (id, _) -> ends := id :: !ends
+      | `End, None -> incr work_ends
+      | _ -> ());
+  let count = 1 + (n mod 30) in
+  let children = List.init count (fun i -> Task.start root (string_of_int i)) in
+  (match ending mod 3 with
+  | 0 -> Task.succeed root
+  | 1 -> Task.fail root
+  | _ -> Task.cancel root);
+  Task.succeed root;
+  Task.fail root;
+  let expected = if ending mod 3 = 0 then `Succeeded else `Cancelled in
+  List.iter (fun child -> check (Task.state child = expected)) children;
+  check_eq ~pp:Fmt.int 1 !work_ends;
+  check_eq
+    ~pp:Fmt.(Dump.list int)
+    (List.init count Fun.id)
+    (List.sort Int.compare !starts);
+  check_eq
+    ~pp:Fmt.(Dump.list int)
+    (List.sort Int.compare !starts)
+    (List.sort Int.compare !ends)
+
 let suite =
   ( "progress",
     [
+      test_case "root endings give each task and the work exactly one end"
+        [ uint8; uint8 ] test_task_endings;
       test_case "retained labels and messages cut between characters at 4 KiB"
         [ uint8 ] test_retained_cut;
       test_case "every event accessor exposes its schema" [ bytes; nat; nat64 ]
