@@ -862,10 +862,58 @@ let test_cast_sleep n =
       done);
   check !slept
 
+let test_cast_chunking n =
+  with_recording true @@ fun file ->
+  let glyphs = [| "界"; "👩‍💻"; "é"; "🇫🇷" |] in
+  let text = "\027[31m" ^ glyphs.(n mod Array.length glyphs) ^ "text\027[0m" in
+  Eio_mock.Backend.run (fun () ->
+      let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+      let ppf = Format.formatter_of_buffer (Buffer.create 64) in
+      Console_eio.run ~clock ~ppf (fun _ ->
+          let output = Format.pp_get_formatter_out_functions ppf () in
+          String.iter
+            (fun byte ->
+              output.out_string (String.make 1 byte) 0 1;
+              output.out_flush ())
+            text));
+  let lines = In_channel.with_open_bin file In_channel.input_lines in
+  let events =
+    match lines with _ :: events -> events | [] -> fail "no header"
+  in
+  let replay = Console_vte.v ~rows:8 ~cols:40 () in
+  let output = Buffer.create 256 in
+  let last = ref 0. in
+  List.iter
+    (fun line ->
+      check (String.is_valid_utf_8 line);
+      match Jsont_bytesrw.decode_string Jsont.json line with
+      | Ok
+          (Jsont.Array
+             ( [
+                 Jsont.Number (time, _);
+                 Jsont.String ("o", _);
+                 Jsont.String (data, _);
+               ],
+               _ )) ->
+          check (time >= !last);
+          last := time;
+          Buffer.add_string output data
+      | _ -> fail "invalid asciicast output event")
+    events;
+  Console_vte.feed replay (Buffer.contents output);
+  let expected = Console_vte.v ~rows:8 ~cols:40 () in
+  Console_vte.feed expected text;
+  check_eq
+    ~pp:Fmt.(Dump.list string)
+    (Console_vte.screen expected)
+    (Console_vte.screen replay)
+
 let suite =
   ( "console_eio",
     [
       test_case "recording alone makes sleeps virtual" [ uint8 ] test_cast_sleep;
+      test_case "recording byte chunks preserves Unicode escapes and the screen"
+        [ uint8 ] test_cast_chunking;
       test_case "concurrent deterministic sleeps give reproducible JSON"
         [ uint8; uint8 ] test_deterministic_concurrency;
       test_case
