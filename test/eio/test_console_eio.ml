@@ -460,8 +460,10 @@ let open_pty ~sw =
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
    the terminal echoes what is typed once it has. With [continue], the child
-   is sent SIGCONT, as a shell's [fg] does, again and again until it exits:
-   a SIGCONT that comes before the child stops is lost, and none waits. *)
+   is sent SIGCONT, as a shell's [fg] does, again and again until it exits,
+   once it has shown the cursor to stop: a SIGCONT that comes before the
+   child stops is lost, and none waits, but one that comes while its SIGTSTP
+   is pending discards it. *)
 let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
     =
   Eio_main.run @@ fun env ->
@@ -481,9 +483,20 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
       ~executable:"./teardown.exe" [ "teardown.exe"; how ]
   in
   let status = ref None and echo = ref None in
-  let exited = Atomic.make false in
+  let exited = Atomic.make false and stopping = Atomic.make false in
+  let on_read out =
+    if not (Atomic.get stopping) then
+      match Astring.String.find_sub ~sub:"[?25l" out with
+      | Some i ->
+          if Option.is_some (Astring.String.find_sub ~start:i ~sub:"[?25h" out)
+          then Atomic.set stopping true
+      | None -> ()
+  in
   let fg () =
     let pid = Eio.Process.pid child in
+    while not (Atomic.get stopping || Atomic.get exited) do
+      Domain.cpu_relax ()
+    done;
     while not (Atomic.get exited) do
       (try Unix.kill pid Sys.sigcont with Unix.Unix_error _ -> ());
       Domain.cpu_relax ()
@@ -495,7 +508,7 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
       (fun () -> status := Some (Eio.Process.await child))
   in
   let written =
-    Pty_reader.read_all pty (fun () ->
+    Pty_reader.read_all ~on_read pty (fun () ->
         if continue then
           Eio.Fiber.both await (fun () ->
               Eio_unix.run_in_systhread ~label:"fg" fg)

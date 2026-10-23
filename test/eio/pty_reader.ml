@@ -9,7 +9,7 @@ let ends_with_mark b =
   let n = Buffer.length b and m = String.length end_mark in
   n >= m && String.equal (Buffer.sub b (n - m) m) end_mark
 
-let read_all pty ended =
+let read_all ?(on_read = ignore) pty ended =
   let written = Buffer.create 4096 and buf = Cstruct.create 4096 in
   let source = Eio_unix.Pty.source pty in
   let rec read () =
@@ -17,6 +17,7 @@ let read_all pty ended =
       match Eio.Flow.single_read source buf with
       | n ->
           Buffer.add_string written (Cstruct.to_string ~len:n buf);
+          on_read (Buffer.contents written);
           read ()
       | exception (End_of_file | Eio.Io _) -> ()
   in
