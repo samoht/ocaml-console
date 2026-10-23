@@ -65,8 +65,7 @@ val to_string : t -> string
     {b What gives way.} The label is what tells two rows apart, so it gives way
     last. When a row does not fit its room, its pieces give way stage by stage,
     each piece at the stage {!Layout.give_way} sets, by default:
-    + the rate and the time left, then the cells the count and rate columns keep
-      while unused (see below);
+    + the rate and the time left;
     + the bar and the percentage;
     + the count, which leaves the column it shares with the other rows and, for
       bytes, gets shorter, such as [256M/2.0G];
@@ -77,17 +76,24 @@ val to_string : t -> string
 
     {b Columns.} The count and the rate each take a column that the rows of a
     root share, and the elapsed time a column of six cells; a row without a
-    count or a rate leaves its column blank. From the first frame, the count
-    column is kept as wide as the widest count of bytes,
-    [1023.99 KiB / 1023.99 TiB], and the rate column as the widest rate,
-    [1023.99 MiB/s], blank while no task uses them, so that a task that starts
-    counting bytes in the middle of the run opens no column and moves no bar.
-    Where a row is short of room, the kept cells give way after the rate and
-    before the bar; the columns are then as wide as the tasks need, at least
-    [999/999] for the count, and widen when a task with a larger total starts.
+    count or a rate leaves its column blank. The columns are as wide as the
+    kinds of progress seen so far need, and they only widen:
+    - A count of items takes the cells its total needs, at least [999/999], so a
+      display of items is as dense as its counts allow. A task of items with a
+      larger total widens the count column when it starts counting.
+    - The first task that counts bytes widens the count column at once to the
+      widest count of bytes, [1023.99 KiB / 1023.99 TiB], and opens the rate
+      column at the widest rate, [1023.99 MiB/s]. Later tasks of bytes, larger
+      totals and first rates widen nothing.
+    - No column narrows while the display is open.
+
+    So a column widens at most once for each new kind of progress, or for a
+    count of items with more digits: a display of bytes alone, or one whose
+    tasks of bytes count from their start, never widens after its first frame of
+    bytes, and one where a task of bytes comes among rows of items widens once.
     The pieces after the {!Layout.spacer} sit against the right edge, so while
-    no piece gives way each sits in the same columns on every row and in every
-    frame. *)
+    no piece gives way and no column widens each sits in the same columns on
+    every row and in every frame. *)
 module Layout : sig
   type t = Progress_layout.t
   (** The type for row layouts: at most one {!label} and one {!spacer}. *)
@@ -302,6 +308,7 @@ val show :
       right edge of the first [min w 100] columns, and so do the ends of their
       bars. On a wide terminal they stay near their labels, and they do not move
       when the terminal is resized wider. Nothing in the region moves sideways
-      unless the terminal width changes.
+      unless the terminal width changes or a column widens, at most once for
+      each new kind of progress ({!Layout}).
     - A label cut to fit is cut between two characters and ends with an ellipsis
       that turns its style off. *)

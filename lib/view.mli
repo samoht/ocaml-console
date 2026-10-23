@@ -138,8 +138,7 @@ type align = [ `Left | `Center | `Right ]
     since the display that draws it started, and [0.] when it is printed once.
 
     A view's size depends on its room alone, never on its time, and it is
-    measured at time [0.]: so nothing in a display moves sideways from one frame
-    to the next. *)
+    measured at time [0.]: so its frames in a display keep their size. *)
 
 val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
 (** [fit f] is [f room] where it is laid out, in the {!Room} it is given: a

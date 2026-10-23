@@ -54,17 +54,8 @@ let bar look r width =
   | Some _ -> pad width
   | None -> V.empty
 
-(* The count and rate columns are kept as wide as the widest count of bytes
-   and the widest rate from the first frame, blank while unused, so that no
-   column opens later. The kept cells give way after the rate and before
-   the bar, to the columns the tasks use. *)
-let kept_count = String.length "1023.99 KiB / 1023.99 TiB"
-let kept_rate = String.length "1023.99 MiB/s"
-
-let count_cell ?(kept = 0) look r =
-  pad_left
-    (max kept (Work.count_cell (work r)))
-    (muted look (count_text (metric r)))
+let count_cell look r =
+  pad_left (Work.count_cell (work r)) (muted look (count_text (metric r)))
 
 (* A count that gives way: items as they are, bytes in short units, and no
    column shared with the other rows. *)
@@ -83,9 +74,9 @@ let eta look r =
   | Some s -> muted look ("ETA " ^ Task_text.duration s)
   | None -> V.empty
 
-(* A piece at [stage] of what gives way, the columns [kept] or not, or
-   [None] for the label and the spacer, which the row lays out. *)
-let piece look r ~time ~stage ~kept (p : Progress_layout.piece) =
+(* A piece at [stage] of what gives way, or [None] for the label and the
+   spacer, which the row lays out. *)
+let piece look r ~time ~stage (p : Progress_layout.piece) =
   match p.kind with
   | Spinner ->
       Some (V.ink (Style.fg (color look r)) (Widget.spinner look ~time))
@@ -96,15 +87,11 @@ let piece look r ~time ~stage ~kept (p : Progress_layout.piece) =
       | Some p -> Some (Fmt.kstr (muted look) "%3d%%" p)
       | None -> Some V.empty)
   | Count ->
-      Some
-        (if stage >= 3 then compact_count look r
-         else if kept then count_cell ~kept:kept_count look r
-         else count_cell look r)
+      Some (if stage >= 3 then compact_count look r else count_cell look r)
   | Rate ->
-      let kept = if kept then kept_rate else 0 in
       Some
         (pad_left
-           (max kept (Work.rate_cell (work r)))
+           (Work.rate_cell (work r))
            (muted look (rate_text (metric r) (rate r))))
   | Eta -> Some (eta look r)
   | Elapsed ->
@@ -117,8 +104,7 @@ let piece look r ~time ~stage ~kept (p : Progress_layout.piece) =
 (* {2 What gives way}
 
    The label is cut only once the other pieces have given way, at their
-   stages: by default 1 the rate, then the cells kept for the count and
-   rate columns, 2 the bar and the percentage, 3 the
+   stages: by default 1 the rate, 2 the bar and the percentage, 3 the
    count, which gets shorter and leaves the column it shares, 4 the elapsed
    time. *)
 
@@ -179,11 +165,9 @@ let live look ~time ?width layout r =
   let want = if has Label then V.width label else 0 in
   let growing (p : Progress_layout.piece) = p.kind = Bar None in
   let reserve = if has Spacer then 1 else 0 in
-  let at (stage, kept) =
+  let at stage =
     let pieces =
-      List.map
-        (fun p -> (p, piece look r ~time ~stage ~kept p))
-        (left stage layout)
+      List.map (fun p -> (p, piece look r ~time ~stage p)) (left stage layout)
     in
     let fixed =
       List.fold_left
@@ -193,21 +177,14 @@ let live look ~time ?width layout r =
     in
     (pieces, fixed)
   in
-  let width =
-    Option.value width ~default:(want + reserve + snd (at (0, true)) + 12)
+  let width = Option.value width ~default:(want + reserve + snd (at 0) + 12) in
+  let last = last_stage layout in
+  let rec fit stage =
+    let pieces, fixed = at stage in
+    if width - fixed - reserve >= want || stage >= last then (pieces, fixed)
+    else fit (stage + 1)
   in
-  let steps =
-    (0, true) :: (1, true)
-    :: List.init (last_stage layout) (fun i -> (i + 1, false))
-  in
-  let rec fit = function
-    | [] -> assert false
-    | [ step ] -> at step
-    | step :: rest ->
-        let pieces, fixed = at step in
-        if width - fixed - reserve >= want then (pieces, fixed) else fit rest
-  in
-  let pieces, fixed = fit steps in
+  let pieces, fixed = fit 0 in
   let room = width - fixed - reserve in
   let label =
     if not (has Label) then V.empty

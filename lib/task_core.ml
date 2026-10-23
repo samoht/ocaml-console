@@ -395,8 +395,14 @@ let measure r cur =
     r.last_t <- now
   end
 
-(* The count and the rate columns open as soon as a task has the metric
-   they show, so that no column opens when a first rate shows. *)
+(* The columns widen at most once for each kind of progress: the first
+   task of bytes widens the count column to the widest count of bytes and
+   opens the rate column at the widest rate, so that no later total and no
+   first rate widens them again. A count of items is as wide as its total
+   needs. *)
+let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
+let widest_rate = String.length "1023.99 MiB/s"
+
 let set_metric r metric =
   let moved = not (same_metric r.metric metric) in
   changed r;
@@ -405,11 +411,10 @@ let set_metric r metric =
   w.count_cell <- max w.count_cell (count_width metric);
   (match metric with
   | Bytes _ ->
+      w.count_cell <- max w.count_cell widest_bytes;
       w.rate_cell <-
         max w.rate_cell
-          (max
-             (String.length "1023.99 MiB/s")
-             (String.length (rate_text metric r.rate)))
+          (max widest_rate (String.length (rate_text metric r.rate)))
   | Spin | Count _ -> ());
   if moved then notify w (Progressed r)
 
