@@ -6,7 +6,7 @@
 type kind =
   | Spinner
   | Mark
-  | Label
+  | Label of Style.t
   | Bar of int option
   | Percent
   | Count
@@ -54,7 +54,7 @@ let one ?stage kind =
    bar and the percentage; the count gets shorter at the third stage and
    the elapsed time goes at the fourth. *)
 let spinner = one Spinner
-let label = one Label
+let label ?(style = Style.bold) () = one (Label style)
 
 let bar ?width () =
   (match width with
@@ -76,7 +76,7 @@ let give_way n t =
   if n < 1 then invalid_arg "Console.Progress.Layout.give_way: stage below 1";
   List.map (fun p -> { p with stage = Some n }) t
 
-let is_label p = match p.kind with Label -> true | _ -> false
+let is_label p = match p.kind with Label _ -> true | _ -> false
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
 (* A row has one flexible piece of each kind: the label that gives way and
@@ -106,7 +106,7 @@ let packed lead =
     [
       lead;
       space;
-      label;
+      label ();
       space;
       bar ();
       space;
@@ -123,7 +123,7 @@ let ended = packed (one Mark)
 let pp_kind ppf = function
   | Spinner -> Fmt.string ppf "spinner"
   | Mark -> Fmt.string ppf "mark"
-  | Label -> Fmt.string ppf "label"
+  | Label _ -> Fmt.string ppf "label"
   | Bar None -> Fmt.string ppf "bar"
   | Bar (Some n) -> Fmt.pf ppf "bar %d" n
   | Percent -> Fmt.string ppf "percent"

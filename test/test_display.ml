@@ -642,10 +642,22 @@ let test_counts () =
     ]
     (String.split_on_char '\n' out)
 
+(* [label ~style] draws the label in [style], bold by default. *)
+let test_label_style () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let task = Task.start root "job" in
+  let drawn layout = View.to_string ~styled:true (Progress.row ~layout task) in
+  Alcotest.(check string)
+    "bold" "\027[1mjob\027[0m"
+    (drawn Progress.Layout.(label ()));
+  Alcotest.(check string)
+    "faint" "\027[2mjob\027[0m"
+    (drawn Progress.Layout.(label ~style:Style.faint ()))
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
-    Progress.Layout.(list [ label; const (View.text " "); percent ])
+    Progress.Layout.(list [ label (); const (View.text " "); percent ])
   in
   let t = terminal ~theme ~layout ~width:30 () in
   let task = Task.start t.root "big" in
@@ -677,9 +689,9 @@ let test_invalid () =
           ignore (Progress.Layout.give_way n Progress.Layout.rate)))
     [ 0; -3 ];
   check_invalid "Console.Progress.Layout: more than one label" (fun () ->
-      ignore Progress.Layout.(label ++ label));
+      ignore Progress.Layout.(label () ++ label ()));
   check_invalid "Console.Progress.Layout: more than one spacer" (fun () ->
-      ignore Progress.Layout.(list [ spacer; label; spacer ]));
+      ignore Progress.Layout.(list [ spacer; label (); spacer ]));
   Display.close display
 
 (* [size] has no documented bound, and a terminal reports what it is told
@@ -2655,6 +2667,7 @@ let suite =
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
+      Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "rate" `Quick test_rate;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;

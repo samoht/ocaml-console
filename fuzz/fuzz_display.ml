@@ -608,7 +608,7 @@ let test_untrusted_arguments s =
           [
             const (View.text input);
             custom (fun _ -> View.styled Style.bold (View.text input));
-            label;
+            label ();
             spacer;
             elapsed;
           ])

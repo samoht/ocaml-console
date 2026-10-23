@@ -9,7 +9,7 @@
 type kind =
   | Spinner
   | Mark  (** The mark of how the task ended. *)
-  | Label
+  | Label of Style.t
   | Bar of int option  (** A bar that many cells wide, or that grows. *)
   | Percent
   | Count
@@ -37,7 +37,7 @@ val reads : t -> Look.t -> View_core.kind
     {!constructor-Const} view that reads it. *)
 
 val spinner : t
-val label : t
+val label : ?style:Style.t -> unit -> t
 val bar : ?width:int -> unit -> t
 val percent : t
 val count : t

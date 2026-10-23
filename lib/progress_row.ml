@@ -128,7 +128,7 @@ let cell look r ~time ~stage (p : Progress_layout.piece) =
   | Spinner ->
       Shown (V.ink (Style.fg (color look r)) (Widget.spinner look ~time))
   | Mark -> Shown (mark_of look r)
-  | Label -> Name
+  | Label _ -> Name
   | Spacer -> Rest
   | Bar None -> if counted r then Grows else Shown V.empty
   | Bar (Some w) -> Shown (bar look r w)
@@ -247,7 +247,10 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
 let laid look ~time ?width ?columns ~label layout r =
   let layout = Progress_layout.pieces layout in
   let has is = List.exists is layout in
-  let named = has (fun (p : Progress_layout.piece) -> p.kind = Label) in
+  let named =
+    has (fun (p : Progress_layout.piece) ->
+        match p.kind with Label _ -> true | _ -> false)
+  in
   let label_w = if named then V.width label else 0 in
   let reserve =
     if has (fun (p : Progress_layout.piece) -> p.kind = Spacer) then 1 else 0
@@ -316,10 +319,14 @@ let laid look ~time ?width ?columns ~label layout r =
     fits || V.width label = label_w )
 
 let live look ~time ?width ?columns layout r =
-  fst
-    (laid look ~time ?width ?columns
-       ~label:(V.ink Style.bold (label r))
-       layout r)
+  let style =
+    List.find_map
+      (fun (p : Progress_layout.piece) ->
+        match p.kind with Label s -> Some s | _ -> None)
+      (Progress_layout.pieces layout)
+  in
+  let style = Option.value style ~default:Style.bold in
+  fst (laid look ~time ?width ?columns ~label:(V.ink style (label r)) layout r)
 
 let gap_suffix look gap =
   if gap >= 1. then muted look ("  +" ^ Task_text.duration gap) else V.empty

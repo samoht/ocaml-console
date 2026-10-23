@@ -125,7 +125,7 @@ val to_string : t -> string
           [
             spinner;
             space;
-            label;
+            label ();
             spacer;
             bar ();
             space;
@@ -144,9 +144,10 @@ module Layout : sig
   (** [spinner] is the spinner of the row's theme ({!Spinner.view}), in the
       row's colour: the colour of the {!Theme.palette} the row takes. *)
 
-  val label : t
-  (** [label] is the task's label, in bold. It takes the room the other pieces
-      leave, once they have given way, and is cut to it with an ellipsis. *)
+  val label : ?style:Style.t -> unit -> t
+  (** [label ()] is the task's label, in [style] (defaults to {!Style.bold}). It
+      takes the room the other pieces leave, once they have given way, and is
+      cut to it with an ellipsis. *)
 
   val bar : ?width:int -> unit -> t
   (** [bar ()] is a progress bar ({!Bar.horizontal}), [width] cells wide, or

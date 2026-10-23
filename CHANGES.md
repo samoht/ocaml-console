@@ -74,7 +74,7 @@ Initial release of `console` and `console-eio`.
   so that quick work draws none. `Progress.show` connects a root to a display:
   `Progress.view` draws the tree of the running tasks (`Progress.tree`),
   one row each (`Progress.row`, drawn by a `Progress.Layout` of combinators
-  with a spinner, a bar, a count, a rate, the time left and the elapsed
+  with a spinner, the label, bold or in a style of its own, a bar, a count, a rate, the time left and the elapsed
   time, which give way in stages before the label is cut), above a summary
   line (`Progress.summary`). A row is packed from the left: its label,
   its bar, up to 40 cells, then its count, rate and time, each in a column
