@@ -826,9 +826,46 @@ let test_deterministic_concurrency a b =
   check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
     (capture 20_000_000_000L)
 
+let with_recording deterministic f =
+  let file = Filename.temp_file "console-fuzz" ".cast" in
+  let bindings =
+    [
+      ("CONSOLE_CAST", file);
+      ("CONSOLE_DETERMINISTIC_CLOCK", if deterministic then "1" else "");
+      ("COLUMNS", "40");
+      ("LINES", "8");
+    ]
+  in
+  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
+  Fun.protect
+    ~finally:(fun () ->
+      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved;
+      Sys.remove file)
+    (fun () ->
+      List.iter (fun (k, v) -> Unix.putenv k v) bindings;
+      f file)
+
+let test_cast_sleep n =
+  with_recording false @@ fun _ ->
+  Eio_mock.Backend.run @@ fun () ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let ppf = Format.formatter_of_buffer (Buffer.create 64) in
+  let slept = ref false in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun _ ->
+          Eio.Time.Mono.sleep clock (float_of_int (1 + n));
+          slept := true))
+    (fun () ->
+      for _ = 1 to 1000 do
+        Eio.Fiber.yield ()
+      done);
+  check !slept
+
 let suite =
   ( "console_eio",
     [
+      test_case "recording alone makes sleeps virtual" [ uint8 ] test_cast_sleep;
       test_case "concurrent deterministic sleeps give reproducible JSON"
         [ uint8; uint8 ] test_deterministic_concurrency;
       test_case
