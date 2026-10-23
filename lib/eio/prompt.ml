@@ -16,7 +16,8 @@ type t = {
 
 (* A typed answer is one line from a human. The cap keeps a source that never
    sends a terminator from growing the buffer without bound; crossing it is an
-   [Error] like any other unanswerable question. *)
+   [Error] like any other unanswerable question. The buffer holds an answer
+   and its CRLF. *)
 let max_answer = 4096
 
 (* Whether the input is a terminal is a property of its descriptor: a flow
@@ -33,7 +34,7 @@ let v ?interactive ?(ppf = Fmt.stderr) stdin =
   {
     interactive;
     terminal;
-    input = Eio.Buf_read.of_flow ~max_size:max_answer stdin;
+    input = Eio.Buf_read.of_flow ~max_size:(max_answer + 2) stdin;
     ppf;
   }
 
@@ -56,20 +57,28 @@ let line t question =
        an answer cut short by the end of the input is no answer. *)
     let read () =
       let line = Eio.Buf_read.take_while (fun c -> c <> '\n') t.input in
-      Eio.Buf_read.char '\n' t.input;
-      if String.ends_with ~suffix:"\r" line then
-        String.sub line 0 (String.length line - 1)
-      else line
+      let answer =
+        if String.ends_with ~suffix:"\r" line then
+          String.sub line 0 (String.length line - 1)
+        else line
+      in
+      if String.length answer > max_answer then None
+      else begin
+        Eio.Buf_read.char '\n' t.input;
+        Some answer
+      end
+    in
+    (* The rest of the line goes, so that the next question reads the line
+       after it; skipping keeps the buffer within its cap. *)
+    let too_long () =
+      Eio.Buf_read.skip_while (fun c -> c <> '\n') t.input;
+      (try Eio.Buf_read.char '\n' t.input with End_of_file -> ());
+      Error (`Msg "no answer: the line is too long")
     in
     match read () with
-    | answer -> Ok answer
+    | Some answer -> Ok answer
+    | None | (exception Eio.Buf_read.Buffer_limit_exceeded) -> too_long ()
     | exception End_of_file -> Error `End_of_input
-    | exception Eio.Buf_read.Buffer_limit_exceeded ->
-        (* The rest of the line goes, so that the next question reads the
-           line after it; skipping keeps the buffer within its cap. *)
-        Eio.Buf_read.skip_while (fun c -> c <> '\n') t.input;
-        (try Eio.Buf_read.char '\n' t.input with End_of_file -> ());
-        Error (`Msg "no answer: the line is too long")
 
 let confirm t question =
   match line t (question ^ " [y/N] ") with
