@@ -193,9 +193,46 @@ let sparkline ?style ?min ?max values =
           View_core.concat (List.drop (n - Int.max 0 w) cells)
       | _ -> View_core.concat cells)
 
+(* [x] to three significant digits and at most four decimals, without
+   trailing zeros. *)
+let digits x =
+  let decimals =
+    if x <= 0. then 0
+    else min 4 (max 0 (2 - int_of_float (Float.floor (Float.log10 x))))
+  in
+  let s = Fmt.str "%.*f" decimals x in
+  if not (String.contains s '.') then s
+  else
+    let rec trim n =
+      match s.[n - 1] with
+      | '0' -> trim (n - 1)
+      | '.' -> String.sub s 0 (n - 1)
+      | _ -> String.sub s 0 n
+    in
+    trim (String.length s)
+
+let units = [| "k"; "M"; "G"; "T"; "P"; "E"; "Z"; "Y" |]
+
+(* A value as a plain number: whole below a million, to three digits
+   below ten thousand, and past those in thousands, millions and so on. *)
 let value v =
-  if Float.is_integer v && Float.abs v < 1e15 then Fmt.str "%.0f" v
-  else Fmt.str "%.3g" v
+  if not (Float.is_finite v) then Fmt.str "%g" v
+  else
+    let a = Float.abs v and sign = if v < 0. then "-" else "" in
+    let plain =
+      if Float.is_integer v && a < 1e6 then Fmt.str "%.0f" a
+      else if a < 1e4 then digits a
+      else
+        let rec scaled k =
+          let x = a /. (1000. ** float_of_int (k + 1)) in
+          let d = digits x in
+          if k + 1 < Array.length units && Float.of_string d >= 1000. then
+            scaled (k + 1)
+          else d ^ units.(k)
+        in
+        scaled 0
+    in
+    if plain = "0" then plain else sign ^ plain
 
 (* The bars take the room's height but for the three lines around them;
    in a room too short for those, the values above them go first, then
