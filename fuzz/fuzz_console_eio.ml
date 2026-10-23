@@ -934,9 +934,38 @@ let test_repeated_signals first second cut closing =
   check (String.is_valid_utf_8 raw);
   check (String.ends_with ~suffix:"\027[?2026l" raw)
 
+let test_prompt_line_limit n unicode crlf =
+  Eio_mock.Backend.run @@ fun () ->
+  let length = 4090 + (n mod 9) in
+  let line =
+    if unicode then (
+      let out = Buffer.create length in
+      for _ = 1 to length / 3 do
+        Buffer.add_utf_8_uchar out (Uchar.of_int 0x754c)
+      done;
+      Buffer.add_string out (String.make (length mod 3) 'x');
+      Buffer.contents out)
+    else String.make length 'x'
+  in
+  let ending = if crlf then "\r\n" else "\n" in
+  let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+  let prompt =
+    Console_eio.Prompt.v ~interactive:true ~ppf
+      (Eio.Flow.string_source (line ^ ending ^ "next\n"))
+  in
+  let first = Console_eio.Prompt.line prompt "" in
+  check (Console_eio.Prompt.line prompt "" = Ok "next");
+  if length <= 4096 then
+    match first with
+    | Ok answer -> check_eq ~pp:Fmt.Dump.string line answer
+    | Error _ -> failf "a %d-byte answer was refused" length
+  else check (Result.is_error first)
+
 let suite =
   ( "console_eio",
     [
+      test_case "prompt answers fit up to 4096 bytes without their terminator"
+        [ uint8; bool; bool ] test_prompt_line_limit;
       test_case "repeated signals restore the terminal at every write cut"
         [ uint8; uint8; uint8; bool ]
         test_repeated_signals;
