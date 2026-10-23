@@ -227,21 +227,24 @@ let sub_width s ~pos ~len =
 (* The last character of [a], which ends with a byte that is not ASCII. *)
 let last_char a =
   let n = String.length a in
-  let rec start i =
-    if i > 0 && i > n - 4 && Char.code a.[i] land 0xc0 = 0x80 then start (i - 1)
-    else i
+  let rec ending i =
+    if i < 0 || i < n - 4 then None
+    else
+      let d = String.get_utf_8_uchar a i in
+      if Uchar.utf_decode_is_valid d && i + Uchar.utf_decode_length d = n then
+        Some d
+      else ending (i - 1)
   in
-  let i = start (n - 1) in
-  let d = String.get_utf_8_uchar a i in
-  if i + Uchar.utf_decode_length d = n then d
-  else
-    let rec last i d =
-      if i >= n then d
-      else
-        let d = String.get_utf_8_uchar a i in
-        last (i + Uchar.utf_decode_length d) d
-    in
-    last 0 (String.get_utf_8_uchar a 0)
+  match ending (n - 1) with
+  | Some d -> d
+  | None ->
+      let rec last i d =
+        if i >= n then d
+        else
+          let d = String.get_utf_8_uchar a i in
+          last (i + Uchar.utf_decode_length d) d
+      in
+      last 0 (String.get_utf_8_uchar a 0)
 
 (* Printable ASCII, and any character that {!is_alone}, starts a cluster
    after any character but a prepend (UAX #29 GB9b, GB999). *)
