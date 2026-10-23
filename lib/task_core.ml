@@ -395,18 +395,22 @@ let measure r cur =
     r.last_t <- now
   end
 
+(* The count and the rate columns open as soon as a task has the metric
+   they show, so that no column opens when a first rate shows. *)
 let set_metric r metric =
   let moved = not (same_metric r.metric metric) in
   changed r;
   r.metric <- metric;
   let w = r.work in
   w.count_cell <- max w.count_cell (count_width metric);
-  (match rate_text metric r.rate with
-  | "" -> ()
-  | rate ->
+  (match metric with
+  | Bytes _ ->
       w.rate_cell <-
         max w.rate_cell
-          (max (String.length "1023.99 MiB/s") (String.length rate)));
+          (max
+             (String.length "1023.99 MiB/s")
+             (String.length (rate_text metric r.rate)))
+  | Spin | Count _ -> ());
   if moved then notify w (Progressed r)
 
 let set_items r ~count ~total =

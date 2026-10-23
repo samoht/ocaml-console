@@ -43,14 +43,16 @@ let percent m =
     (fraction m)
 
 (* No bar is drawn before work advances, since an empty track reads as an
-   input field; once it has, the bar shows the least it can. *)
+   input field; its cells are kept blank, so that nothing moves when it
+   shows. Once work has advanced, the bar shows the least it can. *)
 let bar look r width =
   match fraction (metric r) with
   | Some f when f > 0. ->
       (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
       let f = Float.max f (1. /. float (max 1 (width * 2))) in
       V.paint look (Bar.horizontal ~width f)
-  | _ -> V.empty
+  | Some _ -> pad width
+  | None -> V.empty
 
 let count_cell look r =
   pad_left (Work.count_cell (work r)) (muted look (count_text (metric r)))
