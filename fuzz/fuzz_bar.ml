@@ -40,12 +40,21 @@ let test_horizontal_room n requested brackets frac =
   check_room width 1 (Bar.horizontal ~width:requested ~brackets frac);
   check_room width 1 (Bar.horizontal ~brackets frac)
 
+let test_vertical_room n h requested frac =
+  check_room
+    (1 + (n mod 200))
+    (1 + (h mod 30))
+    (Bar.vertical ~width:(requested mod 240) frac)
+
 let suite =
   ( "bar",
     [
       test_case "horizontal bars keep to their room"
         [ uint8; uint8; bool; float ]
         test_horizontal_room;
+      test_case "fixed vertical bars keep to their room"
+        [ uint8; uint8; uint8; float ]
+        test_vertical_room;
       test_case "width" [ int; float; bool ] test_width;
       test_case "a vertical bar is as tall as its room" [ int; float; bool ]
         test_vertical_height;
