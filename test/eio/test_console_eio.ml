@@ -715,9 +715,33 @@ let test_quiet_terminal_capture () =
     "successful task output is hidden; root output stays" [ "root line" ]
     (final_of out)
 
+let test_cast_without_deterministic () =
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env [ ("CONSOLE_CAST", file); ("CONSOLE_DETERMINISTIC_CLOCK", "") ]
+  @@ fun () ->
+  Eio_main.run @@ fun _ ->
+  let mock = Eio_mock.Clock.Mono.make () in
+  let clock = Console_eio.clock mock in
+  let _, ppf = buffer () in
+  let slept = ref false in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun _ ->
+          Eio.Time.Mono.sleep clock 1.;
+          slept := true))
+    (fun () ->
+      for _ = 1 to 1000 do
+        Eio.Fiber.yield ()
+      done);
+  Alcotest.(check bool)
+    "recording sleeps without advancing the real clock" true !slept
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "recording alone makes sleeps virtual" `Quick
+        test_cast_without_deterministic;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
