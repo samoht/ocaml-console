@@ -192,9 +192,22 @@ let test_overflowing_padding () =
     (Invalid_argument "Console.Panel.view: padding too large") (fun () ->
       ignore (Panel.view ~padding:max_int (View.text "x")))
 
+let test_title_follows_state () =
+  let name = ref "one" in
+  let label = View.fit (fun _ -> View.text !name) in
+  let panel = Panel.view ~title:label ~subtitle:label (View.text "body") in
+  let first = View.to_string panel in
+  name := "two";
+  let second = View.to_string panel in
+  Alcotest.(check bool) "first title" true (contains "one" first);
+  Alcotest.(check bool) "title follows" true (contains " two " second);
+  Alcotest.(check bool) "old title gone" false (contains "one" second)
+
 let suite =
   ( "panel",
     [
+      Alcotest.test_case "a fit title follows the state" `Quick
+        test_title_follows_state;
       Alcotest.test_case "huge padding is refused before drawing" `Quick
         test_overflowing_padding;
       Alcotest.test_case "to_string within a width" `Quick test_to_string_width;

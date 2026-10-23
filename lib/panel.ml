@@ -150,21 +150,18 @@ let view ?border ?title ?subtitle ?(padding = 1) ?(expand = false) content =
   in
   if padding > (Sys.max_string_length - edges) / 2 then
     invalid_arg "Console.Panel.view: padding too large";
-  let title = Option.map Widget.one_line title
-  and subtitle = Option.map Widget.one_line subtitle in
   let parts = content :: List.filter_map Fun.id [ title; subtitle ] in
   View_core.deferred ~kind:(Widget.framed_kind parts) (fun c ->
       let look = Ctx.look c in
       let border = Widget.border look border in
       let frame = frame border padding in
-      let natural = Ctx.natural c in
+      let label =
+        Option.map (fun t ->
+            Widget.one_line (View_core.resolve (Ctx.natural c) t))
+      in
       let title =
-        Option.map
-          (fun t ->
-            View_core.styled (Theme.header look.theme)
-              (View_core.resolve natural t))
-          title
-      and subtitle = Option.map (View_core.resolve natural) subtitle in
+        Option.map (View_core.styled (Theme.header look.theme)) (label title)
+      and subtitle = label subtitle in
       let room = Option.map (fun w -> max 0 (w - frame)) (Ctx.width c) in
       let lines =
         View_core.lines (View_core.resolve (Ctx.with_width room c) content)
