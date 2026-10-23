@@ -743,8 +743,8 @@ let test_colours () =
   Task.fail a;
   close t;
   let out = written t in
-  (* The default theme's red is entry 160 of the 256-colour palette. *)
-  Alcotest.(check bool) "red failure" true (contains "\027[1;38;5;160m" out);
+  (* The default theme's red is the terminal's own. *)
+  Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
 (* On a terminal wider than 100 columns, the rows and the lines of ended

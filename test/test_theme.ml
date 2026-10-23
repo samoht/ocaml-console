@@ -153,7 +153,9 @@ let test_widgets_read_it () =
   Alcotest.(check string)
     "rule in the muted colour"
     (View.to_string ~styled:true
-       (View.styled (Style.fg (Theme.muted Theme.dos)) (View.text "-----")))
+       (View.styled
+          (Style.fg (Option.get (Theme.muted Theme.dos)))
+          (View.text "-----")))
     (printed ~theme:Theme.dos ~styled:true ~margin:5 View.pp
        (Rule.view ~glyph:"-" ()));
   Alcotest.(check bool)
@@ -244,6 +246,28 @@ let presets =
       ("github_light", github_light);
     ]
 
+(* A named colour of the terminal, which its scheme draws. *)
+let named c = Color.equal (Color.downsample `Ansi_16 c) c
+
+(* The default theme is drawn in the terminal's own colours: its named
+   colours, which the user's scheme shows, and faint text for what is
+   muted, so that nothing it draws is in a colour chosen for another
+   background. *)
+let test_default_named () =
+  let t = Theme.default in
+  List.iter
+    (fun (what, c) ->
+      if not (named c) then
+        Alcotest.failf "default: %s %a is not a named colour" what Color.pp c)
+    ([
+       ("accent", Theme.accent t);
+       ("ok", Theme.succeeded t);
+       ("warn", Theme.warning t);
+       ("fail", Theme.failed t);
+     ]
+    @ List.map (fun c -> ("palette", c)) (Theme.palette t));
+  Alcotest.(check bool) "no muted colour" true (Theme.muted t = None)
+
 (* Text a theme colours reads on its background at 4.5:1 or more, and a
    glyph it colours alone at 3:1 or more, as WCAG 2.1 asks of text and of
    graphics. The muted colour and the header's are text: counts, timers and
@@ -251,7 +275,8 @@ let presets =
    on a theme that names its background. A theme without one is read on
    black and on white alike, where 4.5:1 on both asks a luminance of 0.175
    to 0.183, which no amber of the 256-colour palette has: its roles are
-   held to 3:1 on both, as glyphs. *)
+   held to 3:1 on both, as glyphs. A named colour is the terminal's own,
+   which its scheme shows in its own contrast. *)
 let test_contrast () =
   List.iter
     (fun (name, t) ->
@@ -272,13 +297,13 @@ let test_contrast () =
         List.mapi (fun i c -> (Fmt.str "palette %d" i, c)) (Theme.palette t)
       in
       let text =
-        ("muted", Theme.muted t)
-        :: List.filter_map
-             (fun (n, c) ->
-               if Style.equal Style.(Theme.header t + fg c) (Theme.header t)
-               then Some (n, c)
-               else None)
-             (("header", Theme.accent t) :: palette)
+        Option.fold ~none:[] ~some:(fun c -> [ ("muted", c) ]) (Theme.muted t)
+        @ List.filter_map
+            (fun (n, c) ->
+              if Style.equal Style.(Theme.header t + fg c) (Theme.header t) then
+                Some (n, c)
+              else None)
+            (("header", Theme.accent t) :: palette)
       in
       let glyphs, text =
         match Theme.background t with
@@ -291,7 +316,7 @@ let test_contrast () =
             (fun (least, colours) ->
               List.iter
                 (fun (what, c) ->
-                  let ratio = contrast c bg in
+                  let ratio = if named c then least else contrast c bg in
                   if ratio < least then
                     Alcotest.failf "%s: %s %a on %a is %.2f:1, below %.1f:1"
                       name what Color.pp c Color.pp bg ratio least)
@@ -318,7 +343,7 @@ let sgr style =
    the display's header in its header style. *)
 let test_roles () =
   let t = Theme.nord in
-  let muted = sgr (Style.fg (Theme.muted t))
+  let muted = sgr (Style.fg (Option.get (Theme.muted t)))
   and header = sgr (Theme.header t) in
   let print pp v = printed ~theme:t ~styled:true pp v in
   let check what affix s =
@@ -606,16 +631,18 @@ let test_frame_contrast () =
         | Some bg -> [ bg ]
         | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
       in
-      List.iter
-        (List.iter (fun (glyph, c) ->
-             List.iter
-               (fun bg ->
-                 let ratio = contrast c bg in
-                 if ratio < 3. then
-                   Alcotest.failf "%s: %S in %a on %a is %.2f:1" name glyph
-                     Color.pp c Color.pp bg ratio)
-               backgrounds))
-        frames)
+      (* A frame in no colour of the theme's is in the terminal's own. *)
+      if Theme.muted t <> None || Theme.motion t <> None then
+        List.iter
+          (List.iter (fun (glyph, c) ->
+               List.iter
+                 (fun bg ->
+                   let ratio = contrast c bg in
+                   if ratio < 3. then
+                     Alcotest.failf "%s: %S in %a on %a is %.2f:1" name glyph
+                       Color.pp c Color.pp bg ratio)
+                 backgrounds))
+          frames)
     presets
 
 (* Rain runs along an intact frame: in every frame the corners and the tees,
@@ -663,6 +690,8 @@ let suite =
       Alcotest.test_case "header" `Quick test_header;
       Alcotest.test_case "roles" `Quick test_roles;
       Alcotest.test_case "contrast" `Quick test_contrast;
+      Alcotest.test_case "the default theme is the terminal's" `Quick
+        test_default_named;
       Alcotest.test_case "motion" `Quick test_motion;
       Alcotest.test_case "still" `Quick test_still;
       Alcotest.test_case "printed still" `Quick test_still_printed;

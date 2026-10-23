@@ -20,8 +20,11 @@ let behind ~n ~speed elapsed p =
   let head = Float.to_int (Float.rem (elapsed *. speed) (Float.of_int n)) in
   (head - p + n) mod n
 
-let recolour c style = Style.(style + fg c)
-let bright c style = Style.(style + bold + fg c)
+(* A frame in no colour of the theme's is faint; one that motion colours
+   is not, so that it keeps the contrast of its colour. *)
+let base style = if Style.equal style Style.faint then Style.none else style
+let recolour c style = Style.(base style + fg c)
+let bright c style = Style.(base style + bold + fg c)
 
 (* A drop: a bold head in the main colour and two glyphs that flicker
    behind it, then the frame's own lines fading to the muted colour. Only a
@@ -37,8 +40,10 @@ let rain theme ~line ~n ~elapsed p style glyph =
   if d = 0 then (bright (Theme.accent theme) style, glyph)
   else if d < fade then
     let t = Float.of_int d /. Float.of_int fade in
-    ( recolour (Color.blend (Theme.accent theme) (Theme.muted theme) t) style,
-      glyph )
+    let muted =
+      Option.value (Theme.muted theme) ~default:(Theme.accent theme)
+    in
+    (recolour (Color.blend (Theme.accent theme) muted t) style, glyph)
   else (style, glyph)
 
 (* The palette graded once round the frame, from its first colour at the

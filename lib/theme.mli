@@ -7,7 +7,8 @@
 
     A theme holds the choices the widgets share:
     - the main colour, and the colours of a success, a warning and a failure;
-    - a muted colour for what frames and annotates, and the style of headers;
+    - a muted colour, or faint text, for what frames and annotates, and the
+      style of headers;
     - the marks that say how a task runs or ended and the level of a message;
     - the frame of tables and panels, and how it moves;
     - the lines of a tree and the spinner of a {!Display}.
@@ -18,8 +19,9 @@
     with {!View.role}.
 
     The predefined themes suit different terminals:
-    - {!default} reads on any background at 256 colours or more, which makes it
-      the one to keep when nothing is known of the terminal.
+    - {!default} is drawn in the terminal's own named colours and faint text,
+      which its user chose for its background, so it reads wherever the terminal
+      does and is the one to keep when nothing is known of it.
     - A theme with a {!background}, such as {!dracula} or {!solarized_light}, is
       for a terminal whose own colour scheme is that one. Its colours are chosen
       for that background, which the widgets do not paint, so on another
@@ -121,15 +123,16 @@ val v :
 (** [v ()] is {!default} with the given parts replaced:
 
     - [name] is its {!name} (defaults to ["custom"]);
-    - [accent] is the main colour (defaults to {!default}'s teal);
+    - [accent] is the main colour (defaults to {!default}'s cyan);
     - [palette] are the colours that successive progress rows take in turn, and
       that a bar without a style spreads along its length when there are several
       (defaults to [[accent]], and [[]] is taken as the default);
     - [succeeded] colours the mark of a success, [warning] that of a warning or
       a cancellation, and [failed] that of a failure or an error (default to
-      {!default}'s green, amber and red);
+      {!default}'s green, yellow and red);
     - [muted] colours frames, tree lines, rules, the track of a bar and the
-      counts and timers of a display (defaults to {!default}'s grey);
+      counts and timers of a display (defaults to none: they are faint, in the
+      terminal's own colour);
     - [header] is the style of table headers, panel titles and the name on a
       display's summary line (defaults to {!Style.bold});
     - [background] is the light or dark background the colours are chosen for
@@ -169,9 +172,10 @@ val warning : t -> Color.t
 val failed : t -> Color.t
 (** [failed t] is the colour of a failure and of an error. *)
 
-val muted : t -> Color.t
+val muted : t -> Color.t option
 (** [muted t] is the colour of frames, tree lines, rules, the track of a bar and
-    the counts and timers of a display. *)
+    the counts and timers of a display, if [t] has one. If not, they are faint
+    ({!Style.faint}), in the terminal's own colour. *)
 
 val header : t -> Style.t
 (** [header t] is the style of table headers, panel titles and the name on a
@@ -220,12 +224,14 @@ val still : t -> t
     scheme's text, to just above it. *)
 
 val default : t
-(** [default] is teal, with a green, an amber, a red and a grey taken from the
-    xterm 256-colour palette (entries 30, 28, 136, 160 and 243) for their
-    contrast on dark and light backgrounds alike. It has bold headers, rounded
-    frames and a braille spinner. Its marks, for the states of {!type-mark} in
-    order, are a bullet, a check mark, a cross, a circle, a single
-    right-pointing angle quotation mark, [!], a cross and a middle dot. *)
+(** [default] is the terminal's named colours: cyan, with green, yellow and red
+    for a success, a warning and a failure, and faint text for what is muted. A
+    terminal shows them in the colours of its own scheme, which its user chose
+    to read on its background, and a recording in those of the recorder's. It
+    has bold headers, rounded frames and a braille spinner. Its marks, for the
+    states of {!type-mark} in order, are a bullet, a check mark, a cross, a
+    circle, a single right-pointing angle quotation mark, [!], a cross and a
+    middle dot. *)
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
@@ -248,7 +254,8 @@ val matrix : t
 
 val rainbow : t
 (** [rainbow] gives successive progress rows the colours of the rainbow, taken
-    from the xterm 256-colour palette as {!default}'s are, and also spreads them
+    from the xterm 256-colour palette (entries 160, 136, 28, 30, 63 and 164) for
+    their contrast on dark and light backgrounds alike, and also spreads them
     along its bars and sweeps them round its frames ([`Sweep]). *)
 
 val dracula : t
@@ -346,13 +353,12 @@ val pp : t Fmt.t
       colour and the colours of a success, a warning and a failure);
     - the colours of the progress rows are at 3:1 or more.
 
-    A theme without a background is read against black and white alike, with its
-    muted colour and header at 4.5:1 and its other colours at 3:1. A frame that
-    moves is drawn in these colours alone, so each of its frames keeps the
-    contrast of a glyph.
+    A theme without a background that gives colours of its own is read against
+    black and white alike, with its muted colour and header at 4.5:1 and its
+    other colours at 3:1. A frame that moves is drawn in these colours alone, so
+    each of its frames keeps the contrast of a glyph.
 
-    These ratios are those of the colours as given. The colours of {!default}
-    are entries of the 256-colour palette, so they are shown as given at 256
-    colours too. At 16 colours, though, every theme is drawn in the terminal's
-    named colours, such as its green and its yellow. Their contrast then depends
-    on the terminal's own scheme, which console cannot know. *)
+    {!default} gives none: its colours are the terminal's named ones and its
+    muted text is faint, so their contrast is that of the terminal's own scheme,
+    which console cannot know and which its user chose. At 16 colours every
+    theme is drawn so, in the named colours nearest its own. *)

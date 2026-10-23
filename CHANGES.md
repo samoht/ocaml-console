@@ -27,11 +27,14 @@ Initial release of `console` and `console-eio`.
   UTF-8. A part laid out for its room alone is laid out once for each room.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
   gives every view its colours, marks, frames, tree lines, bars and spinner
-  frames. Eighteen are predefined: `Theme.default`, which reads on any
-  background, `ascii`, `dos`, `matrix`, `rainbow`, and the colour schemes of
-  Dracula, Nord, Solarized, gruvbox, Catppuccin, Tokyo Night, One Dark,
-  Monokai and GitHub. Text colours, the roles' included, are at 4.5:1
-  contrast on the theme's background and glyph colours at 3:1. The roles
+  frames. Eighteen are predefined: `Theme.default`, drawn in the
+  terminal's own named colours (cyan, green, yellow and red) with faint
+  muted text (`Theme.muted` is `None`), so it reads on the background the
+  terminal's user chose, `ascii`, `dos`, `matrix`, `rainbow`, and the
+  colour schemes of Dracula, Nord, Solarized, gruvbox, Catppuccin, Tokyo
+  Night, One Dark, Monokai and GitHub. In a theme with colours of its own,
+  text colours, the roles' included, are at 4.5:1 contrast on the theme's
+  background and glyph colours at 3:1. The roles
   are those of a task's ending: `` `Succeeded ``, `` `Warning ``,
   `` `Failed ``, and the main colour, muted text and headers. `Theme.all`
   and `Theme.of_string` make a `--theme` option one line of Cmdliner.

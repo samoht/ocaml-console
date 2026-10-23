@@ -177,7 +177,10 @@ module F = struct
     | `Succeeded -> Style.fg (Theme.succeeded theme)
     | `Warning -> Style.fg (Theme.warning theme)
     | `Failed -> Style.fg (Theme.failed theme)
-    | `Muted -> Style.fg (Theme.muted theme)
+    | `Muted -> (
+        match Theme.muted theme with
+        | Some c -> Style.fg c
+        | None -> Style.faint)
     | `Header -> Theme.header theme
 
   (* Each line is a part of its own: {!lines} splits text, not a drawing. *)

@@ -70,7 +70,7 @@ are the values [--theme] accepts:
  "monokai"; "github-dark"; "github-light"]
 ]}
 
-{!Console.Theme.default} reads well on any background, while a theme named
+{!Console.Theme.default} takes the terminal's own colours, while a theme named
 after a colour scheme, such as [dracula], is meant for a terminal that uses
 that scheme.
 

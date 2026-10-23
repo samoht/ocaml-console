@@ -134,7 +134,7 @@ let test_palette () =
     Buffer.contents buf
   in
   let palette = Array.of_list (Theme.palette Theme.rainbow) in
-  let muted = Style.fg (Theme.muted Theme.rainbow) in
+  let muted = Style.faint in
   let cells n =
     List.init n (fun i ->
         View.styled (Style.fg palette.(i)) (View.text "\u{2501}"))

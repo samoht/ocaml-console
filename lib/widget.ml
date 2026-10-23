@@ -9,7 +9,12 @@ type look = Look.t
    replaced, all of a part at once so that its pieces still join; a piece a
    border leaves out stays out. *)
 let shows look glyphs = look.Look.utf_8 || List.for_all Width.is_ascii glyphs
-let muted look = Style.fg (Theme.muted look.Look.theme)
+
+let muted look =
+  match Theme.muted look.Look.theme with
+  | Some c -> Style.fg c
+  | None -> Style.faint
+
 let accent look = Style.fg (Theme.accent look.Look.theme)
 
 (* A border or a guide in no style of its own is drawn in the muted colour. *)

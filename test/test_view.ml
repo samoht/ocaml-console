@@ -325,7 +325,11 @@ let test_role () =
         (fg (Theme.failed theme) "x")
         (View.role `Failed (View.text "x"));
       check (name ^ " muted") theme
-        (fg (Theme.muted theme) "x")
+        (View.styled
+           (match Theme.muted theme with
+           | Some c -> Style.fg c
+           | None -> Style.faint)
+           (View.text "x"))
         (View.role `Muted (View.text "x"));
       check (name ^ " header") theme
         (View.styled (Theme.header theme) (View.text "x"))

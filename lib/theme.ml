@@ -25,7 +25,7 @@ type t = {
   succeeded : Color.t;
   warning : Color.t;
   failed : Color.t;
-  muted : Color.t;
+  muted : Color.t option;
   header : Style.t;
   background : Color.t option;
   border : Border.t;
@@ -74,25 +74,25 @@ let ascii_marks = function
   | `Debug -> "."
 
 (* Entries of the xterm 256-colour palette whose contrast is 3:1 or more on
-   black and on white alike, for a terminal whose background is unknown, and
-   the grey of the palette at 4.5:1 on both. *)
+   black and on white alike, for a terminal whose background is unknown. *)
 let teal = Color.ansi_256 30
 let green = Color.ansi_256 28
 let amber = Color.ansi_256 136
 let red = Color.ansi_256 160
 let blue = Color.ansi_256 63
 let magenta = Color.ansi_256 164
-let grey = Color.ansi_256 243
 
+(* The colours of the terminal's own palette, which its user chose to read
+   on its background, and its text made faint. *)
 let default =
   {
     name = "default";
-    accent = teal;
-    palette = [ teal ];
-    succeeded = green;
-    warning = amber;
-    failed = red;
-    muted = grey;
+    accent = Color.cyan;
+    palette = [ Color.cyan ];
+    succeeded = Color.green;
+    warning = Color.yellow;
+    failed = Color.red;
+    muted = None;
     header = Style.bold;
     background = None;
     border = Border.rounded;
@@ -105,14 +105,15 @@ let default =
 
 let v ?(name = "custom") ?(accent = default.accent) ?palette
     ?(succeeded = default.succeeded) ?(warning = default.warning)
-    ?(failed = default.failed) ?(muted = default.muted)
-    ?(header = default.header) ?background ?(border = default.border) ?motion
-    ?(guide = default.guide) ?(spinner = default.spinner) ?(bar = default.bar)
-    ?(marks = default.marks) () =
+    ?(failed = default.failed) ?muted ?(header = default.header) ?background
+    ?(border = default.border) ?motion ?(guide = default.guide)
+    ?(spinner = default.spinner) ?(bar = default.bar) ?(marks = default.marks)
+    () =
   let palette =
     match palette with None | Some [] -> [ accent ] | Some p -> p
   in
   let spinner = Frames.v "Theme.v" spinner in
+  let muted = match muted with None -> default.muted | m -> m in
   {
     name;
     accent;

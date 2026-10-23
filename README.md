@@ -299,8 +299,9 @@ let cmd =
 - : int = 0
 ```
 
-`Theme.default` reads well on any background at 256 colours or more. A
-theme named after a colour scheme, such as `Theme.dracula`, is meant for a
+`Theme.default` is drawn in the terminal's own named colours, with faint
+text for what is muted, so it reads on whatever background the terminal's
+user chose, at 16 colours or more. A theme named after a colour scheme, such as `Theme.dracula`, is meant for a
 terminal that uses that scheme. Every theme falls back to ASCII on a
 formatter that is not UTF-8, as `Console_tty.setup` makes the standard
 outputs when the locale is not UTF-8.

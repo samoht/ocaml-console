@@ -18,7 +18,7 @@ let test_theme s n =
   let t =
     Theme.v ~accent:c ~palette ~succeeded:c ~muted:c ~marks:(fun _ -> s) ()
   in
-  check (Color.equal (Theme.muted t) c);
+  check (Option.equal Color.equal (Theme.muted t) (Some c));
   check (not (Style.equal (Theme.header (Theme.v ())) Style.none));
   check (Theme.palette t <> []);
   check (Color.equal (Theme.accent t) c && Color.equal (Theme.succeeded t) c);
