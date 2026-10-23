@@ -104,8 +104,8 @@ Initial release of `console` and `console-eio`.
   duration, sleeps at once overlap, and each still lasts its duration in
   real time. A cram test of a program's progress then reads the same on
   every machine, whatever the program computes between its sleeps.
-  `CONSOLE_CAST=FILE` with it records what a run writes on the terminal
-  to `FILE` in asciicast v2, at the times of the virtual clock, on a
+  `CONSOLE_CAST=FILE`, which implies it, records what a run writes on the
+  terminal to `FILE` in asciicast v2, at the times of the virtual clock, on a
   terminal of `$COLUMNS` by `$LINES` with no pty behind it, and the
   sleeps then take no real time: a recording is the same bytes on every
   run. `Console_tty.setup` starts the recording too, for a program that

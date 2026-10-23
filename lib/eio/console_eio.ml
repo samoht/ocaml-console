@@ -73,10 +73,7 @@ let seconds clock =
   fun () ->
     Mtime.Span.to_float_ns (Mtime.span start (Eio.Time.Mono.now clock)) *. 1e-9
 
-let deterministic () =
-  match Sys.getenv_opt "CONSOLE_DETERMINISTIC_CLOCK" with
-  | None | Some "" -> false
-  | Some _ -> true
+let deterministic = Cast.deterministic
 
 (* A virtual clock. A sleep of [d] started at [t] wakes at [t + d], once it
    has also lasted [d] on [real]. Sleeps wake one at a time, in the order of

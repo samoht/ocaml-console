@@ -208,7 +208,8 @@ val run :
     - the display redraws on that clock.
 
     [CONSOLE_CAST], set to a file name, records the run there instead of on its
-    output: what it writes on [ppf], and on both standard outputs when [ppf] is
+    output, with the clock of [CONSOLE_DETERMINISTIC_CLOCK] whether that is set
+    or not: what it writes on [ppf], and on both standard outputs when [ppf] is
     one, from then until the program exits, is an
     {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2} recording
     of a terminal of [$COLUMNS] by [$LINES] (80 by 24 without them), with the
@@ -228,9 +229,9 @@ val with_output : (Format.formatter -> 'a) -> 'a
     [f Fmt.stderr]. *)
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
-(** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]},
-    a virtual clock that starts at zero and moves to the time each sleep on it
-    wakes at ({!deterministic}). A sleep until [t] on it lasts at least the time
-    from its clock's time to [t] on [c], so the elapsed times, the rates and the
-    spinners of a display that {!run} draws on it follow the program's sleeps.
-*)
+(** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
+    or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time
+    each sleep on it wakes at ({!deterministic}). A sleep until [t] on it lasts
+    at least the time from its clock's time to [t] on [c], so the elapsed times,
+    the rates and the spinners of a display that {!run} draws on it follow the
+    program's sleeps. *)

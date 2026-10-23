@@ -1,7 +1,6 @@
-Under CONSOLE_DETERMINISTIC_CLOCK, CONSOLE_CAST=FILE records what a run
-writes on the terminal to FILE, in asciicast v2, rather than on the
-output: a header, then one [time, "o", data] line per write, at its time
-on the virtual clock. The terminal is $COLUMNS by $LINES, with no pty
+CONSOLE_CAST=FILE records what a run writes on the terminal to FILE, in
+asciicast v2, rather than on the output: a header, then one
+[time, "o", data] line per write, at its time on the virtual clock. The terminal is $COLUMNS by $LINES, with no pty
 behind it, and the program's sleeps take no real time.
 
   $ export CONSOLE_DETERMINISTIC_CLOCK=1 TERM=xterm-256color LANG=en_US.UTF-8
@@ -20,6 +19,12 @@ Two recordings are the same bytes:
 
   $ CONSOLE_CAST=again.cast ../../../examples/columns/main.exe
   $ cmp columns.cast again.cast
+
+CONSOLE_CAST implies CONSOLE_DETERMINISTIC_CLOCK:
+
+  $ CONSOLE_DETERMINISTIC_CLOCK= CONSOLE_CAST=alone.cast \
+  >   ../../../examples/columns/main.exe
+  $ cmp columns.cast alone.cast
 
 The recording leaves the screen that the program leaves on a terminal:
 

@@ -10,8 +10,12 @@
     it, and [console.tty] and [console-eio] read it through [Console__]. *)
 
 val file : unit -> string option
-(** [file ()] is the file that [CONSOLE_CAST] names, when it and
-    [CONSOLE_DETERMINISTIC_CLOCK] are set and not empty. *)
+(** [file ()] is the file that [CONSOLE_CAST] names, when it is set and not
+    empty. *)
+
+val deterministic : unit -> bool
+(** [deterministic ()] is [true] iff [CONSOLE_DETERMINISTIC_CLOCK] is set and
+    not empty, or a recording is asked for ({!file}). *)
 
 type header = { width : int; height : int; term : string option }
 (** The type for the first line of a recording: the terminal's size, and its

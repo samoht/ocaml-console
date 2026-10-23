@@ -4,11 +4,10 @@
   ---------------------------------------------------------------------------*)
 
 let set name = match Sys.getenv_opt name with Some "" -> None | v -> v
+let file () = set "CONSOLE_CAST"
 
-let file () =
-  match set "CONSOLE_DETERMINISTIC_CLOCK" with
-  | None -> None
-  | Some _ -> set "CONSOLE_CAST"
+let deterministic () =
+  Option.is_some (set "CONSOLE_DETERMINISTIC_CLOCK") || Option.is_some (file ())
 
 type header = { width : int; height : int; term : string option }
 

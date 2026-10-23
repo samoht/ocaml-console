@@ -634,6 +634,13 @@ each sleep still lasts its duration. The times then read the same on every
 machine, and the rows still move as the program runs. The examples wait on that clock, so their recordings
 show the times a test checks.
 
+`CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as
+an [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/)
+recording of a terminal of `$COLUMNS` by `$LINES`. It implies
+`CONSOLE_DETERMINISTIC_CLOCK`, and the sleeps on the clock of
+`Console_eio.clock` take no real time, so the recording is the same
+bytes on every run, made in a fraction of the program's time.
+
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes
 unless `~styled:true` asks for them.
