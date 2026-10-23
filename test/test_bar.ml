@@ -278,9 +278,20 @@ let test_horizontal_room () =
       Alcotest.(check bool) "within its room" true (View.width v <= width))
     [ Bar.horizontal ~width:20 0.5; Bar.horizontal ~brackets:true 0.5 ]
 
+let test_vertical_room () =
+  let v = View.sized ~width:2 ~height:3 (Bar.vertical ~width:5 1.) in
+  let terminal = Console_vte.v ~rows:12 ~cols:2 () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int)
+    "three terminal rows" 2
+    (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "fixed vertical bars keep to their room" `Quick
+        test_vertical_room;
       Alcotest.test_case "horizontal bars keep to their room" `Quick
         test_horizontal_room;
       Alcotest.test_case "sparkline" `Quick test_sparkline;
