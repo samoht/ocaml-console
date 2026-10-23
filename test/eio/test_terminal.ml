@@ -67,7 +67,7 @@ let end_mark = "<end of the case's output>"
 let mark fd =
   ignore (Unix.write_substring fd end_mark 0 (String.length end_mark) : int)
 
-let read_to_mark env pty =
+let read_to_mark pty =
   let written = Buffer.create 256 and buf = Cstruct.create 4096 in
   let source = Eio_unix.Pty.source pty in
   let rec loop () =
@@ -77,11 +77,8 @@ let read_to_mark env pty =
       loop ()
     end
   in
-  match
-    Eio.Time.with_timeout (Eio.Stdenv.clock env) 10. (fun () -> Ok (loop ()))
-  with
-  | Ok () -> Buffer.contents written
-  | Error `Timeout -> Alcotest.fail "the end mark was not read in 10 s"
+  loop ();
+  Buffer.contents written
 
 let with_null f =
   let null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0 in
@@ -91,7 +88,7 @@ let with_null f =
    drawn, since the display draws on standard error. An implementation that
    asks standard output draws history here. *)
 let test_auto_asks_the_formatters_own_descriptor () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
   let tty = tty pty in
@@ -106,7 +103,7 @@ let test_auto_asks_the_formatters_own_descriptor () =
   in
   Alcotest.(check bool) "standard error is a terminal" true err_tty;
   Alcotest.(check bool) "standard output is not" false out_tty;
-  let written = read_to_mark env pty in
+  let written = read_to_mark pty in
   Alcotest.(check bool)
     "a live region on standard error's terminal" true
     (contains hide_cursor written)
@@ -141,7 +138,7 @@ let test_auto_appends_on_a_pipe () =
 (* Both descriptors are the same terminal; under TERM=xterm-256color the
    region is drawn, under TERM=dumb the display appends. *)
 let test_auto_appends_under_term_dumb () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
   let tty = tty pty in
@@ -150,7 +147,7 @@ let test_auto_appends_under_term_dumb () =
     with_fds ~stdout:tty ~stderr:tty ~term (fun () ->
         draw_a_task ();
         mark Unix.stderr);
-    read_to_mark env pty
+    read_to_mark pty
   in
   Alcotest.(check bool)
     "a live region under xterm-256color" true
@@ -165,7 +162,7 @@ let test_auto_appends_under_term_dumb () =
    prints there goes out as it is written, a line not yet ended included,
    since no region of the display is on it. *)
 let test_other_terminal_passes_through () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
   let out = open_pty ~sw and err = open_pty ~sw in
   let out_tty = tty out and err_tty = tty err in
@@ -179,7 +176,7 @@ let test_other_terminal_passes_through () =
         Console_eio.run ~clock ~ppf:Fmt.stderr (fun _ ->
             Fmt.pr "partial%!";
             mark Unix.stdout;
-            read_to_mark env out))
+            read_to_mark out))
   in
   Alcotest.(check string)
     "byte for byte, at once" ("partial" ^ end_mark) written
@@ -214,7 +211,7 @@ let with_no_color value f =
 (* [run] on a terminal draws in colour as [setup] decides, and draws plain when
    [NO_COLOR] asks it to; the region is drawn in place either way. *)
 let test_run_styles_a_terminal () =
-  Eio_main.run @@ fun env ->
+  Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
   let tty = tty pty in
@@ -229,7 +226,7 @@ let test_run_styles_a_terminal () =
             Console_eio.run ~clock ~ppf (fun display ->
                 Console.Task.succeed (Console.Task.start display "step"));
             mark Unix.stderr));
-    read_to_mark env pty
+    read_to_mark pty
   in
   let coloured = draw "" in
   Alcotest.(check bool) "a live region" true (contains hide_cursor coloured);

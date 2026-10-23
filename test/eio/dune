@@ -19,10 +19,16 @@
 ; Runs a program on a terminal and prints the screen it leaves, for the
 ; cram tests.
 
+(library
+ (name pty_reader)
+ (modules pty_reader)
+ (libraries cstruct eio eio.unix unix))
+
 (executable
  (name tty)
  (modules tty)
  (libraries
+  pty_reader
   console
   console_vte
   cstruct
@@ -59,13 +65,14 @@
 
 (test
  (name test)
- (modules :standard \ teardown tty piped events)
+ (modules :standard \ teardown tty piped events pty_reader)
  (package console-eio)
  (deps teardown.exe)
  (libraries
   console
   console.tty
   console-eio
+  pty_reader
   display_harness
   console_vte
   cstruct

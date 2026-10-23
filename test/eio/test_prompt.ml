@@ -150,11 +150,8 @@ let with_stdin ~stdin f =
   Unix.dup2 stdin Unix.stdin;
   f ()
 
-(* [secret t] answered on a pseudo-terminal with [typed], by another fiber
-   of the domain if the read lets it run, or else by a watchdog domain, so
-   that a read that parks the domain fails rather than hangs. It is the
-   answer and whether the fiber typed it. *)
-let secret_typed typed =
+(* A pseudo-terminal for [f tty master], each a descriptor of its own. *)
+let with_pty f =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty =
@@ -166,101 +163,104 @@ let secret_typed typed =
   let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
   Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
-  @@ fun () ->
-  let typed_once = Atomic.make false in
-  let type_answer () =
-    if Atomic.compare_and_set typed_once false true then
-      ignore (Unix.write_substring master typed 0 (String.length typed) : int)
+  @@ fun () -> f env tty master
+
+let masked tty = not (Unix.tcgetattr tty).Unix.c_echo
+
+(* Whether the terminal has output for its reader, without waiting. *)
+let ready fd =
+  match Unix.select [ fd ] [] [] 0. with [], _, _ -> false | _ -> true
+
+(* What the terminal shows, read until it shows nothing more for now. *)
+let rec drain master =
+  if ready master then begin
+    ignore (Unix.read master (Bytes.create 4096) 0 4096 : int);
+    drain master
+  end
+
+let type_in master s =
+  ignore (Unix.write_substring master s 0 (String.length s) : int)
+
+(* A prompt on [tty] whose questions and masks go to a formatter that
+   counts the masks, [*], in [echoed]. *)
+let prompt_on env ~echoed =
+  let ppf =
+    Format.make_formatter
+      (fun s off len ->
+        for i = off to off + len - 1 do
+          if s.[i] = '*' then Atomic.incr echoed
+        done)
+      ignore
   in
-  let watchdog =
-    Domain.spawn (fun () ->
-        let polls = ref 1000 in
-        while (not (Atomic.get typed_once)) && !polls > 0 do
-          decr polls;
-          Unix.sleepf 0.01
-        done;
-        type_answer ())
-  in
-  let by_fiber = ref false in
-  let result = ref (Error (`Msg "unread")) in
+  Prompt.v ~ppf (Eio.Stdenv.stdin env)
+
+(* [secret t] answered on a pseudo-terminal with [typed] by another fiber
+   of the domain, which runs only if the read lets it: a read that parks
+   the domain hangs, and the run's guard ends it. The fiber types once the
+   question is masked, since what is typed before is discarded. *)
+let secret_typed typed =
+  with_pty @@ fun env tty master ->
   with_stdin ~stdin:tty (fun () ->
-      Eio.Fiber.both
-        (fun () ->
-          let t =
-            Prompt.v
-              ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
-              (Eio.Stdenv.stdin env)
-          in
-          result := Prompt.secret t "secret: ")
-        (fun () ->
-          Eio.Fiber.yield ();
-          if not (Atomic.get typed_once) then begin
-            by_fiber := true;
-            type_answer ()
-          end));
-  Domain.join watchdog;
-  (seen !result, !by_fiber)
+      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      let answer, () =
+        Eio.Fiber.pair
+          (fun () -> Prompt.secret t "secret: ")
+          (fun () ->
+            while not (masked tty) do
+              Eio.Fiber.yield ()
+            done;
+            type_in master typed)
+      in
+      seen answer)
 
 (* [secret] waits for the terminal the way a fiber waits, so the rest of the
    domain runs meanwhile: the answer is typed by another fiber of the same
    domain, which only runs if the read let it. *)
 let test_secret_leaves_the_domain_running () =
-  let answer, by_fiber = secret_typed "abc\n" in
-  Alcotest.check string_answer "the typed line" (Got "abc") answer;
-  Alcotest.(check bool)
-    "the domain ran while the terminal was awaited" true by_fiber
+  Alcotest.check string_answer "the typed line" (Got "abc")
+    (secret_typed "abc\n")
 
 (* A password is the bytes typed: a bidi mark, a C1 control and a byte
    that is no UTF-8 come back as they were typed. *)
 let test_secret_keeps_bytes () =
   let password = "\u{202e}p\xc2\x85w\xff" in
-  let answer, _ = secret_typed (password ^ "\n") in
-  Alcotest.check string_answer "the bytes typed" (Got password) answer
+  Alcotest.check string_answer "the bytes typed" (Got password)
+    (secret_typed (password ^ "\n"))
 
-(* A domain types the line in pieces, so that the terminal's input queue
-   never fills while the fiber that reads it waits. *)
+(* A domain types the line in pieces once the question is masked, each
+   piece once the prompt has masked all typed before it, so that the
+   terminal's input queue never fills; past the cap the prompt masks no
+   more, and the rest, less than a queue, is typed at once. *)
 let test_secret_cap () =
   let line = String.make 5000 'a' ^ "\n" in
+  let cap = 4097 in
   let result =
-    Eio_main.run @@ fun env ->
-    Eio.Switch.run @@ fun sw ->
-    let pty =
-      match Eio_unix.Pty.open_pty ~sw () with
-      | pty -> pty
-      | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-          Alcotest.skip ()
-    in
-    let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
-    let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
-    Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
-    @@ fun () ->
+    with_pty @@ fun env tty master ->
+    let echoed = Atomic.make 0 in
     let typist =
       Domain.spawn (fun () ->
-          let polls = ref 1000 in
-          while (Unix.tcgetattr tty).Unix.c_echo && !polls > 0 do
-            decr polls;
-            Unix.sleepf 0.01
+          while not (masked tty) do
+            Domain.cpu_relax ()
           done;
           let rec go i =
-            if i < String.length line then begin
-              let n = min 64 (String.length line - i) in
+            if i < cap then begin
+              let n = min 64 (cap - i) in
               ignore (Unix.write_substring master line i n : int);
-              (match Unix.select [ master ] [] [] 0.001 with
-              | [], _, _ -> ()
-              | _ -> ignore (Unix.read master (Bytes.create 4096) 0 4096 : int));
+              while Atomic.get echoed < i + n do
+                Domain.cpu_relax ()
+              done;
               go (i + n)
             end
+            else
+              ignore
+                (Unix.write_substring master line i (String.length line - i)
+                  : int)
           in
           go 0)
     in
     let result =
       with_stdin ~stdin:tty (fun () ->
-          let t =
-            Prompt.v
-              ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
-              (Eio.Stdenv.stdin env)
-          in
-          Prompt.secret t "secret: ")
+          Prompt.secret (prompt_on env ~echoed) "secret: ")
     in
     Domain.join typist;
     seen result
@@ -273,56 +273,32 @@ let test_secret_cap () =
    under getpass(3), but it is not the answer: [secret] discards it and
    reads what is typed once the question is masked. [typed] is typed first,
    and a {!Prompt.line} answered [before] is asked first unless [before] is
-   empty. A domain plays the
-   terminal: once the echo is off it types the answer until the call
-   returns, and it reads what the terminal shows, as masking waits for that
-   output to be read. It types nothing while the mask is set: on macOS a
-   line typed as the input is discarded can leave the read waiting. *)
+   empty. A domain plays the terminal: it reads what the terminal shows, as
+   masking waits for that output to be read, and once the echo is off, the
+   input discarded, it types the answer. *)
 let secret_after ~before typed =
-  Eio_main.run @@ fun env ->
-  Eio.Switch.run @@ fun sw ->
-  let pty =
-    match Eio_unix.Pty.open_pty ~sw () with
-    | pty -> pty
-    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-        Alcotest.skip ()
-  in
-  let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
-  let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
-  Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])
-  @@ fun () ->
-  ignore (Unix.write_substring master typed 0 (String.length typed) : int);
-  let answered = Atomic.make false in
-  let typist =
-    Domain.spawn (fun () ->
-        let polls = ref 200 in
-        let masked = ref false in
-        while (not (Atomic.get answered)) && !polls > 0 do
-          decr polls;
-          if !masked then
-            ignore (Unix.write_substring master "late\n" 0 5 : int)
-          else masked := not (Unix.tcgetattr tty).Unix.c_echo;
-          match Unix.select [ master ] [] [] 0.05 with
-          | [], _, _ -> ()
-          | _ -> ignore (Unix.read master (Bytes.create 256) 0 256 : int)
-        done)
-  in
   let result =
-    with_stdin ~stdin:tty (fun () ->
-        let t =
-          Prompt.v
-            ~ppf:(Format.formatter_of_buffer (Buffer.create 16))
-            (Eio.Stdenv.stdin env)
-        in
-        Fun.protect
-          ~finally:(fun () -> Atomic.set answered true)
-          (fun () ->
-            if before <> "" then
-              Alcotest.check string_answer "the line" (Got before)
-                (seen (Prompt.line t "line: "));
-            Prompt.secret t "secret: "))
+    with_pty @@ fun env tty master ->
+    type_in master typed;
+    let typist =
+      Domain.spawn (fun () ->
+          while not (masked tty) do
+            drain master;
+            Domain.cpu_relax ()
+          done;
+          type_in master "late\n")
+    in
+    let result =
+      with_stdin ~stdin:tty (fun () ->
+          let t = prompt_on env ~echoed:(Atomic.make 0) in
+          if before <> "" then
+            Alcotest.check string_answer "the line" (Got before)
+              (seen (Prompt.line t "line: "));
+          Prompt.secret t "secret: ")
+    in
+    Domain.join typist;
+    result
   in
-  Domain.join typist;
   Alcotest.check string_answer "the line typed once masked" (Got "late")
     (seen result)
 

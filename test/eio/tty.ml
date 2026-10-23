@@ -36,28 +36,8 @@ let run argv =
       ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
       ~executable:(List.hd argv) argv
   in
-  let written = Buffer.create 4096 and buf = Cstruct.create 4096 in
-  let source = Eio_unix.Pty.source pty in
-  (* A read is never raced against a timeout, which could drop what it
-     read: the reader runs until the child has exited and nothing more has
-     come for half a second. *)
-  let rec read () =
-    match Eio.Flow.single_read source buf with
-    | n ->
-        Buffer.add_string written (Cstruct.to_string ~len:n buf);
-        read ()
-    | exception (End_of_file | Eio.Io _) -> ()
-  in
-  let rec settle seen =
-    Eio.Time.sleep (Eio.Stdenv.clock env) 0.5;
-    let now = Buffer.length written in
-    if now <> seen then settle now
-  in
-  Eio.Fiber.first read (fun () ->
-      ignore (Eio.Process.await child : Eio.Process.exit_status);
-      settle (Buffer.length written));
-  ignore (Eio.Process.await child : Eio.Process.exit_status);
-  Buffer.contents written
+  Pty_reader.read_all pty (fun () ->
+      ignore (Eio.Process.await child : Eio.Process.exit_status))
 
 let screen ?(rows = rows) ?(cols = cols) bytes =
   let vte = Console_vte.v ~rows ~cols () in

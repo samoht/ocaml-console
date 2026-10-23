@@ -396,8 +396,8 @@ let open_pty ~sw =
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
    the terminal echoes what is typed once it has. With [continue], the child
-   is sent SIGCONT every tenth of a second, as a shell's [fg] does, until it
-   exits. *)
+   is sent SIGCONT, as a shell's [fg] does, again and again until it exits:
+   a SIGCONT that comes before the child stops is lost, and none waits. *)
 let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
     =
   Eio_main.run @@ fun env ->
@@ -416,38 +416,29 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
       ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
       ~executable:"./teardown.exe" [ "teardown.exe"; how ]
   in
-  let clock = Eio.Stdenv.clock env in
-  let written = Buffer.create 256 and buf = Cstruct.create 4096 in
-  let source = Eio_unix.Pty.source pty in
-  let status = ref None in
-  (* The reader runs on its own, never raced against a timeout that would
-     drop what a read returns as it ends; it stops once the child has exited
-     and nothing more has come for half a second. *)
-  let rec read () =
-    match Eio.Flow.single_read source buf with
-    | n ->
-        Buffer.add_string written (Cstruct.to_string ~len:n buf);
-        read ()
-    | exception (End_of_file | Eio.Io _) -> ()
+  let status = ref None and echo = ref None in
+  let exited = Atomic.make false in
+  let fg () =
+    let pid = Eio.Process.pid child in
+    while not (Atomic.get exited) do
+      (try Unix.kill pid Sys.sigcont with Unix.Unix_error _ -> ());
+      Domain.cpu_relax ()
+    done
   in
-  let rec settle seen =
-    Eio.Time.sleep clock 0.5;
-    let now = Buffer.length written in
-    if now <> seen then settle now
+  let await () =
+    Fun.protect
+      ~finally:(fun () -> Atomic.set exited true)
+      (fun () -> status := Some (Eio.Process.await child))
   in
-  let rec fg () =
-    if continue && Option.is_none !status then begin
-      Eio.Time.sleep clock 0.1;
-      (try Unix.kill (Eio.Process.pid child) Sys.sigcont
-       with Unix.Unix_error _ -> ());
-      fg ()
-    end
+  let written =
+    Pty_reader.read_all pty (fun () ->
+        if continue then
+          Eio.Fiber.both await (fun () ->
+              Eio_unix.run_in_systhread ~label:"fg" fg)
+        else await ();
+        echo := Some (Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr))
   in
-  Eio.Fiber.first read (fun () ->
-      Eio.Fiber.both (fun () -> status := Some (Eio.Process.await child)) fg;
-      settle (Buffer.length written));
-  let echo = Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr in
-  (Option.get !status, Buffer.contents written, echo.Unix.c_echo)
+  (Option.get !status, written, (Option.get !echo).Unix.c_echo)
 
 let teardown how =
   let status, out, _ = session how in

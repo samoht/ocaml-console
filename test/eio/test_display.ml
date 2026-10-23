@@ -382,9 +382,7 @@ module Report_domains = struct
     in
     { ppf; buffer; foreign }
 
-  let with_runtime f =
-    Eio_main.run @@ fun env ->
-    Eio.Time.with_timeout_exn (Eio.Stdenv.clock env) 3. (fun () -> f env)
+  let with_runtime f = Eio_main.run f
 
   let run _env sink f =
     Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf:sink.ppf f

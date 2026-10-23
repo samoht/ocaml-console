@@ -15,12 +15,15 @@
    task that it does not flush, then one in a task that fails. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
+(* SIGINT comes once the password is masked. *)
 let secret env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
   Eio.Fiber.both
     (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
     (fun () ->
-      Eio.Time.sleep (Eio.Stdenv.clock env) 0.2;
+      while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
+        Eio.Fiber.yield ()
+      done;
       Unix.kill (Unix.getpid ()) Sys.sigint)
 
 (* The program chose no colour itself, as a [--color=never] does, before
