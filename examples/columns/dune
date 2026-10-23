@@ -3,7 +3,8 @@
  (libraries console console.tty console-eio eio eio_main fmt))
 
 (rule
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (target columns.cast)
  (action
   (setenv
@@ -15,7 +16,8 @@
     (run ./main.exe)))))
 
 (rule
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (target columns.generated.svg)
  (action
   (run
@@ -29,6 +31,7 @@
 
 (rule
  (alias runtest)
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (action
   (diff columns.svg columns.generated.svg)))

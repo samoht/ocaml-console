@@ -11,7 +11,8 @@
   cmdliner))
 
 (rule
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (target quickstart.cast)
  (action
   (setenv
@@ -23,7 +24,8 @@
     (run ./main.exe)))))
 
 (rule
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (target quickstart.generated.svg)
  (action
   (run
@@ -37,6 +39,7 @@
 
 (rule
  (alias runtest)
- (enabled_if %{bin-available:k7})
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (action
   (diff quickstart.svg quickstart.generated.svg)))
