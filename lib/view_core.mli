@@ -134,6 +134,10 @@ val wrap_hanging : int -> t -> t list
 (** [wrap_hanging w v] is like {!wrap} but the lines after the first of each
     line start under the text after its first word, at most [w / 2] cells in. *)
 
+val chop : int -> t -> t list
+(** [chop w v] is like {!wrap} but breaks each line of [v] every [w] cells,
+    mid-word, as a terminal wraps a line wider than it. *)
+
 val widest_word : t -> int
 (** [widest_word v] is the width of the widest run of [v] without a space. *)
 

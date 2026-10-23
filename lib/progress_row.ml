@@ -350,12 +350,16 @@ let tail look r =
   |> List.rev
 
 (* [lead], then the lines of [body] broken to [width], each after the
-   first under its start. *)
+   first under its start; without a lead, broken as the terminal wraps
+   them. *)
 let hanging look ~width lead body =
   let w = V.width lead in
   (* Only a room narrower than the lead cuts a line. *)
   List.map (cut look width)
-    (match V.wrap (max 1 (width - w)) body with
+    (match
+       if w = 0 then V.chop (max 1 width) body
+       else V.wrap (max 1 (width - w)) body
+     with
     | first :: rest ->
         V.(lead ++ first) :: List.map (fun l -> V.(pad w ++ l)) rest
     | [] -> [ lead ])

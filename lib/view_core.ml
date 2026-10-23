@@ -657,6 +657,27 @@ module F = struct
 
   let wrap w t = wrap_with ~hanging:false w t
   let wrap_hanging w t = wrap_with ~hanging:true w t
+
+  let chop w t =
+    if w <= 0 then invalid_arg "Console.View_core.chop: non-positive width";
+    List.concat_map
+      (fun line ->
+        let f =
+          {
+            l = layout line;
+            w;
+            hang = 0;
+            out = [];
+            cur = [];
+            cur_w = 0;
+            first = true;
+          }
+        in
+        split f 0 f.l.n;
+        if f.cur <> [] || f.out = [] then finish f;
+        List.rev f.out)
+      (lines t)
+
   let osc8_open uri = "\027]8;;" ^ uri ^ "\027\\"
   let osc8_close = "\027]8;;\027\\"
 
@@ -1072,6 +1093,7 @@ let keep t =
 
 let wrap w t = List.map (fun f -> Flat f) (F.wrap w (keep t))
 let wrap_hanging w t = List.map (fun f -> Flat f) (F.wrap_hanging w (keep t))
+let chop w t = List.map (fun f -> Flat f) (F.chop w (keep t))
 let lines t = List.map (fun f -> Flat f) (F.lines (keep t))
 let seamed t = List.map (fun (j, f) -> (j, Flat f)) (F.seamed (flat t))
 let block ts = Flat (F.block (List.map flat ts))

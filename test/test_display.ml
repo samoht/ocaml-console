@@ -974,6 +974,18 @@ let test_pipe_start () =
     (split (Buffer.contents buffer));
   Display.close display
 
+(* A line the program printed goes on over the rows below as the terminal
+   wraps it, mid-word, while a line after a mark goes on under its text,
+   between words. *)
+let test_root_line_wraps () =
+  let t = terminal ~theme ~width:10 ~height:6 () in
+  Task.log t.root "Get:1 [72.7 kB]";
+  Driver.report t.root `Warning "aaaa bbbbbbb";
+  close t;
+  check_lines "as a terminal, then under the mark"
+    [ "Get:1 [72."; "7 kB]"; "! aaaa"; "  bbbbbbb" ]
+    (lines t)
+
 (* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
 let test_success_drops () =
@@ -2697,6 +2709,8 @@ let suite =
       Alcotest.test_case "the time left" `Quick test_eta;
       Alcotest.test_case "a program sees the events" `Quick test_on_event;
       Alcotest.test_case "commit" `Quick test_commit;
+      Alcotest.test_case "a printed line wraps as a terminal" `Quick
+        test_root_line_wraps;
       Alcotest.test_case "commit sees the output" `Quick test_commit_output;
       Alcotest.test_case "print writes at once" `Quick test_print;
       Alcotest.test_case "a view exception still allows close" `Quick

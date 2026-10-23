@@ -86,7 +86,9 @@ Initial release of `console` and `console-eio`.
   whole tree by default (`~commit`, which sees the task as it ended, its
   output included). A tree too tall folds the tasks that
   ended into one line, then drops its windows' oldest lines, then shows the
-  latest running tasks; a table or a panel too tall goes whole. `~progress`
+  latest running tasks; a table or a panel too tall goes whole. A line the
+  program printed wraps in the scrollback as the terminal wraps it, mid-word,
+  and a line after a mark under its text, between words. `~progress`
   chooses how progress shows, as `docker build --progress` does:
   `` `Auto ``, rows on a terminal and lines elsewhere; `` `Tty ``, rows on
   any output; `` `Plain ``, the lines a pipe gets, each naming its task by

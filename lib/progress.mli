@@ -339,7 +339,10 @@ val show :
       where a column should not empty while the others run.
     - The output of the root, and a [Logs] message or a printed line from a
       fiber whose task ended, go to the scrollback at once. A line given to a
-      task that ended with {!Task.log} is dropped.
+      task that ended with {!Task.log} is dropped. A line wider than the
+      terminal goes on over the next rows as the terminal wraps it, mid-word, as
+      it would without the display, while a line after a mark, such as a
+      warning, goes on under its text, broken between words.
     - Only running rows, their windows and the summary change: a task that ended
       keeps its line as it ended until it leaves the region, or folds to fit.
     - A change to the tasks is drawn at once if the last frame is a tenth of a
