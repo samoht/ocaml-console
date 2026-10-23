@@ -34,6 +34,14 @@ val laid : ?live:bool -> ?tasks:bool -> unit -> View.t * int ref
 val contains : string -> string -> bool
 (** [contains affix s] is [true] iff [affix] occurs in [s]. *)
 
+val glyphs : string -> Uchar.t array
+(** [glyphs s] are the characters of [s], in order. *)
+
+val bar_span : string -> (int * int) option
+(** [bar_span row] is the cells of the first and the last block or shade glyph
+    of [row], each glyph one cell: the ends of a bar in {!Console.Theme.dos}, if
+    [row] has one. *)
+
 val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
 

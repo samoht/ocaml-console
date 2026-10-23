@@ -24,6 +24,28 @@ let laid ?(live = false) ?(tasks = false) () =
 
 let contains affix s = Astring.String.is_infix ~affix s
 
+let glyphs s =
+  let rec go i acc =
+    if i >= String.length s then Array.of_list (List.rev acc)
+    else
+      let d = String.get_utf_8_uchar s i in
+      go (i + Uchar.utf_decode_length d) (Uchar.utf_decode_uchar d :: acc)
+  in
+  go 0 []
+
+let bar_span row =
+  let bar u =
+    Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
+  in
+  let cells = glyphs row in
+  let rec first i =
+    if i >= Array.length cells || bar cells.(i) then i else first (i + 1)
+  in
+  let rec last i = if i < 0 || bar cells.(i) then i else last (i - 1) in
+  let i = first 0 in
+  if i >= Array.length cells then None
+  else Some (i, last (Array.length cells - 1))
+
 let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)

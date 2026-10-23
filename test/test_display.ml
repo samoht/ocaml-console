@@ -1792,28 +1792,8 @@ let test_label_gives_way_last () =
       close t)
     [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
 
-(* The characters of [row], each with the offset it starts at. *)
-let chars row =
-  let rec go i acc =
-    if i >= String.length row then List.rev acc
-    else
-      let d = String.get_utf_8_uchar row i in
-      go (i + Uchar.utf_decode_length d) ((i, Uchar.utf_decode_uchar d) :: acc)
-  in
-  go 0 []
-
-(* The cell of the last of [row]'s block or shade glyphs, every glyph one
-   cell. *)
-let bar_end row =
-  List.fold_left
-    (fun last (cell, (_, u)) ->
-      if
-        Uchar.equal u (Uchar.of_int 0x2588)
-        || Uchar.equal u (Uchar.of_int 0x2591)
-      then Some cell
-      else last)
-    None
-    (List.mapi (fun i c -> (i, c)) (chars row))
+(* The cell of the last of [row]'s block or shade glyphs. *)
+let bar_end row = Option.map snd (bar_span row)
 
 let test_bars_line_up () =
   let t = terminal ~theme ~width:80 ~height:8 () in
@@ -1837,22 +1817,7 @@ let test_bars_line_up () =
   close t
 
 (* The cell width of [row], every glyph one cell. *)
-let cells row = List.length (chars row)
-
-(* The cells of the first and the last of [row]'s block or shade glyphs. *)
-let bar_span row =
-  let is_bar u =
-    Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
-  in
-  let bars =
-    List.filteri
-      (fun _ c -> c >= 0)
-      (List.mapi (fun i (_, u) -> if is_bar u then i else -1) (chars row))
-  in
-  match bars with
-  | [] -> None
-  | first :: _ -> Some (first, List.nth bars (List.length bars - 1))
-
+let cells row = Array.length (glyphs row)
 let span = Alcotest.(option (pair int int))
 
 (* A row is packed from the left: the label, then the bar, the count and
@@ -2092,7 +2057,7 @@ let test_columns_widen_once () =
   let items = screen t in
   let row = List.find (contains "RUN make") items in
   let count =
-    let cells = List.map snd (chars row) in
+    let cells = Array.to_list (glyphs row) in
     let rec find i = function
       | [] -> None
       | u :: _

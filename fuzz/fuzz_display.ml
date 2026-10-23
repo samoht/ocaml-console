@@ -78,6 +78,7 @@ let rstrip s =
 let screen vte =
   List.map rstrip (String.split_on_char '\n' (Console_vte.to_string vte))
 
+let nonblank vte = List.filter (( <> ) "") (screen vte)
 let count p l = List.length (List.filter p l)
 let has affix s = Re.execp (Re.compile (Re.str affix)) s
 
@@ -1006,7 +1007,7 @@ let test_view_frames kind cells n w times =
     let vte = Console_vte.v ~rows:600 ~cols:width () in
     Console_vte.feed vte
       (String.concat "\r\n" (String.split_on_char '\n' (Buffer.contents buf)));
-    List.filter (( <> ) "") (screen vte)
+    nonblank vte
   in
   List.iter (fun rows -> check_eq ~pp:Fmt.(Dump.list string) printed rows) still;
   List.iter2
@@ -1388,7 +1389,7 @@ let test_columns steps h =
   in
   let frame () =
     Display.redraw d;
-    let rows = List.filter (( <> ) "") (screen vte) in
+    let rows = nonblank vte in
     if List.length rows > height - 1 then failf "%d rows" (List.length rows);
     match List.rev rows with
     | last :: _ when has header last -> ()
@@ -1468,18 +1469,9 @@ let pp_pack ppf = function
 
 let pack = with_printer pp_pack pack
 
-let uchars s =
-  let rec go i acc =
-    if i >= String.length s then Array.of_list (List.rev acc)
-    else
-      let d = String.get_utf_8_uchar s i in
-      go (i + Uchar.utf_decode_length d) (Uchar.utf_decode_uchar d :: acc)
-  in
-  go 0 []
-
 (* The cell [s] starts at in [row], each glyph one cell. *)
 let find_cell s row =
-  let s = uchars s in
+  let s = Display_harness.glyphs s in
   let n = Array.length s in
   let rec go i =
     if i + n > Array.length row then None
@@ -1488,9 +1480,6 @@ let find_cell s row =
   in
   go 0
 
-let is_bar u =
-  Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
-
 type laid = {
   ends : int;  (** The cell after the label. *)
   bar : (int * int) option;  (** The first and last cells of the bar. *)
@@ -1498,20 +1487,14 @@ type laid = {
 }
 
 let laid_out label row =
-  let cells = uchars row in
+  let cells = Display_harness.glyphs row in
   Option.map
     (fun at ->
-      let bars =
-        List.filter
-          (fun i -> is_bar cells.(i))
-          (List.init (Array.length cells) Fun.id)
-      in
-      let bar =
-        match bars with
-        | [] -> None
-        | first :: _ -> Some (first, List.nth bars (List.length bars - 1))
-      in
-      { ends = at + String.length label; bar; last = Array.length cells })
+      {
+        ends = at + String.length label;
+        bar = Display_harness.bar_span row;
+        last = Array.length cells;
+      })
     (find_cell label cells)
 
 (* The columns a frame's rows share widen only with a wider label, a first
@@ -1554,7 +1537,7 @@ let test_rows_pack steps w =
   let previous = ref None in
   let frame () =
     Display.redraw d;
-    let rows = List.filter (( <> ) "") (screen vte) in
+    let rows = nonblank vte in
     let shown = String.concat "\n" rows in
     let laid =
       List.filter_map
