@@ -554,9 +554,33 @@ let test_restyled_grow n a b =
         restyles)
     restyles
 
+let test_restyled_min_width n minimum =
+  let width = 10 + (n mod 70) in
+  let min_width = 1 + (minimum mod 30) in
+  let cell =
+    View.fit ~min_width (fun room ->
+        View.text (String.make (Option.value ~default:40 (Room.width room)) 'a'))
+  in
+  let render cell =
+    Table.view ~border:Border.none ~gap:1
+      [ Table.column (View.text "A"); Table.column (View.text "B") ]
+      [ [ cell; View.text (String.make 60 'b') ] ]
+    |> View.sized ~width |> View.to_string
+  in
+  let expected = render cell in
+  List.iter
+    (fun outer ->
+      List.iter
+        (fun inner ->
+          check_eq ~pp:Fmt.Dump.string expected (render (outer (inner cell))))
+        restyles)
+    restyles
+
 let suite =
   ( "view",
     [
+      test_case "nested restyles preserve a deferred table cell minimum width"
+        [ uint8; uint8 ] test_restyled_min_width;
       test_case "nested restyles preserve the grow weights of deferred views"
         [ uint8; uint8; uint8 ] test_restyled_grow;
       test_case "crop keeps exactly the complete cells in its window"
