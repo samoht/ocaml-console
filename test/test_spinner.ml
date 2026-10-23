@@ -74,9 +74,20 @@ let test_frames_print () =
     "control characters are spaces" "a b"
     (at ~frames:[ "a\027b" ] 0.)
 
+let test_spinner_room () =
+  let v = View.sized ~width:2 (Spinner.view ~frames:[ "a"; "long" ] ()) in
+  let terminal = Console_vte.v ~rows:4 ~cols:2 () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int)
+    "one terminal row" 0
+    (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+
 let suite =
   ( "spinner",
     [
+      Alcotest.test_case "custom spinners keep to their room" `Quick
+        test_spinner_room;
       Alcotest.test_case "still does not move" `Quick test_still;
       Alcotest.test_case "frames print" `Quick test_frames_print;
       Alcotest.test_case "empty" `Quick test_empty;
