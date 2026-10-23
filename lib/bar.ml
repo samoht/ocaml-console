@@ -252,7 +252,8 @@ let value v =
     in
     if plain = "0" then plain else sign ^ plain
 
-(* The bars take the room's height but for the three lines around them;
+(* An empty bar on its baseline says zero, so it has no value above it.
+   The bars take the room's height but for the three lines around them;
    in a room too short for those, the values above them go first, then
    the baseline, then the labels. Lines wider than the room are cut. *)
 let chart ?height ?scale ?style bars =
@@ -278,7 +279,10 @@ let chart ?height ?scale ?style bars =
         List.map
           (fun (name, v) ->
             let label = Widget.one_line (View_core.text name) in
-            let shown = View_core.ink (Widget.muted look) (value v) in
+            let shown =
+              if v = 0. then View_core.empty
+              else View_core.ink (Widget.muted look) (value v)
+            in
             let w =
               max 1 (max (View_core.width label) (View_core.width shown))
             in

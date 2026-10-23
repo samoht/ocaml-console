@@ -251,7 +251,10 @@ let test_chart () =
   Alcotest.(check string)
     "off UTF-8" " 2   4 \n    ###\n### ###\n-------\nMon Tue"
     (Display_harness.at ~utf_8:false ~time:0.
-       (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]))
+       (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]));
+  Alcotest.(check string)
+    "no value over an empty bar" "     4 \n    ███\n───────\nMon Tue"
+    (View.to_string (Bar.chart ~height:1 [ ("Mon", 0.); ("Tue", 4.) ]))
 
 (* A chart's bars take the style its function gives each. *)
 let test_chart_style () =
