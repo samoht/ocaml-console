@@ -29,9 +29,23 @@ let test_vertical_height h frac utf_8 =
   check_eq ~pp:Fmt.int height (List.length lines);
   List.iter (fun l -> check_eq ~pp:Fmt.int 1 (View.width (View.text l))) lines
 
+let check_room width height v =
+  let v = View.sized ~width ~height v in
+  check (View.width v <= width);
+  check (View.height v <= height)
+
+let test_horizontal_room n requested brackets frac =
+  let width = 1 + (n mod 200) in
+  let requested = requested mod 240 in
+  check_room width 1 (Bar.horizontal ~width:requested ~brackets frac);
+  check_room width 1 (Bar.horizontal ~brackets frac)
+
 let suite =
   ( "bar",
     [
+      test_case "horizontal bars keep to their room"
+        [ uint8; uint8; bool; float ]
+        test_horizontal_room;
       test_case "width" [ int; float; bool ] test_width;
       test_case "a vertical bar is as tall as its room" [ int; float; bool ]
         test_vertical_height;
