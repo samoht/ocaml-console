@@ -1,0 +1,37 @@
+(executable
+ (name main)
+ (libraries console console-eio eio eio_main fmt))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target apt.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    24
+    (run ./main.exe)))))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target apt.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   play
+   --show
+   "sudo apt install curl"
+   -o
+   %{target}
+   %{dep:apt.cast})))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (action
+  (diff apt.svg apt.generated.svg)))
