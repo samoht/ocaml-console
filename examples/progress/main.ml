@@ -10,15 +10,18 @@
    the layer fails, so do the step and the work, which a task under them
    does not fail on its own, and the program exits with 1. *)
 
+(* The layer's size is known from its start, so that its columns open at
+   once and nothing moves when it begins to count. *)
 let build ~fail clock root =
   let step = Console.Task.start ~log_lines:4 root "RUN make" in
   let layer = Console.Task.start step "sha256:abcd..." in
+  let total = 2147483648L in
+  Console.Task.set_bytes layer ~count:0L ~total;
   for i = 0 to 5 do
     Console.Task.set_items step ~count:i ~total:5;
     Fmt.kstr (Console.Task.log step) "  CC src/file%d.c" i;
     Eio.Time.Mono.sleep clock 0.2
   done;
-  let total = 2147483648L in
   for i = 0 to 8 do
     Console.Task.set_bytes layer
       ~count:(Int64.mul (Int64.of_int i) 268435456L)
