@@ -47,6 +47,8 @@ type t = {
   mutable on_output : (string -> unit) option;
   mutable looks : (Look.t * Look.t) option;
   mutable looked : int;
+  mutable busy : int;
+  idle : (unit -> unit) list Atomic.t;
 }
 
 let pp ppf t =
@@ -99,11 +101,32 @@ let write_now t (s, framed) =
     out.out_flush ()
   with e when write_error t e -> ()
 
+(* A signal handler runs at any safe point: what it asks of the display
+   waits until the drawing or the write under way is done. *)
+let rec drain t =
+  match Atomic.exchange t.idle [] with
+  | [] -> ()
+  | fs ->
+      List.iter (fun f -> f ()) (List.rev fs);
+      drain t
+
+let busy t f =
+  t.busy <- t.busy + 1;
+  let v = Fun.protect f ~finally:(fun () -> t.busy <- t.busy - 1) in
+  if t.busy = 0 then drain t;
+  v
+
+let rec when_idle t f =
+  if t.busy = 0 then f ()
+  else
+    let fs = Atomic.get t.idle in
+    if not (Atomic.compare_and_set t.idle fs (f :: fs)) then when_idle t f
+
 (* The output functions of [ppf] may yield to another fiber (an Eio flow)
    in the middle of a write: what is written meanwhile waits in [writes],
    and the write under way writes it out in turn, so that writes never mix.
    A write cut short (a cancelled fiber) leaves the rest to the next. *)
-let send ?(framed = false) t s =
+let send_now ~framed t s =
   if s <> "" then begin
     (try
        flush_stdout t;
@@ -121,6 +144,7 @@ let send ?(framed = false) t s =
         done)
   end
 
+let send ?(framed = false) t s = busy t (fun () -> send_now ~framed t s)
 let write t s = send t s
 
 (* On a terminal the carriage return is written, not left to the tty: with
@@ -373,7 +397,7 @@ let start_region t =
     write t (hide_cursor ^ fresh_row t)
   end
 
-let paint t =
+let paint_now t =
   if is_live t && (not t.closed) && t.suspended = 0 then begin
     let resized = refresh_size t in
     start_region t;
@@ -388,6 +412,8 @@ let paint t =
     end
   end
 
+let paint t = busy t (fun () -> paint_now t)
+
 (* A producer that reports often repaints at the eye's pace. *)
 let paint_if_stale t = if t.now () -. t.painted_at >= 0.1 then paint t
 
@@ -397,7 +423,7 @@ let touch t =
 
 (* Lines printed once, above the region, which is drawn again below them in
    the same write, or in turn without one. *)
-let commit t lines =
+let commit_now t lines =
   t.changes <- t.changes + 1;
   let look = look t in
   if is_live t then begin
@@ -426,7 +452,10 @@ let commit t lines =
       (String.concat ""
          (List.map (fun line -> render_in look t line ^ "\n") lines))
 
+let commit t lines = busy t (fun () -> commit_now t lines)
+
 let erase t =
+  busy t @@ fun () ->
   let buf = Buffer.create 32 in
   clear buf t;
   write t (Buffer.contents buf)
@@ -519,6 +548,8 @@ let v ?size ?once_width ?(write_error = fun _ -> false) ?(delay = 0.)
       on_output = None;
       looks = None;
       looked = -1;
+      busy = 0;
+      idle = Atomic.make [];
     }
   in
   ignore (refresh_size t);
@@ -605,6 +636,7 @@ let with_output t f =
         end
 
 let close t =
+  busy t @@ fun () ->
   if not t.closed then begin
     (* Closed first, so that what the hook ends draws no region. *)
     t.closed <- true;

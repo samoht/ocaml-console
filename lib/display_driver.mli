@@ -8,6 +8,12 @@
     This module is internal to console: [Console] does not expose it, and
     [console-eio] reads it through [Console__]. *)
 
+val when_idle : Display.t -> (unit -> unit) -> unit
+(** [when_idle display f] calls [f] at once if [display] is neither drawing nor
+    writing, and as soon as it is done otherwise. A signal handler, which runs
+    at any safe point of the program, calls [display] through it, so that it
+    never works from a frame half drawn or half written. *)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

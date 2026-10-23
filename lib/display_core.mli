@@ -70,6 +70,10 @@ val on_output : t -> (string -> unit) -> unit
 (** [on_output d f] gives [f] what {!with_output} prints, rather than printing
     it. *)
 
+val when_idle : t -> (unit -> unit) -> unit
+(** [when_idle d f] calls [f] at once if [d] is neither drawing nor writing, and
+    as soon as it is done otherwise. *)
+
 val watch :
   t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch d out] is [out], which also tells [d] whether what it writes ends its

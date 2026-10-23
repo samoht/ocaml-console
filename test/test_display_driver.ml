@@ -110,9 +110,54 @@ let test_scope () =
     ]
     (split (Buffer.contents buffer))
 
+(* A signal handler runs at any safe point, such as in the middle of a
+   write of the display. What it asks of the display through [when_idle]
+   waits until that write is done: a suspension called from a write
+   erases the region the screen shows, not one still to be written. *)
+let test_when_idle () =
+  let vte = Console_vte.v ~rows:8 ~cols:40 () in
+  let buffer = Buffer.create 256 in
+  let display = ref None and armed = ref false and seen = ref None in
+  let suspend d =
+    Console__.Display_driver.when_idle d (fun () ->
+        Display.with_output d (fun _ -> seen := Some (Console_vte.screen vte)))
+  in
+  let out_flush () =
+    let s = Buffer.contents buffer in
+    Buffer.clear buffer;
+    Console_vte.feed vte s;
+    match !display with
+    | Some d when !armed && s <> "" ->
+        armed := false;
+        suspend d
+    | _ -> ()
+  in
+  let ppf = Format.make_formatter (Buffer.add_substring buffer) out_flush in
+  let now, advance = clock () in
+  let root = Task.root ~now () in
+  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
+  display := Some d;
+  let task = Task.start root "pausing" in
+  advance 1.;
+  armed := true;
+  Display.redraw d;
+  (match !seen with
+  | None -> Alcotest.fail "no suspension"
+  | Some screen ->
+      Alcotest.(check bool)
+        "the region is erased" false
+        (List.exists (contains "pausing") screen));
+  Alcotest.(check bool)
+    "the region is drawn again" true
+    (List.exists (contains "pausing") (Console_vte.screen vte));
+  Task.succeed task;
+  Task.succeed root;
+  Display.close d
+
 let suite =
   ( "display_driver",
     [
+      Alcotest.test_case "a signal waits for the display" `Quick test_when_idle;
       Alcotest.test_case "Logs lines inside a task are its output" `Quick
         test_logs_in_task;
       Alcotest.test_case "Logs lines outside a task" `Quick test_logs_outside;
