@@ -146,7 +146,9 @@ val run :
       program as it would have.
     - SIGTSTP (Ctrl-Z): the rows are taken off the terminal and the cursor is
       shown before the program stops, and the rows are drawn again once [fg]
-      continues it.
+      continues it. In a process group that no shell controls, where the stop
+      does not take effect, the rows are drawn again at once and the program
+      goes on.
 
     A signal the program handles or ignores is left to it.
 

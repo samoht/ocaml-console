@@ -27,11 +27,16 @@ let rec update a f =
   if not (Atomic.compare_and_set a old (f old)) then update a f
 
 (* The process stops as the default disposition stops it, inside every
-   suspension, innermost outermost; [kill] returns once it is continued. *)
+   suspension, innermost outermost; [kill] returns once it is continued. In
+   a process group that no shell controls, the stop does not take effect
+   and the signal stays pending: it is dropped, so that our handler, put
+   back, is not called again at once and the suspensions end once. *)
 let rec stop signo =
   let stop () =
     Sys.set_signal signo Sys.Signal_default;
     Unix.kill (Unix.getpid ()) signo;
+    if List.mem signo (Unix.sigpending ()) then
+      Sys.set_signal signo Sys.Signal_ignore;
     Sys.set_signal signo (Sys.Signal_handle stop)
   in
   let around =
