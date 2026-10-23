@@ -217,9 +217,10 @@ val run :
     line feed after a carriage return, as a terminal's driver writes it. The
     program's sleeps then take no real time, so that a recording takes none,
     while [CONSOLE_DETERMINISTIC_CLOCK] alone keeps the real pace that a
-    recorder of the terminal, such as [k7 rec], films. {!Console_tty.setup}
-    starts the recording too, so that what a program prints before a run, or
-    without one, is recorded at time zero. *)
+    recorder of the terminal, such as [k7 rec], films. A file that cannot be
+    opened ends the program with an error message and exit status [1], before it
+    runs. {!Console_tty.setup} starts the recording too, so that what a program
+    prints before a run, or without one, is recorded at time zero. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
 (** [with_output f] prints what console does not see, such as the text of

@@ -94,8 +94,17 @@ let stop t =
     t.outputs;
   close_out t.oc
 
+(* A recording asked for and impossible ends the program before it runs,
+   as a bad option would. *)
 let open_cast file =
-  let oc = open_out_bin file in
+  let oc =
+    try open_out_bin file
+    with Sys_error e ->
+      Printf.eprintf "%s: CONSOLE_CAST: cannot record: %s\n%!"
+        (Filename.basename Sys.executable_name)
+        e;
+      exit 1
+  in
   let width, height = size () in
   let term = match Sys.getenv_opt "TERM" with Some "" -> None | t -> t in
   output_string oc (Cast.to_line Cast.header { width; height; term });
