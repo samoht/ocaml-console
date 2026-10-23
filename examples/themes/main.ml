@@ -5,7 +5,7 @@
 
 (* The same title, tree, table and progress rows in the theme its argument
    names, the title graded through the theme's palette: the README's
-   gallery is screenshots of this program, one per theme. The table is
+   gallery is recordings of this program, one per theme. The table is
    drawn above the rows while they run, so a theme with motion shows its
    frame moving, and stays, still, in the view's last frame once they are
    done. *)

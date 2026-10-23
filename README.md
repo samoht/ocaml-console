@@ -311,7 +311,26 @@ other, each with an optional `~gap` between them. The
 
 ## Themes
 
-![The eighteen themes, each drawing the same tree, table and progress rows](examples/themes/gallery.png)
+<p>
+<img src="examples/themes/default.svg" width="32%" alt="Theme.default drawing a tree, a table and progress rows">
+<img src="examples/themes/ascii.svg" width="32%" alt="Theme.ascii drawing a tree, a table and progress rows">
+<img src="examples/themes/dos.svg" width="32%" alt="Theme.dos drawing a tree, a table and progress rows">
+<img src="examples/themes/matrix.svg" width="32%" alt="Theme.matrix drawing a tree, a table and progress rows">
+<img src="examples/themes/rainbow.svg" width="32%" alt="Theme.rainbow drawing a tree, a table and progress rows">
+<img src="examples/themes/dracula.svg" width="32%" alt="Theme.dracula drawing a tree, a table and progress rows">
+<img src="examples/themes/nord.svg" width="32%" alt="Theme.nord drawing a tree, a table and progress rows">
+<img src="examples/themes/solarized-dark.svg" width="32%" alt="Theme.solarized_dark drawing a tree, a table and progress rows">
+<img src="examples/themes/solarized-light.svg" width="32%" alt="Theme.solarized_light drawing a tree, a table and progress rows">
+<img src="examples/themes/gruvbox-dark.svg" width="32%" alt="Theme.gruvbox_dark drawing a tree, a table and progress rows">
+<img src="examples/themes/gruvbox-light.svg" width="32%" alt="Theme.gruvbox_light drawing a tree, a table and progress rows">
+<img src="examples/themes/catppuccin-latte.svg" width="32%" alt="Theme.catppuccin_latte drawing a tree, a table and progress rows">
+<img src="examples/themes/catppuccin-mocha.svg" width="32%" alt="Theme.catppuccin_mocha drawing a tree, a table and progress rows">
+<img src="examples/themes/tokyo-night.svg" width="32%" alt="Theme.tokyo_night drawing a tree, a table and progress rows">
+<img src="examples/themes/one-dark.svg" width="32%" alt="Theme.one_dark drawing a tree, a table and progress rows">
+<img src="examples/themes/monokai.svg" width="32%" alt="Theme.monokai drawing a tree, a table and progress rows">
+<img src="examples/themes/github-dark.svg" width="32%" alt="Theme.github_dark drawing a tree, a table and progress rows">
+<img src="examples/themes/github-light.svg" width="32%" alt="Theme.github_light drawing a tree, a table and progress rows">
+</p>
 
 A theme holds the colours and glyphs that every widget shares. `Theme.set`
 gives a formatter its theme, and `Console_tty.setup ~theme` sets the same
@@ -355,8 +374,8 @@ is not UTF-8.
 
 Each tile of the gallery shows [the same program](examples/themes/main.ml)
 in one theme, on the background that theme is made for, and
-[its tape](examples/themes/tape.ml) recorded them all with
-[VHS](https://github.com/charmbracelet/vhs). The [manual](doc/widgets.mld)
+[its rules](examples/themes/dune) record them all with
+[k7](https://github.com/samoht/ocaml-k7). The [manual](doc/widgets.mld)
 says more about roles, contrast and terminals of 16 colours.
 
 ## Progress rows
