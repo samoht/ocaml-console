@@ -287,9 +287,20 @@ let test_vertical_room () =
     (fst (Console_vte.cursor_pos terminal));
   Alcotest.(check bool) "within its room" true (View.width v <= 2)
 
+let test_sparkline_room () =
+  let v = View.sized ~width:2 (Bar.sparkline [ 1.; 2.; 3.; 4. ]) in
+  let terminal = Console_vte.v ~rows:4 ~cols:2 () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int)
+    "one terminal row" 0
+    (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "sparklines keep to their room" `Quick
+        test_sparkline_room;
       Alcotest.test_case "fixed vertical bars keep to their room" `Quick
         test_vertical_room;
       Alcotest.test_case "horizontal bars keep to their room" `Quick
