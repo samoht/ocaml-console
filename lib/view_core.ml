@@ -1032,20 +1032,19 @@ let crop ?(left = 0) ?(width = max_int) t =
   if left < 0 then invalid_arg "Console.View.crop: negative left";
   map ~room:Ctx.natural (F.crop ~left ~width) t
 
-(* A line [w] cells wide at [align], cut with [ellipsis] if wider. *)
+(* A line [w] cells wide at [align], cut with [ellipsis] if wider: a cut
+   inside a wide character leaves a cell to pad. *)
 let place_line ~ellipsis align w line =
-  let lw = F.width line in
-  if lw > w then F.truncate ~ellipsis w line
-  else
-    let pad = w - lw in
-    let left, right =
-      match align with
-      | `Left -> (0, pad)
-      | `Right -> (pad, 0)
-      | `Center -> (pad / 2, pad - (pad / 2))
-    in
-    let sp n = if n = 0 then F.empty else F.text (String.make n ' ') in
-    F.concat [ sp left; line; sp right ]
+  let line = if F.width line > w then F.truncate ~ellipsis w line else line in
+  let pad = w - F.width line in
+  let left, right =
+    match align with
+    | `Left -> (0, pad)
+    | `Right -> (pad, 0)
+    | `Center -> (pad / 2, pad - (pad / 2))
+  in
+  let sp n = if n = 0 then F.empty else F.text (String.make n ' ') in
+  F.concat [ sp left; line; sp right ]
 
 let place ?(align = `Left) ?width ?height t =
   let placed ellipsis f =
