@@ -76,6 +76,31 @@ jobs:
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
+  # odoc cannot resolve references to the modules of other libraries, such as
+  # Fmt.stderr, in console's documentation: those warnings are expected. Any
+  # other warning is a reference of console's own that is broken.
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '5.4'
+
+      - run: opam install . --deps-only --with-doc
+      - run: opam install odoc
+      - run: opam exec -- dune build @doc 2> doc.log
+      - run: |
+          if grep '^Warning' doc.log \
+            | grep -v -E 'unresolvedroot\((Fmt|Format|Logs|Sys|Invalid_argument)\)'
+          then
+            cat doc.log
+            exit 1
+          fi
+
   lint-fmt:
     name: Format
     runs-on: ubuntu-latest
