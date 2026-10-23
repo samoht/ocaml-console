@@ -49,6 +49,10 @@ let test_vertical_room n h requested frac =
 let test_sparkline_room n values =
   check_room (1 + (n mod 200)) 1 (Bar.sparkline values)
 
+let test_chart_room n h labels =
+  let bars = List.mapi (fun i label -> (label, float_of_int (i + 1))) labels in
+  check_room (1 + (n mod 200)) (1 + (h mod 30)) (Bar.chart bars)
+
 let suite =
   ( "bar",
     [
@@ -61,6 +65,9 @@ let suite =
       test_case "sparklines keep to their room"
         [ uint8; list float ]
         test_sparkline_room;
+      test_case "charts keep to their room"
+        [ uint8; uint8; list bytes ]
+        test_chart_room;
       test_case "width" [ int; float; bool ] test_width;
       test_case "a vertical bar is as tall as its room" [ int; float; bool ]
         test_vertical_height;
