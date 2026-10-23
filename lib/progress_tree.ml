@@ -196,7 +196,7 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
         let whole = form = Whole in
         let lines = Progress_row.ended look ?width ~columns ~whole r in
         let output =
-          if whole then
+          if whole && outcome r <> Some `Succeeded then
             Progress_row.output look
               ~width:(Option.value (under width) ~default:max_int)
               r

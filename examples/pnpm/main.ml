@@ -86,26 +86,15 @@ let fetch clock =
   Console_eio.print (progress_line ())
 
 (* A script runs as a task, labelled as pnpm names it, and its box shows
-   the task's last ten lines. A task that succeeds lets go of its lines,
-   so the box it leaves in the scrollback is drawn from the lines it held
-   as its function returned. *)
-type script = {
-  label : string;
-  dir : string;
-  cmd : string;
-  mutable last : string list * int;
-}
+   the task's last ten lines, also the box it leaves in the scrollback. *)
+type script = { label : string; dir : string; cmd : string }
 
 let scripts = ref []
 let script label = List.find_opt (fun s -> s.label = label) !scripts
 let shown = 10
 
 let box t s =
-  let lines, dropped =
-    match Task.state t with
-    | `Running -> (Task.output t, Task.dropped t)
-    | _ -> s.last
-  in
+  let lines = Task.output t and dropped = Task.dropped t in
   let n = List.length lines in
   let footer =
     match Task.state t with
@@ -129,12 +118,9 @@ let box t s =
 let box_of t = Option.map (box t) (script (Task.label t))
 
 let postinstall clock root ~dir ~cmd output =
-  let s = { label = dir ^ " postinstall"; dir; cmd; last = ([], 0) } in
+  let s = { label = dir ^ " postinstall"; dir; cmd } in
   scripts := !scripts @ [ s ];
   Task.run root s.label @@ fun task ->
-  Fun.protect ~finally:(fun () ->
-      s.last <- (Task.output task, Task.dropped task))
-  @@ fun () ->
   List.iter
     (fun (pause, line) ->
       Eio.Time.Mono.sleep clock pause;

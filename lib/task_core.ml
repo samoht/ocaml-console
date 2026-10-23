@@ -218,10 +218,12 @@ let rec size r =
    oldest are dropped, down to half of it, never the latest. *)
 let held_cap = 1_048_576
 
+(* A success lets go of its output once it ended. *)
 let weight r =
   256 + String.length r.label
   + Option.fold ~none:0 ~some:String.length r.message
-  + r.output_bytes + r.held
+  + (if r.outcome = Some `Succeeded then 0 else r.output_bytes)
+  + r.held
 
 let shed p latest =
   let keep c =
@@ -269,13 +271,15 @@ let rec finish outcome ?message r =
       | `Succeeded -> ()
     end;
     Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
-    (* A success folds its output away. *)
-    if outcome = `Succeeded then begin
-      Queue.clear r.output;
-      r.output_bytes <- 0
-    end;
     hold r;
-    notify w (Ended r)
+    (* A success folds its output away, once its end was seen. *)
+    Fun.protect
+      (fun () -> notify w (Ended r))
+      ~finally:(fun () ->
+        if outcome = `Succeeded then begin
+          Queue.clear r.output;
+          r.output_bytes <- 0
+        end)
   end
 
 let succeed ?message r = finish `Succeeded ?message r

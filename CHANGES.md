@@ -83,7 +83,8 @@ Initial release of `console` and `console-eio`.
   that all rows share, so the bars line up and nothing moves sideways. A
   task that ends stays under its parent, marked, until its top task ends,
   and the top task then goes to the scrollback as its commit draws it, its
-  whole tree by default (`~commit`). A tree too tall folds the tasks that
+  whole tree by default (`~commit`, which sees the task as it ended, its
+  output included). A tree too tall folds the tasks that
   ended into one line, then drops its windows' oldest lines, then shows the
   latest running tasks; a table or a panel too tall goes whole. `~progress`
   chooses how progress shows, as `docker build --progress` does:

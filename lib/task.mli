@@ -190,8 +190,9 @@ val output : t -> string list
     keeps it, the latest within 1 MiB. A task that failed or was cancelled keeps
     them until {!Progress} printed it: as its top task moves to the scrollback,
     or as it ends without a terminal ({!Progress.design}). A task that succeeded
-    keeps none, and the root has none ({!log}). The last [log_lines] of them
-    ({!start}) are those its row shows. *)
+    keeps them only while it ends, for {!Progress.show}'s [commit] to draw. The
+    root has none ({!log}). The last [log_lines] of them ({!start}) are those
+    its row shows. *)
 
 val dropped : t -> int
 (** [dropped t] is the number of [t]'s oldest lines that {!output} no longer

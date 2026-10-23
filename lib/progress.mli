@@ -291,7 +291,8 @@ val show :
       view that raises is dropped for the default one, and the display raises
       its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
-      ends leaves in the scrollback; [None] leaves nothing.
+      ends leaves in the scrollback, given the task as it ended, with the output
+      it kept ({!Task.output}) even when it succeeded; [None] leaves nothing.
     - [plain], if given, prints the program's own lines in place of those of the
       tasks when they print as lines, with [`Plain] or with [`Auto] off a
       terminal: [plain e] for each event [e] of a task, as wide as [size] says

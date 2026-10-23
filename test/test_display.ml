@@ -2503,6 +2503,22 @@ let test_commit () =
     (run (fun t -> Some (View.text ("done " ^ Task.label t))));
   check_lines "nothing" [] (run (fun _ -> None))
 
+(* [commit] sees a top task as it ended, the output of a success too, which
+   the task lets go of once it moved. *)
+let test_commit_output () =
+  let seen = ref [] in
+  let commit job =
+    seen := Task.output job;
+    None
+  in
+  let t = terminal ~theme ~width:30 ~height:8 ~commit () in
+  let job = Task.start t.root "job" in
+  Task.log job "one\ntwo";
+  Task.succeed job;
+  check_lines "its output" [ "one"; "two" ] !seen;
+  check_lines "then none" [] (Task.output job);
+  close t
+
 (* [print] writes at once: above the region on a terminal, with the region
    drawn again below it, and in turn on a pipe. *)
 let test_print () =
@@ -2681,6 +2697,7 @@ let suite =
       Alcotest.test_case "the time left" `Quick test_eta;
       Alcotest.test_case "a program sees the events" `Quick test_on_event;
       Alcotest.test_case "commit" `Quick test_commit;
+      Alcotest.test_case "commit sees the output" `Quick test_commit_output;
       Alcotest.test_case "print writes at once" `Quick test_print;
       Alcotest.test_case "a view exception still allows close" `Quick
         test_view_exception_close;
