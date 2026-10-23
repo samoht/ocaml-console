@@ -1892,9 +1892,35 @@ let test_plain_callback_keeps_tree n =
        @ [ "outside"; "kept " ^ String.concat "," expected; "" ]))
     (Buffer.contents out)
 
+let test_delay_deadline n quick =
+  let open Display_harness in
+  let t =
+    terminal
+      ~width:(10 + (n mod 70))
+      ~height:8 ~delay:2.
+      ~view:(fun _ -> View.text "live")
+      ()
+  in
+  Display.print t.display (View.text "notice");
+  t.advance (Float.of_int (1 + (n mod 100)) /. 100.);
+  Display.redraw t.display;
+  check_eq ~pp:Fmt.(Dump.list string) [ "notice" ] (screen t);
+  check (not (contains "\027[?25l" (written t)));
+  if not quick then begin
+    t.advance 2.;
+    Display.redraw t.display;
+    check (List.mem "live" (screen t));
+    check (contains "\027[?25l" (written t))
+  end;
+  close t;
+  check_eq ~pp:Fmt.(Dump.list string) [ "notice"; "live" ] (lines t);
+  check (Console_vte.cursor_visible t.vte)
+
 let suite =
   ( "display",
     [
+      test_case "delayed displays wait for the controlled deadline"
+        [ uint8; bool ] test_delay_deadline;
       test_case "custom pipe lines keep ended trees for the final view"
         [ uint8 ] test_plain_callback_keeps_tree;
       test_case "a still view is drawn once"
