@@ -255,6 +255,7 @@ val show :
   ?view:View.t ->
   ?keep_ended:bool ->
   ?commit:(Task.t -> View.t option) ->
+  ?plain:(Task.Event.t -> View.t option) ->
   ?size:(unit -> int * int) ->
   Format.formatter ->
   Task.t ->
@@ -275,6 +276,12 @@ val show :
       its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
       ends leaves in the scrollback; [None] leaves nothing.
+    - [plain], if given, prints the program's own lines in place of those of the
+      tasks when they print as lines, with [`Plain] or with [`Auto] off a
+      terminal: [plain e] for each event [e] of a task, as wide as [size] says
+      or whole, and nothing for [None]. The output of no task and the view's
+      last frame print as without it. A program learns so whether the rows show:
+      [plain] is called only when they do not.
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
       region until the display closes, where they otherwise move to the
       scrollback with their top task ({!design}).

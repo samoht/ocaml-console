@@ -89,7 +89,8 @@ Initial release of `console` and `console-eio`.
   its path, such as `linux ▸ compile`, in order with standard output under
   `2>&1`; `` `Quiet ``, only what fails; `` `Json ``, one JSON object for
   each event. `Progress.all` makes a `--progress` option in one line of
-  Cmdliner.
+  Cmdliner. Where tasks print as lines, `~plain` prints the program's own
+  line for each event of a task in place of console's.
 - `console-eio`. `Console_eio.run ~clock f` makes the root of the work,
   shows its tasks on standard error with Eio, as `Progress.show` does and
   with its options, passes `f` the root and ends the work as `Task.run`

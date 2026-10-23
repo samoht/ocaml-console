@@ -282,11 +282,12 @@ let reading clock =
    so that a task's output is printed only if it fails, or is an event;
    drawn on another output, [ppf] alone; [recorded], the terminal of the
    recording, which the standard formatters share if [ppf] is one. *)
-let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ppf root =
+let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ppf
+    root =
   let show ?size progress ppf =
     let view = Option.map (fun f -> f root) view in
     Progress_driver.show ~write_error:Session.write_error ~progress ?layout
-      ?view ?keep_ended ?commit ?size ppf root
+      ?view ?keep_ended ?commit ?plain ?size ppf root
   in
   let live ~size ~intercept ~cursor =
     (show ~size `Tty (own ppf), intercept, cursor)
@@ -338,8 +339,8 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ppf root =
   | (`Plain | `Quiet | `Json) as form -> lines form
 
 (* A display of its own, and the root of the work, which [f] is given. *)
-let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ~progress
-    f =
+let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
+    ~progress f =
   Console_tty.ensure ();
   Session.await_release ();
   Session.claim ();
@@ -348,7 +349,8 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ~progress
     let recorded = Recording.start ~time:(virtual_time clock) ppf in
     let root = Task_driver.root ?label ~scope:Session.scope ~now () in
     let display, intercept, cursor =
-      display ~recorded ~progress ?layout ?view ?keep_ended ?commit ppf root
+      display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ppf
+        root
     in
     ({ Session.display; root; json = progress = `Json }, intercept, cursor)
   with
@@ -358,7 +360,7 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ~progress
       raise e
 
 let run ~clock ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended
-    ?commit f =
+    ?commit ?plain f =
   let progress = Option.value progress ~default:`Auto in
   match Session.find () with
   | Some root -> f (Session.given root)
@@ -367,7 +369,7 @@ let run ~clock ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended
       | Some v -> v
       | None ->
           open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit
-            ~progress f)
+            ?plain ~progress f)
 
 let with_output f =
   match Session.display () with

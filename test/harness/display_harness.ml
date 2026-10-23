@@ -81,7 +81,7 @@ type term = {
 let close t = finish t.root t.display
 
 let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
-    ?(raw = false) ?(before = "") ?view ?keep_ended ?commit () =
+    ?(raw = false) ?(before = "") ?view ?keep_ended ?commit ?plain () =
   let buffer = Buffer.create 512 in
   let vte = Console_vte.v ~raw ~rows:height ~cols:width () in
   let chunks = ref [] and size = ref (width, height) in
@@ -105,7 +105,7 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   let root = Task.root ?label ~now () in
   let view = Option.map (fun f -> f root) view in
   let display =
-    Progress.show ?layout ?view ?keep_ended ?commit
+    Progress.show ?layout ?view ?keep_ended ?commit ?plain
       ~size:(fun () -> !size)
       ppf root
   in

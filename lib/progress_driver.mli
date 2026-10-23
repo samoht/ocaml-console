@@ -15,6 +15,7 @@ val show :
   ?view:View.t ->
   ?keep_ended:bool ->
   ?commit:(Task.t -> View.t option) ->
+  ?plain:(Task.Event.t -> View.t option) ->
   ?size:(unit -> int * int) ->
   Format.formatter ->
   Task.t ->

@@ -282,7 +282,7 @@ module Event : sig
   (** The type for the task of an event: its [id] member, and its [task] member,
       the labels from the top task down to it. *)
 
-  type t
+  type t = Event.t
   (** The type for events. A transient task ({!start}) has its events as any
       other task has. *)
 

@@ -18,6 +18,7 @@ val show_with :
   ?view:View_core.t ->
   ?keep_ended:bool ->
   ?commit:(Task_core.t -> View_core.t option) ->
+  ?plain:(Event.t -> View_core.t option) ->
   ?size:(unit -> int * int) ->
   Format.formatter ->
   Task_core.t ->

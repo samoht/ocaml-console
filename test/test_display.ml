@@ -808,6 +808,37 @@ let test_pipe_lines () =
     ]
     (split out)
 
+(* [plain] prints the program's own lines on a pipe, in place of those of
+   the tasks; the output of no task and the last frame print as before, and
+   a terminal ignores it. *)
+let test_plain_own_lines () =
+  let plain e =
+    match (Task.Event.kind e, Task.Event.task e) with
+    | `End, Some (_, path) ->
+        Some (View.text ("done " ^ String.concat "/" path))
+    | _ -> None
+  in
+  let buffer = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buffer in
+  Theme.set ppf theme;
+  let root = Task.root ~label:"Build" ~now:(fun () -> 0.) () in
+  let d = Progress.show ~progress:`Plain ~plain ppf root in
+  Task.run root "job" (fun job ->
+      Task.log job "one";
+      Task.log root "above");
+  Task.succeed root;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  check_lines "the program's lines"
+    [ "above"; "done job"; "[+] Build 0.0s (1/1)"; "" ]
+    (split (Buffer.contents buffer));
+  let t = terminal ~theme ~plain () in
+  Task.succeed (Task.start t.root "job");
+  close t;
+  Alcotest.(check bool)
+    "rows on a terminal" true
+    (List.exists (contains "[+] job") (lines t))
+
 (* The start line is written when the task starts, so a task that hangs
    leaves a trace. *)
 let test_pipe_start () =
@@ -2522,6 +2553,8 @@ let suite =
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_view_stands_still;
       Alcotest.test_case "plain lines" `Quick test_plain_lines;
+      Alcotest.test_case "plain lines of the program" `Quick
+        test_plain_own_lines;
       Alcotest.test_case "plain attribution" `Quick test_plain_attribution;
       Alcotest.test_case "plain unfinished tasks" `Quick test_plain_unfinished;
       Alcotest.test_case "a plain closing line says how it ended" `Quick

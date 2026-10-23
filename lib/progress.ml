@@ -29,6 +29,6 @@ let tree = Progress_show.tree
 let summary = Progress_show.summary
 let view = Progress_show.view
 
-let show ?progress ?layout ?view ?keep_ended ?commit ?size ppf root =
-  Progress_show.show_with ?progress ?layout ?view ?keep_ended ?commit ?size ppf
-    root
+let show ?progress ?layout ?view ?keep_ended ?commit ?plain ?size ppf root =
+  Progress_show.show_with ?progress ?layout ?view ?keep_ended ?commit ?plain
+    ?size ppf root

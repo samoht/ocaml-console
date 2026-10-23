@@ -112,6 +112,15 @@ let on_plain d = function
         forget r
       end
 
+(* The program's lines for the changes of tasks, in place of console's. *)
+let on_own d root plain = function
+  | (Line (r, _) | Ended r) as change when is_root r -> on_plain d change
+  | change -> (
+      (match event change ~time:(since_start (work root)) with
+      | Some e -> Option.iter (Display_core.print d) (plain e)
+      | None -> ());
+      match change with Ended r -> forget r | _ -> ())
+
 (* The output a task kept, under its line. *)
 let kept look r =
   let all = Queue.fold (fun acc l -> l :: acc) [] (output r) in
@@ -150,7 +159,7 @@ let view_of_form ~layout root = function
   | Json -> V.empty
 
 let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
-    ?(keep_ended = false) ?commit ?size ppf root =
+    ?(keep_ended = false) ?commit ?plain ?size ppf root =
   let root = root_of root in
   let shown_size, form = shape ?size progress in
   let default = view_of_form ~layout root form in
@@ -173,7 +182,10 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
   Display_core.on_close d (fun () -> if is_running root then cancel root);
   (match form with
   | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
-  | Plain -> watch (work root) (on_plain d)
+  | Plain -> (
+      match plain with
+      | None -> watch (work root) (on_plain d)
+      | Some plain -> watch (work root) (on_own d root plain))
   | Quiet -> watch (work root) (on_quiet d)
   | Json ->
       Display_core.on_output d (fun s -> log root (Console_text.strip s));
