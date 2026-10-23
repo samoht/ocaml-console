@@ -413,6 +413,31 @@ let test_run_print () =
     "an event" true
     (contains {|"event":"output","text":"warning: careful"|} (printed `Json))
 
+(* What [f] writes on the standard error, read back from a file. *)
+let on_stderr f =
+  let file = Filename.temp_file "console" ".err" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  let saved = Unix.dup Unix.stderr in
+  let fd = Unix.openfile file [ Unix.O_WRONLY; Unix.O_TRUNC ] 0o600 in
+  Fun.protect
+    ~finally:(fun () ->
+      Format.pp_print_flush Fmt.stderr ();
+      Unix.dup2 saved Unix.stderr;
+      List.iter Unix.close [ saved; fd ])
+    (fun () ->
+      Unix.dup2 fd Unix.stderr;
+      f ());
+  In_channel.with_open_bin file In_channel.input_all
+
+let test_print_outside_eio () =
+  Alcotest.(check bool)
+    "with_output" true
+    (Console_eio.with_output (fun ppf -> ppf == Fmt.stderr));
+  let printed =
+    on_stderr (fun () -> Console_eio.print (Console.View.text "outside"))
+  in
+  Alcotest.(check string) "print" "outside\n" printed
+
 let test_nested_run_reuses_the_display () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -947,6 +972,7 @@ let suite =
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;
       Alcotest.test_case "print" `Quick test_run_print;
+      Alcotest.test_case "print outside Eio" `Quick test_print_outside_eio;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
       Alcotest.test_case "a display in another domain is refused" `Quick
