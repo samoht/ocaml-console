@@ -253,6 +253,40 @@ let test_chart () =
     (Display_harness.at ~utf_8:false ~time:0.
        (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]))
 
+(* A chart's bars take the style its function gives each. *)
+let test_chart_style () =
+  let green = Style.fg Color.green in
+  let style label _ = if label = "Mon" then red else green in
+  Alcotest.(check string)
+    "each bar its style"
+    (View.to_string ~styled:true
+       (View.hcat ~gap:1
+          [
+            View.styled red (View.text "\u{2588}\u{2588}\u{2588}");
+            View.styled green (View.text "\u{2588}\u{2588}\u{2588}");
+          ]))
+    (List.nth
+       (String.split_on_char '\n'
+          (View.to_string ~styled:true
+             (Bar.chart ~height:1 ~style [ ("Mon", 2.); ("Tue", 2.) ])))
+       1)
+
+(* A peak is a line in the cell it reaches, above the fill. *)
+let test_vertical_peak () =
+  let bar ?utf_8 peak frac =
+    Display_harness.at ?utf_8 ~time:0.
+      (View.sized ~height:4 (Bar.vertical ~peak frac))
+  in
+  Alcotest.(check string)
+    "high in its cell" "\u{2594}\n \n \n\u{2588}" (bar 0.9 0.25);
+  Alcotest.(check string)
+    "low in its cell" " \n\u{2581}\n \n\u{2588}" (bar 0.6 0.25);
+  Alcotest.(check string)
+    "under the fill" " \n \n\u{2588}\n\u{2588}" (bar 0.3 0.5);
+  Alcotest.(check string)
+    "in the cell the fill ends in" " \n \n \n\u{2584}" (bar 0.22 0.125);
+  Alcotest.(check string) "off UTF-8" "-\n \n \n#" (bar ~utf_8:false 0.9 0.25)
+
 (* A chart's values are plain numbers, to three digits past ten
    thousand, never in e-notation. *)
 let test_chart_values () =
@@ -354,6 +388,8 @@ let test_empty_and_full_differ () =
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "chart style" `Quick test_chart_style;
+      Alcotest.test_case "vertical peak" `Quick test_vertical_peak;
       Alcotest.test_case "an empty and a full bar differ" `Quick
         test_empty_and_full_differ;
       Alcotest.test_case "charts keep to their room" `Quick test_chart_room;

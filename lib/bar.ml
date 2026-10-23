@@ -133,18 +133,42 @@ let vertical_cell ~style ~track ~height ~width i e look =
 let clamp frac =
   if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
 
-let draw_vertical ~style ~track ~width ~height frac =
+(* A peak is a line low or high in the cell it reaches, if the fill leaves
+   that cell empty. *)
+let cap ~track ~width ~high look =
+  let glyph =
+    if Widget.bar look = `Ascii then "-" else if high then "▔" else "▁"
+  in
+  View_core.ink
+    (Option.value track ~default:(Widget.muted look))
+    (Widget.fill width glyph)
+
+let draw_vertical ~style ~track ~peak ~width ~height frac =
+  let cells = column ~height frac in
+  let filled = List.fold_left ( + ) 0 cells in
+  let peak =
+    let p =
+      int_of_float (Float.round (clamp peak *. float_of_int (height * 8)))
+    in
+    let i = (p - 1) / 8 in
+    if p > 0 && i < height && filled <= i * 8 then Some (i, (p - 1) mod 8 >= 4)
+    else None
+  in
   View_core.concat ~sep:(View_core.text "\n")
     (List.rev
        (List.mapi
           (fun i e ->
-            View_core.drawn (vertical_cell ~style ~track ~height ~width i e))
-          (column ~height frac)))
+            match peak with
+            | Some (j, high) when j = i ->
+                View_core.drawn (cap ~track ~width ~high)
+            | _ ->
+                View_core.drawn (vertical_cell ~style ~track ~height ~width i e))
+          cells))
 
 (* A vertical bar is as tall as its room, one row at its natural size, and
    as wide as it is told, or as its room in a row that shares it, and never
    wider than its room. *)
-let vertical ?style ?track ?width frac =
+let vertical ?style ?track ?(peak = 0.) ?width frac =
   (match width with
   | Some w when w < 0 -> invalid_arg "Console.Bar.vertical: negative width"
   | _ -> ());
@@ -160,7 +184,7 @@ let vertical ?style ?track ?width frac =
         | None, Some room -> max 0 room
         | None, None -> 1
       in
-      draw_vertical ~style ~track ~width ~height frac)
+      draw_vertical ~style ~track ~peak ~width ~height frac)
 
 (* A sparkline spans its values: the lowest is the least a cell shows, an
    eighth, unless [min] says lower, and the highest fills it. It is one row
@@ -252,13 +276,14 @@ let chart ?height ?scale ?style bars =
       in
       let columns =
         List.map
-          (fun (label, v) ->
-            let label = Widget.one_line (View_core.text label) in
+          (fun (name, v) ->
+            let label = Widget.one_line (View_core.text name) in
             let shown = View_core.ink (Widget.muted look) (value v) in
             let w =
               max 1 (max (View_core.width label) (View_core.width shown))
             in
             let at v = View_core.place ~align:`Center ~width:w v in
+            let style = Option.map (fun f -> f name v) style in
             (at shown, vertical ?style ~width:w (frac v), at label, w))
           bars
       in

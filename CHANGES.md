@@ -2,31 +2,32 @@
 
 Initial release of `console` and `console-eio`.
 
-- Views. A `View.t` is what console prints: text in one or more styles,
-  with links (`View.link`, percent-encoding the bytes a URI may not hold),
+- Views. A `View.t` is what console prints: text in one or more styles, with
+  links (`View.link`, percent-encoding the bytes a URI may not hold),
   colours graded along it (`View.gradient`) and the colours of the theme
-  (`View.role`), and every widget built from it. A view holds only text
-  that prints, and `Style.styled` styles any `Fmt` printer. A view is what
-  is drawn in a given room at a given time: `View.fit` gives a part its
-  `Room`, the width and height it may take, the time of the frame and the
+  (`View.role`), and every widget built from it. A view holds only text that
+  prints, and `Style.styled` styles any `Fmt` printer. A view is what is
+  drawn in a given room at a given time: `View.fit` gives a part its `Room`,
+  the width and height it may take, the time of the frame and the
   formatter's theme and UTF-8; `View.pp` gives the margin and time 0, a
   display the terminal and the frame's time, `View.sized` narrows the room,
   `View.place` pads or cuts a view to a box, and `View.crop` takes a window
-  of its cells. A view's size depends on
-  its room alone. `View.hcat` puts views side by side, those that grow
-  (`?grow`) sharing what the others leave in a room, and `View.vcat` one
-  under the other (`?gap` blank lines apart). Widths are counted in terminal cells, by grapheme
-  cluster with uuseg and uucp, wide characters and emoji included.
-- Widgets. One constructor each, a view: `Table.view` (headers and cells
-  are views, laid out at their column's width, columns that wrap or
-  truncate, rules between rows with `~rules:true`, `?gap` spaces between
-  cells, a column of a given `?width` that narrows as the others do, a frameless
+  of its cells. A view's size depends on its room alone. `View.hcat` puts
+  views side by side, those that grow (`?grow`) sharing what the others
+  leave in a room, and `View.vcat` one under the other (`?gap` blank lines
+  apart). Widths are counted in terminal cells, by grapheme cluster with
+  uuseg and uucp, wide characters and emoji included.
+- Widgets. One constructor each, a view: `Table.view` (headers and cells are
+  views, laid out at their column's width, columns that wrap or truncate,
+  rules between rows with `~rules:true`, `?gap` spaces between cells, a
+  column of a given `?width` that narrows as the others do, a frameless
   `Border.simple`), `Tree.view` (`?guide`, `?indent`), `Panel.view`
-  (`?expand`), `Rule.view`, `Bar.horizontal`, `Bar.vertical`,
-  `Bar.sparkline`, `Bar.chart` and `Spinner.view`. Widgets nest: a bar or
-  a table in a cell, a table in a panel, trees side by side. A widget is no
-  wider than its room, and is drawn in ASCII on a formatter that is not
-  UTF-8. A part laid out for its room alone is laid out once for each room.
+  (`?expand`), `Rule.view`, `Bar.horizontal`, `Bar.vertical` (with a `?peak`
+  mark), `Bar.sparkline`, `Bar.chart` (a style for each bar) and
+  `Spinner.view`. Widgets nest: a bar or a table in a cell, a table in a
+  panel, trees side by side. A widget is no wider than its room, and is
+  drawn in ASCII on a formatter that is not UTF-8. A part laid out for its
+  room alone is laid out once for each room.
 - Themes. A theme (`Theme.set`, kept on the formatter as its colours are)
   gives every view its colours, marks, frames, tree lines, bars and spinner
   frames. Eighteen are predefined: `Theme.default`, drawn in the

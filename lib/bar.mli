@@ -70,13 +70,19 @@ val horizontal :
 
     @raise Invalid_argument if [width] is negative. *)
 
-val vertical : ?style:Style.t -> ?track:Style.t -> ?width:int -> float -> View.t
-(** [vertical ~style ~track ~width frac] is a bar [width] cells wide, as tall as
-    its room ({!View.fit}) and one row at its natural size, filled from the
-    bottom to [frac] of its height, with [frac] clamped to the range 0 to 1 and
-    NaN taken as 0. Without [width], it grows to the width of its room, one cell
-    at its natural size, as a column does. With [width], it is no wider than its
-    room.
+val vertical :
+  ?style:Style.t ->
+  ?track:Style.t ->
+  ?peak:float ->
+  ?width:int ->
+  float ->
+  View.t
+(** [vertical ~style ~track ~peak ~width frac] is a bar [width] cells wide, as
+    tall as its room ({!View.fit}) and one row at its natural size, filled from
+    the bottom to [frac] of its height, with [frac] clamped to the range 0 to 1
+    and NaN taken as 0. Without [width], it grows to the width of its room, one
+    cell at its natural size, as a column does. With [width], it is no wider
+    than its room.
 
     Each cell shows the eighths of it that are filled, rounded to the nearest
     eighth of the whole bar: a lower block from U+2581 (one eighth) to U+2587
@@ -91,6 +97,23 @@ val vertical : ?style:Style.t -> ?track:Style.t -> ?width:int -> float -> View.t
     {!Theme.warning} to its {!Theme.failed}, so that the cells of a sparkline
     show their values. [track] is the style of an empty cell.
 
+    [peak] (defaults to [0.]), clamped as [frac] is, marks a height the bar
+    reached: a line in the [track] style, at the bottom of the cell [peak]
+    reaches if it reaches less than half of it and at its top otherwise, or a
+    dash ([-]) where the bar is drawn in ASCII. It shows only above the fill, in
+    a cell the fill leaves empty. A spectrum whose peaks fall slowly is a row of
+    such bars:
+
+    {[
+    let spectrum ~height bands =
+      Console.(
+        View.sized ~height
+          (View.hcat ~gap:1
+             (List.map
+                (fun (level, peak) -> Bar.vertical ~width:2 ~peak level)
+                bands)))
+    ]}
+
     @raise Invalid_argument if [width] is negative. *)
 
 val sparkline :
@@ -104,7 +127,7 @@ val sparkline :
 val chart :
   ?height:int ->
   ?scale:float ->
-  ?style:Style.t ->
+  ?style:(string -> float -> Style.t) ->
   (string * float) list ->
   View.t
 (** [chart bars] is a bar chart of [bars], a [(label, value)] each: a
@@ -115,7 +138,8 @@ val chart :
     the muted colour. The bars are [height] lines tall (defaults to the height
     of the room less the three lines of values, baseline and labels, and to 8
     without one), filled to their value over [scale] (defaults to the largest
-    value).
+    value), each bar in [style label value] if [style] is given, and otherwise
+    in the colours of a {!vertical} bar given no style.
 
     The chart keeps to its room: the bars are at most the room's height less
     three lines and at least one line, and in a room too short for all three
