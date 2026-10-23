@@ -659,7 +659,14 @@ let test_pp_bytes () =
   List.iter
     (fun (n, s) ->
       Alcotest.(check string) s s (Fmt.str "%a" Progress.pp_bytes n))
-    [ (512L, "512 B"); (1572864L, "1.50 MiB"); (1023L, "1023 B") ]
+    [
+      (512L, "512 B");
+      (1572864L, "1.50 MiB");
+      (1023L, "1023 B");
+      (1048570L, "1023.99 KiB");
+      (1048575L, "1.00 MiB");
+      (-1L, "0 B");
+    ]
 
 (* [choose f] draws each running task's row by the layout [f] gives it. *)
 let test_layout_choose () =
