@@ -16,7 +16,7 @@ permissions:
 # the k7 0.9.0 tag.
 env:
   MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
-  K7_PIN: https://github.com/samoht/ocaml-k7.git#4784688341162383cf2d44c0fd14d5d3eaec41c6
+  K7_PIN: https://github.com/samoht/ocaml-k7.git#4e99721ede7d908705d83b7b4885dc4794c93279
 
 jobs:
   build:
