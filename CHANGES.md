@@ -108,7 +108,8 @@ Initial release of `console` and `console-eio`.
   to `FILE` in asciicast v2, at the times of the virtual clock, on a
   terminal of `$COLUMNS` by `$LINES` with no pty behind it, and the
   sleeps then take no real time: a recording is the same bytes on every
-  run.
+  run. `Console_tty.setup` starts the recording too, for a program that
+  prints without a run.
 - Two small libraries in the `console` package: `console.text`
   (`Console_text`) makes untrusted text safe to print, without the
   characters that Unicode makes default ignorable, which reorder or hide

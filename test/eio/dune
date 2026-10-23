@@ -54,7 +54,8 @@
   piped.exe
   events.exe
   ../../examples/progress/main.exe
-  ../../examples/columns/main.exe))
+  ../../examples/columns/main.exe
+  ../../examples/charts/main.exe))
 
 (test
  (name test)

@@ -28,3 +28,15 @@ The recording leaves the screen that the program leaves on a terminal:
   $ cmp terminal recorded
   $ grep Building recorded
   [+] Building 2.9s (9/9)
+
+A program that prints without a run is recorded from Console_tty.setup
+on, each write at time zero, and the recording leaves its screen too:
+
+  $ CONSOLE_CAST=charts.cast ../../../examples/charts/main.exe
+  $ tail -n +2 charts.cast | cut -c 1-6 | sort -u
+  [0,"o"
+  $ ../tty.exe ../../../examples/charts/main.exe > terminal
+  $ ../tty.exe --cast charts.cast > recorded
+  $ cmp terminal recorded
+  $ grep -c Machine recorded
+  1

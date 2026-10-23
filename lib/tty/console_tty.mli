@@ -33,8 +33,8 @@ val setup :
       [Fmt_cli.style_renderer] reads a [--color] option. Otherwise it is [`None]
       if [NO_COLOR] is set and not empty, or if [TERM] is unset, empty or
       [dumb]. Else it is [`Ansi_tty] iff the output is a terminal, as both are
-      when [CONSOLE_CAST] records them ([Console_eio]). [CLICOLOR_FORCE] and
-      [FORCE_COLOR] are not read: [--color=always] forces colour.
+      when [CONSOLE_CAST] records them. [CLICOLOR_FORCE] and [FORCE_COLOR] are
+      not read: [--color=always] forces colour.
     - {!Fmt.utf_8} is [utf_8] if given, else [true] iff the locale's character
       set is UTF-8. The locale is the first of [LC_ALL], [LC_CTYPE] and [LANG]
       that is set and not empty. An unset locale is not UTF-8, and the widgets
@@ -43,7 +43,12 @@ val setup :
       [24bit], or if [TERM] ends in [-direct]. It is [`Ansi_256] if [TERM]
       contains [256color], and [`Ansi_16] otherwise.
     - The theme is [theme] if given, as [Cmdliner.Arg.enum Console.Theme.all]
-      reads a [--theme] option. Otherwise each output keeps its own. *)
+      reads a [--theme] option. Otherwise each output keeps its own.
+
+    Under [CONSOLE_DETERMINISTIC_CLOCK], [CONSOLE_CAST] set to a file name makes
+    [setup] record both outputs there, as [Console_eio.run] does, so that a
+    program that prints without a run is recorded too: each write is at time
+    zero, until a run gives the recording its clock. *)
 
 val ensure : unit -> unit
 (** [ensure ()] is like [setup ()] ({!setup}) but leaves alone each of

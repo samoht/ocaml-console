@@ -3,7 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The terminal that [CONSOLE_CAST] records ({!Cast}). *)
+(** The terminal that [CONSOLE_CAST] records ({!Cast}).
+
+    This module is internal to the [console] package, as {!Cast} is:
+    [Console_tty.setup] and [Console_eio.run] start a recording. *)
 
 val start : time:(unit -> float) -> Format.formatter -> bool
 (** [start ~time ppf] is [true] iff [CONSOLE_CAST] asks for a recording

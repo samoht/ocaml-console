@@ -157,6 +157,7 @@ let lines : (int, line) Hashtbl.t = Hashtbl.create 16
    does not take it all. *)
 let max_pending = 65536
 
+(* The first [k all] bytes of [b], which holds [all], taken out of it. *)
 let take_from b k =
   let all = Buffer.contents b in
   let k = k all in

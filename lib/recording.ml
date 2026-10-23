@@ -19,7 +19,14 @@ type t = {
 }
 
 let current = ref None
-let size () = Terminal.dimensions None
+
+(* No terminal has more than the 4096 columns or rows a display takes. *)
+let dimension name ~default =
+  match Option.bind (Sys.getenv_opt name) int_of_string_opt with
+  | Some n when n > 0 && n <= 4096 -> n
+  | _ -> default
+
+let size () = (dimension "COLUMNS" ~default:80, dimension "LINES" ~default:24)
 
 (* [data] as a terminal shows it: its driver puts a carriage return before
    each line feed that has none. *)
@@ -45,9 +52,13 @@ let emit t data =
 (* Each flush is a write, cut between two characters: the bytes of one cut
    short wait for those that end it. *)
 let written t o =
-  match Session.take_from o.pending Console_text.boundary with
-  | "" -> ()
-  | data -> emit t data
+  let all = Buffer.contents o.pending in
+  match Console_text.boundary all with
+  | 0 -> ()
+  | k ->
+      Buffer.clear o.pending;
+      Buffer.add_substring o.pending all k (String.length all - k);
+      emit t (String.sub all 0 k)
 
 let record t ppf =
   if not (List.exists (fun o -> o.ppf == ppf) t.outputs) then begin

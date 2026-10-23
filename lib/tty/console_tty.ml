@@ -20,7 +20,8 @@ let set ?style_renderer ?utf_8 ?theme (ppf, fd) =
   Option.iter (Console.Theme.set ppf) theme
 
 let setup ?style_renderer ?utf_8 ?theme () =
-  List.iter (set ?style_renderer ?utf_8 ?theme) outputs
+  List.iter (set ?style_renderer ?utf_8 ?theme) outputs;
+  ignore (Recording.start ~time:(fun () -> 0.) Fmt.stdout : bool)
 
 (* Fmt keeps what a program chose for a formatter in tag functions it
    installs on the first choice, so a formatter whose tag functions are still
