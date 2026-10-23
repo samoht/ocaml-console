@@ -1,0 +1,23 @@
+(executable
+ (name main)
+ (libraries console console-eio console.tty eio eio_main fmt mtime))
+
+(rule
+ (alias default)
+ (action (progn))
+ (deps main.exe))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:eio_main}))
+ (target camel.generated.svg)
+ (deps main.exe)
+ (action
+  (run %{bin:k7} play -o %{target} %{dep:camel.tape})))
+
+(rule
+ (alias record)
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:eio_main}))
+ (action
+  (diff camel.svg camel.generated.svg)))
