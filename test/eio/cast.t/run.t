@@ -45,3 +45,10 @@ on, each write at time zero, and the recording leaves its screen too:
   $ cmp terminal recorded
   $ grep -c Machine recorded
   1
+
+A file that cannot be opened ends the program with an error, before it
+runs:
+
+  $ CONSOLE_CAST=missing/run.cast ../../../examples/columns/main.exe
+  main.exe: CONSOLE_CAST: cannot record: missing/run.cast: No such file or directory
+  [1]
