@@ -782,7 +782,7 @@ and node = {
   kind : Look.t -> kind;
   lay : Ctx.t -> t;
   grow : int;
-  min_width : int option;
+  min_width : (Ctx.t -> int) option;
   still : bool;
   mutable memo : (Ctx.t * F.t) option;
   mutable size : (Ctx.t * int list) option;
@@ -795,6 +795,7 @@ let grow = function Flat _ -> 0 | Deferred d -> d.grow
 
 let deferred ?(kind = fun _ -> static) ?(grow = 0) ?min_width ?(still = false)
     lay =
+  let min_width = Option.map Fun.const min_width in
   Deferred { kind; lay; grow; min_width; still; memo = None; size = None }
 
 (* Each line of [f] cut or padded to the cells of its line in a still frame,
@@ -849,7 +850,7 @@ let flat t = flat_in Ctx.default t
 
 let rec min_width c = function
   | Flat f -> F.widest_word f
-  | Deferred { min_width = Some w; _ } -> w
+  | Deferred { min_width = Some w; _ } -> w c
   | Deferred d -> min_width c (d.lay c)
 
 (* [f] of the atoms of [ts], at once if they are all known, and otherwise
@@ -890,14 +891,30 @@ let sized ?width ?height t =
                   c)
                t))
 
+(* [f] of the atoms of [t], [f] adding no cell, so that [t] keeps the width
+   below which it should not be laid out. *)
+let restyle f = function
+  | Flat x -> Flat (f x)
+  | t ->
+      Deferred
+        {
+          kind = kind t;
+          lay = (fun c -> Flat (f (flat_in c t)));
+          grow = 0;
+          min_width = Some (fun c -> min_width c t);
+          still = false;
+          memo = None;
+          size = None;
+        }
+
 let empty = Flat F.empty
 let text s = Flat (F.text s)
 let ink style s = Flat (F.ink style s)
 let is_empty t = F.is_empty (flat t)
-let link ~uri t = map (F.link ~uri) t
-let styled s t = map (F.styled s) t
-let role r t = map (F.role r) t
-let gradient ?colors t = map (F.gradient ?colors) t
+let link ~uri t = restyle (F.link ~uri) t
+let styled s t = restyle (F.styled s) t
+let role r t = restyle (F.role r) t
+let gradient ?colors t = restyle (F.gradient ?colors) t
 
 let ( ++ ) a b =
   match (a, b) with
