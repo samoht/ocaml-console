@@ -264,9 +264,25 @@ let test_vertical_width () =
     (Display_harness.at ~width:5 ~time:0.
        (View.hcat ~gap:1 [ Bar.vertical 0.5; Bar.vertical 1. ]))
 
+let test_horizontal_room () =
+  let width = 5 in
+  List.iter
+    (fun bar ->
+      let v = View.sized ~width bar in
+      let raw = View.to_string v in
+      let terminal = Console_vte.v ~rows:4 ~cols:width () in
+      Console_vte.feed terminal raw;
+      Alcotest.(check int)
+        "one terminal row" 0
+        (fst (Console_vte.cursor_pos terminal));
+      Alcotest.(check bool) "within its room" true (View.width v <= width))
+    [ Bar.horizontal ~width:20 0.5; Bar.horizontal ~brackets:true 0.5 ]
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "horizontal bars keep to their room" `Quick
+        test_horizontal_room;
       Alcotest.test_case "sparkline" `Quick test_sparkline;
       Alcotest.test_case "chart" `Quick test_chart;
       Alcotest.test_case "vertical width" `Quick test_vertical_width;
