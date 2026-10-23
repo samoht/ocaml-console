@@ -213,6 +213,25 @@ val truncate : int -> t -> t
     invariants [width (truncate w s) <= max 0 w] and [truncate w s = s] when
     [width s <= w] hold. *)
 
+val crop : ?left:int -> ?width:int -> t -> t
+(** [crop ~left ~width v] is the cells of [v] from [left] (defaults to [0]) to
+    [left + width] (defaults to the end of each line), on each line, cut with no
+    ellipsis: a window onto [v] at its natural size. A wide character cut by the
+    left edge leaves its cells in the window blank, and one cut by the right
+    edge is left out. Each line keeps its styles and links, and is not padded.
+    It is {!empty} if [width] is not positive. A marquee is a [crop]:
+
+    {[
+    let marquee ~width title =
+      Console.View.fit (fun room ->
+          let n = Console.View.width title + 3 in
+          let left = int_of_float (Console.Room.time room *. 4.) mod n in
+          let ring = Console.View.(title ++ text "   " ++ title) in
+          Console.View.crop ~left ~width ring)
+    ]}
+
+    @raise Invalid_argument if [left] is negative. *)
+
 val wrap : int -> t -> t list
 (** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.
     The result is never empty.

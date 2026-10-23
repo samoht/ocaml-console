@@ -67,6 +67,32 @@ let test_truncate () =
     (View.to_string ~styled:true
        (View.truncate 3 (View.styled Style.bold (View.text "hello"))))
 
+let test_crop () =
+  let crop ?left ?width s =
+    View.to_string (View.crop ?left ?width (View.text s))
+  in
+  Alcotest.(check string) "a window" "cde" (crop ~left:2 ~width:3 "abcdefg");
+  Alcotest.(check string) "from the left" "abc" (crop ~width:3 "abcdefg");
+  Alcotest.(check string) "to the end" "efg" (crop ~left:4 "abcdefg");
+  Alcotest.(check string) "past the end" "" (crop ~left:9 ~width:3 "abc");
+  Alcotest.(check string)
+    "every line" "bc\ne"
+    (crop ~left:1 ~width:2 "abcd\nde");
+  Alcotest.(check string)
+    "a wide character cut on the left leaves a blank" " \u{754c}"
+    (crop ~left:1 ~width:3 "\u{754c}\u{754c}\u{754c}");
+  Alcotest.(check string)
+    "and is left out on the right" "\u{754c}"
+    (crop ~width:3 "\u{754c}\u{754c}\u{754c}");
+  Alcotest.(check string) "no width" "" (crop ~width:0 "abc");
+  Alcotest.(check string)
+    "styles and links are kept" "\027[1mel\027[0m"
+    (View.to_string ~styled:true
+       (View.crop ~left:1 ~width:2 (View.styled Style.bold (View.text "hello"))));
+  Alcotest.check_raises "a negative left"
+    (Invalid_argument "Console.View.crop: negative left") (fun () ->
+      ignore (View.crop ~left:(-1) (View.text "x")))
+
 let test_truncate_preserves_link () =
   let span = View.link ~uri:"https://example.com" (View.text "documentation") in
   let shown = View.truncate 5 span in
@@ -572,6 +598,7 @@ let suite =
       Alcotest.test_case "width is independent of styling boundaries" `Quick
         test_width_boundaries;
       Alcotest.test_case "truncate" `Quick test_truncate;
+      Alcotest.test_case "crop" `Quick test_crop;
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "wrap" `Quick test_wrap;

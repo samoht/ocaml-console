@@ -98,6 +98,7 @@ val truncate : ?ellipsis:string -> int -> t -> t
     An ellipsis wider than [w] cells keeps only its first grapheme clusters that
     fit in them. *)
 
+val crop : ?left:int -> ?width:int -> t -> t
 val wrap : int -> t -> t list
 val pp : t Fmt.t
 val to_string : ?styled:bool -> t -> string

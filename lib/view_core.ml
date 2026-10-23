@@ -263,14 +263,17 @@ module F = struct
     && start l (i + 1) = start l i + 1
     && not (l.drawn && is_drawn (owner l i))
 
-  (* The number of first clusters of a line that fit in [room] cells. *)
-  let fitting l room =
+  (* The number of clusters of a line from [first] that fit in [room]
+     cells. *)
+  let fitting_from l first room =
     let rec take i room =
       if i < l.n && cell_width l i <= room then
         take (i + 1) (room - cell_width l i)
       else i
     in
-    take 0 room
+    take first room - first
+
+  let fitting l room = fitting_from l 0 room
 
   (* The cluster that starts [cells] cells into a line, or [l.n]. *)
   let at_cell l cells =
@@ -460,6 +463,22 @@ module F = struct
   let truncate ?(ellipsis = ellipsis) w t =
     if w <= 0 then empty
     else unlines (List.map (truncate_line ~ellipsis w) (lines t))
+
+  (* A wide cluster cut by the left edge leaves its cells in the window
+     blank; one cut by the right edge is left out. *)
+  let crop_line ~left ~width line =
+    let l = layout line in
+    let rec skip i c =
+      if i < l.n && c < left then skip (i + 1) (c + cell_width l i) else (i, c)
+    in
+    let first, c = skip 0 0 in
+    let lead = min width (c - left) in
+    let last = first + fitting_from l first (width - max 0 lead) in
+    spaces lead @ sub l first last
+
+  let crop ~left ~width t =
+    if width <= 0 then empty
+    else unlines (List.map (crop_line ~left ~width) (lines t))
 
   (* The clusters that fit go; a wide one cut by the edge leaves its cell
      blank. *)
@@ -966,6 +985,10 @@ let truncate ?ellipsis w t =
       deferred ~kind:(kind t) (fun c ->
           let ellipsis = Look.ellipsis (Ctx.look c) in
           Flat (F.truncate ~ellipsis w (flat_in (Ctx.natural c) t)))
+
+let crop ?(left = 0) ?(width = max_int) t =
+  if left < 0 then invalid_arg "Console.View.crop: negative left";
+  map ~room:Ctx.natural (F.crop ~left ~width) t
 
 (* A line [w] cells wide at [align], cut with [ellipsis] if wider. *)
 let place_line ~ellipsis align w line =

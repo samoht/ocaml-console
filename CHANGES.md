@@ -11,7 +11,8 @@ Initial release of `console` and `console-eio`.
   `Room`, the width and height it may take, the time of the frame and the
   formatter's theme and UTF-8; `View.pp` gives the margin and time 0, a
   display the terminal and the frame's time, `View.sized` narrows the room,
-  and `View.place` pads or cuts a view to a box. A view's size depends on
+  `View.place` pads or cuts a view to a box, and `View.crop` takes a window
+  of its cells. A view's size depends on
   its room alone. `View.hcat` puts views side by side, those that grow
   (`?grow`) sharing what the others leave in a room, and `View.vcat` one
   under the other. Widths are counted in terminal cells, by grapheme
