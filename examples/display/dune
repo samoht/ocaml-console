@@ -1,66 +1,131 @@
 (executable
  (name main)
- (modules main)
  (libraries console console.tty console-eio eio eio_main fmt logs))
 
-(executable
- (name tape)
- (modules tape)
- (optional)
- (libraries console k7 fmt))
+(rule
+ (enabled_if %{bin-available:k7})
+ (target display.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    21
+    (run ./main.exe)))))
 
 (rule
- (enabled_if %{lib-available:k7})
- (target display.generated.tape)
+ (enabled_if %{bin-available:k7})
+ (target display.generated.svg)
  (action
-  (with-stdout-to
+  (run
+   %{bin:k7}
+   cast
+   --show
+   "dune exec -- examples/display/main.exe"
+   -o
    %{target}
-   (run ./tape.exe))))
+   %{dep:display.cast})))
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:k7})
+ (enabled_if %{bin-available:k7})
  (action
-  (diff display.tape display.generated.tape)))
+  (diff display.svg display.generated.svg)))
 
 (rule
- (enabled_if %{lib-available:k7})
- (target matrix.generated.tape)
+ (enabled_if %{bin-available:k7})
+ (target matrix.cast)
  (action
-  (with-stdout-to
+  (setenv
+   CONSOLE_CAST
    %{target}
-   (run ./tape.exe matrix))))
+   (setenv
+    LINES
+    21
+    (run ./main.exe matrix)))))
+
+(rule
+ (enabled_if %{bin-available:k7})
+ (target matrix.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   cast
+   --show
+   "dune exec -- examples/display/main.exe matrix"
+   --theme
+   "{\"name\": \"demo\", \"background\": \"#000000\", \"foreground\": \"#dddddd\", \"cursor\": \"#dddddd\", \"selection\": \"#dddddd\"}"
+   -o
+   %{target}
+   %{dep:matrix.cast})))
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:k7})
+ (enabled_if %{bin-available:k7})
  (action
-  (diff matrix.tape matrix.generated.tape)))
+  (diff matrix.svg matrix.generated.svg)))
 
 (rule
- (enabled_if %{lib-available:k7})
- (target rainbow.generated.tape)
+ (enabled_if %{bin-available:k7})
+ (target rainbow.cast)
  (action
-  (with-stdout-to
+  (setenv
+   CONSOLE_CAST
    %{target}
-   (run ./tape.exe rainbow))))
+   (setenv
+    LINES
+    21
+    (run ./main.exe rainbow)))))
+
+(rule
+ (enabled_if %{bin-available:k7})
+ (target rainbow.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   cast
+   --show
+   "dune exec -- examples/display/main.exe rainbow"
+   -o
+   %{target}
+   %{dep:rainbow.cast})))
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:k7})
+ (enabled_if %{bin-available:k7})
  (action
-  (diff rainbow.tape rainbow.generated.tape)))
+  (diff rainbow.svg rainbow.generated.svg)))
 
 (rule
- (enabled_if %{lib-available:k7})
- (target tokyo-night.generated.tape)
+ (enabled_if %{bin-available:k7})
+ (target tokyo-night.cast)
  (action
-  (with-stdout-to
+  (setenv
+   CONSOLE_CAST
    %{target}
-   (run ./tape.exe tokyo-night))))
+   (setenv
+    LINES
+    21
+    (run ./main.exe tokyo-night)))))
+
+(rule
+ (enabled_if %{bin-available:k7})
+ (target tokyo-night.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   cast
+   --show
+   "dune exec -- examples/display/main.exe tokyo-night"
+   --theme
+   "{\"name\": \"demo\", \"background\": \"#1a1b26\", \"foreground\": \"#dddddd\", \"cursor\": \"#dddddd\", \"selection\": \"#dddddd\"}"
+   -o
+   %{target}
+   %{dep:tokyo-night.cast})))
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:k7})
+ (enabled_if %{bin-available:k7})
  (action
-  (diff tokyo-night.tape tokyo-night.generated.tape)))
+  (diff tokyo-night.svg tokyo-night.generated.svg)))

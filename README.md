@@ -2,7 +2,7 @@
 
 Colours, tables, trees and progress rows for OCaml command-line tools.
 
-![check, then check --theme=rainbow: three progress rows, then a table of the results](examples/quickstart/quickstart.gif)
+![Three test suites as progress rows, then a table of their results](examples/quickstart/quickstart.svg)
 
 console prints into the terminal's normal scrollback, as
 [Rich](https://github.com/Textualize/rich) does in Python and
@@ -344,7 +344,7 @@ says more about roles, contrast and terminals of 16 colours.
 
 ## Progress rows
 
-![A build whose running steps are redrawn in place](examples/display/display.gif)
+![A build whose running steps are redrawn in place](examples/display/display.svg)
 
 A task is a row. `Task.run parent label f` runs `f` as a task under
 `parent`: its row shows while `f` runs, and the task succeeds when `f`
@@ -455,7 +455,7 @@ without colour.
 
 ### Putting the region together
 
-![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.gif)
+![A build in Theme.matrix, digital rain running round the frame of its table](examples/display/matrix.svg)
 
 The region is a view, which the program puts together as it puts widgets
 together. `Progress.tree` is the tree of a task, or of every top task,
@@ -509,10 +509,10 @@ In a theme with motion, the frame of a table or a panel in the view moves:
 
 - `Theme.matrix` runs digital rain round it (`` `Rain ``, above).
 - `Theme.rainbow` sweeps its palette round it (`` `Sweep ``,
-  [recording](examples/display/rainbow.gif)).
+  [recording](examples/display/rainbow.svg)).
 - Each theme named after a colour scheme sends a highlight of its main
   colour round it (`` `Shimmer ``, here in
-  [Tokyo Night](examples/display/tokyo-night.gif)).
+  [Tokyo Night](examples/display/tokyo-night.svg)).
 - `Theme.default`, `Theme.ascii` and `Theme.dos` stand still.
 
 Only the colours and the glyphs of straight lines change, so the columns

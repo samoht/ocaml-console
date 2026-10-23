@@ -1,6 +1,5 @@
 (executable
  (name main)
- (modules main)
  (libraries
   console
   console.tty
@@ -11,22 +10,33 @@
   fmt.cli
   cmdliner))
 
-(executable
- (name tape)
- (modules tape)
- (optional)
- (libraries fmt k7))
+(rule
+ (enabled_if %{bin-available:k7})
+ (target quickstart.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    14
+    (run ./main.exe)))))
 
 (rule
- (enabled_if %{lib-available:k7})
- (target quickstart.generated.tape)
+ (enabled_if %{bin-available:k7})
+ (target quickstart.generated.svg)
  (action
-  (with-stdout-to
+  (run
+   %{bin:k7}
+   cast
+   --show
+   "dune exec -- examples/quickstart/main.exe"
+   -o
    %{target}
-   (run ./tape.exe))))
+   %{dep:quickstart.cast})))
 
 (rule
  (alias runtest)
- (enabled_if %{lib-available:k7})
+ (enabled_if %{bin-available:k7})
  (action
-  (diff quickstart.tape quickstart.generated.tape)))
+  (diff quickstart.svg quickstart.generated.svg)))
