@@ -504,9 +504,44 @@ let test_event_text_limits n unicode =
         [ event; decode (Event.to_string event) ])
     events
 
+let byte_count =
+  choose
+    [
+      int64;
+      map [ uint8; uint8 ] (fun power offset ->
+          Int64.sub
+            (Int64.shift_left 1L (10 * (1 + (power mod 6))))
+            (Int64.of_int offset));
+    ]
+
+let test_byte_units count =
+  let shown = Fmt.str "%a" Console.Progress.pp_bytes count in
+  match String.split_on_char ' ' shown with
+  | [ number; "B" ] ->
+      check (count < 1024L);
+      check_eq ~pp:Fmt.Dump.string (Int64.to_string (Int64.max 0L count)) number
+  | [ number; unit ] ->
+      let units = [ "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB" ] in
+      let index =
+        match List.find_index (String.equal unit) units with
+        | Some index -> index
+        | None -> failf "unknown byte unit in %S" shown
+      in
+      let value = Float.of_string number in
+      let scale = 1024. ** float_of_int (index + 1) in
+      check (Float.is_finite value && value >= 1. && value < 1024.);
+      let dot = String.index number '.' in
+      check_eq ~pp:Fmt.int 2 (String.length number - dot - 1);
+      check (Float.abs (value -. (Int64.to_float count /. scale)) <= 0.005001);
+      if index > 0 then
+        check (Int64.to_float count /. (scale /. 1024.) >= 1023.995)
+  | _ -> failf "not a byte count: %S" shown
+
 let suite =
   ( "progress",
     [
+      test_case "rounded byte counts stay normalized across every unit boundary"
+        [ byte_count ] test_byte_units;
       test_case "public event labels and messages respect the 4 KiB bound"
         [ uint8; bool ] test_event_text_limits;
       test_case "bounded task output is the ordered suffix counted by dropped"
