@@ -426,9 +426,11 @@ let animate ~sw ~sleep display =
    the cursor shown; continued, it hides the cursor and draws the region
    again. *)
 let suspend ~cursor display stop =
-  Display.with_output display (fun _ ->
-      cursor true;
-      Fun.protect stop ~finally:(fun () -> cursor false))
+  if Display_driver.closed display then stop ()
+  else
+    Display.with_output display (fun _ ->
+        cursor true;
+        Fun.protect stop ~finally:(fun () -> cursor false))
 
 (* [f] for the run that opened [s]'s display. A function that raised waits
    for the others as one that returned does; a cancelled one cannot wait. *)
@@ -488,6 +490,9 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
+  Interrupt.protect ~idle:(Display_driver.when_idle display)
+    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_display run)
+  @@ fun () ->
   let value =
     match
       Eio.Switch.run @@ fun sw ->
@@ -497,11 +502,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
       Logs.set_reporter
         (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
       animate ~sw ~sleep display;
-      Fun.protect ~finally:give_back @@ fun () ->
-      Interrupt.protect ~idle:(Display_driver.when_idle display)
-        ~suspend:(suspend ~cursor display) ~restore:(fun () ->
-          close_display run)
-      @@ fun () -> first_run s f
+      Fun.protect ~finally:give_back @@ fun () -> first_run s f
     with
     | v ->
         end_work run.root (Ok ());

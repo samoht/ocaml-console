@@ -14,6 +14,9 @@ val when_idle : Display.t -> (unit -> unit) -> unit
     at any safe point of the program, calls [display] through it, so that it
     never works from a frame half drawn or half written. *)
 
+val closed : Display.t -> bool
+(** [closed display] is [true] once [display] is closed. *)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

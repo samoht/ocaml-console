@@ -25,6 +25,7 @@ type holder = {
 let ends = [ Sys.sigint; Sys.sigterm ]
 let holders : holder list Atomic.t = Atomic.make []
 let caught = Atomic.make []
+let ending = Atomic.make false
 let next = Atomic.make 0
 
 (* How long an ending signal waits for an idle point. *)
@@ -66,31 +67,35 @@ let rec release () =
     (Atomic.exchange caught [])
 
 (* The signal is sent again once, after the last restoration or once
-   [grace] has passed, whichever comes first. *)
+   [grace] has passed, whichever comes first. An ending signal that comes
+   before then is the same ending. *)
 and handle signo =
-  let sent = Atomic.make false in
-  let send () =
-    if not (Atomic.exchange sent true) then begin
-      release ();
-      Unix.kill (Unix.getpid ()) signo
-    end
-  in
-  let rec close = function
-    | [] -> send ()
-    | h :: rest ->
-        h.idle (fun () ->
-            (try h.restore () with Sys_error _ -> ());
-            close rest)
-  in
-  close (Atomic.exchange holders []);
-  if not (Atomic.get sent) then
-    ignore
-      (Thread.create
-         (fun () ->
-           Thread.delay grace;
-           send ())
-         ()
-        : Thread.t)
+  if not (Atomic.exchange ending true) then begin
+    let sent = Atomic.make false in
+    let send () =
+      if not (Atomic.exchange sent true) then begin
+        release ();
+        Atomic.set ending false;
+        Unix.kill (Unix.getpid ()) signo
+      end
+    in
+    let rec close = function
+      | [] -> send ()
+      | h :: rest ->
+          h.idle (fun () ->
+              (try h.restore () with Sys_error _ -> ());
+              close rest)
+    in
+    close (Atomic.exchange holders []);
+    if not (Atomic.get sent) then
+      ignore
+        (Thread.create
+           (fun () ->
+             Thread.delay grace;
+             send ())
+           ()
+          : Thread.t)
+  end
 
 let catch () =
   List.iter
@@ -107,4 +112,4 @@ let protect ?(idle = fun k -> k ()) ?(suspend = fun stop -> stop ()) ~restore f
   update holders (List.cons { id; idle; restore; suspend });
   Fun.protect f ~finally:(fun () ->
       update holders (List.filter (fun h -> h.id <> id));
-      if Atomic.get holders = [] then release ())
+      if Atomic.get holders = [] && not (Atomic.get ending) then release ())

@@ -24,4 +24,5 @@ val protect :
     The signal handler runs at any safe point: [restore] and [suspend] are
     called through [idle k], which calls [k] at once (the default) or at the
     next point where they are safe. An ending signal that finds no such point
-    within a second ends the program without the rest of the restorations. *)
+    within a second ends the program without the rest of the restorations. A
+    SIGINT or SIGTERM that arrives meanwhile is part of the same ending. *)
