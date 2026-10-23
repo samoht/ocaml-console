@@ -394,9 +394,21 @@ let test_pp_error () =
     "a message" "no terminal"
     (Fmt.str "%a" Prompt.pp_error (`Msg "no terminal"))
 
+let test_line_at_limit () =
+  run @@ fun () ->
+  let line = String.make 4096 'x' in
+  let t, _ = prompt ~interactive:true (line ^ "\nnext\n") in
+  let first = seen (Prompt.line t "") in
+  Alcotest.check string_answer "the next answer stays intact" (Got "next")
+    (seen (Prompt.line t ""));
+  Alcotest.check string_answer "4096 bytes is not longer than 4096" (Got line)
+    first
+
 let suite =
   ( "prompt",
     [
+      Alcotest.test_case "line accepts exactly 4096 answer bytes" `Quick
+        test_line_at_limit;
       Alcotest.test_case "a string source is not a terminal" `Quick
         test_a_string_source_is_not_a_terminal;
       Alcotest.test_case "line asks verbatim and keeps its place" `Quick
