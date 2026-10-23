@@ -436,9 +436,34 @@ let test_task_endings n ending =
     (List.sort Int.compare !starts)
     (List.sort Int.compare !ends)
 
+let test_output_suffix n k =
+  let module Task = Console.Task in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let task = Task.start root "bounded" in
+  let length = 4070 + (k mod 26) and count = 260 + (n mod 40) in
+  let lines =
+    List.init count (fun i ->
+        Fmt.str "%04d|%s" i (String.make (length - 5) 'x'))
+  in
+  List.iter (Task.log task) lines;
+  let kept = min count (1048576 / (length + 1)) in
+  check_eq ~pp:Fmt.int (count - kept) (Task.dropped task);
+  let expected = List.filteri (fun i _ -> i >= count - kept) lines in
+  check_eq ~pp:Fmt.(Dump.list Dump.string) expected (Task.output task);
+  check
+    (List.fold_left
+       (fun n line -> n + String.length line + 1)
+       0 (Task.output task)
+    <= 1048576);
+  Task.fail task;
+  Task.log task "after the end";
+  check_eq ~pp:Fmt.(Dump.list Dump.string) expected (Task.output task)
+
 let suite =
   ( "progress",
     [
+      test_case "bounded task output is the ordered suffix counted by dropped"
+        [ uint8; uint8 ] test_output_suffix;
       test_case "root endings give each task and the work exactly one end"
         [ uint8; uint8 ] test_task_endings;
       test_case "retained labels and messages cut between characters at 4 KiB"
