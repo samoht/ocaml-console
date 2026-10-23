@@ -317,7 +317,7 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ppf root =
         | None -> (show `Plain ppf, [], ignore))
     | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
   in
-  let std = ppf == Fmt.stdout || ppf == Fmt.stderr in
+  let std = Option.is_some (descriptor ppf) in
   match progress with
   | (`Auto | `Tty) when recorded ->
       live ~size:Recording.size
