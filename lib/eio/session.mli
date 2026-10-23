@@ -16,7 +16,7 @@ val find : unit -> Console.Task.t option
 
 val display : unit -> Console.Display.t option
 (** [display ()] is the display of the run of the calling fiber, if any and it
-    does not close yet. *)
+    does not close yet. It is [None] outside Eio. *)
 
 val given : Console.Task.t -> Console.Task.t
 (** [given root] is the task a run inside another is given: the task of [root]'s

@@ -43,6 +43,7 @@ let display () =
   match (Eio.Fiber.get current, Atomic.get shared) with
   | Some r, Some s when r == s.run && not s.closing -> Some r.display
   | _ -> None
+  | exception Effect.Unhandled _ -> None
 
 (* The task a run inside another is given: the one current where it is
    called, or the root. *)
