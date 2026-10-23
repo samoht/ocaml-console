@@ -462,6 +462,48 @@ let test_gap () =
     (Invalid_argument "Console.Table.view: negative gap") (fun () ->
       ignore (Table.view ~gap:(-1) cols rows))
 
+(* A column of a given width is that wide at its natural size, whatever its
+   cells, and narrows as a column as wide as its cells would. *)
+let test_column_width () =
+  let lines t = String.split_on_char '\n' (View.to_string t) in
+  Alcotest.(check (list string))
+    "its width"
+    [ "Name    Session"; "Acme    up" ]
+    (lines
+       (Table.view ~border:Border.none
+          [
+            Table.column ~width:6 (View.text "Name");
+            Table.column (View.text "Session");
+          ]
+          [ [ View.text "Acme"; View.text "up" ] ]));
+  Alcotest.(check (list string))
+    "a wider cell wraps"
+    [ "Name  S"; "Acme  up"; "Corp" ]
+    (lines
+       (Table.view ~border:Border.none
+          [
+            Table.column ~width:4 (View.text "Name");
+            Table.column (View.text "S");
+          ]
+          [ [ View.text "Acme Corp"; View.text "up" ] ]));
+  let cols =
+    [
+      Table.column ~shrinkable:false (View.text "Company");
+      Table.column ~width:26 (View.text "Session");
+    ]
+  in
+  let row = [ View.text "Acme Corporation"; View.text "open 09:30 to 16:00" ] in
+  let narrow =
+    View.to_string
+      (View.sized ~width:30 (Table.view ~border:Border.none cols [ row ]))
+  in
+  Alcotest.(check bool)
+    "it narrows before a column that does not" true
+    (contains "Acme Corporation" narrow);
+  Alcotest.check_raises "a negative width"
+    (Invalid_argument "Console.Table.column: negative width") (fun () ->
+      ignore (Table.column ~width:(-1) (View.text "A")))
+
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
   let t =
@@ -652,6 +694,7 @@ let suite =
       Alcotest.test_case "an empty edge keeps the rest of the frame" `Quick
         test_empty_left_edge;
       Alcotest.test_case "gap" `Quick test_gap;
+      Alcotest.test_case "column width" `Quick test_column_width;
       Alcotest.test_case "a table as a span keeps its natural width" `Quick
         test_span_natural_width;
       Alcotest.test_case "rules" `Quick test_rules;

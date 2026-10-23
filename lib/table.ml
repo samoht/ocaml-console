@@ -8,6 +8,7 @@ type overflow = [ `Wrap | `Truncate ]
 type column = {
   header : View_core.t;
   align : View_core.align;
+  width : int option;
   min_width : int option;
   max_width : int option;
   overflow : overflow;
@@ -37,9 +38,10 @@ type drawn = {
   rows : cell array list;
 }
 
-let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
+let column ?(align = `Left) ?width ?min_width ?max_width ?(overflow = `Wrap)
     ?(shrinkable = true) ?(style = Style.none) header =
   let negative = function Some w -> w < 0 | None -> false in
+  if negative width then invalid_arg "Console.Table.column: negative width";
   if negative min_width then
     invalid_arg "Console.Table.column: negative min_width";
   if negative max_width then
@@ -48,7 +50,7 @@ let column ?(align = `Left) ?min_width ?max_width ?(overflow = `Wrap)
   | Some min, Some max when min > max ->
       invalid_arg "Console.Table.column: min_width exceeds max_width"
   | _ -> ());
-  { header; align; min_width; max_width; overflow; shrinkable; style }
+  { header; align; width; min_width; max_width; overflow; shrinkable; style }
 
 let frame border =
   let c = Border.chars border in
@@ -145,6 +147,7 @@ let widths ?max_width t =
   widen word_width t words;
   Array.iteri
     (fun i col ->
+      Option.iter (fun w -> widths.(i) <- w) col.width;
       Option.iter (fun m -> widths.(i) <- max widths.(i) m) col.min_width;
       Option.iter (fun m -> widths.(i) <- min widths.(i) m) col.max_width;
       (* No column is wider than the whole table may be. *)

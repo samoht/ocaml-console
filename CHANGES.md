@@ -20,7 +20,7 @@ Initial release of `console` and `console-eio`.
 - Widgets. One constructor each, a view: `Table.view` (headers and cells
   are views, laid out at their column's width, columns that wrap or
   truncate, rules between rows with `~rules:true`, `?gap` spaces between
-  cells, a frameless
+  cells, a column of a given `?width` that narrows as the others do, a frameless
   `Border.simple`), `Tree.view` (`?guide`, `?indent`), `Panel.view`
   (`?expand`), `Rule.view`, `Bar.horizontal`, `Bar.vertical`,
   `Bar.sparkline`, `Bar.chart` and `Spinner.view`. Widgets nest: a bar or

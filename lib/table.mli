@@ -22,6 +22,7 @@ type column
 
 val column :
   ?align:View.align ->
+  ?width:int ->
   ?min_width:int ->
   ?max_width:int ->
   ?overflow:overflow ->
@@ -33,9 +34,12 @@ val column :
     under its own styles, such that:
 
     - [align] places the cells in the column (defaults to [`Left]);
-    - [min_width] and [max_width] bound its width, in cells (default to none:
-      the column is as wide as its widest cell, and narrows to one cell to fit).
-      The table goes below [min_width] only when nothing else fits;
+    - [width] is its width, in cells, at its natural size (defaults to the width
+      of its widest cell). It narrows to fit as any column does, and a cell
+      wider than it overflows;
+    - [min_width] and [max_width] bound its width, in cells (default to none: it
+      narrows to one cell to fit). The table goes below [min_width] only when
+      nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
       [`Wrap]);
     - [shrinkable] is [false] for a column that is the last to narrow (defaults
@@ -43,8 +47,8 @@ val column :
     - [style] is the style of its cells (defaults to {!Style.none}).
 
     @raise Invalid_argument
-      if [min_width] or [max_width] is negative, or [min_width] is above
-      [max_width]. *)
+      if [width], [min_width] or [max_width] is negative, or [min_width] is
+      above [max_width]. *)
 
 (** {1:tables Tables} *)
 
@@ -80,7 +84,7 @@ val view :
     - The lines of a framed table that fits are all as wide as one another.
     - The cells of a right-aligned column end in the same column.
     - A column is as wide as its widest cell, so a table whose cells change in a
-      display gives its columns a [min_width] to keep still.
+      display gives its columns a [width] to keep still.
 
     @raise Invalid_argument
       if [gap] is negative, or a row is empty or has more cells than there are
