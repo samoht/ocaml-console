@@ -53,8 +53,10 @@ val keys : t -> (Eio.Buf_read.t -> 'a) -> ('a, error) result
     The terminal is given back as it was found when [f] returns or raises, when
     its fiber is cancelled and on SIGINT or SIGTERM, and while SIGTSTP stops the
     program. The rows of a display stay on the screen while [f] runs. This is
-    [Error (`Msg _)] when the input is not a terminal or [t] is not
-    {!interactive}. *)
+    [Error `End_of_input] when [f] raises [End_of_file], as its reads do at the
+    end of the input, and [Error (`Msg _)] when the input is not a terminal,
+    when [t] is not {!interactive} or on a [Unix.Unix_error]. Any other
+    exception of [f] is raised again. *)
 
 val pp_error : error Fmt.t
 (** [pp_error] formats an error, [`End_of_input] as ["end of input"] and

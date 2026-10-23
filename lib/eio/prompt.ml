@@ -157,5 +157,7 @@ let keys t f =
         Interrupt.protect ~suspend ~restore @@ fun () ->
         raw ();
         Ok (f t.input)
-      with Unix.Unix_error (e, fn, _) ->
-        Fmt.error_msg "%s: %s" fn (Unix.error_message e))
+      with
+      | End_of_file -> Error `End_of_input
+      | Unix.Unix_error (e, fn, _) ->
+          Fmt.error_msg "%s: %s" fn (Unix.error_message e))
