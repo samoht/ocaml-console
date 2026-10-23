@@ -26,4 +26,19 @@ let test_frame frames =
       let first = Console_text.sanitize ~keep_newlines:false first in
       check (String.starts_with ~prefix:first (View.to_string v))
 
-let suite = ("spinner", [ test_case "frame" [ list bytes ] test_frame ])
+let test_spinner_room n frames =
+  match frames with
+  | [] -> ()
+  | _ ->
+      let width = 1 + (n mod 200) in
+      let v = View.sized ~width (Spinner.view ~frames ()) in
+      check (View.width v <= width)
+
+let suite =
+  ( "spinner",
+    [
+      test_case "custom spinners keep to their room"
+        [ uint8; list bytes ]
+        test_spinner_room;
+      test_case "frame" [ list bytes ] test_frame;
+    ] )
