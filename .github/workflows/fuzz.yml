@@ -2,7 +2,8 @@ name: Fuzz
 
 # Every build runs each property for 0.3 s, which keeps pull requests fast
 # and finds only what is common. Once a night the properties run for longer,
-# and AFL explores from the corpus they generate.
+# and AFL explores from the corpus they generate. The timeout of an input,
+# 120 s, guards against a hang only: no verdict depends on a machine's pace.
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -31,7 +32,7 @@ jobs:
       - run: opam pin add -n k7 "$K7_PIN"
       - run: opam install . k7 --deps-only --with-test
       - run: opam exec -- dune build ./fuzz/fuzz.exe
-      - run: ./_build/default/fuzz/fuzz.exe --budget 20
+      - run: ./_build/default/fuzz/fuzz.exe --budget 20 --timeout 120
 
   afl:
     name: AFL, 30 min

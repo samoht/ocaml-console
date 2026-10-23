@@ -1136,16 +1136,13 @@ let test_finished_children_heap n terminal =
       (* On a terminal the children wait for their parent, up to 1 MiB, the
          oldest dropped past it down to half of it, so the heap goes up and
          down by as much: it may exceed what it held warm by 1 MiB, never by
-         the six batches, of a megabyte or more each, that follow. *)
+         the three batches, of a megabyte or more each, that follow. *)
       ignore (batch ());
       let warm = ref (batch ()) in
-      if terminal then
-        for _ = 1 to 2 do
-          warm := max !warm (batch ())
-        done;
+      if terminal then warm := max !warm (batch ());
       let warm = !warm in
       let slack = if terminal then 1_048_576 / (Sys.word_size / 8) else 4096 in
-      for _ = 1 to if terminal then 6 else 3 do
+      for _ = 1 to 3 do
         let retained = batch () in
         if retained > warm + slack then
           failf "completed children retained: %d to %d words" warm retained

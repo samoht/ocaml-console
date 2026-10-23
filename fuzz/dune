@@ -39,7 +39,7 @@
   (<> %{profile} afl))
  (deps fuzz.exe)
  (action
-  (run %{exe:fuzz.exe} --budget 0.3)))
+  (run %{exe:fuzz.exe} --budget 0.3 --timeout 120)))
 
 (rule
  (alias fuzz)
@@ -80,7 +80,7 @@
  (enabled_if
   (<> %{profile} afl))
  (action
-  (run %{exe:fuzz_eio.exe} --budget 0.3)))
+  (run %{exe:fuzz_eio.exe} --budget 0.3 --timeout 120)))
 
 (rule
  (alias fuzz)
