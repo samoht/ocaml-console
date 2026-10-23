@@ -471,11 +471,56 @@ let test_place_box n k =
   Console_vte.feed terminal raw;
   check_eq ~pp:Fmt.int (width + 1) (snd (Console_vte.cursor_pos terminal))
 
+let test_crop_cells input left width =
+  let pool = [| "x"; "界"; "e\u{301}"; "👩‍💻" |] in
+  let pieces =
+    List.init
+      (min 48 (String.length input))
+      (fun i -> pool.(Char.code input.[i] mod Array.length pool))
+  in
+  let left = left mod 100 and width = width mod 40 in
+  let expected = Buffer.create 64 in
+  ignore
+    (List.fold_left
+       (fun offset glyph ->
+         let cells = View.width (View.text glyph) in
+         if offset < left && offset + cells > left then
+           Buffer.add_string expected
+             (String.make (min width (offset + cells - left)) ' ')
+         else if offset >= left && offset + cells <= left + width then
+           Buffer.add_string expected glyph;
+         offset + cells)
+       0 pieces);
+  let source =
+    View.concat
+      (List.mapi
+         (fun i glyph ->
+           let v = View.text glyph in
+           if i land 1 = 0 then View.styled Style.bold v
+           else View.link ~uri:"https://example.invalid" v)
+         pieces)
+  in
+  let cropped = View.crop ~left ~width source in
+  let raw = View.to_string ~styled:true cropped in
+  check (String.is_valid_utf_8 raw);
+  check (View.width cropped <= width);
+  check_eq ~pp:Fmt.Dump.string (Buffer.contents expected)
+    (View.to_string cropped);
+  check_eq ~pp:Fmt.Dump.string (Buffer.contents expected)
+    (Console_text.strip raw);
+  let terminal = Console_vte.v ~rows:2 ~cols:100 () in
+  Console_vte.feed terminal (raw ^ "|");
+  check_eq ~pp:Fmt.int
+    (View.width cropped + 1)
+    (snd (Console_vte.cursor_pos terminal))
+
 let suite =
   ( "view",
     [
-      test_case "placed cuts fill their box in every alignment"
-        [ uint8; uint8 ] test_place_box;
+      test_case "crop keeps exactly the complete cells in its window"
+        [ bytes; uint8; uint8 ] test_crop_cells;
+      test_case "placed cuts fill their box in every alignment" [ uint8; uint8 ]
+        test_place_box;
       test_case "weighted hcat allocates exactly the available room"
         [ uint8; uint8; uint8 ] test_weighted_room;
       test_case "nested tables panels and trees keep to their room"
