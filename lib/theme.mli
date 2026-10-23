@@ -226,7 +226,7 @@ val default : t
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
-    lines, spinner and bars, and the marks of {!dos}. Every theme is drawn so on
+    lines, rules, spinner, bars and ellipses, and the marks of {!dos}. Every theme is drawn so on
     a formatter that is not {!Fmt.utf_8}, and [ascii] on any formatter. *)
 
 val dos : t

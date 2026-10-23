@@ -242,7 +242,7 @@ let chart ?height ?scale ?style bars =
       in
       let base =
         View_core.ink (Widget.muted look)
-          (Widget.fill (max 0 total) (Widget.glyph look "─" ~ascii:"-"))
+          (Widget.fill (max 0 total) (Widget.line look "─"))
       in
       let bars =
         View_core.resolve

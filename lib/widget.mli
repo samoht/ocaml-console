@@ -22,6 +22,14 @@ val glyph : look -> string -> ascii:string -> string
 (** [glyph look g ~ascii] is [g], or [ascii] when [look] is not UTF-8 and [g] is
     not ASCII. *)
 
+val ascii_theme : look -> bool
+(** [ascii_theme look] is [true] iff [look]'s theme draws in ASCII on any
+    formatter: its bars are [`Ascii], or the lines of its frames are ASCII. *)
+
+val line : look -> string -> string
+(** [line look g] is [g], the glyph of a line, or [-] when [look] is not UTF-8
+    and [g] is not ASCII, or in an {!ascii_theme}. *)
+
 val spinner : look -> time:float -> string
 (** [spinner look ~time] is the frame of [look]'s spinner [time] seconds in, as
     {!glyph} shows it, with {!Spinner.ascii}'s frame for ASCII. *)
@@ -35,7 +43,8 @@ val bar : look -> Theme.bar
     [look] is not UTF-8. *)
 
 val ellipsis : look -> string
-(** [ellipsis look] ends a cut line: U+2026 in UTF-8, three dots in ASCII. *)
+(** [ellipsis look] ends a cut line: U+2026 in UTF-8, three dots in ASCII and in
+    an {!ascii_theme}. *)
 
 val truncate : look -> int -> View.t -> View.t
 (** [truncate look w s] is {!View.truncate}[ w s] with {!ellipsis}. *)

@@ -20,7 +20,7 @@ let space = View_core.text " "
 
 let line look t width =
   let style = Option.value t.style ~default:(Widget.muted look) in
-  let glyph = Widget.glyph look t.glyph ~ascii:"-" in
+  let glyph = Widget.line look t.glyph in
   let fill n = View_core.ink style (Widget.fill n glyph) in
   let label = Widget.truncate look width t.label in
   let available = width - View_core.width label in
