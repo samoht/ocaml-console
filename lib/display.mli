@@ -58,7 +58,10 @@
       xterm or GNU screen, a narrowing below the width of the old lines also
       erases the lines above the region that a reflow would have filled.
     - The cursor is hidden while the display runs, and shown again when it
-      closes.
+      closes. A display installs no signal handler, so a program interrupted
+      before it closes its display leaves the cursor hidden: [Console_eio.run]
+      closes its display on SIGINT and SIGTERM, and a program that runs a
+      display itself closes it from its own handler.
     - Every line the display prints ends with ["\r\n"], so a tty with output
       processing off shows the same screen as one with it on.
     - The display is drawn in its formatter's theme ({!Theme.get}), read again
