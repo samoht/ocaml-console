@@ -20,3 +20,7 @@ let progress (t : t) : progress =
   | Spin -> `Spin
   | Count (c, n) -> `Items (c, n)
   | Bytes (c, n) -> `Bytes (c, n)
+
+let output t =
+  List.rev
+    (Queue.fold (fun acc (l : Task_core.line) -> l.text :: acc) [] (output t))

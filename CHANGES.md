@@ -54,7 +54,8 @@ Initial release of `console` and `console-eio`.
   saying why, when it raises), each with a label, a count of items or bytes
   (`Task.set_items`, `Task.set_bytes`, whose rate weighs the past by time,
   not by the number of reports), lines of output (`Task.log`, and its
-  `Logs` messages and standard output under `Console_eio.run`) and an end
+  `Logs` messages and standard output under `Console_eio.run`, read back
+  with `Task.output`, the latest 1 MiB, and `Task.dropped`) and an end
   (`Task.succeed`, `fail`, `cancel`). Ending the root says how the work
   ended, with a message, and ends every task under it, also one started
   afterwards. `Task.within` makes a task current, which decides only where

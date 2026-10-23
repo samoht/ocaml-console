@@ -173,6 +173,18 @@ val message : t -> string option
 val elapsed : t -> float
 (** [elapsed t] is the seconds [t] ran for, or has run for so far. *)
 
+val output : t -> string list
+(** [output t] is the lines of output [t] keeps, oldest first, each as {!log}
+    keeps it, the latest within 1 MiB. A task that failed or was cancelled keeps
+    them until {!Progress} printed it: as its top task moves to the scrollback,
+    or as it ends without a terminal ({!Progress.design}). A task that succeeded
+    keeps none, and the root has none ({!log}). The last [log_lines] of them
+    ({!start}) are those its row shows. *)
+
+val dropped : t -> int
+(** [dropped t] is the number of [t]'s oldest lines that {!output} no longer
+    holds, to keep it within 1 MiB. *)
+
 val pp : t Fmt.t
 (** [pp] formats a task for diagnostics, in an unspecified format. *)
 

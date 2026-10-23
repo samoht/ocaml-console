@@ -1151,6 +1151,38 @@ let test_children () =
   Alcotest.(check int) "none under b" 0 (List.length (Task.children b));
   close t
 
+(* [output] is the lines a task keeps, oldest first, and [dropped] counts
+   the oldest it let go past 1 MiB; a task that succeeded keeps none, and
+   the root has none. *)
+let test_output () =
+  let t = terminal ~theme ~width:40 ~height:10 () in
+  let top = Task.start t.root "top" in
+  let job = Task.start top "job" in
+  Task.log job "one\ntwo";
+  check_lines "its lines" [ "one"; "two" ] (Task.output job);
+  Alcotest.(check int) "none dropped" 0 (Task.dropped job);
+  let big = String.make 1023 'x' in
+  for _ = 1 to 1100 do
+    Task.log job big
+  done;
+  let kept = Task.output job in
+  Alcotest.(check int)
+    "the oldest dropped" 1102
+    (List.length kept + Task.dropped job);
+  Alcotest.(check bool) "the latest kept" true (List.hd kept = big);
+  Task.fail job;
+  Alcotest.(check int)
+    "a failure keeps its lines" (List.length kept)
+    (List.length (Task.output job));
+  let ok = Task.start top "ok" in
+  Task.log ok "done";
+  Task.succeed ok;
+  check_lines "a success keeps none" [] (Task.output ok);
+  Task.log t.root "above";
+  check_lines "the root has none" [] (Task.output t.root);
+  Task.succeed top;
+  close t
+
 (* A task whose count follows a list. *)
 let test_iter () =
   let seen = ref [] in
@@ -2544,6 +2576,7 @@ let suite =
       Alcotest.test_case "two tasks" `Quick test_two_tasks;
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "children" `Quick test_children;
+      Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;
