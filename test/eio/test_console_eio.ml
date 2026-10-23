@@ -737,11 +737,33 @@ let test_cast_without_deterministic () =
   Alcotest.(check bool)
     "recording sleeps without advancing the real clock" true !slept
 
+(* The lines of a recording of [f]'s run. *)
+let recorded f =
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env [ ("CONSOLE_CAST", file); ("CONSOLE_DETERMINISTIC_CLOCK", "1") ]
+  @@ fun () ->
+  Eio_main.run (fun _ ->
+      let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+      let _, ppf = buffer () in
+      Console_eio.run ~clock ~ppf (fun _ -> Console_eio.with_output f));
+  In_channel.with_open_bin file In_channel.input_lines
+
+let test_cast_utf_8 () =
+  let lines = recorded (fun ppf -> Fmt.pf ppf "bad \xff byte\n%!") in
+  List.iter
+    (fun l ->
+      Alcotest.(check bool)
+        ("valid UTF-8: " ^ String.escaped l)
+        true (String.is_valid_utf_8 l))
+    lines
+
 let suite =
   ( "console_eio",
     [
       Alcotest.test_case "recording alone makes sleeps virtual" `Quick
         test_cast_without_deterministic;
+      Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
