@@ -14,19 +14,22 @@ type align = [ `Left | `Center | `Right ]
 
 (** {1:room Room and moment} *)
 
-type kind = { live : bool; timed : bool }
+type kind = { live : bool; tasks : bool; timed : bool }
 (** The type for what a deferred view reads besides its room: state outside the
-    view, which changes between frames, and the time. A view that reads neither
-    caches its layout for its room. *)
+    view, which changes between frames, the tasks among it, and the time. A view
+    that reads none caches its layout for its room. *)
 
 val static : kind
-(** [static] reads neither. *)
+(** [static] reads none. *)
 
 val timed : kind
 (** [timed] reads the time alone. *)
 
+val tasks : kind
+(** [tasks] reads the tasks and the time, and no other state. *)
+
 val moving : kind
-(** [moving] reads both. *)
+(** [moving] reads any state and the time. *)
 
 val join : kind -> kind -> kind
 (** [join k0 k1] reads what [k0] or [k1] reads. *)

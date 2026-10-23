@@ -30,6 +30,11 @@ type t
 val pieces : t -> piece list
 (** [pieces l] are the pieces of [l], left to right. *)
 
+val reads : t -> Look.t -> View_core.kind
+(** [reads l look] is what a row that [l] draws in [look] reads: the tasks and
+    the time, and any state with a {!constructor-Custom} piece or a
+    {!constructor-Const} view that reads it. *)
+
 val spinner : t
 val label : t
 val bar : ?width:int -> unit -> t

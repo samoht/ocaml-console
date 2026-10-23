@@ -25,10 +25,11 @@ val at :
     (defaults to [true]), live iff [live] (defaults to [true]), in a room
     [width] wide if given. *)
 
-val laid : ?live:bool -> unit -> View.t * int ref
+val laid : ?live:bool -> ?tasks:bool -> unit -> View.t * int ref
 (** [laid ()] is a view as wide as its room, three cells at its natural size,
-    which reads state outside the view iff [live] (defaults to [false]), and the
-    count of the times it was laid out. *)
+    which reads state outside the view iff [live] (defaults to [false]), the
+    tasks iff [tasks] (defaults to [false]), and the count of the times it was
+    laid out. *)
 
 val contains : string -> string -> bool
 (** [contains affix s] is [true] iff [affix] occurs in [s]. *)

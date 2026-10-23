@@ -44,9 +44,13 @@
       shown half erased or half drawn, and only its rows change between two of
       its frames. On a pipe no such escape is written.
     - A redraw that would change nothing writes nothing, and one where nothing
-      the view reads changed computes nothing: a view that does not read the
-      time ({!View.fit}) is drawn again only when it is set, when something is
-      printed above it or when the terminal's size changes.
+      the view reads changed computes nothing. A view that reads neither the
+      time ({!Room.time}) nor the program's state is drawn again only when it is
+      set, when something is printed above it or when the terminal's size
+      changes, and one that reads the time also when its moment moves. A view of
+      the program's state ({!View.fit}), the tasks included, is drawn again at
+      every redraw, unless the display is told of each change to it: the display
+      of {!Progress.show} is told of each change to its tasks.
     - A line cut to fit is cut between two characters, never inside an escape
       code, and it ends with an ellipsis that turns its style off.
     - After a resize the old frame is erased, counting the rows that a terminal

@@ -5,7 +5,8 @@
 
 (* What a frame depends on: the changes it was told of, the half tenth of a
    second when the view reads the time (a spinner turns at each tenth, a
-   time rounded to the tenth at each half), and the terminal's size. *)
+   time rounded to the tenth at each half), and the terminal's size. A view
+   that reads state the display is not told of depends on more. *)
 type stamp = {
   mutable changes : int;
   mutable tick : int;
@@ -28,6 +29,7 @@ type t = {
   mutable frame_widths : int array;
   mutable painted_at : float;
   mutable changes : int;
+  mutable told : bool;
   painted : stamp;
   buf : Buffer.t;
   mutable closed : bool;
@@ -307,7 +309,7 @@ let draw buf t ~resized spans =
 (* A redraw with all that the frame depends on as it was draws nothing,
    computes nothing and allocates nothing. The look is read again from the
    formatter once a slot was set, such as its theme. *)
-let tick t =
+let reads t =
   let look =
     match t.looks with
     | Some (_, moving) when t.looked = Slot.generation () -> moving
@@ -315,19 +317,22 @@ let tick t =
         t.looked <- Slot.generation ();
         look ~live:true t
   in
-  if (View_core.kind t.view look).timed then int_of_float (since_start t *. 20.)
-  else 0
+  View_core.kind t.view look
 
-(* The tick first: reading the look again may count a change. *)
+let tick t (k : View_core.kind) =
+  if k.timed then int_of_float (since_start t *. 20.) else 0
+
+(* What the view reads first: reading the look again may count a change. *)
 let stale t =
-  let tick = tick t and p = t.painted in
-  p.changes <> t.changes || p.tick <> tick || p.width <> t.width
-  || p.height <> t.height
+  let k = reads t in
+  let tick = tick t k and p = t.painted in
+  k.live || (k.tasks && not t.told) || p.changes <> t.changes || p.tick <> tick
+  || p.width <> t.width || p.height <> t.height
 
 let mark t =
   let p = t.painted in
   p.changes <- t.changes;
-  p.tick <- tick t;
+  p.tick <- tick t (reads t);
   p.width <- t.width;
   p.height <- t.height;
   t.painted_at <- t.now ()
@@ -474,6 +479,7 @@ let v ?size ?(write_error = fun _ -> false) ~now ppf view =
       frame_widths = [||];
       painted_at = neg_infinity;
       changes = 0;
+      told = false;
       painted = { changes = -1; tick = -1; width = -1; height = -1 };
       buf = Buffer.create 4096;
       closed = false;
@@ -596,6 +602,7 @@ let close t =
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines
 
+let told t = t.told <- true
 let closed t = t.closed
 let width t = t.width
 let set_fallback t v = t.fallback <- v

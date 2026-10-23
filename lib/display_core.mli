@@ -33,6 +33,11 @@ val touch : t -> unit
 (** [touch d] says that what the view shows changed: it is drawn again, at most
     ten times a second. *)
 
+val told : t -> unit
+(** [told d] says that [d] is told of every change to the tasks its view reads
+    ({!touch}): a redraw draws a view that reads the tasks and no other state
+    only after a change or as the time moves. *)
+
 val write : t -> string -> unit
 (** [write d s] writes [s] as it is, in turn with what [d] writes. *)
 

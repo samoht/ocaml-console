@@ -7,11 +7,11 @@ module Layout = Progress_layout
 module V = View_core
 open Task_core
 
-let live _ = V.moving
+let tasks _ = V.tasks
 let lines vs = V.concat ~sep:(V.text "\n") vs
 
 let row ?(layout = Layout.default) r =
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:(Layout.reads layout) (fun c ->
       let look = Ctx.look c and width = Ctx.width c in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width layout r
@@ -20,20 +20,20 @@ let row ?(layout = Layout.default) r =
 let tree ?(layout = Layout.default) r = Progress_tree.view ~layout r
 
 let summary root =
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:tasks (fun c ->
       Option.value ~default:V.empty
         (Progress_row.summary (Ctx.look c) ?width:(Ctx.width c) (root_of root)))
 
 let verdict root =
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:tasks (fun c ->
       lines
         (Progress_row.verdict (Ctx.look c) ?width:(Ctx.width c) (root_of root)))
 
 (* On a wide terminal, a count or a timer at the right edge is far from its
    label: the rows keep to 100 columns. *)
-let view ?layout root =
+let view ?(layout = Layout.default) root =
   let root = root_of root in
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:(Layout.reads layout) (fun c ->
       let width = Option.map (min 100) (Ctx.width c) in
       let look = Ctx.look c in
       let below =
@@ -44,7 +44,7 @@ let view ?layout root =
       let tree =
         match height with
         | Some h when h <= 0 -> V.empty
-        | _ -> V.resolve (Ctx.with_room ~width ~height c) (tree ?layout root)
+        | _ -> V.resolve (Ctx.with_room ~width ~height c) (tree ~layout root)
       in
       V.vcat (tree :: below))
 
@@ -163,6 +163,7 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
   let d =
     Display_core.v ?size ?write_error ~now:(Work.now (work root)) ppf shown
   in
+  Display_core.told d;
   Display_core.set_fallback d default;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
   (match form with

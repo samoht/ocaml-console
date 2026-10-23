@@ -727,23 +727,32 @@ end
 
    A view is either flat, its atoms known, or deferred: laid out in the room
    and at the moment it is printed in. A deferred part says what it reads
-   besides its room: the time, and state outside the view. One that reads
-   neither caches its layout for its room; one that reads the time but no
-   state caches its still size, which every frame of it takes. *)
+   besides its room: the time, the tasks, and other state outside the view.
+   One that reads none caches its layout for its room; one that reads the
+   time but no state caches its still size, which every frame of it takes. *)
 
-type kind = { live : bool; timed : bool }
+type kind = { live : bool; tasks : bool; timed : bool }
 
-let static = { live = false; timed = false }
-let timed = { live = false; timed = true }
-let live = { live = true; timed = false }
-let moving = { live = true; timed = true }
+let static = { live = false; tasks = false; timed = false }
+let timed = { static with timed = true }
+let tasks = { static with tasks = true; timed = true }
+let moving = { static with live = true; timed = true }
 
+(* One of the two when it reads all the other does, as most do, so that a
+   frame that asks what its view reads allocates nothing. *)
 let join a b =
-  match (a.live || b.live, a.timed || b.timed) with
-  | false, false -> static
-  | false, true -> timed
-  | true, false -> live
-  | true, true -> moving
+  let covers a b =
+    (a.live || not b.live) && (a.tasks || not b.tasks)
+    && (a.timed || not b.timed)
+  in
+  if covers a b then a
+  else if covers b a then b
+  else
+    {
+      live = a.live || b.live;
+      tasks = a.tasks || b.tasks;
+      timed = a.timed || b.timed;
+    }
 
 type t = Flat of F.t | Deferred of node
 
@@ -785,7 +794,8 @@ let rec flat_in c = function
   | Flat f -> f
   | Deferred d ->
       let k = d.kind (Ctx.look c) in
-      if (not k.live) && not k.timed then (
+      let stateful = k.live || k.tasks in
+      if (not stateful) && not k.timed then (
         match d.memo with
         | Some (c', f) when Ctx.same_room c c' -> f
         | _ ->
@@ -798,13 +808,13 @@ let rec flat_in c = function
         else
           let widths =
             match d.size with
-            | Some (c', w) when (not k.live) && Ctx.same_room c c' -> w
+            | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
             | _ ->
                 let w =
                   if Ctx.time c = 0. then line_widths f
                   else line_widths (flat_in (Ctx.still c) (d.lay (Ctx.still c)))
                 in
-                if not k.live then d.size <- Some (c, w);
+                if not stateful then d.size <- Some (c, w);
                 w
           in
           if F.is_empty f && widths = [] then f else to_size widths f

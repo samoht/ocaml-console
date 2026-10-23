@@ -20,6 +20,27 @@ type piece = { kind : kind; stage : int option }
 type t = piece list
 
 let pieces t = t
+
+let rec reads_in look k = function
+  | [] -> k
+  | { kind = Custom _; _ } :: rest ->
+      reads_in look (View_core.join k View_core.moving) rest
+  | { kind = Const v; _ } :: rest ->
+      reads_in look (View_core.join k (View_core.kind v look)) rest
+  | _ :: rest -> reads_in look k rest
+
+(* A frame asks what its view reads: a layout whose pieces read nothing but
+   the tasks, the default one, answers at once. *)
+let reads t =
+  let own p =
+    match p.kind with
+    | Custom _ -> true
+    | Const v -> not (View_core.is_flat v)
+    | _ -> false
+  in
+  if List.exists own t then fun look -> reads_in look View_core.tasks t
+  else fun _ -> View_core.tasks
+
 let one ?stage kind = [ { kind; stage } ]
 
 (* What gives way, and when: the rate and the time left first, then the

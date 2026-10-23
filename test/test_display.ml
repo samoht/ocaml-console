@@ -2067,16 +2067,17 @@ let test_kept_rows () =
           Buffer.clear buf)
     in
     Fmt.set_utf_8 ppf true;
-    let view = Progress.view ~layout root in
-    (vte, Display.v ~size:(fun () -> (60, 16)) ~now ppf view, view)
+    ( vte,
+      Display.v ~size:(fun () -> (60, 16)) ~now ppf (Progress.view ~layout root)
+    )
   in
-  let kept_vte, kept, kept_view = screen Progress.Layout.default in
-  let fresh_vte, fresh, fresh_view =
+  let kept_vte, kept = screen Progress.Layout.default in
+  let fresh_vte, fresh =
     screen Progress.Layout.(default ++ custom (fun _ -> View.empty))
   in
   let check step =
-    Display.set_view kept kept_view;
-    Display.set_view fresh fresh_view;
+    Display.redraw kept;
+    Display.redraw fresh;
     Alcotest.(check (list string))
       step
       (Console_vte.screen fresh_vte)
@@ -2107,11 +2108,79 @@ let test_kept_rows () =
   Display.close kept;
   Display.close fresh
 
+(* A display opened on its own is told of no change: at each redraw it draws
+   again a view that reads the tasks or the program's state, the clock
+   standing still, and lays out once a view that reads neither. *)
+let test_redraw_reads_state () =
+  let now () = 0. in
+  let root = Task.root ~label:"build" ~now () in
+  let vte = Console_vte.v ~rows:8 ~cols:40 () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        Console_vte.feed vte (Buffer.contents buf);
+        Buffer.clear buf)
+  in
+  let jobs = ref [] in
+  let status = View.fit (fun _ -> View.text (String.concat "," !jobs)) in
+  let still, calls = laid () in
+  let d =
+    Display.v
+      ~size:(fun () -> (40, 8))
+      ~now ppf
+      (View.vcat [ still; status; Progress.view root ])
+  in
+  let shows step affix =
+    Display.redraw d;
+    Alcotest.(check bool)
+      step true
+      (List.exists (contains affix) (Console_vte.screen vte))
+  in
+  let a = Task.start root "fetch" in
+  shows "a task started" "fetch";
+  Task.set_items a ~count:3 ~total:4;
+  shows "its count" "3/4";
+  jobs := [ "linux"; "macos" ];
+  shows "the program's state" "linux,macos";
+  Alcotest.(check int) "the still view laid out once" 1 !calls;
+  Display.close d
+
+(* The display of a root's tasks is told of each change to them: a redraw
+   with no change lays out no view of the tasks, while a view that reads the
+   program's state is laid out at each. *)
+let test_redraw_told () =
+  let t = terminal () in
+  let rows, calls = laid ~tasks:true () in
+  Display.set_view t.display (View.vcat [ rows; Progress.view t.root ]);
+  let a = Task.start t.root "a" in
+  Display.redraw t.display;
+  let laid_out = !calls in
+  Display.redraw t.display;
+  Display.redraw t.display;
+  Alcotest.(check int) "not laid out again" laid_out !calls;
+  Task.set_items a ~count:1 ~total:2;
+  Display.redraw t.display;
+  Alcotest.(check int) "laid out once changed" (laid_out + 1) !calls;
+  Alcotest.(check bool)
+    "the count shows" true
+    (List.exists (contains "1/2") (screen t));
+  let state, calls = laid ~live:true () in
+  Display.set_view t.display (View.vcat [ state; Progress.view t.root ]);
+  let laid_out = !calls in
+  Display.redraw t.display;
+  Display.redraw t.display;
+  Alcotest.(check int) "the state laid out at each" (laid_out + 2) !calls;
+  close t
+
 let suite =
   ( "display",
     [
       Alcotest.test_case "kept rows are the rows laid out afresh" `Quick
         test_kept_rows;
+      Alcotest.test_case "a redraw draws what the view reads" `Quick
+        test_redraw_reads_state;
+      Alcotest.test_case "a display told of changes draws on change" `Quick
+        test_redraw_told;
       Alcotest.test_case "the rate weighs time, not reports" `Quick
         test_rate_time_weighted;
       Alcotest.test_case "the time left" `Quick test_eta;

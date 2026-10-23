@@ -6,12 +6,12 @@
 open Task_core
 module V = View_core
 
-let live _ = V.moving
+let tasks _ = V.tasks
 
 (* A label drawn where the tree lays it out: in its look, at its moment, in
    the room its guides leave it. *)
 let label f =
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:tasks (fun c ->
       f (Ctx.look c) ~time:(Ctx.time c) (Ctx.width c))
 
 (* A line of the tree that is not a task's, cut to its room. *)
@@ -96,12 +96,7 @@ let same a b =
   && String.equal a.timer b.timer
   && a.form = b.form && a.cut = b.cut && Bool.equal a.top b.top
 
-let keeps layout =
-  not
-    (List.exists
-       (fun (p : Progress_layout.piece) ->
-         match p.kind with Custom _ -> true | _ -> false)
-       (Progress_layout.pieces layout))
+let keeps layout look = not (Progress_layout.reads layout look).live
 
 let key ~layout ~form ~cut ~top ~time look width r =
   let running = is_running r in
@@ -157,7 +152,7 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
     Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
   in
   let row look ~time width lay =
-    if extra <> [] || not (keeps layout) then lay ()
+    if extra <> [] || not (keeps layout look) then lay ()
     else
       let key = key ~layout ~form ~cut ~top ~time look width r in
       kept r ~kind:is_row
@@ -250,19 +245,21 @@ let rec versions acc n =
 (* A top task's tree, kept whole once every task in it ended. *)
 let top_tree ~layout ~form ~cut n =
   let tree = drawn (node ~top:true ~layout ~form ~cut n) in
-  if not (keeps layout && ended n) then tree
+  if not (ended n) then tree
   else
     let seen = versions [] n in
-    V.deferred ~kind:live (fun c ->
-        let key =
-          key ~layout ~form ~cut ~top:true ~time:0. (Ctx.look c) (Ctx.width c)
-            n.row
-        in
-        kept n.row ~kind:is_tree
-          ~find:(function
-            | Tree (k, s, v) when same k key && s = seen -> Some v | _ -> None)
-          ~make:(fun v -> Tree (key, seen, v))
-          (fun () -> V.resolve c tree))
+    V.deferred ~kind:(Progress_layout.reads layout) (fun c ->
+        if not (keeps layout (Ctx.look c)) then V.resolve c tree
+        else
+          let key =
+            key ~layout ~form ~cut ~top:true ~time:0. (Ctx.look c) (Ctx.width c)
+              n.row
+          in
+          kept n.row ~kind:is_tree
+            ~find:(function
+              | Tree (k, s, v) when same k key && s = seen -> Some v | _ -> None)
+            ~make:(fun v -> Tree (key, seen, v))
+            (fun () -> V.resolve c tree))
 
 let trees ~layout ~form ~cut r nodes =
   let heads, shown =
@@ -394,7 +391,7 @@ let whole ~layout r =
   else draw (trees ~layout ~form:Whole ~cut:(-1) r (tops shows r))
 
 let view ~layout r =
-  V.deferred ~kind:live (fun c ->
+  V.deferred ~kind:(Progress_layout.reads layout) (fun c ->
       match Ctx.height c with
       | None -> whole ~layout r
       | Some height -> region ~layout c ~height r)
