@@ -11,11 +11,11 @@ on:
 permissions:
   contents: read
 
-# k7, which the tape examples need, is not in opam-repository yet: it is
-# pinned at the commit ci.yml pins, which moves to the k7 0.9.0 tag at
-# release.
+# k7, which the examples' recordings and tapes need, is not in
+# opam-repository yet: it is pinned at the commit ci.yml pins, which moves to
+# the k7 0.9.0 tag at release.
 env:
-  K7_PIN: https://github.com/samoht/ocaml-k7.git#c55bb151687e9d5cf946b996b50d2d4e4ef97a93
+  K7_PIN: https://github.com/samoht/ocaml-k7.git#fd2340699b1f135633ff1d8c02e427186b9f6beb
 
 jobs:
   properties:
