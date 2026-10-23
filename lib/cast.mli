@@ -29,7 +29,9 @@ type event = { time : float; data : string }
 (** The type for the bytes a terminal was given at a time, in seconds. *)
 
 val event : event Jsont.t
-(** [event] maps an output event, the array [[time, "o", data]]. *)
+(** [event] maps an output event, the array [[time, "o", data]]. A byte of
+    [data] that is not part of a UTF-8 character is written as U+FFFD, so that a
+    recording is valid UTF-8. *)
 
 val to_line : 'a Jsont.t -> 'a -> string
 (** [to_line t v] is [v] on one line, ended. A time is written to the

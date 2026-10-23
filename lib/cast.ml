@@ -39,6 +39,9 @@ let field t json =
   | Ok v -> v
   | Error e -> Jsont.Error.msg Jsont.Meta.none e
 
+(* [s] with each byte that is not part of a UTF-8 character as U+FFFD. *)
+let utf_8 = Event.replaced (fun _ -> true)
+
 let event =
   let dec time code data =
     match field Jsont.string code with
@@ -48,7 +51,7 @@ let event =
   let enc e = function
     | 0 -> Jsont.Json.number (Float.round (e.time *. 1e6) /. 1e6)
     | 1 -> Jsont.Json.string "o"
-    | _ -> Jsont.Json.string e.data
+    | _ -> Jsont.Json.string (utf_8 e.data)
   in
   Jsont.t3 ~kind:"asciicast event" ~dec ~enc Jsont.json
 

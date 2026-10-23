@@ -85,15 +85,15 @@ let is_c1 u =
   let c = Uchar.to_int u in
   c >= 0x80 && c <= 0x9f
 
-(* [s] as valid UTF-8 without a C1 control: each byte that is not part of
-   a character and each C1 control is U+FFFD. *)
-let clean s =
+(* [s] as valid UTF-8 of characters that [keep]: each byte that is not part
+   of a character and each character [keep] refuses is U+FFFD. *)
+let replaced keep s =
   let rec is_clean i =
     i >= String.length s
     ||
     let d = String.get_utf_8_uchar s i in
     Uchar.utf_decode_is_valid d
-    && (not (is_c1 (Uchar.utf_decode_uchar d)))
+    && keep (Uchar.utf_decode_uchar d)
     && is_clean (i + Uchar.utf_decode_length d)
   in
   if is_clean 0 then s
@@ -104,13 +104,15 @@ let clean s =
         let d = String.get_utf_8_uchar s i in
         let u = Uchar.utf_decode_uchar d in
         Buffer.add_utf_8_uchar buf
-          (if Uchar.utf_decode_is_valid d && not (is_c1 u) then u else Uchar.rep);
+          (if Uchar.utf_decode_is_valid d && keep u then u else Uchar.rep);
         go (i + Uchar.utf_decode_length d)
       end
     in
     go 0;
     Buffer.contents buf
 
+(* [s] as valid UTF-8 without a C1 control. *)
+let clean = replaced (fun u -> not (is_c1 u))
 let utf_8 = Jsont.map Jsont.string ~dec:Fun.id ~enc:clean
 
 (* An open enumeration: the known values, then any other string. *)
