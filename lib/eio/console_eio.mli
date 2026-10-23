@@ -236,6 +236,14 @@ val with_output : (Format.formatter -> 'a) -> 'a
     display's formatter, the region off the screen. Outside a run, it is
     [f Fmt.stderr]. *)
 
+val print : Console.View.t -> unit
+(** [print v] prints [v] above the rows, in their scrollback, as
+    {!Console.Display.print} does for the display of the run of the calling
+    fiber: styled and as wide as the terminal, or whole on a pipe, where it
+    comes in turn with the lines of the tasks. With [`Json] each of its lines,
+    without escape codes, is an [output] event of no task. Outside a run, it is
+    printed on {!Fmt.stderr}, at its margin. *)
+
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
     or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time

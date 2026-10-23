@@ -373,3 +373,8 @@ let with_output f =
   match Session.display () with
   | Some d -> Console.Display.with_output d f
   | None -> f Fmt.stderr
+
+let print v =
+  match Session.display () with
+  | Some d -> Console.Display.print d v
+  | None -> Fmt.epr "%a@." Console.View.pp v

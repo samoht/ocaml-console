@@ -533,9 +533,12 @@ let print t view =
   if (not t.closed) || t.closing then begin
     ignore (refresh_size t);
     let look, c = once t in
-    match lines t ~look c view with
-    | [] -> touch t
-    | lines -> commit t (List.map fst lines)
+    match (lines t ~look c view, t.on_output) with
+    | [], _ -> touch t
+    | lines, Some on_output ->
+        on_output
+          (String.concat "" (List.map (fun (l, _) -> render t l ^ "\n") lines))
+    | lines, None -> commit t (List.map fst lines)
   end
 
 let end_line t (out : Format.formatter_out_functions) last =

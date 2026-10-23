@@ -284,7 +284,10 @@ val show :
 
     The display takes none of what the program prints on [ppf] but what
     {!Display.with_output} prints: with [`Quiet] it shows, and with [`Json] it
-    breaks the lines of events. [Console_eio.run] takes the standard outputs. *)
+    breaks the lines of events. [Console_eio.run] takes the standard outputs.
+    What {!Display.print} and {!Display.with_output} print is output of no task:
+    above the rows, in turn with the lines, and with [`Json] an [output] event
+    for each of its lines, without escape codes. *)
 
 (** {1:design Design}
 

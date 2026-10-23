@@ -386,6 +386,33 @@ let test_run_commit () =
         "the commit" true
         (contains "left by step" (Buffer.contents buf)))
 
+(* [print] writes a view above the rows, styled, at the terminal's width,
+   on a pipe in turn with the lines, and as events an output event of no
+   task. *)
+let test_run_print () =
+  let printed progress =
+    with_clock (fun clock ->
+        let buf, ppf = buffer () in
+        Fmt.set_style_renderer ppf `Ansi_tty;
+        let warning =
+          Console.View.(
+            styled (Console.Style.fg Console.Color.red) (text "warning:"))
+        in
+        Console_eio.run ~clock ~ppf ~progress (fun root ->
+            Console.Task.run root "step" (fun _ ->
+                Console_eio.print
+                  Console.View.(hcat ~gap:1 [ warning; text "careful" ])));
+        Format.pp_print_flush ppf ();
+        Buffer.contents buf)
+  in
+  let tty = printed `Tty in
+  Alcotest.(check bool) "above the rows" true (contains "careful" tty);
+  Alcotest.(check bool) "styled" true (contains "\027[31m" tty);
+  Alcotest.(check bool) "on a pipe" true (contains "careful" (printed `Plain));
+  Alcotest.(check bool)
+    "an event" true
+    (contains {|"event":"output","text":"warning: careful"|} (printed `Json))
+
 let test_nested_run_reuses_the_display () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -876,6 +903,7 @@ let suite =
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;
+      Alcotest.test_case "print" `Quick test_run_print;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
       Alcotest.test_case "a display in another domain is refused" `Quick

@@ -98,8 +98,9 @@ Initial release of `console` and `console-eio`.
   on its terminal, and gives the terminal back when `f` returns or raises,
   when its fiber is cancelled, at exit and on SIGINT or SIGTERM. A `run`
   inside another, or in a fiber beside it, gets the task current where it
-  is called. `Console_eio.with_output` prints what console does not see
-  above the rows. `Console_eio.Prompt` asks a line, a yes or no, or a
+  is called. `Console_eio.print` prints a view above the rows,
+  styled and as wide as the terminal, and `Console_eio.with_output` what
+  console does not see. `Console_eio.Prompt` asks a line, a yes or no, or a
   password, taking the rows off the screen while it asks, and tells the end
   of the input (`` `End_of_input ``) from its other errors.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
