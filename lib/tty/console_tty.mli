@@ -45,10 +45,10 @@ val setup :
     - The theme is [theme] if given, as [Cmdliner.Arg.enum Console.Theme.all]
       reads a [--theme] option. Otherwise each output keeps its own.
 
-    Under [CONSOLE_DETERMINISTIC_CLOCK], [CONSOLE_CAST] set to a file name makes
-    [setup] record both outputs there, as [Console_eio.run] does, so that a
-    program that prints without a run is recorded too: each write is at time
-    zero, until a run gives the recording its clock. *)
+    [CONSOLE_CAST], set to a file name, makes [setup] record both outputs there,
+    as [Console_eio.run] does, so that a program that prints without a run is
+    recorded too: each write is at time zero, until a run gives the recording
+    its clock. *)
 
 val ensure : unit -> unit
 (** [ensure ()] is like [setup ()] ({!setup}) but leaves alone each of
