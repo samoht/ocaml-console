@@ -14,7 +14,8 @@
     [json-stdout], as JSON events, a task prints a line on standard output and
     one on standard error. With [sleeps] and a number of steps, a task's two
     fibers sleep on {!Console_eio.clock}, one of them working that many steps
-    before each sleep. *)
+    before each sleep. With [size], it prints the size of the terminal of
+    standard error. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -85,6 +86,12 @@ let () =
           Console.Task.run display "build" (fun _ ->
               Fmt.pr "from stdout@.";
               Fmt.epr "from stderr@."))
+  | [| _; "size" |] -> (
+      match Console_eio.size Fmt.stderr with
+      | Some size ->
+          let w, h = size () in
+          Fmt.pr "%dx%d@." w h
+      | None -> Fmt.pr "no terminal@.")
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do

@@ -246,6 +246,17 @@ val print : Console.View.t -> unit
     without escape codes, is an [output] event of no task. Outside a run, it is
     printed on {!Fmt.stderr}, at its margin. *)
 
+val size : Format.formatter -> (unit -> int * int) option
+(** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} and
+    that output is a terminal whose [TERM] is set and not [dumb], as {!run}
+    finds out, and [None] otherwise. [size ()] is the terminal's width and
+    height, read again at each call, which is what {!Console.Display.v} takes:
+
+    {[
+    let display ~now ppf view =
+      Console.Display.v ?size:(Console_eio.size ppf) ~now ppf view
+    ]} *)
+
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
     or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time

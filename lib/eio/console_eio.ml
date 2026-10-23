@@ -376,6 +376,9 @@ let with_output f =
   | Some d -> Console.Display.with_output d f
   | None -> f Fmt.stderr
 
+let size ppf =
+  Option.map (fun (fd, _) () -> Terminal.dimensions (Some fd)) (terminal ppf)
+
 let print v =
   match Session.display () with
   | Some d -> Console.Display.print d v

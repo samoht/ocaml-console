@@ -103,7 +103,8 @@ Initial release of `console` and `console-eio`.
   inside another, or in a fiber beside it, gets the task current where it
   is called. `Console_eio.print` prints a view above the rows,
   styled and as wide as the terminal, and `Console_eio.with_output` what
-  console does not see. `Console_eio.Prompt` asks a line, a yes or no, or a
+  console does not see, and `Console_eio.size` gives a `Display` of
+  one's own the terminal's size. `Console_eio.Prompt` asks a line, a yes or no, or a
   password, taking the rows off the screen while it asks, and tells the end
   of the input (`` `End_of_input ``) from its other errors;
   `Prompt.keys` reads keys as they are typed, unshown, and gives the
