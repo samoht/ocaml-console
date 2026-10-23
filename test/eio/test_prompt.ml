@@ -379,6 +379,13 @@ let test_keys () =
       | Error _ -> Alcotest.fail "refused on a terminal");
       Alcotest.(check bool) "given back" true (Unix.tcgetattr tty = before))
 
+let test_keys_at_end_of_input () =
+  with_pty @@ fun env tty _ ->
+  with_stdin ~stdin:tty (fun () ->
+      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      Alcotest.check string_answer "the end of the input" Ended
+        (seen (Prompt.keys t (fun _ -> raise End_of_file))))
+
 let test_pp_error () =
   Alcotest.(check string)
     "end of input" "end of input"
@@ -424,5 +431,7 @@ let suite =
       Alcotest.test_case "a prompt leaves other fibers' output to their task"
         `Quick test_prompt_leaves_other_fibers_attributed;
       Alcotest.test_case "keys" `Quick test_keys;
+      Alcotest.test_case "keys at the end of the input" `Quick
+        test_keys_at_end_of_input;
       Alcotest.test_case "an error formats" `Quick test_pp_error;
     ] )
