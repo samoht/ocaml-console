@@ -534,7 +534,17 @@ let test_cell_min_width () =
           (View.fit ~min_width:4 (fun _ -> View.text (String.make 20 'x')))));
   Alcotest.(check bool)
     "a word stays whole" false
-    (contains "Acme Corporation" (narrow (View.text (String.make 20 'x'))))
+    (contains "Acme Corporation" (narrow (View.text (String.make 20 'x'))));
+  let fit = View.fit ~min_width:4 (fun _ -> View.text (String.make 20 'x')) in
+  Alcotest.(check bool)
+    "a styled fit's min_width" true
+    (contains "Acme Corporation" (narrow (View.styled Style.bold fit)));
+  Alcotest.(check bool)
+    "a fit's min_width in a role" true
+    (contains "Acme Corporation" (narrow (View.role `Succeeded fit)));
+  Alcotest.(check bool)
+    "a sparkline in a role" true
+    (contains "Acme Corporation" (narrow (View.role `Succeeded spark)))
 
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
