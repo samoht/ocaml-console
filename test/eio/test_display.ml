@@ -10,8 +10,6 @@ open Display_harness
 
 module D = Console.Task
 
-(* Run [f] under a fresh display captured into a string, then return the
-   text. *)
 let capture ?label f =
   Eio_main.run @@ fun _env ->
   let clock = Eio_mock.Clock.Mono.make () in

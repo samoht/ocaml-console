@@ -721,9 +721,7 @@ let test_marker_counts n l h =
   | None -> check_eq ~pp:Fmt.int n tasks);
   Display.close d
 
-(* {1 Task output and Logs messages}
-
-   A model of where each line goes. Every line is a unique token; the model
+(* A model of where each line goes. Every line is a unique token; the model
    follows which task is current, what each window holds and how each task
    ends, and the properties count where each token lands. *)
 
@@ -917,8 +915,6 @@ let test_terminal_lines steps =
   check_lines ~where:"terminal"
     (List.map (fun l -> (l, expected l)) lines)
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
-
-(* {1 Views} *)
 
 let themes = Array.of_list (List.map snd Theme.all)
 let pick_theme n = themes.(n mod Array.length themes)
@@ -1440,8 +1436,6 @@ let test_default_view steps h =
           [ View.sized ?height (Progress.tree root); Progress.summary root ])
   in
   check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
-
-(* {1 Rows packed from the left} *)
 
 type pack =
   | Begin of int option * int

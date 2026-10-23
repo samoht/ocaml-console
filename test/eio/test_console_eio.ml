@@ -386,8 +386,6 @@ let test_dimensions_read_the_environment () =
   check "zero is no answer" "0" "0" (80, 24);
   check "nor is none" "" "" (80, 24)
 
-(* {1 On a terminal} *)
-
 let open_pty ~sw =
   match Eio_unix.Pty.open_pty ~sw () with
   | pty -> pty

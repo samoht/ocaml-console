@@ -5,8 +5,6 @@
 
 let lines = Alcotest.(list string)
 
-(* ---- Line accumulation, echo, submit ----------------------------------- *)
-
 let test_printable () =
   let t = Console_input.v () in
   let echo, ls = Console_input.feed t "abc" in
@@ -47,8 +45,6 @@ let test_utf8_passthrough () =
   let echo, _ = Console_input.feed t "caf\xc3\xa9" in
   Alcotest.(check string) "high bytes echoed verbatim" "caf\xc3\xa9" echo;
   Alcotest.(check string) "and stored" "caf\xc3\xa9" (Console_input.pending t)
-
-(* ---- Backspace --------------------------------------------------------- *)
 
 let test_backspace () =
   let t = Console_input.v () in
@@ -122,8 +118,6 @@ let test_masked_keeps_bytes () =
   Alcotest.(check lines)
     "backspace erases what was typed" [ "p\xff" ] (secret "p\xff\xfe\127")
 
-(* ---- Feed boundaries --------------------------------------------------- *)
-
 let test_split_across_feeds () =
   let t = Console_input.v () in
   let _, ls1 = Console_input.feed t "he" in
@@ -138,49 +132,39 @@ let test_split_crlf_across_feeds () =
   let _, ls2 = Console_input.feed t "\nb\r" in
   Alcotest.(check lines) "trailing LF swallowed" [ "b" ] ls2
 
-(* ---- Cursor movement and mid-line editing ------------------------------ *)
-
 let left = "\027[D"
 let right = "\027[C"
 
 let test_cursor_insert () =
-  (* "ab", Left (cursor before 'b'), insert 'X' -> "aXb" *)
   let t = Console_input.v () in
   let _ = Console_input.feed t ("ab" ^ left ^ "X") in
   Alcotest.(check string) "insert at the cursor" "aXb" (Console_input.pending t)
 
 let test_cursor_backspace_midline () =
-  (* "abc", Left (before 'c'), backspace deletes 'b' -> "ac" *)
   let t = Console_input.v () in
   let _ = Console_input.feed t ("abc" ^ left ^ "\127") in
   Alcotest.(check string)
     "backspace deletes before the cursor" "ac" (Console_input.pending t)
 
 let test_cursor_right_returns_to_end () =
-  (* "ab", Left then Right is back at the end, so 'X' appends -> "abX" *)
   let t = Console_input.v () in
   let _ = Console_input.feed t ("ab" ^ left ^ right ^ "X") in
   Alcotest.(check string)
     "right cancels the left" "abX" (Console_input.pending t)
 
 let test_cursor_left_clamps () =
-  (* Left past the start is a no-op; insert still goes at the front *)
   let t = Console_input.v () in
   let _ = Console_input.feed t ("ab" ^ left ^ left ^ left ^ "X") in
   Alcotest.(check string)
     "left clamps at the start" "Xab" (Console_input.pending t)
 
-(* ---- UTF-8 ------------------------------------------------------------- *)
-
 let test_utf8_backspace_whole_char () =
-  (* backspace erases the whole two-byte 'e-acute', not one byte *)
   let t = Console_input.v () in
   let echo, _ = Console_input.feed t "caf\xc3\xa9\127" in
   Alcotest.(check string) "one cell erased" "caf\xc3\xa9\b \b" echo;
   Alcotest.(check string) "whole character gone" "caf" (Console_input.pending t)
 
 let test_utf8_split_across_feeds () =
-  (* the two bytes of a character arrive in separate feeds *)
   let t = Console_input.v () in
   let _, _ = Console_input.feed t "\xc3" in
   Alcotest.(check string)
@@ -188,8 +172,6 @@ let test_utf8_split_across_feeds () =
   let _, _ = Console_input.feed t "\xa9" in
   Alcotest.(check string)
     "completed once its bytes arrive" "\xc3\xa9" (Console_input.pending t)
-
-(* ---- Wide characters ---------------------------------------------------- *)
 
 (* A character two cells wide drives the cursor motion and the erase by its
    cells, not by the character count. *)
@@ -204,8 +186,6 @@ let test_wide_left_steps_two_cells () =
   in
   Alcotest.(check string)
     "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
-
-(* ---- Grapheme clusters ------------------------------------------------- *)
 
 (* The screen a terminal shows after [keys] typed in an editor, and the
    line the editor holds. *)
@@ -260,8 +240,8 @@ let test_cluster_joins_after () =
   check_typed "a flag's second half before its first"
     [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
     ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x";
-  (* matrix 0.1.0's emulator draws ❤‍👩 in the one cell of ❤, where
-     console counts the two of 👩, so this reads the echo. *)
+  (* matrix 0.1.0's emulator draws U+2764 ZWJ U+1F469 in the one cell of
+     U+2764, where console counts the two of U+1F469, so this reads the echo. *)
   let t = Console_input.v () in
   ignore (Console_input.feed t ("x\u{1F469}" ^ left ^ "\u{2764}\u{200D}"));
   Alcotest.(check string)
@@ -269,8 +249,6 @@ let test_cluster_joins_after () =
     (fst (Console_input.feed t "\127"));
   Alcotest.(check string)
     "erasing the joined cluster: the line" "x" (Console_input.pending t)
-
-(* ---- History ----------------------------------------------------------- *)
 
 let up = "\027[A"
 let down = "\027[B"
@@ -329,8 +307,6 @@ let test_history_seed_and_order () =
     "oldest first, then new"
     [ "first"; "second"; "third" ]
     (Console_input.history t)
-
-(* ---- Tab completion ---------------------------------------------------- *)
 
 let test_complete_single () =
   let t = Console_input.v ~complete:(fun _ -> [ "select" ]) () in

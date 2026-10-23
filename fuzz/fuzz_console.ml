@@ -127,9 +127,7 @@ let test_vcat texts =
     (List.fold_left (fun n s -> max n (View.width s)) 0 spans)
     (View.width stacked)
 
-(* {1 Widgets put together}
-
-   Each guarantee a widget states alone, checked on widgets put together:
+(* Each guarantee a widget states alone, checked on widgets put together:
    every widget as a span in every other, a table in a panel in a cell of a
    table next to a tree, in roles, styles and gradients, printed in any
    theme, at any colour depth or none, in UTF-8 or not, at any margin, and
@@ -319,8 +317,6 @@ let rec pp = function
   | Styled (k, b) -> Style.styled (pick styles k) (pp b)
   | (Hcat _ | Vcat _) as b -> Fmt.const View.pp (nested 0 b)
 
-(* {1 Printing} *)
-
 type look = {
   theme : Theme.t;
   utf_8 : bool;
@@ -443,8 +439,6 @@ let test_printed block k m =
             (Some plain));
       if (not look.utf_8) && List.for_all is_ascii (texts block) then
         if not (is_ascii out) then failf "not ASCII: %S" out
-
-(* {1 Views} *)
 
 (* The screen a display draws with [block] as its view, in [theme] at
    [time]. *)

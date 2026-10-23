@@ -5,8 +5,6 @@
 
 open Console
 
-(* {1 Bars} *)
-
 let plain = View.to_string
 let ansi = View.to_string ~styled:true
 let red = Style.fg Color.red
@@ -177,8 +175,6 @@ let test_span_invalid () =
     (Invalid_argument "Console.Bar.horizontal: negative width") (fun () ->
       ignore (Bar.horizontal ~width:(-1) 0.5));
   ()
-
-(* {1 Vertical bars} *)
 
 let column ?(height = 1) ?theme ?utf_8 frac =
   Display_harness.at ?theme ?utf_8 ~time:0.

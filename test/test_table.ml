@@ -43,11 +43,9 @@ let test_wrap () =
         [ [ View.text "hello world this wraps" ] ])
   in
   let output = View.to_string table in
-  (* Should contain all words (wrapped to multiple lines) *)
   Alcotest.(check bool) "contains hello" true (contains "hello" output);
   Alcotest.(check bool) "contains world" true (contains "world" output);
   Alcotest.(check bool) "contains wraps" true (contains "wraps" output);
-  (* Should NOT contain ellipsis since we're wrapping, not truncating *)
   Alcotest.(check bool) "no ellipsis" false (contains "…" output)
 
 (* A URL is one selectable terminal token. When another column can wrap at

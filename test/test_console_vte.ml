@@ -111,8 +111,6 @@ let test_screen_trims_what_no_reader_sees () =
     "the row is trimmed and the blank rows dropped" [ "padded" ]
     (Console_vte.screen vte)
 
-(* {1 As xterm reads it} *)
-
 let read ?raw ?(cols = 10) writes =
   let t = Console_vte.v ?raw ~rows:3 ~cols () in
   List.iter (Console_vte.feed t) writes;

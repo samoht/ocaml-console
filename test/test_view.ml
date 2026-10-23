@@ -387,8 +387,6 @@ let test_with_role () =
     (printed ~theme:Theme.nord
        (View.role `Succeeded View.(text "a" ++ styled Style.bold (text "b"))))
 
-(* {1 Room and time} *)
-
 let pp_at margin v =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in

@@ -5,8 +5,6 @@
 
 open Alcobar
 
-(* {1 The width policy, from uuseg and uucp} *)
-
 let uchars s =
   let rec go i acc =
     if i >= String.length s then List.rev acc
@@ -124,8 +122,6 @@ let test_joins a b =
       (Width.clusters a @ Width.clusters b)
       (Width.clusters (a ^ b))
   end
-
-(* {1 The test terminal} *)
 
 (* For printable UTF-8, the width is the column a terminal's cursor reaches
    after the same bytes. *)

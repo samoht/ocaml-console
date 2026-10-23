@@ -113,8 +113,6 @@ let feed t s =
   characters 0;
   write ()
 
-(* {1 Reading the screen} *)
-
 let rstrip s =
   let n = ref (String.length s) in
   while !n > 0 && (s.[!n - 1] = ' ' || s.[!n - 1] = '\t') do
@@ -132,8 +130,6 @@ let screen ?(scrollback = false) t =
     if scrollback then Vte.scrollback_lines t.vte @ visible else visible
   in
   drop_trailing_blanks (List.map rstrip rows)
-
-(* {1 Recordings} *)
 
 (* One record's header is 24 bytes: the payload length, the wall clock the
    capture stamped it with, and which of the three kinds it is. *)

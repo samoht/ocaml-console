@@ -93,8 +93,6 @@ let test_matches_terminal () =
       "\u{FFFD}\u{302E} ok";
     ]
 
-(* {1 Real terminals} *)
-
 let utf_8 cps =
   let b = Buffer.create 16 in
   List.iter

@@ -492,8 +492,6 @@ let test_ascii_on_utf_8 () =
       ("rule", Rule.view ());
     ]
 
-(* {1 Motion} *)
-
 (* matrix's frames rain, rainbow's sweep its colours round and the themes of
    colour schemes shimmer in their main colour; the others stand still. *)
 let test_motion () =

@@ -23,8 +23,6 @@ let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
   let view = Option.map (fun f -> f root) view in
   (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
 
-(* {1 Without a terminal} *)
-
 let test_plain_lines () =
   let (), out =
     plain ~theme ~label:"Building" (fun d advance ->
@@ -201,8 +199,6 @@ let test_empty_header_pending () =
     "succeeded once closed" true
     (List.exists (contains "\xe2\x9c\x93 Building 0.0s (0/0)") (lines t))
 
-(* {1 On a terminal} *)
-
 let test_region () =
   let t = terminal ~theme ~width:40 ~label:"Build" () in
   let a = Task.start t.root "fetch" in
@@ -308,8 +304,8 @@ let test_after_a_partial_line () =
     (used first');
   check_lines "the final screen" ("Fetching" :: final) final'
 
-(* Rule 1: while a task runs, its window shows its latest lines of both
-   kinds, a line too wide cut there and only there. *)
+(* While a task runs, its window shows its latest lines of both kinds, a line
+   too wide cut there and only there. *)
 let test_window () =
   let t = terminal ~theme ~width:30 ~height:10 () in
   let wide = "wide " ^ String.make 40 'w' in
@@ -789,13 +785,10 @@ let test_synchronized () =
   let (), out = plain (fun d _ -> Task.succeed (Task.start d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
 
-(* {1 Task output and Logs messages} *)
-
 let split out = String.split_on_char '\n' out
 
-(* Rules 1 and 5: on a pipe there is no window: a task says when it starts,
-   each of its lines comes at once after its label, and it says when it
-   ends. *)
+(* On a pipe there is no window: a task says when it starts, each of its lines
+   comes at once after its label, and it says when it ends. *)
 let test_pipe_lines () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -815,8 +808,8 @@ let test_pipe_lines () =
     ]
     (split out)
 
-(* Rule 5: the start line is written when the task starts, so a task that
-   hangs leaves a trace. *)
+(* The start line is written when the task starts, so a task that hangs
+   leaves a trace. *)
 let test_pipe_start () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -1171,8 +1164,6 @@ let test_iter () =
   Alcotest.(check (list int)) "in order" [ 1; 2; 3 ] (List.rev !seen);
   check_lines "counted" [ "[-] items"; "[+] items  3/3  0.0s"; "" ] (split out)
 
-(* {1 Views} *)
-
 let steps =
   Table.view
     [
@@ -1488,8 +1479,6 @@ let test_view_exception_close () =
   Alcotest.(check bool)
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
-
-(* {1 What a user sees} *)
 
 (* On a narrow terminal the label is what tells two rows apart: it gives
    way last, after the bar, and the row still ends with its timer. *)
@@ -2170,8 +2159,6 @@ let test_elapsed_rounded () =
       (119.6, "2m00s");
       (3599.6, "1h00m");
     ]
-
-(* {1 Rates, time left, events, commits and prints} *)
 
 (* The bytes per second a rate text says, such as "724.00 KiB/s". *)
 let rate_of s =

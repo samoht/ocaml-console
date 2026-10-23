@@ -15,11 +15,8 @@ let test_public_surface () =
   exposed "Table" (module Console.Table : Surface);
   exposed "Display" (module Console.Display : Surface)
 
-(* The library's terminal-geometry contract says that malformed UTF-8 renders as
-   a replacement glyph and that terminal controls in content cannot move the
-   cursor. Every widget applies that to what it lays out. A caller printing a
-   string of its own -- a subprocess's stderr, a peer's name off the network --
-   needs the same rule over a plain string, which [sanitize] is. *)
+(* [sanitize] is the widgets' rule over a plain string: malformed UTF-8 is the
+   replacement glyph, and no control moves the cursor. *)
 let test_sanitize () =
   Alcotest.(check string)
     "a tab, a newline and an escape all become spaces" "a b c d"
@@ -41,15 +38,9 @@ let test_sanitize () =
     "\u{4E16}\u{754C} ok"
     (Console_text.sanitize "\u{4E16}\u{754C} ok")
 
-(* A caller that pages a subprocess's output wants the colours it already
-   carries and none of the rest of ANSI. ECMA-48 8.3.117 SELECT GRAPHIC
-   RENDITION is the only control sequence that cannot move the cursor, erase a
-   region or name a resource, so it is the only one a sanitizer may forward and
-   still promise what {!Console_text.sanitize} promises. Recognising it means parsing
-   it: CSI, parameter bytes, final byte 'm', and this library accepts a strict
-   subset of the parameter bytes ECMA-48 5.4 allows -- the digits and ';' -- so
-   the private forms reserved there and the ':' sub-parameter of ITU-T T.416
-   are refused rather than forwarded on a guess. *)
+(* SGR (ECMA-48 8.3.117) is the one control sequence that cannot move the
+   cursor, erase a region or name a resource, so the only one [~keep_styles]
+   forwards; its parameter bytes are the digits and ';' alone. *)
 let styles s = Console_text.strip ~keep_styles:true s
 
 (* Everything that is not a strictly-parsed SGR is removed, as
@@ -100,14 +91,10 @@ let test_keep_styles_neutralises_the_rest () =
   neutralised "a device control string carries whatever it likes"
     "\027Pq#0;2;0;0;0\027\\";
   neutralised "an escape that is not a control sequence at all" "\027(Bgone";
-  (* C1 CSI is one code point, not ESC '[', and the ruling neutralises C1. *)
   neutralised "the C1 introducer does not open an SGR" "\u{009B}31mred"
 
-(* The sanitized text cannot change the styling of what a caller prints after
-   it, which is the half of {!Console_text.sanitize}'s promise a styled variant can
-   still keep. SGR parameters apply left to right and 0 turns every attribute
-   off, so a last parameter of 0 -- or an empty one, which SGR reads as 0 --
-   already leaves the terminal in its default state and nothing is appended. *)
+(* Styled text leaves no style on after it: a sequence whose last parameter is
+   not 0, or empty, is closed. *)
 let test_keep_styles_closes_what_it_opens () =
   Alcotest.(check string)
     "an unterminated colour is closed" "\027[31mred\027[0m"
@@ -125,8 +112,6 @@ let test_keep_styles_closes_what_it_opens () =
   Alcotest.(check string)
     "and sanitizing twice changes nothing the first pass did not" (styles s)
     (styles (styles s))
-
-(* {1 Side by side} *)
 
 open Console
 
@@ -221,8 +206,6 @@ let test_vcat () =
     (lines (View.to_string panel)
     @ [ View.to_string (View.sized ~width:5 rule) ])
     (lines (View.to_string (View.vcat [ panel; View.sized ~width:5 rule ])))
-
-(* {1 Widgets as spans} *)
 
 (* [shown theme ~margin pp] is what [pp] prints on a formatter in [theme] at
    [margin], without colours. *)
@@ -341,8 +324,6 @@ let test_hcat_combining_suffix () =
   Alcotest.(check string)
     "the accent survives composition" "e\u{0301}"
     (side ~gap:0 [ text "e"; text "\u{0301}" ])
-
-(* {1 Widgets put together} *)
 
 (* [pp] at a margin of [margin], in colour iff [styled], its lines. *)
 let lines ?(styled = false) margin pp =

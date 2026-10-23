@@ -6,7 +6,7 @@
 (* TEMPORARY. Each block below works around a defect of matrix 0.1.0's
    emulator that invariant-hq/mosaic has already fixed, so that the tests
    read the screen a terminal shows. Delete this module when console moves
-   to matrix 0.2.0 (the next branch).
+   to matrix 0.2.0.
 
    The behaviour each block reproduces is matrix's, ISC License, Copyright
    (c) 2025, Thibaut Mattio. *)
