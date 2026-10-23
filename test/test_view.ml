@@ -536,6 +536,20 @@ let test_place () =
     "one line" "ab  "
     (View.to_string (View.place ~height:1 v))
 
+let test_place_wide_cut () =
+  List.iter
+    (fun (align, expected) ->
+      let placed = View.place ~align ~width:4 (View.text "界界界") in
+      let raw = View.to_string View.(placed ++ text "|") in
+      let terminal = Console_vte.v ~rows:2 ~cols:12 () in
+      Console_vte.feed terminal raw;
+      Alcotest.(check (list string))
+        "the next field starts after the four-cell box"
+        [ expected ^ "|" ]
+        (Console_vte.screen terminal);
+      Alcotest.(check int) "the box is four cells" 4 (View.width placed))
+    [ (`Left, "界… "); (`Center, "界… "); (`Right, " 界…") ]
+
 (* A cut line ends with the ellipsis of the formatter it is printed on. *)
 let test_cut_ellipsis () =
   let v = View.text "abcdefgh" in
@@ -658,6 +672,8 @@ let suite =
         test_fit_still_size;
       Alcotest.test_case "hcat shares its room" `Quick test_hcat_grow;
       Alcotest.test_case "place" `Quick test_place;
+      Alcotest.test_case "a placed wide cut fills its box" `Quick
+        test_place_wide_cut;
       Alcotest.test_case "a cut ends in the formatter's ellipsis" `Quick
         test_cut_ellipsis;
       Alcotest.test_case "a still view is laid out once a room" `Quick
