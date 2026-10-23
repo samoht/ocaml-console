@@ -459,9 +459,23 @@ let test_nested_room n h =
     (fun v -> check (View.width (View.sized ~width ~height v) <= width))
     views
 
+let test_place_box n k =
+  let width = 1 + (n mod 20) in
+  let glyph = [| "界"; "👩‍💻"; "e\u{301}"; "x" |].(k mod 4) in
+  let source = View.text (String.concat "" (List.init 24 (Fun.const glyph))) in
+  let align = [| `Left; `Center; `Right |].(k / 4 mod 3) in
+  let placed = View.place ~align ~width source in
+  check_eq ~pp:Fmt.int width (View.width placed);
+  let raw = View.to_string View.(placed ++ text "|") in
+  let terminal = Console_vte.v ~rows:2 ~cols:64 () in
+  Console_vte.feed terminal raw;
+  check_eq ~pp:Fmt.int (width + 1) (snd (Console_vte.cursor_pos terminal))
+
 let suite =
   ( "view",
     [
+      test_case "placed cuts fill their box in every alignment"
+        [ uint8; uint8 ] test_place_box;
       test_case "weighted hcat allocates exactly the available room"
         [ uint8; uint8; uint8 ] test_weighted_room;
       test_case "nested tables panels and trees keep to their room"
