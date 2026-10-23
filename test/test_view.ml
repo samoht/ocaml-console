@@ -93,6 +93,20 @@ let test_crop () =
     (Invalid_argument "Console.View.crop: negative left") (fun () ->
       ignore (View.crop ~left:(-1) (View.text "x")))
 
+let test_vcat_gap () =
+  let a = View.text "a" and b = View.text "b" in
+  Alcotest.(check string) "no gap" "a\nb" (View.to_string (View.vcat [ a; b ]));
+  Alcotest.(check string)
+    "one blank line" "a\n\nb"
+    (View.to_string (View.vcat ~gap:1 [ a; View.empty; b ]));
+  Alcotest.(check int) "its height" 4 (View.height (View.vcat ~gap:2 [ a; b ]));
+  Alcotest.(check string)
+    "nothing around one view" "a"
+    (View.to_string (View.vcat ~gap:1 [ View.empty; a ]));
+  Alcotest.check_raises "a negative gap"
+    (Invalid_argument "Console.View.vcat: negative gap") (fun () ->
+      ignore (View.vcat ~gap:(-1) [ a ]))
+
 let test_truncate_preserves_link () =
   let span = View.link ~uri:"https://example.com" (View.text "documentation") in
   let shown = View.truncate 5 span in
@@ -599,6 +613,7 @@ let suite =
         test_width_boundaries;
       Alcotest.test_case "truncate" `Quick test_truncate;
       Alcotest.test_case "crop" `Quick test_crop;
+      Alcotest.test_case "vcat gap" `Quick test_vcat_gap;
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "wrap" `Quick test_wrap;

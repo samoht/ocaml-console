@@ -413,8 +413,10 @@ module F = struct
            if i = 0 then row i
            else (if joined i then joint else text "\n") @ row i))
 
-  let vcat spans =
-    concat ~sep:(text "\n") (List.filter (fun s -> not (is_empty s)) spans)
+  let vcat ~gap spans =
+    concat
+      ~sep:(text (String.make (gap + 1) '\n'))
+      (List.filter (fun s -> not (is_empty s)) spans)
 
   let height t = if is_empty t then 0 else List.length (lines t)
   let ellipsis = "\xe2\x80\xa6"
@@ -886,7 +888,9 @@ let concat ?(sep = empty) ts =
     | sep :: ts -> F.concat ~sep ts
     | [] -> assert false)
 
-let vcat ts = lift ts F.vcat
+let vcat ?(gap = 0) ts =
+  if gap < 0 then invalid_arg "Console.View.vcat: negative gap";
+  lift ts (F.vcat ~gap)
 
 (* [room] shared by [weights], each positive, exactly: each takes the
    whole part of its quota, and the cells left go one each to the largest

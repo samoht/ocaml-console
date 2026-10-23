@@ -82,7 +82,7 @@ val gradient : ?colors:Color.t list -> t -> t
 val ( ++ ) : t -> t -> t
 val concat : ?sep:t -> t list -> t
 val hcat : ?gap:int -> t list -> t
-val vcat : t list -> t
+val vcat : ?gap:int -> t list -> t
 val fit : ?min_width:int -> ?grow:int -> (Ctx.t -> t) -> t
 val sized : ?width:int -> ?height:int -> t -> t
 val place : ?align:align -> ?width:int -> ?height:int -> t -> t

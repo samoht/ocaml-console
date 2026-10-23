@@ -111,18 +111,19 @@ val hcat : ?gap:int -> t list -> t
 
     @raise Invalid_argument if [gap] is negative. *)
 
-val vcat : t list -> t
-(** [vcat views] is
-    [concat ~sep:(text "\n") (List.filter (fun s -> height s > 0) views)]: the
-    lines of each view in turn. A view with no text, such as {!empty}, takes no
-    line, so a part left out leaves no blank line.
+val vcat : ?gap:int -> t list -> t
+(** [vcat ~gap views] is the lines of each of [views] in turn, [gap] blank lines
+    apart (defaults to [0]). A view with no text, such as {!empty}, takes no
+    line and no gap, so a part left out leaves no blank line.
 
     Each view in it is given the room [vcat] is given:
 
     {[
     let report title table =
       Console.(View.sized ~width:60 (View.vcat [ title; table ]))
-    ]} *)
+    ]}
+
+    @raise Invalid_argument if [gap] is negative. *)
 
 type align = [ `Left | `Center | `Right ]
 (** The type for the place of a view in a room wider than it: at its left edge,
