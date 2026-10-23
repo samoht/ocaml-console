@@ -826,10 +826,10 @@ let resolve c t = match t with Flat _ -> t | Deferred _ -> Flat (flat_in c t)
    time 0. *)
 let flat t = flat_in Ctx.default t
 
-let min_width = function
+let rec min_width c = function
   | Flat f -> F.widest_word f
   | Deferred { min_width = Some w; _ } -> w
-  | Deferred _ as t -> F.width (flat t)
+  | Deferred d -> min_width c (d.lay c)
 
 (* [f] of the atoms of [ts], at once if they are all known, and otherwise
    where they are printed, each in the room [room] gives. *)

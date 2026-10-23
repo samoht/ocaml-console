@@ -159,8 +159,7 @@ let table () =
       Table.column ~align:`Right ~width:7 (View.text "Last");
       Table.column ~align:`Right ~width:6 (View.text "Chg");
       Table.column ~align:`Right ~width:8 (View.text "Chg %");
-      Table.column ~width:(samples + 1) ~overflow:`Truncate
-        (View.text "Session");
+      Table.column ~width:(samples + 1) (View.text "Session");
       Table.column ~align:`Right ~width:6 (View.text "Volume");
     ]
     (List.map row stocks)

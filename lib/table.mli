@@ -41,7 +41,10 @@ val column :
       narrows to one cell to fit). The table goes below [min_width] only when
       nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
-      [`Wrap]);
+      [`Wrap]). Under [`Wrap], the column keeps the width of its widest word
+      while another column can narrow, so that a word stays whole, and a cell
+      laid out in its room keeps its {!View.fit} [min_width] instead: a
+      {!Bar.sparkline} narrows to one cell;
     - [shrinkable] is [false] for a column that is the last to narrow (defaults
       to [true]);
     - [style] is the style of its cells (defaults to {!Style.none}).

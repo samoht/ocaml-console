@@ -152,9 +152,10 @@ val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
       part that grows shares what the others leave, in the ratio of the weights,
       each part taking the whole cells of its share and the cells left going to
       the largest remainders.
-    - [min_width] (defaults to its natural width) is the width below which it
-      should not be laid out, which a {!Table} keeps for its column while
-      another column can narrow.
+    - [min_width] is the width below which it should not be laid out, which a
+      {!Table} keeps for its column while another column can narrow (defaults to
+      that of the view [f] gives at its natural size, and for text to the width
+      of its widest word).
 
     Its size must depend on its room alone, not on its time: each frame of it
     takes the cells of its frame at time [0.], each line cut or padded to them.

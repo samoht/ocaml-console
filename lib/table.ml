@@ -20,10 +20,10 @@ type column = {
    two cells and its right edge, each as wide as its widest glyph. *)
 type frame = { left : int; mid : int; right : int }
 
-(* A cell is kept as its lines at its natural size, split once, and as the
-   view it is, laid out again at the width of its column when it is not
-   flat. *)
-type cell = { view : View_core.t; lines : View_core.t list }
+(* A cell is kept as its lines at its natural size, split once, the width
+   below which it should not be laid out, and as the view it is, laid out
+   again at the width of its column when it is not flat. *)
+type cell = { view : View_core.t; lines : View_core.t list; word : int }
 
 type drawn = {
   ctx : Ctx.t;
@@ -85,10 +85,10 @@ let rendered_width t widths =
 let lines_width c =
   List.fold_left (fun n l -> max n (View_core.width l)) 0 c.lines
 
-(* The widest word of a cell: the width a column keeps while another column
-   can still give room, so that an identifier stays whole. *)
-let word_width c =
-  List.fold_left (fun n line -> max n (View_core.widest_word line)) 0 c.lines
+(* The widest word of a cell, or the width a cell laid out in its room says
+   it needs: what a column keeps while another column can still give room,
+   so that an identifier stays whole. *)
+let word_width c = c.word
 
 (* A short row's last cell spans the columns it leaves and is measured
    against none of them. *)
@@ -352,12 +352,8 @@ let view ?border ?(gap = 2) ?header_style ?(rules = false) columns rows =
       let look = Ctx.look ctx in
       let natural = Ctx.natural ctx in
       let cell view =
-        let view = View_core.resolve natural view in
-        { view; lines = View_core.lines view }
-      in
-      let cell view =
-        if View_core.is_flat view then { view; lines = View_core.lines view }
-        else { (cell view) with view }
+        let lines = View_core.lines (View_core.resolve natural view) in
+        { view; lines; word = View_core.min_width natural view }
       in
       let border = Widget.border look border in
       let header_style =

@@ -504,6 +504,38 @@ let test_column_width () =
     (Invalid_argument "Console.Table.column: negative width") (fun () ->
       ignore (Table.column ~width:(-1) (View.text "A")))
 
+(* A cell that may be laid out narrower than its widest word, such as a
+   sparkline ([View.fit ~min_width]), lets its column narrow first, also
+   when its overflow wraps. *)
+let test_cell_min_width () =
+  let spark = Bar.sparkline (List.init 20 float_of_int) in
+  let narrow session =
+    let cols =
+      [
+        Table.column ~shrinkable:false (View.text "Company");
+        Table.column ~width:20 (View.text "Session");
+      ]
+    in
+    View.to_string
+      (View.sized ~width:30
+         (Table.view ~border:Border.none cols
+            [ [ View.text "Acme Corporation"; session ] ]))
+  in
+  Alcotest.(check bool)
+    "a sparkline narrows first" true
+    (contains "Acme Corporation" (narrow spark));
+  Alcotest.(check bool)
+    "also in a fit" true
+    (contains "Acme Corporation" (narrow (View.fit (fun _ -> spark))));
+  Alcotest.(check bool)
+    "a fit's min_width" true
+    (contains "Acme Corporation"
+       (narrow
+          (View.fit ~min_width:4 (fun _ -> View.text (String.make 20 'x')))));
+  Alcotest.(check bool)
+    "a word stays whole" false
+    (contains "Acme Corporation" (narrow (View.text (String.make 20 'x'))))
+
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
   let t =
@@ -695,6 +727,7 @@ let suite =
         test_empty_left_edge;
       Alcotest.test_case "gap" `Quick test_gap;
       Alcotest.test_case "column width" `Quick test_column_width;
+      Alcotest.test_case "a cell's min_width" `Quick test_cell_min_width;
       Alcotest.test_case "a table as a span keeps its natural width" `Quick
         test_span_natural_width;
       Alcotest.test_case "rules" `Quick test_rules;

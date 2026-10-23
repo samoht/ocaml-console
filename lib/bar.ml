@@ -205,7 +205,7 @@ let sparkline ?style ?min ?max values =
   in
   let cells = List.map cell values in
   let n = List.length cells in
-  View_core.deferred (fun c ->
+  View_core.deferred ~min_width:(Int.min 1 n) (fun c ->
       match Ctx.width c with
       | Some w when w < n ->
           View_core.concat (List.drop (n - Int.max 0 w) cells)

@@ -122,7 +122,9 @@ val sparkline :
     side by side on one row in a room of any height: each filled to its value
     between [min] and [max] (default to the lowest and the highest of [values]),
     and without [min] the lowest at an eighth, so that every value shows. In a
-    room narrower than [values], it shows the last values that fit. *)
+    room narrower than [values], it shows the last values that fit, and it may
+    be laid out one cell wide ({!View.fit}'s [min_width]), so that a {!Table}
+    narrows its column as it narrows the others. *)
 
 val chart :
   ?height:int ->

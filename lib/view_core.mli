@@ -57,10 +57,10 @@ val kinds : t list -> Look.t -> kind
 val is_flat : t -> bool
 (** [is_flat v] is [true] iff [v] has no deferred part. *)
 
-val min_width : t -> int
-(** [min_width v] is the width below which [v] should not be laid out: the
-    widest word of a flat view, the hint of a deferred one, or its natural
-    width. *)
+val min_width : Ctx.t -> t -> int
+(** [min_width c v] is the width below which [v] should not be laid out in [c]:
+    the widest word of a flat view, the hint of a deferred one, or else the
+    [min_width] of the view it lays out in [c]. *)
 
 val resolve : Ctx.t -> t -> t
 (** [resolve c v] is [v] laid out in [c], with no deferred part. A part drawn in
