@@ -514,9 +514,35 @@ let test_weighted_room () =
     (fst (Console_vte.cursor_pos terminal));
   Alcotest.(check int) "all eleven cells shared" 11 (View.width (View.text raw))
 
+(* Weights share the room by their ratio, however large, and a negative
+   weight is refused. *)
+let test_weights () =
+  let part c grow =
+    View.fit ~grow (fun r ->
+        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
+  in
+  Alcotest.(check string)
+    "huge weights" "aaaaabbbbb"
+    (View.to_string
+       (View.sized ~width:10
+          (View.hcat ~gap:0 [ part 'a' max_int; part 'b' max_int ])));
+  Alcotest.(check string)
+    "the largest remainder" "aaabbbbbbb"
+    (View.to_string
+       (View.sized ~width:10 (View.hcat ~gap:0 [ part 'a' 1; part 'b' 2 ])));
+  Alcotest.(check string)
+    "the first on a tie" "aaaabbbccc"
+    (View.to_string
+       (View.sized ~width:10
+          (View.hcat ~gap:0 [ part 'a' 1; part 'b' 1; part 'c' 1 ])));
+  Alcotest.check_raises "negative grow"
+    (Invalid_argument "Console.View.fit: negative grow") (fun () ->
+      ignore (View.fit ~grow:(-1) (fun _ -> View.empty)))
+
 let suite =
   ( "view",
     [
+      Alcotest.test_case "weights share the room" `Quick test_weights;
       Alcotest.test_case "weighted hcat keeps to its room" `Quick
         test_weighted_room;
       Alcotest.test_case "zero-width truncation of blank lines is empty" `Quick
