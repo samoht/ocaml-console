@@ -477,7 +477,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   Atomic.set ending
     (Some
        (fun () ->
-         (try close_display run with Sys_error _ -> ());
+         (try close_display run with _ -> ());
          give_back ();
          restore ()));
   let s = share run in
@@ -507,7 +507,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
         end_work run.root (Error e);
-        close_display run;
+        (try close_display run with _ -> ());
         Printexc.raise_with_backtrace e bt
   in
   close_display run;

@@ -347,6 +347,30 @@ let test_run_raises () =
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
+(* A view that raises is dropped for the default one, and the run raises
+   its exception: a view that raises at every frame, and one that raises
+   only in the last, on a pipe and on a terminal. *)
+let test_run_view_raises () =
+  let always _ = Console.View.fit (fun _ -> failwith "view") in
+  let last _ =
+    Console.View.fit (fun room ->
+        match Console.Room.height room with
+        | None -> failwith "view"
+        | Some _ -> Console.View.text "rows")
+  in
+  List.iter
+    (fun (progress, view) ->
+      with_clock (fun clock ->
+          let buf, ppf = buffer () in
+          Alcotest.check_raises "raised" (Failure "view") (fun () ->
+              Console_eio.run ~clock ~ppf ~progress ~label:"work" ~view
+                (fun root -> Console.Task.run root "step" ignore));
+          Format.pp_print_flush ppf ();
+          Alcotest.(check bool)
+            "the default view" true
+            (contains "work" (Buffer.contents buf))))
+    [ (`Plain, always); (`Plain, last); (`Tty, always); (`Tty, last) ]
+
 let test_nested_run_reuses_the_display () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -835,6 +859,7 @@ let suite =
         test_cast_schedule;
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
       Alcotest.test_case "run raises" `Quick test_run_raises;
+      Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
       Alcotest.test_case "a display in another domain is refused" `Quick

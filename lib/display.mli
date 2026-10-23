@@ -76,6 +76,12 @@
     order of the two outputs; a write error on standard output belongs to the
     program, whose own writes meet it as they would without console.
 
+    A view that raises is dropped and nothing is drawn in its place. Its
+    exception is raised again by the next call to {!redraw}, {!set_view} or
+    {!close}, so that a frame drawn as a task changes or as a line is printed
+    raises in none of the program's other calls. {!close} raises it once the
+    display closed.
+
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)
 
@@ -125,8 +131,8 @@ val redraw : t -> unit
 (** [redraw d] draws the view again, at the time of the call: a view that reads
     the time ({!Room.time}) moves. [Console_eio.run] calls it ten times a
     second; a program that runs a display without it calls it a few times a
-    second. A view that raises is dropped, nothing drawn in its place, and the
-    exception raised again. *)
+    second. It raises the exception of a view that raised since the last call
+    ({!guarantees}). *)
 
 val close : t -> unit
 (** [close d] takes the region off the screen, shows the cursor and prints the

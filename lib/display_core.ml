@@ -25,7 +25,8 @@ type t = {
   mutable width : int;
   mutable height : int;
   mutable view : View_core.t;
-  mutable fallback : View_core.t;
+  fallback : View_core.t;
+  mutable failure : (exn * Printexc.raw_backtrace) option;
   mutable frame : string array;
   mutable frame_widths : int array;
   mutable painted_at : float;
@@ -196,15 +197,25 @@ let frame t =
       lines t ~look ~height c t.view
 
 (* A view that raises is dropped: what was to be written is written with
-   the fallback view, then the exception is raised again. *)
+   the fallback view, and the first exception waits for {!raise_failure}. *)
+let fail t e =
+  let bt = Printexc.get_raw_backtrace () in
+  if Option.is_none t.failure then t.failure <- Some (e, bt);
+  t.view <- t.fallback
+
+let raise_failure t =
+  match t.failure with
+  | None -> ()
+  | Some (e, bt) ->
+      t.failure <- None;
+      Printexc.raise_with_backtrace e bt
+
 let framed t k =
   match frame t with
   | spans -> k spans
   | exception e ->
-      let bt = Printexc.get_raw_backtrace () in
-      t.view <- t.fallback;
-      k (try frame t with _ -> []);
-      Printexc.raise_with_backtrace e bt
+      fail t e;
+      k (try frame t with _ -> [])
 
 let max_size = 4096
 let bounded n = min max_size (max 1 n)
@@ -225,7 +236,9 @@ let final t =
   List.map fst
     (match lines t ~look c t.view with
     | lines -> lines
-    | exception _ -> ( try lines t ~look c t.fallback with _ -> []))
+    | exception e -> (
+        fail t e;
+        try lines t ~look c t.fallback with _ -> []))
 
 let add_up buf n =
   if n > 0 then begin
@@ -453,7 +466,8 @@ let watch_lines t =
 
 let watch t out = tapped out (note_line t)
 
-let v ?size ?once_width ?(write_error = fun _ -> false) ~now ppf view =
+let v ?size ?once_width ?(write_error = fun _ -> false)
+    ?(fallback = View_core.empty) ~now ppf view =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -471,7 +485,8 @@ let v ?size ?once_width ?(write_error = fun _ -> false) ~now ppf view =
       width = 80;
       height = 24;
       view;
-      fallback = View_core.empty;
+      fallback;
+      failure = None;
       frame = [||];
       frame_widths = [||];
       painted_at = neg_infinity;
@@ -500,13 +515,16 @@ let v ?size ?once_width ?(write_error = fun _ -> false) ~now ppf view =
   else watch_lines t;
   t
 
-let redraw t = paint t
+let redraw t =
+  paint t;
+  raise_failure t
 
 let set_view t view =
   if not t.closed then begin
     t.view <- view;
     t.changes <- t.changes + 1;
-    paint t
+    paint t;
+    raise_failure t
   end
 
 (* A view printed once is laid out still, as wide as the terminal or whole
@@ -593,7 +611,8 @@ let close t =
     else begin
       write t out;
       t.release ()
-    end
+    end;
+    raise_failure t
   end
 
 let print_lines t lines =
@@ -602,6 +621,5 @@ let print_lines t lines =
 let told t = t.told <- true
 let closed t = t.closed
 let width t = t.width
-let set_fallback t v = t.fallback <- v
 let on_close t f = t.on_close <- f
 let on_output t f = t.on_output <- Some f

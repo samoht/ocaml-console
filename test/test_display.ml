@@ -1480,6 +1480,40 @@ let test_view_exception_close () =
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
 
+(* A view that raises in a frame that no call to the display asked for, the
+   first one or the last one, is dropped for the default view, the display
+   still closes, and the next redraw or the close raises its exception. *)
+let test_view_exception_later () =
+  let t =
+    terminal ~width:40 ~height:10
+      ~view:(fun _ -> View.fit (fun _ -> raise Exit))
+      ()
+  in
+  ignore (Task.start t.root "running");
+  Alcotest.check_raises "the redraw raises" Exit (fun () ->
+      Display.redraw t.display);
+  Alcotest.(check bool)
+    "the default view drawn" true
+    (List.exists (contains "running") (screen t));
+  close t;
+  let last root =
+    View.fit (fun room ->
+        match Room.height room with
+        | None -> raise Exit
+        | Some _ -> Progress.view root)
+  in
+  let t = terminal ~label:"work" ~width:40 ~height:10 ~view:last () in
+  Display.redraw t.display;
+  Alcotest.check_raises "the close raises" Exit (fun () -> close t);
+  Alcotest.(check bool)
+    "the default view printed" true
+    (List.exists (contains "work") (lines t));
+  Alcotest.(check bool)
+    "the cursor shown" true
+    (Console_vte.cursor_visible t.vte);
+  Alcotest.check_raises "on a pipe" Exit (fun () ->
+      ignore (plain ~view:last (fun _ _ -> ())))
+
 (* On a narrow terminal the label is what tells two rows apart: it gives
    way last, after the bar, and the row still ends with its timer. *)
 let test_label_before_bar () =
@@ -2445,6 +2479,8 @@ let suite =
       Alcotest.test_case "print writes at once" `Quick test_print;
       Alcotest.test_case "a view exception still allows close" `Quick
         test_view_exception_close;
+      Alcotest.test_case "a view that raises later" `Quick
+        test_view_exception_later;
       Alcotest.test_case "a view side by side" `Quick test_view_hcat;
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_view_stands_still;

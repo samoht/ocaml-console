@@ -271,8 +271,8 @@ val show :
       and whole without [size].
     - [view] (defaults to {!val-view}[ root]) is the region, redrawn in place,
       and the last frame printed when the display closes, with [`Plain] too. A
-      view that raises is dropped for the default one, and the exception is
-      raised again.
+      view that raises is dropped for the default one, and the display raises
+      its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
       ends leaves in the scrollback; [None] leaves nothing.
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the

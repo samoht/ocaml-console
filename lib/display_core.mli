@@ -13,15 +13,17 @@ val v :
   ?size:(unit -> int * int) ->
   ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
+  ?fallback:View.t ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~once_width ~write_error ~now ppf view] is {!Display.v}, which also
-    takes as the end of its output an exception that [write_error] says is a
-    write error (defaults to none but [Sys_error]). Without [size], what it
-    prints once is [once_width ()] cells wide, and whole without [once_width].
-*)
+(** [v ~size ~once_width ~write_error ~fallback ~now ppf view] is {!Display.v},
+    which also takes as the end of its output an exception that [write_error]
+    says is a write error (defaults to none but [Sys_error]), and draws
+    [fallback] (defaults to {!View.empty}) in place of a view that raises.
+    Without [size], what it prints once is [once_width ()] cells wide, and whole
+    without [once_width]. *)
 
 val set_view : t -> View.t -> unit
 val print : t -> View.t -> unit
@@ -59,9 +61,6 @@ val width : t -> int
 val look : ?live:bool -> t -> Look.t
 (** [look d] is the look [d] draws in, live iff [live] (defaults to [false]) and
     [d] draws in colour. *)
-
-val set_fallback : t -> View.t -> unit
-(** [set_fallback d v] has [d] draw [v] in place of a view that raises. *)
 
 val on_close : t -> (unit -> unit) -> unit
 (** [on_close d f] has [d] call [f] as it closes, before its last frame. *)

@@ -165,12 +165,11 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     | _ -> None
   in
   let d =
-    Display_core.v ?size:shown_size ?once_width ?write_error
+    Display_core.v ?size:shown_size ?once_width ?write_error ~fallback:default
       ~now:(Work.now (work root))
       ppf shown
   in
   Display_core.told d;
-  Display_core.set_fallback d default;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
   (match form with
   | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
