@@ -150,6 +150,7 @@ let cell look r ~time ~stage (p : Progress_layout.piece) =
          else timer look (elapsed r))
   | Const v -> Shown (if V.is_flat v then v else V.resolve (Ctx.v look) v)
   | Custom f -> Shown (V.resolve (Ctx.v ~time look) (f r))
+  | Choose _ -> Shown V.empty
 
 (* The label is cut only once the other pieces have given way, at their
    stages: by default 1 the rate, 2 the bar and the percentage, 3 the
@@ -245,7 +246,7 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
    before the pieces give way, in the order of their stages, and the label
    is cut once they all have. Without a room, nothing gives way. *)
 let laid look ~time ?width ?columns ~label layout r =
-  let layout = Progress_layout.pieces layout in
+  let layout = Progress_layout.for_task layout r in
   let has is = List.exists is layout in
   let named =
     has (fun (p : Progress_layout.piece) ->
@@ -323,7 +324,7 @@ let live look ~time ?width ?columns layout r =
     List.find_map
       (fun (p : Progress_layout.piece) ->
         match p.kind with Label s -> Some s | _ -> None)
-      (Progress_layout.pieces layout)
+      (Progress_layout.for_task layout r)
   in
   let style = Option.value style ~default:Style.bold in
   fst (laid look ~time ?width ?columns ~label:(V.ink style (label r)) layout r)

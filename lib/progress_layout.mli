@@ -19,8 +19,9 @@ type kind =
   | Spacer
   | Const of View_core.t
   | Custom of (Task_core.t -> View_core.t)
+  | Choose of (Task_core.t -> piece list)
 
-type piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; blank : bool }
 (** The type for the pieces of a row: what each shows, the stage at which it
     gives way, if it does, and whether it is blank text. *)
 
@@ -30,6 +31,12 @@ type t
 
 val pieces : t -> piece list
 (** [pieces l] are the pieces of [l], left to right. *)
+
+val for_task : t -> Task_core.t -> piece list
+(** [for_task l r] are the pieces of [l] on the row of [r], each
+    {!constructor-Choose} replaced by the pieces it chooses for [r].
+
+    @raise Invalid_argument if they hold two labels or two spacers. *)
 
 val reads : t -> Look.t -> View_core.kind
 (** [reads l look] is what a row that [l] draws in [look] reads: the tasks and
@@ -47,6 +54,7 @@ val elapsed : t
 val spacer : t
 val const : View.t -> t
 val custom : (Task_core.t -> View.t) -> t
+val choose : (Task_core.t -> t) -> t
 val give_way : int -> t -> t
 val ( ++ ) : t -> t -> t
 val list : ?sep:t -> t list -> t

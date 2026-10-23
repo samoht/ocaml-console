@@ -661,6 +661,22 @@ let test_pp_bytes () =
       Alcotest.(check string) s s (Fmt.str "%a" Progress.pp_bytes n))
     [ (512L, "512 B"); (1572864L, "1.50 MiB"); (1023L, "1023 B") ]
 
+(* [choose f] draws each running task's row by the layout [f] gives it. *)
+let test_layout_choose () =
+  let layout =
+    Progress.Layout.(
+      choose (fun task ->
+          if Task.label task = "plain" then label ()
+          else list [ const (View.text "*"); label () ]))
+  in
+  let t = terminal ~theme ~layout ~width:30 () in
+  let a = Task.start t.root "plain" and b = Task.start t.root "starred" in
+  Display.redraw t.display;
+  check_lines "a layout each" [ "plain"; "*starred" ] (screen t);
+  Task.succeed a;
+  Task.succeed b;
+  close t
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
@@ -2676,6 +2692,7 @@ let suite =
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
+      Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
       Alcotest.test_case "rate" `Quick test_rate;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;

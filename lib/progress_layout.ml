@@ -16,15 +16,17 @@ type kind =
   | Spacer
   | Const of View_core.t
   | Custom of (Task_core.t -> View_core.t)
+  | Choose of (Task_core.t -> piece list)
 
-type piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; blank : bool }
+
 type t = piece list
 
 let pieces t = t
 
 let rec reads_in look k = function
   | [] -> k
-  | { kind = Custom _; _ } :: rest ->
+  | { kind = Custom _ | Choose _; _ } :: rest ->
       reads_in look (View_core.join k View_core.moving) rest
   | { kind = Const v; _ } :: rest ->
       reads_in look (View_core.join k (View_core.kind v look)) rest
@@ -35,7 +37,7 @@ let rec reads_in look k = function
 let reads t =
   let own p =
     match p.kind with
-    | Custom _ -> true
+    | Custom _ | Choose _ -> true
     | Const v -> not (View_core.is_flat v)
     | _ -> false
   in
@@ -71,6 +73,7 @@ let elapsed = one ~stage:4 Elapsed
 let spacer = one Spacer
 let const v = one (Const v)
 let custom f = one (Custom f)
+let choose f = one (Choose f)
 
 let give_way n t =
   if n < 1 then invalid_arg "Console.Progress.Layout.give_way: stage below 1";
@@ -90,6 +93,19 @@ let checked t =
   t
 
 let ( ++ ) a b = checked (a @ b)
+
+(* A chosen layout takes the stage at which the choice gives way. *)
+let rec for_task t r =
+  checked
+    (List.concat_map
+       (fun p ->
+         match p.kind with
+         | Choose f ->
+             let chosen = for_task (f r) r in
+             if p.stage = None then chosen
+             else List.map (fun q -> { q with stage = p.stage }) chosen
+         | _ -> [ p ])
+       t)
 
 let list ?sep ts =
   let rec go = function
@@ -134,5 +150,6 @@ let pp_kind ppf = function
   | Spacer -> Fmt.string ppf "spacer"
   | Const v -> Fmt.pf ppf "const %S" (View_core.to_string v)
   | Custom _ -> Fmt.string ppf "custom"
+  | Choose _ -> Fmt.string ppf "choose"
 
 let pp = Fmt.Dump.list (fun ppf p -> pp_kind ppf p.kind)

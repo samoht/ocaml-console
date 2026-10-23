@@ -189,6 +189,13 @@ module Layout : sig
   (** [custom f] is [f task] on the row of [task], on one line, drawn again at
       every frame. *)
 
+  val choose : (Task.t -> t) -> t
+  (** [choose f] is the layout [f task] on the row of [task], chosen again at
+      every frame, so that tasks of different kinds show different pieces. A
+      label of [f task] counts towards the one label of the layout it is put in,
+      and so does a spacer: a row that would hold two raises [Invalid_argument]
+      where it is drawn ({!Display}). *)
+
   val give_way : int -> t -> t
   (** [give_way n l] is [l] whose pieces give way at stage [n] when the row is
       short of room ({!Layout}).
