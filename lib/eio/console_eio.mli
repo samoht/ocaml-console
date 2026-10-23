@@ -211,7 +211,8 @@ val run :
     one, from then until the program exits, is an
     {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2} recording
     of a terminal of [$COLUMNS] by [$LINES] (80 by 24 without them), with the
-    rows drawn by [`Auto] too, each write at its time on the clock. The
+    rows drawn by [`Auto] too, each write at its time on the clock, and each
+    line feed after a carriage return, as a terminal's driver writes it. The
     program's sleeps then take no real time, so that a recording takes none,
     while [CONSOLE_DETERMINISTIC_CLOCK] alone keeps the real pace that a
     recorder of the terminal, such as [k7 rec], films. *)

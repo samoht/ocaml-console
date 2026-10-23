@@ -15,16 +15,30 @@ type t = {
   mutable outputs : output list;
   mutable time : unit -> float;
   mutable last : float;
+  mutable cr : bool;
 }
 
 let current = ref None
 let size () = Terminal.dimensions None
+
+(* [data] as a terminal shows it: its driver puts a carriage return before
+   each line feed that has none. *)
+let shown t data =
+  let b = Buffer.create (String.length data + 16) in
+  String.iter
+    (fun c ->
+      if c = '\n' && not t.cr then Buffer.add_char b '\r';
+      Buffer.add_char b c;
+      t.cr <- c = '\r')
+    data;
+  Buffer.contents b
 
 (* The time never goes back, though the clock of a later run starts again
    at zero. *)
 let emit t data =
   let time = Float.max t.last (t.time ()) in
   t.last <- time;
+  let data = shown t data in
   output_string t.oc (Cast.to_line Cast.event { time; data });
   flush t.oc
 
@@ -75,7 +89,7 @@ let open_cast file =
   let term = match Sys.getenv_opt "TERM" with Some "" -> None | t -> t in
   output_string oc (Cast.to_line Cast.header { width; height; term });
   flush oc;
-  { file; oc; outputs = []; time = (fun () -> 0.); last = 0. }
+  { file; oc; outputs = []; time = (fun () -> 0.); last = 0.; cr = false }
 
 let start ~time ppf =
   let file = Cast.file () in

@@ -293,6 +293,30 @@ let test_cast_times () =
     "the end" 2.
     (List.nth times (List.length times - 1))
 
+(* What a run writes on [ppf] and then [text], recorded, the bytes of its
+   events. *)
+let recorded_text text =
+  let lines =
+    recording @@ fun () ->
+    Eio_main.run @@ fun _ ->
+    let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+    let _, ppf = buffer () in
+    Console_eio.run ~clock ~ppf (fun root ->
+        Console.Task.run root "nap" (fun _ -> Eio.Time.Mono.sleep clock 0.1));
+    Fmt.pf ppf "%s@?" text
+  in
+  String.concat ""
+    (List.map (fun l -> (decode Console__.Cast.event l).data) (List.tl lines))
+
+(* A line feed is recorded after a carriage return, as a terminal's driver
+   writes it, and one that has its carriage return already is left alone. *)
+let test_cast_line_feeds () =
+  let data = recorded_text "a\nb\r\nc\n" in
+  Alcotest.(check bool)
+    "each line feed after a carriage return" true
+    (contains "a\r\nb\r\nc\r\n" data);
+  Alcotest.(check bool) "no carriage return twice" false (contains "\r\r" data)
+
 (* Whatever the real schedule, a recording is the same bytes. *)
 let test_cast_schedule () =
   with_env
@@ -729,6 +753,7 @@ let suite =
         test_cast_times;
       Alcotest.test_case "a recording ignores the schedule" `Quick
         test_cast_schedule;
+      Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
