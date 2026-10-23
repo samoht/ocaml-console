@@ -29,6 +29,10 @@ let metrics =
 
 let current values = Fmt.str "%.0f%%" (List.nth values (List.length values - 1))
 
+(* The readings are percentages: every sparkline spans 0 to 100, so a disk
+   12% full is a low bar, in the colour of a low value. *)
+let sparkline values = Bar.sparkline ~min:0. ~max:100. values
+
 let readings =
   Table.view ~border:Border.none
     [
@@ -38,7 +42,7 @@ let readings =
     ]
     (List.map
        (fun (name, values) ->
-         [ View.text name; Bar.sparkline values; View.text (current values) ])
+         [ View.text name; sparkline values; View.text (current values) ])
        metrics)
 
 let main theme =
