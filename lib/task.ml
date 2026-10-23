@@ -10,6 +10,13 @@ type level = Task_core.level
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
 
+(* A transient task that succeeded leaves its place to the tasks under it. *)
+let rec children t =
+  List.concat_map
+    (fun c ->
+      if transient c && outcome c = Some `Succeeded then children c else [ c ])
+    (Task_core.children t)
+
 let root ?label ~now () = Task_core.root ?label ~now ()
 
 let start ?key ?log_lines ?transient parent label =

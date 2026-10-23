@@ -156,7 +156,9 @@ val parent : t -> t option
 
 val children : t -> t list
 (** [children t] are the tasks under [t], in the order they started: those that
-    run, and those that ended and are still shown ({!Progress}). *)
+    run, and those that ended and are still shown ({!Progress}). A transient
+    task that succeeded is not among them: the tasks under it take its place, as
+    in {!Progress.tree}. *)
 
 val path : t -> string list
 (** [path t] is the labels from the top task down to [t], [[]] for a root. *)

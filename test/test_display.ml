@@ -696,6 +696,26 @@ let test_label_column_drawn () =
   Task.succeed b;
   close t
 
+(* A transient task that succeeded leaves the tree and the children of its
+   parent, its line and all. *)
+let test_transient_child_leaves () =
+  let t = terminal ~theme ~width:60 () in
+  let parent = Task.start t.root "resolve" in
+  let child = Task.start ~transient:true parent "download" in
+  Task.set_bytes child ~count:10L ~total:10L;
+  t.advance 1.;
+  Task.succeed child;
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "no line in the region" false
+    (List.exists (contains "download") (screen t));
+  Alcotest.(check bool)
+    "no line in its parent's tree" false
+    (contains "download" (View.to_string (Progress.tree parent)));
+  Alcotest.(check int) "no child" 0 (List.length (Task.children parent));
+  Task.succeed parent;
+  close t
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
@@ -2712,6 +2732,8 @@ let suite =
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
+      Alcotest.test_case "a transient child leaves" `Quick
+        test_transient_child_leaves;
       Alcotest.test_case "the label column of drawn labels" `Quick
         test_label_column_drawn;
       Alcotest.test_case "rate" `Quick test_rate;
