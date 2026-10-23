@@ -963,23 +963,23 @@ let above top root =
       View.vcat
         [ top (Option.value (Room.width r) ~default:80); Progress.view root ])
 
-(* The rows above the summary, at each of [times] in tenths of a second.
-   A terminal of eight columns cuts the summary after its third letter. *)
+(* The rows above the summary, the last line of the view, at each of
+   [times] in tenths of a second. *)
 let view_frames theme ~width span times =
   let t = terminal ~theme ~width ~height:600 ~styled:true () in
   let d = display t in
   Display.set_view d (above (fun width -> span (min width 100)) (root t));
-  let header = String.sub header 0 3 in
   let frames =
     List.map
       (fun dt ->
         t.time := !(t.time) +. (Float.of_int dt /. 10.);
         Display.redraw d;
-        let rec above = function
-          | [] -> []
-          | r :: rs -> if has header r then [] else r :: above rs
+        let rows = screen t.vte in
+        let last =
+          List.fold_left max (-1)
+            (List.mapi (fun i r -> if r = "" then -1 else i) rows)
         in
-        above (screen t.vte))
+        List.filteri (fun i _ -> i < last) rows)
       times
   in
   Display.close d;
