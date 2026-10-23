@@ -10,7 +10,8 @@
    or, with [widgets], it prints every widget before it; or, with [themed],
    it gave standard error a theme and chose nothing else; or, with [logs] or [logs-failed], its
    task prints and logs, then succeeds or fails; or, with [suspend], it is stopped by
-   SIGTSTP, as Ctrl-Z does, and goes on once continued; or, with [unflushed], it
+   SIGTSTP, as Ctrl-Z does, and goes on once continued, or, with
+   [orphaned-suspend], in a session of its own where no stop takes effect; or, with [unflushed], it
    prints lines it never flushes; or, with [held], it prints a line outside a
    task that it does not flush, then one in a task that fails. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
@@ -156,6 +157,9 @@ let () =
   | [| _; "logs" |] -> logs ~fails:false env
   | [| _; "logs-failed" |] -> logs ~fails:true env
   | [| _; "suspend" |] -> suspend env
+  | [| _; "orphaned-suspend" |] ->
+      ignore (Unix.setsid () : int);
+      suspend env
   | [| _; "unflushed" |] -> unflushed env
   | [| _; "held" |] -> held env
   | _ -> display env

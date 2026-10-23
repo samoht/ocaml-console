@@ -672,6 +672,49 @@ let test_suspend () =
         "exit status" true
         (match status with `Exited 0 -> true | _ -> false)
 
+(* In a process group that no shell controls, a stop does not take effect:
+   the terminal is given back and the region drawn again once, and the work
+   goes on. A display that gave the terminal back again and again would
+   show the cursor without end; the reader stops it then. *)
+let test_suspend_without_stop () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  let child =
+    Eio_unix.Process.spawn_unix ~sw
+      (Eio.Stdenv.process_mgr env)
+      ~env:[| "TERM=xterm-256color"; "LANG=en_US.UTF-8" |]
+      ~fds:
+        (List.map (fun fd -> (fd, Eio_unix.Pty.tty pty, `Blocking)) [ 0; 1; 2 ])
+      ~executable:"./teardown.exe"
+      [ "teardown.exe"; "orphaned-suspend" ]
+  in
+  let out = Buffer.create 4096 and buf = Cstruct.create 4096 in
+  let shown = ref 0 and spun = ref false in
+  let rec read () =
+    let n = Eio.Flow.single_read (Eio_unix.Pty.source pty) buf in
+    let s = Cstruct.to_string ~len:n buf in
+    Buffer.add_string out s;
+    shown := !shown + List.length (Astring.String.cuts ~sep:"\027[?25h" s) - 1;
+    if !shown > 50 && not !spun then begin
+      spun := true;
+      Unix.kill (Eio.Process.pid child) Sys.sigkill
+    end;
+    read ()
+  in
+  let status =
+    Eio.Fiber.first
+      (fun () -> Eio.Process.await child)
+      (fun () ->
+        try read () with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ())
+  in
+  Alcotest.(check bool)
+    (Fmt.str "the region is given back a bounded number of times (%d)" !shown)
+    false !spun;
+  Alcotest.(check bool)
+    "the work goes on" true
+    (match status with `Exited 0 -> true | _ -> false)
+
 (* Output outside a task that the program never flushes is not held
    without bound: all but the last 64 KiB of it is on the terminal before
    the program goes on. *)
@@ -771,6 +814,8 @@ let suite =
         test_unflushed_output_is_bounded;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
+      Alcotest.test_case "a stop that does not take effect resumes once" `Quick
+        test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
