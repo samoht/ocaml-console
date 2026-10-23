@@ -91,8 +91,9 @@ Initial release of `console` and `console-eio`.
   each event. `Progress.all` makes a `--progress` option in one line of
   Cmdliner.
 - `console-eio`. `Console_eio.run ~clock f` makes the root of the work,
-  shows its tasks on standard error with Eio, passes `f` the root and ends
-  the work as `Task.run` ends a task. It gives the current task the `Logs`
+  shows its tasks on standard error with Eio, as `Progress.show` does and
+  with its options, passes `f` the root and ends the work as `Task.run`
+  ends a task. It gives the current task the `Logs`
   messages, those of other Eio domains included, and the program's output
   on its terminal, and gives the terminal back when `f` returns or raises,
   when its fiber is cancelled, at exit and on SIGINT or SIGTERM. A `run`

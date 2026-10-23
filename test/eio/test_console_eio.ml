@@ -371,6 +371,21 @@ let test_run_view_raises () =
             (contains "work" (Buffer.contents buf))))
     [ (`Plain, always); (`Plain, last); (`Tty, always); (`Tty, last) ]
 
+(* [commit] is what a top task leaves in the scrollback, as with
+   [Progress.show]. *)
+let test_run_commit () =
+  with_clock (fun clock ->
+      let buf, ppf = buffer () in
+      let commit t =
+        Some (Console.View.text ("left by " ^ Console.Task.label t))
+      in
+      Console_eio.run ~clock ~ppf ~progress:`Tty ~commit (fun root ->
+          Console.Task.run root "step" ignore);
+      Format.pp_print_flush ppf ();
+      Alcotest.(check bool)
+        "the commit" true
+        (contains "left by step" (Buffer.contents buf)))
+
 let test_nested_run_reuses_the_display () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -860,6 +875,7 @@ let suite =
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
+      Alcotest.test_case "a commit" `Quick test_run_commit;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
       Alcotest.test_case "a display in another domain is refused" `Quick
