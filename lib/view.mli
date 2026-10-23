@@ -150,7 +150,9 @@ val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
     of the formatter. A view [f] returns is laid out in the same room.
 
     - [grow] (defaults to [0]) is its weight in an {!hcat} laid out in a room: a
-      part that grows shares what the others leave.
+      part that grows shares what the others leave, in the ratio of the weights,
+      each part taking the whole cells of its share and the cells left going to
+      the largest remainders.
     - [min_width] (defaults to its natural width) is the width below which it
       should not be laid out, which a {!Table} keeps for its column while
       another column can narrow.
@@ -168,7 +170,9 @@ val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
           Console.Table.view
             [ Console.Table.column (Console.View.text "Job") ]
             (List.map (fun j -> [ Console.View.text j ]) !jobs))
-    ]} *)
+    ]}
+
+    @raise Invalid_argument if [grow] is negative. *)
 
 val sized : ?width:int -> ?height:int -> t -> t
 (** [sized ~width ~height v] is [v] laid out in a room at most [width] cells

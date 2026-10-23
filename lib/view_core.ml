@@ -844,6 +844,9 @@ let map ?(room = Fun.id) f = function
   | t -> deferred ~kind:(kind t) (fun c -> Flat (f (flat_in (room c) t)))
 
 let fit ?min_width ?grow f =
+  (match grow with
+  | Some g when g < 0 -> invalid_arg "Console.View.fit: negative grow"
+  | _ -> ());
   deferred ~kind:(fun _ -> moving) ?grow ?min_width ~still:true f
 
 let sized ?width ?height t =
@@ -886,10 +889,39 @@ let concat ?(sep = empty) ts =
 
 let vcat ts = lift ts F.vcat
 
+(* [room] shared by [weights], each positive, exactly: each takes the
+   whole part of its quota, and the cells left go one each to the largest
+   remainders, the first on a tie. Weights too large for [room * weight]
+   are scaled down first. *)
+let apportion room weights =
+  let n = List.length weights in
+  if n = 0 then []
+  else
+    let biggest = List.fold_left max 0 weights in
+    let limit = max 1 (max_int / max 1 room / max 1 n) in
+    let weights =
+      if biggest <= limit then weights
+      else
+        let d = (biggest / limit) + 1 in
+        List.map (fun g -> max 1 (g / d)) weights
+    in
+    let total = List.fold_left ( + ) 0 weights in
+    let quotas = Array.of_list (List.map (fun g -> room * g) weights) in
+    let shares = Array.map (fun q -> q / total) quotas in
+    let rest = room - Array.fold_left ( + ) 0 shares in
+    let order = Array.init n Fun.id in
+    Array.stable_sort
+      (fun i j -> compare (quotas.(j) mod total) (quotas.(i) mod total))
+      order;
+    for k = 0 to rest - 1 do
+      let i = order.(k) in
+      shares.(i) <- shares.(i) + 1
+    done;
+    Array.to_list shares
+
 (* Under a room [w] wide, the parts that do not grow take, left to right,
    the room still left; those that grow share what is left by their
-   weights, the remainder to the first. Without a room, each takes its
-   natural size. *)
+   weights ({!apportion}). Without a room, each takes its natural size. *)
 let share c ~gap ts =
   match Ctx.width c with
   | None ->
@@ -917,28 +949,20 @@ let share c ~gap ts =
       let growers = List.filter (fun t -> grow t > 0) ts in
       let n = List.length growers in
       let gaps = if n = 0 then 0 else if !shown > 0 then n else n - 1 in
-      let room = max 0 (!left - (gap * gaps)) in
-      let weights = List.fold_left (fun n t -> n + grow t) 0 growers in
-      let rest =
-        ref (if weights = 0 then 0 else room - (room / weights * weights))
+      let room =
+        if gaps > 0 && gap > !left / gaps then 0 else !left - (gap * gaps)
       in
+      let shares = ref (apportion room (List.map grow growers)) in
       List.map2
         (fun t f ->
-          match f with
-          | Some f -> f
-          | None ->
-              let share = if weights = 0 then 0 else room * grow t / weights in
-              let extra =
-                if !rest > 0 then (
-                  decr rest;
-                  1)
-                else 0
-              in
+          match (f, !shares) with
+          | Some f, _ -> f
+          | None, share :: rest ->
+              shares := rest;
               flat_in
-                (Ctx.with_room
-                   ~width:(Some (share + extra))
-                   ~height:(Ctx.height c) c)
-                t)
+                (Ctx.with_room ~width:(Some share) ~height:(Ctx.height c) c)
+                t
+          | None, [] -> assert false)
         ts fixed
 
 let hcat ?(gap = 2) ts =
