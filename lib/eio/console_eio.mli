@@ -197,7 +197,8 @@ val run :
 
     [Eio.Time.with_timeout] on such a clock times out once its duration has
     passed on the clock behind it and the sleeps due before it have woken, and a
-    timeout that fires moves the time as a sleep does.
+    timeout that fires moves the time as a sleep does. Under [CONSOLE_CAST], it
+    times out as soon as the sleeps due before it have woken.
 
     On any other clock the time stays at zero:
     - every elapsed time reads [0.0s], and every [time] and [elapsed] of a JSON
