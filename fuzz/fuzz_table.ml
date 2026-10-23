@@ -304,9 +304,41 @@ let test_independent_edges a b empty_right =
       check_eq ~pp:Fmt.int expected_width (cells line))
     lines
 
+let test_gap_width_room n gap k =
+  let width = 1 + (n mod 80) and gap = gap mod 9 in
+  let count = 1 + (k mod 4) in
+  let framed = k land 4 = 0 in
+  let border = if framed then Border.rounded else Border.simple in
+  let columns =
+    List.init count (fun i ->
+        Table.column
+          ~width:(1 + ((k + i) mod 15))
+          ~align:[| `Left; `Center; `Right |].(i mod 3)
+          ~overflow:(if k land 8 = 0 then `Wrap else `Truncate)
+          (View.text "head"))
+  in
+  let rows =
+    [
+      List.init count (fun _ -> View.text "界界界");
+      List.init count (fun _ -> View.text "e\u{301} 👩‍💻 text");
+    ]
+  in
+  let raw, lines =
+    render View.pp width (Table.view ~border ~gap columns rows)
+  in
+  check (String.is_valid_utf_8 raw);
+  check_fits width lines;
+  check_closed raw;
+  if framed && width >= (count * gap) + count + 1 then
+    List.iter
+      (fun line -> check_eq ~pp:Fmt.int (cells (List.hd lines)) (cells line))
+      lines
+
 let suite =
   ( "table",
     [
+      test_case "gaps and preferred widths keep narrow tables in their room"
+        [ uint8; uint8; uint8 ] test_gap_width_room;
       test_case "independent empty edges keep a rectangular frame"
         [ uint8; uint8; bool ] test_independent_edges;
       test_case "a rule between each two rows" [ bytes; int ] test_rules;
