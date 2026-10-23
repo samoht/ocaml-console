@@ -904,9 +904,42 @@ let test_cast_chunking n =
     (Console_vte.screen expected)
     (Console_vte.screen replay)
 
+let test_repeated_signals first second cut closing =
+  let helper =
+    Filename.concat
+      (Filename.dirname Sys.executable_name)
+      "../test/eio/teardown.exe"
+  in
+  let signal n = if n land 1 = 0 then "int" else "term" in
+  let input =
+    Unix.open_process_args_in helper
+      [|
+        "teardown.exe";
+        "repeated-signal";
+        signal first;
+        signal second;
+        string_of_int cut;
+        string_of_bool closing;
+      |]
+  in
+  let raw = In_channel.input_all input in
+  let status = Unix.close_process_in input in
+  check
+    (match status with
+    | Unix.WSIGNALED s -> s = Sys.sigint || s = Sys.sigterm
+    | _ -> false);
+  let terminal = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed terminal raw;
+  check (Console_vte.cursor_visible terminal);
+  check (String.is_valid_utf_8 raw);
+  check (String.ends_with ~suffix:"\027[?2026l" raw)
+
 let suite =
   ( "console_eio",
     [
+      test_case "repeated signals restore the terminal at every write cut"
+        [ uint8; uint8; uint8; bool ]
+        test_repeated_signals;
       test_case "recording alone makes sleeps virtual" [ uint8 ] test_cast_sleep;
       test_case "recording byte chunks preserves Unicode escapes and the screen"
         [ uint8 ] test_cast_chunking;
