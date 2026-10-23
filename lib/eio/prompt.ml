@@ -134,3 +134,28 @@ let secret t question =
         read_masked t (Console_input.v ~mask:"*" ()) 0
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
+
+(* Keys come as they are typed and unshown; stopped, the program gives the
+   terminal back as it found it, and takes the keys again once continued. *)
+let keys t f =
+  match t.terminal with
+  | None -> Error (`Msg "no terminal to read keys on")
+  | Some _ when not t.interactive -> Error (`Msg "no terminal to ask on")
+  | Some fd -> (
+      try
+        Eio_unix.Fd.use_exn "keys" fd @@ fun fd ->
+        let original = Unix.tcgetattr fd in
+        let raw () =
+          Unix.tcsetattr fd Unix.TCSANOW (masked_attributes original)
+        in
+        let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
+        let suspend stop =
+          restore ();
+          Fun.protect stop ~finally:raw
+        in
+        Fun.protect ~finally:restore @@ fun () ->
+        Interrupt.protect ~suspend ~restore @@ fun () ->
+        raw ();
+        Ok (f t.input)
+      with Unix.Unix_error (e, fn, _) ->
+        Fmt.error_msg "%s: %s" fn (Unix.error_message e))

@@ -43,6 +43,19 @@ type error = [ `End_of_input | `Msg of string ]
     input before an answer, such as Ctrl-D on a terminal; [`Msg] is any other
     error, a prompt that is not {!interactive} among them. *)
 
+val keys : t -> (Eio.Buf_read.t -> 'a) -> ('a, error) result
+(** [keys t f] is [Ok (f input)], with [input] the bytes of the keys typed on
+    the terminal behind [t]'s input, each readable as soon as it is typed and
+    not shown, such as a game reads them. A key that sends an escape sequence,
+    an arrow for example, is its bytes, which [f] decodes. Ctrl-C and Ctrl-Z
+    still send their signals.
+
+    The terminal is given back as it was found when [f] returns or raises, when
+    its fiber is cancelled and on SIGINT or SIGTERM, and while SIGTSTP stops the
+    program. The rows of a display stay on the screen while [f] runs. This is
+    [Error (`Msg _)] when the input is not a terminal or [t] is not
+    {!interactive}. *)
+
 val pp_error : error Fmt.t
 (** [pp_error] formats an error, [`End_of_input] as ["end of input"] and
     [`Msg m] as [m]. *)

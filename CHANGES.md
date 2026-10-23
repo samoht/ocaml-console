@@ -105,7 +105,9 @@ Initial release of `console` and `console-eio`.
   styled and as wide as the terminal, and `Console_eio.with_output` what
   console does not see. `Console_eio.Prompt` asks a line, a yes or no, or a
   password, taking the rows off the screen while it asks, and tells the end
-  of the input (`` `End_of_input ``) from its other errors.
+  of the input (`` `End_of_input ``) from its other errors;
+  `Prompt.keys` reads keys as they are typed, unshown, and gives the
+  terminal back however the program ends.
 - Colour policy. `console.tty` (`Console_tty.setup`) decides colour, its
   depth and UTF-8 for the standard outputs from the terminal, `NO_COLOR`,
   `TERM`, `COLORTERM` and the locale, or from a `--color` option, with Unix

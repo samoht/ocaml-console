@@ -347,6 +347,38 @@ let test_prompt_leaves_other_fibers_attributed () =
        {|"event":"output","id":0,"task":["work"],"text":"from work"|}
        (Buffer.contents out))
 
+(* [keys] reads each key as it is typed, unshown, and gives the terminal
+   back as it found it; without a terminal it is refused. *)
+let test_keys () =
+  run (fun () ->
+      let t, _ = prompt ~interactive:true "abc" in
+      Alcotest.(check bool)
+        "refused without a terminal" true
+        (Result.is_error (Prompt.keys t (fun _ -> ()))));
+  with_pty @@ fun env tty master ->
+  with_stdin ~stdin:tty (fun () ->
+      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      let before = Unix.tcgetattr tty in
+      let keys, () =
+        Eio.Fiber.pair
+          (fun () ->
+            Prompt.keys t (fun input ->
+                let a = Eio.Buf_read.any_char input in
+                let b = Eio.Buf_read.any_char input in
+                String.init 2 (function 0 -> a | _ -> b)))
+          (fun () ->
+            while not (masked tty) do
+              Eio.Fiber.yield ()
+            done;
+            Alcotest.(check bool)
+              "key by key" false (Unix.tcgetattr tty).Unix.c_icanon;
+            type_in master "q ")
+      in
+      (match keys with
+      | Ok k -> Alcotest.(check string) "the keys" "q " k
+      | Error _ -> Alcotest.fail "refused on a terminal");
+      Alcotest.(check bool) "given back" true (Unix.tcgetattr tty = before))
+
 let test_pp_error () =
   Alcotest.(check string)
     "end of input" "end of input"
@@ -391,5 +423,6 @@ let suite =
         test_secret_cap;
       Alcotest.test_case "a prompt leaves other fibers' output to their task"
         `Quick test_prompt_leaves_other_fibers_attributed;
+      Alcotest.test_case "keys" `Quick test_keys;
       Alcotest.test_case "an error formats" `Quick test_pp_error;
     ] )
