@@ -29,6 +29,7 @@ type drawn = {
   look : Widget.look;
   border : Border.t;
   frame : frame;
+  gap : int;
   header_style : Style.t;
   rules : bool;
   columns : column array;
@@ -65,12 +66,13 @@ let chars t = Border.chars t.border
    column, and a line ends at its last cell that is not empty. A column with
    a glyph anywhere is drawn on every line, padded where its glyph is empty. *)
 let edged t = t.frame.left > 0 || t.frame.mid > 0 || t.frame.right > 0
-let separator_width t = if edged t then 2 + t.frame.mid else 2
+let separator_width t = if edged t then t.gap + t.frame.mid else t.gap
 
 let overhead t count =
   if count = 0 then 0
-  else if not (edged t) then (count - 1) * 2
-  else (count * 2) + t.frame.left + t.frame.right + ((count - 1) * t.frame.mid)
+  else if not (edged t) then (count - 1) * t.gap
+  else
+    (count * t.gap) + t.frame.left + t.frame.right + ((count - 1) * t.frame.mid)
 
 (* Widths add up without overflow: a sum past [max_int] is [max_int]. *)
 let ( +| ) a b = if a > max_int - b then max_int else a + b
@@ -167,7 +169,7 @@ let rule t widths ~left ~mid ~right ~line =
       Array.to_list
         (Array.mapi
            (fun i w ->
-             Widget.fill (w + 2) line
+             Widget.fill (w + t.gap) line
              ^ if i < last then Widget.pad_glyph t.frame.mid mid else "")
            widths)
     in
@@ -222,26 +224,28 @@ let slot_width ?max_width t widths row i =
   else
     let before = ref 0 in
     for j = 0 to i - 1 do
-      before := !before + widths.(j) + 2
+      before := !before + widths.(j) + t.gap
     done;
     Option.map (fun w -> max 0 (w - !before)) max_width
 
 let at lines k = if k < Array.length lines then lines.(k) else View_core.empty
 let edge t s = View_core.ink (Border.style t.border) s
 
-(* Line [k] of a row of [(column, width, lines)] cells in [style]. *)
+(* Line [k] of a row of [(column, width, lines)] cells in [style]; a cell
+   has the half of the gap on its left, the rest on its right. *)
 let edged_line t style cells k =
   let chars = chars t and last = Array.length cells - 1 in
+  let before = pad (t.gap / 2) and after = pad (t.gap - (t.gap / 2)) in
   let parts =
     Array.to_list
       (Array.mapi
          (fun i (col, w, ls) ->
            View_core.(
-             text " "
+             before
              ++ styled
                   Style.(style + col.style)
                   (align_span ~pad_right:true col.align w (at ls k))
-             ++ text " "
+             ++ after
              ++
              if i < last then
                edge t (Widget.pad_glyph t.frame.mid chars.vertical)
@@ -253,7 +257,7 @@ let edged_line t style cells k =
     @ [ edge t (Widget.pad_glyph t.frame.right chars.right) ])
 
 (* Without edges, a line ends at its last cell that is not empty, unpadded. *)
-let bare_line style cells k =
+let bare_line t style cells k =
   let shown = ref 0 in
   Array.iteri
     (fun i (_, _, lines) -> if View_core.width (at lines k) > 0 then shown := i)
@@ -262,7 +266,7 @@ let bare_line style cells k =
     List.filteri (fun i _ -> i <= !shown) (Array.to_list cells)
     |> List.mapi (fun i (col, w, ls) ->
         View_core.(
-          (if i > 0 then text "  " else empty)
+          (if i > 0 then pad t.gap else empty)
           ++ styled
                Style.(style + col.style)
                (align_span ~pad_right:(i < !shown) col.align w (at ls k))))
@@ -282,7 +286,7 @@ let row_lines ?max_width t widths style row =
   let height =
     Array.fold_left (fun h (_, _, l) -> max h (Array.length l)) 0 cells
   in
-  let line = if edged t then edged_line t else bare_line in
+  let line = if edged t then edged_line t else bare_line t in
   List.init height (line style cells)
 
 let lines ?max_width t =
@@ -325,7 +329,8 @@ let lines ?max_width t =
         Border_motion.frame t.look ~time:(Ctx.time t.ctx) t.border
           ~left:t.frame.left ~right:t.frame.right lines
 
-let view ?border ?header_style ?(rules = false) columns rows =
+let view ?border ?(gap = 2) ?header_style ?(rules = false) columns rows =
+  if gap < 0 then invalid_arg "Console.Table.view: negative gap";
   let expected = List.length columns in
   List.iter
     (fun cells ->
@@ -361,6 +366,7 @@ let view ?border ?header_style ?(rules = false) columns rows =
           look;
           border;
           frame = frame border;
+          gap;
           header_style;
           rules;
           columns;

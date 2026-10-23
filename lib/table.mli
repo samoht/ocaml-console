@@ -50,6 +50,7 @@ val column :
 
 val view :
   ?border:Border.t ->
+  ?gap:int ->
   ?header_style:Style.t ->
   ?rules:bool ->
   column list ->
@@ -61,6 +62,9 @@ val view :
 
     - Its frame is [border] if given, else the border of the formatter's theme
       ({!Theme.get}).
+    - [gap] is the spaces between two cells (defaults to [2]). In a frame, each
+      cell has [gap / 2] of them on its left and the rest on its right, inside
+      the frame's lines.
     - The headers are in [header_style] (defaults to the theme's
       {!Theme.header}).
     - If [rules] (defaults to [false]), a rule separates each two rows, in the
@@ -79,4 +83,5 @@ val view :
       display gives its columns a [min_width] to keep still.
 
     @raise Invalid_argument
-      if a row is empty or has more cells than there are columns. *)
+      if [gap] is negative, or a row is empty or has more cells than there are
+      columns. *)

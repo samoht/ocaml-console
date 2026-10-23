@@ -438,6 +438,30 @@ let test_no_border_draws_no_edge () =
        (of_string_rows ~border:Border.none [ col; col; col ]
           [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))
 
+(* [gap] is the spaces between two cells, a frame's glyph among them. *)
+let test_gap () =
+  let cols = [ Table.column (View.text "A"); Table.column (View.text "BB") ] in
+  let rows = [ [ View.text "1"; View.text "2" ] ] in
+  Alcotest.(check string)
+    "one space without edges" "A BB\n1 2"
+    (View.to_string (Table.view ~border:Border.none ~gap:1 cols rows));
+  Alcotest.(check string)
+    "none" "ABB\n12"
+    (View.to_string (Table.view ~border:Border.none ~gap:0 cols rows));
+  Alcotest.(check string)
+    "framed, no gap" "+-+--+\n|A|BB|\n+-+--+\n|1|2 |\n+-+--+"
+    (View.to_string (Table.view ~border:Border.ascii ~gap:0 cols rows));
+  Alcotest.(check string)
+    "framed, the default"
+    "+---+----+\n| A | BB |\n+---+----+\n| 1 | 2  |\n+---+----+"
+    (View.to_string (Table.view ~border:Border.ascii cols rows));
+  Alcotest.(check string)
+    "a rule without edges runs under the gaps" "A BB\n────\n1 2"
+    (View.to_string (Table.view ~border:Border.simple ~gap:1 cols rows));
+  Alcotest.check_raises "a negative gap"
+    (Invalid_argument "Console.Table.view: negative gap") (fun () ->
+      ignore (Table.view ~gap:(-1) cols rows))
+
 (* A border in one style is one sequence per run of border glyphs. *)
 let test_styled_border_runs () =
   let t =
@@ -627,6 +651,7 @@ let suite =
     [
       Alcotest.test_case "an empty edge keeps the rest of the frame" `Quick
         test_empty_left_edge;
+      Alcotest.test_case "gap" `Quick test_gap;
       Alcotest.test_case "a table as a span keeps its natural width" `Quick
         test_span_natural_width;
       Alcotest.test_case "rules" `Quick test_rules;
