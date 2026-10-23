@@ -11,14 +11,17 @@ type t
 
 val v :
   ?size:(unit -> int * int) ->
+  ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~write_error ~now ppf view] is {!Display.v}, which also takes as
-    the end of its output an exception that [write_error] says is a write error
-    (defaults to none but [Sys_error]). *)
+(** [v ~size ~once_width ~write_error ~now ppf view] is {!Display.v}, which also
+    takes as the end of its output an exception that [write_error] says is a
+    write error (defaults to none but [Sys_error]). Without [size], what it
+    prints once is [once_width ()] cells wide, and whole without [once_width].
+*)
 
 val set_view : t -> View.t -> unit
 val print : t -> View.t -> unit

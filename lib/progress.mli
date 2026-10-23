@@ -211,7 +211,8 @@ val show :
     - [progress] (defaults to [`Auto]) is the mode: [`Auto] redraws the rows on
       a terminal, as [size] says, [`Tty] on 80 columns by 24 rows without
       [size], and [`Plain], [`Quiet] and [`Json] print lines, whatever [size]
-      says.
+      says. [`Plain] prints its last frame as wide as the terminal [size] gives,
+      and whole without [size].
     - [view] (defaults to {!val-view}[ root]) is the region, redrawn in place,
       and the last frame printed when the display closes, with [`Plain] too. A
       view that raises is dropped for the default one, and the exception is

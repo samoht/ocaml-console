@@ -17,6 +17,7 @@ type stamp = {
 type t = {
   ppf : Format.formatter;
   size : (unit -> int * int) option;
+  once_width : (unit -> int) option;
   depth : Color.depth option;
   now : unit -> float;
   start : float;
@@ -211,11 +212,18 @@ let framed t k =
       k (try frame t with _ -> []);
       Printexc.raise_with_backtrace e bt
 
+let max_size = 4096
+let bounded n = min max_size (max 1 n)
+
 (* What is printed once is still and as tall as it is: as wide as the
    terminal, or whole without one. *)
 let once t =
   let look = look t in
-  (look, Ctx.v ?width:(if is_live t then Some t.width else None) look)
+  let width =
+    if is_live t then Some t.width
+    else Option.map (fun w -> bounded (w ())) t.once_width
+  in
+  (look, Ctx.v ?width look)
 
 (* A view that raises in the last frame gives way to the fallback. *)
 let final t =
@@ -255,8 +263,6 @@ let clear buf t =
 
 (* No screen is this wide or tall, and the display writes a row of its
    width when it starts: a larger size is taken as this one. *)
-let max_size = 4096
-let bounded n = min max_size (max 1 n)
 
 let refresh_size t =
   match t.size with
@@ -457,7 +463,7 @@ let watch_lines t =
 
 let watch t out = tapped out (note_line t)
 
-let v ?size ?(write_error = fun _ -> false) ~now ppf view =
+let v ?size ?once_width ?(write_error = fun _ -> false) ~now ppf view =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -467,6 +473,7 @@ let v ?size ?(write_error = fun _ -> false) ~now ppf view =
     {
       ppf;
       size;
+      once_width;
       depth;
       now;
       start = now ();

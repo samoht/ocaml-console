@@ -153,15 +153,22 @@ let view_of_form ~layout root = function
 let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     ?(keep_ended = false) ?commit ?size ppf root =
   let root = root_of root in
-  let size, form = shape ?size progress in
+  let shown_size, form = shape ?size progress in
   let default = view_of_form ~layout root form in
   let shown =
     match form with
     | Live | Plain -> Option.value view ~default
     | Quiet | Json -> default
   in
+  let once_width =
+    match (form, size) with
+    | Plain, Some given -> Some (fun () -> fst (given ()))
+    | _ -> None
+  in
   let d =
-    Display_core.v ?size ?write_error ~now:(Work.now (work root)) ppf shown
+    Display_core.v ?size:shown_size ?once_width ?write_error
+      ~now:(Work.now (work root))
+      ppf shown
   in
   Display_core.told d;
   Display_core.set_fallback d default;

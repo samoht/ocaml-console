@@ -301,10 +301,20 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ppf root =
           ~intercept:(routed unix) ~cursor:(cursor unix))
       (terminal ppf)
   in
+  (* Plain lines end with the last frame as wide as the terminal, or as
+     the recording's, and whole on a pipe. *)
   let lines form =
     match (form, descriptor ppf) with
     | (`Json | `Quiet), Some (_, unix) ->
         (show (form :> Console.Progress.t) (own ppf), sharing unix, ignore)
+    | `Plain, _ when recorded ->
+        (show ~size:Recording.size `Plain ppf, [], ignore)
+    | `Plain, _ -> (
+        match terminal ppf with
+        | Some (fd, _) ->
+            let size () = Terminal.dimensions (Some fd) in
+            (show ~size `Plain ppf, [], ignore)
+        | None -> (show `Plain ppf, [], ignore))
     | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
   in
   let std = ppf == Fmt.stdout || ppf == Fmt.stderr in
