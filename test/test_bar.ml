@@ -19,52 +19,51 @@ let check_ansi msg want span =
     (View.to_string ~styled:true (View.concat want))
     (ansi span)
 
-(* bar.mli, v: a cell is a heavy line, filled or track, and a half filled
-   cell the left half of one. *)
+(* bar.mli, v: a filled cell is a heavy line, a track cell a light one, and
+   a half filled cell the left half of a heavy one. *)
 let test_v_halves () =
-  check_plain "empty" "━" (Bar.horizontal ~width:1 0.);
+  check_plain "empty" "─" (Bar.horizontal ~width:1 0.);
   check_plain "half" "╸" (Bar.horizontal ~width:1 0.5);
   check_plain "full" "━" (Bar.horizontal ~width:1 1.)
 
-(* bar.mli, v: the fill rounds to the nearest half cell, and a track after a
-   whole cell starts with the right half of one, which leaves a gap. *)
+(* bar.mli, v: the fill rounds to the nearest half cell. *)
 let test_v_rounding () =
-  check_plain "half of three cells" "━╸━" (Bar.horizontal ~width:3 0.5);
-  check_plain "half of four cells" "━━╺━" (Bar.horizontal ~width:4 0.5);
+  check_plain "half of three cells" "━╸─" (Bar.horizontal ~width:3 0.5);
+  check_plain "half of four cells" "━━──" (Bar.horizontal ~width:4 0.5);
   check_plain "a quarter of one cell is half of it" "╸"
     (Bar.horizontal ~width:1 0.25);
-  check_plain "below a quarter is none" "━━" (Bar.horizontal ~width:2 0.12);
+  check_plain "below a quarter is none" "──" (Bar.horizontal ~width:2 0.12);
   check_plain "19.8 halves is 20" "━━━━━━━━━━" (Bar.horizontal ~width:10 0.99)
 
 (* bar.mli, v: the fraction is clamped to 0..1 and NaN is 0. *)
 let test_v_clamped () =
-  check_plain "negative" "━━━" (Bar.horizontal ~width:3 (-1.));
+  check_plain "negative" "───" (Bar.horizontal ~width:3 (-1.));
   check_plain "over one" "━━━" (Bar.horizontal ~width:3 2.);
   check_plain "infinity" "━━━" (Bar.horizontal ~width:3 Float.infinity);
-  check_plain "nan" "━━━" (Bar.horizontal ~width:3 Float.nan);
+  check_plain "nan" "───" (Bar.horizontal ~width:3 Float.nan);
   check_plain "zero width" "" (Bar.horizontal ~width:0 0.5)
 
 (* bar.mli, spans: the fill carries [style], the track and the brackets
    [track], and a part with no cell adds no style. *)
 let test_v_styles () =
   check_ansi "fill and track"
-    [ View.styled red (View.text "━╸"); View.styled dim (View.text "━") ]
+    [ View.styled red (View.text "━╸"); View.styled dim (View.text "─") ]
     (Bar.horizontal ~style:red ~track:dim ~width:3 0.5);
-  check_ansi "a gap before the track"
-    [ View.styled red (View.text "━"); View.styled dim (View.text "╺━") ]
+  check_ansi "a whole cell then the track"
+    [ View.styled red (View.text "━"); View.styled dim (View.text "──") ]
     (Bar.horizontal ~style:red ~track:dim ~width:3 0.34);
   check_ansi "full bar, no track"
     [ View.styled red (View.text "━━") ]
     (Bar.horizontal ~style:red ~track:dim ~width:2 1.);
   check_ansi "empty bar, no fill"
-    [ View.styled dim (View.text "━━") ]
+    [ View.styled dim (View.text "──") ]
     (Bar.horizontal ~style:red ~track:dim ~width:2 0.);
-  check_plain "brackets" "▕━╸━▏" (Bar.horizontal ~brackets:true ~width:3 0.5);
+  check_plain "brackets" "▕━╸─▏" (Bar.horizontal ~brackets:true ~width:3 0.5);
   check_ansi "brackets in the track style"
     [
       View.styled dim (View.text "▕");
       View.styled red (View.text "━╸");
-      View.styled dim (View.text "━");
+      View.styled dim (View.text "─");
       View.styled dim (View.text "▏");
     ]
     (Bar.horizontal ~style:red ~track:dim ~brackets:true ~width:3 0.5)
@@ -97,7 +96,7 @@ let in_theme ?(utf_8 = true) theme bar =
 
 (* theme.mli, bar: a theme gives its bars their glyphs. [dos] fills whole
    cells with full blocks on a light shade, in brackets, [ascii] draws [#]
-   on [-] even in UTF-8, and the others heavy lines. *)
+   on [-] even in UTF-8, and the others heavy lines on light ones. *)
 let test_theme_glyphs () =
   let check msg want got = Alcotest.(check string) msg want got in
   let half = Bar.horizontal ~width:4 0.5 in
@@ -108,9 +107,9 @@ let test_theme_glyphs () =
   check "ascii in UTF-8" "##--" (in_theme Theme.ascii half);
   check "ascii brackets" "[#--]"
     (in_theme Theme.ascii (Bar.horizontal ~brackets:true ~width:3 0.4));
-  check "default" "\u{2501}\u{2501}\u{257a}\u{2501}"
+  check "default" "\u{2501}\u{2501}\u{2500}\u{2500}"
     (in_theme Theme.default half);
-  check "nord" "\u{2501}\u{2501}\u{257a}\u{2501}" (in_theme Theme.nord half);
+  check "nord" "\u{2501}\u{2501}\u{2500}\u{2500}" (in_theme Theme.nord half);
   Alcotest.(check bool)
     "Theme.bar" true
     (Theme.bar Theme.dos = `Block
@@ -148,7 +147,7 @@ let test_palette () =
   Alcotest.(check string)
     "half"
     (want
-       (cells 3 @ [ View.styled muted (View.text "\u{257a}\u{2501}\u{2501}") ]))
+       (cells 3 @ [ View.styled muted (View.text "\u{2500}\u{2500}\u{2500}") ]))
     (styled Theme.rainbow (Bar.horizontal ~width:6 0.5));
   Alcotest.(check string)
     "a style given"
@@ -170,7 +169,7 @@ let test_palette () =
        (Theme.v ~palette:[ Color.red ] ~accent:Color.blue ())
        (Bar.horizontal ~width:2 1.));
   Alcotest.(check string)
-    "plain" "\u{2501}\u{2501}\u{2501}\u{257a}\u{2501}\u{2501}"
+    "plain" "\u{2501}\u{2501}\u{2501}\u{2500}\u{2500}\u{2500}"
     (in_theme Theme.rainbow (Bar.horizontal ~width:6 0.5))
 
 let test_span_invalid () =

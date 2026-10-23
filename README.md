@@ -234,7 +234,7 @@ and a bar shows a fraction, here 65% of twenty cells:
 ─────────────── Results ────────────────
 - : unit = ()
 # print_endline (View.to_string (Bar.horizontal ~width:20 0.65));;
-━━━━━━━━━━━━━╺━━━━━━
+━━━━━━━━━━━━━───────
 - : unit = ()
 ```
 
@@ -286,8 +286,8 @@ panel:
     (View.to_string (Panel.view ~title:(View.text "Downloads") downloads));;
 ╭────── Downloads ───────╮
 │ File        Progress   │
-│ boot.img    ━━━━╺━━━━━ │
-│ rootfs.tar  ━━━━━━━━━╺ │
+│ boot.img    ━━━━────── │
+│ rootfs.tar  ━━━━━━━━━─ │
 ╰────────────────────────╯
 - : unit = ()
 ```

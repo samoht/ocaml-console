@@ -119,7 +119,7 @@ let test_bar_cell () =
   let half = table (Bar.horizontal ~width:4 0.5) in
   let row s = List.nth (String.split_on_char '\n' s) 1 in
   let check msg want got = Alcotest.(check string) msg want (row got) in
-  check "default" "copy  \u{2501}\u{2501}\u{257a}\u{2501}" (printed half);
+  check "default" "copy  \u{2501}\u{2501}\u{2500}\u{2500}" (printed half);
   check "dos" "copy  \u{2588}\u{2588}\u{2591}\u{2591}"
     (printed ~theme:Theme.dos half);
   check "not UTF-8" "copy  ##--" (printed ~utf_8:false half);

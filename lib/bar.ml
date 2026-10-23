@@ -27,9 +27,9 @@ let framed ~glyphs ~track ~brackets body =
       [ View_core.ink track left; body; View_core.ink track right ]
   else body
 
-(* The fill and the track. Heavy lines go to the half cell, the track
-   starting with a right half where a whole filled cell meets it; blocks and
-   ASCII fill whole cells. *)
+(* The fill and the track. A heavy line goes to the half cell on a light
+   one, so that without colour the fill still shows; blocks and ASCII fill
+   whole cells. *)
 let cells ~glyphs ~width frac =
   let whole fill track =
     let full = int_of_float (Float.round (frac *. float_of_int width)) in
@@ -43,12 +43,7 @@ let cells ~glyphs ~width frac =
       let full = e / 2 and half = e mod 2 = 1 in
       let rest = width - full - Bool.to_int half in
       let fill = Widget.fill full "━" ^ if half then "╸" else "" in
-      let track =
-        if full > 0 && (not half) && rest > 0 then
-          "╺" ^ Widget.fill (rest - 1) "━"
-        else Widget.fill rest "━"
-      in
-      (fill, track)
+      (fill, Widget.fill rest "─")
 
 (* A palette of several colours is spread along the whole bar, each filled
    cell in the colour of its place: the fill uncovers the colours as it

@@ -60,8 +60,9 @@ type mark =
 
 type bar =
   [ `Line
-    (** Heavy horizontal lines (U+2501), filled to the half cell, in right and
-        left one eighth blocks (U+2595 and U+258F). *)
+    (** Heavy horizontal lines (U+2501), filled to the half cell, on a light
+        line (U+2500), in right and left one eighth blocks (U+2595 and U+258F).
+    *)
   | `Block
     (** Whole cells of full blocks (U+2588) on a light shade (U+2591), in square
         brackets, as DOS programs drew progress. *)

@@ -23,10 +23,9 @@
     ({!Theme.get}, {!Theme.val-bar}):
 
     - [`Line] draws a heavy horizontal line (U+2501), in which a half filled
-      cell is the left half of the line (U+2578). After a whole filled cell the
-      track starts with the right half (U+257A), leaving a gap between the two.
-      The brackets are a right one eighth block (U+2595) and a left one
-      (U+258F).
+      cell is the left half of the line (U+2578), on a track of a light line
+      (U+2500), so that the fill shows without colour too. The brackets are a
+      right one eighth block (U+2595) and a left one (U+258F).
     - [`Block] fills whole cells with full blocks (U+2588) on a track of light
       shade (U+2591), in brackets [\[] and [\]].
     - [`Ascii] fills whole cells with [#] on a track of [-], in brackets [\[]

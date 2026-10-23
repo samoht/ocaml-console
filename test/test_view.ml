@@ -446,9 +446,9 @@ let test_hcat_grow () =
     View.(hcat ~gap:1 [ text "label"; Bar.horizontal 0.5; text "50%" ])
   in
   Alcotest.(check string)
-    "the bar takes the rest" "label ━━━━━━━╺━━━━━━ 50%" (pp_at 24 row);
+    "the bar takes the rest" "label ━━━━━━━─────── 50%" (pp_at 24 row);
   Alcotest.(check string)
-    "at its natural size, ten cells" "label ━━━━━╺━━━━ 50%" (View.to_string row);
+    "at its natural size, ten cells" "label ━━━━━───── 50%" (View.to_string row);
   let two = View.(hcat ~gap:0 [ Bar.horizontal 1.; Rule.view () ]) in
   Alcotest.(check int)
     "two growers share the room" 9
