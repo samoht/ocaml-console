@@ -68,8 +68,9 @@ Initial release of `console` and `console-eio`.
   one row each (`Progress.row`, drawn by a `Progress.Layout` of combinators
   with a spinner, a bar, a count, a rate, the time left and the elapsed
   time, which give way in stages before the label is cut), above a summary
-  line (`Progress.summary`). The counts and the rates of all rows sit in
-  columns of their own, so the bars line up and nothing moves sideways. A
+  line (`Progress.summary`). A row is packed from the left: its label,
+  its bar, up to 40 cells, then its count, rate and time, each in a column
+  that all rows share, so the bars line up and nothing moves sideways. A
   task that ends stays under its parent, marked, until its top task ends,
   and the top task then goes to the scrollback as its commit draws it, its
   whole tree by default (`~commit`). A tree too tall folds the tasks that

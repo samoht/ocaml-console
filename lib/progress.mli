@@ -60,11 +60,23 @@ val to_string : t -> string
 
     A layout is pieces put together with {!Layout.(++)} and {!Layout.list}. The
     lines of the tasks that ended have pieces of their own, whatever the layout:
-    the mark, the label, the count and the elapsed time.
+    those of {!Layout.default}, with the mark of how the task ended in place of
+    the spinner, in the same columns, and the cells of the bar blank.
+
+    {b Packed from the left.} {!Layout.default} packs a row from the left: the
+    label, in a column as wide as the widest label; then the bar, which grows to
+    fill the room, up to 40 cells; then the count, the rate and the elapsed
+    time. The rest of the line stays empty. The bars of all rows start in one
+    column and are as wide, one cell after the label column. A task under
+    another is indented under it, behind the guides of its tree, and its label
+    column ends where the others do, so its columns are those of every row. The
+    spinners and the marks take as many cells as the widest of them, so the
+    labels start in one column too.
 
     {b What gives way.} The label is what tells two rows apart, so it gives way
-    last. When a row does not fit its room, its pieces give way stage by stage,
-    each piece at the stage {!Layout.give_way} sets, by default:
+    last. When a row does not fit its room, its bar first shrinks, down to 10
+    cells; then its pieces give way stage by stage, each piece at the stage
+    {!Layout.give_way} sets, by default:
     + the rate and the time left;
     + the bar and the percentage;
     + the count, which leaves the column it shares with the other rows and, for
@@ -72,12 +84,20 @@ val to_string : t -> string
     + the elapsed time.
 
     Only once all of them have is the label cut, with an ellipsis. A piece that
-    gives way takes with it the blank {!Layout.const} before it, or after it.
+    gives way, or that shows nothing, takes with it the blank {!Layout.const}
+    before it, or after it. Every row's label fits its column, so the rows of a
+    region give way together, and once the count leaves its column, the label,
+    the spinner and the mark leave theirs too.
 
-    {b Columns.} The count and the rate each take a column that the rows of a
-    root share, and the elapsed time a column of six cells; a row without a
-    count or a rate leaves its column blank. The columns are as wide as the
-    kinds of progress seen so far need, and they only widen:
+    {b Columns.} The label, the bar, the count and the rate each take a column
+    that the rows of a root share, and the elapsed time a column of six cells; a
+    row without a bar, a count or a rate leaves its column blank. The columns
+    are as wide as the labels and the kinds of progress seen so far need, and
+    they only widen:
+    - The label column is as wide as the widest label a task of the root has
+      had, behind the guides of its depth. A task with a wider label widens it
+      when it starts, or when it is renamed.
+    - The bar column opens with the first task that counts.
     - A count of items takes the cells its total needs, at least [999/999], so a
       display of items is as dense as its counts allow. A task of items with a
       larger total widens the count column when it starts counting.
@@ -87,13 +107,35 @@ val to_string : t -> string
       totals and first rates widen nothing.
     - No column narrows while the display is open.
 
-    So a column widens at most once for each new kind of progress, or for a
-    count of items with more digits: a display of bytes alone, or one whose
-    tasks of bytes count from their start, never widens after its first frame of
-    bytes, and one where a task of bytes comes among rows of items widens once.
-    The pieces after the {!Layout.spacer} sit against the right edge, so while
-    no piece gives way and no column widens each sits in the same columns on
-    every row and in every frame. *)
+    So a column widens at most once for each new kind of progress, for a count
+    of items with more digits, or for a wider label: a display of bytes alone,
+    or one whose tasks of bytes count from their start, never widens after its
+    first frame of bytes but for a label, and one where a task of bytes comes
+    among rows of items widens once. While no piece gives way and no column
+    widens each piece sits in the same columns on every row and in every frame.
+
+    A program that wants the count, the rate and the time against the right edge
+    puts a {!Layout.spacer} before them, which takes the room the bar leaves:
+
+    {[
+    let right_aligned =
+      let space = Console.Progress.Layout.const (Console.View.text " ") in
+      Console.Progress.Layout.(
+        list
+          [
+            spinner;
+            space;
+            label;
+            spacer;
+            bar ();
+            space;
+            count;
+            space;
+            rate;
+            space;
+            elapsed;
+          ])
+    ]} *)
 module Layout : sig
   type t = Progress_layout.t
   (** The type for row layouts: at most one {!label} and one {!spacer}. *)
@@ -108,8 +150,8 @@ module Layout : sig
 
   val bar : ?width:int -> unit -> t
   (** [bar ()] is a progress bar ({!Bar.horizontal}), [width] cells wide, or
-      taking the room the spacer would without [width]. No bar shows before the
-      task counts something.
+      without [width] growing to fill the room, up to 40 cells, before a
+      {!spacer} takes the rest. No bar shows before the task counts something.
 
       @raise Invalid_argument if [width] is negative. *)
 
@@ -136,8 +178,8 @@ module Layout : sig
       [1m05s] or [1h02m], right-aligned in a column of its own. *)
 
   val spacer : t
-  (** [spacer] is the space that pushes the pieces after it to the right edge.
-  *)
+  (** [spacer] is the room the other pieces leave, at least one cell: the pieces
+      after it sit against the right edge. *)
 
   val const : View.t -> t
   (** [const v] is [v] on every row, on one line. *)
@@ -163,9 +205,9 @@ module Layout : sig
       @raise Invalid_argument if they hold two {!label}s or two {!spacer}s. *)
 
   val default : t
-  (** [default] is a spinner, the label, a spacer, a bar 12 cells wide, the
-      count, the rate and the elapsed time, with a space after the spinner and
-      between each two of the last four. *)
+  (** [default] is a spinner, the label, a bar that grows, the count, the rate
+      and the elapsed time, a space between each two, packed from the left
+      ({!Layout}). *)
 end
 
 (** {1:views Task views} *)
@@ -173,8 +215,8 @@ end
 val row : ?layout:Layout.t -> Task.t -> View.t
 (** [row task] is the row of [task] in its room ({!View.fit}): drawn by [layout]
     (defaults to {!Layout.default}) while it runs, its pieces giving way to fit,
-    and its line once it ended: its mark and label, then its count and time
-    against the right edge. *)
+    and its line once it ended: its mark, then its label, count, rate and time
+    in the columns of the rows, the cells of its bar blank ({!Layout}). *)
 
 val tree : ?layout:Layout.t -> Task.t -> View.t
 (** [tree task] is the tree of [task] in its room ({!View.fit}): the row of
@@ -303,12 +345,12 @@ val show :
     {1:guarantees Guarantees}
 
     Those of {!Display}, and on a terminal of [w] columns:
-    - While no piece gives way ({!Layout}), the counts, rates and timers of all
-      rows sit in the same columns, whatever the width of the labels: at the
-      right edge of the first [min w 100] columns, and so do the ends of their
-      bars. On a wide terminal they stay near their labels, and they do not move
-      when the terminal is resized wider. Nothing in the region moves sideways
-      unless the terminal width changes or a column widens, at most once for
-      each new kind of progress ({!Layout}).
+    - While no piece gives way ({!Layout}), the bars, counts, rates and timers
+      of all rows sit in the same columns, packed from the left: the bars start
+      one cell after the widest label, are as wide, at most 40 cells, and the
+      rest of the line stays empty, within the first [min w 100] columns.
+      Nothing in the region moves sideways unless the terminal width changes or
+      a column widens, at most once for each new kind of progress or for a wider
+      label ({!Layout}).
     - A label cut to fit is cut between two characters and ends with an ellipsis
       that turns its style off. *)

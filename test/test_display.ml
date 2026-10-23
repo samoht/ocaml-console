@@ -230,7 +230,7 @@ let test_region () =
   check_lines "final screen"
     [
       "[+] fetch                           0.0s";
-      "[+] compile                  1/4    0.0s";
+      "[+] compile                   1/4   0.0s";
       "[+] Build 0.0s (2/2)";
     ]
     (lines t);
@@ -322,9 +322,7 @@ let test_window () =
         [ "  # two"; "  note"; "  # " ^ String.sub wide 0 25 ^ "\u{2026}" ]
         (List.filteri (fun i _ -> i > 0) rows));
   close t;
-  check_lines "a success folds them all away"
-    [ "[+] job                   0.0s" ]
-    (lines t)
+  check_lines "a success folds them all away" [ "[+] job   0.0s" ] (lines t)
 
 (* The cell where [needle] starts in [row]. *)
 let cell_of needle row =
@@ -383,7 +381,12 @@ let test_capped () =
   Display.redraw t.display;
   let rows = List.filter (( <> ) "") (screen t) in
   check_lines "no taller than the screen less one"
-    [ "  \u{2026} 6 more running"; "| task 6"; "| task 7"; "[-] H 0.0s (0/8)" ]
+    [
+      "  \u{2026} 6 more running";
+      " |  task 6";
+      " |  task 7";
+      "[-] H 0.0s (0/8)";
+    ]
     (List.map untimed rows);
   Alcotest.(check int) "nothing scrolled" 0 (Console_vte.scrollback_size t.vte);
   List.iter Task.cancel tasks;
@@ -408,16 +411,16 @@ let test_marker_counts () =
     List.map untimed rows
   in
   check_lines "the windows give way"
-    (List.init 8 (Fmt.str "| task %d") @ [ "[-] H 0.0s (0/8)" ])
+    (List.init 8 (Fmt.str " |  task %d") @ [ "[-] H 0.0s (0/8)" ])
     (run 10);
   check_lines "the latest tasks"
     [
       "  \u{2026} 3 more running";
-      "| task 3";
-      "| task 4";
-      "| task 5";
-      "| task 6";
-      "| task 7";
+      " |  task 3";
+      " |  task 4";
+      " |  task 5";
+      " |  task 6";
+      " |  task 7";
       "[-] H 0.0s (0/8)";
     ]
     (run 8)
@@ -478,7 +481,8 @@ let test_with_output_moves () =
       Alcotest.(check bool)
         (Fmt.str "%S: the row is its own: %S" move row)
         true
-        (String.starts_with ~prefix:"| job" row && not (String.contains row 'Z'));
+        (String.starts_with ~prefix:" |  job" row
+        && not (String.contains row 'Z'));
       Task.succeed a;
       close t)
     [ "\027[A"; "\027[2A\r"; "\r"; "\027[K"; "\027[H" ]
@@ -497,7 +501,7 @@ let test_redraw_idle () =
    moves up over all of them. *)
 let test_narrowing () =
   let t = terminal ~theme ~width:40 ~height:8 ~label:"Header" () in
-  ignore (Task.start t.root "job");
+  Task.set_items (Task.start t.root "job") ~count:1 ~total:4;
   Display.redraw t.display;
   t.chunks := [];
   resize t ~width:20 ~height:8;
@@ -745,7 +749,7 @@ let test_colours () =
    tasks keep to 100, so that a count and a timer stay near their label. *)
 let test_wide () =
   let t = terminal ~width:160 ~height:8 () in
-  let task = Task.start t.root "compile" in
+  let task = Task.start t.root ("compile " ^ String.make 62 'x') in
   Task.set_items task ~count:1 ~total:3;
   Task.log task "a log line";
   Display.redraw t.display;
@@ -836,7 +840,7 @@ let test_success_drops () =
     (List.exists (contains "one") (screen t));
   Task.succeed job;
   close t;
-  check_lines "only its line" [ "[+] job                   0.0s" ] (lines t)
+  check_lines "only its line" [ "[+] job   0.0s" ] (lines t)
 
 (* A task that fails prints all its output under its line, in one
    block, without its label and not cut: a line too wide goes on over the
@@ -1285,7 +1289,9 @@ let test_view_width () =
     (fit t.root (fun d ~width ~height ->
          given := width;
          default d ~width ~height));
-  ignore (Task.start t.root "compile");
+  Task.set_items
+    (Task.start t.root ("compile " ^ String.make 62 'x'))
+    ~count:1 ~total:3;
   Display.redraw t.display;
   Alcotest.(check int) "the width" 160 !given;
   Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
@@ -2264,7 +2270,7 @@ let test_print () =
   let before = List.length !(t.chunks) in
   Display.print t.display (View.text "printed");
   Alcotest.(check int) "one write" (before + 1) (List.length !(t.chunks));
-  check_lines "above the region, at once" [ "printed"; "| job" ]
+  check_lines "above the region, at once" [ "printed"; " |  job" ]
     (List.map untimed (screen t));
   close t;
   let buffer = Buffer.create 64 in

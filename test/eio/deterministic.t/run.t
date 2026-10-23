@@ -25,8 +25,8 @@ On a pipe:
 On a terminal, the screen it leaves:
 
   $ ../tty.exe ../../../examples/progress/main.exe
-  [+] RUN make                                                         5/5    3.0s
-    +-- [+] sha256:abcd...                             2.00 GiB / 2.00 GiB    3.0s
+  [+] RUN make                                                          5/5   3.0s
+    +-- [+] sha256:abcd...                              2.00 GiB / 2.00 GiB   3.0s
   [+] Building 3.0s (2/2)
 
 The examples/columns program sleeps on Console_eio.clock: two of its runs

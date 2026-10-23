@@ -15,7 +15,7 @@ prints goes out as without console, on a pipe:
 and on a terminal:
 
   $ ../tty.exe ../piped.exe exit
-  [~] work                                                                    0.0s
+  [~] work   0.0s
     # result 1
   piped.exe: [WARNING] logged at exit
   printed at exit

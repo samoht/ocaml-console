@@ -6,29 +6,66 @@
 (** The lines that show tasks, in a look.
 
     A task is drawn three ways: {{!live}live}, a running task in a tree;
-    {{!ended}ended}, a task that ended in a tree, its count and timer against
-    the right edge; and {{!appended}appended}, printed in turn without a
-    terminal, compact. A line in a room is at most that wide; without one, it is
-    whole. *)
+    {{!ended}ended}, a task that ended in a tree, in the columns of the live
+    rows; and {{!appended}appended}, printed in turn without a terminal,
+    compact. A line in a room is at most that wide; without one, it is whole. *)
 
 open Task_core
+
+(** {1:columns Columns} *)
+
+val bar_max : int
+(** [bar_max] is the widest a bar that grows gets, in cells. *)
+
+val bar_min : int
+(** [bar_min] is the narrowest a bar that grows gets before the pieces of its
+    row give way. *)
+
+type columns = {
+  label : int;  (** The cells of the label column. *)
+  lead : int;  (** The cells of the widest spinner frame or mark. *)
+}
+(** The type for the columns a row shares with the rows around it. *)
+
+val lead : Look.t -> int
+(** [lead look] is the cells of the widest spinner frame or mark of [look]. *)
+
+val columns : Look.t -> t -> columns
+(** [columns look r] are the columns of a row of [r] alone: its label column is
+    as wide as the widest label of [r]'s work. *)
 
 (** {1:rows Tasks} *)
 
 val live :
-  Look.t -> time:float -> ?width:int -> Progress_layout.t -> t -> View_core.t
-(** [live look ~time ~width layout r] is the row of the running task [r] at
-    [time], its label cut to the room the other pieces leave, once they have
-    given way in the order of their stages. *)
+  Look.t ->
+  time:float ->
+  ?width:int ->
+  ?columns:columns ->
+  Progress_layout.t ->
+  t ->
+  View_core.t
+(** [live look ~time ~width ~columns layout r] is the row of the running task
+    [r] at [time], packed from the left: its label padded to the label column of
+    [columns], if given, its bar grown to fill the room up to {!bar_max} cells,
+    and its label cut to the room the other pieces leave once its bar has shrunk
+    to {!bar_min} cells and they have given way in the order of their stages. *)
 
 val tail : Look.t -> t -> (int * View_core.t) list
 (** [tail look r] are the lines of [r]'s window, oldest first, each after its
     {!field-seq}. *)
 
-val ended : Look.t -> ?width:int -> whole:bool -> t -> View_core.t list
-(** [ended look ~width ~whole r] is the line of [r], which ended: its mark and
-    label, then its count and timer in the columns every task uses. A label that
-    does not fit is cut, or with [whole] goes on over the lines below. *)
+val ended :
+  Look.t ->
+  ?width:int ->
+  ?columns:columns ->
+  whole:bool ->
+  t ->
+  View_core.t list
+(** [ended look ~width ~columns ~whole r] is the line of [r], which ended: the
+    row {!Progress_layout.ended} draws, its mark, then its label, count, rate
+    and time in the columns of the live rows, the cells of its bar blank. A
+    label that does not fit is cut, or with [whole] goes on over the lines
+    below. *)
 
 val output : Look.t -> width:int -> t -> View_core.t list
 (** [output look ~width r] is the output [r] kept, whole: a line that does not

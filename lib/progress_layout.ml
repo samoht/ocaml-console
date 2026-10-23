@@ -5,6 +5,7 @@
 
 type kind =
   | Spinner
+  | Mark
   | Label
   | Bar of int option
   | Percent
@@ -16,7 +17,7 @@ type kind =
   | Const of View_core.t
   | Custom of (Task_core.t -> View_core.t)
 
-type piece = { kind : kind; stage : int option }
+type piece = { kind : kind; stage : int option; blank : bool }
 type t = piece list
 
 let pieces t = t
@@ -41,7 +42,13 @@ let reads t =
   if List.exists own t then fun look -> reads_in look View_core.tasks t
   else fun _ -> View_core.tasks
 
-let one ?stage kind = [ { kind; stage } ]
+let one ?stage kind =
+  let blank =
+    match kind with
+    | Const v -> String.trim (View_core.to_string v) = ""
+    | _ -> false
+  in
+  [ { kind; stage; blank } ]
 
 (* What gives way, and when: the rate and the time left first, then the
    bar and the percentage; the count gets shorter at the third stage and
@@ -73,7 +80,7 @@ let is_label p = match p.kind with Label -> true | _ -> false
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
 (* A row has one flexible piece of each kind: the label that gives way and
-   the spacer that pushes what follows to the right edge. *)
+   the spacer that takes the room left. *)
 let checked t =
   let count is = List.length (List.filter is t) in
   if count is_label > 1 then
@@ -94,14 +101,14 @@ let list ?sep ts =
 
 let space = const (View_core.text " ")
 
-let default =
+let packed lead =
   list
     [
-      spinner;
+      lead;
       space;
       label;
-      spacer;
-      bar ~width:12 ();
+      space;
+      bar ();
       space;
       count;
       space;
@@ -110,8 +117,12 @@ let default =
       elapsed;
     ]
 
+let default = packed spinner
+let ended = packed (one Mark)
+
 let pp_kind ppf = function
   | Spinner -> Fmt.string ppf "spinner"
+  | Mark -> Fmt.string ppf "mark"
   | Label -> Fmt.string ppf "label"
   | Bar None -> Fmt.string ppf "bar"
   | Bar (Some n) -> Fmt.pf ppf "bar %d" n

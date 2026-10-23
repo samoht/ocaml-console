@@ -13,9 +13,10 @@ let lines vs = V.concat ~sep:(V.text "\n") vs
 let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
       let look = Ctx.look c and width = Ctx.width c in
+      let columns = Progress_row.columns look r in
       if is_running r then
-        Progress_row.live look ~time:(Ctx.time c) ?width layout r
-      else lines (Progress_row.ended look ?width ~whole:false r))
+        Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r
+      else lines (Progress_row.ended look ?width ~columns ~whole:false r))
 
 let tree ?(layout = Layout.default) r = Progress_tree.view ~layout r
 

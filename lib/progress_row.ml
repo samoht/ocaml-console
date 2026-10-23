@@ -33,6 +33,10 @@ let mark_style look (m : Theme.mark) =
 
 let mark look m = V.ink (mark_style look m) (Widget.mark look m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
+let label_of r = Option.value (message r) ~default:(label r)
+
+let mark_of look r =
+  mark look (outcome_mark (Option.value (outcome r) ~default:`Cancelled))
 
 (* {1 Live rows} *)
 
@@ -42,17 +46,23 @@ let percent m =
     (fun f -> if f >= 1. then 100 else int_of_float (100. *. f))
     (fraction m)
 
+(* The bar column opens with the first task of the work that counts. *)
+let counted r = Work.count_cell (work r) > 0
+
 (* No bar is drawn before work advances, since an empty track reads as an
-   input field; its cells are kept blank, so that nothing moves when it
-   shows. Once work has advanced, the bar shows the least it can. *)
+   input field; its cells are kept blank, as are those of a task that does
+   not count, so that nothing moves when it shows. Once work has advanced,
+   the bar shows the least it can. A task that ended keeps the cells of its
+   bar blank: the line it leaves is its label, count and time. *)
 let bar look r width =
-  match fraction (metric r) with
-  | Some f when f > 0. ->
-      (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
-      let f = Float.max f (1. /. float (max 1 (width * 2))) in
-      V.paint look (Bar.horizontal ~width f)
-  | Some _ -> pad width
-  | None -> V.empty
+  if not (counted r) then V.empty
+  else
+    match fraction (metric r) with
+    | Some f when f > 0. && is_running r ->
+        (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
+        let f = Float.max f (1. /. float (max 1 (width * 2))) in
+        V.paint look (Bar.horizontal ~width f)
+    | _ -> pad width
 
 let count_cell look r =
   pad_left (Work.count_cell (work r)) (muted look (count_text (metric r)))
@@ -74,32 +84,65 @@ let eta look r =
   | Some s -> muted look ("ETA " ^ Task_text.duration s)
   | None -> V.empty
 
-(* A piece at [stage] of what gives way, or [None] for the label and the
-   spacer, which the row lays out. *)
-let piece look r ~time ~stage (p : Progress_layout.piece) =
+(* {2 Columns} *)
+
+let bar_max = 40
+let bar_min = 10
+
+type columns = { label : int; lead : int }
+
+(* From the third stage of what gives way, the count and the elapsed time
+   leave their columns, and so does the label. *)
+let apart = 3
+
+let lead look =
+  List.fold_left
+    (fun n s -> max n (Widget.cells s))
+    1
+    (List.map (Widget.mark look) [ `Succeeded; `Failed; `Cancelled ]
+    @ List.map
+        (fun f -> Widget.glyph look f ~ascii:"|")
+        (Theme.spinner (theme look)))
+
+let columns look r =
+  let w = work r in
+  let rec widest d n =
+    if d >= Work.depths w then n
+    else widest (d + 1) (max n (Work.label_cell w d))
+  in
+  { label = widest 0 0; lead = lead look }
+
+(* What a piece shows at [stage]: a view, the bar that grows, the label or
+   the spacer, which the row lays out. *)
+type cell = Shown of V.t | Grows | Name | Rest
+
+let cell look r ~time ~stage (p : Progress_layout.piece) =
   match p.kind with
   | Spinner ->
-      Some (V.ink (Style.fg (color look r)) (Widget.spinner look ~time))
-  | Label | Spacer -> None
-  | Bar w -> Some (bar look r (Option.value w ~default:12))
+      Shown (V.ink (Style.fg (color look r)) (Widget.spinner look ~time))
+  | Mark -> Shown (mark_of look r)
+  | Label -> Name
+  | Spacer -> Rest
+  | Bar None -> if counted r then Grows else Shown V.empty
+  | Bar (Some w) -> Shown (bar look r w)
   | Percent -> (
       match percent (metric r) with
-      | Some p -> Some (Fmt.kstr (muted look) "%3d%%" p)
-      | None -> Some V.empty)
+      | Some p -> Shown (Fmt.kstr (muted look) "%3d%%" p)
+      | None -> Shown (if counted r then pad 4 else V.empty))
   | Count ->
-      Some (if stage >= 3 then compact_count look r else count_cell look r)
+      Shown (if stage >= apart then compact_count look r else count_cell look r)
   | Rate ->
-      Some
+      Shown
         (pad_left
            (Work.rate_cell (work r))
            (muted look (rate_text (metric r) (rate r))))
-  | Eta -> Some (eta look r)
+  | Eta -> Shown (eta look r)
   | Elapsed ->
-      Some
-        (if stage >= 3 then muted look (Task_text.duration (elapsed r))
+      Shown
+        (if stage >= apart then muted look (Task_text.duration (elapsed r))
          else timer look (elapsed r))
-  | Const v -> Some (V.resolve (Ctx.v look) v)
-  | Custom f -> Some (V.resolve (Ctx.v ~time look) (f r))
+  | Const v -> Shown (if V.is_flat v then v else V.resolve (Ctx.v look) v)
+  | Custom f -> Shown (V.resolve (Ctx.v ~time look) (f r))
 
 (* {2 What gives way}
 
@@ -112,100 +155,166 @@ let last_stage pieces =
   List.fold_left
     (fun n (p : Progress_layout.piece) ->
       max n (Option.value p.stage ~default:0))
-    3 pieces
+    apart pieces
 
-let is_blank (p : Progress_layout.piece) =
-  match p.kind with Const v -> String.trim (V.to_string v) = "" | _ -> false
+let is_lead (p : Progress_layout.piece) =
+  match p.kind with Spinner | Mark -> true | _ -> false
 
-let gone stage (p : Progress_layout.piece) =
-  match p.stage with Some s -> stage >= s | None -> false
-
-let is_rate (p : Progress_layout.piece) =
-  match p.kind with Rate -> true | _ -> false
-
-(* The pieces left at [stage], each gone piece with the blank text before
-   it, or after it if none is before. The rate leaves its blanks, so that a
-   count keeps its distance to the timer, as on the line of a task that
-   ended. A row whose last piece has gone ends with no blank. *)
-let left stage pieces =
-  if stage = 0 then pieces
+(* [v] in the middle of [n] cells, so that the spinners and the marks of
+   the rows take as many cells and their labels start in one column. *)
+let centred n v =
+  let w = V.width v in
+  if w >= n then v
   else
-    let a = Array.of_list pieces in
-    let n = Array.length a in
-    let keep = Array.map (fun p -> not (gone stage p)) a in
-    Array.iteri
-      (fun i p ->
-        if gone stage p && not (is_rate p) then
-          if i > 0 && keep.(i - 1) && is_blank a.(i - 1) then
-            keep.(i - 1) <- false
-          else if i + 1 < n && keep.(i + 1) && is_blank a.(i + 1) then
-            keep.(i + 1) <- false)
-      a;
-    if n > 0 && gone stage a.(n - 1) then begin
-      let rec trim i =
-        if i >= 0 && ((not keep.(i)) || is_blank a.(i)) then begin
-          keep.(i) <- false;
-          trim (i - 1)
-        end
-      in
-      trim (n - 1)
-    end;
-    List.filteri (fun i _ -> keep.(i)) pieces
+    let before = (n - w) / 2 in
+    V.(pad before ++ v ++ pad (n - w - before))
 
-(* The label takes the room the other pieces leave, and they give way
-   until it fits whole; one spacer takes the slack, so the pieces after it
-   sit at the right edge. A bar of no width takes the slack before the
-   spacer does. Without a room, nothing gives way. *)
-let live look ~time ?width layout r =
+(* What [pieces] show at [stage], the cells of those of a fixed width,
+   whether the bar grows and whether the label ends the row. A piece that
+   has given way, or that shows nothing, goes with the blank text before
+   it, or after it if none is before; a row whose last piece has gone ends
+   with no blank. With [lead], the spinner and the mark take that many
+   cells. *)
+let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
+  let n = Array.length pieces in
+  let cells =
+    Array.map
+      (fun (p : Progress_layout.piece) ->
+        match p.stage with
+        | Some s when stage >= s -> None
+        | _ -> Some (cell look r ~time ~stage p))
+      pieces
+  in
+  let gone =
+    Array.map
+      (function
+        | None -> true | Some (Shown v) -> V.is_empty v | Some _ -> false)
+      cells
+  in
+  let keep = Array.map not gone in
+  let blank i = keep.(i) && pieces.(i).blank in
+  for i = 0 to n - 1 do
+    if gone.(i) then
+      if i > 0 && blank (i - 1) then keep.(i - 1) <- false
+      else if i + 1 < n && blank (i + 1) then keep.(i + 1) <- false
+  done;
+  if n > 0 && gone.(n - 1) then begin
+    let rec trim i =
+      if i >= 0 && ((not keep.(i)) || pieces.(i).blank) then begin
+        keep.(i) <- false;
+        trim (i - 1)
+      end
+    in
+    trim (n - 1)
+  end;
+  let rec collect i acc fixed grows =
+    if i < 0 then (acc, fixed, grows)
+    else
+      match cells.(i) with
+      | Some c when keep.(i) -> (
+          match c with
+          | Shown v ->
+              let v =
+                match lead with
+                | Some l when is_lead pieces.(i) -> centred l v
+                | _ -> v
+              in
+              collect (i - 1) (Shown v :: acc) (fixed + V.width v) grows
+          | Grows -> collect (i - 1) (c :: acc) fixed true
+          | Name | Rest -> collect (i - 1) (c :: acc) fixed grows)
+      | _ -> collect (i - 1) acc fixed grows
+  in
+  let cells, fixed, grows = collect (n - 1) [] 0 false in
+  let rec ends = function
+    | [] -> false
+    | [ Name ] -> true
+    | _ :: rest -> ends rest
+  in
+  (cells, fixed, grows, ends cells)
+
+(* The row of [r] by [layout], packed from the left, and whether its label
+   is whole. With [columns], until the count leaves its column, the spinner
+   or the mark takes the cells of the widest and the label is padded to the
+   label column. The bar grows to fill the room up to [bar_max], and a
+   spacer takes what is left. Short of room, the bar shrinks to [bar_min]
+   before the pieces give way, in the order of their stages, and the label
+   is cut once they all have. Without a room, nothing gives way. *)
+let laid look ~time ?width ?columns ~label layout r =
   let layout = Progress_layout.pieces layout in
-  let has k =
-    List.exists (fun (p : Progress_layout.piece) -> p.kind = k) layout
+  let has is = List.exists is layout in
+  let named = has (fun (p : Progress_layout.piece) -> p.kind = Label) in
+  let label_w = if named then V.width label else 0 in
+  let reserve =
+    if has (fun (p : Progress_layout.piece) -> p.kind = Spacer) then 1 else 0
   in
-  let label = V.ink Style.bold (label r) in
-  let want = if has Label then V.width label else 0 in
-  let growing (p : Progress_layout.piece) = p.kind = Bar None in
-  let reserve = if has Spacer then 1 else 0 in
+  let pieces = Array.of_list layout in
   let at stage =
-    let pieces =
-      List.map (fun p -> (p, piece look r ~time ~stage p)) (left stage layout)
+    let held = stage < apart in
+    let lead =
+      match columns with Some c when held -> Some c.lead | _ -> None
     in
-    let fixed =
-      List.fold_left
-        (fun n (p, v) ->
-          match v with Some v when not (growing p) -> n + V.width v | _ -> n)
-        0 pieces
+    let cells, fixed, grows, ends = shown look r ~time ~stage ~lead pieces in
+    let column =
+      match columns with
+      | Some c when named && held -> max label_w c.label
+      | _ -> label_w
     in
-    (pieces, fixed)
+    (cells, fixed, grows, ends, column)
   in
-  let width = Option.value width ~default:(want + reserve + snd (at 0) + 12) in
+  let width =
+    match width with
+    | Some w -> w
+    | None ->
+        let _, fixed, grows, _, column = at 0 in
+        column + fixed + reserve + if grows then bar_max else 0
+  in
   let last = last_stage layout in
   let rec fit stage =
-    let pieces, fixed = at stage in
-    if width - fixed - reserve >= want || stage >= last then (pieces, fixed)
+    let ((_, fixed, grows, _, column) as x) = at stage in
+    if width - fixed - reserve - column >= if grows then bar_min else 0 then
+      (x, true)
+    else if stage >= last then (x, false)
     else fit (stage + 1)
   in
-  let pieces, fixed = fit 0 in
+  let (cells, fixed, grows, ends, column), fits = fit 0 in
   let room = width - fixed - reserve in
-  let label =
-    if not (has Label) then V.empty
-    else if V.width label <= room then label
-    else cut look room label
+  let label, column =
+    if fits || not named then (label, column)
+    else
+      let left = max 0 (room - if grows then 1 else 0) in
+      let label = if label_w <= left then label else cut look left label in
+      (label, V.width label)
   in
-  let slack = max 0 (width - fixed - V.width label) in
-  let grows = List.exists (fun (p, _) -> growing p) pieces in
+  let bar_w = if grows then max 1 (min bar_max (room - column)) else 0 in
+  let rest = reserve + max 0 (room - column - bar_w) in
+  let total = ref fixed in
   let line =
     V.concat
       (List.map
-         (fun ((p : Progress_layout.piece), v) ->
-           match (p.kind, v) with
-           | Label, _ -> label
-           | Spacer, _ -> pad (if grows then reserve else max reserve slack)
-           | Bar None, _ -> bar look r (max 1 (slack - reserve))
-           | _, Some v -> v
-           | _, None -> V.empty)
-         pieces)
+         (function
+           | Name when ends ->
+               total := !total + V.width label;
+               label
+           | Name ->
+               total := !total + column;
+               V.(label ++ pad (column - V.width label))
+           | Rest ->
+               total := !total + rest;
+               pad rest
+           | Grows ->
+               total := !total + bar_w;
+               bar look r bar_w
+           | Shown v -> v)
+         cells)
   in
-  cut look width line
+  ( (if !total <= width then line else cut look width line),
+    fits || V.width label = label_w )
+
+let live look ~time ?width ?columns layout r =
+  fst
+    (laid look ~time ?width ?columns
+       ~label:(V.ink Style.bold (label r))
+       layout r)
 
 let gap_suffix look gap =
   if gap >= 1. then muted look ("  +" ^ Task_text.duration gap) else V.empty
@@ -229,11 +338,6 @@ let tail look r =
 
 (* {1 Permanent lines} *)
 
-let label_of r = Option.value (message r) ~default:(label r)
-
-let mark_of look r =
-  mark look (outcome_mark (Option.value (outcome r) ~default:`Cancelled))
-
 (* [lead], then the lines of [body] broken to [width], each after the
    first under its start. *)
 let hanging look ~width lead body =
@@ -245,89 +349,58 @@ let hanging look ~width lead body =
         V.(lead ++ first) :: List.map (fun l -> V.(pad w ++ l)) rest
     | [] -> [ lead ])
 
-(* The count and the timer of a task that ended, at a stage of what gives
-   way: 0 in the columns every task uses, 1 the count shorter and out of
-   them, the timer too, 2 the count alone. *)
+(* The count and the time of a task that ended at the end of the last line
+   of its label: shorter and out of their columns, then the count alone. *)
 let meta look r stage =
-  let timer =
-    if stage = 0 then timer look (elapsed r)
-    else muted look (Task_text.duration (elapsed r))
-  in
-  let count =
-    if stage = 0 then
-      if Work.count_cell (work r) = 0 then None else Some (count_cell look r)
-    else
-      let c = compact_count look r in
-      if V.is_empty c then None else Some c
-  in
-  match (stage, count) with
-  | (0 | 1), None -> timer
-  | (0 | 1), Some c -> V.(c ++ text "  " ++ timer)
-  | _, None -> V.empty
-  | _, Some c -> c
-
-let meta_stages = 2
-
-(* [line] and [meta] against the right edge, two cells apart at least. *)
-let against look ~width line meta =
-  if V.is_empty meta then cut look width line
-  else
-    let gap = width - V.width line - V.width meta in
-    cut look width V.(line ++ pad gap ++ meta)
+  let count = compact_count look r in
+  let time = muted look (Task_text.duration (elapsed r)) in
+  match stage with
+  | 0 -> if V.is_empty count then time else V.(count ++ text "  " ++ time)
+  | 1 -> count
+  | _ -> V.empty
 
 (* A label is never wrapped in fewer cells than it keeps when it is cut. *)
 let narrowest = 12
 
-(* The mark and the label, then the count and the timer against the right
-   edge, in the cells every task uses, so the columns line up whatever the
-   labels. In the region, the count and the timer give way until the label
-   fits, and only then is the label cut. With [whole], the label is never
-   cut: it goes on over the lines below, at the full width left, and the
-   count and the timer go at the end of its last line, or give way. Without
-   a room, the line is whole. *)
-let ended look ?width ~whole r =
-  let lead = V.(mark_of look r ++ text " ") in
-  let lead_w = V.width lead in
+(* The line of a task that ended is a row of {!Progress_layout.ended}: its
+   mark, then its label, count, rate and time in the columns of the rows,
+   its bar blank, giving way as they do. With [whole], a label that does not fit is
+   never cut: it goes on over the lines below, at the full width left, and
+   the count and the time go two cells after its last line, or give way. *)
+let ended look ?width ?columns ~whole r =
   let label = text (label_of r) in
-  let label_w = V.width label in
-  let full = meta look r 0 in
-  let width =
-    match width with Some w -> w | None -> lead_w + label_w + 2 + V.width full
+  let line, fits =
+    laid look ~time:0. ?width ?columns ~label Progress_layout.ended r
   in
-  let room m = width - lead_w - if V.is_empty m then 0 else V.width m + 2 in
-  if room full >= label_w then [ against look ~width V.(lead ++ label) full ]
-  else if not whole then
-    let rec fit stage =
-      let m = meta look r stage in
-      if room m >= label_w || stage = meta_stages then m else fit (stage + 1)
-    in
-    let m = fit 0 in
-    [ against look ~width V.(lead ++ cut look (room m) label) m ]
-  else
-    let lines =
-      if width - lead_w >= min narrowest label_w then
-        match V.wrap (max 1 (width - lead_w)) label with
-        | first :: rest ->
-            V.(lead ++ first) :: List.map (fun l -> V.(pad lead_w ++ l)) rest
-        | [] -> [ lead ]
-      else
-        let indent = max 0 (min lead_w (width - narrowest)) in
-        lead
-        :: List.map
-             (fun l -> V.(pad indent ++ l))
-             (V.wrap (max 1 (width - indent)) label)
-    in
-    let rev = List.rev lines in
-    let last = List.hd rev in
-    let rec place stage =
-      if stage > meta_stages then V.empty
-      else
+  match width with
+  | Some width when whole && not fits ->
+      let lead = V.(mark_of look r ++ text " ") in
+      let lead_w = V.width lead in
+      let label_w = V.width label in
+      let lines =
+        if width - lead_w >= min narrowest label_w then
+          match V.wrap (max 1 (width - lead_w)) label with
+          | first :: rest ->
+              V.(lead ++ first) :: List.map (fun l -> V.(pad lead_w ++ l)) rest
+          | [] -> [ lead ]
+        else
+          let indent = max 0 (min lead_w (width - narrowest)) in
+          lead
+          :: List.map
+               (fun l -> V.(pad indent ++ l))
+               (V.wrap (max 1 (width - indent)) label)
+      in
+      let rev = List.rev lines in
+      let last = List.hd rev in
+      let rec place stage =
         let m = meta look r stage in
         if V.is_empty m || V.width last + 2 + V.width m <= width then m
         else place (stage + 1)
-    in
-    List.rev_map (cut look width)
-      (against look ~width last (place 0) :: List.tl rev)
+      in
+      let m = place 0 in
+      let last = if V.is_empty m then last else V.(last ++ text "  " ++ m) in
+      List.rev_map (cut look width) (last :: List.tl rev)
+  | _ -> [ line ]
 
 let dropped_line look n what =
   muted look

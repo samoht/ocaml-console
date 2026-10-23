@@ -130,7 +130,10 @@ let run_all ~clock ~progress suites =
 
 [Eio.Fiber.List.iter] runs each suite in a fiber of its own, so suites
 that wait, for a child process for example, run side by side with one row
-each. Below the rows, the summary line names the work given as [~label],
+each. A row reads from the left: the suite's name, then its bar, up to 40
+cells wide, then [count/total] and the time. The bars of all the rows start
+in one column, one cell after the longest name, so each bar sits next to
+its name and the counts line up. Below the rows, the summary line names the work given as [~label],
 with its time and the count of suites that ended. It stays the last line
 while the rows above it come and go, and it is the last line printed when
 the work ends, before the message a program may end the root with

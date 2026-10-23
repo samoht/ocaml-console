@@ -197,7 +197,7 @@ let test_deterministic_schedule () =
           (Fmt.str "schedule %d" seed)
           calm (perturbed ~progress seed)
       done)
-    [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 69 ' ' ^ "2.9s") ]
+    [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 60 ' ' ^ "2.9s") ]
 
 (* A recording made of [f] under [CONSOLE_CAST], on a terminal of 30 columns
    by 6 rows, its lines. *)

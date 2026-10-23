@@ -8,6 +8,7 @@
 
 type kind =
   | Spinner
+  | Mark  (** The mark of how the task ended. *)
   | Label
   | Bar of int option  (** A bar that many cells wide, or that grows. *)
   | Percent
@@ -19,9 +20,9 @@ type kind =
   | Const of View_core.t
   | Custom of (Task_core.t -> View_core.t)
 
-type piece = { kind : kind; stage : int option }
-(** The type for the pieces of a row: what each shows, and the stage at which it
-    gives way, if it does. *)
+type piece = { kind : kind; stage : int option; blank : bool }
+(** The type for the pieces of a row: what each shows, the stage at which it
+    gives way, if it does, and whether it is blank text. *)
 
 type t
 (** The type for layouts: at most one {!constructor-Label} and one
@@ -50,6 +51,10 @@ val give_way : int -> t -> t
 val ( ++ ) : t -> t -> t
 val list : ?sep:t -> t list -> t
 val default : t
+
+val ended : t
+(** [ended] is {!default} with the mark of how the task ended in place of the
+    spinner: the line of a task that ended, in the columns of the rows. *)
 
 val pp : t Fmt.t
 (** [pp] formats a layout for diagnostics, in an unspecified format. *)

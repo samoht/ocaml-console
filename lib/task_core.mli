@@ -106,6 +106,13 @@ module Work : sig
 
   val rate_cell : work -> int
   (** [rate_cell w] is the cells of the widest rate seen. *)
+
+  val label_cell : work -> int -> int
+  (** [label_cell w d] is the cells of the widest label a task of [w] at
+      {!depth} [d] has had. *)
+
+  val depths : work -> int
+  (** [depths w] is one more than the deepest {!depth} of [w]'s tasks. *)
 end
 
 val keep : t -> memo list -> unit

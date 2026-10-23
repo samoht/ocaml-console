@@ -73,7 +73,7 @@ let test_tree_moves () =
   Alcotest.(check int)
     "nothing in the scrollback yet" 0
     (Console_vte.scrollback_size t.vte);
-  let bar = String.concat "" (List.init 12 (fun _ -> "\u{2501}")) in
+  let bar = String.concat "" (List.init 22 (fun _ -> "\u{2501}")) in
   check_lines "the layer waits under its step"
     [
       "\u{280b} RUN make " ^ bar ^ " 5/5 0.0s";

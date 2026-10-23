@@ -37,6 +37,7 @@ and work = {
   mutable cancelled : int;
   mutable count_cell : int;
   mutable rate_cell : int;
+  mutable label_cells : int array;
   mutable watchers : (change -> unit) list;
   mutable ending : t -> unit;
   mutable changes : int;
@@ -177,6 +178,7 @@ let root ?label ?scope ~now () =
       cancelled = 0;
       count_cell = 0;
       rate_cell = 0;
+      label_cells = [||];
       watchers = [];
       ending = ignore;
       changes = 0;
@@ -289,6 +291,16 @@ let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
 
+(* The label column only widens: it keeps the widest label of each depth. *)
+let widen_label r =
+  let w = r.work and d = depth r in
+  if d >= Array.length w.label_cells then begin
+    let cells = Array.make (d + 1) 0 in
+    Array.blit w.label_cells 0 cells 0 (Array.length w.label_cells);
+    w.label_cells <- cells
+  end;
+  w.label_cells.(d) <- max w.label_cells.(d) (Width.string_width r.label)
+
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
   (match key with
@@ -302,6 +314,7 @@ let start ?key ?(log_lines = 8) ?(transient = false) parent label =
       w.next_id <- id + 1;
       let r = row w ~id ?key ~parent ~log_lines ~transient label in
       w.started <- w.started + 1;
+      widen_label r;
       Option.iter (fun k -> Hashtbl.replace w.by_key k r) key;
       if not parent.gone then adopt parent r;
       notify w (Started r);
@@ -336,6 +349,7 @@ let run ?key ?log_lines ?transient parent label f =
 let set_label r label =
   if is_running r && not (is_root r) then begin
     r.label <- Task_text.label label;
+    widen_label r;
     notify r.work (Renamed r)
   end
 
@@ -608,4 +622,9 @@ module Work = struct
   let cancelled (w : work) = w.cancelled
   let count_cell (w : work) = w.count_cell
   let rate_cell (w : work) = w.rate_cell
+
+  let label_cell (w : work) depth =
+    if depth < Array.length w.label_cells then w.label_cells.(depth) else 0
+
+  let depths (w : work) = Array.length w.label_cells
 end

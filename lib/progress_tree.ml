@@ -77,6 +77,7 @@ type key = {
   look : Look.t;
   layout : Progress_layout.t;
   width : int option;
+  column : int;
   count_cell : int;
   rate_cell : int;
   spin : int;
@@ -91,6 +92,7 @@ type Task_core.memo += Row of key * V.t | Tree of key * (int * int) list * V.t
 let same a b =
   a.version = b.version && a.look == b.look && a.layout == b.layout
   && Option.equal Int.equal a.width b.width
+  && a.column = b.column
   && a.count_cell = b.count_cell
   && a.rate_cell = b.rate_cell && a.spin = b.spin
   && String.equal a.timer b.timer
@@ -98,13 +100,14 @@ let same a b =
 
 let keeps layout look = not (Progress_layout.reads layout look).live
 
-let key ~layout ~form ~cut ~top ~time look width r =
+let key ~layout ~form ~cut ~top ~column ~time look width r =
   let running = is_running r in
   {
     version = version r;
     look;
     layout;
     width;
+    column;
     count_cell = Work.count_cell (work r);
     rate_cell = Work.rate_cell (work r);
     spin = (if running then int_of_float (Float.floor (time *. 10.)) else 0);
@@ -147,14 +150,17 @@ let shed form r = if form = Bare then 0 else shed r
    that ended, its line, with its output when whole. *)
 (* The lines under a top task's row are two cells further in than the row,
    behind the tree's indent, so they have two cells less. *)
-let own ~layout ~form ~cut ~top ?(extra = []) r =
+let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
   let under width =
     Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
   in
   let row look ~time width lay =
     if extra <> [] || not (keeps layout look) then lay ()
     else
-      let key = key ~layout ~form ~cut ~top ~time look width r in
+      let key =
+        key ~layout ~form ~cut ~top ~column:columns.Progress_row.label ~time
+          look width r
+      in
       kept r ~kind:is_row
         ~find:(function Row (k, v) when same k key -> Some v | _ -> None)
         ~make:(fun v -> Row (key, v))
@@ -178,7 +184,7 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
           | Bare | Whole -> []
         in
         V.concat ~sep:(V.text "\n")
-          ((Progress_row.live look ~time ?width layout r :: tail)
+          ((Progress_row.live look ~time ?width ~columns layout r :: tail)
           @ List.map
               (fun f ->
                 let l = f look in
@@ -190,7 +196,7 @@ let own ~layout ~form ~cut ~top ?(extra = []) r =
     label (fun look ~time width ->
         row look ~time width @@ fun () ->
         let whole = form = Whole in
-        let lines = Progress_row.ended look ?width ~whole r in
+        let lines = Progress_row.ended look ?width ~columns ~whole r in
         let output =
           if whole then
             Progress_row.output look
@@ -221,30 +227,57 @@ let heads ~fold ~shed nodes =
         ]),
     shown )
 
-let rec block ~layout ~form ~fold ~shed ~cut nodes =
+let rec block ~layout ~form ~fold ~shed ~cut ~cols ~depth nodes =
   let heads, shown = heads ~fold ~shed nodes in
-  heads @ List.map (fun n -> node ~layout ~form ~cut n) shown
+  heads @ List.map (fun n -> node ~layout ~form ~cut ~cols ~depth n) shown
 
-and node ?(top = false) ~layout ~form ~cut ?extra n =
+and node ?(top = false) ~layout ~form ~cut ~cols ~depth ?extra n =
   let r = n.row in
   Tree.v
-    (own ~layout ~form ~cut ~top ?extra r)
-    (block ~layout ~form ~fold:(form = Fold) ~shed:(shed form r) ~cut n.kids)
+    (own ~layout ~form ~cut ~top ~columns:(cols depth) ?extra r)
+    (block ~layout ~form ~fold:(form = Fold) ~shed:(shed form r) ~cut ~cols
+       ~depth:(depth + 1) n.kids)
 
 (* The root draws no line: its tree is those of the top tasks, which fold as
    its children. A task's tree starts with its own line. *)
 let tops keep r = forest keep (if is_root r then children r else [ r ])
 let top_fold form r = form = Fold && is_root r
 let top_shed form r = if is_root r then shed form r else 0
-let drawn tree = Tree.view ~indent:2 tree
+let indent = 2
+let drawn tree = Tree.view ~indent tree
+
+(* The columns of the rows of [r]'s tree, by the depth they are drawn at:
+   the label column ends where the widest label of the work at any depth
+   ends, behind the guides of its depth. *)
+let columns look r =
+  let w = work r in
+  let base = if is_root r then 1 else depth r in
+  let guide = Widget.guide look None in
+  let offset d =
+    if d = 0 then 0
+    else
+      Widget.cells
+        (String.make indent ' '
+        ^ Widget.branch guide (List.init d (fun _ -> false)))
+  in
+  let offsets = Array.init (max 1 (Work.depths w - base)) offset in
+  let widest = ref 0 in
+  Array.iteri
+    (fun d o -> widest := max !widest (o + Work.label_cell w (base + d)))
+    offsets;
+  let widest = !widest and lead = Progress_row.lead look in
+  fun d ->
+    let o = if d < Array.length offsets then offsets.(d) else offset d in
+    { Progress_row.label = widest - o; lead }
+
 let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
 
 let rec versions acc n =
   List.fold_left versions ((id n.row, version n.row) :: acc) n.kids
 
 (* A top task's tree, kept whole once every task in it ended. *)
-let top_tree ~layout ~form ~cut n =
-  let tree = drawn (node ~top:true ~layout ~form ~cut n) in
+let top_tree ~layout ~form ~cut ~cols n =
+  let tree = drawn (node ~top:true ~layout ~form ~cut ~cols ~depth:0 n) in
   if not (ended n) then tree
   else
     let seen = versions [] n in
@@ -252,8 +285,8 @@ let top_tree ~layout ~form ~cut n =
         if not (keeps layout (Ctx.look c)) then V.resolve c tree
         else
           let key =
-            key ~layout ~form ~cut ~top:true ~time:0. (Ctx.look c) (Ctx.width c)
-              n.row
+            key ~layout ~form ~cut ~top:true ~column:(cols 0).label ~time:0.
+              (Ctx.look c) (Ctx.width c) n.row
           in
           kept n.row ~kind:is_tree
             ~find:(function
@@ -261,11 +294,11 @@ let top_tree ~layout ~form ~cut n =
             ~make:(fun v -> Tree (key, seen, v))
             (fun () -> V.resolve c tree))
 
-let trees ~layout ~form ~cut r nodes =
+let trees ~layout ~form ~cut ~cols r nodes =
   let heads, shown =
     heads ~fold:(top_fold form r) ~shed:(top_shed form r) nodes
   in
-  List.map drawn heads @ List.map (top_tree ~layout ~form ~cut) shown
+  List.map drawn heads @ List.map (top_tree ~layout ~form ~cut ~cols) shown
 
 (* The lines the trees take in the region, and how many are of windows,
    counted without drawing them. *)
@@ -321,7 +354,7 @@ let first c height v =
 
 (* The latest running tasks that fit, after a line that counts the others,
    the tree's own task first. *)
-let bare ~layout c ~height r =
+let bare ~layout ~cols c ~height r =
   let rec collect acc nodes =
     List.fold_left
       (fun acc n ->
@@ -351,22 +384,22 @@ let bare ~layout c ~height r =
   let keep x = x == r || Hashtbl.mem shown (id x) in
   let nodes = tops keep r in
   let trees =
-    if hidden = 0 then trees ~layout ~form:Bare ~cut:(-1) r nodes
+    if hidden = 0 then trees ~layout ~form:Bare ~cut:(-1) ~cols r nodes
     else if top = 1 then
       match nodes with
       | n :: rest ->
           drawn
-            (node ~top:true ~layout ~form:Bare ~cut:(-1)
+            (node ~top:true ~layout ~form:Bare ~cut:(-1) ~cols ~depth:0
                ~extra:[ (fun look -> Progress_row.more look hidden) ]
                n)
-          :: trees ~layout ~form:Bare ~cut:(-1) r rest
+          :: trees ~layout ~form:Bare ~cut:(-1) ~cols r rest
       | [] -> []
     else
       drawn
         (Tree.v
            (line (fun look -> V.(text "  " ++ Progress_row.more look hidden)))
            [])
-      :: trees ~layout ~form:Bare ~cut:(-1) r nodes
+      :: trees ~layout ~form:Bare ~cut:(-1) ~cols r nodes
   in
   first c height (draw trees)
 
@@ -377,21 +410,26 @@ let region ~layout c ~height r =
   if height <= 0 || width <= 0 || gone r then V.empty
   else
     let nodes = tops shows r in
+    let cols = columns (Ctx.look c) r in
     if fst (count ~form:Full r nodes) <= height then
-      draw (trees ~layout ~form:Full ~cut:(-1) r nodes)
+      draw (trees ~layout ~form:Full ~cut:(-1) ~cols r nodes)
     else
       let n, tails = count ~form:Fold r nodes in
-      if n - tails > height then bare ~layout c ~height r
+      if n - tails > height then bare ~layout ~cols c ~height r
       else
         let cut = cut_tails (n - height) nodes in
-        draw (trees ~layout ~form:Fold ~cut r nodes)
+        draw (trees ~layout ~form:Fold ~cut ~cols r nodes)
 
-let whole ~layout r =
+let whole ~layout c r =
   if gone r then V.empty
-  else draw (trees ~layout ~form:Whole ~cut:(-1) r (tops shows r))
+  else
+    draw
+      (trees ~layout ~form:Whole ~cut:(-1)
+         ~cols:(columns (Ctx.look c) r)
+         r (tops shows r))
 
 let view ~layout r =
   V.deferred ~kind:(Progress_layout.reads layout) (fun c ->
       match Ctx.height c with
-      | None -> whole ~layout r
+      | None -> whole ~layout c r
       | Some height -> region ~layout c ~height r)

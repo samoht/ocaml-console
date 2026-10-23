@@ -342,6 +342,11 @@ progress:
 | `Task.set_items t ~count ~total` | a bar, `count/total` and the time |
 | `Task.set_bytes t ~count ~total` | a bar, the bytes done of the total, the bytes per second and the time |
 
+The pieces of a row are packed from the left, each in a column that the
+rows share: the label, then the bar, up to 40 cells wide, then the count,
+the rate and the time. The bars of all rows start one cell after the
+widest label, so each sits next to its label and under the others.
+
 While a task runs, its output shows under its row: its
 [Logs](https://erratique.ch/software/logs) messages, its `Task.log` lines
 and the lines it prints on the terminal with `Fmt.pr`. If the task fails or
