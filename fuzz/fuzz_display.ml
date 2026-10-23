@@ -1846,9 +1846,57 @@ let test_commit steps policy =
         failf "%s is not committed as DONE" x.tname)
     tasks
 
+let test_plain_callback_keeps_tree n =
+  let out = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer out in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let observed = ref [] in
+  let plain event =
+    let line = Task.Event.to_string event in
+    observed := line :: !observed;
+    Some (View.text line)
+  in
+  let names () =
+    List.concat_map
+      (fun parent ->
+        Task.path parent :: List.map Task.path (Task.children parent))
+      (Task.children root)
+    |> List.map (String.concat "/")
+  in
+  let view =
+    View.fit (fun _ -> View.text ("kept " ^ String.concat "," (names ())))
+  in
+  let display =
+    Progress.show ~progress:`Plain ~plain ~keep_ended:true ~view ppf root
+  in
+  let count = 1 + (n mod 5) in
+  let expected =
+    List.concat
+      (List.init count (fun i ->
+           let label = "parent" ^ string_of_int i in
+           let parent = Task.start root label in
+           let child = Task.start parent "child" in
+           Task.log child "one\ntwo";
+           Task.succeed child;
+           Task.succeed parent;
+           [ label; label ^ "/child" ]))
+  in
+  Task.log root "outside";
+  Task.succeed root;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  check_eq ~pp:Fmt.(Dump.list string) expected (names ());
+  check_eq ~pp:Fmt.Dump.string
+    (String.concat "\n"
+       (List.rev !observed
+       @ [ "outside"; "kept " ^ String.concat "," expected; "" ]))
+    (Buffer.contents out)
+
 let suite =
   ( "display",
     [
+      test_case "custom pipe lines keep ended trees for the final view"
+        [ uint8 ] test_plain_callback_keeps_tree;
       test_case "a still view is drawn once"
         [ uint8; uint8; uint8; list uint8 ]
         test_static_view;
