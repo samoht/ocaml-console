@@ -159,7 +159,8 @@ let vertical ?style ?track ?width frac =
 (* {1 Charts} *)
 
 (* A sparkline spans its values: the lowest is the least a cell shows, an
-   eighth, unless [min] says lower, and the highest fills it. *)
+   eighth, unless [min] says lower, and the highest fills it. It is one row
+   in a room of any height. *)
 let sparkline ?style ?min ?max values =
   let lo = List.fold_left Float.min Float.infinity values
   and hi = List.fold_left Float.max Float.neg_infinity values in
@@ -169,8 +170,11 @@ let sparkline ?style ?min ?max values =
     if hi <= lo then if v > lo then 1. else floor
     else floor +. ((1. -. floor) *. ((v -. lo) /. (hi -. lo)))
   in
-  View_core.concat
-    (List.map (fun v -> vertical ?style ~width:1 (frac v)) values)
+  let cell v =
+    let e = int_of_float (Float.round (clamp (frac v) *. 8.)) in
+    View_core.drawn (vertical_cell ~style ~track:None ~height:1 ~width:1 0 e)
+  in
+  View_core.concat (List.map cell values)
 
 let value v =
   if Float.is_integer v && Float.abs v < 1e15 then Fmt.str "%.0f" v
