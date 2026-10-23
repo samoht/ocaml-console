@@ -1931,6 +1931,34 @@ let test_rate_keeps_bars_still () =
     (step_bar before) (step_bar after);
   close t
 
+(* A task that becomes a task of bytes in the middle of the run, and shows
+   its first rate, moves no bar of the region: the count and rate columns
+   are kept from the first frame. *)
+let test_bytes_later_keep_bars_still () =
+  let t = terminal ~theme ~width:80 ~height:8 () in
+  let step = Task.start t.root "RUN make" in
+  Task.set_items step ~count:2 ~total:5;
+  Display.redraw t.display;
+  let before = screen t in
+  let layer = Task.start step "sha256:abcd" in
+  t.advance 0.2;
+  Task.set_bytes layer ~count:0L ~total:2147483648L;
+  t.advance 0.2;
+  Task.set_bytes layer ~count:268435456L ~total:2147483648L;
+  Display.redraw t.display;
+  let after = screen t in
+  let bar label rows =
+    List.find_map (fun r -> if contains label r then bar_end r else None) rows
+  in
+  Alcotest.(check (option int))
+    ("the bar of RUN make in\n" ^ String.concat "\n" before ^ "\nthen\n"
+   ^ String.concat "\n" after)
+    (bar "RUN make" before) (bar "RUN make" after);
+  Alcotest.(check (option int))
+    ("the bars line up in\n" ^ String.concat "\n" after)
+    (bar "RUN make" after) (bar "sha256" after);
+  close t
+
 let test_elapsed_rounded () =
   List.iter
     (fun (secs, shown) ->
@@ -2349,6 +2377,8 @@ let suite =
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
+      Alcotest.test_case "a task of bytes that comes later moves no bar" `Quick
+        test_bytes_later_keep_bars_still;
       Alcotest.test_case "a first rate moves no bar" `Quick
         test_rate_keeps_bars_still;
       Alcotest.test_case "elapsed times are rounded" `Quick test_elapsed_rounded;
