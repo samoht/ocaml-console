@@ -665,6 +665,11 @@ let test_invalid () =
       Task.set_items t ~count:(-1) ~total:1);
   check_invalid "Console.Progress.Layout.bar: negative width" (fun () ->
       ignore (Progress.Layout.bar ~width:(-1) ()));
+  List.iter
+    (fun n ->
+      check_invalid "Console.Progress.Layout.give_way: stage below 1" (fun () ->
+          ignore (Progress.Layout.give_way n Progress.Layout.rate)))
+    [ 0; -3 ];
   check_invalid "Console.Progress.Layout: more than one label" (fun () ->
       ignore Progress.Layout.(label ++ label));
   check_invalid "Console.Progress.Layout: more than one spacer" (fun () ->
