@@ -239,6 +239,13 @@ let test_sparkline () =
     "all equal" "▁▁"
     (View.to_string (Bar.sparkline [ 3.; 3. ]))
 
+(* A sparkline is one row in a room of any height, as in a display. *)
+let test_sparkline_one_row () =
+  let line = Bar.sparkline [ 1.; 2.; 3. ] in
+  Alcotest.(check string)
+    "one row" (View.to_string line)
+    (View.to_string (View.sized ~height:5 line))
+
 (* A chart's bars are as wide as their labels, their values above them and
    their labels under a baseline. *)
 let test_chart () =
@@ -316,6 +323,7 @@ let suite =
         test_vertical_room;
       Alcotest.test_case "horizontal bars keep to their room" `Quick
         test_horizontal_room;
+      Alcotest.test_case "a sparkline is one row" `Quick test_sparkline_one_row;
       Alcotest.test_case "sparkline" `Quick test_sparkline;
       Alcotest.test_case "chart" `Quick test_chart;
       Alcotest.test_case "vertical width" `Quick test_vertical_width;
