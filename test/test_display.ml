@@ -1777,20 +1777,28 @@ let test_label_gives_way_last () =
       close t)
     [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
 
+(* The characters of [row], each with the offset it starts at. *)
+let chars row =
+  let rec go i acc =
+    if i >= String.length row then List.rev acc
+    else
+      let d = String.get_utf_8_uchar row i in
+      go (i + Uchar.utf_decode_length d) ((i, Uchar.utf_decode_uchar d) :: acc)
+  in
+  go 0 []
+
+(* The cell of the last of [row]'s block or shade glyphs, every glyph one
+   cell. *)
 let bar_end row =
-  let cells = ref 0 and last = ref None in
-  String.iteri
-    (fun i c ->
-      if Char.code c land 0xc0 <> 0x80 then begin
-        let at s =
-          i + String.length s <= String.length row
-          && String.sub row i (String.length s) = s
-        in
-        if at "\u{2588}" || at "\u{2591}" then last := Some !cells;
-        incr cells
-      end)
-    row;
-  !last
+  List.fold_left
+    (fun last (cell, (_, u)) ->
+      if
+        Uchar.equal u (Uchar.of_int 0x2588)
+        || Uchar.equal u (Uchar.of_int 0x2591)
+      then Some cell
+      else last)
+    None
+    (List.mapi (fun i c -> (i, c)) (chars row))
 
 let test_bars_line_up () =
   let t = terminal ~theme ~width:80 ~height:8 () in
@@ -1814,10 +1822,7 @@ let test_bars_line_up () =
   close t
 
 (* The cell width of [row], every glyph one cell. *)
-let cells row =
-  let n = ref 0 in
-  String.iter (fun c -> if Char.code c land 0xc0 <> 0x80 then incr n) row;
-  !n
+let cells row = List.length (chars row)
 
 (* At a fixed width nothing in the region moves sideways while counts grow,
    a row with a wider count starts and a table's cells change: two trees
