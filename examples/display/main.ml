@@ -25,12 +25,19 @@ let title =
   View.styled Style.bold
     (View.gradient (View.text "console, built step by step"))
 
-let table () =
+(* The details keep their column from the start, so that the table does not
+   widen as they come, but in a room too narrow for that they take what the
+   steps and their status leave: the frame and the padding take ten cells,
+   and the steps and their status seven each. *)
+let table room =
+  let detail =
+    match Room.width room with Some w -> max 1 (min 19 (w - 24)) | None -> 19
+  in
   Table.view ~rules:true
     [
       Table.column (View.text "Step");
       Table.column ~min_width:7 (View.text "Status");
-      Table.column ~min_width:19 (View.text "Detail");
+      Table.column ~min_width:detail (View.text "Detail");
     ]
     (List.map
        (fun s -> [ View.text s.name; s.status; View.text s.detail ])
@@ -91,11 +98,7 @@ let test clock root =
    at each frame. *)
 let view root =
   View.vcat
-    [
-      title;
-      View.sized ~width:100 (View.fit (fun _ -> table ()));
-      Progress.view root;
-    ]
+    [ title; View.sized ~width:100 (View.fit table); Progress.view root ]
 
 let () =
   let name = if Array.length Sys.argv > 1 then Sys.argv.(1) else "default" in
