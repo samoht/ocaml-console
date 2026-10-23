@@ -28,6 +28,10 @@ let bytes n =
 
 let bytes_short n =
   let v, i = scaled n in
+  let v, i =
+    if v >= 999.5 && i < Array.length units - 1 then (v /. 1024., i + 1)
+    else (v, i)
+  in
   let unit = units.(i).[0] in
   if i = 0 then Fmt.str "%d%c" (int_of_float v) unit
   else if v < 9.95 then Fmt.str "%.1f%c" v unit

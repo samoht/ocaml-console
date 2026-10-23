@@ -12,7 +12,9 @@ val bytes : int64 -> string
 val bytes_short : int64 -> string
 (** [bytes_short n] is [n] bytes in at most five characters, as a count that
     gives way shows them: a number of at most three digits, then the first
-    letter of its unit, such as ["512B"], ["1.5K"] or ["256M"]. *)
+    letter of its unit, such as ["512B"], ["1.5K"] or ["256M"]. A count that
+    would take four digits of a unit is shown in the next, such as ["1.0M"] for
+    1000 KiB. *)
 
 val duration : float -> string
 (** [duration s] is [s] seconds as a row draws its elapsed time, rounded to its
