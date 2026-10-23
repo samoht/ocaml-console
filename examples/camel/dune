@@ -3,21 +3,41 @@
  (libraries console console-eio console.tty eio eio_main fmt mtime))
 
 (rule
- (alias default)
- (action (progn))
- (deps main.exe))
-
-(rule
  (enabled_if
-  (and %{bin-available:k7} %{lib-available:eio_main}))
- (target camel.generated.svg)
- (deps main.exe)
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target camel.cast)
  (action
-  (run %{bin:k7} play -o %{target} %{dep:camel.tape})))
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    COLUMNS
+    80
+    (setenv
+     LINES
+     17
+     (setenv
+      COLORTERM
+      truecolor
+      (run ./main.exe 2026 10 40 60 78 117 136)))))))
 
 (rule
- (alias record)
  (enabled_if
-  (and %{bin-available:k7} %{lib-available:eio_main}))
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target camel.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   play
+   --show
+   "dune exec -- examples/camel/main.exe"
+   -o
+   %{target}
+   %{dep:camel.cast})))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
  (action
   (diff camel.svg camel.generated.svg)))

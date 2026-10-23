@@ -8,7 +8,10 @@
    moves in ticks of 100 ms, and the obstacles come from a seed, the first
    argument: the same keys at the same ticks give the same game. It draws
    in a live region on standard error, which keeps the last frame in the
-   scrollback; without a terminal it prints the opening scene and exits. *)
+   scrollback; without a terminal it prints the opening scene and exits.
+   Given ticks after the seed, the game plays itself, pressing Space at
+   each of them, in a display of [Console_eio.run]: under CONSOLE_CAST,
+   that is its recording, on the deterministic clock. *)
 
 open Console
 
@@ -336,32 +339,44 @@ let key input =
       | _ -> None)
   | _ -> None
 
-(* A key restarts the clock of the ticks, the next one half a tick after it.
-   A recorder that presses keys a whole number of ticks apart thus lands each
-   between the same two ticks, however late each key arrives. *)
-let play ~clock ~size seed input =
-  let pending = Queue.create () and arrived = Eio.Condition.create () in
-  let push k =
-    Queue.push (Eio.Time.Mono.now clock, k) pending;
-    Eio.Condition.broadcast arrived
-  in
+(* The keys typed, then q at the end of the input. *)
+let typed input push =
   let rec read () =
     match key input with
     | k ->
         Option.iter push k;
         read ()
-    | exception End_of_file ->
-        push Quit;
-        Eio.Fiber.await_cancel ()
+    | exception End_of_file -> push Quit
+  in
+  read ()
+
+(* Space at each of [ticks], counted from the start, then q five seconds
+   after the last. *)
+let replay ~clock ticks push =
+  let start = Eio.Time.Mono.now clock in
+  List.iter
+    (fun n ->
+      Eio.Time.Mono.sleep_until clock
+        (Option.get (Mtime.add_span start Mtime.Span.(n * tick)));
+      push Jump)
+    ticks;
+  Eio.Time.Mono.sleep clock 5.;
+  push Quit
+
+(* The game drawn by [show], with the keys that [keys push] gives [push].
+   A key restarts the clock of the ticks, the next one half a tick after it.
+   A recorder that presses keys a whole number of ticks apart thus lands each
+   between the same two ticks, however late each key arrives. *)
+let play ~clock ~show seed keys =
+  let pending = Queue.create () and arrived = Eio.Condition.create () in
+  let push k =
+    Queue.push (Eio.Time.Mono.now clock, k) pending;
+    Eio.Condition.broadcast arrived
   in
   let after t span = Option.get (Mtime.add_span t span) in
   let before t t' = Mtime.is_earlier t ~than:t' in
-  let game = { seed; best = 0; phase = Ready } in
-  (* The scene moves by ticks, not by the display's time. *)
-  let d = Display.v ~size ~now:(fun () -> 0.) Fmt.stderr (view game) in
-  Fun.protect ~finally:(fun () -> Display.close d) @@ fun () ->
   let show game =
-    Display.set_view d (view game);
+    show game;
     game
   in
   let ticking game t = if moving game then Some t else None in
@@ -390,27 +405,49 @@ let play ~clock ~size seed input =
     let game = show (update game) in
     loop game (ticking game (after t tick))
   in
-  Eio.Fiber.first read (fun () -> loop game None)
+  Eio.Fiber.first
+    (fun () ->
+      keys push;
+      Eio.Fiber.await_cancel ())
+    (fun () -> loop { seed; best = 0; phase = Ready } None)
 
 let () =
-  let seed =
-    match Sys.argv with
-    | [| _ |] -> 2026
-    | [| _; s |] when Option.is_some (int_of_string_opt s) -> int_of_string s
+  let seed, ticks =
+    match List.map int_of_string_opt (List.tl (Array.to_list Sys.argv)) with
+    | [] -> (2026, [])
+    | Some seed :: ticks when List.for_all Option.is_some ticks ->
+        (seed, List.map Option.get ticks)
     | _ ->
-        Fmt.epr "usage: %s [SEED]@." Sys.argv.(0);
+        Fmt.epr "usage: %s [SEED [TICK...]]@." Sys.argv.(0);
         exit 2
   in
   Console_tty.setup ();
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
-  let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
-  let played =
-    match Console_eio.size Fmt.stderr with
-    | None -> Error (`Msg "no terminal")
-    | Some size -> Console_eio.Prompt.keys prompt (play ~clock ~size seed)
-  in
-  if Result.is_error played then (
-    Fmt.epr "%a@.camel: play it in a terminal@." View.pp
-      (scene ~width:field { seed; best = 0; phase = Ready });
-    exit 1)
+  let ready = { seed; best = 0; phase = Ready } in
+  match ticks with
+  | _ :: _ ->
+      let clock = Console_eio.clock clock and game = ref ready in
+      Console_eio.run ~clock
+        ~view:(fun _ -> View.fit (fun _ -> view !game))
+        (fun _ -> play ~clock ~show:(( := ) game) seed (replay ~clock ticks))
+  | [] ->
+      let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
+      let played =
+        match Console_eio.size Fmt.stderr with
+        | None -> Error (`Msg "no terminal")
+        | Some size ->
+            Console_eio.Prompt.keys prompt @@ fun input ->
+            (* The scene moves by ticks, not by the display's time. *)
+            let d =
+              Display.v ~size ~now:(fun () -> 0.) Fmt.stderr (view ready)
+            in
+            Fun.protect ~finally:(fun () -> Display.close d) @@ fun () ->
+            play ~clock
+              ~show:(fun game -> Display.set_view d (view game))
+              seed (typed input)
+      in
+      if Result.is_error played then (
+        Fmt.epr "%a@.camel: play it in a terminal@." View.pp
+          (scene ~width:field ready);
+        exit 1)
