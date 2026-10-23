@@ -32,9 +32,9 @@ val setup :
     - The style renderer is [style_renderer] if given, as
       [Fmt_cli.style_renderer] reads a [--color] option. Otherwise it is [`None]
       if [NO_COLOR] is set and not empty, or if [TERM] is unset, empty or
-      [dumb]. Else it is [`Ansi_tty] iff the output is a terminal.
-      [CLICOLOR_FORCE] and [FORCE_COLOR] are not read: [--color=always] forces
-      colour.
+      [dumb]. Else it is [`Ansi_tty] iff the output is a terminal, as both are
+      when [CONSOLE_CAST] records them ([Console_eio]). [CLICOLOR_FORCE] and
+      [FORCE_COLOR] are not read: [--color=always] forces colour.
     - {!Fmt.utf_8} is [utf_8] if given, else [true] iff the locale's character
       set is UTF-8. The locale is the first of [LC_ALL], [LC_CTYPE] and [LANG]
       that is set and not empty. An unset locale is not UTF-8, and the widgets

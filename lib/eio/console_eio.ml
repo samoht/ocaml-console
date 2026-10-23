@@ -87,7 +87,8 @@ let deterministic () =
    the real durations ended. A passive sleep, a redraw's, wakes in that order
    too, but only before a sleep of the program, so that it never moves the
    time further than the program would, and as soon as a sleep of the program
-   after it has lasted its real duration, so that it never holds one up. *)
+   after it has lasted its real duration, so that it never holds one up.
+   For a recording, which has its own times, no sleep waits on [real]. *)
 module Sleeps = struct
   type sleep = {
     until : Mtime.t;
@@ -101,6 +102,7 @@ module Sleeps = struct
 
   type t = {
     real : Eio.Time.Mono.ty Eio.Resource.t;
+    waits : bool;
     mutable now : Mtime.t;
     mutable sleeps : sleep list;
     mutable next : int;
@@ -186,7 +188,8 @@ module Sleeps = struct
     List.exists (fun x -> x.active && x.elapsed && before s x) t.sleeps
 
   let elapse t s span =
-    if s.active then begin
+    if not t.waits then ()
+    else if s.active then begin
       Eio.Time.Mono.sleep_span t.real span;
       overtake t s
     end
@@ -225,14 +228,19 @@ module Sleeps = struct
   let redraw t d =
     let span = Mtime.Span.of_uint64_ns (Int64.of_float (d *. 1e9)) in
     Option.iter (sleep t ~active:false) (Mtime.add_span t.now span)
+
+  (* The time, read without counting as a use. *)
+  let seconds t () = Int64.to_float (Mtime.to_uint64_ns t.now) *. 1e-9
 end
 
 type (_, _, _) Eio.Resource.pi +=
   | Redraw : ('t, 't -> float -> unit, [> `Console_sleeps ]) Eio.Resource.pi
+  | Seconds : ('t, 't -> unit -> float, [> `Console_sleeps ]) Eio.Resource.pi
 
 let sleeps =
   Eio.Resource.handler
     (H (Redraw, Sleeps.redraw)
+    :: H (Seconds, Sleeps.seconds)
     :: Eio.Resource.bindings (Eio.Time.Pi.clock (module Sleeps)))
 
 let clock c =
@@ -241,6 +249,7 @@ let clock c =
     Eio.Resource.T
       ( {
           Sleeps.real;
+          waits = Option.is_none (Cast.file ());
           now = Mtime.of_uint64_ns 0L;
           sleeps = [];
           next = 0;
@@ -252,6 +261,13 @@ let clock c =
 (* The redraws of a clock of {!clock}, which wait on its time. *)
 let redraw (Eio.Resource.T (t, ops)) =
   Option.map (fun redraw -> redraw t) (Eio.Resource.get_opt ops Redraw)
+
+(* The time of a clock of {!clock}, or zero. *)
+let virtual_time clock =
+  let (Eio.Resource.T (t, ops)) = (clock :> Eio.Time.Mono.ty Eio.Resource.t) in
+  match Eio.Resource.get_opt ops Seconds with
+  | Some seconds -> seconds t
+  | None -> fun () -> 0.
 
 (* What the display reads and what its redraws wait for. Under
    CONSOLE_DETERMINISTIC_CLOCK the display reads a clock of {!clock} and
@@ -269,8 +285,9 @@ let reading clock =
    shows or hides the cursor. On a terminal it takes the standard formatters
    on that terminal; quiet or as events, those that write where [ppf] does,
    so that a task's output is printed only if it fails, or is an event;
-   drawn on another output, [ppf] alone. *)
-let display ~progress ?layout ?view ?keep_ended ppf root =
+   drawn on another output, [ppf] alone; [recorded], the terminal of the
+   recording, which the standard formatters share if [ppf] is one. *)
+let display ~recorded ~progress ?layout ?view ?keep_ended ppf root =
   let show ?size progress ppf =
     let view = Option.map (fun f -> f root) view in
     Progress_driver.show ~write_error:Session.write_error ~progress ?layout
@@ -293,7 +310,12 @@ let display ~progress ?layout ?view ?keep_ended ppf root =
         (show (form :> Console.Progress.t) (own ppf), sharing unix, ignore)
     | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
   in
+  let std = ppf == Fmt.stdout || ppf == Fmt.stderr in
   match progress with
+  | (`Auto | `Tty) when recorded ->
+      live ~size:Recording.size
+        ~intercept:(if std then [ Fmt.stdout; Fmt.stderr ] else [])
+        ~cursor:ignore
   | `Auto -> ( match on_terminal () with Some d -> d | None -> lines `Plain)
   | `Tty -> (
       match on_terminal () with
@@ -317,9 +339,10 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ~progress f =
   Session.claim ();
   let now, sleep = reading clock in
   match
+    let recorded = Recording.start ~time:(virtual_time clock) ppf in
     let root = Task_driver.root ?label ~scope:Session.scope ~now () in
     let display, intercept, cursor =
-      display ~progress ?layout ?view ?keep_ended ppf root
+      display ~recorded ~progress ?layout ?view ?keep_ended ppf root
     in
     ({ Session.display; root; json = progress = `Json }, intercept, cursor)
   with

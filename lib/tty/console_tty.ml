@@ -10,7 +10,9 @@ let set ?style_renderer ?utf_8 ?theme (ppf, fd) =
   let renderer =
     match style_renderer with
     | Some r -> r
-    | None -> Colour.renderer ~getenv ~is_tty:(Unix.isatty fd)
+    | None ->
+        let is_tty = Unix.isatty fd || Option.is_some (Cast.file ()) in
+        Colour.renderer ~getenv ~is_tty
   in
   Fmt.set_style_renderer ppf renderer;
   Fmt.set_utf_8 ppf (Option.value utf_8 ~default:(Colour.utf_8 ~getenv));

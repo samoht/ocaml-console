@@ -129,7 +129,9 @@ let test_deterministic_clock () =
    works a random real time before each sleep, which wakes the sleeps then
    due at once, and a driver moves the clock by random steps after random
    numbers of yields. *)
-let perturbed ~progress seed =
+let perturbed ?cast ~progress seed =
+  let env = match cast with Some f -> [ ("CONSOLE_CAST", f) ] | None -> [] in
+  with_env env @@ fun () ->
   let rand = Random.State.make [| seed |] in
   let mock = Eio_mock.Clock.Mono.make () in
   let real = ref 0 in
@@ -177,7 +179,9 @@ let perturbed ~progress seed =
             if seed > 0 then pass () else step mock
           done));
   Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  match cast with
+  | Some file -> In_channel.with_open_bin file In_channel.input_all
+  | None -> Buffer.contents buf
 
 (* Whatever the real schedule, the virtual clock gives the same bytes: the
    same lines on a pipe, and the same frames on a terminal. *)
@@ -194,6 +198,118 @@ let test_deterministic_schedule () =
           calm (perturbed ~progress seed)
       done)
     [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 69 ' ' ^ "2.9s") ]
+
+(* A recording made of [f] under [CONSOLE_CAST], on a terminal of 30 columns
+   by 6 rows, its lines. *)
+let recording f =
+  let file = Filename.temp_file "console" ".cast" in
+  with_env
+    [
+      ("CONSOLE_DETERMINISTIC_CLOCK", "1");
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", "30");
+      ("LINES", "6");
+      ("TERM", "xterm");
+    ]
+    f;
+  let lines = In_channel.with_open_bin file In_channel.input_lines in
+  Sys.remove file;
+  lines
+
+let decode t line =
+  match Jsont_bytesrw.decode_string t line with
+  | Ok v -> v
+  | Error e -> Alcotest.fail e
+
+(* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
+   never moves: a sleep that waited on it would never end, and the work
+   fails if it does not end first. *)
+let recorded_nap () =
+  recording @@ fun () ->
+  Eio_main.run @@ fun _ ->
+  let mock = Eio_mock.Clock.Mono.make () in
+  let clock = Console_eio.clock mock in
+  let _, ppf = buffer () in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun root ->
+          Console.Task.run root "nap" (fun t ->
+              Eio.Time.Mono.sleep clock 1.5;
+              Console.Task.set_items t ~count:1 ~total:2;
+              Eio.Time.Mono.sleep clock 0.5;
+              Console.Task.set_items t ~count:2 ~total:2));
+      Format.pp_print_flush ppf ())
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "a sleep waited for the real time")
+
+(* A header, then one array a write, which reads back as it was written:
+   the rows drawn, and nothing on the output itself. *)
+let test_cast_format () =
+  match recorded_nap () with
+  | [] -> Alcotest.fail "no header"
+  | header :: events ->
+      Alcotest.(check string)
+        "the header"
+        {|{"version":2,"width":30,"height":6,"env":{"TERM":"xterm"}}|} header;
+      Alcotest.(check bool) "events" true (List.length events > 2);
+      List.iter
+        (fun line ->
+          let e = decode Console__.Cast.event line in
+          Alcotest.(check bool)
+            "an output event" true
+            (contains {|,"o","|} line && String.starts_with ~prefix:"[" line);
+          Alcotest.(check string)
+            "read back" (line ^ "\n")
+            (Console__.Cast.to_line Console__.Cast.event e))
+        events;
+      let first = decode Console__.Cast.event (List.hd events) in
+      Alcotest.(check bool)
+        "the rows drawn" true
+        (contains "\027[?25l" first.data)
+
+(* Each write is at its time on the virtual clock: the redraws a tenth of a
+   second apart, the count when the first sleep ends, the last write when
+   the second does. *)
+let test_cast_times () =
+  let events =
+    List.map (decode Console__.Cast.event) (List.tl (recorded_nap ()))
+  in
+  let times = List.map (fun (e : Console__.Cast.event) -> e.time) events in
+  Alcotest.(check bool) "in order" true (List.sort Float.compare times = times);
+  Alcotest.(check bool)
+    "at tenths of a second" true
+    (List.for_all
+       (fun t -> Float.abs ((t *. 10.) -. Float.round (t *. 10.)) < 1e-6)
+       times);
+  Alcotest.(check bool)
+    "the count as the first sleep ends" true
+    (List.exists
+       (fun (e : Console__.Cast.event) -> e.time = 1.5 && contains "1/2" e.data)
+       events);
+  Alcotest.(check (float 0.))
+    "the end" 2.
+    (List.nth times (List.length times - 1))
+
+(* Whatever the real schedule, a recording is the same bytes. *)
+let test_cast_schedule () =
+  with_env
+    [ ("CONSOLE_DETERMINISTIC_CLOCK", "1"); ("COLUMNS", "80"); ("LINES", "24") ]
+  @@ fun () ->
+  let recorded seed =
+    let file = Filename.temp_file "console" ".cast" in
+    Fun.protect
+      ~finally:(fun () -> Sys.remove file)
+      (fun () -> perturbed ~cast:file ~progress:`Tty seed)
+  in
+  let calm = recorded 0 in
+  Alcotest.(check bool)
+    "the builds take the longer time" true (contains "\n[2.86," calm);
+  for seed = 1 to 50 do
+    Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
+  done
 
 let test_run_raises () =
   with_clock (fun clock ->
@@ -607,6 +723,12 @@ let suite =
       Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
       Alcotest.test_case "a deterministic clock ignores the schedule" `Quick
         test_deterministic_schedule;
+      Alcotest.test_case "a recording's header and events" `Quick
+        test_cast_format;
+      Alcotest.test_case "a recording's times are virtual" `Quick
+        test_cast_times;
+      Alcotest.test_case "a recording ignores the schedule" `Quick
+        test_cast_schedule;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;

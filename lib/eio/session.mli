@@ -18,6 +18,10 @@ val display : unit -> Console.Display.t option
 (** [display ()] is the display of the run of the calling fiber, if any and it
     does not close yet. *)
 
+val take_from : Buffer.t -> (string -> int) -> string
+(** [take_from b k] is the first [k all] bytes of [b], which holds [all], taken
+    out of it. *)
+
 val given : Console.Task.t -> Console.Task.t
 (** [given root] is the task a run inside another is given: the task of [root]'s
     work current where it is called, or [root]. *)

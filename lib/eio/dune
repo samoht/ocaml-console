@@ -4,7 +4,7 @@
 (library
  (name console_eio)
  (public_name console-eio)
- (private_modules interrupt session terminal)
+ (private_modules interrupt recording session terminal)
  (flags
   (:standard -open Console__))
  (libraries

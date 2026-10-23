@@ -157,12 +157,11 @@ let lines : (int, line) Hashtbl.t = Hashtbl.create 16
    does not take it all. *)
 let max_pending = 65536
 
-(* The first [k all] bytes of [l], which holds [all], taken out of it. *)
-let take_from l k =
-  let all = Buffer.contents l.pending in
+let take_from b k =
+  let all = Buffer.contents b in
   let k = k all in
-  Buffer.clear l.pending;
-  Buffer.add_substring l.pending all k (String.length all - k);
+  Buffer.clear b;
+  Buffer.add_substring b all k (String.length all - k);
   String.sub all 0 k
 
 (* [s] added to [l]: [emit ~cut piece] for the whole lines it ends, or for
@@ -175,9 +174,10 @@ let take l s o len emit =
     | None -> false
   in
   if ends_a_line then
-    emit ~cut:false (take_from l (fun all -> String.rindex all '\n' + 1))
+    emit ~cut:false
+      (take_from l.pending (fun all -> String.rindex all '\n' + 1))
   else if Buffer.length l.pending > max_pending then
-    emit ~cut:true (take_from l Console_text.boundary)
+    emit ~cut:true (take_from l.pending Console_text.boundary)
 
 (* [s] as [task]'s output. The line feed that ends a line cut short ends
    no line of its own. *)

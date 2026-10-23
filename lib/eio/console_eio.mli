@@ -204,7 +204,17 @@ val run :
       event reads [0];
     - no rate shows;
     - the spinners and the motion stand still;
-    - the display redraws on that clock. *)
+    - the display redraws on that clock.
+
+    [CONSOLE_CAST], set to a file name, records the run there instead of on its
+    output: what it writes on [ppf], and on both standard outputs when [ppf] is
+    one, from then until the program exits, is an
+    {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2} recording
+    of a terminal of [$COLUMNS] by [$LINES] (80 by 24 without them), with the
+    rows drawn by [`Auto] too, each write at its time on the clock. The
+    program's sleeps then take no real time, so that a recording takes none,
+    while [CONSOLE_DETERMINISTIC_CLOCK] alone keeps the real pace that a
+    recorder of the terminal, such as [k7 rec], films. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
 (** [with_output f] prints what console does not see, such as the text of

@@ -22,7 +22,16 @@
 (executable
  (name tty)
  (modules tty)
- (libraries console_vte cstruct eio eio.unix eio_main matrix.vte unix))
+ (libraries
+  console
+  console_vte
+  cstruct
+  eio
+  eio.unix
+  eio_main
+  jsont.bytesrw
+  matrix.vte
+  unix))
 
 ; A program under Console_eio.run on a pipe, for the cram tests.
 

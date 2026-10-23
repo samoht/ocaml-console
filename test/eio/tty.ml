@@ -6,7 +6,8 @@
 (* [tty.exe program args] runs [program] on a terminal of 80 columns and 24
    rows, in the environment of [tty.exe], and prints the screen it leaves,
    the lines scrolled off its top first; [tty.exe -] prints the screen that
-   the bytes of its standard input leave. *)
+   the bytes of its standard input leave, and [tty.exe --cast file] the one
+   that the asciicast recording [file] leaves on a terminal of its size. *)
 
 let rows = 24
 let cols = 80
@@ -58,15 +59,31 @@ let run argv =
   ignore (Eio.Process.await child : Eio.Process.exit_status);
   Buffer.contents written
 
-let screen bytes =
+let screen ?(rows = rows) ?(cols = cols) bytes =
   let vte = Console_vte.v ~rows ~cols () in
-  Console_vte.feed vte bytes;
+  List.iter (Console_vte.feed vte) bytes;
   List.iter print_endline (Console_vte.screen ~scrollback:true vte)
+
+let decode t line =
+  match Jsont_bytesrw.decode_string t line with
+  | Ok v -> v
+  | Error e -> failwith e
+
+let cast file =
+  match In_channel.with_open_bin file In_channel.input_lines with
+  | [] -> failwith (file ^ ": empty")
+  | header :: events ->
+      let { Console__.Cast.width; height; _ } =
+        decode Console__.Cast.header header
+      in
+      screen ~rows:height ~cols:width
+        (List.map (fun l -> (decode Console__.Cast.event l).data) events)
 
 let () =
   match Array.to_list Sys.argv with
-  | [ _; "-" ] -> screen (In_channel.input_all stdin)
-  | _ :: (_ :: _ as argv) -> screen (run argv)
+  | [ _; "-" ] -> screen [ In_channel.input_all stdin ]
+  | [ _; "--cast"; file ] -> cast file
+  | _ :: (_ :: _ as argv) -> screen [ run argv ]
   | _ ->
       prerr_endline "usage: tty.exe PROGRAM [ARG...]";
       exit 2
