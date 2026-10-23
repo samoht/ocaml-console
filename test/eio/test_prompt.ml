@@ -386,6 +386,38 @@ let test_keys_at_end_of_input () =
       Alcotest.check string_answer "the end of the input" Ended
         (seen (Prompt.keys t (fun _ -> raise End_of_file))))
 
+let test_keys_split_sequences () =
+  with_pty @@ fun env tty master ->
+  with_stdin ~stdin:tty (fun () ->
+      let prompt = prompt_on env ~echoed:(Atomic.make 0) in
+      let before = Unix.tcgetattr tty in
+      let typed = "界\027[A👩‍💻\027OD" in
+      let received, () =
+        Eio.Fiber.pair
+          (fun () ->
+            Prompt.keys prompt (fun input ->
+                let out = Buffer.create (String.length typed) in
+                for _ = 1 to String.length typed do
+                  Buffer.add_char out (Eio.Buf_read.any_char input)
+                done;
+                Buffer.contents out))
+          (fun () ->
+            while not (masked tty) do
+              Eio.Fiber.yield ()
+            done;
+            String.iter
+              (fun byte ->
+                type_in master (String.make 1 byte);
+                Eio.Fiber.yield ())
+              typed)
+      in
+      (match received with
+      | Ok keys -> Alcotest.(check string) "every key byte, in order" typed keys
+      | Error error -> Alcotest.failf "%a" Prompt.pp_error error);
+      Alcotest.(check bool)
+        "terminal attributes restored" true
+        (Unix.tcgetattr tty = before))
+
 let test_pp_error () =
   Alcotest.(check string)
     "end of input" "end of input"
@@ -445,5 +477,7 @@ let suite =
       Alcotest.test_case "keys" `Quick test_keys;
       Alcotest.test_case "keys at the end of the input" `Quick
         test_keys_at_end_of_input;
+      Alcotest.test_case "keys preserve split UTF-8 and escape sequences" `Quick
+        test_keys_split_sequences;
       Alcotest.test_case "an error formats" `Quick test_pp_error;
     ] )
