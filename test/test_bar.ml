@@ -296,9 +296,20 @@ let test_sparkline_room () =
     (fst (Console_vte.cursor_pos terminal));
   Alcotest.(check bool) "within its room" true (View.width v <= 2)
 
+let test_chart_room () =
+  let chart = Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ] in
+  let v = View.sized ~width:5 ~height:5 chart in
+  let terminal = Console_vte.v ~rows:16 ~cols:5 () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check bool)
+    "at most five terminal rows" true
+    (fst (Console_vte.cursor_pos terminal) < 5);
+  Alcotest.(check bool) "within its room" true (View.width v <= 5)
+
 let suite =
   ( "bar",
     [
+      Alcotest.test_case "charts keep to their room" `Quick test_chart_room;
       Alcotest.test_case "sparklines keep to their room" `Quick
         test_sparkline_room;
       Alcotest.test_case "fixed vertical bars keep to their room" `Quick
