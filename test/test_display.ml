@@ -1241,6 +1241,23 @@ let test_output () =
   Task.succeed top;
   close t
 
+(* [rate] is the count per second that the rate column shows, once the
+   task counted. *)
+let test_rate () =
+  let t = terminal ~theme ~width:100 () in
+  let job = Task.start t.root "job" in
+  Alcotest.(check (option (float 1e-9))) "none yet" None (Task.rate job);
+  t.advance 2.;
+  Task.set_bytes job ~count:2048L ~total:4096L;
+  Alcotest.(check (option (float 1e-9)))
+    "bytes per second" (Some 1024.) (Task.rate job);
+  Display.redraw t.display;
+  Alcotest.(check bool)
+    "as the row shows it" true
+    (List.exists (contains "1.00 KiB/s") (screen t));
+  Task.succeed job;
+  close t
+
 (* A task whose count follows a list. *)
 let test_iter () =
   let seen = ref [] in
@@ -2638,6 +2655,7 @@ let suite =
       Alcotest.test_case "with_task" `Quick test_with_task;
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
+      Alcotest.test_case "rate" `Quick test_rate;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;

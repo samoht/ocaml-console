@@ -24,3 +24,5 @@ let progress (t : t) : progress =
 let output t =
   List.rev
     (Queue.fold (fun acc (l : Task_core.line) -> l.text :: acc) [] (output t))
+
+let rate t = match rate t with r when r > 0. -> Some r | _ -> None

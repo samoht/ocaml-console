@@ -173,6 +173,13 @@ val message : t -> string option
 val elapsed : t -> float
 (** [elapsed t] is the seconds [t] ran for, or has run for so far. *)
 
+val rate : t -> float option
+(** [rate t] is the items or bytes per second that [t] counts, as
+    {!Progress.Layout.rate} shows it, once a count was said after [t] started:
+    it weighs the past by [exp (-dt /. 2.)] for [dt] seconds ago, so it depends
+    on the time, not on how often the count is said. It is [None] before, and
+    while nothing was counted. *)
+
 val output : t -> string list
 (** [output t] is the lines of output [t] keeps, oldest first, each as {!log}
     keeps it, the latest within 1 MiB. A task that failed or was cancelled keeps
