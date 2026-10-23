@@ -1896,6 +1896,31 @@ let test_region_stands_still () =
   region_stands_still ~width:100 ~bars:true;
   region_stands_still ~width:80 ~bars:false
 
+(* examples/progress: once a task counting bytes has its total, its first
+   rate moves no bar sideways. *)
+let test_rate_keeps_bars_still () =
+  let t = terminal ~theme ~width:80 ~height:8 () in
+  let step = Task.start t.root "RUN make" in
+  let layer = Task.start step "sha256:abcd" in
+  Task.set_items step ~count:5 ~total:5;
+  Task.set_bytes layer ~count:0L ~total:2147483648L;
+  Display.redraw t.display;
+  let before = screen t in
+  t.advance 0.2;
+  Task.set_bytes layer ~count:268435456L ~total:2147483648L;
+  Display.redraw t.display;
+  let after = screen t in
+  let step_bar rows =
+    List.find_map
+      (fun r -> if contains "RUN make" r then bar_end r else None)
+      rows
+  in
+  Alcotest.(check (option int))
+    ("the bar of RUN make in\n" ^ String.concat "\n" before ^ "\nthen\n"
+   ^ String.concat "\n" after)
+    (step_bar before) (step_bar after);
+  close t
+
 let test_elapsed_rounded () =
   List.iter
     (fun (secs, shown) ->
@@ -2292,6 +2317,8 @@ let suite =
       Alcotest.test_case "the label gives way last" `Quick
         test_label_gives_way_last;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
+      Alcotest.test_case "a first rate moves no bar" `Quick
+        test_rate_keeps_bars_still;
       Alcotest.test_case "elapsed times are rounded" `Quick test_elapsed_rounded;
       Alcotest.test_case "the region stands still" `Quick
         test_region_stands_still;
