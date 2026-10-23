@@ -2074,6 +2074,26 @@ let test_print () =
     "on a pipe, at once" "printed\n" (Buffer.contents buffer);
   Display.close display
 
+(* [`Plain] on a terminal prints its last frame as wide as the terminal,
+   and whole without one. *)
+let test_plain_last_frame_width () =
+  let rule = View.fit (fun _ -> Rule.view ()) in
+  let last ?size () =
+    let buffer = Buffer.create 64 in
+    let ppf = Format.formatter_of_buffer buffer in
+    let _, display =
+      show ~progress:`Plain ?size ~view:(Fun.const rule) ~now:(fun () -> 0.) ppf
+    in
+    Display.close display;
+    Format.pp_print_flush ppf ();
+    let lines = String.split_on_char '\n' (Buffer.contents buffer) in
+    List.fold_left (fun n l -> max n (View.width (View.text l))) 0 lines
+  in
+  Alcotest.(check int)
+    "a terminal of 40 columns" 40
+    (last ~size:(fun () -> (40, 24)) ());
+  Alcotest.(check int) "whole on a pipe" 4 (last ())
+
 (* A display that keeps its rows and trees from frame to frame shows what a
    display that keeps nothing lays out, as tasks start, move, log, are
    renamed and end, between frames and as the time moves the spinners and
@@ -2317,6 +2337,8 @@ let suite =
       Alcotest.test_case "the label gives way last" `Quick
         test_label_gives_way_last;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
+      Alcotest.test_case "plain's last frame is the terminal's width" `Quick
+        test_plain_last_frame_width;
       Alcotest.test_case "a first rate moves no bar" `Quick
         test_rate_keeps_bars_still;
       Alcotest.test_case "elapsed times are rounded" `Quick test_elapsed_rounded;
