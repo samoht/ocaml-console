@@ -17,8 +17,13 @@ let bytes n =
   let v, i = scaled n in
   if i = 0 then Fmt.str "%d B" (int_of_float (Float.round v))
   else
-    (* Hundredths, rounded, carried into the whole part. *)
-    let h = int_of_float (Float.round (v *. 100.)) in
+    let hundredths v = int_of_float (Float.round (v *. 100.)) in
+    (* A count that rounds to 1024.00 of a unit is 1.00 of the next. *)
+    let h, i =
+      let h = hundredths v in
+      if h < 102_400 || i = Array.length units - 1 then (h, i)
+      else (hundredths (v /. 1024.), i + 1)
+    in
     Fmt.str "%d.%02d %s" (h / 100) (h mod 100) units.(i)
 
 let bytes_short n =
