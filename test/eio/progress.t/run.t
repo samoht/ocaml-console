@@ -66,7 +66,8 @@ recorder reads: the bytes leave the screen a terminal shows. The rows are
 
 --progress=quiet prints nothing when the work succeeds, and a failed task's
 line and its output when it fails. With --fail the layer fails, and the
-example fails its step too, since a task under it does not:
+example fails its step and the work too, since a task under them does
+not:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet
 
@@ -125,7 +126,7 @@ terminal as on a pipe:
   {"time":3,"event":"output","id":1,"task":["RUN make","sha256:abcd..."],"text":"checksum mismatch"}
   {"time":3,"event":"end","id":1,"task":["RUN make","sha256:abcd..."],"status":"failed","elapsed":3}
   {"time":3,"event":"end","id":0,"task":["RUN make"],"status":"failed","elapsed":3}
-  {"time":3,"event":"end","status":"succeeded","elapsed":3}
+  {"time":3,"event":"end","status":"failed","elapsed":3}
 
 Console.Task.Event.jsont reads each of these events back, and writes it
 as it was:

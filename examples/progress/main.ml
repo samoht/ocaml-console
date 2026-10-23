@@ -7,8 +7,8 @@
    [main.exe 2>&1 | cat] shows the plain lines a pipe gets,
    [main.exe --progress=plain] prints them on a terminal too, and
    [--progress=tty], [quiet] and [json] show the other modes. With [fail],
-   the layer fails, so does the step, which a task under it does not fail
-   on its own, and the program exits with 1. *)
+   the layer fails, so do the step and the work, which a task under them
+   does not fail on its own, and the program exits with 1. *)
 
 let build ~fail clock root =
   let step = Console.Task.start ~log_lines:4 root "RUN make" in
@@ -28,7 +28,8 @@ let build ~fail clock root =
   if fail then begin
     Console.Task.log layer "checksum mismatch";
     Console.Task.fail layer;
-    Console.Task.fail step
+    Console.Task.fail step;
+    Console.Task.fail root
   end
   else begin
     Console.Task.succeed layer;
