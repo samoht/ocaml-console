@@ -437,11 +437,35 @@ let test_weighted_room n a b =
   let v = View.hcat ~gap:0 [ part 'a' (1 + a); part 'b' (1 + b) ] in
   check_eq ~pp:Fmt.int width (View.width (View.sized ~width v))
 
+let test_nested_room n h =
+  let width = 1 + (n mod 200) and height = 1 + (h mod 30) in
+  let table =
+    Table.view
+      [ Table.column (View.text "界"); Table.column (View.text "n") ]
+      [ [ View.text "👩‍💻"; View.text "12" ]; [ View.text "é"; View.text "3" ] ]
+  in
+  let panel = Panel.view table in
+  let tree = Tree.view (Tree.v panel [ Tree.v table [] ]) in
+  let views =
+    [
+      table;
+      panel;
+      tree;
+      View.hcat [ View.sized ~width:(width / 2) panel; tree ];
+      View.vcat [ panel; tree ];
+    ]
+  in
+  List.iter
+    (fun v -> check (View.width (View.sized ~width ~height v) <= width))
+    views
+
 let suite =
   ( "view",
     [
       test_case "weighted hcat allocates exactly the available room"
         [ uint8; uint8; uint8 ] test_weighted_room;
+      test_case "nested tables panels and trees keep to their room"
+        [ uint8; uint8 ] test_nested_room;
       test_case "a view's size does not depend on its moment"
         [ list bytes; float; uint8 ]
         test_still_size;
