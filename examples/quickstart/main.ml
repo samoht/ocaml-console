@@ -3,11 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The program the README opens with: test suites run as live progress rows,
-   then a table of their results, in the theme of --theme and the colours of
-   --color. *)
+(* The program the README's recording shows: test suites run as live
+   progress rows, then a table of their results, in the theme of --theme and
+   the colours of --color. *)
 
-(* $MDX part-begin=main *)
 open Console
 
 let suites = [ ("parser", 120); ("layout", 80); ("render", 60) ]
@@ -46,4 +45,3 @@ let cmd =
       Cmdliner.Term.(const main $ Fmt_cli.style_renderer () $ theme))
 
 let () = exit (Cmdliner.Cmd.eval cmd)
-(* $MDX part-end *)

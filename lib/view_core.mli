@@ -12,7 +12,7 @@ type t
 type align = [ `Left | `Center | `Right ]
 (** See {!View.align}. *)
 
-(** {1:room Room and moment} *)
+(** {1:room Room and time} *)
 
 type kind = { live : bool; tasks : bool; timed : bool }
 (** The type for what a deferred view reads besides its room: state outside the

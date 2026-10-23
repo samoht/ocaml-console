@@ -71,7 +71,8 @@ val secret : t -> string -> (string, error) result
     [Error (`Msg _)], and the rest of the line is skipped.
 
     Since masking switches echo off on the terminal behind [t]'s input, this is
-    also [Error (`Msg _)] when that input is not a terminal. Input typed before
-    echo goes off, which the terminal has already shown, is discarded, as
-    getpass(3) does. The terminal is given back as it was found on return, on an
-    exception and on SIGINT or SIGTERM. *)
+    also [Error (`Msg _)] when that input is not a terminal. [question] is
+    written first, and echo goes off after it: a key typed before then, which
+    the terminal has already shown, is discarded, as getpass(3) does. The
+    terminal is given back as it was found on return, on an exception and on
+    SIGINT or SIGTERM. *)

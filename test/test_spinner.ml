@@ -60,7 +60,7 @@ let test_still () =
         (at ~theme:(Theme.still Theme.default) time))
     [ 0.; 0.1; 0.25; 1.; 3600. ]
 
-(* A spinner is as wide as its widest frame at every moment. *)
+(* A spinner is as wide as its widest frame at every time. *)
 let test_width () =
   let frames = [ "."; "..."; "\u{754c}" ] in
   List.iter

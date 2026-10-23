@@ -39,60 +39,29 @@ consoles are not supported.
 
 ## Quick start
 
-The recording above shows this program, which runs three test suites side
-by side as progress rows and then prints their results in a table:
+A program runs its work under `Console_eio.run`, and each task of the work
+is a row, redrawn in place while it runs:
 
-<!-- $MDX file=examples/quickstart/main.ml,part=main -->
 ```ocaml
-open Console
+let build root =
+  Console.Task.run root "compile" (fun step ->
+      Console.Task.set_items step ~count:1 ~total:2;
+      Console.Task.log step "ocamlopt parser.ml";
+      Console.Task.set_items step ~count:2 ~total:2)
 
-let suites = [ ("parser", 120); ("layout", 80); ("render", 60) ]
-
-let test clock root (name, total) =
-  Task.run root name @@ fun task ->
-  for count = 1 to total do
-    Task.set_items task ~count ~total;
-    Eio.Time.Mono.sleep clock 0.02
-  done
-
-let main color theme =
-  Console_tty.setup ?style_renderer:color ~theme ();
+let main () =
   Eio_main.run @@ fun env ->
-  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  Console_eio.run ~clock ~label:"Testing" (fun root ->
-      Eio.Fiber.List.iter (test clock root) suites);
-  let ok = View.role `Succeeded (View.text "passed") in
-  let row (name, n) = [ View.text name; View.text (Int.to_string n); ok ] in
-  let cols =
-    Table.
-      [
-        column (View.text "Suite");
-        column ~align:`Right (View.text "Tests");
-        column (View.text "Result");
-      ]
-  in
-  Fmt.pr "%a@." View.pp (Table.view cols (List.map row suites))
-
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
-
-let cmd =
-  Cmdliner.Cmd.(
-    v (info "check")
-      Cmdliner.Term.(const main $ Fmt_cli.style_renderer () $ theme))
-
-let () = exit (Cmdliner.Cmd.eval cmd)
+  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~label:"Building" build
 ```
 
-Its `--theme` option picks one of eighteen themes, and its
-`--color=auto|always|never` option says when to use colour. On a terminal
-the rows are redrawn in place, and each suite leaves a single line behind
-when it ends.
+The rows are drawn on standard error. When that is a pipe or a CI log,
+nothing is redrawn and the program prints plain lines instead.
 
-The rows are drawn on standard error. When that is a pipe or a CI log, as
-in `check 2>&1 | cat`, nothing is redrawn and `check` prints plain lines
-instead, without colour unless `--color=always` asks for it. The whole
-program is in [examples/quickstart/main.ml](examples/quickstart/main.ml).
+The recording above is
+[examples/quickstart/main.ml](examples/quickstart/main.ml): three test
+suites side by side as rows, then a table of their results, with a
+`--theme` option that picks one of eighteen themes and a
+`--color=auto|always|never` option that says when to use colour.
 
 ## Installation
 
@@ -348,20 +317,11 @@ says more about roles, contrast and terminals of 16 colours.
 
 A task is a row. `Task.run parent label f` runs `f` as a task under
 `parent`: its row shows while `f` runs, and the task succeeds when `f`
-returns and fails when it raises. `Console_eio.run` gives the program the
-root of its work, under which the top tasks start:
-
-```ocaml
-let build root =
-  Console.Task.run root "compile" (fun step ->
-      Console.Task.set_items step ~count:1 ~total:2;
-      Console.Task.log step "ocamlopt parser.ml";
-      Console.Task.set_items step ~count:2 ~total:2)
-
-let main () =
-  Eio_main.run @@ fun env ->
-  Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~label:"Building" build
-```
+returns and fails when it raises, as `build` does in the
+[Quick start](#quick-start). `Console_eio.run` gives the program the
+root of its work. The root is the work as a whole: it has no row of its
+own, but the summary line under the rows. The tasks started under the
+root are the top tasks.
 
 A task started under another is drawn under it, behind the lines of a tree,
 so steps nest by passing the task down:
@@ -529,8 +489,7 @@ When the output is not a terminal, nothing is redrawn. Each task prints a
 line when it starts and another when it ends, with the lines of its output
 in between. Each of these lines names the task by its path, such as
 `linux ▸ compile`, so the lines of builds that run at once still read
-apart.
- The view's last frame comes last: by default, the summary line.
+apart. The view's last frame comes last: by default, the summary line.
 
 `Progress.show` shows the tasks of a root on any formatter. Here it writes
 into a buffer, with a clock that stays at zero, to show what the `build`
@@ -557,11 +516,17 @@ The line a task ends with starts with a mark from the theme. A task that
 did not succeed also says so in words, as in `✗ compile  2/2  0.1s  failed`,
 so that a log read without colour still tells a failure from a success:
 
-| Task | `Theme.default` | `Theme.dos` |
+| Line | `Theme.default` | `Theme.dos` |
 |---|---|---|
-| succeeded | `✓` | `[+]` |
-| failed | `✗` | `[x]` |
-| cancelled | `○` | `[~]` |
+| a task starts | `•` | `[-]` |
+| a line of its output | `›` | `#` |
+| it succeeded | `✓` | `[+]` |
+| it failed | `✗` | `[x]` |
+| it was cancelled | `○` | `[~]` |
+
+A `Logs` message has the mark of its level: `!` for a warning, `✗` for an
+error and `·` for debugging, and none for an application or an
+information message.
 
 On a pipe, console flushes standard output before each line it writes, so
 `2>&1` keeps the two outputs in the order they were written. On a
@@ -613,7 +578,7 @@ zero, unless the program gives it one of `Console_eio.clock` (below):
 A [Dune](https://dune.build/) cram test of the program's output
 then reads the same on every machine. Dune runs it without a UTF-8
 locale, so the program draws its marks in ASCII. This one runs the
-`build` function from [Progress rows](#progress-rows), compiled as an
+`build` function of the [Quick start](#quick-start), compiled as an
 executable:
 
 <!-- $MDX skip -->
@@ -696,7 +661,7 @@ character that reorders the text around it:
 |---|---|
 | `Console.Color` | Terminal colours, by name, by palette number or as RGB and hex |
 | `Console.Style` | Bold, italic, underline and colours, combined with `+` |
-| `Console.Room` | Where and when a view is laid out: its width, height, moment and theme |
+| `Console.Room` | Where and when a view is laid out: its width, height, time and theme |
 | `Console.View` | Styled text and every widget, laid out in a room |
 | `Console.Border` | Frame styles for tables and panels |
 | `Console.Guide` | The lines that connect the branches of a tree |
@@ -718,7 +683,7 @@ character that reorders the text around it:
 
 ## Known limitations
 
-- console 0.9.0 is tested against the terminal emulator of matrix 0.1.0, a
+- console 1.0.0 is tested against the terminal emulator of matrix 0.1.0, a
   test dependency only, which has defects that matrix 0.2.0 fixes; the tests
   work around them and skip five checks until then. That emulator reads
   Unicode 16.0 and draws a cluster in the cells of its first character, so

@@ -30,7 +30,9 @@ type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of a line of output: those of [Logs]. *)
 
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
-(** The type for where a task is: running, or how it ended. *)
+(** The type for where a task is: running, or how it ended. A task that ended
+    has the {!Event.type-status} of the same name in its ["end"] event, and the
+    {!Theme.type-mark} of the same name on its line. *)
 
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
 (** The type for how much of a task is done: not said yet, so its row shows a
@@ -119,7 +121,9 @@ val log : ?level:level -> t -> string -> unit
       line counts them. A line, a label and a message are each kept up to 4 KiB,
       cut between two characters and ended with three dots.
     - The output of the root is the output of no task.
-    - A line given to a task that ended is dropped. *)
+    - A line given to a task that ended with [log] is dropped. A [Logs] message
+      or a printed line from a fiber whose task ended is not: it goes to the
+      scrollback at once, as that task's ({!Progress.design}). *)
 
 val succeed : ?message:string -> t -> unit
 (** [succeed t] ends [t] as a success, with [message] in place of its label if
@@ -270,8 +274,9 @@ module Event : sig
       Each event has a constructor that takes its members, those it may lack as
       optional arguments, so that a member added later is an optional argument.
       The task of an event is its [id] and its [task], the labels from the top
-      task down to it, the last argument. [time] and [elapsed] are taken as
-      {!jsont} writes them, and each string as valid UTF-8 without a C1 control.
+      task down to it, the last positional argument but for {!Event.label}'s
+      text. [time] and [elapsed] are taken as {!jsont} writes them, and each
+      string as valid UTF-8 without a C1 control.
 
       The constructors raise [Invalid_argument] if given a negative [id],
       [parent], [count] or [total]. *)

@@ -723,10 +723,10 @@ module F = struct
     String.concat "\n" (List.map (to_string ~styled) lines)
 end
 
-(* {1 Room and moment}
+(* {1 Room and time}
 
    A view is either flat, its atoms known, or deferred: laid out in the room
-   and at the moment it is printed in. A deferred part says what it reads
+   and at the time it is printed in. A deferred part says what it reads
    besides its room: the time, the tasks, and other state outside the view.
    One that reads none caches its layout for its room; one that reads the
    time but no state caches its still size, which every frame of it takes. *)

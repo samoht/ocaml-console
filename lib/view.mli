@@ -5,14 +5,13 @@
 
 (** What console prints: styled text, and everything built from it.
 
-    A view is what is drawn in a given room at a given moment. A widget's
-    [view], such as {!Table.view}, is a view, and views compose: a table goes in
-    a panel, the panel in a cell of another table, beside a tree ({!hcat}) or
-    one under the other ({!vcat}). A {!Display} draws a view every frame, in the
+    A view is what is drawn in a given room at a given time. A widget's [view],
+    such as {!Table.view}, is a view, and views compose: a table goes in a
+    panel, the panel in a cell of another table, beside a tree ({!hcat}) or one
+    under the other ({!vcat}). A {!Display} draws a view every frame, in the
     room of the terminal, while printing it ({!pp}, {!to_string}) draws it once,
-    at time [0]. Most views look the same at every moment, while a
-    {!Spinner.view} turns, and so do the frames of a theme that moves
-    ({!Theme.val-motion}).
+    at time [0]. Most views look the same at every time, while a {!Spinner.view}
+    turns, and so do the frames of a theme that moves ({!Theme.val-motion}).
 
     A view only holds text that prints. The constructors:
     - replace each control character with a space;
@@ -130,23 +129,23 @@ type align = [ `Left | `Center | `Right ]
     in its middle or at its right edge, as a {!Table} column or a {!Rule} label
     sits. *)
 
-(** {1:room Room and moment}
+(** {1:room Room and time}
 
     A view is laid out where it is printed. Its {e room} is the width and the
     height it may take: the formatter's margin under {!pp}, the terminal under a
     {!Display}, a column of a {!Table}, what the guides of a {!Tree} leave a
-    label, or what {!sized} gives. Its {e moment} is the seconds since the
-    display that draws it started, and [0.] when it is printed once.
+    label, or what {!sized} gives. Its {e time} ({!Room.time}) is the seconds
+    since the display that draws it started, and [0.] when it is printed once.
 
-    A view's size depends on its room alone, never on its moment, and it is
-    measured at moment [0.]: so nothing in a display moves sideways from one
-    frame to the next. *)
+    A view's size depends on its room alone, never on its time, and it is
+    measured at time [0.]: so nothing in a display moves sideways from one frame
+    to the next. *)
 
 val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
 (** [fit f] is [f room] where it is laid out, in the {!Room} it is given: a
     width and a height, each [None] where nothing bounds it, as in {!hcat}
     without a room, {!width}, {!truncate} or {!to_string}, which take a view at
-    its natural size; the moment it is drawn at; and the theme and character set
+    its natural size; the time it is drawn at; and the theme and character set
     of the formatter. A view [f] returns is laid out in the same room.
 
     - [grow] (defaults to [0]) is its weight in an {!hcat} laid out in a room: a
@@ -157,12 +156,12 @@ val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
       should not be laid out, which a {!Table} keeps for its column while
       another column can narrow.
 
-    Its size must depend on its room alone, not on its moment: each frame of it
-    takes the cells of its frame at moment [0.], each line cut or padded to
-    them. [f] may be called several times a frame, and must be a function of its
-    room and of the program's state. A display draws a view with a [fit] part
-    again at every frame, so a view of the program's own state, such as a table
-    it updates, is a [fit]:
+    Its size must depend on its room alone, not on its time: each frame of it
+    takes the cells of its frame at time [0.], each line cut or padded to them.
+    [f] may be called several times a frame, and must be a function of its room
+    and of the program's state. A display draws a view with a [fit] part again
+    at every frame, so a view of the program's own state, such as a table it
+    updates, is a [fit]:
 
     {[
     let status jobs =
@@ -236,7 +235,7 @@ val wrap : int -> t -> t list
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats a view at moment [0.], in a room as wide as the formatter's
+(** [pp] formats a view at time [0.], in a room as wide as the formatter's
     margin ({!fit}), with its styles and links iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty]. Its colours are those the
     formatter's {!Color.val-depth} shows. Each style that is turned on is turned
@@ -250,6 +249,6 @@ val pp : t Fmt.t
     on lines of its own, as ["%a@."] does. *)
 
 val to_string : ?styled:bool -> t -> string
-(** [to_string v] is [v] at its natural size and at moment [0.], drawn in
+(** [to_string v] is [v] at its natural size and at time [0.], drawn in
     {!Theme.default} in UTF-8, with its styles and links in 24-bit colour iff
     [styled] (defaults to [false]). *)

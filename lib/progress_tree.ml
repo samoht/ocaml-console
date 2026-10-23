@@ -8,7 +8,7 @@ module V = View_core
 
 let tasks _ = V.tasks
 
-(* A label drawn where the tree lays it out: in its look, at its moment, in
+(* A label drawn where the tree lays it out: in its look, at its time, in
    the room its guides leave it. *)
 let label f =
   V.deferred ~kind:tasks (fun c ->
@@ -67,7 +67,7 @@ type form = Full | Fold | Bare | Whole
 (* {1 What a task keeps}
 
    A task keeps its row as it was last laid out, for the room, the look and
-   the moment, until it changes: a running row moves with the time only by
+   the time, until it changes: a running row moves with the time only by
    its spinner and its timer. A top task whose tree ended keeps that tree.
    A layout with a piece of its own reads what it likes, and keeps
    nothing. *)

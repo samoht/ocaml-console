@@ -271,12 +271,12 @@ only the table remains:
 ]}
 
 With [--progress=json], [check] writes the events for another program to
-read instead, one JSON object to a line ({{!Console.Progress.json}JSON
+read instead, one JSON object to a line ({{!Console.Task.json}JSON
 events}). An OCaml program reads each line back as a
-{!Console.Progress.Event.t} with {!Console.Progress.Event.of_string}, which
-decodes it with the jsont codec {!Console.Progress.Event.jsont}, and reads
-its members with accessors such as {!Console.Progress.Event.val-kind} and
-{!Console.Progress.Event.text}.
+{!Console.Task.Event.t} with {!Console.Task.Event.of_string}, which
+decodes it with the jsont codec {!Console.Task.Event.jsont}, and reads
+its members with accessors such as {!Console.Task.Event.val-kind} and
+{!Console.Task.Event.text}.
 
 {1:testing Testing the output}
 
@@ -334,8 +334,9 @@ escape codes unless [~styled:true] asks for them.
 {1:next Next}
 
 {ul
-{- {!Console.Display} has the rules of the live rows: nested tasks, byte
-   counts, results, and what the display guarantees on a terminal.}
+{- {!Console.Progress} has the rules of the rows: nested tasks, byte
+   counts, what gives way, and where a task goes when it ends.}
+{- {!Console.Display} has what a live region guarantees on a terminal.}
 {- {!Console.Theme} describes each theme and makes new ones.}
 {- {!Console_eio.Prompt} asks questions on the terminal, passwords
    included.}}

@@ -6,8 +6,8 @@
 (** Where and when a view is laid out.
 
     A room is what a {!View.fit} part is given each time it is laid out: the
-    width and the height it may take, the moment it is drawn at, and the theme
-    and the character set of the formatter that prints it. *)
+    width and the height it may take, the time it is drawn at, and the theme and
+    the character set of the formatter that prints it. *)
 
 type t = Ctx.t
 (** The type for rooms. *)

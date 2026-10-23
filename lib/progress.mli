@@ -224,7 +224,9 @@ val show :
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
       region until the display closes, where they otherwise move to the
       scrollback with their top task ({!design}).
-    - [layout] (defaults to {!Layout.default}) draws the rows.
+    - [layout] (defaults to {!Layout.default}) draws the rows of the default
+      [view] and of the default [commit]; a [view] or a [commit] given draws its
+      own.
 
     The display takes none of what the program prints on [ppf] but what
     {!Display.with_output} prints: with [`Quiet] it shows, and with [`Json] it
@@ -249,8 +251,9 @@ val show :
     - With [keep_ended] ({!show}), no task moves: the tasks that ended stay in
       the region until the display closes, as in a view of trees side by side,
       where a column should not empty while the others run.
-    - The output of the root, and a line given to a task that ended, go to the
-      scrollback at once.
+    - The output of the root, and a [Logs] message or a printed line from a
+      fiber whose task ended, go to the scrollback at once. A line given to a
+      task that ended with {!Task.log} is dropped.
     - Only running rows, their windows and the summary change: a task that ended
       keeps its line as it ended until it leaves the region, or folds to fit.
     - A tree too tall for its room first folds the tasks that ended under each

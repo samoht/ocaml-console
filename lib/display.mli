@@ -7,7 +7,7 @@
 
     A display draws a {!View.t} at the bottom of the terminal's normal output,
     its {e region}, and redraws it in place at each frame, in the room of the
-    terminal and at the moment of the frame ({!Room}), so that its spinners turn
+    terminal and at the time of the frame ({!Room}), so that its spinners turn
     and the frames of a theme that moves move. Above the region is the
     {e scrollback}, where {!print} writes what is printed once. A display knows
     nothing of tasks: {!Progress.show} makes the display of a root's tasks, and
@@ -47,7 +47,7 @@
       the view reads changed computes nothing. A view that reads neither the
       time ({!Room.time}) nor the program's state is drawn again only when it is
       set, when something is printed above it or when the terminal's size
-      changes, and one that reads the time also when its moment moves. A view of
+      changes, and one that reads the time also when the time moves. A view of
       the program's state ({!View.fit}), the tasks included, is drawn again at
       every redraw, unless the display is told of each change to it: the display
       of {!Progress.show} is told of each change to its tasks.
@@ -115,11 +115,15 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
 
     Output that [f] does not end with a line feed is ended, and the region is
     drawn from the first column of the row where [f] left the cursor, on rows it
-    erases first. *)
+    erases first.
+
+    The cursor stays hidden while [f] runs, as it is while the region shows: a
+    child process that [f] runs on the terminal and that reads from it shows no
+    cursor unless it shows one itself. *)
 
 val redraw : t -> unit
-(** [redraw d] draws the view again, at the moment of the call: a view that
-    reads the time ({!Room.time}) moves. [Console_eio.run] calls it ten times a
+(** [redraw d] draws the view again, at the time of the call: a view that reads
+    the time ({!Room.time}) moves. [Console_eio.run] calls it ten times a
     second; a program that runs a display without it calls it a few times a
     second. A view that raises is dropped, nothing drawn in its place, and the
     exception raised again. *)

@@ -70,8 +70,9 @@ val run :
     - [ppf] is where the tasks show (defaults to {!Fmt.stderr}, so that standard
       output stays the program's), in [ppf]'s theme ({!Console.Theme.get}).
     - [label] names the work on the summary line ({!Console.Task.root}).
-    - [view root], [keep_ended] and [layout] are those of
-      {!Console.Progress.show}.
+    - [view] is applied to the root, and [view root] is the [view] of
+      {!Console.Progress.show}; [keep_ended] and [layout] are [show]'s too.
+      [run] keeps [show]'s default [commit].
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is

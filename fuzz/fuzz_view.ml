@@ -402,8 +402,8 @@ let test_vcat_height inputs =
   in
   check_eq ~pp:Fmt.Dump.string expected (View.to_string combined)
 
-(* A view's size does not depend on its moment: whatever a [fit] part draws
-   at a moment, the view takes the cells of its frame at moment 0, line by
+(* A view's size does not depend on its time: whatever a [fit] part draws
+   at a time, the view takes the cells of its frame at time 0, line by
    line. *)
 let test_still_size frames time width =
   let frames = Array.of_list (List.map View.text frames) in
@@ -466,7 +466,7 @@ let suite =
         [ uint8; uint8; uint8 ] test_weighted_room;
       test_case "nested tables panels and trees keep to their room"
         [ uint8; uint8 ] test_nested_room;
-      test_case "a view's size does not depend on its moment"
+      test_case "a view's size does not depend on its time"
         [ list bytes; float; uint8 ]
         test_still_size;
       test_case "vertical composition adds heights and preserves lines"

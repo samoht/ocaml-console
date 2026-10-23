@@ -39,11 +39,9 @@ val sanitize : ?keep_newlines:bool -> string -> string
       text rides on a flag, and the black flag stays alone.
     - A variation selector, U+FE00 to U+FE0F, U+E0100 to U+E01EF or a Mongolian
       one, is kept after a base and removed after no base: after a space, a
-      control, a line
-
-    end, a joiner or another selector. At the start of [s] it is kept, since its
-    base may end the text before [s]. A run of selectors thus keeps only its
-    first, and cannot hide text.
+      control, a line end, a joiner or another selector. At the start of [s] it
+      is kept, since its base may end the text before [s]. A run of selectors
+      thus keeps only its first, and cannot hide text.
     - The joiners U+200C and U+200D, which some scripts and emoji need, are
       kept.
     - A line ends at a line feed, a carriage return, or the two together. VT, FF

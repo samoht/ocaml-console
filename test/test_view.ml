@@ -383,7 +383,7 @@ let test_with_role () =
     (printed ~theme:Theme.nord
        (View.role `Succeeded View.(text "a" ++ styled Style.bold (text "b"))))
 
-(* {1 Room and moment} *)
+(* {1 Room and time} *)
 
 let pp_at margin v =
   let buf = Buffer.create 64 in
@@ -413,7 +413,7 @@ let test_fit_room () =
     "sized within the room" "8 at 0.0"
     (pp_at 8 (View.sized ~width:12 room));
   Alcotest.(check string)
-    "at a display's moment" "5 at 1.5"
+    "at a display's time" "5 at 1.5"
     (at ~width:5 ~time:1.5 room);
   let theme =
     View.fit (fun r ->
@@ -423,8 +423,8 @@ let test_fit_room () =
     "its theme and character set" "ascii false"
     (at ~theme:Theme.ascii ~utf_8:false ~time:0. theme)
 
-(* A view's size depends on its room, not on its moment: each frame of a
-   [fit] is cut or padded to its frame at moment 0. *)
+(* A view's size depends on its room, not on its time: each frame of a
+   [fit] is cut or padded to its frame at time 0. *)
 let test_fit_still_size () =
   let growing =
     View.fit (fun r ->

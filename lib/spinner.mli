@@ -16,8 +16,8 @@
 
 val view : ?frames:string list -> unit -> View.t
 (** [view ()] shows [frames] in turn, from the first to the last and then from
-    the first again, ten frames a second of the moment it is drawn at
-    ({!View.fit}): the first frame at moment [0.]. [frames] defaults to the
+    the first again, ten frames a second of the time it is drawn at
+    ({!View.fit}): the first frame at time [0.]. [frames] defaults to the
     spinner of the theme it is printed in. A frame is drawn on one line, a
     control character in it a space, and on a formatter that is not {!Fmt.utf_8}
     a spinner whose frames are not all ASCII is drawn as {!ascii}. Every frame

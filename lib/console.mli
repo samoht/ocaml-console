@@ -143,7 +143,7 @@ module Theme = Theme
 (** One look for every widget. *)
 
 module Room = Room
-(** Where and when a view is laid out: its width, height, moment and theme. *)
+(** Where and when a view is laid out: its width, height, time and theme. *)
 
 module View = View
 (** What console prints: styled text and every widget, laid out in a room. *)
@@ -152,7 +152,8 @@ module Spinner = Spinner
 (** Spinners for work of unknown length. *)
 
 module Bar = Bar
-(** Horizontal bars, for progress and for figures. *)
+(** Bars, for progress and for figures: horizontal, vertical, sparklines and
+    charts. *)
 
 module Panel = Panel
 (** Text in a frame, with an optional title. *)

@@ -27,10 +27,12 @@
       (U+2500), so that the fill shows without colour too. The brackets are a
       right one eighth block (U+2595) and a left one (U+258F).
     - [`Block] fills whole cells with full blocks (U+2588) on a track of light
-      shade (U+2591), in brackets [\[] and [\]].
-    - [`Ascii] fills whole cells with [#] on a track of [-], in brackets [\[]
-      and [\]]. Every theme draws its bars so on a formatter that is not
-      {!Fmt.utf_8}. *)
+      shade (U+2591). Its brackets are [\[] and [\]].
+    - [`Ascii] fills whole cells with [#] on a track of [-]. Its brackets are
+      [\[] and [\]]. Every theme draws its bars so on a formatter that is not
+      {!Fmt.utf_8}.
+
+    A bar has brackets only with [~brackets:true] ({!horizontal}). *)
 
 (** {1:bars Bars} *)
 

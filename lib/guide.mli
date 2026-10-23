@@ -6,7 +6,7 @@
 (** Guide glyphs for nested terminal views.
 
     A guide is the four glyphs that draw one level of a {!Tree} or of nested
-    {!Display} rows, and the style they are drawn in. A control character in a
+    {!Progress} rows, and the style they are drawn in. A control character in a
     glyph is drawn as a space. *)
 
 (** {1:guides Guides} *)

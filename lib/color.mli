@@ -91,12 +91,14 @@ val blend : t -> t -> float -> t
 (** [blend c0 c1 f] is the RGB colour [f] of the way from [c0] to [c1]. [f] is
     clamped to 0 to 1, and NaN is 0. Each component is
     [a + round (f * (b - a))]. [blend c0 c1 0.] is [c0] and [blend c0 c1 1.] is
-    [c1], as RGB. *)
+    [c1], as RGB. The fraction comes last so that [blend c0 c1] is the gradient
+    from [c0] to [c1], whereas {!scale} takes its factor first. *)
 
 val scale : float -> t -> t
 (** [scale f c] is the RGB colour whose components are those of [c] times [f],
-    rounded and clamped to 0 to 255, a NaN component being 0: [scale 0.5]
-    darkens by half. *)
+    rounded and clamped to 0 to 255, a NaN component being 0. The factor comes
+    first so that [scale 0.5] is a function that darkens by half, whereas
+    {!blend} takes its fraction last. *)
 
 (** {1:preds Predicates and comparisons} *)
 

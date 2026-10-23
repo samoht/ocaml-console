@@ -46,10 +46,10 @@ type role =
 type mark =
   [ `Running
     (** Work still going on: a task's line as it starts on a pipe, and the
-        summary until the display closes or has its result. *)
-  | `Succeeded  (** A task or a session that succeeded. *)
-  | `Failed  (** A task or a session that failed. *)
-  | `Cancelled  (** A task or a session that was cancelled. *)
+        summary until the work ends. *)
+  | `Succeeded  (** A task, or the work, that succeeded. *)
+  | `Failed  (** A task, or the work, that failed. *)
+  | `Cancelled  (** A task, or the work, that was cancelled. *)
   | `Info  (** A line of a task's output. *)
   | `Warning  (** A message that warns. *)
   | `Error  (** A message that reports an error. *)
@@ -64,9 +64,11 @@ type bar =
         line (U+2500), in right and left one eighth blocks (U+2595 and U+258F).
     *)
   | `Block
-    (** Whole cells of full blocks (U+2588) on a light shade (U+2591), in square
-        brackets, as DOS programs drew progress. *)
-  | `Ascii  (** Whole cells of [#] on [-], in square brackets. *) ]
+    (** Whole cells of full blocks (U+2588) on a light shade (U+2591), as DOS
+        programs drew progress, in square brackets with [~brackets:true]. *)
+  | `Ascii
+    (** Whole cells of [#] on [-], in square brackets with [~brackets:true]. *)
+  ]
 (** The type for the glyphs of a {!Bar}. Constructors may be added, so a match
     on a bar has a case for the others. *)
 
