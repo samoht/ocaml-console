@@ -175,13 +175,15 @@ let natural64 what n =
   if Int64.compare n 0L < 0 then
     Fmt.invalid_arg "Console.Task.Event: negative %s" what
 
+let kept s = Task_text.capped (clean s)
+
 let event ?task ~time kind =
   Option.iter (fun (id, _) -> natural "id" id) task;
   {
     time = to_seconds time;
     kind;
     id = Option.map fst task;
-    task = Option.map (fun (_, path) -> List.map clean path) task;
+    task = Option.map (fun (_, path) -> List.map kept path) task;
     parent = None;
     count = None;
     total = None;
@@ -208,7 +210,7 @@ let progress ~time ~count ~total ~unit task =
   }
 
 let label ~time task text =
-  { (event ~task ~time `Label) with text = Some (clean text) }
+  { (event ~task ~time `Label) with text = Some (kept text) }
 
 let output ?task ?level ~time text =
   {
@@ -222,7 +224,7 @@ let ended status ?task ?message ~time ~elapsed () =
     (event ?task ~time `End) with
     status = Some (statuses.other status);
     elapsed = Some (to_seconds elapsed);
-    message = Option.map clean message;
+    message = Option.map kept message;
   }
 
 let succeeded = ended `Succeeded
