@@ -135,8 +135,10 @@ module Layout : sig
       every frame. *)
 
   val give_way : int -> t -> t
-  (** [give_way n l] is [l] whose pieces give way at stage [n] (at least [1])
-      when the row is short of room ({!Layout}). *)
+  (** [give_way n l] is [l] whose pieces give way at stage [n] when the row is
+      short of room ({!Layout}).
+
+      @raise Invalid_argument if [n] is less than [1]. *)
 
   val ( ++ ) : t -> t -> t
   (** [l0 ++ l1] is [l0] then [l1].

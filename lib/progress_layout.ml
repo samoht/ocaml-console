@@ -64,7 +64,11 @@ let elapsed = one ~stage:4 Elapsed
 let spacer = one Spacer
 let const v = one (Const v)
 let custom f = one (Custom f)
-let give_way n t = List.map (fun p -> { p with stage = Some (max 1 n) }) t
+
+let give_way n t =
+  if n < 1 then invalid_arg "Console.Progress.Layout.give_way: stage below 1";
+  List.map (fun p -> { p with stage = Some n }) t
+
 let is_label p = match p.kind with Label -> true | _ -> false
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
