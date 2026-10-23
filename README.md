@@ -2,7 +2,7 @@
 
 Colours, tables, trees and progress rows for OCaml command-line tools.
 
-![Three test suites as progress rows, then a table of their results](examples/quickstart/quickstart.svg)
+![Three test suites as progress rows, then a table of their results, then the same run with --theme=rainbow](examples/quickstart/quickstart.svg)
 
 console prints styled text and widgets, such as tables, trees, panels and
 bars, into the terminal's normal scrollback. It shows the work a program

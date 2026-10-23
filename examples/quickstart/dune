@@ -13,15 +13,52 @@
 (rule
  (enabled_if
   (and %{bin-available:k7} %{lib-available:console-eio}))
- (target quickstart.cast)
+ (target quickstart.raw.cast)
  (action
   (setenv
    CONSOLE_CAST
    %{target}
    (setenv
     LINES
-    14
+    25
     (run ./main.exe)))))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target quickstart.cast)
+ (action
+  (with-stdout-to
+   %{target}
+   (run
+    sed
+    "1s|^{|{\"command\": \"dune exec -- examples/quickstart/main.exe\", |"
+    %{dep:quickstart.raw.cast}))))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target rainbow.raw.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    25
+    (run ./main.exe --theme=rainbow)))))
+
+(rule
+ (enabled_if
+  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (target rainbow.cast)
+ (action
+  (with-stdout-to
+   %{target}
+   (run
+    sed
+    "1s|^{|{\"command\": \"dune exec -- examples/quickstart/main.exe --theme=rainbow\", |"
+    %{dep:rainbow.raw.cast}))))
 
 (rule
  (enabled_if
@@ -31,11 +68,10 @@
   (run
    %{bin:k7}
    play
-   --show
-   "dune exec -- examples/quickstart/main.exe"
    -o
    %{target}
-   %{dep:quickstart.cast})))
+   %{dep:quickstart.cast}
+   %{dep:rainbow.cast})))
 
 (rule
  (alias runtest)
