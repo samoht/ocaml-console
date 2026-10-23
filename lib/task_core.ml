@@ -305,7 +305,6 @@ let start ?key ?(log_lines = 8) ?(transient = false) parent label =
       w.next_id <- id + 1;
       let r = row w ~id ?key ~parent ~log_lines ~transient label in
       w.started <- w.started + 1;
-      widen_label r;
       Option.iter (fun k -> Hashtbl.replace w.by_key k r) key;
       if not parent.gone then adopt parent r;
       notify w (Started r);
@@ -340,7 +339,6 @@ let run ?key ?log_lines ?transient parent label f =
 let set_label r label =
   if is_running r && not (is_root r) then begin
     r.label <- Task_text.label label;
-    widen_label r;
     notify r.work (Renamed r)
   end
 

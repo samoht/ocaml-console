@@ -94,9 +94,10 @@ val to_string : t -> string
     row without a bar, a count or a rate leaves its column blank. The columns
     are as wide as the labels and the kinds of progress seen so far need, and
     they only widen:
-    - The label column is as wide as the widest label a task of the root has
-      had, behind the guides of its depth. A task with a wider label widens it
-      when it starts, or when it is renamed.
+    - The label column is as wide as the widest label a row of the root has
+      drawn, behind the guides of its depth: a running row whose layout holds no
+      label ({!Layout.choose}) does not count. A task with a wider label widens
+      it in the first frame after it starts, or after it is renamed.
     - The bar column opens with the first task that counts.
     - A count of items takes the cells its total needs, at least [999/999], so a
       display of items is as dense as its counts allow. A task of items with a

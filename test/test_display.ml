@@ -677,6 +677,25 @@ let test_layout_choose () =
   Task.succeed b;
   close t
 
+(* The label column counts the labels the rows draw: a running row whose
+   layout has no label does not widen it. *)
+let test_label_column_drawn () =
+  let layout =
+    Progress.Layout.(
+      choose (fun task ->
+          if Task.label task = "unlabelled and long" then
+            const (View.text "bytes")
+          else list [ label (); const (View.text " |") ]))
+  in
+  let t = terminal ~theme ~layout ~width:30 () in
+  let a = Task.start t.root "short" in
+  let b = Task.start t.root "unlabelled and long" in
+  Display.redraw t.display;
+  check_lines "as wide as the drawn labels" [ "short |"; "bytes" ] (screen t);
+  Task.succeed a;
+  Task.succeed b;
+  close t
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
@@ -2693,6 +2712,8 @@ let suite =
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
+      Alcotest.test_case "the label column of drawn labels" `Quick
+        test_label_column_drawn;
       Alcotest.test_case "rate" `Quick test_rate;
       Alcotest.test_case "a failed with_task says why" `Quick
         test_with_task_reason;

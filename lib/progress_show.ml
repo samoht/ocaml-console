@@ -13,6 +13,7 @@ let lines vs = V.concat ~sep:(V.text "\n") vs
 let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
       let look = Ctx.look c and width = Ctx.width c in
+      if Progress_tree.draws_label layout r then widen_label r;
       let columns = Progress_row.columns look r in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r

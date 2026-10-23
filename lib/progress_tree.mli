@@ -6,6 +6,9 @@
 (** The tree of a task, as {!Tree.view} draws it. {!Progress} documents the
     rules; this module gives the view. *)
 
+val draws_label : Progress_layout.t -> Task_core.t -> bool
+(** [draws_label l r] is [true] iff the row of [r] by [l] draws its label. *)
+
 val view : layout:Progress_layout.t -> Task_core.t -> View_core.t
 (** [view ~layout r] is the tree of [r] laid out in its room: [r] and the tasks
     under it, or the top tasks if [r] is the root. In a room of a height, the

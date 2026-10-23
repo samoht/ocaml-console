@@ -38,6 +38,9 @@ val for_task : t -> Task_core.t -> piece list
 
     @raise Invalid_argument if they hold two labels or two spacers. *)
 
+val has_label : piece list -> bool
+(** [has_label ps] is [true] iff [ps] hold a {!constructor-Label}. *)
+
 val reads : t -> Look.t -> View_core.kind
 (** [reads l look] is what a row that [l] draws in [look] reads: the tasks and
     the time, and any state with a {!constructor-Custom} piece or a

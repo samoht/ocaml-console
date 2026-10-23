@@ -80,6 +80,7 @@ let give_way n t =
   List.map (fun p -> { p with stage = Some n }) t
 
 let is_label p = match p.kind with Label _ -> true | _ -> false
+let has_label pieces = List.exists is_label pieces
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
 (* A row has one flexible piece of each kind: the label that gives way and

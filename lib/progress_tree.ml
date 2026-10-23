@@ -244,10 +244,24 @@ let top_shed form r = if is_root r then shed form r else 0
 let indent = 2
 let drawn tree = Tree.view ~indent tree
 
+(* A running row draws a label if its layout has one, the line of a task
+   that ended always. *)
+let draws_label layout r =
+  (not (is_running r))
+  || Progress_layout.has_label (Progress_layout.for_task layout r)
+
+let rec widen layout nodes =
+  List.iter
+    (fun n ->
+      if draws_label layout n.row then widen_label n.row;
+      widen layout n.kids)
+    nodes
+
 (* The columns of the rows of [r]'s tree, by the depth they are drawn at:
-   the label column ends where the widest label of the work at any depth
-   ends, behind the guides of its depth. *)
-let columns look r =
+   the label column ends where the widest label drawn at any depth ends,
+   behind the guides of its depth. *)
+let columns ~layout look r nodes =
+  widen layout nodes;
   let w = work r in
   let base = if is_root r then 1 else depth r in
   let guide = Widget.guide look None in
@@ -407,7 +421,7 @@ let region ~layout c ~height r =
   if height <= 0 || width <= 0 || gone r then V.empty
   else
     let nodes = tops shows r in
-    let cols = columns (Ctx.look c) r in
+    let cols = columns ~layout (Ctx.look c) r nodes in
     if fst (count ~form:Full r nodes) <= height then
       draw (trees ~layout ~form:Full ~cut:(-1) ~cols r nodes)
     else
@@ -420,10 +434,11 @@ let region ~layout c ~height r =
 let whole ~layout c r =
   if gone r then V.empty
   else
+    let nodes = tops shows r in
     draw
       (trees ~layout ~form:Whole ~cut:(-1)
-         ~cols:(columns (Ctx.look c) r)
-         r (tops shows r))
+         ~cols:(columns ~layout (Ctx.look c) r nodes)
+         r nodes)
 
 let view ~layout r =
   V.deferred ~kind:(Progress_layout.reads layout) (fun c ->
