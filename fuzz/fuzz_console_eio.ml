@@ -845,21 +845,17 @@ let with_recording deterministic f =
       List.iter (fun (k, v) -> Unix.putenv k v) bindings;
       f file)
 
+(* The mock clock behind never moves, so a sleep that waited on it would
+   leave the mock backend with nothing to run, which it raises. *)
 let test_cast_sleep n =
   with_recording false @@ fun _ ->
   Eio_mock.Backend.run @@ fun () ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let ppf = Format.formatter_of_buffer (Buffer.create 64) in
   let slept = ref false in
-  Eio.Fiber.first
-    (fun () ->
-      Console_eio.run ~clock ~ppf (fun _ ->
-          Eio.Time.Mono.sleep clock (float_of_int (1 + n));
-          slept := true))
-    (fun () ->
-      for _ = 1 to 1000 do
-        Eio.Fiber.yield ()
-      done);
+  Console_eio.run ~clock ~ppf (fun _ ->
+      Eio.Time.Mono.sleep clock (float_of_int (1 + n));
+      slept := true);
   check !slept
 
 let test_cast_chunking n =
