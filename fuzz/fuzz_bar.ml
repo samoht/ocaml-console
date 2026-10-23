@@ -46,6 +46,9 @@ let test_vertical_room n h requested frac =
     (1 + (h mod 30))
     (Bar.vertical ~width:(requested mod 240) frac)
 
+let test_sparkline_room n values =
+  check_room (1 + (n mod 200)) 1 (Bar.sparkline values)
+
 let suite =
   ( "bar",
     [
@@ -55,6 +58,9 @@ let suite =
       test_case "fixed vertical bars keep to their room"
         [ uint8; uint8; uint8; float ]
         test_vertical_room;
+      test_case "sparklines keep to their room"
+        [ uint8; list float ]
+        test_sparkline_room;
       test_case "width" [ int; float; bool ] test_width;
       test_case "a vertical bar is as tall as its room" [ int; float; bool ]
         test_vertical_height;
