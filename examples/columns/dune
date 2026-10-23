@@ -22,7 +22,7 @@
  (action
   (run
    %{bin:k7}
-   cast
+   play
    --show
    "dune exec -- examples/columns/main.exe"
    -o

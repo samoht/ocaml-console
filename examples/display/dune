@@ -22,7 +22,7 @@
  (action
   (run
    %{bin:k7}
-   cast
+   play
    --show
    "dune exec -- examples/display/main.exe"
    -o
@@ -56,7 +56,7 @@
  (action
   (run
    %{bin:k7}
-   cast
+   play
    --show
    "dune exec -- examples/display/main.exe matrix"
    --theme
@@ -92,7 +92,7 @@
  (action
   (run
    %{bin:k7}
-   cast
+   play
    --show
    "dune exec -- examples/display/main.exe rainbow"
    -o
@@ -126,7 +126,7 @@
  (action
   (run
    %{bin:k7}
-   cast
+   play
    --show
    "dune exec -- examples/display/main.exe tokyo-night"
    --theme
