@@ -1440,6 +1440,186 @@ let test_default_view steps h =
   in
   check_eq ~pp:Fmt.Dump.string (run None) (run (Some explicit))
 
+(* {1 Rows packed from the left} *)
+
+type pack =
+  | Begin of int option * int
+  | Items of int * int * int
+  | Bytes_of of int * int
+  | Finish of int * int
+  | Tick
+
+let pack =
+  choose
+    [
+      map [ option uint8; uint8 ] (fun p n -> Begin (p, n));
+      map [ uint8; uint8; uint8 ] (fun i c n -> Items (i, c, n));
+      map [ uint8; uint8 ] (fun i c -> Bytes_of (i, c));
+      map [ uint8; uint8 ] (fun i o -> Finish (i, o));
+      const Tick;
+    ]
+
+let pp_pack ppf = function
+  | Begin (p, n) -> Fmt.pf ppf "begin %a %d" Fmt.(option int) p n
+  | Items (i, c, n) -> Fmt.pf ppf "items %d %d %d" i c n
+  | Bytes_of (i, c) -> Fmt.pf ppf "bytes %d %d" i c
+  | Finish (i, o) -> Fmt.pf ppf "finish %d %d" i o
+  | Tick -> Fmt.string ppf "tick"
+
+let pack = with_printer pp_pack pack
+
+let uchars s =
+  let rec go i acc =
+    if i >= String.length s then Array.of_list (List.rev acc)
+    else
+      let d = String.get_utf_8_uchar s i in
+      go (i + Uchar.utf_decode_length d) (Uchar.utf_decode_uchar d :: acc)
+  in
+  go 0 []
+
+(* The cell [s] starts at in [row], each glyph one cell. *)
+let find_cell s row =
+  let s = uchars s in
+  let n = Array.length s in
+  let rec go i =
+    if i + n > Array.length row then None
+    else if Array.for_all2 Uchar.equal s (Array.sub row i n) then Some i
+    else go (i + 1)
+  in
+  go 0
+
+let is_bar u =
+  Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
+
+type laid = {
+  ends : int;  (** The cell after the label. *)
+  bar : (int * int) option;  (** The first and last cells of the bar. *)
+  last : int;  (** The cell after the last glyph. *)
+}
+
+let laid_out label row =
+  let cells = uchars row in
+  Option.map
+    (fun at ->
+      let bars =
+        List.filter
+          (fun i -> is_bar cells.(i))
+          (List.init (Array.length cells) Fun.id)
+      in
+      let bar =
+        match bars with
+        | [] -> None
+        | first :: _ -> Some (first, List.nth bars (List.length bars - 1))
+      in
+      { ends = at + String.length label; bar; last = Array.length cells })
+    (find_cell label cells)
+
+(* The columns a frame's rows share widen only with a wider label, a first
+   task of bytes or a count of items with more digits. *)
+let widening tasks =
+  List.fold_left
+    (fun (bytes, items) (task, _) ->
+      match Task.progress task with
+      | `Bytes _ -> (true, items)
+      | `Items (_, n) -> (bytes, max items (String.length (string_of_int n)))
+      | `Spin -> (bytes, items))
+    (false, 0) tasks
+
+(* The rows of a region pack from the left: the bars of all rows start in
+   one column, one cell after the widest label, and are as wide; every row
+   with columns ends in one column; and over a run at one width, the bars
+   never move left, and the columns move only when they widen. *)
+let test_rows_pack steps w =
+  let width = 40 + (w mod 81) and height = 24 in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        let s = Buffer.contents buf in
+        Buffer.clear buf;
+        Console_vte.feed vte s)
+  in
+  Theme.set ppf Theme.dos;
+  let now = ref 0. in
+  let root = Task.root ~label:header ~now:(fun () -> !now) () in
+  let d =
+    Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
+  in
+  let tasks = ref [] in
+  let pick i =
+    match !tasks with
+    | [] -> None
+    | l -> Some (fst (List.nth l (i mod List.length l)))
+  in
+  let previous = ref None in
+  let frame () =
+    Display.redraw d;
+    let rows = List.filter (( <> ) "") (screen vte) in
+    let shown = String.concat "\n" rows in
+    let laid =
+      List.filter_map
+        (fun (_, label) ->
+          Option.bind
+            (List.find_opt (fun r -> has (label ^ " ") r) rows)
+            (laid_out label))
+        !tasks
+    in
+    match List.filter_map (fun l -> l.bar) laid with
+    | [] -> ()
+    | (first, last) :: _ as bars ->
+        if List.exists (( <> ) (first, last)) bars then
+          failf "the bars are not in one column:@.%s" shown;
+        let column = List.fold_left (fun n l -> max n l.ends) 0 laid in
+        if first <> column + 1 then
+          failf "the bars start at %d, after the labels at %d:@.%s" first column
+            shown;
+        let ends =
+          List.sort_uniq Int.compare (List.map (fun l -> l.last) laid)
+        in
+        (match ends with
+        | [ _ ] -> ()
+        | _ -> failf "the rows end in several columns:@.%s" shown);
+        let key = (column, widening !tasks) in
+        (match !previous with
+        | Some (_, (first', _), _, shown') when first < first' ->
+            failf "the bars moved left:@.%s@.then@.%s" shown' shown
+        | Some (key', bar', ends', shown')
+          when key = key' && (bar' <> (first, last) || ends' <> ends) ->
+            failf "the columns moved:@.%s@.then@.%s" shown' shown
+        | _ -> ());
+        previous := Some (key, (first, last), ends, shown)
+  in
+  List.iter
+    (fun step ->
+      (match step with
+      | Begin (p, n) when List.length !tasks < 12 ->
+          let label =
+            Fmt.str "t%02d%s" (List.length !tasks) (String.make (n mod 24) '-')
+          in
+          let parent = Option.value (Option.bind p pick) ~default:root in
+          tasks := !tasks @ [ (Task.start parent label, label) ]
+      | Begin _ -> ()
+      | Items (i, c, n) ->
+          let total = [| 5; 12; 120; 1200; 99_999 |].(n mod 5) in
+          Option.iter
+            (fun task ->
+              try Task.set_items task ~count:(c mod (total + 1)) ~total
+              with Invalid_argument _ -> ())
+            (pick i)
+      | Bytes_of (i, c) ->
+          let total = 2147483648L in
+          let count = Int64.(div (mul total (of_int c)) 255L) in
+          Option.iter
+            (fun task ->
+              try Task.set_bytes task ~count ~total
+              with Invalid_argument _ -> ())
+            (pick i)
+      | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
+      | Tick -> now := !now +. 0.25);
+      frame ())
+    steps;
+  Display.close d
+
 (* Shrinking windows keeps the latest output, regardless of tree order. *)
 let test_window_age n newest_child =
   let t = Display_harness.terminal ~width:60 ~height:4 () in
@@ -1612,6 +1792,9 @@ let suite =
       test_case "the scrollback keeps every tree whole, in its order"
         [ list tree_step; uint8 ]
         test_scrollback_tree;
+      test_case "rows pack from the left, their bars in one column"
+        [ list pack; uint8 ]
+        test_rows_pack;
       test_case "trees side by side hold every task once"
         [ list tree_step; uint8 ]
         test_columns;

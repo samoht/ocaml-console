@@ -326,6 +326,16 @@ let test_window () =
     [ "[+] job                   0.0s" ]
     (lines t)
 
+(* The cell where [needle] starts in [row]. *)
+let cell_of needle row =
+  let rec find i =
+    if i + String.length needle > String.length row then
+      Alcotest.failf "%S is not in %S" needle row
+    else if String.sub row i (String.length needle) = needle then i
+    else find (i + 1)
+  in
+  View.width (View.text (String.sub row 0 (find 0)))
+
 let test_alignment () =
   let t = terminal ~theme ~width:40 () in
   let a = Task.start t.root "\xe7\x95\x8c\xe7\x95\x8c wide" in
@@ -339,24 +349,18 @@ let test_alignment () =
   List.iter Task.succeed [ a; b; c ];
   close t;
   let rows = lines t in
-  let col needle row =
-    let rec find i =
-      if i + String.length needle > String.length row then -1
-      else if String.sub row i (String.length needle) = needle then i
-      else find (i + 1)
-    in
-    let byte = find 0 in
-    View.width (View.text (String.sub row 0 byte))
+  let one msg cols =
+    Alcotest.(check int)
+      (msg ^ " in\n" ^ String.concat "\n" rows)
+      1
+      (List.length (List.sort_uniq Int.compare cols))
   in
-  Alcotest.(check (list int))
-    "counts end in one column" [ 32; 32; 32 ]
+  one "counts end in one column"
     (List.map2
-       (fun n r -> col n r + String.length n)
+       (fun n r -> cell_of n r + String.length n)
        [ "1/10"; "10/100"; "3/3" ]
        rows);
-  Alcotest.(check (list int))
-    "timers end at the edge" [ 40; 40; 40 ]
-    (List.map (fun r -> col "0.0s" r + 4) rows)
+  one "timers end in one column" (List.map (fun r -> cell_of "0.0s" r + 4) rows)
 
 let test_label_truncated () =
   let t = terminal ~theme ~width:20 () in
@@ -1829,6 +1833,141 @@ let test_bars_line_up () =
 (* The cell width of [row], every glyph one cell. *)
 let cells row = List.length (chars row)
 
+(* The cells of the first and the last of [row]'s block or shade glyphs. *)
+let bar_span row =
+  let is_bar u =
+    Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
+  in
+  let bars =
+    List.filteri
+      (fun _ c -> c >= 0)
+      (List.mapi (fun i (_, u) -> if is_bar u then i else -1) (chars row))
+  in
+  match bars with
+  | [] -> None
+  | first :: _ -> Some (first, List.nth bars (List.length bars - 1))
+
+let span = Alcotest.(option (pair int int))
+
+(* A row is packed from the left: the label, then the bar, the count and
+   the time. The bars of all rows start one cell after the widest label,
+   are as wide, 40 cells at most, and the rest of the line stays empty. *)
+let test_rows_pack_left () =
+  let t = terminal ~theme ~width:100 ~height:8 () in
+  let labels = [ "parser"; "layout"; "a-longer-render-suite" ] in
+  List.iteri
+    (fun i l -> Task.set_items (Task.start t.root l) ~count:(10 + i) ~total:120)
+    labels;
+  Display.redraw t.display;
+  let rows = screen t in
+  let all = String.concat "\n" rows in
+  let row l = List.find (contains l) rows in
+  match List.map (fun l -> bar_span (row l)) labels with
+  | Some (first, last) :: _ as spans ->
+      List.iter
+        (Alcotest.check span
+           ("the bars in one column in\n" ^ all)
+           (Some (first, last)))
+        spans;
+      Alcotest.(check int) ("bars of 40 cells in\n" ^ all) 40 (last - first + 1);
+      let widest =
+        List.fold_left
+          (fun n l -> max n (cell_of l (row l) + String.length l))
+          0 labels
+      in
+      Alcotest.(check int)
+        ("one cell between the widest label and the bars in\n" ^ all)
+        (widest + 1) first;
+      List.iter
+        (fun l ->
+          Alcotest.(check bool)
+            ("the end of the line empty in\n" ^ all)
+            true
+            (cells (row l) < 100))
+        labels;
+      close t
+  | _ -> Alcotest.fail ("no bar in\n" ^ all)
+
+(* While the terminal narrows, the bar loses a cell for each column it
+   loses, from 40 cells down to 10, before the rate gives way. *)
+let test_bar_shrinks_first () =
+  let row_at width =
+    let t = terminal ~theme ~width ~height:4 () in
+    let r = Task.start t.root "layer" in
+    t.advance 1.;
+    Task.set_bytes r ~count:268435456L ~total:2147483648L;
+    t.advance 1.;
+    Task.set_bytes r ~count:536870912L ~total:2147483648L;
+    Display.redraw t.display;
+    let row = List.find (contains "layer") (screen t) in
+    close t;
+    ( Option.map (fun (first, last) -> last - first + 1) (bar_span row),
+      contains "/s" row,
+      row )
+  in
+  let rows = List.init 71 (fun i -> row_at (110 - i)) in
+  (match rows with
+  | (bar, _, row) :: _ ->
+      Alcotest.(check (option int))
+        ("a bar of 40 cells in\n" ^ row)
+        (Some 40) bar
+  | [] -> ());
+  let rec walk = function
+    | (bar, true, row) :: ((bar', rate', row') :: _ as rest) ->
+        let msg = Fmt.str "from\n%s\nto\n%s" row row' in
+        (match (bar, bar') with
+        | Some b, Some b' when rate' ->
+            Alcotest.(check bool)
+              ("the bar loses at most a cell " ^ msg)
+              true
+              (b' = b - 1 || (b = 40 && b' = 40))
+        | Some b, _ ->
+            Alcotest.(check int) ("a bar of 10 cells, then no rate " ^ msg) 10 b
+        | None, _ -> Alcotest.fail ("a rate without a bar " ^ msg));
+        walk rest
+    | (_, false, row) :: (_, true, row') :: _ ->
+        Alcotest.failf "the rate comes back from\n%s\nto\n%s" row row'
+    | _ :: rest -> walk rest
+    | [] -> ()
+  in
+  walk rows;
+  Alcotest.(check bool)
+    "the rate gives way" true
+    (List.exists (fun (_, rate, _) -> not rate) rows)
+
+(* A task that ends keeps its count and its time in the columns of the
+   rows that run, and the cells of its bar blank. *)
+let test_ended_keeps_columns () =
+  let t = terminal ~theme ~width:100 ~height:8 () in
+  let build = Task.start t.root "build" in
+  let a = Task.start build "running" and b = Task.start build "ends" in
+  Task.set_items a ~count:3 ~total:12;
+  Task.set_items b ~count:12 ~total:12;
+  Display.redraw t.display;
+  let before = screen t in
+  Task.succeed b;
+  Display.redraw t.display;
+  let after = screen t in
+  let row l rows = List.find (contains l) rows in
+  let msg =
+    "in\n" ^ String.concat "\n" before ^ "\nthen\n" ^ String.concat "\n" after
+  in
+  let count rows = cell_of "12/12" (row "ends" rows) + 5 in
+  Alcotest.(check int)
+    ("the count of the task that ended stays " ^ msg)
+    (count before) (count after);
+  Alcotest.(check int)
+    ("in the column of the counts " ^ msg)
+    (cell_of "3/12" (row "running" after) + 4)
+    (count after);
+  Alcotest.(check int)
+    ("its time ends in its column " ^ msg)
+    (cells (row "running" after))
+    (cells (row "ends" after));
+  Alcotest.check span ("its bar blank " ^ msg) None
+    (bar_span (row "ends" after));
+  close t
+
 (* At a fixed width nothing in the region moves sideways while counts grow,
    a row with a wider count starts and a table's cells change: two trees
    side by side, as examples/columns lays them out. *)
@@ -2400,6 +2539,11 @@ let suite =
       Alcotest.test_case "the label gives way last" `Quick
         test_label_gives_way_last;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
+      Alcotest.test_case "rows pack from the left" `Quick test_rows_pack_left;
+      Alcotest.test_case "the bar shrinks before anything gives way" `Quick
+        test_bar_shrinks_first;
+      Alcotest.test_case "a task that ends keeps its columns" `Quick
+        test_ended_keeps_columns;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
       Alcotest.test_case "the columns widen once for each kind of progress"
