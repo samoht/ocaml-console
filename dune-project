@@ -14,14 +14,17 @@
 
 (package
  (name console)
- (synopsis "Terminal styling and layout widgets")
+ (synopsis "Colours, tables, trees and progress rows for the terminal")
  (tags (command-line-utilities format))
  (description
-  "Type-safe terminal styling (colors, bold, italic) and layout widgets
-   (tables, trees, panels) for OCaml CLI applications. Inspired by
-   Python's Rich and Go's Charm/lipgloss. The console.tty library decides
-   colour and UTF-8 for the standard outputs from the terminal and the
-   environment, with Unix alone.")
+  "Colours, tables, trees, panels, bars and progress rows for OCaml
+   command-line tools. console prints styled text and widgets into the
+   terminal's normal scrollback, shows the work a program runs as progress
+   rows under that text and redraws only those rows. It never takes over
+   the whole screen. The console.tty library decides colour and UTF-8 for
+   the standard outputs from the terminal and the environment, with Unix
+   alone. The console.text library makes untrusted text safe to print, and
+   console.input is a line editor that does no I/O.")
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
@@ -43,11 +46,13 @@
  (synopsis "Eio backend for console")
  (tags (command-line-utilities format eio))
  (description
-  "Runs a Console.Display on the terminal with Eio: finds whether the
-   output is a terminal and its size, redraws the progress rows, prints the
-   program's output and Logs messages above them and gives the terminal
-   back however the program ends. Also asks questions on the terminal,
-   passwords included.")
+  "Runs console's progress rows with Eio. It finds whether the output is a
+   terminal and its size, redraws the rows, shows the program's output and
+   its Logs messages under the task that printed them, and gives the
+   terminal back when the run ends, when the program exits and on SIGINT
+   or SIGTERM. On a pipe or in CI each task prints lines instead, or JSON
+   events on request. It also asks for a line, a yes or no or a password
+   on the terminal, and reads keys as they are typed.")
  (depends
   (ocaml (>= 5.4))
   (console (= :version))
