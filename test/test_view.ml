@@ -503,7 +503,19 @@ let test_hcat_grow () =
   let two = View.(hcat ~gap:0 [ Bar.horizontal 1.; Rule.view () ]) in
   Alcotest.(check int)
     "two growers share the room" 9
-    (View.width (View.text (pp_at 9 two)))
+    (View.width (View.text (pp_at 9 two)));
+  let styled name style =
+    let row =
+      View.(
+        hcat ~gap:1 [ text "label"; style (Bar.horizontal 0.5); text "50%" ])
+    in
+    Alcotest.(check string)
+      (name ^ " still grows") "label ━━━━━━━─────── 50%" (pp_at 24 row)
+  in
+  styled "styled" (View.styled Style.bold);
+  styled "in a role" (View.role `Succeeded);
+  styled "linked" (View.link ~uri:"https://ocaml.org");
+  styled "in a gradient" (View.gradient ?colors:None)
 
 (* [place] pads or cuts each line to its box, at its alignment. *)
 let test_place () =
