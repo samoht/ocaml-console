@@ -257,6 +257,30 @@ let test_chart () =
     (Display_harness.at ~utf_8:false ~time:0.
        (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]))
 
+(* A chart's values are plain numbers, to three digits past ten
+   thousand, never in e-notation. *)
+let test_chart_values () =
+  let values bars =
+    List.hd
+      (String.split_on_char '\n' (View.to_string (Bar.chart ~height:1 bars)))
+    |> String.split_on_char ' '
+    |> List.filter (( <> ) "")
+  in
+  Alcotest.(check (list string))
+    "plain numbers"
+    [ "12346"; "12.3k"; "1.5"; "0.25"; "10M"; "0.0012"; "0"; "-3501" ]
+    (values
+       [
+         ("a", 12346.);
+         ("b", 12345.5);
+         ("c", 1.5);
+         ("d", 0.25);
+         ("e", 1e7);
+         ("f", 0.00123);
+         ("g", 1e-9);
+         ("h", -3500.7);
+       ])
+
 (* A vertical bar of no width grows to its room, as a column does. *)
 let test_vertical_width () =
   Alcotest.(check string)
@@ -346,6 +370,7 @@ let suite =
       Alcotest.test_case "a sparkline is one row" `Quick test_sparkline_one_row;
       Alcotest.test_case "sparkline" `Quick test_sparkline;
       Alcotest.test_case "chart" `Quick test_chart;
+      Alcotest.test_case "chart values" `Quick test_chart_values;
       Alcotest.test_case "vertical width" `Quick test_vertical_width;
       Alcotest.test_case "vertical fill" `Quick test_vertical_fill;
       Alcotest.test_case "vertical ASCII" `Quick test_vertical_ascii;
