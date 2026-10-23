@@ -21,7 +21,8 @@ val view : ?frames:string list -> unit -> View.t
     spinner of the theme it is printed in. A frame is drawn on one line, a
     control character in it a space, and on a formatter that is not {!Fmt.utf_8}
     a spinner whose frames are not all ASCII is drawn as {!ascii}. Every frame
-    takes the cells of the widest, so the view does not change size as it turns.
+    takes the cells of the widest, so the view does not change size as it turns,
+    and a room narrower than that cuts every frame to the room.
 
     @raise Invalid_argument if [frames] is empty. *)
 

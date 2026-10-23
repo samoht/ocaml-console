@@ -49,12 +49,14 @@ val horizontal :
 
     Without [width], the bar grows to its room ({!View.fit}): it takes what the
     other parts of a {!View.hcat} leave it, the formatter's margin under
-    {!View.pp}, at least one cell, and ten at its natural size.
+    {!View.pp}, and ten cells at its natural size. With [width], it is [width]
+    cells long, or as long as its room if that is less.
 
     - [track] is the style of the rest (defaults to the muted colour of the
       formatter's theme).
     - [brackets] (defaults to [false]) frames the bar in the [track] style,
-      which makes it two cells wider.
+      which makes it two cells wider. In a room, the brackets take two of the
+      room's cells, and are left out where the room has fewer than three.
 
     Without [style], the bar takes the {!Theme.palette} of the formatter's
     theme. A palette of several colours is spread along the bar's whole length,
@@ -72,7 +74,8 @@ val vertical : ?style:Style.t -> ?track:Style.t -> ?width:int -> float -> View.t
     its room ({!View.fit}) and one row at its natural size, filled from the
     bottom to [frac] of its height, with [frac] clamped to the range 0 to 1 and
     NaN taken as 0. Without [width], it grows to the width of its room, one cell
-    at its natural size, as a column does.
+    at its natural size, as a column does. With [width], it is no wider than its
+    room.
 
     Each cell shows the eighths of it that are filled, rounded to the nearest
     eighth of the whole bar: a lower block from U+2581 (one eighth) to U+2587
@@ -92,9 +95,10 @@ val vertical : ?style:Style.t -> ?track:Style.t -> ?width:int -> float -> View.t
 val sparkline :
   ?style:Style.t -> ?min:float -> ?max:float -> float list -> View.t
 (** [sparkline values] is a {!vertical} bar one cell wide for each of [values],
-    side by side on one row: each filled to its value between [min] and [max]
-    (default to the lowest and the highest of [values]), and without [min] the
-    lowest at an eighth, so that every value shows. *)
+    side by side on one row in a room of any height: each filled to its value
+    between [min] and [max] (default to the lowest and the highest of [values]),
+    and without [min] the lowest at an eighth, so that every value shows. In a
+    room narrower than [values], it shows the last values that fit. *)
 
 val chart :
   ?height:int ->
@@ -108,4 +112,9 @@ val chart :
     muted colour. The bars are [height] lines tall (defaults to the height of
     the room less the three lines of values, baseline and labels, and to 8
     without one), filled to their value over [scale] (defaults to the largest
-    value). *)
+    value).
+
+    The chart keeps to its room: the bars are at most the room's height less
+    three lines and at least one line, and in a room too short for all three
+    lines the values go first, then the baseline, then the labels. A label is
+    drawn on one line, and a line wider than the room is cut. *)

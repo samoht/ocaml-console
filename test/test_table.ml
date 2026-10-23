@@ -104,8 +104,9 @@ let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* bar.mli, to_span: a bar in a cell is drawn in the theme and the UTF-8 of
-   the formatter the table is printed on, even cut to fit its column. *)
+(* bar.mli: a bar in a cell is drawn in the theme and the UTF-8 of the
+   formatter the table is printed on, and a column narrower than the bar
+   narrows it. *)
 let test_bar_cell () =
   let table ?overflow ?max_width bar =
     Table.view ~border:Border.none
@@ -126,9 +127,9 @@ let test_bar_cell () =
   let cut =
     table ~overflow:`Truncate ~max_width:5 (Bar.horizontal ~width:8 0.5)
   in
-  check "cut, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2588}\u{2026}"
+  check "narrowed, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2591}\u{2591}"
     (printed ~theme:Theme.dos cut);
-  check "cut, not UTF-8" "copy  ##..."
+  check "narrowed, not UTF-8" "copy  ###--"
     (printed ~theme:Theme.dos ~utf_8:false cut);
   let accent t s =
     View.to_string ~styled:true

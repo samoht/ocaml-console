@@ -6,6 +6,7 @@
 let braille = Frames.braille
 let ascii = Frames.ascii
 
+(* A spinner is as wide as its widest frame, and no wider than its room. *)
 let view ?frames () =
   let frames = Option.map (Frames.v "Spinner.view") frames in
   let frames (look : Look.t) =
@@ -21,6 +22,12 @@ let view ?frames () =
       let widest =
         List.fold_left (fun n f -> max n (Width.string_width f)) 0 frames
       in
-      let frame = Frames.at frames ~time:(Ctx.time c) in
-      View_core.text
-        (frame ^ String.make (widest - Width.string_width frame) ' '))
+      let frame = View_core.text (Frames.at frames ~time:(Ctx.time c)) in
+      let cells =
+        match Ctx.width c with
+        | Some room -> min widest (max 0 room)
+        | None -> widest
+      in
+      if View_core.width frame > cells then
+        Widget.truncate (Ctx.look c) cells frame
+      else View_core.pad_to cells frame)

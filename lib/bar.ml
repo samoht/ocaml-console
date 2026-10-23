@@ -74,15 +74,28 @@ let draw t look =
   framed ~glyphs ~track ~brackets:t.brackets
     View_core.(fill ~style:t.style ~width:t.width look filled ++ ink track rest)
 
-(* A bar given no width grows to its room, ten cells at its natural size and
-   one at least. *)
-let horizontal ?style ?track ?brackets ?width frac =
-  match width with
-  | Some width -> View_core.drawn (draw (v ?style ?track ?brackets ~width frac))
-  | None ->
-      View_core.deferred ~grow:1 (fun c ->
-          let width = match Ctx.width c with Some w -> max 1 w | None -> 10 in
-          View_core.drawn (draw (v ?style ?track ?brackets ~width frac)))
+(* A bar given no width grows to its room, ten cells at its natural size.
+   Its brackets come out of its cells, and go where the room has no cell
+   for the bar between them. *)
+let horizontal ?style ?track ?(brackets = false) ?width frac =
+  let t =
+    v ?style ?track ~brackets ~width:(Option.value width ~default:10) frac
+  in
+  let frame = if brackets then 2 else 0 in
+  View_core.deferred
+    ~grow:(if width = None then 1 else 0)
+    (fun c ->
+      let cells =
+        match (width, Ctx.width c) with
+        | None, Some room -> max 0 room
+        | Some w, Some room -> min (w + frame) (max 0 room)
+        | _, None -> t.width + frame
+      in
+      let t =
+        if brackets && cells >= 3 then { t with width = cells - 2 }
+        else { t with width = cells; brackets = false }
+      in
+      View_core.drawn (draw t))
 
 (* {1 Vertical bars} *)
 
@@ -138,7 +151,8 @@ let draw_vertical ~style ~track ~width ~height frac =
           (column ~height frac)))
 
 (* A vertical bar is as tall as its room, one row at its natural size, and
-   as wide as it is told, or as its room in a row that shares it. *)
+   as wide as it is told, or as its room in a row that shares it, and never
+   wider than its room. *)
 let vertical ?style ?track ?width frac =
   (match width with
   | Some w when w < 0 -> invalid_arg "Console.Bar.vertical: negative width"
@@ -150,8 +164,9 @@ let vertical ?style ?track ?width frac =
       let height = match Ctx.height c with Some h -> max 1 h | None -> 1 in
       let width =
         match (width, Ctx.width c) with
-        | Some w, _ -> w
-        | None, Some w -> max 1 w
+        | Some w, Some room -> min w (max 0 room)
+        | Some w, None -> w
+        | None, Some room -> max 0 room
         | None, None -> 1
       in
       draw_vertical ~style ~track ~width ~height frac)
@@ -160,7 +175,8 @@ let vertical ?style ?track ?width frac =
 
 (* A sparkline spans its values: the lowest is the least a cell shows, an
    eighth, unless [min] says lower, and the highest fills it. It is one row
-   in a room of any height. *)
+   in a room of any height, and the last values that fit in a room
+   narrower than it. *)
 let sparkline ?style ?min ?max values =
   let lo = List.fold_left Float.min Float.infinity values
   and hi = List.fold_left Float.max Float.neg_infinity values in
@@ -174,12 +190,21 @@ let sparkline ?style ?min ?max values =
     let e = int_of_float (Float.round (clamp (frac v) *. 8.)) in
     View_core.drawn (vertical_cell ~style ~track:None ~height:1 ~width:1 0 e)
   in
-  View_core.concat (List.map cell values)
+  let cells = List.map cell values in
+  let n = List.length cells in
+  View_core.deferred (fun c ->
+      match Ctx.width c with
+      | Some w when w < n ->
+          View_core.concat (List.drop (n - Int.max 0 w) cells)
+      | _ -> View_core.concat cells)
 
 let value v =
   if Float.is_integer v && Float.abs v < 1e15 then Fmt.str "%.0f" v
   else Fmt.str "%.3g" v
 
+(* The bars take the room's height but for the three lines around them;
+   in a room too short for those, the values above them go first, then
+   the baseline, then the labels. Lines wider than the room are cut. *)
 let chart ?height ?scale ?style bars =
   let top =
     match scale with
@@ -191,14 +216,18 @@ let chart ?height ?scale ?style bars =
       let look = Ctx.look c in
       let rows =
         match (height, Ctx.height c) with
-        | Some h, _ -> max 1 h
-        | None, Some h -> max 1 (h - 3)
+        | Some h, Some room -> max 1 (min h (room - 3))
+        | Some h, None -> max 1 h
+        | None, Some room -> max 1 (room - 3)
         | None, None -> 8
+      in
+      let spare =
+        match Ctx.height c with Some room -> room - rows | None -> 3
       in
       let columns =
         List.map
           (fun (label, v) ->
-            let label = View_core.text label in
+            let label = Widget.one_line (View_core.text label) in
             let shown = View_core.ink (Widget.muted look) (value v) in
             let w =
               max 1 (max (View_core.width label) (View_core.width shown))
@@ -215,12 +244,21 @@ let chart ?height ?scale ?style bars =
         View_core.ink (Widget.muted look)
           (Widget.fill (max 0 total) (Widget.glyph look "─" ~ascii:"-"))
       in
-      View_core.concat ~sep:(View_core.text "\n")
-        [
-          band (fun (v, _, _, _) -> v);
-          View_core.resolve
-            (Ctx.with_room ~width:None ~height:(Some rows) c)
-            (band (fun (_, b, _, _) -> b));
-          base;
-          band (fun (_, _, l, _) -> l);
-        ])
+      let bars =
+        View_core.resolve
+          (Ctx.with_room ~width:None ~height:(Some rows) c)
+          (band (fun (_, b, _, _) -> b))
+      in
+      let lines =
+        List.concat
+          [
+            (if spare >= 3 then [ band (fun (v, _, _, _) -> v) ] else []);
+            [ bars ];
+            (if spare >= 2 then [ base ] else []);
+            (if spare >= 1 then [ band (fun (_, _, l, _) -> l) ] else []);
+          ]
+      in
+      let chart = View_core.concat ~sep:(View_core.text "\n") lines in
+      match Ctx.width c with
+      | Some w -> Widget.truncate look (max 0 w) chart
+      | None -> chart)
