@@ -891,8 +891,8 @@ let sized ?width ?height t =
                   c)
                t))
 
-(* [f] of the atoms of [t], [f] adding no cell, so that [t] keeps the width
-   below which it should not be laid out. *)
+(* [f] of the atoms of [t], [f] adding no cell, so that [t] keeps its weight
+   in an [hcat] and the width below which it should not be laid out. *)
 let restyle f = function
   | Flat x -> Flat (f x)
   | t ->
@@ -900,7 +900,7 @@ let restyle f = function
         {
           kind = kind t;
           lay = (fun c -> Flat (f (flat_in c t)));
-          grow = 0;
+          grow = grow t;
           min_width = Some (fun c -> min_width c t);
           still = false;
           memo = None;
