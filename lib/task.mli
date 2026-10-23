@@ -57,7 +57,10 @@ val start : ?key:string -> ?log_lines:int -> ?transient:bool -> t -> string -> t
       while it runs (defaults to [8]).
     - [transient] (defaults to [false]) makes a task that shows only while it
       runs, and leaves neither a line of its own nor any of its output when it
-      succeeds. One that fails or is cancelled shows as any other task does.
+      succeeds. Its output is all that is printed while it is current, [Logs]
+      messages included, so a line that should stay is printed outside it, or
+      after it ended. One that fails or is cancelled shows as any other task
+      does.
 
     A task started under a task that ended, the root included, takes its ending
     at once.

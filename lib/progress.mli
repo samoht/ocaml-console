@@ -341,6 +341,16 @@ val show :
       task that ended with {!Task.log} is dropped.
     - Only running rows, their windows and the summary change: a task that ended
       keeps its line as it ended until it leaves the region, or folds to fit.
+    - A change to the tasks is drawn at once if the last frame is a tenth of a
+      second old, and with the next redraw otherwise, while what is printed to
+      the scrollback is written at once, with the region as it is then. So a
+      line printed just before a task starts may show for a tenth of a second
+      above rows that lack the task.
+    - Any change to the tasks may draw a frame, such as the end of a task that
+      {!Task.run} ends before it returns. A view that reads the program's own
+      state, such as a count of the steps done, shows it as it is then: change
+      it inside the function given to {!Task.run}, before the task ends, so that
+      no frame shows the task ended and the count not yet raised.
     - A tree too tall for its room first folds the tasks that ended under each
       task into one line, such as [12 done, 2 failed] after the mark of the
       worst ending among them, then the lines of its windows give way, the
