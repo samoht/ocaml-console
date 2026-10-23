@@ -652,6 +652,32 @@ let test_sigint_teardown () =
     "SIGINT restores the cursor" true
     (Console_vte.cursor_visible vte)
 
+let signaled_by_sigint = function
+  | `Signaled s -> Int.equal s Sys.sigint
+  | _ -> false
+
+(* SIGINT in the middle of a frame's write ends the program once that
+   frame is written: the screen is the one SIGINT leaves between frames. *)
+let test_sigint_mid_write () =
+  let status, out = teardown "sigint-mid-write" in
+  Alcotest.(check bool)
+    "SIGINT ends the program" true
+    (signaled_by_sigint status);
+  let vte = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed vte out;
+  Alcotest.(check bool)
+    "the cursor is shown" true
+    (Console_vte.cursor_visible vte);
+  Alcotest.(check (list string))
+    "a clean final frame" (final "sigint") (final_of out)
+
+(* A write that never ends does not hold SIGINT back for ever. *)
+let test_sigint_blocked () =
+  let status, _ = teardown "sigint-blocked" in
+  Alcotest.(check bool)
+    "SIGINT ends the program" true
+    (signaled_by_sigint status)
+
 (* However a session ends, text written after it is drawn as on a fresh
    terminal: at the first column, in the terminal's own colours. *)
 let test_usable_after () =
@@ -891,6 +917,10 @@ let suite =
         test_unflushed_output_is_bounded;
       Alcotest.test_case "SIGINT restores the terminal cursor" `Quick
         test_sigint_teardown;
+      Alcotest.test_case "SIGINT in the middle of a write" `Quick
+        test_sigint_mid_write;
+      Alcotest.test_case "SIGINT ends a write that never ends" `Quick
+        test_sigint_blocked;
       Alcotest.test_case "a stop that does not take effect resumes once" `Quick
         test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick

@@ -9,10 +9,15 @@
    put back and the signal sent again, so the process still ends as the
    signal says. SIGTSTP is caught the same way but stops the process: what
    holds the terminal gives it back around the stop. A disposition the
-   program chose is never replaced. *)
+   program chose is never replaced.
+
+   A handler runs at any safe point, in the middle of a frame's write
+   included: what holds the terminal gives it back at its next idle point,
+   and the signal is sent again from there. *)
 
 type holder = {
   id : int;
+  idle : (unit -> unit) -> unit;
   restore : unit -> unit;
   suspend : (unit -> unit) -> unit;
 }
@@ -21,6 +26,9 @@ let ends = [ Sys.sigint; Sys.sigterm ]
 let holders : holder list Atomic.t = Atomic.make []
 let caught = Atomic.make []
 let next = Atomic.make 0
+
+(* How long an ending signal waits for an idle point. *)
+let grace = 1.
 
 let rec update a f =
   let old = Atomic.get a in
@@ -41,7 +49,7 @@ let rec stop signo =
   in
   let around =
     List.fold_left
-      (fun k h () -> h.suspend k)
+      (fun k h () -> h.idle (fun () -> h.suspend k))
       stop
       (List.rev (Atomic.get holders))
   in
@@ -57,12 +65,32 @@ let rec release () =
       | theirs -> Sys.set_signal s theirs)
     (Atomic.exchange caught [])
 
+(* The signal is sent again once, after the last restoration or once
+   [grace] has passed, whichever comes first. *)
 and handle signo =
-  List.iter
-    (fun h -> try h.restore () with Sys_error _ -> ())
-    (Atomic.exchange holders []);
-  release ();
-  Unix.kill (Unix.getpid ()) signo
+  let sent = Atomic.make false in
+  let send () =
+    if not (Atomic.exchange sent true) then begin
+      release ();
+      Unix.kill (Unix.getpid ()) signo
+    end
+  in
+  let rec close = function
+    | [] -> send ()
+    | h :: rest ->
+        h.idle (fun () ->
+            (try h.restore () with Sys_error _ -> ());
+            close rest)
+  in
+  close (Atomic.exchange holders []);
+  if not (Atomic.get sent) then
+    ignore
+      (Thread.create
+         (fun () ->
+           Thread.delay grace;
+           send ())
+         ()
+        : Thread.t)
 
 let catch () =
   List.iter
@@ -72,10 +100,11 @@ let catch () =
       | chosen -> Sys.set_signal s chosen)
     ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
 
-let protect ?(suspend = fun stop -> stop ()) ~restore f =
+let protect ?(idle = fun k -> k ()) ?(suspend = fun stop -> stop ()) ~restore f
+    =
   let id = Atomic.fetch_and_add next 1 in
   if Atomic.get holders = [] then catch ();
-  update holders (List.cons { id; restore; suspend });
+  update holders (List.cons { id; idle; restore; suspend });
   Fun.protect f ~finally:(fun () ->
       update holders (List.filter (fun h -> h.id <> id));
       if Atomic.get holders = [] then release ())

@@ -148,8 +148,10 @@ val run :
     The display closes when the program exits during [f], and signals left at
     their default disposition are handled as follows.
 
-    - SIGINT or SIGTERM during [f]: the display closes, then the signal ends the
-      program as it would have.
+    - SIGINT or SIGTERM during [f]: the display closes once the frame it is
+      writing, if any, is written, then the signal ends the program as it would
+      have. If that write does not end within a second, the signal ends the
+      program with the frame as it is.
     - SIGTSTP (Ctrl-Z): the rows are taken off the terminal and the cursor is
       shown before the program stops, and the rows are drawn again once [fg]
       continues it. In a process group that no shell controls, where the stop

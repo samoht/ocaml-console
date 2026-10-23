@@ -99,7 +99,8 @@ Initial release of `console` and `console-eio`.
   ends a task. It gives the current task the `Logs`
   messages, those of other Eio domains included, and the program's output
   on its terminal, and gives the terminal back when `f` returns or raises,
-  when its fiber is cancelled, at exit and on SIGINT or SIGTERM. A `run`
+  when its fiber is cancelled, at exit and on SIGINT or SIGTERM, once the
+  frame it is writing is written. A `run`
   inside another, or in a fiber beside it, gets the task current where it
   is called. `Console_eio.print` prints a view above the rows,
   styled and as wide as the terminal, and `Console_eio.with_output` what

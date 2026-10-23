@@ -13,7 +13,9 @@
    SIGTSTP, as Ctrl-Z does, and goes on once continued, or, with
    [orphaned-suspend], in a session of its own where no stop takes effect; or, with [unflushed], it
    prints lines it never flushes; or, with [held], it prints a line outside a
-   task that it does not flush, then one in a task that fails. It also prints a line on standard
+   task that it does not flush, then one in a task that fails; or, with
+   [sigint-mid-write] or [sigint-blocked], it is interrupted in the middle
+   of a frame's write. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 (* SIGINT comes once the password is masked. *)
@@ -91,6 +93,33 @@ let suspend _env =
       Console_eio.with_output ignore;
       Console.Task.succeed task)
 
+(* SIGINT in the middle of a frame's write, half of it on the terminal; with
+   [blocked], the write then never ends. *)
+let mid_write ~blocked _env =
+  let armed = ref false in
+  let out = Format.pp_get_formatter_out_functions Fmt.stderr () in
+  let out_string s o n =
+    if !armed && n > 1 then begin
+      armed := false;
+      out.out_string s o (n / 2);
+      out.out_flush ();
+      Unix.kill (Unix.getpid ()) Sys.sigint;
+      if blocked then begin
+        let r, _ = Unix.pipe () in
+        ignore (Unix.read r (Bytes.create 1) 0 1 : int)
+      end;
+      out.out_string s (o + (n / 2)) (n - (n / 2))
+    end
+    else out.out_string s o n
+  in
+  Format.pp_set_formatter_out_functions Fmt.stderr { out with out_string };
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
+      let task = Console.Task.start root "pushing" in
+      Console.Task.log task "pushed 3 objects";
+      Fmt.pr "a line of output@.";
+      Console_eio.with_output (fun _ -> armed := true);
+      Console.Task.succeed task)
+
 (* Lines printed outside a task and never flushed, then a mark written
    straight to the terminal: what came out before the mark is what the
    display did not hold back. *)
@@ -162,4 +191,6 @@ let () =
       suspend env
   | [| _; "unflushed" |] -> unflushed env
   | [| _; "held" |] -> held env
+  | [| _; "sigint-mid-write" |] -> mid_write ~blocked:false env
+  | [| _; "sigint-blocked" |] -> mid_write ~blocked:true env
   | _ -> display env

@@ -423,10 +423,8 @@ let animate ~sw ~sleep display =
 
 (* Stopped, the program gives the terminal back as it is without a region,
    the cursor shown; continued, it hides the cursor and draws the region
-   again. The signal handler that stops it may run in the middle of a
-   frame, which is written first. *)
+   again. *)
 let suspend ~cursor display stop =
-  Display_driver.when_idle display @@ fun () ->
   Display.with_output display (fun _ ->
       cursor true;
       Fun.protect stop ~finally:(fun () -> cursor false))
@@ -499,7 +497,8 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
         (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
       animate ~sw ~sleep display;
       Fun.protect ~finally:give_back @@ fun () ->
-      Interrupt.protect ~suspend:(suspend ~cursor display) ~restore:(fun () ->
+      Interrupt.protect ~idle:(Display_driver.when_idle display)
+        ~suspend:(suspend ~cursor display) ~restore:(fun () ->
           close_display run)
       @@ fun () -> first_run s f
     with

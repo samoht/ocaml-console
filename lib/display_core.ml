@@ -112,9 +112,18 @@ let rec drain t =
 
 let busy t f =
   t.busy <- t.busy + 1;
-  let v = Fun.protect f ~finally:(fun () -> t.busy <- t.busy - 1) in
-  if t.busy = 0 then drain t;
-  v
+  let leave () =
+    t.busy <- t.busy - 1;
+    if t.busy = 0 then drain t
+  in
+  match f () with
+  | v ->
+      leave ();
+      v
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      leave ();
+      Printexc.raise_with_backtrace e bt
 
 let rec when_idle t f =
   if t.busy = 0 then f ()

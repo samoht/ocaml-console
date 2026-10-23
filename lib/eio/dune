@@ -14,4 +14,5 @@
   fmt
   logs
   mtime
+  threads.posix
   unix))
