@@ -716,6 +716,25 @@ let test_transient_child_leaves () =
   Task.succeed parent;
   close t
 
+(* With [keep_ended], the tasks that ended stay on a pipe too, so that the
+   last frame sees them. *)
+let test_keep_ended_plain () =
+  let children = ref [] in
+  let view root =
+    View.fit (fun _ ->
+        children :=
+          List.concat_map
+            (fun t -> List.map Task.label (Task.children t))
+            (Task.children root);
+        View.empty)
+  in
+  let (), _ =
+    plain ~keep_ended:true ~view (fun root _ ->
+        Task.run root "step" (fun step ->
+            Task.succeed (Task.start step "layer")))
+  in
+  check_lines "the step's tasks, at the end" [ "layer" ] !children
+
 (* A count near [max_int] still shows its share. *)
 let test_large_counts () =
   let layout =
@@ -2734,6 +2753,7 @@ let suite =
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
       Alcotest.test_case "a transient child leaves" `Quick
         test_transient_child_leaves;
+      Alcotest.test_case "keep_ended on a pipe" `Quick test_keep_ended_plain;
       Alcotest.test_case "the label column of drawn labels" `Quick
         test_label_column_drawn;
       Alcotest.test_case "rate" `Quick test_rate;

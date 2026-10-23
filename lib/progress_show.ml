@@ -97,7 +97,7 @@ let on_live d ~layout ~keep_ended ~commit = function
         moved d ~layout ~commit r
       else Display_core.touch d
 
-let on_plain d = function
+let on_plain d ~keep_ended = function
   | Started r ->
       if not (transient r) then
         print d [ Progress_row.started (Display_core.look d) r ]
@@ -110,17 +110,18 @@ let on_plain d = function
       if not (is_root r) then begin
         if not (transient r && outcome r = Some `Succeeded) then
           print d [ Progress_row.appended (Display_core.look d) r ];
-        forget r
+        if not keep_ended then forget r
       end
 
 (* The program's lines for the changes of tasks, in place of console's. *)
-let on_own d root plain = function
-  | (Line (r, _) | Ended r) as change when is_root r -> on_plain d change
+let on_own d ~keep_ended root plain = function
+  | (Line (r, _) | Ended r) as change when is_root r ->
+      on_plain d ~keep_ended change
   | change -> (
       (match event change ~time:(since_start (work root)) with
       | Some e -> Option.iter (Display_core.print d) (plain e)
       | None -> ());
-      match change with Ended r -> forget r | _ -> ())
+      match change with Ended r when not keep_ended -> forget r | _ -> ())
 
 (* The output a task kept, under its line. *)
 let kept look r =
@@ -186,8 +187,8 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
   | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
   | Plain -> (
       match plain with
-      | None -> watch (work root) (on_plain d)
-      | Some plain -> watch (work root) (on_own d root plain))
+      | None -> watch (work root) (on_plain d ~keep_ended)
+      | Some plain -> watch (work root) (on_own d ~keep_ended root plain))
   | Quiet -> watch (work root) (on_quiet d)
   | Json ->
       Display_core.on_output d (fun s -> log root (Console_text.strip s));

@@ -31,13 +31,15 @@ On a terminal, the screen it leaves:
 
 The examples/columns program sleeps on Console_eio.clock: two of its runs
 print the same bytes, and its two builds, which sleep at once, take the
-time of the longer, 26 sleeps of 0.11 seconds.
+time of the longer, 26 sleeps of 0.11 seconds. With keep_ended, the steps
+stay for its last frame, which ends with the builds side by side.
 
   $ ../../../examples/columns/main.exe > first 2>&1
   $ ../../../examples/columns/main.exe > second 2>&1
   $ cmp first second
   $ grep -e '] macos  ' -e Building first
   [+] macos  2.9s
+  [+] linux                                    1.9s  [+] macos                                    2.9s
   [+] Building 2.9s (9/9)
 
 A sleep wakes at the time it started plus its duration, and sleeps at once

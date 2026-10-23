@@ -303,7 +303,9 @@ val show :
       tasks in the scrollback and the last frame.
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
       region until the display closes, where they otherwise move to the
-      scrollback with their top task ({!design}).
+      scrollback with their top task ({!design}). With [`Plain] it keeps them
+      too, for the view's last frame and {!Task.children}, so the default view
+      then ends with their whole tree.
     - [layout] (defaults to {!Layout.default}) draws the rows of the default
       [view] and of the default [commit]; a [view] or a [commit] given draws its
       own.
@@ -353,8 +355,8 @@ val show :
     Without a terminal there is no region. The tasks print the lines of
     [`Plain]: one line when a task starts and one when it ends, in the order
     they happen, and at close the view's last frame comes once: the summary
-    alone in the default view, since every task has printed its lines, then the
-    message the work ended with.
+    alone in the default view, since every task has printed its lines (unless
+    [keep_ended] kept them), then the message the work ended with.
 
     The lines of tasks that run at once interleave on a pipe, so no line is
     placed by its indentation: each line a task prints, as it starts, as it ends
