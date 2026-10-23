@@ -428,9 +428,20 @@ let test_still_size frames time width =
   and moved = Display_harness.at ?width ~time:(Float.abs time) v in
   check_eq ~pp:Fmt.(Dump.list int) (widths still) (widths moved)
 
+let test_weighted_room n a b =
+  let width = 1 + (n mod 200) in
+  let part c grow =
+    View.fit ~grow (fun r ->
+        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
+  in
+  let v = View.hcat ~gap:0 [ part 'a' (1 + a); part 'b' (1 + b) ] in
+  check_eq ~pp:Fmt.int width (View.width (View.sized ~width v))
+
 let suite =
   ( "view",
     [
+      test_case "weighted hcat allocates exactly the available room"
+        [ uint8; uint8; uint8 ] test_weighted_room;
       test_case "a view's size does not depend on its moment"
         [ list bytes; float; uint8 ]
         test_still_size;
