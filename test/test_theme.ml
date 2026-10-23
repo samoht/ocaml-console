@@ -455,6 +455,18 @@ let test_ascii_fallback () =
     (printed ~utf_8:false ~margin:11 View.pp
        (Rule.view ~align:`Left ~label:long ()))
 
+(* [Theme.ascii] draws in ASCII on a UTF-8 formatter too: a chart's
+   baseline and a rule included. *)
+let test_ascii_on_utf_8 () =
+  List.iter
+    (fun (what, v) ->
+      let s = printed ~theme:Theme.ascii ~utf_8:true ~margin:20 View.pp v in
+      if not (is_ascii s) then Alcotest.failf "%s: %S" what s)
+    [
+      ("chart", Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]);
+      ("rule", Rule.view ());
+    ]
+
 (* {1 Motion} *)
 
 (* matrix's frames rain, rainbow's sweep its colours round and the themes of
@@ -634,6 +646,7 @@ let test_rain_intact () =
 let suite =
   ( "theme",
     [
+      Alcotest.test_case "ascii draws ASCII on UTF-8" `Quick test_ascii_on_utf_8;
       Alcotest.test_case "dos preset" `Quick test_dos;
       Alcotest.test_case "default preset" `Quick test_default;
       Alcotest.test_case "rainbow preset" `Quick test_rainbow;
