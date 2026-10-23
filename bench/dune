@@ -1,6 +1,3 @@
-; Deterministic workloads, timed and counted; not part of runtest:
-; dune build @bench
-
 (executable
  (name bench)
  (libraries console console.input fmt))

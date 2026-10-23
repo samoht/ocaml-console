@@ -1,10 +1,4 @@
-; Width is console.input's, compiled in.
-
 (copy_files input/width.{ml,mli})
-
-; Slot and the drivers are not private modules, for console.tty and
-; console-eio read them, but the interface of Console does not expose them, so
-; odoc shows no page for them.
 
 (library
  (name console)

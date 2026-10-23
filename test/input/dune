@@ -1,5 +1,3 @@
-; Width is private to the library; its tests compile it in.
-
 (copy_files ../../lib/input/width.{ml,mli})
 
 (test

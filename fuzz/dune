@@ -1,9 +1,4 @@
-; Width is private to the library; the properties compile it in.
-
 (copy_files ../lib/input/width.{ml,mli})
-
-; The version of matrix the properties are built against: Matrix_0_1 narrows
-; three of them on matrix 0.1.0.
 
 (rule
  (with-stdout-to
@@ -30,8 +25,6 @@
   uuseg
   alcobar))
 
-; The property run is a quick smoke; deep exploration is the fuzz alias.
-
 (rule
  (alias runtest)
  (package console)
@@ -51,8 +44,6 @@
   (progn
    (run %{exe:fuzz.exe} --gen-corpus corpus)
    (run afl-fuzz -V 60 -i corpus -o _fuzz -- %{exe:fuzz.exe} @@))))
-
-; Eio properties have their own runner so the pure package needs no Eio.
 
 (executable
  (name fuzz_eio)

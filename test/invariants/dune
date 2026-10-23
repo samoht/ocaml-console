@@ -1,6 +1,3 @@
-; INVARIANTS.md names the tests that check each invariant; this test fails
-; when one of them no longer exists.
-
 (test
  (name test)
  (package console)

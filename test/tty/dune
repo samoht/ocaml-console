@@ -1,5 +1,3 @@
-; Exercise the private colour rules, as the Width tests do.
-
 (copy_files ../../lib/tty/colour.{ml,mli})
 
 (executable

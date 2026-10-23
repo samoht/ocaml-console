@@ -1,6 +1,3 @@
-; The line editor, apart from the widgets: it turns bytes into echo and
-; lines and needs neither Eio nor the rest of console.
-
 (library
  (name console_input)
  (public_name console.input)
