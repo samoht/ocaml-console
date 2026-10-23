@@ -920,9 +920,30 @@ let test_cast_utf_8 () =
         true (String.is_valid_utf_8 l))
     lines
 
+let test_repeated_signal_mid_write () =
+  let input =
+    Unix.open_process_args_in "./teardown.exe"
+      [| "teardown.exe"; "repeated-signal"; "int"; "int"; "0"; "false" |]
+  in
+  let raw = In_channel.input_all input in
+  let status = Unix.close_process_in input in
+  Alcotest.(check bool)
+    "the signal still ends the process" true
+    (status = Unix.WSIGNALED Sys.sigint);
+  let terminal = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed terminal raw;
+  Alcotest.(check bool)
+    "a second SIGINT waits until the terminal is restored" true
+    (Console_vte.cursor_visible terminal);
+  Alcotest.(check bool)
+    "the final synchronized update is complete" true
+    (String.ends_with ~suffix:"\027[?2026l" raw)
+
 let suite =
   ( "console_eio",
     [
+      Alcotest.test_case "two SIGINTs during a write restore the terminal"
+        `Quick test_repeated_signal_mid_write;
       Alcotest.test_case "recording alone makes sleeps virtual" `Quick
         test_cast_without_deterministic;
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;

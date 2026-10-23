@@ -120,6 +120,38 @@ let mid_write ~blocked _env =
       Console_eio.with_output (fun _ -> armed := true);
       Console.Task.succeed task)
 
+let repeated_signal ~first ~second ~cut ~closing _env =
+  let armed = ref false in
+  let out_string s offset length =
+    if !armed && length > 1 then begin
+      armed := false;
+      let cut = 1 + (cut mod (length - 1)) in
+      output_substring stdout s offset cut;
+      flush stdout;
+      Unix.kill (Unix.getpid ()) first;
+      Gc.minor ();
+      Unix.kill (Unix.getpid ()) second;
+      Gc.minor ();
+      output_substring stdout s (offset + cut) (length - cut)
+    end
+    else output_substring stdout s offset length
+  in
+  let ppf = Format.make_formatter out_string (fun () -> flush stdout) in
+  Fmt.set_utf_8 ppf true;
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf ~progress:`Tty
+    (fun root ->
+      let task = Console.Task.start root "pushing" in
+      Console_eio.with_output ignore;
+      if closing then begin
+        Console.Task.succeed task;
+        armed := true
+      end
+      else begin
+        armed := true;
+        Console.Task.succeed task
+      end)
+
 (* Lines printed outside a task and never flushed, then a mark written
    straight to the terminal: what came out before the mark is what the
    display did not hold back. *)
@@ -176,6 +208,10 @@ let display _env =
 let () =
   Eio_main.run @@ fun env ->
   match Sys.argv with
+  | [| _; "repeated-signal"; first; second; cut; closing |] ->
+      let signal = function "int" -> Sys.sigint | _ -> Sys.sigterm in
+      repeated_signal ~first:(signal first) ~second:(signal second)
+        ~cut:(int_of_string cut) ~closing:(bool_of_string closing) env
   | [| _; "quiet-ok" |] -> quiet "ok" env
   | [| _; "quiet-fail" |] -> quiet "fail" env
   | [| _; "quiet-cancel" |] -> quiet "cancel" env
