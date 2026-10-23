@@ -713,6 +713,30 @@ this repository, `dune exec` runs one, as in
 - [themes](examples/themes/main.ml) draws a tree, a table and progress rows
   in the theme it is given, as the gallery shows.
 
+Others imitate the live output of well-known tools, with invented data.
+Each is recorded by `dune runtest` and drawn in an SVG beside its source.
+
+- [cargo](examples/cargo/main.ml) builds a binary and its dependencies, one
+  status line under the crates it compiles.
+- [opam](examples/opam/main.ml) installs three packages, four jobs at once
+  on one status line.
+- [apt](examples/apt/main.ml) installs curl, with dpkg's progress bar below
+  its output.
+- [pnpm](examples/pnpm/main.ml) installs packages and draws a running
+  script's output in a box.
+- [uv](examples/uv/main.ml) syncs a project, downloading its wheels side by
+  side.
+- [nix](examples/nix/main.ml) builds a derivation, counting builds, copies
+  and downloads on one line.
+- [docker](examples/docker/main.ml) builds a multi-stage image, a row per
+  step with the last lines of the one that runs.
+- [stocks](examples/stocks/main.ml) draws a trading day as a table of
+  sparklines and a histogram of returns.
+- [music](examples/music/main.ml) plays two tracks in the style of Winamp,
+  with a spectrum analyser.
+- [camel](examples/camel/main.ml) is the browser's offline game with OCaml's
+  camel, played with the keyboard.
+
 ## Documentation
 
 - [A first CLI](doc/eio/tutorial.mld) builds a command like the quick start,
