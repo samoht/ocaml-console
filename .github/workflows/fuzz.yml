@@ -16,7 +16,7 @@ permissions:
 # opam-repository yet: it is pinned at the commit ci.yml pins, which moves to
 # the k7 0.9.0 tag at release.
 env:
-  K7_PIN: https://github.com/samoht/ocaml-k7.git#16fc4babcbb5c1b90e1c474015869ea80875c437
+  K7_PIN: https://github.com/samoht/ocaml-k7.git#84341f1533fe496a904e854dba1e9361ac0837d5
 
 jobs:
   properties:
