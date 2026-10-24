@@ -726,6 +726,8 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
   script's output in a box.
 - [uv](examples/uv/main.ml) syncs a project, downloading its wheels side by
   side.
+- [brew](examples/brew/main.ml) installs wget and its dependencies, the
+  bottles downloading side by side, then pours each one.
 - [nix](examples/nix/main.ml) builds a derivation, counting builds, copies
   and downloads on one line.
 - [docker](examples/docker/main.ml) builds a multi-stage image, a row per
