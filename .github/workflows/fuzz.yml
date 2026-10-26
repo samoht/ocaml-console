@@ -12,9 +12,8 @@ on:
 permissions:
   contents: read
 
-# k7, which the examples' recordings need, is not in
-# opam-repository yet: it is pinned at the commit ci.yml pins, which moves to
-# the k7 0.9.0 tag at release.
+# k7, which the examples' recordings need, is not in opam-repository yet:
+# it is pinned at the tag ci.yml pins.
 env:
   K7_PIN: https://github.com/samoht/ocaml-k7.git#0.9.0
 
@@ -71,8 +70,13 @@ jobs:
             exit 1
           fi
 
+      # AFL names its findings with colons, which an artifact refuses.
+      - name: Archive the findings
+        if: always()
+        run: tar -czf "$RUNNER_TEMP/afl-findings.tar.gz" -C "$RUNNER_TEMP" findings
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: afl-findings
-          path: ${{ runner.temp }}/findings
+          path: ${{ runner.temp }}/afl-findings.tar.gz

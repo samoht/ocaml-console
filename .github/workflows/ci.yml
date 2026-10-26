@@ -11,9 +11,8 @@ permissions:
 # merlint is pinned at one commit, so that the lint job checks every commit
 # with the same merlint.
 # The examples' recordings need k7, which is not in opam-repository yet.
-# Pinning it from its repository, at one commit, lets every job draw the
-# recordings and check them against the same k7. At release the pin moves to
-# the k7 0.9.0 tag.
+# Pinning its 0.9.0 tag lets every job draw the recordings and check them
+# against the k7 that is released.
 env:
   MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
   K7_PIN: https://github.com/samoht/ocaml-k7.git#0.9.0
