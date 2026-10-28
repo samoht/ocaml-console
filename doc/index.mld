@@ -70,5 +70,6 @@ The [console] package has four libraries:
 {- {!Console.Theme} to choose a look, and to let users choose one with a
    [--theme] option.}
 {- {!Console.Task} and {!Console.Progress} for the progress rows and what a pipe
-   gets, {!Console_eio} for where the program's text goes, and
-   {!Console.Display} for what a live region guarantees.}}
+   gets, [Console_eio], in the [console-eio] package, for where the
+   program's text goes, and {!Console.Display} for what a live region
+   guarantees.}}
