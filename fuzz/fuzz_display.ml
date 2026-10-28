@@ -586,16 +586,21 @@ let sanitized_line line =
        None
   |> Option.value ~default:""
 
+(* A CR before a line feed is part of that line end, and a CR that ends the
+   text is a line end of its own. *)
 let sanitized_log_lines input =
-  String.split_on_char '\n' input
-  |> List.map (fun line ->
-      let line =
-        if String.ends_with ~suffix:"\r" line then
-          String.sub line 0 (String.length line - 1)
-        else line
-      in
-      sanitized_line line)
-  |> String.concat "\n"
+  let text =
+    String.split_on_char '\n' input
+    |> List.map (fun line ->
+        let line =
+          if String.ends_with ~suffix:"\r" line then
+            String.sub line 0 (String.length line - 1)
+          else line
+        in
+        sanitized_line line)
+    |> String.concat "\n"
+  in
+  if String.ends_with ~suffix:"\r" input then text ^ "\n" else text
 
 let test_untrusted_arguments s =
   let render input lines =
@@ -640,6 +645,8 @@ let test_untrusted_arguments s =
     [
       s;
       String.make 18 'x' ^ "\r";
+      "\r";
+      "x\n\r";
       "s\002\246\147/\194\r";
       "\027]52;c;Y2xpcGJvYXJk\007";
       "\027]8;;https://evil.invalid\027\\click";
