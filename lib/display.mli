@@ -107,7 +107,9 @@ val v :
       in \[[1];[4096]\]: a larger one is [4096], and a smaller one [1]. The
       region shows once [delay] seconds (defaults to [0.]) passed on [now], so
       that work done sooner draws no region: what {!print} prints goes out at
-      once all the same, and {!close} prints the last frame.
+      once all the same, and {!close} prints the last frame. A negative [delay]
+      is [0.]; with [nan] or [infinity] the region never shows, and only
+      {!close} draws the view.
     - Without [size], [view] is printed once, still and whole, when the display
       closes. *)
 

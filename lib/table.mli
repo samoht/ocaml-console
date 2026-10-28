@@ -35,8 +35,8 @@ val column :
 
     - [align] places the cells in the column (defaults to [`Left]);
     - [width] is its width, in cells, at its natural size (defaults to the width
-      of its widest cell). It narrows to fit as any column does, and a cell
-      wider than it overflows;
+      of its widest cell), within [min_width] and [max_width]. It narrows to fit
+      as any column does, and a cell wider than it overflows;
     - [min_width] and [max_width] bound its width, in cells (default to none: it
       narrows to one cell to fit). The table goes below [min_width] only when
       nothing else fits;

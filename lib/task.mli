@@ -20,8 +20,9 @@
     ]}
 
     A task belongs to the domain that runs its root, so call its functions from
-    that domain alone. A task that ended ignores what it is told, but for
-    {!log}. *)
+    that domain alone. A task that ended ignores what it is told, and a line
+    given to it with {!log} is dropped; the root alone takes {!log} after it
+    ended, as output of no task. *)
 
 type t = Task_core.t
 (** The type for tasks. *)

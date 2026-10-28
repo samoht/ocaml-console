@@ -69,6 +69,6 @@ The [console] package has four libraries:
    {!Console.Bar} for the widgets.}
 {- {!Console.Theme} to choose a look, and to let users choose one with a
    [--theme] option.}
-{- {!Console.Task} and {!Console.Progress} for the progress rows, and
-   {!Console.Display} for the rules of the live region: where text goes, what
-   a pipe gets and what the display guarantees.}}
+{- {!Console.Task} and {!Console.Progress} for the progress rows and what a pipe
+   gets, {!Console_eio} for where the program's text goes, and
+   {!Console.Display} for what a live region guarantees.}}

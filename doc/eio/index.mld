@@ -19,6 +19,8 @@ let main () =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~label:"Building" build
 ]}
 
+The program's entry point is then [let () = main ()].
+
 The {!page-tutorial} builds a whole command step by step, with options for
 colour and theme, a table, progress rows and a test of its output.
 

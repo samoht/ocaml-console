@@ -94,6 +94,8 @@ let main () =
   Console_eio.run ~clock:(Eio.Stdenv.mono_clock env) ~label:"Building" build
 ```
 
+The program's entry point is then `let () = main ()`.
+
 The rows are drawn on standard error, so standard output stays the
 program's. When standard error is a pipe or a CI log, nothing is redrawn
 and the program prints plain lines instead.
