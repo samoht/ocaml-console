@@ -5,6 +5,7 @@
 
 open Console
 open Display_harness
+open View_harness
 
 let strings = List.map View.to_string
 

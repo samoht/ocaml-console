@@ -5,6 +5,7 @@
 
 open Console
 open Display_harness
+open View_harness
 
 let strings = Alcotest.(list string)
 let check_lines msg expected actual = Alcotest.check strings msg expected actual

@@ -177,7 +177,7 @@ let test_span_invalid () =
   ()
 
 let column ?(height = 1) ?theme ?utf_8 frac =
-  Display_harness.at ?theme ?utf_8 ~time:0.
+  View_harness.at ?theme ?utf_8 ~time:0.
     (View.sized ~height (Bar.vertical frac))
 
 (* A vertical bar fills from the bottom, an eighth of a cell at a time. *)
@@ -212,13 +212,13 @@ let test_vertical_charts () =
     (View.to_string (View.hcat ~gap:0 (List.map Bar.vertical values)));
   Alcotest.(check string)
     "histogram" "      ▂ █\n    ▄ █ █\n  ▆ █ █ █"
-    (Display_harness.at ~time:0.
+    (View_harness.at ~time:0.
        (View.sized ~height:3 (View.hcat ~gap:1 (List.map Bar.vertical values))))
 
 let test_vertical_palette () =
   let theme = Theme.v ~palette:[ Color.red; Color.blue ] () in
   let s =
-    Display_harness.at ~theme ~time:0. (View.sized ~height:2 (Bar.vertical 1.))
+    View_harness.at ~theme ~time:0. (View.sized ~height:2 (Bar.vertical 1.))
   in
   Alcotest.(check string) "plain" "█\n█" s
 
@@ -250,7 +250,7 @@ let test_chart () =
     (View.to_string (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]));
   Alcotest.(check string)
     "off UTF-8" " 2   4 \n    ###\n### ###\n-------\nMon Tue"
-    (Display_harness.at ~utf_8:false ~time:0.
+    (View_harness.at ~utf_8:false ~time:0.
        (Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]));
   Alcotest.(check string)
     "no value over an empty bar" "     4 \n    ███\n───────\nMon Tue"
@@ -277,7 +277,7 @@ let test_chart_style () =
 (* A peak is a line in the cell it reaches, above the fill. *)
 let test_vertical_peak () =
   let bar ?utf_8 peak frac =
-    Display_harness.at ?utf_8 ~time:0.
+    View_harness.at ?utf_8 ~time:0.
       (View.sized ~height:4 (Bar.vertical ~peak frac))
   in
   Alcotest.(check string)
@@ -321,10 +321,10 @@ let test_vertical_width () =
     (View.to_string (Bar.vertical ~width:3 0.5));
   Alcotest.(check string)
     "its room" "▄▄▄▄▄"
-    (Display_harness.at ~width:5 ~time:0. (Bar.vertical 0.5));
+    (View_harness.at ~width:5 ~time:0. (Bar.vertical 0.5));
   Alcotest.(check string)
     "shared in a row" "▄▄ ██"
-    (Display_harness.at ~width:5 ~time:0.
+    (View_harness.at ~width:5 ~time:0.
        (View.hcat ~gap:1 [ Bar.vertical 0.5; Bar.vertical 1. ]))
 
 let test_horizontal_room () =

@@ -28,7 +28,7 @@ let test_dos () =
   let t = Theme.dos in
   Alcotest.(check string)
     "ascii spinner" "/"
-    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()));
+    (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()));
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
   let table =
     Table.view
@@ -64,7 +64,7 @@ let test_default () =
   let t = Theme.default in
   Alcotest.(check string)
     "braille spinner" "⠙"
-    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
+    (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
 
 let test_rainbow () =
   let t = Theme.rainbow in
@@ -82,7 +82,7 @@ let test_v_defaults () =
     (match Theme.palette t with [ c ] -> Color.equal c Color.red | _ -> false);
   Alcotest.(check string)
     "the spinner given" "/"
-    (Display_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
+    (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
 
 (* Each scheme keeps the background its authors chose. *)
 let test_schemes () =
@@ -520,7 +520,7 @@ let test_still () =
   Alcotest.(check bool)
     "its colours" true
     (Color.equal (Theme.accent t) (Theme.accent Theme.matrix));
-  let frame time = Display_harness.at ~theme:t ~time (Spinner.view ()) in
+  let frame time = View_harness.at ~theme:t ~time (Spinner.view ()) in
   Alcotest.(check (list string))
     "a spinner that does not turn"
     [ frame 0.; frame 0. ]

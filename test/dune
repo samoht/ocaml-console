@@ -11,6 +11,7 @@
   console_vte
   matrix.ansi
   display_harness
+  view_harness
   matrix.grid
   matrix.vte
   alcotest

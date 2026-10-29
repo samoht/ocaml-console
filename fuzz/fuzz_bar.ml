@@ -23,7 +23,7 @@ let test_width n f b =
 let test_vertical_height h frac utf_8 =
   let height = 1 + (abs h mod 40) in
   let s =
-    Display_harness.at ~utf_8 ~time:0. (View.sized ~height (Bar.vertical frac))
+    View_harness.at ~utf_8 ~time:0. (View.sized ~height (Bar.vertical frac))
   in
   let lines = String.split_on_char '\n' s in
   check_eq ~pp:Fmt.int height (List.length lines);

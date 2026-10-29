@@ -16,6 +16,7 @@
   matrix.grid
   console_vte
   display_harness
+  view_harness
   matrix.vte
   fmt
   re

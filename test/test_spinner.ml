@@ -8,7 +8,7 @@ open Console
 let frames = [ "a"; "b"; "c" ]
 
 let at ?theme ?utf_8 ?frames time =
-  Display_harness.at ?theme ?utf_8 ~time (Spinner.view ?frames ())
+  View_harness.at ?theme ?utf_8 ~time (Spinner.view ?frames ())
 
 let test_empty () =
   Alcotest.check_raises "empty frames rejected"

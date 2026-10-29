@@ -424,8 +424,8 @@ let test_still_size frames time width =
   let widths s =
     List.map (fun l -> View.width (View.text l)) (String.split_on_char '\n' s)
   in
-  let still = Display_harness.at ?width ~time:0. v
-  and moved = Display_harness.at ?width ~time:(Float.abs time) v in
+  let still = View_harness.at ?width ~time:0. v
+  and moved = View_harness.at ?width ~time:(Float.abs time) v in
   check_eq ~pp:Fmt.(Dump.list int) (widths still) (widths moved)
 
 let test_weighted_room n a b =
