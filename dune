@@ -1,6 +1,11 @@
 (env
  (dev
-  (flags :standard %{dune-warnings})))
+  (flags :standard %{dune-warnings})
+  (env-vars
+   (LC_ALL en_US.UTF-8)))
+ (_
+  (env-vars
+   (LC_ALL en_US.UTF-8))))
 
 (mdx
  (package console-eio)
