@@ -12,11 +12,6 @@ on:
 permissions:
   contents: read
 
-# k7, which the examples' recordings need, is not in opam-repository yet:
-# it is pinned at the tag ci.yml pins.
-env:
-  K7_PIN: https://github.com/samoht/ocaml-k7.git#0.9.0
-
 jobs:
   properties:
     name: Properties, 20 s each
@@ -28,8 +23,7 @@ jobs:
         with:
           ocaml-compiler: '5.4'
 
-      - run: opam pin add -n k7 "$K7_PIN"
-      - run: opam install . k7 --deps-only --with-test
+      - run: opam install . --deps-only --with-test
       - run: opam exec -- dune build ./fuzz/fuzz.exe
       - run: ./_build/default/fuzz/fuzz.exe --budget 20 --timeout 120
 
@@ -50,8 +44,7 @@ jobs:
         with:
           ocaml-compiler: 'ocaml-variants.5.4.0+options,ocaml-option-afl'
 
-      - run: opam pin add -n k7 "$K7_PIN"
-      - run: opam install . k7 --deps-only --with-test
+      - run: opam install . --deps-only --with-test
       - run: opam exec -- dune build ./fuzz/fuzz.exe --profile=afl
 
       # The fuzz alias runs AFL for a minute; the night has more time.

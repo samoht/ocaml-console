@@ -11,8 +11,7 @@
   cmdliner))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target quickstart.cast)
  (action
   (setenv
@@ -24,8 +23,7 @@
     (run ./main.exe)))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target rainbow.cast)
  (action
   (setenv
@@ -37,8 +35,7 @@
     (run ./main.exe --theme=rainbow)))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target quickstart.generated.svg)
  (action
   (run
@@ -55,7 +52,6 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff quickstart.svg quickstart.generated.svg)))

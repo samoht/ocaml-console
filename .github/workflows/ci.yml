@@ -10,12 +10,8 @@ permissions:
 
 # merlint is pinned at one commit, so that the lint job checks every commit
 # with the same merlint.
-# The examples' recordings need k7, which is not in opam-repository yet.
-# Pinning its 0.9.0 tag lets every job draw the recordings and check them
-# against the k7 that is released.
 env:
   MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
-  K7_PIN: https://github.com/samoht/ocaml-k7.git#0.9.0
 
 jobs:
   build:
@@ -34,9 +30,7 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - run: opam pin add -n k7 "$K7_PIN"
-      - run: opam install . k7 --deps-only --with-test
-      - run: opam install k7
+      - run: opam install . --deps-only --with-test
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
@@ -69,9 +63,7 @@ jobs:
       # Resolve every dependency to the oldest version its lower bound allows,
       # so a call that only compiles against a newer API fails here rather than
       # in a downstream opam build.
-      - run: opam pin add -n k7 "$K7_PIN"
-      - run: opam install . k7 --deps-only --with-test --criteria="+count[version-lag,solution]"
-      - run: opam install k7
+      - run: opam install . --deps-only --with-test --criteria="+count[version-lag,solution]"
       - run: opam exec -- dune build
       - run: opam exec -- dune test
 
@@ -128,8 +120,7 @@ jobs:
           ocaml-compiler: '5.4'
 
       - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
-      - run: opam pin add -n k7 "$K7_PIN"
       - run: opam pin add -n merlint "$MERLINT_PIN"
-      - run: opam install . k7 --deps-only --with-test
-      - run: opam install k7 merlint
+      - run: opam install . --deps-only --with-test
+      - run: opam install merlint
       - run: opam exec -- merlint --build

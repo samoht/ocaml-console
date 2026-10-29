@@ -39,7 +39,9 @@
   (astring :with-test)
   (mdx :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
-  (re :with-test)))
+  (re :with-test)
+  (cmdliner :with-test)
+  (k7 :with-test)))
 
 (package
  (name console-eio)
@@ -68,4 +70,5 @@
   (eio_main :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (jsont :with-test)
-  (bytesrw :with-test)))
+  (bytesrw :with-test)
+  (k7 :with-test)))

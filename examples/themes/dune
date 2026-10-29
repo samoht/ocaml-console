@@ -3,8 +3,7 @@
  (libraries console console.tty console-eio eio eio_main fmt))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target default.cast)
  (action
   (setenv
@@ -19,22 +18,19 @@
      (run ./main.exe default))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target default.generated.svg)
  (action
   (run %{bin:k7} play --show "" -o %{target} %{dep:default.cast})))
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff default.svg default.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target ascii.cast)
  (action
   (setenv
@@ -49,22 +45,19 @@
      (run ./main.exe ascii))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target ascii.generated.svg)
  (action
   (run %{bin:k7} play --show "" -o %{target} %{dep:ascii.cast})))
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff ascii.svg ascii.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target dos.cast)
  (action
   (setenv
@@ -79,8 +72,7 @@
      (run ./main.exe dos))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target dos.generated.svg)
  (action
   (run
@@ -96,14 +88,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff dos.svg dos.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target matrix.cast)
  (action
   (setenv
@@ -118,8 +108,7 @@
      (run ./main.exe matrix))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target matrix.generated.svg)
  (action
   (run
@@ -135,14 +124,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff matrix.svg matrix.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target rainbow.cast)
  (action
   (setenv
@@ -157,22 +144,19 @@
      (run ./main.exe rainbow))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target rainbow.generated.svg)
  (action
   (run %{bin:k7} play --show "" -o %{target} %{dep:rainbow.cast})))
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff rainbow.svg rainbow.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target dracula.cast)
  (action
   (setenv
@@ -187,8 +171,7 @@
      (run ./main.exe dracula))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target dracula.generated.svg)
  (action
   (run
@@ -204,14 +187,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff dracula.svg dracula.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target nord.cast)
  (action
   (setenv
@@ -226,8 +207,7 @@
      (run ./main.exe nord))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target nord.generated.svg)
  (action
   (run
@@ -243,14 +223,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff nord.svg nord.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target solarized-dark.cast)
  (action
   (setenv
@@ -265,8 +243,7 @@
      (run ./main.exe solarized-dark))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target solarized-dark.generated.svg)
  (action
   (run
@@ -282,14 +259,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff solarized-dark.svg solarized-dark.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target solarized-light.cast)
  (action
   (setenv
@@ -304,8 +279,7 @@
      (run ./main.exe solarized-light))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target solarized-light.generated.svg)
  (action
   (run
@@ -321,14 +295,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff solarized-light.svg solarized-light.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target gruvbox-dark.cast)
  (action
   (setenv
@@ -343,8 +315,7 @@
      (run ./main.exe gruvbox-dark))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target gruvbox-dark.generated.svg)
  (action
   (run
@@ -360,14 +331,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff gruvbox-dark.svg gruvbox-dark.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target gruvbox-light.cast)
  (action
   (setenv
@@ -382,8 +351,7 @@
      (run ./main.exe gruvbox-light))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target gruvbox-light.generated.svg)
  (action
   (run
@@ -399,14 +367,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff gruvbox-light.svg gruvbox-light.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target catppuccin-latte.cast)
  (action
   (setenv
@@ -421,8 +387,7 @@
      (run ./main.exe catppuccin-latte))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target catppuccin-latte.generated.svg)
  (action
   (run
@@ -438,14 +403,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff catppuccin-latte.svg catppuccin-latte.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target catppuccin-mocha.cast)
  (action
   (setenv
@@ -460,8 +423,7 @@
      (run ./main.exe catppuccin-mocha))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target catppuccin-mocha.generated.svg)
  (action
   (run
@@ -477,14 +439,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff catppuccin-mocha.svg catppuccin-mocha.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target tokyo-night.cast)
  (action
   (setenv
@@ -499,8 +459,7 @@
      (run ./main.exe tokyo-night))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target tokyo-night.generated.svg)
  (action
   (run
@@ -516,14 +475,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff tokyo-night.svg tokyo-night.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target one-dark.cast)
  (action
   (setenv
@@ -538,8 +495,7 @@
      (run ./main.exe one-dark))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target one-dark.generated.svg)
  (action
   (run
@@ -555,14 +511,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff one-dark.svg one-dark.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target monokai.cast)
  (action
   (setenv
@@ -577,8 +531,7 @@
      (run ./main.exe monokai))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target monokai.generated.svg)
  (action
   (run
@@ -594,14 +547,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff monokai.svg monokai.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target github-dark.cast)
  (action
   (setenv
@@ -616,8 +567,7 @@
      (run ./main.exe github-dark))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target github-dark.generated.svg)
  (action
   (run
@@ -633,14 +583,12 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff github-dark.svg github-dark.generated.svg)))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target github-light.cast)
  (action
   (setenv
@@ -655,8 +603,7 @@
      (run ./main.exe github-light))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target github-light.generated.svg)
  (action
   (run
@@ -672,7 +619,6 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff github-light.svg github-light.generated.svg)))

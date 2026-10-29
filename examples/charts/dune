@@ -3,7 +3,6 @@
  (libraries console console.tty cmdliner fmt))
 
 (rule
- (enabled_if %{bin-available:k7})
  (target charts.cast)
  (action
   (setenv
@@ -15,7 +14,6 @@
     (run ./main.exe)))))
 
 (rule
- (enabled_if %{bin-available:k7})
  (target charts.generated.svg)
  (action
   (run
@@ -29,6 +27,5 @@
 
 (rule
  (alias runtest)
- (enabled_if %{bin-available:k7})
  (action
   (diff charts.svg charts.generated.svg)))

@@ -32,6 +32,7 @@ depends: [
   "alcobar" {with-test & >= "0.3.2"}
   "jsont" {with-test}
   "bytesrw" {with-test}
+  "k7" {with-test}
   "odoc" {with-doc}
 ]
 build: [

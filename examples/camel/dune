@@ -3,8 +3,7 @@
  (libraries console console-eio console.tty eio eio_main fmt mtime))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target camel.cast)
  (action
   (setenv
@@ -22,8 +21,7 @@
       (run ./main.exe 2026 10 40 60 78 117 136)))))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target camel.generated.svg)
  (action
   (run
@@ -37,7 +35,6 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff camel.svg camel.generated.svg)))

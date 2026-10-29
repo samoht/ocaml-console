@@ -3,8 +3,7 @@
  (libraries console console.tty console-eio eio eio_main fmt))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target opam.cast)
  (action
   (setenv
@@ -16,8 +15,7 @@
     (run ./main.exe)))))
 
 (rule
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (target opam.generated.svg)
  (action
   (run
@@ -31,7 +29,6 @@
 
 (rule
  (alias runtest)
- (enabled_if
-  (and %{bin-available:k7} %{lib-available:console-eio}))
+ (enabled_if %{lib-available:console-eio})
  (action
   (diff opam.svg opam.generated.svg)))

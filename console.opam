@@ -30,6 +30,8 @@ depends: [
   "mdx" {with-test}
   "alcobar" {with-test & >= "0.3.2"}
   "re" {with-test}
+  "cmdliner" {with-test}
+  "k7" {with-test}
   "odoc" {with-doc}
 ]
 build: [
