@@ -181,6 +181,18 @@ let rec drain master =
 let type_in master s =
   ignore (Unix.write_substring master s 0 (String.length s) : int)
 
+(* Waits until the terminal shows [s]. On Linux what is typed reaches the
+   line discipline later, and a flush meanwhile misses it: once echoed, it
+   is there. *)
+let await_echo master s =
+  let shown = Buffer.create 64 in
+  let buf = Bytes.create 4096 in
+  while not (Display_harness.contains s (Buffer.contents shown)) do
+    ignore (Unix.select [ master ] [] [] (-1.));
+    let n = Unix.read master buf 0 (Bytes.length buf) in
+    Buffer.add_subbytes shown buf 0 n
+  done
+
 (* A prompt on [tty] whose questions and masks go to a formatter that
    counts the masks, [*], in [echoed]. *)
 let prompt_on env ~echoed =
@@ -280,6 +292,7 @@ let secret_after ~before typed =
   let result =
     with_pty @@ fun env tty master ->
     type_in master typed;
+    await_echo master "early";
     let typist =
       Domain.spawn (fun () ->
           while not (masked tty) do
