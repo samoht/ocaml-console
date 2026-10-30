@@ -317,26 +317,26 @@ let test_quiet_terminal_records ending =
       [| "tty.exe"; helper "teardown"; mode |]
   in
   let screen = In_channel.input_all input in
-  check
-    (match Unix.close_process_in input with
-    | Unix.WEXITED 0 -> true
-    | _ -> false);
-  let lines =
-    String.split_on_char '\n' screen
-    |> List.filter (String.ends_with ~suffix:" line")
-  in
-  let expected =
-    if ending mod 3 = 0 then [ "root line" ]
-    else
-      [
-        "  \u{203a} display line";
-        "  \u{203a} stdout line";
-        "  \u{203a} stderr line";
-        "  logs line";
-        "root line";
-      ]
-  in
-  check_eq ~pp:Fmt.(Dump.list Dump.string) expected lines
+  match Unix.close_process_in input with
+  | Unix.WEXITED 77 -> ()
+  | status ->
+      check (status = Unix.WEXITED 0);
+      let lines =
+        String.split_on_char '\n' screen
+        |> List.filter (String.ends_with ~suffix:" line")
+      in
+      let expected =
+        if ending mod 3 = 0 then [ "root line" ]
+        else
+          [
+            "  \u{203a} display line";
+            "  \u{203a} stdout line";
+            "  \u{203a} stderr line";
+            "  logs line";
+            "root line";
+          ]
+      in
+      check_eq ~pp:Fmt.(Dump.list Dump.string) expected lines
 
 (* Consumers can pair every start with one end, follow a parent, and recover
    counts and log levels under interleaved success, failure and cancellation. *)

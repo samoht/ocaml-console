@@ -54,6 +54,11 @@
   ../../examples/columns/main.exe
   ../../examples/charts/main.exe))
 
+(cram
+ (applies_to cast deterministic exit progress size)
+ (enabled_if
+  (= %{profile} dev)))
+
 (test
  (name test)
  (modules :standard \ teardown tty piped events pty_reader)

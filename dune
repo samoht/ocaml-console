@@ -5,7 +5,8 @@
    (LC_ALL en_US.UTF-8)))
  (_
   (env-vars
-   (LC_ALL en_US.UTF-8))))
+   (LC_ALL en_US.UTF-8)
+   (EIO_BACKEND posix))))
 
 (mdx
  (package console-eio)

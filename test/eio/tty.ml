@@ -7,7 +7,9 @@
    rows, in the environment of [tty.exe], and prints the screen it leaves,
    the lines scrolled off its top first; [tty.exe -] prints the screen that
    the bytes of its standard input leave, and [tty.exe --cast file] the one
-   that the asciicast recording [file] leaves on a terminal of its size. *)
+   that the asciicast recording [file] leaves on a terminal of its size.
+   Where no pseudo-terminal can be opened, such as in opam's sandbox on
+   macOS, it exits with 77. *)
 
 let rows = 24
 let cols = 80
@@ -63,7 +65,12 @@ let () =
   match Array.to_list Sys.argv with
   | [ _; "-" ] -> screen [ In_channel.input_all stdin ]
   | [ _; "--cast"; file ] -> cast file
-  | _ :: (_ :: _ as argv) -> screen [ run argv ]
+  | _ :: (_ :: _ as argv) -> (
+      match run argv with
+      | bytes -> screen [ bytes ]
+      | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
+          prerr_endline "tty.exe: no pseudo-terminal";
+          exit 77)
   | _ ->
       prerr_endline "usage: tty.exe PROGRAM [ARG...]";
       exit 2
