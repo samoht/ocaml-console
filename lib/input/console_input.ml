@@ -16,6 +16,9 @@ type esc = Normal | Esc | Csi | Csi_intermediate | Ss3
 type t = {
   mutable left : string list;
   mutable right : string list;
+  mutable len : int; (* the bytes of [left] and [right] *)
+  max_line : int; (* the most bytes a line holds *)
+  history_size : int; (* the most lines [hist] holds *)
   prompt : string;
   complete : string -> string list;
   mask : string option; (* replacement echoed for each secret character *)
@@ -31,14 +34,28 @@ type t = {
 (* What the editor echoes is text, never a control the terminal acts on. *)
 let clean = Console_text.sanitize ~keep_newlines:false
 
-let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask () =
+(* The canonical-mode line of the Linux tty line discipline: its 4096-byte
+   buffer (N_TTY_BUF_SIZE) less the line terminator. *)
+let default_max_line = 4095
+
+(* The lines bash keeps by default (HISTSIZE). *)
+let default_history_size = 500
+let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
+
+let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask
+    ?(max_line = default_max_line) ?(history_size = default_history_size) () =
   {
     left = [];
     right = [];
+    len = 0;
+    max_line;
+    history_size;
     prompt = clean prompt;
     complete;
     mask = Option.map clean mask;
-    hist = (if Option.is_some mask then [] else List.rev_map clean history);
+    hist =
+      (if Option.is_some mask then []
+       else take history_size (List.rev_map clean history));
     pos = None;
     draft = "";
     esc = Normal;
@@ -85,7 +102,6 @@ let cells t cs =
   | None -> List.fold_left (fun n c -> n + cluster_cells t c) 0 cs
   | Some _ -> cols t cs
 
-let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
 let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
 
 (* The number of first clusters of [a] and [b], at most [max], that show
@@ -129,7 +145,8 @@ let rec rejoin text taken right =
    text that follows it; the cells a narrower line leaves are blanked, and
    the cursor steps back. A cluster of no width with nothing before it to
    join is dropped, as a terminal drops it in the first column, except
-   from a secret. *)
+   from a secret. An insert that would take the line past [max_line] bytes
+   is refused and rings the bell. *)
 let edit t echo ~erased s =
   t.pos <- None;
   let left = if erased = "" then t.left else List.tl t.left in
@@ -140,7 +157,10 @@ let edit t echo ~erased s =
       | c :: cs when Width.string_width c = 0 -> String.concat "" cs
       | _ -> s
   in
-  if s <> "" || erased <> "" then begin
+  if s <> "" && t.len - String.length erased + String.length s > t.max_line then
+    add echo "\007"
+  else if s <> "" || erased <> "" then begin
+    t.len <- t.len - String.length erased + String.length s;
     let prev, before =
       match left with c :: l -> ([ c ], l) | [] -> ([], [])
     in
@@ -193,11 +213,12 @@ let submit t echo =
   let line = line t in
   t.left <- [];
   t.right <- [];
+  t.len <- 0;
   add echo "\r\n";
   (if String.length line > 0 && t.mask = None then
      match t.hist with
      | last :: _ when String.equal last line -> ()
-     | _ -> t.hist <- line :: t.hist);
+     | hist -> t.hist <- take t.history_size (line :: hist));
   t.pos <- None;
   t.draft <- "";
   line
@@ -211,6 +232,7 @@ let recall t echo s =
   done;
   t.left <- List.rev (clusters s);
   t.right <- [];
+  t.len <- String.length s;
   add echo (display t s)
 
 let hist_prev t echo =

@@ -140,7 +140,10 @@ let secret t question =
            the echo turned off: typed before the question was masked, the
            terminal echoed it. *)
         Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
-        read_masked t (Console_input.v ~mask:"*" ()) 0
+        (* The cap is the prompt's own, past which it answers with an error:
+           the editor must not refuse a byte before it. *)
+        let input = Console_input.v ~mask:"*" ~max_line:(max_answer + 1) () in
+        read_masked t input 0
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
 

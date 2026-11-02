@@ -40,6 +40,8 @@ val v :
   ?history:string list ->
   ?complete:(string -> string list) ->
   ?mask:string ->
+  ?max_line:int ->
+  ?history_size:int ->
   unit ->
   t
 (** [v ()] is a line editor with an empty line, such that:
@@ -54,7 +56,18 @@ val v :
       the completions share, and lists them when more than one is left. Without
       [complete], Tab does nothing;
     - [mask], if given, is echoed once for each cluster typed, in place of the
-      cluster.
+      cluster;
+    - [max_line] (defaults to [4095], the canonical-mode line of the Linux tty
+      line discipline) is the most bytes a line holds. A character that would
+      take the line past it is refused whole and echoed as the bell, ["\007"],
+      as readline does;
+    - [history_size] (defaults to [500], bash's [HISTSIZE]) is the most lines
+      {!history} keeps, the oldest dropped first. The [history] seed counts
+      toward it.
+
+    What is typed then holds the editor to one line of at most [max_line] bytes
+    and [history_size] submitted lines of at most [max_line] bytes each, beside
+    the seed.
 
     A control character in [prompt], [history], [mask] or a completion is echoed
     as a space, so none of them can move the cursor or change colours.
@@ -73,7 +86,8 @@ val feed : t -> string -> string * string list
     lines [input] completes, in order, each without its terminator. The bytes
     act as follows:
 
-    - a printable character is inserted at the cursor and echoed. It is ASCII
+    - a printable character is inserted at the cursor and echoed, unless the
+      line holds no room for it, which rings the bell ([max_line]). It is ASCII
       \[[0x20];[0x7E]\], or a UTF-8 character of several bytes, which may arrive
       across several [feed] calls. A mark of no width with nothing before it in
       the line to join is dropped, as a terminal drops it in the first column.
