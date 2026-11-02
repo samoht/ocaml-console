@@ -73,6 +73,9 @@ let bash = fetched "bash-5.2p37"
 let coreutils = fetched "coreutils-9.5"
 
 type log = Phase of string | Line of string
+
+let line fmt = Fmt.kstr (fun s -> Line s) fmt
+
 type build = { drv : string; name : string; log : log list }
 
 let tarball =
@@ -106,36 +109,25 @@ let stdenv ~name ~configure ~build ~check ~bin =
     log =
       [
         Phase "unpackPhase";
-        Fmt.kstr
-          (fun s -> Line s)
-          "unpacking source archive %s"
-          (store (name ^ ".tar.gz"));
-        Fmt.kstr (fun s -> Line s) "source root is %s" name;
+        line "unpacking source archive %s" (store (name ^ ".tar.gz"));
+        line "source root is %s" name;
         Phase "patchPhase";
         Phase "configurePhase";
-        Fmt.kstr (fun s -> Line s) "configure flags: --prefix=%s" out;
+        line "configure flags: --prefix=%s" out;
       ]
       @ List.map (fun l -> Line l) configure
-      @ [
-          Phase "buildPhase";
-          Fmt.kstr (fun s -> Line s) "build flags: SHELL=%s/bin/bash" bash;
-        ]
+      @ [ Phase "buildPhase"; line "build flags: SHELL=%s/bin/bash" bash ]
       @ List.map (fun l -> Line l) build
       @ (match check with
         | [] -> []
         | _ -> Phase "checkPhase" :: List.map (fun l -> Line l) check)
       @ [
           Phase "installPhase";
-          Fmt.kstr
-            (fun s -> Line s)
-            "install flags: SHELL=%s/bin/bash install" bash;
+          line "install flags: SHELL=%s/bin/bash install" bash;
           Phase "fixupPhase";
-          Fmt.kstr
-            (fun s -> Line s)
-            "shrinking RPATHs of ELF executables and libraries in %s" out;
-          Fmt.kstr
-            (fun s -> Line s)
-            "stripping (with command strip and flags -S -p) in  %s/%s" out bin;
+          line "shrinking RPATHs of ELF executables and libraries in %s" out;
+          line "stripping (with command strip and flags -S -p) in  %s/%s" out
+            bin;
         ];
   }
 
