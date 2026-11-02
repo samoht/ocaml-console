@@ -15,7 +15,8 @@
     one on standard error. With [sleeps] and a number of steps, a task's two
     fibers sleep on {!Console_eio.clock}, one of them working that many steps
     before each sleep. With [size], it prints the size of the terminal of
-    standard error. *)
+    standard error. With [print], it prints a rule and a table above the rows,
+    as wide as the display lays them out. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -92,6 +93,19 @@ let () =
           let w, h = size () in
           Fmt.pr "%dx%d@." w h
       | None -> Fmt.pr "no terminal@.")
+  | [| _; "print" |] ->
+      Console_eio.run ~clock (fun _ ->
+          Console_eio.print (Console.Rule.view ~glyph:"-" ());
+          Console_eio.print
+            Console.(
+              Table.view ~border:Border.ascii
+                [ Table.column (View.text "package") ]
+                [
+                  [
+                    View.text
+                      "a description long enough to wrap in a narrow table";
+                  ];
+                ]))
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do
