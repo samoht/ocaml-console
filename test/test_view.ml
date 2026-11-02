@@ -150,6 +150,80 @@ let test_wrap () =
     (Invalid_argument "Console.View.wrap: non-positive width") (fun () ->
       ignore (View.wrap 0 (View.text "a")))
 
+(* [text] cut after each byte [i] where [cut text i]. *)
+let cut_after cut text =
+  let n = String.length text in
+  let words = ref [] and first = ref 0 in
+  for i = 0 to n - 1 do
+    if cut text i then begin
+      words := String.sub text !first (i + 1 - !first) :: !words;
+      first := i + 1
+    end
+  done;
+  if !first < n then words := String.sub text !first (n - !first) :: !words;
+  List.rev !words
+
+let last_space text i =
+  text.[i] = ' ' && (i = String.length text - 1 || text.[i + 1] <> ' ')
+
+(* The spaces outside a backquoted run end a word, as in [View.wrap]'s
+   documentation. *)
+let code_words text =
+  let quoted = Array.make (String.length text) false and q = ref false in
+  String.iteri
+    (fun i c ->
+      if c = '`' then q := not !q;
+      quoted.(i) <- !q)
+    text;
+  cut_after (fun t i -> (not quoted.(i)) && last_space t i) text
+
+(* The rule [View.wrap] followed before: a word also ends after a slash. *)
+let slash_words = cut_after (fun t i -> t.[i] = '/' || last_space t i)
+let byte_words = cut_after (fun _ _ -> true)
+
+let test_wrap_words () =
+  let wrap ?words w s = strings (View.wrap ?words w (View.text s)) in
+  let hint = "see `dune build` or `make all` now" in
+  Alcotest.(check (list string))
+    "by default, a backquoted run breaks at its spaces"
+    [ "see `dune"; "build` or"; "`make all` now" ]
+    (wrap 14 hint);
+  Alcotest.(check (list string))
+    "a backquoted run stays whole"
+    [ "see"; "`dune build`"; "or `make all`"; "now" ]
+    (wrap ~words:code_words 14 hint);
+  let hint = "run `dune build @fmt` first" in
+  Alcotest.(check (list string))
+    "the documentation's example"
+    [ "run"; "`dune build @fmt`"; "first" ]
+    (wrap ~words:code_words 18 hint);
+  Alcotest.(check (list string))
+    "and by default"
+    [ "run `dune build"; "@fmt` first" ]
+    (wrap 18 hint);
+  Alcotest.(check (list string))
+    "a word wider than the room goes on" [ "`a"; "b`" ]
+    (wrap ~words:code_words 3 "`a b`");
+  Alcotest.(check (list string))
+    "after a slash" [ "src/"; "lib/"; "a.ml" ]
+    (wrap ~words:slash_words 5 "src/lib/a.ml");
+  Alcotest.(check (list string))
+    "a break removes only the spaces that end a word" [ "ab"; " cd" ]
+    (wrap ~words:(fun _ -> [ "ab"; " cd" ]) 3 "ab cd");
+  Alcotest.(check (list string))
+    "a cut inside a cluster goes after it" [ "ae\u{301}"; "b" ]
+    (wrap ~words:(fun _ -> [ "ae"; "\u{301}b" ]) 2 "ae\u{301}b");
+  let themed = View.(text "x " ++ role `Accent (text "ab cd")) in
+  Alcotest.(check (list string))
+    "a themed part breaks where the room ends" [ "x"; "ab c"; "d" ]
+    (strings (View.wrap ~words:byte_words 4 themed));
+  Alcotest.(check (list string))
+    "as by default" [ "x"; "ab c"; "d" ]
+    (strings (View.wrap 4 themed));
+  Alcotest.check_raises "words that are not the line"
+    (Invalid_argument "Console.View.wrap: the words do not make up the line")
+    (fun () -> ignore (wrap ~words:(fun _ -> [ "ab" ]) 3 "ab cd"))
+
 let test_wrap_malformed () =
   Alcotest.(check (list string))
     "each byte sequence remains visible" [ "\u{FFFD}"; "a" ]
@@ -658,6 +732,7 @@ let suite =
       Alcotest.test_case "truncate preserves link" `Quick
         test_truncate_preserves_link;
       Alcotest.test_case "wrap" `Quick test_wrap;
+      Alcotest.test_case "wrap between the words given" `Quick test_wrap_words;
       Alcotest.test_case "wrapping replaces malformed UTF-8" `Quick
         test_wrap_malformed;
       Alcotest.test_case "wrapping retains text after an oversized glyph" `Quick

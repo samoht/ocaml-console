@@ -99,7 +99,7 @@ val truncate : ?ellipsis:string -> int -> t -> t
     fit in them. *)
 
 val crop : ?left:int -> ?width:int -> t -> t
-val wrap : int -> t -> t list
+val wrap : ?words:(string -> string list) -> int -> t -> t list
 val pp : t Fmt.t
 val to_string : ?styled:bool -> t -> string
 
