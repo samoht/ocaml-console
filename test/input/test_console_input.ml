@@ -442,9 +442,69 @@ let test_masked_history_seed () =
     "a masked editor keeps no history, including its seed" []
     (Console_input.history editor)
 
+(* What a peer types bounds what the editor holds: a line holds at most 4095
+   bytes, the canonical-mode line of the Linux tty line discipline (its
+   4096-byte N_TTY_BUF_SIZE less the terminator), and each byte refused past it
+   rings the bell, as readline does. The exact line and echo catch an editor
+   that keeps the excess, one that truncates without a bell, and one that
+   counts characters rather than bytes. *)
+let test_line_bound () =
+  let t = Console_input.v () in
+  let echo, _ = Console_input.feed t (String.make 5000 'a') in
+  Alcotest.(check string)
+    "the line keeps the first 4095 bytes" (String.make 4095 'a')
+    (Console_input.pending t);
+  Alcotest.(check string)
+    "each refused byte rings the bell"
+    (String.make 4095 'a' ^ String.make 905 '\007')
+    echo
+
+(* A character of several bytes that would take the line past the bound is
+   refused whole, never split. *)
+let test_line_bound_whole_character () =
+  let t = Console_input.v () in
+  let _ = Console_input.feed t (String.make 4094 'a') in
+  let echo, _ = Console_input.feed t "\xc3\xa9" in
+  Alcotest.(check string) "the bell" "\007" echo;
+  Alcotest.(check string)
+    "the line is unchanged" (String.make 4094 'a') (Console_input.pending t)
+
+let numbered i = Fmt.str "line %03d" i
+
+(* The history keeps the 500 newest lines, bash's HISTSIZE, dropping the oldest
+   first. The exact list catches an unbounded history and one that drops the
+   newest lines. *)
+let test_history_bound () =
+  let t = Console_input.v () in
+  for i = 1 to 600 do
+    ignore (Console_input.feed t (numbered i ^ "\r"))
+  done;
+  Alcotest.(check lines)
+    "the 500 newest, oldest first"
+    (List.init 500 (fun i -> numbered (i + 101)))
+    (Console_input.history t)
+
+(* The [history] seed counts toward the bound. *)
+let test_history_bound_seed () =
+  let t =
+    Console_input.v ~history:(List.init 600 (fun i -> numbered (i + 1))) ()
+  in
+  Alcotest.(check lines)
+    "the 500 newest of the seed"
+    (List.init 500 (fun i -> numbered (i + 101)))
+    (Console_input.history t)
+
 let suite =
   ( "console_input",
     [
+      Alcotest.test_case "a line holds at most 4095 bytes" `Quick
+        test_line_bound;
+      Alcotest.test_case "a character past the bound is refused whole" `Quick
+        test_line_bound_whole_character;
+      Alcotest.test_case "the history keeps the 500 newest lines" `Quick
+        test_history_bound;
+      Alcotest.test_case "the history seed counts toward the bound" `Quick
+        test_history_bound_seed;
       Alcotest.test_case "a masked editor discards seeded history" `Quick
         test_masked_history_seed;
       Alcotest.test_case "insert an emoji before existing text" `Quick
