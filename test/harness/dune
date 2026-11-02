@@ -20,7 +20,7 @@
  (modules view_harness)
  (flags
   (:standard -open Console__))
- (libraries console))
+ (libraries console fmt))
 
 (rule
  (with-stdout-to

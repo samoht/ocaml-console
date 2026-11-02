@@ -17,6 +17,12 @@ let glyphs s =
   in
   go 0 []
 
+let feeding vte =
+  let buf = Buffer.create 256 in
+  Format.make_formatter (Buffer.add_substring buf) (fun () ->
+      Console_vte.feed vte (Buffer.contents buf);
+      Buffer.clear buf)
+
 let bar_span row =
   let bar u =
     Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)

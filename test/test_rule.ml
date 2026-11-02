@@ -5,13 +5,7 @@
 
 open Console
 
-let at width rule =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf width;
-  View.pp ppf rule;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+let at margin rule = View_harness.printed ~margin rule
 
 let test_plain () =
   Alcotest.(check string) "unlabelled" "-----" (at 5 (Rule.view ~glyph:"-" ()))

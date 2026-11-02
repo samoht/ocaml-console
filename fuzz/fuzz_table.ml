@@ -110,32 +110,8 @@ let test_huge_min_width n =
 
 let test_wide_border n =
   let glyph = String.make (2 + (n mod 3)) '#' in
-  let border =
-    Border.v
-      Border.
-        {
-          top_left = glyph;
-          top = glyph;
-          top_right = glyph;
-          left = glyph;
-          right = glyph;
-          bottom_left = glyph;
-          bottom = glyph;
-          bottom_right = glyph;
-          vertical = glyph;
-          horizontal = glyph;
-          cross = glyph;
-          top_cross = glyph;
-          bottom_cross = glyph;
-          left_cross = glyph;
-          right_cross = glyph;
-        }
-  in
-  let t =
-    Table.view ~border
-      [ Table.column (View.text "A"); Table.column (View.text "B") ]
-      [ [ View.text "x"; View.text "y" ] ]
-  in
+  let border = View_harness.frame glyph in
+  let t = View_harness.small_table ~border in
   let lines =
     String.split_on_char '\n' (View.to_string (View.sized ~width:40 t))
   in
