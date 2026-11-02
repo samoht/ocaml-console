@@ -12,7 +12,8 @@ let default = { theme = Theme.default; utf_8 = true; live = false }
 
 let ascii_theme t =
   let line = (Border.chars (Theme.border t.theme)).horizontal in
-  Theme.bar t.theme = `Ascii || (Width.is_ascii line && String.trim line <> "")
+  Theme.bar t.theme = `Ascii
+  || (Console_width.is_ascii line && String.trim line <> "")
 
 let ellipsis t =
   if t.utf_8 && not (ascii_theme t) then "\xe2\x80\xa6" else "..."

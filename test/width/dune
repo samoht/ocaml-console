@@ -1,0 +1,5 @@
+(test
+ (name test)
+ (package console)
+ (deps widths.txt)
+ (libraries console_width console_vte matrix.vte fmt alcotest))

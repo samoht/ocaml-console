@@ -788,7 +788,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
   is text unless a VS16 follows it, so console counts it at its East Asian
   width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.
-  [test/input/widths.txt](test/input/widths.txt) records the cells each
+  [test/width/widths.txt](test/width/widths.txt) records the cells each
   terminal gives such text. A terminal or a font that draws the bare
   character as an emoji gives it two cells, and a line that holds one then
   ends a cell later than console counted.

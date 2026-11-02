@@ -12,7 +12,7 @@ type t = {
 
 let v ?style ?(glyph = "─") ?(align = `Center) ?(label = View_core.empty) () =
   let glyph = Console_text.sanitize ~keep_newlines:false glyph in
-  if Width.string_width glyph <> 1 then
+  if Console_width.string_width glyph <> 1 then
     invalid_arg "Console.Rule.view: glyph must occupy one cell";
   { style; glyph; align; label = Widget.one_line label }
 
