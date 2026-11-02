@@ -6,4 +6,4 @@
   %{project_root}/lib/width/console_width.ml
   (source_tree %{project_root}/test)
   (source_tree %{project_root}/fuzz))
- (libraries alcotest))
+ (libraries alcotest astring))

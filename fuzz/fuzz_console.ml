@@ -538,6 +538,14 @@ let outer_widget k inner =
 let render_nested ~theme ~utf_8 span =
   View_harness.printed ~theme ~utf_8 ~depth:`True_color span
 
+(* What a cell of a grid shows. *)
+let grid_cell g i =
+  ( Grid.get_text g i,
+    Grid.get_attrs g i,
+    Ansi.Color.to_rgb (Console_vte.fg g i),
+    Ansi.Color.to_rgb (Console_vte.bg g i),
+    Grid.hyperlink_url g (Grid.get_link g i) )
+
 (* Wrapping changes where a widget's lines break, not the glyphs, colours
    or attributes of its non-space cells. Compare those cells on matrix.vte,
    rather than accepting a correctly sized output that lost its content. *)
@@ -558,24 +566,10 @@ let test_nested_wrap s k n =
   check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
   List.iter2
     (fun (g, i) (h, j) ->
-      let cell g i =
-        ( Grid.get_text g i,
-          Grid.get_attrs g i,
-          Ansi.Color.to_rgb (Console_vte.fg g i),
-          Ansi.Color.to_rgb (Console_vte.bg g i),
-          Grid.hyperlink_url g (Grid.get_link g i) )
-      in
-      if cell g i <> cell h j then
+      if grid_cell g i <> grid_cell h j then
         failf "wrapping at %d changed a cell in %s: %S became %S" width
           (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
     expected actual
-
-let hcat_cell g i =
-  ( Grid.get_text g i,
-    Grid.get_attrs g i,
-    Ansi.Color.to_rgb (Console_vte.fg g i),
-    Ansi.Color.to_rgb (Console_vte.bg g i),
-    Grid.hyperlink_url g (Grid.get_link g i) )
 
 (* Side-by-side widgets must keep their cells when a containing widget
    wraps them. A width check alone would miss lost text, styles or links. *)
@@ -616,7 +610,7 @@ let test_hcat_nested_wrap input k n =
   check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
   List.iter2
     (fun (g, i) (h, j) ->
-      if hcat_cell g i <> hcat_cell h j then
+      if grid_cell g i <> grid_cell h j then
         fail "wrapping nested hcat changed a cell")
     expected actual
 

@@ -20,6 +20,17 @@ let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
+let small_table () =
+  Table.view
+    [ Table.column (View.text "a"); Table.column (View.text "b") ]
+    [ [ View.text "1"; View.text "2" ] ]
+
+(* The backgrounds [t] is meant to show on: its own, or black and white. *)
+let backgrounds t =
+  match Theme.background t with
+  | Some bg -> [ bg ]
+  | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
+
 (* The DOS preset draws as Norton Commander did in code page 437: frames of
    double lines with single lines inside them, tree guides of single lines,
    blocky bars and the ASCII spinner; ASCII alone where UTF-8 is not
@@ -30,11 +41,7 @@ let test_dos () =
     "ascii spinner" "/"
     (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()));
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
-  let table =
-    Table.view
-      [ Table.column (View.text "a"); Table.column (View.text "b") ]
-      [ [ View.text "1"; View.text "2" ] ]
-  in
+  let table = small_table () in
   let tree = Tree.v (View.text "r") [ Tree.v (View.text "c") [] ] in
   Alcotest.(check string)
     "double-line frame, single-line inside"
@@ -280,11 +287,7 @@ let test_default_named () =
 let test_contrast () =
   List.iter
     (fun (name, t) ->
-      let backgrounds =
-        match Theme.background t with
-        | Some bg -> [ bg ]
-        | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
-      in
+      let backgrounds = backgrounds t in
       let roles =
         [
           ("accent", Theme.accent t);
@@ -531,11 +534,7 @@ let test_still () =
    colours the whole frame and prints the palette graded round it, as a
    display draws it at its start. *)
 let test_still_printed () =
-  let table =
-    Table.view
-      [ Table.column (View.text "a"); Table.column (View.text "b") ]
-      [ [ View.text "1"; View.text "2" ] ]
-  in
+  let table = small_table () in
   let panel = Panel.view ~title:(View.text "T") (View.text "body") in
   let colours s =
     let re =
@@ -624,11 +623,7 @@ let test_frame_contrast () =
       if moves <> Option.is_some (Theme.motion t) then
         Alcotest.failf "%s: %s" name
           (if moves then "a still theme moves" else "its frame does not move");
-      let backgrounds =
-        match Theme.background t with
-        | Some bg -> [ bg ]
-        | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
-      in
+      let backgrounds = backgrounds t in
       (* A frame in no colour of the theme's is in the terminal's own. *)
       if Theme.muted t <> None || Theme.motion t <> None then
         List.iter
