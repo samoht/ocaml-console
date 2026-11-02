@@ -45,6 +45,10 @@
   longer held until the next redraw or close: they go on from the call that
   was drawing, and the view stays (#53).
 
+- A closed output, such as a pipe whose reader has gone, no longer raises when
+  a display starts or when a program prints through `Display.with_output`
+  (#18).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
