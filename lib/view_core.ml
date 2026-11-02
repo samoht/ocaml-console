@@ -106,17 +106,6 @@ module F = struct
           };
         ]
 
-  (* A stop itself where it stands, so that a palette colour stays one. *)
-  let at stops p =
-    let n = Array.length stops in
-    let x = Float.max 0. (Float.min 1. p) *. float_of_int (n - 1) in
-    let i = int_of_float x in
-    if i >= n - 1 then stops.(n - 1)
-    else if Float.of_int i = x then stops.(i)
-    else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
-
-  let color_at stops p = at (Array.of_list stops) p
-
   let seamed t =
     let rec go acc joined line = function
       | [] -> List.rev ((joined, List.rev line) :: acc)
@@ -354,13 +343,13 @@ module F = struct
   (* Each line is graded from its first cluster to its last, each cluster in
      the colour of its place over its own style. *)
   let graded stops line =
-    let stops = Array.of_list stops and l = layout line in
+    let at = Color.gradient stops and l = layout line in
     List.concat
       (List.init l.n (fun i ->
            let p =
              if l.n = 1 then 0. else float_of_int i /. float_of_int (l.n - 1)
            in
-           let c = at stops p in
+           let c = at p in
            List.map
              (fun a -> { a with style = Style.(a.style + fg c) })
              (sub l i (i + 1))))
@@ -1150,7 +1139,6 @@ let block ts = Flat (F.block (List.map flat ts))
 let widest_word t = F.widest_word (flat t)
 let pad_to w t = Flat (F.fit w (flat t))
 let recell f t = Flat (F.recell f (flat t))
-let color_at = F.color_at
 let ellipsis = F.ellipsis
 let drawn draw = Flat (F.drawn (fun look -> flat (draw look)))
 let paint look t = Flat (F.resolve look (flat t))

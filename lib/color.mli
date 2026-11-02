@@ -94,6 +94,16 @@ val blend : t -> t -> float -> t
     [c1], as RGB. The fraction comes last so that [blend c0 c1] is the gradient
     from [c0] to [c1], whereas {!scale} takes its factor first. *)
 
+val gradient : t list -> float -> t
+(** [gradient stops f] is the colour [f] of the way along [stops], spread evenly
+    from [0.] to [1.]: the {!blend} of the two stops around [f], or the stop
+    itself where [f] falls on one, as given, so that a named colour stays one.
+    [f] is clamped to 0 to 1, and NaN is 0. So [gradient [c0; c1]] is
+    [blend c0 c1] but at its ends, and {!View.gradient} grades a line with
+    [gradient stops] from its first cluster to its last.
+
+    @raise Invalid_argument if [stops] is empty. *)
+
 val scale : float -> t -> t
 (** [scale f c] is the RGB colour whose components are those of [c] times [f],
     rounded and clamped to 0 to 255, a NaN component being 0. The factor comes

@@ -31,6 +31,10 @@
   total, so a caller no longer keeps its own count to pass to
   `Task.set_items` (#8).
 
+- `Color.gradient stops f` is the colour `f` of the way along `stops`, the
+  one `View.gradient` and the bars grade with, for a program that draws
+  its own colours, such as a pulse at a time (#9).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

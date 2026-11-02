@@ -128,6 +128,29 @@ let test_downsample_16 () =
   check "high palette entry" Color.bright_red (Color.ansi_256 196);
   check "named stays" Color.cyan Color.cyan
 
+(* The stops of a gradient spread evenly: each at its place, as given, and
+   between two the blend of the pair around it. Rounding each component of
+   a + f (b - a), as Color.blend says. *)
+let test_gradient () =
+  let rgb = Alcotest.(triple int int int) in
+  let stops = [ Color.rgb 0 0 0; Color.red; Color.rgb 255 255 255 ] in
+  let at = Color.gradient stops in
+  Alcotest.check color "first stop" (Color.rgb 0 0 0) (at 0.);
+  Alcotest.check color "a named stop stays named" Color.red (at 0.5);
+  Alcotest.check color "last stop" (Color.rgb 255 255 255) (at 1.);
+  (* Color.red is xterm's (205, 0, 0). *)
+  Alcotest.check rgb "between the first two" (103, 0, 0)
+    (Color.to_rgb (at 0.25));
+  Alcotest.check rgb "between the last two" (230, 128, 128)
+    (Color.to_rgb (at 0.75));
+  Alcotest.check color "below 0" (Color.rgb 0 0 0) (at (-1.));
+  Alcotest.check color "above 1" (Color.rgb 255 255 255) (at 2.);
+  Alcotest.check color "NaN" (Color.rgb 0 0 0) (at Float.nan);
+  Alcotest.check color "one stop" Color.cyan (Color.gradient [ Color.cyan ] 0.7);
+  Alcotest.check_raises "no stop"
+    (Invalid_argument "Console.Color.gradient: no colour") (fun () ->
+      ignore (Color.gradient [] 0.5))
+
 let test_rgb () =
   let rgb = Alcotest.(triple int int int) in
   Alcotest.check rgb "cube" (95, 135, 175) (Color.to_rgb (Color.ansi_256 67));
@@ -170,5 +193,6 @@ let suite =
       Alcotest.test_case "downsample 256" `Quick test_downsample_256;
       Alcotest.test_case "downsample 16" `Quick test_downsample_16;
       Alcotest.test_case "rgb" `Quick test_rgb;
+      Alcotest.test_case "gradient" `Quick test_gradient;
       Alcotest.test_case "codes at depth" `Quick test_codes_at_depth;
     ] )
