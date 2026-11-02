@@ -255,6 +255,13 @@ let test_cut_short () =
    UTF-8, and those left at the end come out as the recording ends. *)
 let test_hostile_bytes () =
   let replaced = "\u{fffd}" in
+  recording (fun file ->
+      let _, ppf = buffered () in
+      started ppf;
+      write ppf "\xf0\x9fa";
+      check_lines "a truncated character is one"
+        [ header; Fmt.str "[0,\"o\",\"%sa\"]" replaced ]
+        (lines file));
   with_temp (fun other ->
       recording (fun file ->
           let _, ppf = buffered () in

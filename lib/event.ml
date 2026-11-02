@@ -85,8 +85,8 @@ let is_c1 u =
   let c = Uchar.to_int u in
   c >= 0x80 && c <= 0x9f
 
-(* [s] as valid UTF-8 of characters that [keep]: each byte that is not part
-   of a character and each character [keep] refuses is U+FFFD. *)
+(* [s] as valid UTF-8 of characters that [keep]: each ill-formed sequence and
+   each character [keep] refuses is one U+FFFD. *)
 let replaced keep s =
   let rec is_clean i =
     i >= String.length s

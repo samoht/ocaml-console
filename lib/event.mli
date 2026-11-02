@@ -90,8 +90,7 @@ val level : t -> level option
 
 val replaced : (Uchar.t -> bool) -> string -> string
 (** [replaced keep s] is [s] as valid UTF-8 of the characters that [keep]: each
-    byte that is not part of a character, and each character [keep] refuses, is
-    U+FFFD. *)
+    ill-formed sequence, and each character [keep] refuses, is one U+FFFD. *)
 
 val jsont : t Jsont.t
 (** [jsont] is {!Task.Event.val-jsont}. *)
