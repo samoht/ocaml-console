@@ -8,11 +8,6 @@ on:
 permissions:
   contents: read
 
-# merlint is pinned at one commit, so that the lint job checks every commit
-# with the same merlint.
-env:
-  MERLINT_PIN: https://github.com/samoht/merlint.git#109b871c4b4c5dc3a97e9e7ce757f7d3052ea4be
-
 jobs:
   build:
     name: Build and test
@@ -120,7 +115,6 @@ jobs:
           ocaml-compiler: '5.4'
 
       - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
-      - run: opam pin add -n merlint "$MERLINT_PIN"
       - run: opam install . --deps-only --with-test
       - run: opam install merlint
       - run: opam exec -- merlint --build
