@@ -329,8 +329,6 @@ let check_is_text ~theme t span =
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
 
-let theme_of k = Widget_harness.nth_theme k
-
 let test_gradient s k =
   let s = if k land 1 = 0 then text s else s in
   let colors =
@@ -342,7 +340,9 @@ let test_gradient s k =
                if i = 0 then Color.ansi_256 k
                else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
   in
-  check_is_text ~theme:(theme_of k) (View.text s)
+  check_is_text
+    ~theme:(Widget_harness.nth_theme k)
+    (View.text s)
     (View.gradient ?colors (View.text s))
 
 let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
@@ -350,7 +350,10 @@ let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
 let test_role s k =
   let s = if k land 1 = 0 then text s else s in
   let role = roles.(k / 2 mod Array.length roles) in
-  check_is_text ~theme:(theme_of k) (View.text s) (View.role role (View.text s))
+  check_is_text
+    ~theme:(Widget_harness.nth_theme k)
+    (View.text s)
+    (View.role role (View.text s))
 
 (* Fitting a gradient changes line breaks, not the colours of the text
    kept. Compare terminal cells after joining the wrapped pieces again. *)

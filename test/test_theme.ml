@@ -20,7 +20,7 @@ let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-let small_table () =
+let themed_table () =
   Table.view
     [ Table.column (View.text "a"); Table.column (View.text "b") ]
     [ [ View.text "1"; View.text "2" ] ]
@@ -41,7 +41,7 @@ let test_dos () =
     "ascii spinner" "/"
     (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()));
   Alcotest.(check bool) "blocky bars" true (Theme.bar t = `Block);
-  let table = small_table () in
+  let table = themed_table () in
   let tree = Tree.v (View.text "r") [ Tree.v (View.text "c") [] ] in
   Alcotest.(check string)
     "double-line frame, single-line inside"
@@ -534,7 +534,7 @@ let test_still () =
    colours the whole frame and prints the palette graded round it, as a
    display draws it at its start. *)
 let test_still_printed () =
-  let table = small_table () in
+  let table = themed_table () in
   let panel = Panel.view ~title:(View.text "T") (View.text "body") in
   let colours s =
     let re =

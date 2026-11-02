@@ -71,14 +71,11 @@ let test_hcat_margin n k =
   let count = 2 + (k mod 4) in
   let margin = (count * width) + ((count - 1) * gap) in
   let blocks = List.init count (fun _ -> View.sized ~width (Rule.view ())) in
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf (Widget_harness.nth_theme k);
-  Format.pp_set_margin ppf margin;
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  View.pp ppf (View.hcat ~gap blocks);
-  Format.pp_print_flush ppf ();
-  let raw = Buffer.contents buf in
+  let raw, _ =
+    Widget_harness.render
+      ~theme:(Widget_harness.nth_theme k)
+      View.pp margin (View.hcat ~gap blocks)
+  in
   let vte = Console_vte.v ~rows:32 ~cols:margin () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int 0 (fst (Console_vte.cursor_pos vte));
@@ -444,12 +441,7 @@ let test_printed block k m =
    [time]. *)
 let view_screen theme ~width ~height ~time block =
   let term = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 1024 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed term (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = Display_harness.feeding term in
   Fmt.set_style_renderer ppf `Ansi_tty;
   Color.set_depth ppf `True_color;
   Theme.set ppf theme;

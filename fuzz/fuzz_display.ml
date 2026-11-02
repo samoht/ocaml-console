@@ -1088,7 +1088,7 @@ let test_view_exception_close n k styled =
       (fun s off len -> Console_vte.feed term (String.sub s off len))
       (fun () -> ())
   in
-  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  Theme.set ppf (Widget_harness.nth_theme k);
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   let root = Task.root ~now:(fun () -> 0.) () in
   let d = Progress.show ~size:(fun () -> (width, height)) ppf root in
@@ -1190,9 +1190,7 @@ let theme_switch_display width theme =
 
 let test_theme_switch old_index next_index n =
   let width = 8 + (n mod 73) in
-  let theme i =
-    Theme.still (snd (List.nth Theme.all (i mod List.length Theme.all)))
-  in
+  let theme i = Theme.still (Widget_harness.nth_theme i) in
   let ppf, display, actual, writes =
     theme_switch_display width (theme old_index)
   in
@@ -1555,13 +1553,7 @@ let apply_pack ~root ~now ~tasks step =
 let run_packs steps w ~frame =
   let width = 40 + (w mod 81) and height = 24 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        let s = Buffer.contents buf in
-        Buffer.clear buf;
-        Console_vte.feed vte s)
-  in
+  let ppf = Display_harness.feeding vte in
   Theme.set ppf Theme.dos;
   let now = ref 0. in
   let root = Task.root ~label:header ~now:(fun () -> !now) () in

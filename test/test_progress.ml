@@ -5,8 +5,6 @@
 
 open Console
 
-let contains affix s = Astring.String.is_infix ~affix s
-
 let test_names () =
   Alcotest.(check (list string))
     "names"
@@ -25,7 +23,9 @@ let test_names () =
   match Progress.of_string "silent" with
   | Ok _ -> Alcotest.fail "unknown name accepted"
   | Error (`Msg m) ->
-      Alcotest.(check bool) "names the choices" true (contains "quiet" m)
+      Alcotest.(check bool)
+        "names the choices" true
+        (Display_harness.contains "quiet" m)
 
 (* What a display given [progress] prints for a task that succeeds, with a
    line of output, and one that fails, with another, under a header. *)
@@ -53,13 +53,21 @@ let test_quiet () =
   List.iter
     (fun size ->
       let out = shown ?size `Quiet in
-      Alcotest.(check bool) "the failure" true (contains "broken" out);
-      Alcotest.(check bool) "its output" true (contains "loud line" out);
-      Alcotest.(check bool) "no success" false (contains "fine" out);
+      Alcotest.(check bool)
+        "the failure" true
+        (Display_harness.contains "broken" out);
+      Alcotest.(check bool)
+        "its output" true
+        (Display_harness.contains "loud line" out);
+      Alcotest.(check bool)
+        "no success" false
+        (Display_harness.contains "fine" out);
       Alcotest.(check bool)
         "no output of a success" false
-        (contains "quiet line" out);
-      Alcotest.(check bool) "no header" false (contains "Building" out);
+        (Display_harness.contains "quiet line" out);
+      Alcotest.(check bool)
+        "no header" false
+        (Display_harness.contains "Building" out);
       Alcotest.(check bool) "no escape" false (String.contains out '\027'))
     [ None; Some (fun () -> (80, 24)) ]
 
@@ -79,15 +87,17 @@ let test_json () =
       let out = shown ?size `Json in
       List.iter
         (fun line ->
-          Alcotest.(check bool) line true (contains "{\"time\":" line);
+          Alcotest.(check bool)
+            line true
+            (Display_harness.contains "{\"time\":" line);
           reads_back line)
         (lines out);
       Alcotest.(check bool)
         "an output event" true
-        (contains "\"text\":\"quiet line\"" out);
+        (Display_harness.contains "\"text\":\"quiet line\"" out);
       Alcotest.(check bool)
         "an end event" true
-        (contains "\"status\":\"failed\"" out))
+        (Display_harness.contains "\"status\":\"failed\"" out))
     [ None; Some (fun () -> (80, 24)) ]
 
 (* As JSON, each change of a count is one event, unthrottled, and a call
@@ -105,7 +115,7 @@ let test_json_counts () =
     "three progress events" 3
     (List.length
        (List.filter
-          (contains "\"event\":\"progress\"")
+          (Display_harness.contains "\"event\":\"progress\"")
           (lines (Buffer.contents buf))))
 
 (* What a display given [`Json] writes for every kind of event: tasks under
@@ -243,15 +253,19 @@ let test_plain () =
   Alcotest.(check bool)
     "plain has no escape" false
     (String.contains plain '\027');
-  Alcotest.(check bool) "a line for the success" true (contains "fine" plain)
+  Alcotest.(check bool)
+    "a line for the success" true
+    (Display_harness.contains "fine" plain)
 
 (* [`Tty] redraws the rows, on 80 by 24 without [size]. *)
 let test_tty () =
   let hide = "\027[?25l" in
-  Alcotest.(check bool) "tty hides the cursor" true (contains hide (shown `Tty));
+  Alcotest.(check bool)
+    "tty hides the cursor" true
+    (Display_harness.contains hide (shown `Tty));
   Alcotest.(check bool)
     "auto on a terminal too" true
-    (contains hide (shown ~size:(fun () -> (80, 24)) `Auto))
+    (Display_harness.contains hide (shown ~size:(fun () -> (80, 24)) `Auto))
 
 (* Rounding the largest finite float to 15 digits must still read back. *)
 let test_json_max_float () =
