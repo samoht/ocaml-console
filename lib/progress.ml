@@ -12,6 +12,8 @@ let to_string = function
   | `Quiet -> "quiet"
   | `Json -> "json"
 
+let pp ppf t = Fmt.string ppf (to_string t)
+
 let all =
   List.map (fun p -> (to_string p, p)) [ `Auto; `Tty; `Plain; `Quiet; `Json ]
 

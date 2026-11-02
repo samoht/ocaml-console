@@ -33,3 +33,6 @@ val theme : t -> Theme.t
 val utf_8 : t -> bool
 (** [utf_8 r] is [true] iff that formatter shows UTF-8 ({!Fmt.utf_8}): a view
     draws its glyphs in ASCII otherwise. *)
+
+val pp : t Fmt.t
+(** [pp] formats the width, the height and the time of a room, for debugging. *)
