@@ -20,9 +20,13 @@ type t = {
 
 let current = ref None
 
+let decimal s =
+  if s <> "" && String.for_all Char.Ascii.is_digit s then int_of_string_opt s
+  else None
+
 (* No terminal has more than the 4096 columns or rows a display takes. *)
 let dimension name ~default =
-  match Option.bind (Sys.getenv_opt name) int_of_string_opt with
+  match Option.bind (Sys.getenv_opt name) decimal with
   | Some n when n > 0 && n <= 4096 -> n
   | _ -> default
 

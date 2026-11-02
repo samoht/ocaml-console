@@ -17,9 +17,13 @@ let window_size = function
 let width_of_ioctl fd () =
   Option.bind (window_size fd) (fun w -> positive w.cols)
 
+let decimal s =
+  if s <> "" && String.for_all Char.Ascii.is_digit s then int_of_string_opt s
+  else None
+
 let dimension_of_env name usable =
   Option.bind (Sys.getenv_opt name) (fun value ->
-      Option.bind (int_of_string_opt value) usable)
+      Option.bind (decimal value) usable)
 
 let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)

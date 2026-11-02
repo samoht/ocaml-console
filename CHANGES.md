@@ -55,6 +55,9 @@
 - A clock that returns NaN or infinity no longer writes invalid times into a
   `CONSOLE_CAST` recording (#19).
 
+- `$COLUMNS` and `$LINES` must now be decimal numbers: values such as `0x50` or
+  `1_000` are ignored (#20).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
