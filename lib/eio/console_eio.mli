@@ -278,6 +278,22 @@ val size : Format.formatter -> (unit -> int * int) option
       Console.Display.v ?size:(Console_eio.size ppf) ~now ppf view
     ]} *)
 
+val width : Format.formatter -> int option
+(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the
+    terminal's width when [ppf] is a terminal ({!size}), else the recorded
+    terminal's under [CONSOLE_CAST], else [$COLUMNS] when it is between [1] and
+    [4096], and [None] otherwise, where a line is printed whole. A program that
+    lays out its own lines, outside a run, fits them as a run would, through the
+    margin {!Console.View.pp} lays a view out in (a margin past [Format]'s
+    largest is that largest, which prints whole):
+
+    {[
+    let print v =
+      let w = Option.value (Console_eio.width Fmt.stdout) ~default:max_int in
+      Format.pp_set_margin Fmt.stdout w;
+      Fmt.pr "%a@." Console.View.pp v
+    ]} *)
+
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
     or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time

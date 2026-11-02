@@ -47,6 +47,9 @@
   once round it in `colors`, still; a theme's motion draws over it
   (#12).
 
+- Add `Console_eio.width`, to fit output printed outside `Console_eio.run` to
+  the terminal, or to `$COLUMNS` on a pipe (#13).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

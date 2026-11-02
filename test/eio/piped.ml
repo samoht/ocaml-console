@@ -93,6 +93,10 @@ let () =
           let w, h = size () in
           Fmt.pr "%dx%d@." w h
       | None -> Fmt.pr "no terminal@.")
+  | [| _; "width" |] -> (
+      match Console_eio.width Fmt.stdout with
+      | Some w -> Fmt.pr "%d@." w
+      | None -> Fmt.pr "whole@.")
   | [| _; "print" |] ->
       Console_eio.run ~clock (fun _ ->
           Console_eio.print (Console.Rule.view ~glyph:"-" ());

@@ -384,6 +384,13 @@ let redraw () =
 let size ppf =
   Option.map (fun (fd, _) () -> Terminal.dimensions (Some fd)) (terminal ppf)
 
+let width ppf =
+  let first (size : unit -> int * int) = fst (size ()) in
+  match size ppf with
+  | Some size -> Some (first size)
+  | None when Option.is_some (Cast.file ()) -> Some (first Recording.size)
+  | None -> Option.map first (Terminal.asked ())
+
 let print v =
   match Session.display () with
   | Some d -> Console.Display.print d v
