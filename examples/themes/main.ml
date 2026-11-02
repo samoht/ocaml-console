@@ -45,10 +45,13 @@ let progress ~clock table =
       let failed = Task.start root "lint" in
       Task.fail failed;
       let compile = Task.start ~log_lines:1 root "compile" in
-      Task.set_items compile ~count:5 ~total:8;
       Task.log compile "unused variable x";
-      ignore (Task.start root "test");
-      Eio.Time.Mono.sleep clock 3.;
+      let test = Task.start root "test" in
+      for i = 1 to 30 do
+        Task.set_items compile ~count:(1 + (i / 5)) ~total:8;
+        Task.set_items test ~count:i ~total:40;
+        Eio.Time.Mono.sleep clock 0.1
+      done;
       Task.cancel compile)
 
 let () =
