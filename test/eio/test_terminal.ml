@@ -262,6 +262,10 @@ let test_absurd_dimensions () =
       Unix.putenv "LINES" "4096";
       Alcotest.(check (pair int int))
         "the largest" (4096, 4096) (Terminal.dimensions None);
+      Unix.putenv "COLUMNS" "0x50";
+      Unix.putenv "LINES" "1_0";
+      Alcotest.(check (pair int int))
+        "only decimal digits" (80, 24) (Terminal.dimensions None);
       Unix.putenv "COLUMNS" "99999999999";
       Unix.putenv "LINES" "4097";
       Alcotest.(check (pair int int))
