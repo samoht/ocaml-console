@@ -669,6 +669,41 @@ let test_pp_bytes () =
       (-1L, "0 B");
     ]
 
+(* [advance] adds to the count and keeps the total, as indicatif's inc,
+   Rich's Progress.advance and tqdm's update do. *)
+let test_advance () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let progress = Alcotest.testable Fmt.nop ( = ) in
+  let check msg expected t =
+    Alcotest.check progress msg expected (Task.progress t)
+  in
+  let items = Task.start root "items" in
+  Task.set_items items ~count:0 ~total:3;
+  Task.advance items;
+  check "by one" (`Items (1, 3)) items;
+  Task.advance ~by:4 items;
+  check "past the total raises it" (`Items (5, 5)) items;
+  let bytes = Task.start root "bytes" in
+  Task.set_bytes bytes ~count:0L ~total:10L;
+  Task.advance ~by:3 bytes;
+  check "bytes" (`Bytes (3L, 10L)) bytes;
+  let large = Task.start root "large" in
+  Task.set_items large ~count:(max_int - 1) ~total:max_int;
+  Task.advance ~by:2 large;
+  check "the largest count" (`Items (max_int, max_int)) large;
+  Alcotest.check_raises "negative"
+    (Invalid_argument "Console.Task.advance: negative progress") (fun () ->
+      Task.advance ~by:(-1) items);
+  let spin = Task.start root "spin" in
+  Alcotest.check_raises "no total"
+    (Invalid_argument "Console.Task.advance: the task counts nothing")
+    (fun () -> Task.advance spin);
+  Task.succeed items;
+  Task.advance items;
+  check "an ended task keeps its count" (`Items (5, 5)) items;
+  Task.advance root;
+  check "the root counts nothing" `Spin root
+
 (* [pp_duration] formats a duration as a row's elapsed time does: each
    unit up to its last value, and the value that rounds to the next. *)
 let test_pp_duration () =
@@ -2836,6 +2871,7 @@ let suite =
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
+      Alcotest.test_case "advance" `Quick test_advance;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
       Alcotest.test_case "a transient child leaves" `Quick
         test_transient_child_leaves;

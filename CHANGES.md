@@ -27,6 +27,10 @@
   the last frame, as wide as `$COLUMNS` asks; without it they are still
   printed whole (#7).
 
+- `Task.advance` adds to a task's count of items or bytes and keeps its
+  total, so a caller no longer keeps its own count to pass to
+  `Task.set_items` (#8).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
