@@ -768,8 +768,54 @@ let test_progress_enum text =
           if not (contains 0) then failf "diagnostic omitted progress %s" name)
         Console.Progress.all
 
+(* The tasks that ended in the JSON [output], with their elapsed times. *)
+let ended_tasks output =
+  String.split_on_char '\n' output
+  |> List.filter (( <> ) "")
+  |> List.filter_map (fun line ->
+      match Console.Task.Event.of_string line with
+      | Ok e when Console.Task.Event.kind e = `End -> (
+          match Console.Task.Event.task e with
+          | Some (_, path) -> Some (path, Console.Task.Event.elapsed e)
+          | None -> None)
+      | Ok _ -> None
+      | Error (`Msg m) -> fail m)
+
+(* The JSON of two sleeps side by side, once the backing clock is set to
+   [overshoot]. Each task runs for its own sleep. *)
+let concurrent_sleeps ~first ~second overshoot =
+  Eio_mock.Backend.run @@ fun () ->
+  let backing = Eio_mock.Clock.Mono.make () in
+  let clock = Console_eio.clock backing in
+  let out = Buffer.create 512 in
+  let ppf = Format.formatter_of_buffer out in
+  let ready, wake = Eio.Promise.create () in
+  let entered = ref 0 in
+  Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
+      let work label delay =
+        Console.Task.run d label (fun _ ->
+            incr entered;
+            if !entered = 2 then Eio.Promise.resolve wake ();
+            Eio.Time.Mono.sleep clock delay)
+      in
+      Eio.Fiber.both
+        (fun () ->
+          Eio.Fiber.both
+            (fun () -> work "first" first)
+            (fun () -> work "second" second))
+        (fun () ->
+          Eio.Promise.await ready;
+          Eio_mock.Clock.Mono.set_time backing (Mtime.of_uint64_ns overshoot)));
+  Format.pp_print_flush ppf ();
+  let output = Buffer.contents out in
+  check
+    (List.sort compare (ended_tasks output)
+    = List.sort compare
+        [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
+  output
+
 (* How late the backing clock wakes two concurrent sleeps does not change
-   the bytes of the run, and each task runs for its own sleep. *)
+   the bytes of the run. *)
 let test_deterministic_concurrency a b =
   let key = "CONSOLE_DETERMINISTIC_CLOCK" in
   let saved = Sys.getenv_opt key in
@@ -778,51 +824,7 @@ let test_deterministic_concurrency a b =
       Unix.putenv key (Option.value saved ~default:""))
   @@ fun () ->
   let duration n = float_of_int (1 + (n mod 20)) /. 10. in
-  let first = duration a and second = duration b in
-  let capture overshoot =
-    Eio_mock.Backend.run @@ fun () ->
-    let backing = Eio_mock.Clock.Mono.make () in
-    let clock = Console_eio.clock backing in
-    let out = Buffer.create 512 in
-    let ppf = Format.formatter_of_buffer out in
-    let ready, wake = Eio.Promise.create () in
-    let entered = ref 0 in
-    Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
-        let work label delay =
-          Console.Task.run d label (fun _ ->
-              incr entered;
-              if !entered = 2 then Eio.Promise.resolve wake ();
-              Eio.Time.Mono.sleep clock delay)
-        in
-        Eio.Fiber.both
-          (fun () ->
-            Eio.Fiber.both
-              (fun () -> work "first" first)
-              (fun () -> work "second" second))
-          (fun () ->
-            Eio.Promise.await ready;
-            Eio_mock.Clock.Mono.set_time backing (Mtime.of_uint64_ns overshoot)));
-    Format.pp_print_flush ppf ();
-    let output = Buffer.contents out in
-    let ends =
-      String.split_on_char '\n' output
-      |> List.filter (( <> ) "")
-      |> List.filter_map (fun line ->
-          match Console.Task.Event.of_string line with
-          | Ok e when Console.Task.Event.kind e = `End -> (
-              match Console.Task.Event.task e with
-              | Some (_, path) -> Some (path, Console.Task.Event.elapsed e)
-              | None -> None)
-          | Ok _ -> None
-          | Error (`Msg m) -> fail m)
-    in
-    check
-      (List.sort compare ends
-      = List.sort compare
-          [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
-
-    output
-  in
+  let capture = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
   check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
     (capture 20_000_000_000L)
 
@@ -934,7 +936,7 @@ let test_repeated_signals first second cut closing =
   check (String.is_valid_utf_8 raw);
   check (String.ends_with ~suffix:"\027[?2026l" raw)
 
-let test_prompt_line_limit n unicode crlf =
+let test_prompt_line_limit n ~unicode ~crlf =
   Eio_mock.Backend.run @@ fun () ->
   let length = 4090 + (n mod 9) in
   let line =
@@ -965,7 +967,8 @@ let suite =
   ( "console_eio",
     [
       test_case "prompt answers fit up to 4096 bytes without their terminator"
-        [ uint8; bool; bool ] test_prompt_line_limit;
+        [ uint8; bool; bool ] (fun n unicode crlf ->
+          test_prompt_line_limit n ~unicode ~crlf);
       test_case "repeated signals restore the terminal at every write cut"
         [ uint8; uint8; uint8; bool ]
         test_repeated_signals;

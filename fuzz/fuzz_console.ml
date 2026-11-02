@@ -505,55 +505,57 @@ let nested_cells raw =
         (List.init cols Fun.id))
     (String.split_on_char '\n' raw)
 
-(* Wrapping changes where a widget's lines break, not the glyphs, colours
-   or attributes of its non-space cells. Compare those cells on matrix.vte,
-   rather than accepting a correctly sized output that lost its content. *)
-let test_nested_wrap s k n =
+let nested_input s =
   let clusters =
     [|
       "a"; " "; "b"; "\n"; "\u{754c}"; "e\u{0301}"; "\u{1f469}\u{200d}\u{1f4bb}";
     |]
   in
-  let input =
-    String.concat ""
-      (List.init
-         (min 16 (String.length s))
-         (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
+  String.concat ""
+    (List.init
+       (min 16 (String.length s))
+       (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
+
+let inner_widget k content =
+  match k mod 5 with
+  | 0 -> Panel.view content
+  | 1 ->
+      Table.view
+        [ Table.column (View.role `Header (View.text "h")) ]
+        [ [ content ] ]
+  | 2 ->
+      Tree.view
+        (Tree.v content [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
+  | 3 -> View.sized ~width:20 (Rule.view ~label:content ())
+  | _ -> Bar.horizontal ~width:12 0.6
+
+let outer_widget k inner =
+  match k / 5 mod 3 with
+  | 0 -> Panel.view inner
+  | 1 -> Table.view [ Table.column (View.text "h") ] [ [ inner ] ]
+  | _ -> Tree.view (Tree.v (View.text "root") [ Tree.v inner [] ])
+
+let render_nested ~theme ~utf_8 span =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  Color.set_depth ppf `True_color;
+  Fmt.set_utf_8 ppf utf_8;
+  Theme.set ppf theme;
+  View.pp ppf span;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* Wrapping changes where a widget's lines break, not the glyphs, colours
+   or attributes of its non-space cells. Compare those cells on matrix.vte,
+   rather than accepting a correctly sized output that lost its content. *)
+let test_nested_wrap s k n =
+  let content =
+    View.styled Style.bold (View.gradient (View.text (nested_input s)))
   in
-  let content = View.styled Style.bold (View.gradient (View.text input)) in
-  let inner =
-    match k mod 5 with
-    | 0 -> Panel.view content
-    | 1 ->
-        Table.view
-          [ Table.column (View.role `Header (View.text "h")) ]
-          [ [ content ] ]
-    | 2 ->
-        Tree.view
-          (Tree.v content
-             [ Tree.v (View.role `Succeeded (View.text "leaf")) [] ])
-    | 3 -> View.sized ~width:20 (Rule.view ~label:content ())
-    | _ -> Bar.horizontal ~width:12 0.6
-  in
-  let nested =
-    match k / 5 mod 3 with
-    | 0 -> Panel.view inner
-    | 1 -> Table.view [ Table.column (View.text "h") ] [ [ inner ] ]
-    | _ -> Tree.view (Tree.v (View.text "root") [ Tree.v inner [] ])
-  in
-  let source = View.role `Warning nested in
+  let source = View.role `Warning (outer_widget k (inner_widget k content)) in
   let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
-  let render span =
-    let buf = Buffer.create 256 in
-    let ppf = Format.formatter_of_buffer buf in
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
-    Fmt.set_utf_8 ppf (k land 128 = 0);
-    Theme.set ppf theme;
-    View.pp ppf span;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let render = render_nested ~theme ~utf_8:(k land 128 = 0) in
   let width = 2 + (n mod 19) in
   let pieces = View.wrap width source in
   List.iter (fun piece -> check (View.width piece <= width)) pieces;
