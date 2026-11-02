@@ -138,7 +138,12 @@ let test_wrap () =
   Alcotest.(check (list string))
     "a long word goes on" [ "abc"; "def"; "g" ] (wrap 3 "abcdefg");
   Alcotest.(check (list string))
-    "after a slash" [ "src/"; "lib/"; "a.ml" ] (wrap 5 "src/lib/a.ml");
+    "not after a slash" [ "abc"; "de/fg" ] (wrap 7 "abc de/fg");
+  Alcotest.(check (list string))
+    "not after a hyphen" [ "abc"; "de-fg" ] (wrap 7 "abc de-fg");
+  Alcotest.(check (list string))
+    "a path goes on where the room ends" [ "src/l"; "ib/a."; "ml" ]
+    (wrap 5 "src/lib/a.ml");
   Alcotest.(check (list string)) "empty" [ "" ] (wrap 3 "");
   Alcotest.(check (list string)) "lines" [ "a"; "b" ] (wrap 3 "a\nb");
   Alcotest.check_raises "zero width"
