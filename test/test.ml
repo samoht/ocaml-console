@@ -7,6 +7,7 @@ let () =
   Alcotest.run "console"
     [
       Test_color.suite;
+      Test_colour.suite;
       Test_style.suite;
       Test_view.suite;
       Test_table.suite;
@@ -18,6 +19,7 @@ let () =
       Test_bar.suite;
       Test_theme.suite;
       Test_progress.suite;
+      Test_progress_driver.suite;
       Test_slot.suite;
       Test_spinner.suite;
       Test_display.suite;
@@ -25,4 +27,5 @@ let () =
       Test_display_driver.suite;
       Test_console.suite;
       Test_console_vte.suite;
+      Test_recording.suite;
     ]
