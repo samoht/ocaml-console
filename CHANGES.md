@@ -11,6 +11,10 @@
 - `View.wrap ~words` says where a line may break, to keep a backquoted
   command whole or to break after a slash again (#2).
 
+- `Console_input.crlf` maps each line feed to CR LF, for writing back to a
+  peer whose terminal is in raw mode, so that each line starts in the first
+  column (#3).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

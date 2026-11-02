@@ -119,6 +119,13 @@ val pending : t -> string
 (** [pending t] is the current line, the bytes typed since the last submitted
     line. *)
 
+val crlf : string -> string
+(** [crlf s] is [s] with each line feed ['\n'] preceded by a carriage return, as
+    the tty line discipline's [ONLCR] output flag does, so that text written
+    back to a peer whose terminal is in raw mode starts each line in the first
+    column. A carriage return already before a line feed is kept, so ["\r\n"]
+    becomes ["\r\r\n"], as with [ONLCR]. *)
+
 val history : t -> string list
 (** [history t] is the submitted lines, oldest first, after the [history] seed
     and with consecutive duplicates dropped. *)

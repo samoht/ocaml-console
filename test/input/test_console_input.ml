@@ -469,6 +469,17 @@ let test_line_bound_whole_character () =
   Alcotest.(check string)
     "the line is unchanged" (String.make 4094 'a') (Console_input.pending t)
 
+(* ONLCR maps every NL to CR NL on output, including one a CR precedes
+   (termios(3), c_oflag). *)
+let test_crlf () =
+  Alcotest.(check string) "no line feed" "abc" (Console_input.crlf "abc");
+  Alcotest.(check string)
+    "each line feed" "a\r\nb\r\n\r\n"
+    (Console_input.crlf "a\nb\n\n");
+  Alcotest.(check string)
+    "a CR before stays" "a\r\r\n"
+    (Console_input.crlf "a\r\n")
+
 let numbered i = Fmt.str "line %03d" i
 
 (* The history keeps the 500 newest lines, bash's HISTSIZE, dropping the oldest
@@ -524,6 +535,7 @@ let test_bound_erase_long_recall () =
 let suite =
   ( "console_input",
     [
+      Alcotest.test_case "crlf maps NL to CR NL" `Quick test_crlf;
       Alcotest.test_case "a line holds at most 4095 bytes" `Quick
         test_line_bound;
       Alcotest.test_case "a character past the bound is refused whole" `Quick
