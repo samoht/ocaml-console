@@ -243,7 +243,7 @@ let test_region () =
 let test_tall_header () =
   let t = terminal ~width:40 ~height:8 ~label:"S" () in
   let rows =
-    View.vcat (List.init 20 (fun i -> View.text (Fmt.str "row %d" i)))
+    View.vcat (List.init 20 (fun i -> Fmt.kstr View.text "row %d" i))
   in
   Display.set_view t.display (above rows t.root);
   let a = Task.start t.root "a" in
@@ -2703,7 +2703,7 @@ let test_kept_rows () =
     if i mod 2 = 0 then time := !time +. 0.037;
     Task.set_items a ~count:i ~total:12;
     if i mod 3 = 0 then Task.log c (Fmt.str "line %d" i);
-    check (Fmt.str "step %d" i)
+    Fmt.kstr check "step %d" i
   done;
   Task.set_label c "src/b.c";
   check "renamed";

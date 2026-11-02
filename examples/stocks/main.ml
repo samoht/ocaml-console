@@ -134,15 +134,15 @@ let sparkline s =
       Bar.sparkline ~style:(Style.fg colour) (List.rev s.session))
 
 let row s =
-  let price = View.styled Style.bold (View.text (Fmt.str "%.2f" s.price)) in
+  let price = View.styled Style.bold (Fmt.kstr View.text "%.2f" s.price) in
   [
     View.styled Style.bold (View.text s.symbol);
     View.text s.name;
     (if s.tick = 0. then price else signed s.tick price);
-    signed (change s) (View.text (Fmt.str "%+.2f" (change s)));
+    signed (change s) (Fmt.kstr View.text "%+.2f" (change s));
     signed (change s)
       (View.hcat ~gap:1
-         [ arrow (change s); View.text (Fmt.str "%+.2f%%" (percent s)) ]);
+         [ arrow (change s); Fmt.kstr View.text "%+.2f%%" (percent s) ]);
     sparkline s;
     View.text (figure s.volume);
   ]
@@ -191,12 +191,12 @@ let header () =
       View.hcat ~gap:1
         [
           View.role `Muted (View.text "LBX Composite");
-          View.styled Style.bold (View.text (Fmt.str "%.2f" index));
+          View.styled Style.bold (Fmt.kstr View.text "%.2f" index);
           signed move
             (View.hcat ~gap:1
                [
                  arrow move;
-                 View.text (Fmt.str "%+.2f%%" (100. *. move /. previous));
+                 Fmt.kstr View.text "%+.2f%%" (100. *. move /. previous);
                ]);
         ];
       status;
@@ -241,7 +241,7 @@ let facts title rows =
 let quote s =
   [
     View.styled Style.bold (View.text s.symbol);
-    signed (percent s) (View.text (Fmt.str "%+.2f%%" (percent s)));
+    signed (percent s) (Fmt.kstr View.text "%+.2f%%" (percent s));
   ]
 
 let breadth () =

@@ -109,7 +109,7 @@ let box t s =
        View.(
          text (s.dir ^ " ") ++ paint hl "postinstall" ++ text ("$ " ^ s.cmd));
        (if collapsed > 0 then
-          View.text (Fmt.str "[%d lines collapsed]" collapsed)
+          Fmt.kstr View.text "[%d lines collapsed]" collapsed
         else View.empty);
      ]
     @ List.filteri (fun i _ -> i >= n - shown) (List.map row lines)
