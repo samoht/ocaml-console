@@ -19,6 +19,10 @@
   show it, such as `6.4s` or `1m05s`, so that a program's own lines can
   match them (#4).
 
+- `Console_eio.run` prints a `Logs.app` message as it was written, with no
+  `[source]` header, as `Logs_fmt.reporter` does. Messages at the other
+  levels keep their source's name (#5).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

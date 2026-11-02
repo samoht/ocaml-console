@@ -124,8 +124,10 @@ val run :
       innermost {!Console.Task.run} or {!Console.Task.within} of that fiber or
       of the fibers it was forked from. With no such task, it goes above the
       rows.
-    - A message from a source other than {!Logs.default} comes after the
-      source's name in brackets, as in [[http] connected].
+    - A message at the [App] level is printed as it was written, with no header,
+      as [Logs_fmt.reporter] prints it: it is the program's own output. A
+      message at another level from a source other than {!Logs.default} comes
+      after the source's name in brackets, as in [[http] connected].
     - A message logged in another domain that Eio runs, such as one of an
       [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
       not inherit the task of the fiber that submitted its work, so the message

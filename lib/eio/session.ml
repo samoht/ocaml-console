@@ -348,9 +348,10 @@ let deliver ~owner ~closed ~requests root level message =
     with Effect.Unhandled _ -> `Closed
 
 (* A message the display cannot take, closed or refusing its output, goes
-   to the reporter it replaced, so that a log call never fails. A message from a source of its own is
-   prefixed with the source's name, as the reporter of the Logs
-   documentation does. *)
+   to the reporter it replaced, so that a log call never fails. A diagnostic
+   from a source of its own is prefixed with the source's name, which tells
+   apart the libraries whose messages interleave; an App message is the
+   program's own output and has no header, as with Logs_fmt.reporter. *)
 let reporter ~previous ~owner ~closed ~requests root =
   let report src l ~over k msgf =
     if Option.is_some (Eio.Promise.peek closed) then
@@ -360,7 +361,8 @@ let reporter ~previous ~owner ~closed ~requests root =
           Fmt.kstr
             (fun message ->
               let shown =
-                if src == Logs.default || message = "" then message
+                if src == Logs.default || l = Logs.App || message = "" then
+                  message
                 else "[" ^ Logs.Src.name src ^ "] " ^ message
               in
               let delivered =
