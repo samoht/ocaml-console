@@ -498,17 +498,9 @@ let test_json_lifecycle k =
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
 let with_dimensions width height f =
-  let bindings =
+  Env_harness.with_env
     [ ("COLUMNS", string_of_int width); ("LINES", string_of_int height) ]
-  in
-  let saved =
-    List.map (fun (name, _) -> (name, Sys.getenv_opt name)) bindings
-  in
-  List.iter (fun (name, value) -> Unix.putenv name value) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter
-        (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
-        saved)
+    f
 
 let tty_destination width height k =
   let screen = Console_vte.v ~raw:true ~rows:height ~cols:width () in
@@ -817,12 +809,7 @@ let concurrent_sleeps ~first ~second overshoot =
 (* How late the backing clock wakes two concurrent sleeps does not change
    the bytes of the run. *)
 let test_deterministic_concurrency a b =
-  let key = "CONSOLE_DETERMINISTIC_CLOCK" in
-  let saved = Sys.getenv_opt key in
-  Unix.putenv key "0";
-  Fun.protect ~finally:(fun () ->
-      Unix.putenv key (Option.value saved ~default:""))
-  @@ fun () ->
+  Env_harness.with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "0") ] @@ fun () ->
   let duration n = float_of_int (1 + (n mod 20)) /. 10. in
   let capture = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
   check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
@@ -838,14 +825,9 @@ let with_recording deterministic f =
       ("LINES", "8");
     ]
   in
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
   Fun.protect
-    ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved;
-      Sys.remove file)
-    (fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-      f file)
+    ~finally:(fun () -> Sys.remove file)
+    (fun () -> Env_harness.with_env bindings (fun () -> f file))
 
 (* The mock clock behind never moves, so a sleep that waited on it would
    leave the mock backend with nothing to run, which it raises. *)

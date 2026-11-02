@@ -3,11 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
+let with_env = Env_harness.with_env
 
 (* The rules of cmdliner and fmt, and the depth the environment announces. *)
 let test_colour_rules () =

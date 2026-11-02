@@ -5,14 +5,7 @@
 
 module Recording = Console__.Recording
 
-(* [Unix.putenv] cannot unset a variable: an unset one comes back empty, which
-   [Cast], [Colour] and [Recording.size] all read as unset. *)
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
-
+let with_env = Env_harness.with_env
 let read file = In_channel.with_open_bin file In_channel.input_all
 
 let with_temp f =

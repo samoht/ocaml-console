@@ -11,6 +11,11 @@
  (libraries alcobar console console.text console.width fmt))
 
 (library
+ (name env_harness)
+ (modules env_harness)
+ (libraries unix))
+
+(library
  (name view_harness)
  (modules view_harness)
  (flags
