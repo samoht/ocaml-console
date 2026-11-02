@@ -68,10 +68,15 @@ let test_reporter () =
         Logs.app (fun m -> m "╭───╮\n│ x │\n╰───╯");
         Logs.warn (fun m -> m "warning-line");
         Logs.info ~src:named (fun m -> m "named-line");
+        Logs.app ~src:named (fun m -> m "named-application-line");
         Logs.debug (fun m -> m "debug-line");
         D.succeed step)
   in
   mem ~msg:"a named source says its name" "\n[console.test] named-line\n" out;
+  (* As Logs_fmt.reporter prints App: the program's own output, no header. A
+     reporter that labels every level with its source fails here. *)
+  mem ~msg:"an application line names no source" "\nnamed-application-line\n"
+    out;
   mem ~msg:"application log, no mark" "\napplication-line\n" out;
   mem ~msg:"debug log, its mark" "\n\u{00b7} debug-line\n" out;
   mem ~msg:"multiline log keeps physical rows" "╭───╮\n│ x │\n╰───╯\n" out;
