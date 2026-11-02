@@ -554,6 +554,12 @@ let test_fit_room () =
     "its theme and character set" "ascii false"
     (at ~theme:Theme.ascii ~utf_8:false ~time:0. theme)
 
+let test_room_pp () =
+  let room = View.fit (fun r -> Fmt.kstr View.text "%a" Room.pp r) in
+  Alcotest.(check string)
+    "without a room" "width unbounded, height unbounded, time 0"
+    (View.to_string room)
+
 (* A view's size depends on its room, not on its time: each frame of a
    [fit] is cut or padded to its frame at time 0. *)
 let test_fit_still_size () =
@@ -760,4 +766,5 @@ let suite =
       Alcotest.test_case "a still view is laid out once a room" `Quick
         test_cached;
       Alcotest.test_case "the matrix frame moves" `Quick test_matrix_moves;
+      Alcotest.test_case "room pp" `Quick test_room_pp;
     ] )

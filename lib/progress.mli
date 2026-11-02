@@ -54,6 +54,9 @@ val of_string : string -> (t, [ `Msg of string ]) result
 val to_string : t -> string
 (** [to_string p] is the name of [p] in {!all}. *)
 
+val pp : t Fmt.t
+(** [pp] formats a progress mode as {!to_string} does. *)
+
 (** {1:layout Row layout} *)
 
 (** What a running task's row shows, left to right.

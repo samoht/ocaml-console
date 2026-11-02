@@ -38,6 +38,9 @@
 - Add `Console_eio.width`, to fit output printed outside `Console_eio.run` to
   the terminal, or to `$COLUMNS` on a pipe (#13).
 
+- Add `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
+  (#34).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
