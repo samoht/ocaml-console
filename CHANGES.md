@@ -43,6 +43,9 @@
 
 - Add `Task.Event.equal`, to compare two events (#17).
 
+- Add the `console.width` library, to measure the cells a string takes on a
+  terminal as console does (#17).
+
 - `Display.close` now restores the terminal even when a `commit` or `plain`
   function raises, and raises the exception afterwards (#17).
 

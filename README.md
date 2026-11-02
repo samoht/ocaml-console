@@ -47,13 +47,14 @@ Windows consoles are not supported.
 $ opam install console console-eio eio_main cmdliner
 ```
 
-console comes as two opam packages, which hold five libraries:
+console comes as two opam packages, which hold six libraries:
 
 - `console`: the styles, the widgets, the themes and the display. It needs
   neither Eio nor Unix.
 - `console.tty`: decides on colour and UTF-8 for the standard outputs, with
   Unix alone.
 - `console.text`: makes untrusted text safe to print.
+- `console.width`: the cells a string takes on a terminal.
 - `console.input`: a line editor that does no input or output.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
@@ -772,6 +773,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console.Progress` | How tasks show: rows, lines, failures alone or JSON |
 | `Console_tty` | Colour and UTF-8 on the standard outputs (`console.tty`) |
 | `Console_text` | Untrusted text made safe for a terminal (`console.text`) |
+| `Console_width` | The cells a string takes on a terminal (`console.width`) |
 | `Console_input` | A line editor that does no input or output (`console.input`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
