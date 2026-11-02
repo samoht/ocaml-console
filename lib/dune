@@ -1,16 +1,13 @@
-(copy_files input/width.{ml,mli})
-
 (library
  (name console)
  (public_name console)
- (libraries console.text fmt jsont jsont.bytesrw uucp uuseg)
+ (libraries console.text console.width fmt jsont jsont.bytesrw)
  (private_modules
   border_motion
   ctx
   event
   frames
   widget
-  width
   display_core
   progress_layout
   progress_row

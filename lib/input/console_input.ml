@@ -69,15 +69,15 @@ let line t = String.concat "" (List.rev_append t.left t.right)
 let pending t = line t
 let history t = List.rev t.hist
 let add = Buffer.add_string
-let clusters = Width.clusters
+let clusters = Console_width.clusters
 let display_char t c = match t.mask with Some mask -> mask | None -> c
 let display t s = String.concat "" (List.map (display_char t) (clusters s))
 
 (* A masked editor measures the replacement glyphs, never the secret
    characters they conceal. *)
-let width t s = Width.string_width (display t s)
+let width t s = Console_width.string_width (display t s)
 let display_chars t cs = String.concat "" (List.map (display_char t) cs)
-let cols t cs = Width.string_width (display_chars t cs)
+let cols t cs = Console_width.string_width (display_chars t cs)
 
 (* Move the cursor back over [t.right] after rewriting it, one backspace per
    cell. *)
@@ -91,7 +91,7 @@ let cluster_cells t c =
   match Hashtbl.find_opt t.widths c with
   | Some n -> n
   | None ->
-      let n = Width.string_width c in
+      let n = Console_width.string_width c in
       if Hashtbl.length t.widths >= 1024 then Hashtbl.reset t.widths;
       Hashtbl.add t.widths c n;
       n
@@ -155,7 +155,7 @@ let edit t echo ~erased s =
     if left <> [] || t.mask <> None then s
     else
       match clusters s with
-      | c :: cs when Width.string_width c = 0 -> String.concat "" cs
+      | c :: cs when Console_width.string_width c = 0 -> String.concat "" cs
       | _ -> s
   in
   if s <> "" && t.len - String.length erased + String.length s > t.max_line then

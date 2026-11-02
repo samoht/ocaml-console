@@ -29,7 +29,7 @@ val string_width : string -> int
     among them. Terminals that give each code point its own width, xterm and VTE
     among them, differ. They draw a ZWJ sequence or a skin tone as the sum of
     its emoji, and an emoji that VS16 selects in one cell. The cells each takes
-    are in test/input/widths.txt. *)
+    are in test/width/widths.txt. *)
 
 val sub_width : string -> pos:int -> len:int -> int
 (** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)

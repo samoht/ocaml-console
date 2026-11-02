@@ -908,7 +908,7 @@ let test_wide () =
   Task.set_items task ~count:1 ~total:3;
   Task.log task "a log line";
   Display.redraw t.display;
-  let widths () = List.map Width.string_width (lines t) in
+  let widths () = List.map Console_width.string_width (lines t) in
   Alcotest.(check int) "the live row" 100 (List.fold_left max 0 (widths ()));
   Task.succeed task;
   close t;
@@ -1568,7 +1568,9 @@ let test_view_width () =
     ~count:1 ~total:3;
   Display.redraw t.display;
   Alcotest.(check int) "the width" 160 !given;
-  Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
+  Alcotest.(check int)
+    "the row" 100
+    (Console_width.string_width (List.hd (screen t)))
 
 (* The default view and the summary take the width they are given, so a
    view puts them in a column narrower than the terminal. *)
@@ -1588,7 +1590,7 @@ let test_default_view_column () =
     (View.width (View.sized ~width:12 (Progress.summary t.root)) <= 12);
   Alcotest.(check bool)
     "the panel on the screen" true
-    (List.for_all (fun r -> Width.string_width r <= 120) (screen t)
+    (List.for_all (fun r -> Console_width.string_width r <= 120) (screen t)
     && List.exists (contains "status") (screen t));
   close t
 
@@ -1655,7 +1657,7 @@ let border_glyphs =
       ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters = Width.clusters
+let clusters = Console_width.clusters
 
 (* A table's frame moves in a live display drawn in a theme with motion:
    from one frame to the next, only its border cells change, each to a glyph
@@ -1694,7 +1696,8 @@ let test_view_moves () =
                 a <> b
                 && not
                      (List.mem a border_glyphs
-                     && Width.string_width a = Width.string_width b)
+                     && Console_width.string_width a
+                        = Console_width.string_width b)
               then Alcotest.failf "row %d: %S became %S" i still row)
             a b)
         (List.combine still

@@ -31,8 +31,8 @@ let selects_nothing s =
 let discard_stray_vs16 s =
   discard_if
     (List.exists
-       (fun c -> has_vs16 c && Width.string_width c <> 2)
-       (Width.clusters s)
+       (fun c -> has_vs16 c && Console_width.string_width c <> 2)
+       (Console_width.clusters s)
     || selects_nothing s)
 
 let is_printable_ascii c = c >= ' ' && c <= '~'
@@ -45,7 +45,7 @@ let discard_dropped_mark s =
       i > 0
       && is_printable_ascii s.[i - 1]
       && n > 1
-      && Width.string_width (String.sub s i n) = 0
+      && Console_width.string_width (String.sub s i n) = 0
       || from (i + n)
   in
   discard_if (from 0)
@@ -88,4 +88,4 @@ let discard_wide_after_first s =
        (fun c ->
          let first, widest = first_and_widest c in
          widest > first)
-       (Width.clusters s))
+       (Console_width.clusters s))

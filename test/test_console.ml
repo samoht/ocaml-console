@@ -156,7 +156,7 @@ let test_hcat_widths () =
   let rule = View.sized ~width:9 (Rule.view ()) in
   Alcotest.(check (list int))
     "two rules of 9 cells, 3 apart" [ 21 ]
-    (List.map Width.string_width (lines (side ~gap:3 [ rule; rule ])));
+    (List.map Console_width.string_width (lines (side ~gap:3 [ rule; rule ])));
   let red = View.styled (Style.fg Color.red) (View.text "red")
   and blue = View.styled (Style.fg Color.blue) (View.text "blue") in
   Alcotest.(check string)
@@ -175,7 +175,8 @@ let test_hcat_nests () =
     "in a panel"
     ([ "+------------------+" ]
     @ List.map
-        (fun l -> "| " ^ l ^ String.make (16 - Width.string_width l) ' ' ^ " |")
+        (fun l ->
+          "| " ^ l ^ String.make (16 - Console_width.string_width l) ' ' ^ " |")
         want
     @ [ "+------------------+" ])
     (lines (View.to_string panel))
@@ -312,7 +313,9 @@ let test_to_span_cells () =
       ()
   in
   let span = steps in
-  let widths s = List.map Width.string_width (String.split_on_char '\n' s) in
+  let widths s =
+    List.map Console_width.string_width (String.split_on_char '\n' s)
+  in
   Alcotest.(check (list int))
     "two cells wider on each line"
     (List.map (fun w -> w + 2) (widths (View.to_string steps)))
@@ -341,9 +344,10 @@ let lines ?(styled = false) margin pp =
 let check_fits name margin pp =
   List.iter
     (fun l ->
-      if Width.string_width l > margin then
+      if Console_width.string_width l > margin then
         Alcotest.failf "%s: %d cells at a margin of %d: %S" name
-          (Width.string_width l) margin l)
+          (Console_width.string_width l)
+          margin l)
     (lines margin pp)
 
 (* Cases the properties of widgets put together found, and nested widgets

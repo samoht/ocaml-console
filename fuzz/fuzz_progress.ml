@@ -381,7 +381,7 @@ let test_retained_cut k =
             prefix (c :: acc) (n + String.length c) rest
         | _ -> String.concat "" (List.rev acc)
       in
-      prefix [] 0 (Width.clusters clean) ^ "..."
+      prefix [] 0 (Console_width.clusters clean) ^ "..."
   in
   let out = Buffer.create 16384 in
   let ppf = Format.formatter_of_buffer out in

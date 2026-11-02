@@ -1,0 +1,4 @@
+(library
+ (name console_width)
+ (public_name console.width)
+ (libraries uucp uuseg))

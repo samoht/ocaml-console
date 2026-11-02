@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 let check msg expected s =
-  Alcotest.(check int) msg expected (Width.string_width s)
+  Alcotest.(check int) msg expected (Console_width.string_width s)
 
 let test_widths () =
   check "ASCII" 5 "hello";
@@ -27,7 +27,7 @@ let test_widths () =
   Alcotest.(check int)
     "an emoji tag sequence is one cluster" 1
     (List.length
-       (Width.clusters
+       (Console_width.clusters
           "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"))
 
 (* A cluster takes the cells of its widest character, not of its first
@@ -51,7 +51,7 @@ let test_marks () =
   check "Thai SARA AM alone" 1 "\u{0E33}";
   Alcotest.(check bool)
     "SARA AM is a spacing mark" true
-    (Width.is_spacing_mark 0x0E33);
+    (Console_width.is_spacing_mark 0x0E33);
   check "a wide spacing mark after a ZWJ" 2 "\u{200D}\u{302E}"
 
 (* A VS16 that selects nothing still splits the text as it is: it does
@@ -61,7 +61,7 @@ let test_stray_vs16_splits () =
   Alcotest.(check (list string))
     "its clusters"
     [ "\u{0D4E}\u{FE0F}"; "\u{754C}" ]
-    (Width.clusters "\u{0D4E}\u{FE0F}\u{754C}")
+    (Console_width.clusters "\u{0D4E}\u{FE0F}\u{754C}")
 
 let test_sub_width () =
   let s = "ab\u{754C}e\u{0301}\u{2764}\u{FE0F}" in
@@ -69,8 +69,8 @@ let test_sub_width () =
     for len = 0 to String.length s - pos do
       Alcotest.(check int)
         (Fmt.str "%S at %d for %d" s pos len)
-        (Width.string_width (String.sub s pos len))
-        (Width.sub_width s ~pos ~len)
+        (Console_width.string_width (String.sub s pos len))
+        (Console_width.sub_width s ~pos ~len)
     done
   done
 
@@ -83,7 +83,7 @@ let test_matches_terminal () =
       Alcotest.(check int)
         (String.escaped s)
         (snd (Console_vte.cursor_pos vte))
-        (Width.string_width s))
+        (Console_width.string_width s))
     [
       "hello";
       "\xe7\x95\x8c\xe7\x95\x8c";
@@ -126,7 +126,7 @@ let test_real_terminals () =
   Alcotest.(check bool) "the table has rows" true (List.length rows > 10);
   List.iter
     (fun (what, s, terminals, console) ->
-      Alcotest.(check int) what console (Width.string_width s);
+      Alcotest.(check int) what console (Console_width.string_width s);
       let known = List.filter_map Fun.id terminals in
       (match List.sort_uniq Int.compare known with
       | [ all ] ->
@@ -138,7 +138,7 @@ let test_real_terminals () =
     rows
 
 let suite =
-  ( "width",
+  ( "console_width",
     [
       Alcotest.test_case "widths" `Quick test_widths;
       Alcotest.test_case "the widest character" `Quick test_widest;
