@@ -29,3 +29,18 @@ Without $COLUMNS it is printed whole:
   +-----------------------------------------------------+
   | a description long enough to wrap in a narrow table |
   +-----------------------------------------------------+
+
+A program that lays out its own lines reads the same width: the
+terminal's, else $COLUMNS, else none, where it prints whole:
+
+  $ ../tty.exe ../piped.exe width
+  80
+
+  $ COLUMNS=30 ../piped.exe width
+  30
+
+  $ COLUMNS= ../piped.exe width
+  whole
+
+  $ COLUMNS=5000 ../piped.exe width
+  whole
