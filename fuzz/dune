@@ -1,8 +1,3 @@
-(rule
- (with-stdout-to
-  matrix_version.ml
-  (echo "let v = \"%{version:matrix}\"\n")))
-
 (executable
  (name fuzz)
  (modules :standard \ fuzz_eio fuzz_console_eio)
@@ -16,6 +11,7 @@
   console_vte
   display_harness
   view_harness
+  matrix_0_1
   matrix.vte
   fmt
   re

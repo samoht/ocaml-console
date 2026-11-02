@@ -11,3 +11,13 @@
  (flags
   (:standard -open Console__))
  (libraries console))
+
+(rule
+ (with-stdout-to
+  matrix_version.ml
+  (echo "let v = \"%{version:matrix}\"\n")))
+
+(library
+ (name matrix_0_1)
+ (modules matrix_0_1 matrix_version)
+ (libraries alcobar console.width uucp))
