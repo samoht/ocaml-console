@@ -160,6 +160,19 @@ let blend c0 c1 f =
   let mix a a' = a + int_of_float (Float.round (f *. float_of_int (a' - a))) in
   Rgb (mix r r', mix g g', mix b b')
 
+let gradient stops =
+  let stops = Array.of_list stops in
+  let n = Array.length stops in
+  if n = 0 then invalid_arg "Console.Color.gradient: no colour";
+  fun f ->
+    let f = if Float.is_nan f then 0. else Float.max 0. (Float.min 1. f) in
+    let x = f *. float_of_int (n - 1) in
+    let i = int_of_float x in
+    (* A stop itself where it stands, so that a palette colour stays one. *)
+    if i >= n - 1 then stops.(n - 1)
+    else if Float.of_int i = x then stops.(i)
+    else blend stops.(i) stops.(i + 1) (x -. float_of_int i)
+
 let scale f c =
   let r, g, b = to_rgb c in
   (* Clamped as a float: a large factor overflows [int_of_float]. *)

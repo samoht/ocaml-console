@@ -79,7 +79,11 @@ val run :
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is
-      between [1] and [4096], else 80 by 24.
+      between [1] and [4096], else 80 by 24. When the tasks print as lines on an
+      output that is not a terminal, what is printed above them and the last
+      frame are laid out as wide as [$COLUMNS] asks, when it is between [1] and
+      [4096], and whole otherwise, as {!Console.Progress.show} prints them with
+      and without a size.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
     the program chose nothing gets the colours its terminal and environment
@@ -124,8 +128,10 @@ val run :
       innermost {!Console.Task.run} or {!Console.Task.within} of that fiber or
       of the fibers it was forked from. With no such task, it goes above the
       rows.
-    - A message from a source other than {!Logs.default} comes after the
-      source's name in brackets, as in [[http] connected].
+    - A message at the [App] level is printed as it was written, with no header,
+      as [Logs_fmt.reporter] prints it: it is the program's own output. A
+      message at another level from a source other than {!Logs.default} comes
+      after the source's name in brackets, as in [[http] connected].
     - A message logged in another domain that Eio runs, such as one of an
       [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
       not inherit the task of the fiber that submitted its work, so the message
@@ -243,10 +249,23 @@ val with_output : (Format.formatter -> 'a) -> 'a
 val print : Console.View.t -> unit
 (** [print v] prints [v] above the rows, in their scrollback, as
     {!Console.Display.print} does for the display of the run of the calling
-    fiber: styled and as wide as the terminal, or whole on a pipe, where it
-    comes in turn with the lines of the tasks. With [`Json] each of its lines,
-    without escape codes, is an [output] event of no task. Outside a run, it is
-    printed on {!Fmt.stderr}, at its margin. *)
+    fiber: styled and as wide as the terminal, or on a pipe as wide as
+    [$COLUMNS] asks, or whole without it ({!run}), where it comes in turn with
+    the lines of the tasks. With [`Json] each of its lines, without escape
+    codes, is an [output] event of no task. Outside a run, it is printed on
+    {!Fmt.stderr}, at its margin. *)
+
+val redraw : unit -> unit
+(** [redraw ()] draws the display of the run of the calling fiber again, at
+    once, at the time of its clock, as {!Console.Display.redraw} does: when it
+    returns, the display has written the frame of its view as the program's
+    state is then. A program that must know a frame was drawn, such as the last
+    frame of a flash before it ends the run, calls it rather than sleeping until
+    the next of the redraws {!val-run} makes ten times a second. Outside a run,
+    and where the tasks print as lines and no frame is drawn, it does nothing.
+
+    It raises the exception of a view that raised since the last redraw, as
+    {!Console.Display.redraw} does. *)
 
 val size : Format.formatter -> (unit -> int * int) option
 (** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} and

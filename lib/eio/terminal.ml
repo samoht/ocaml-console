@@ -37,5 +37,8 @@ let height fd =
   first ~default:24
     [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" usable) ]
 
+let asked () =
+  Option.map (fun w () -> (w, height None)) (dimension_of_env "COLUMNS" usable)
+
 let is_tty fd = Eio_unix.Fd.use_exn "isatty" fd Unix.isatty
 let dimensions fd = (width fd, height fd)

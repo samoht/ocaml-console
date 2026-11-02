@@ -17,6 +17,11 @@ val height : Eio_unix.Fd.t option -> int
 (** [height fd] is like {!width} for the height in rows, from [$LINES], else
     [24]. *)
 
+val asked : unit -> (unit -> int * int) option
+(** [asked ()] is the size an output that is not a terminal is asked to lay out
+    at: [Some size] if [$COLUMNS] is in \[[1];[4096]\], [size ()] being that
+    width and {!height}[ None], and [None] otherwise. *)
+
 val is_tty : Eio_unix.Fd.t -> bool
 (** [is_tty fd] is [true] iff [fd] is connected to a terminal. *)
 

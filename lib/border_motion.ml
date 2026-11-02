@@ -45,10 +45,10 @@ let rain theme ~line ~n ~elapsed p style glyph =
     (recolour (Color.blend (Theme.accent theme) muted t) style, glyph)
   else (style, glyph)
 
-(* The palette graded once round the frame, from its first colour at the
-   top-left corner back to it, travelling clockwise. *)
-let sweep theme ~line:_ ~n ~elapsed p style glyph =
-  let palette = Array.of_list (Theme.palette theme) in
+(* [colours] graded once round the frame, from the first at the top-left
+   corner back to it, [elapsed] seconds into their clockwise travel. *)
+let graded colours ~n ~elapsed p style glyph =
+  let palette = Array.of_list colours in
   let k = Array.length palette and n = Float.of_int n in
   let at = Float.rem (Float.of_int p -. (elapsed *. 8.)) n in
   let x = (if at < 0. then at +. n else at) /. n *. Float.of_int k in
@@ -59,6 +59,9 @@ let sweep theme ~line:_ ~n ~elapsed p style glyph =
     else Color.blend palette.(i) palette.((i + 1) mod k) f
   in
   (recolour c style, glyph)
+
+let sweep theme ~line:_ ~n ~elapsed p style glyph =
+  graded (Theme.palette theme) ~n ~elapsed p style glyph
 
 (* A lap takes four seconds, at a speed the eye follows whatever the size. *)
 let shimmer theme ~line:_ ~n ~elapsed p style glyph =
@@ -81,10 +84,13 @@ let position ~width ~height ~left ~right ~y x =
   else if x < left then Some ((2 * width) + height - 2 + (height - 2 - y))
   else None
 
+(* A border's gradient is still; the theme's motion draws over it. *)
 let frame (look : Look.t) ~time border ~left ~right ?(gaps = []) lines =
-  match (Theme.motion look.theme, lines) with
-  | None, _ | _, ([] | [ _ ]) -> lines
-  | Some motion, first :: _ -> (
+  let motion = Theme.motion look.theme and colours = Border.gradient border in
+  match lines with
+  | [] | [ _ ] -> lines
+  | _ when Option.is_none motion && colours = [] -> lines
+  | first :: _ ->
       let width = View_core.width first and height = List.length lines in
       if
         left = 0 || right = 0 || width < 2
@@ -96,26 +102,37 @@ let frame (look : Look.t) ~time border ~left ~right ?(gaps = []) lines =
         let line g =
           g <> " " && List.mem g [ c.top; c.bottom; c.left; c.right ]
         in
-        let draw = cell_of motion look.theme ~line ~n in
-        let gap y x =
-          List.exists (fun (g, a, b) -> g = y && a <= x && x < b) gaps
-        in
-        let border y ~elapsed ~cell =
-          if gap y cell then None
-          else
-            Option.map
-              (fun p -> draw ~elapsed p)
-              (position ~width ~height ~left ~right ~y cell)
+        let still =
+          if colours = [] then None else Some (graded colours ~n ~elapsed:0.)
         in
         (* Still, a sweep keeps its colours, which cover the whole frame;
            a moving highlight is no pattern to keep. *)
-        let elapsed =
-          if look.live && Float.is_finite time && time >= 0. then Some time
-          else match motion with `Sweep -> Some 0. | _ -> None
+        let moving =
+          Option.bind motion (fun motion ->
+              let elapsed =
+                if look.live && Float.is_finite time && time >= 0. then
+                  Some time
+                else match motion with `Sweep -> Some 0. | _ -> None
+              in
+              Option.map
+                (fun elapsed -> cell_of motion look.theme ~line ~n ~elapsed)
+                elapsed)
         in
-        match elapsed with
-        | None -> lines
-        | Some elapsed ->
-            List.mapi
-              (fun y line -> View_core.recell (border y ~elapsed) line)
-              lines)
+        let draw p style glyph =
+          let style, glyph =
+            match still with Some g -> g p style glyph | None -> (style, glyph)
+          in
+          match moving with Some m -> m p style glyph | None -> (style, glyph)
+        in
+        let gap y x =
+          List.exists (fun (g, a, b) -> g = y && a <= x && x < b) gaps
+        in
+        let border y ~cell =
+          if gap y cell then None
+          else
+            Option.map
+              (fun p -> draw p)
+              (position ~width ~height ~left ~right ~y cell)
+        in
+        if Option.is_none still && Option.is_none moving then lines
+        else List.mapi (fun y line -> View_core.recell (border y) line) lines

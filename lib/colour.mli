@@ -14,7 +14,8 @@ val renderer :
 (** [renderer ~getenv ~is_tty] is [`None] if [NO_COLOR] is set and not empty or
     {!dumb} holds, and otherwise [`Ansi_tty] iff [is_tty]. *)
 
-val depth : getenv:(string -> string option) -> Console.Color.depth
+val depth :
+  getenv:(string -> string option) -> [ `Ansi_16 | `Ansi_256 | `True_color ]
 (** [depth ~getenv] is the colour depth the environment announces:
     - [`True_color] if [COLORTERM] is [truecolor] or [24bit], or [TERM] ends in
       [-direct];

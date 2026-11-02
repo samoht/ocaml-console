@@ -99,7 +99,7 @@ val truncate : ?ellipsis:string -> int -> t -> t
     fit in them. *)
 
 val crop : ?left:int -> ?width:int -> t -> t
-val wrap : int -> t -> t list
+val wrap : ?words:(string -> string list) -> int -> t -> t list
 val pp : t Fmt.t
 val to_string : ?styled:bool -> t -> string
 
@@ -124,11 +124,6 @@ val seamed : t -> (bool * t) list
 val pad_to : int -> t -> t
 (** [pad_to w line] is the line [line] cut to its first [w] cells, between two
     clusters, then padded with spaces to exactly [w] cells. *)
-
-val color_at : Color.t list -> float -> Color.t
-(** [color_at stops p] is the colour at [p], clamped to 0 to 1, of [stops]
-    spread evenly from 0 to 1: the {!Color.blend} of the two stops around [p],
-    or the stop at [p] itself. [stops] is not empty. *)
 
 val wrap_hanging : int -> t -> t list
 (** [wrap_hanging w v] is like {!wrap} but the lines after the first of each

@@ -237,12 +237,17 @@ val crop : ?left:int -> ?width:int -> t -> t
 
     @raise Invalid_argument if [left] is negative. *)
 
-val wrap : int -> t -> t list
-(** [wrap w s] is the lines of [s], each broken into lines of at most [w] cells.
-    The result is never empty.
+val wrap : ?words:(string -> string list) -> int -> t -> t list
+(** [wrap ~words w s] is the lines of [s], each broken into lines of at most [w]
+    cells. The result is never empty.
 
-    - A line breaks at a run of spaces, which the break removes, or after a
-      slash. The spaces inside a line and its leading ones are kept.
+    - A line breaks only between two of its words, [words l] for its text [l]:
+      strings that make up [l] when put together, each ended by the spaces that
+      a break after it removes. [words] defaults to cutting [l] after each run
+      of spaces, so that a line breaks at a run of spaces and never after a
+      slash or a hyphen: a path, a URL or a [--flag] stays whole. A cut inside a
+      grapheme cluster goes to the end of the cluster.
+    - The other spaces of a line are kept, its leading ones too.
     - A part drawn in the theme it is printed in, such as a {!Bar.horizontal},
       breaks only where the room ends, and keeps its spaces.
     - A word wider than [w] goes on over the next lines, broken where the room
@@ -252,9 +257,34 @@ val wrap : int -> t -> t list
       one.
 
     Every other non-space character of [s] is in the result, in order, with its
-    styles and links.
+    styles and links. Words that cut the text only after the spaces outside a
+    backquoted run keep a command whole:
 
-    @raise Invalid_argument if [w] is not positive. *)
+    {[
+    let code_words text =
+      let n = String.length text in
+      let words = ref [] and first = ref 0 and quoted = ref false in
+      for i = 0 to n - 1 do
+        if text.[i] = '`' then quoted := not !quoted
+        else if
+          (not !quoted) && text.[i] = ' ' && (i = n - 1 || text.[i + 1] <> ' ')
+        then begin
+          words := String.sub text !first (i + 1 - !first) :: !words;
+          first := i + 1
+        end
+      done;
+      if !first < n then words := String.sub text !first (n - !first) :: !words;
+      List.rev !words
+
+    let hint = Console.View.text "run `dune build @fmt` first"
+    let lines = Console.View.wrap ~words:code_words 18 hint
+    ]}
+
+    [lines] are [run], [`dune build @fmt`] and [first], where the default words
+    cut the command after [build].
+
+    @raise Invalid_argument
+      if [w] is not positive, or if the [words] of a line do not make it up. *)
 
 (** {1:fmt Formatting} *)
 

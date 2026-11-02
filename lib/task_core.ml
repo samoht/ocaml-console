@@ -453,6 +453,24 @@ let set_bytes r ~count ~total =
     set_metric r (Bytes (count, total))
   end
 
+(* A count past the largest is the largest, as a total already is. *)
+let advance ?(by = 1) r =
+  if by < 0 then invalid_arg "Console.Task.advance: negative progress";
+  if is_running r && not (is_root r) then
+    match r.metric with
+    | Spin -> invalid_arg "Console.Task.advance: the task counts nothing"
+    | Count (c, n) ->
+        set_items r
+          ~count:(if by > max_int - c then max_int else c + by)
+          ~total:n
+    | Bytes (c, n) ->
+        let by = Int64.of_int by in
+        let count =
+          if Int64.compare by (Int64.sub Int64.max_int c) > 0 then Int64.max_int
+          else Int64.add c by
+        in
+        set_bytes r ~count ~total:n
+
 let fraction = function
   | Spin -> None
   | Count (cur, total) -> Some (float cur /. float (max 1 total))

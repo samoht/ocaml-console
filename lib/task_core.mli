@@ -153,6 +153,7 @@ val within : t -> (unit -> 'a) -> 'a
 val set_label : t -> string -> unit
 val set_items : t -> count:int -> total:int -> unit
 val set_bytes : t -> count:int64 -> total:int64 -> unit
+val advance : ?by:int -> t -> unit
 val log : ?level:level -> t -> string -> unit
 val succeed : ?message:string -> t -> unit
 val fail : ?message:string -> t -> unit

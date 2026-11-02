@@ -56,9 +56,10 @@ let fill ~style ~width look glyphs =
   | None, [ c ] -> View_core.ink (Style.fg c) glyphs
   | None, palette ->
       let last = float_of_int (max 1 (width - 1)) in
+      let at = Color.gradient palette in
       View_core.recell
         (fun ~cell ->
-          let c = View_core.color_at palette (float_of_int cell /. last) in
+          let c = at (float_of_int cell /. last) in
           Some (fun style glyph -> (Style.(style + fg c), glyph)))
         (View_core.text glyphs)
 
@@ -119,7 +120,7 @@ let height_style ~style look p =
             [ Theme.succeeded theme; Theme.warning theme; Theme.failed theme ]
         | palette -> palette
       in
-      Style.fg (View_core.color_at stops p)
+      Style.fg (Color.gradient stops p)
 
 let vertical_cell ~style ~track ~height ~width i e look =
   let glyphs = if Widget.bar look = `Ascii then ascii_eighths else eighths in

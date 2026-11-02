@@ -59,6 +59,18 @@ val style : t -> Style.t
 val with_style : Style.t -> t -> t
 (** [with_style s b] is [b] drawn in [s]. *)
 
+val gradient : t -> Color.t list
+(** [gradient b] are the colours [b]'s frame is graded through, [[]] for none.
+*)
+
+val with_gradient : Color.t list -> t -> t
+(** [with_gradient colors b] is [b] whose frame, the four edges of a table or a
+    panel, is graded once round it in [colors] over its style, still: from the
+    first colour at the top-left corner, clockwise, through the others and back
+    to the first, so that the frame has no seam ({!Color.gradient}). The lines
+    inside a table keep [b]'s style, and [[]] grades nothing. A theme's motion
+    ({!Theme.type-motion}) draws over the gradient in a live display. *)
+
 (** {1:predefined Predefined borders} *)
 
 val none : t

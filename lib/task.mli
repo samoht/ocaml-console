@@ -119,6 +119,17 @@ val set_bytes : t -> count:int64 -> total:int64 -> unit
     @raise Invalid_argument
       if [count] or [total] is negative, or [t] counts items. *)
 
+val advance : ?by:int -> t -> unit
+(** [advance t] adds [by] (defaults to [1]) to the count of [t], items or bytes,
+    and keeps its total: [set_items t ~count:(count + by) ~total] for a task of
+    items, and likewise {!set_bytes} for one of bytes, so a count past the total
+    raises it. It does nothing on the root and on a task that ended, as
+    {!set_items} does.
+
+    @raise Invalid_argument
+      if [by] is negative, or [t] runs and counts nothing yet: its total is said
+      first, with {!set_items} or {!set_bytes}. *)
+
 val log : ?level:level -> t -> string -> unit
 (** [log t text] gives each line of [text] to [t] as its output, at [level] for
     a [Logs] message (by default, a line the program printed). It is the

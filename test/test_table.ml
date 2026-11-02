@@ -49,8 +49,8 @@ let test_wrap () =
   Alcotest.(check bool) "no ellipsis" false (contains "…" output)
 
 (* A URL is one selectable terminal token. When another column can wrap at
-   whitespace, fitting gives that slack up before splitting the URL at a slash.
-   The hard terminal-width bound still wins when no such slack remains. *)
+   whitespace, fitting gives that slack up before cutting the URL. The hard
+   terminal-width bound still wins when no such slack remains. *)
 let test_wrap_preserves_unbroken_token () =
   let url = "https://rg.fr-par.scw.cloud/run-space" in
   let table =

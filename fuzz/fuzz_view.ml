@@ -126,11 +126,29 @@ let test_truncate_closes s n =
 let widest s =
   List.fold_left (fun w c -> max w (Width.string_width c)) 0 (Width.clusters s)
 
+(* A line cut into words after the bytes [cuts] picks, some of them empty:
+   cuts inside a character or a cluster too. *)
+let cut_words cuts line =
+  let m = String.length cuts in
+  let cut i = Char.code cuts.[i mod m] in
+  let words = ref [] and first = ref 0 in
+  String.iteri
+    (fun i _ ->
+      if cut i land 1 = 1 then begin
+        words := String.sub line !first (i + 1 - !first) :: !words;
+        first := i + 1
+      end;
+      if cut i land 2 = 2 then words := "" :: !words)
+    line;
+  let n = String.length line in
+  List.rev (String.sub line !first (n - !first) :: !words)
+
 (* Every character is kept but those wider than a line, which cannot be
-   drawn. *)
-let test_wrap s n =
+   drawn, whatever words the lines are cut into. *)
+let test_wrap s n cuts =
   let s = span (text s) and w = width n in
-  let lines = View.wrap w s in
+  let words = if cuts = "" then None else Some (cut_words cuts) in
+  let lines = View.wrap ?words w s in
   check (lines <> []);
   List.iter (fun l -> check (View.width l <= w)) lines;
   if w >= widest (plain s) then
@@ -609,7 +627,7 @@ let suite =
       test_case "truncate fits, keeps a prefix, ends with an ellipsis"
         [ bytes; int ] test_truncate;
       test_case "truncate turns styles off" [ bytes; int ] test_truncate_closes;
-      test_case "wrap fits and keeps the text" [ bytes; int ] test_wrap;
+      test_case "wrap fits and keeps the text" [ bytes; int; bytes ] test_wrap;
       test_case "wrap takes any bytes" [ bytes; int ] test_wrap_bytes;
       test_case "wrap refuses a non-positive width" [ int ] test_wrap_refuses;
       test_case "link" [ bytes; bytes ] test_link;

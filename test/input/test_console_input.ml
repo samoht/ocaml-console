@@ -442,9 +442,114 @@ let test_masked_history_seed () =
     "a masked editor keeps no history, including its seed" []
     (Console_input.history editor)
 
+(* What a peer types bounds what the editor holds: a line holds at most 4095
+   bytes, the canonical-mode line of the Linux tty line discipline (its
+   4096-byte N_TTY_BUF_SIZE less the terminator), and each byte refused past it
+   rings the bell, as readline does. The exact line and echo catch an editor
+   that keeps the excess, one that truncates without a bell, and one that
+   counts characters rather than bytes. *)
+let test_line_bound () =
+  let t = Console_input.v () in
+  let echo, _ = Console_input.feed t (String.make 5000 'a') in
+  Alcotest.(check string)
+    "the line keeps the first 4095 bytes" (String.make 4095 'a')
+    (Console_input.pending t);
+  Alcotest.(check string)
+    "each refused byte rings the bell"
+    (String.make 4095 'a' ^ String.make 905 '\007')
+    echo
+
+(* A character of several bytes that would take the line past the bound is
+   refused whole, never split. *)
+let test_line_bound_whole_character () =
+  let t = Console_input.v () in
+  let _ = Console_input.feed t (String.make 4094 'a') in
+  let echo, _ = Console_input.feed t "\xc3\xa9" in
+  Alcotest.(check string) "the bell" "\007" echo;
+  Alcotest.(check string)
+    "the line is unchanged" (String.make 4094 'a') (Console_input.pending t)
+
+(* ONLCR maps every NL to CR NL on output, including one a CR precedes
+   (termios(3), c_oflag). *)
+let test_crlf () =
+  Alcotest.(check string) "no line feed" "abc" (Console_input.crlf "abc");
+  Alcotest.(check string)
+    "each line feed" "a\r\nb\r\n\r\n"
+    (Console_input.crlf "a\nb\n\n");
+  Alcotest.(check string)
+    "a CR before stays" "a\r\r\n"
+    (Console_input.crlf "a\r\n")
+
+let numbered i = Fmt.str "line %03d" i
+
+(* The history keeps the 500 newest lines, bash's HISTSIZE, dropping the oldest
+   first. The exact list catches an unbounded history and one that drops the
+   newest lines. *)
+let test_history_bound () =
+  let t = Console_input.v () in
+  for i = 1 to 600 do
+    ignore (Console_input.feed t (numbered i ^ "\r"))
+  done;
+  Alcotest.(check lines)
+    "the 500 newest, oldest first"
+    (List.init 500 (fun i -> numbered (i + 101)))
+    (Console_input.history t)
+
+(* The [history] seed counts toward the bound. *)
+let test_history_bound_seed () =
+  let t =
+    Console_input.v ~history:(List.init 600 (fun i -> numbered (i + 1))) ()
+  in
+  Alcotest.(check lines)
+    "the 500 newest of the seed"
+    (List.init 500 (fun i -> numbered (i + 101)))
+    (Console_input.history t)
+
+(* [max_line] and [history_size] set the bounds. *)
+let test_bounds_given () =
+  let t = Console_input.v ~max_line:3 ~history_size:2 () in
+  let echo, _ = Console_input.feed t "abcd" in
+  Alcotest.(check string) "three bytes, then the bell" "abc\007" echo;
+  let _ = Console_input.feed t "\r" in
+  let _ = Console_input.feed t "x\ry\rz\r" in
+  Alcotest.(check lines) "the two newest" [ "y"; "z" ] (Console_input.history t)
+
+(* A completion that would take the line past the bound inserts nothing. *)
+let test_bound_completion () =
+  let t = Console_input.v ~max_line:4 ~complete:(fun _ -> [ "abcdef" ]) () in
+  let echo, _ = Console_input.feed t "ab\t" in
+  Alcotest.(check string) "the bell" "ab\007" echo;
+  Alcotest.(check string) "the line" "ab" (Console_input.pending t)
+
+(* A seed line longer than the bound is recalled whole, and erasing it works:
+   the bound refuses inserts, never a backspace. *)
+let test_bound_erase_long_recall () =
+  let t = Console_input.v ~max_line:3 ~history:[ "abcdef" ] () in
+  let _ = Console_input.feed t up in
+  Alcotest.(check string) "recalled" "abcdef" (Console_input.pending t);
+  let _ = Console_input.feed t "\127\127" in
+  Alcotest.(check string) "erased" "abcd" (Console_input.pending t);
+  let echo, _ = Console_input.feed t "x" in
+  Alcotest.(check string) "still full" "\007" echo
+
 let suite =
   ( "console_input",
     [
+      Alcotest.test_case "crlf maps NL to CR NL" `Quick test_crlf;
+      Alcotest.test_case "a line holds at most 4095 bytes" `Quick
+        test_line_bound;
+      Alcotest.test_case "a character past the bound is refused whole" `Quick
+        test_line_bound_whole_character;
+      Alcotest.test_case "the history keeps the 500 newest lines" `Quick
+        test_history_bound;
+      Alcotest.test_case "the history seed counts toward the bound" `Quick
+        test_history_bound_seed;
+      Alcotest.test_case "max_line and history_size set the bounds" `Quick
+        test_bounds_given;
+      Alcotest.test_case "a completion past the bound inserts nothing" `Quick
+        test_bound_completion;
+      Alcotest.test_case "a recalled line past the bound can be erased" `Quick
+        test_bound_erase_long_recall;
       Alcotest.test_case "a masked editor discards seeded history" `Quick
         test_masked_history_seed;
       Alcotest.test_case "insert an emoji before existing text" `Quick

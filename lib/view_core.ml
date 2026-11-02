@@ -106,17 +106,6 @@ module F = struct
           };
         ]
 
-  (* A stop itself where it stands, so that a palette colour stays one. *)
-  let at stops p =
-    let n = Array.length stops in
-    let x = Float.max 0. (Float.min 1. p) *. float_of_int (n - 1) in
-    let i = int_of_float x in
-    if i >= n - 1 then stops.(n - 1)
-    else if Float.of_int i = x then stops.(i)
-    else Color.blend stops.(i) stops.(i + 1) (x -. float_of_int i)
-
-  let color_at stops p = at (Array.of_list stops) p
-
   let seamed t =
     let rec go acc joined line = function
       | [] -> List.rev ((joined, List.rev line) :: acc)
@@ -247,14 +236,24 @@ module F = struct
 
   let cell_width l i = if l.widths = [||] then 1 else l.widths.(i)
 
-  (* The atom cluster [i] starts in. *)
-  let owner l i =
-    let off = start l i in
+  (* The index of the last atom that starts at or before byte [off]. *)
+  let part_at l off =
     let k = ref (Array.length l.parts - 1) in
     while !k > 0 && l.part_starts.(!k) > off do
       decr k
     done;
-    l.parts.(!k)
+    !k
+
+  (* The atom cluster [i] starts in. *)
+  let owner l i = l.parts.(part_at l (start l i))
+
+  (* Whether byte [off] falls strictly inside a part drawn when printed. *)
+  let inside_drawn l off =
+    l.drawn && off > 0
+    &&
+    let k = part_at l (off - 1) in
+    is_drawn l.parts.(k)
+    && off < l.part_starts.(k) + String.length l.parts.(k).text
 
   (* A space of a part drawn when printed may be text in another look, as
      the dots of an ASCII ellipsis are: it is not one a break stands on. *)
@@ -344,13 +343,13 @@ module F = struct
   (* Each line is graded from its first cluster to its last, each cluster in
      the colour of its place over its own style. *)
   let graded stops line =
-    let stops = Array.of_list stops and l = layout line in
+    let at = Color.gradient stops and l = layout line in
     List.concat
       (List.init l.n (fun i ->
            let p =
              if l.n = 1 then 0. else float_of_int i /. float_of_int (l.n - 1)
            in
-           let c = at stops p in
+           let c = at p in
            List.map
              (fun a -> { a with style = Style.(a.style + fg c) })
              (sub l i (i + 1))))
@@ -585,34 +584,58 @@ module F = struct
     else if f.cur_w + range_width f.l i j <= room f then add f i j
     else if f.cur <> [] then finish f
 
-  (* Words end at a run of spaces, or after a slash. *)
-  let rec fill f i =
+  (* A line is broken between its words, each given by the cluster it ends
+     before, in order. A word goes on its line, and the spaces that end it go
+     too unless the line breaks after it. *)
+  let fill f ends =
     let l = f.l in
-    if i < l.n then begin
-      let j = ref i in
-      if is_space l i then begin
-        while !j < l.n && is_space l !j do
-          incr j
-        done;
-        spaces f i !j
-      end
-      else begin
-        let stop = ref false in
-        while (not !stop) && !j < l.n && not (is_space l !j) do
-          let slash = l.joined.[start l !j] = '/' in
-          incr j;
-          if slash then stop := true
-        done;
-        word f i !j
-      end;
-      fill f !j
-    end
+    ignore
+      (List.fold_left
+         (fun i j ->
+           if j <= i then i
+           else begin
+             let k = ref j in
+             while !k > i && is_space l (!k - 1) do
+               decr k
+             done;
+             if !k > i then word f i !k;
+             if j > !k then spaces f !k j;
+             j
+           end)
+         0 ends)
 
-  let wrap_line ~hang w line =
-    let f =
-      { l = layout line; w; hang; out = []; cur = []; cur_w = 0; first = true }
+  (* By default a word ends after each run of spaces. *)
+  let space_ends l =
+    let ends = ref [] in
+    for i = l.n - 1 downto 0 do
+      if i = l.n - 1 || (is_space l i && not (is_space l (i + 1))) then
+        ends := (i + 1) :: !ends
+    done;
+    !ends
+
+  (* The words [words] cuts the line into, an end inside a cluster or inside
+     a part drawn when printed moved to the end of either. *)
+  let word_ends words l =
+    let ws = words l.joined in
+    if not (String.equal (String.concat "" ws) l.joined) then
+      invalid_arg "Console.View.wrap: the words do not make up the line";
+    let c = ref 0 and off = ref 0 in
+    List.filter_map
+      (fun w ->
+        off := !off + String.length w;
+        while !c < l.n && (start l !c < !off || inside_drawn l (start l !c)) do
+          incr c
+        done;
+        if String.length w = 0 then None else Some !c)
+      ws
+
+  let wrap_line ?words ~hang w line =
+    let l = layout line in
+    let f = { l; w; hang; out = []; cur = []; cur_w = 0; first = true } in
+    let ends =
+      match words with None -> space_ends l | Some words -> word_ends words l
     in
-    fill f 0;
+    fill f ends;
     if f.cur <> [] || f.out = [] then finish f;
     List.rev f.out
 
@@ -647,15 +670,15 @@ module F = struct
     skip (is_space l);
     if !i >= l.n then 0 else !w
 
-  let wrap_with ~hanging:h w t =
+  let wrap_with ?words ~hanging:h w t =
     if w <= 0 then invalid_arg "Console.View.wrap: non-positive width";
     List.concat_map
       (fun line ->
         let hang = if h then max 0 (min (hanging line) (w / 2)) else 0 in
-        wrap_line ~hang w line)
+        wrap_line ?words ~hang w line)
       (lines t)
 
-  let wrap w t = wrap_with ~hanging:false w t
+  let wrap ?words w t = wrap_with ?words ~hanging:false w t
   let wrap_hanging w t = wrap_with ~hanging:true w t
 
   let chop w t =
@@ -1107,7 +1130,7 @@ let keep t =
       in
       F.unseam (List.mapi line base)
 
-let wrap w t = List.map (fun f -> Flat f) (F.wrap w (keep t))
+let wrap ?words w t = List.map (fun f -> Flat f) (F.wrap ?words w (keep t))
 let wrap_hanging w t = List.map (fun f -> Flat f) (F.wrap_hanging w (keep t))
 let chop w t = List.map (fun f -> Flat f) (F.chop w (keep t))
 let lines t = List.map (fun f -> Flat f) (F.lines (keep t))
@@ -1116,7 +1139,6 @@ let block ts = Flat (F.block (List.map flat ts))
 let widest_word t = F.widest_word (flat t)
 let pad_to w t = Flat (F.fit w (flat t))
 let recell f t = Flat (F.recell f (flat t))
-let color_at = F.color_at
 let ellipsis = F.ellipsis
 let drawn draw = Flat (F.drawn (fun look -> flat (draw look)))
 let paint look t = Flat (F.resolve look (flat t))
