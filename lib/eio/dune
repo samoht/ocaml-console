@@ -16,3 +16,8 @@
   mtime
   threads.posix
   unix))
+
+(mdx
+ (package console-eio)
+ (files console_eio.mli)
+ (libraries console console-eio eio fmt))
