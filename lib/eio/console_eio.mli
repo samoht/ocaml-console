@@ -79,7 +79,11 @@ val run :
     - [progress] says how progress shows ({!Console.Progress}, defaults to
       [`Auto]). With [`Tty] the rows take the size of the terminal behind the
       output, if there is one, else [$COLUMNS] by [$LINES], each when it is
-      between [1] and [4096], else 80 by 24.
+      between [1] and [4096], else 80 by 24. When the tasks print as lines on an
+      output that is not a terminal, what is printed above them and the last
+      frame are laid out as wide as [$COLUMNS] asks, when it is between [1] and
+      [4096], and whole otherwise, as {!Console.Progress.show} prints them with
+      and without a size.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
     the program chose nothing gets the colours its terminal and environment
@@ -245,10 +249,11 @@ val with_output : (Format.formatter -> 'a) -> 'a
 val print : Console.View.t -> unit
 (** [print v] prints [v] above the rows, in their scrollback, as
     {!Console.Display.print} does for the display of the run of the calling
-    fiber: styled and as wide as the terminal, or whole on a pipe, where it
-    comes in turn with the lines of the tasks. With [`Json] each of its lines,
-    without escape codes, is an [output] event of no task. Outside a run, it is
-    printed on {!Fmt.stderr}, at its margin. *)
+    fiber: styled and as wide as the terminal, or on a pipe as wide as
+    [$COLUMNS] asks, or whole without it ({!run}), where it comes in turn with
+    the lines of the tasks. With [`Json] each of its lines, without escape
+    codes, is an [output] event of no task. Outside a run, it is printed on
+    {!Fmt.stderr}, at its margin. *)
 
 val size : Format.formatter -> (unit -> int * int) option
 (** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} and

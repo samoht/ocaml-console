@@ -301,7 +301,7 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
       (terminal ppf)
   in
   (* Plain lines end with the last frame as wide as the terminal, or as
-     the recording's, and whole on a pipe. *)
+     the recording's, and on a pipe as wide as $COLUMNS asks, or whole. *)
   let lines form =
     match (form, descriptor ppf) with
     | (`Json | `Quiet), Some (_, unix) ->
@@ -313,7 +313,7 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
         | Some (fd, _) ->
             let size () = Terminal.dimensions (Some fd) in
             (show ~size `Plain ppf, [], ignore)
-        | None -> (show `Plain ppf, [], ignore))
+        | None -> (show ?size:(Terminal.asked ()) `Plain ppf, [], ignore))
     | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
   in
   let std = Option.is_some (descriptor ppf) in
