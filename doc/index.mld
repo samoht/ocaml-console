@@ -57,6 +57,8 @@ The [console] package has four libraries:
    or from a [--color] option.}
 {- [console.text], the module {!Console_text}: untrusted text made safe to
    print, without the rest of [console].}
+{- [console.width], the module {!Console_width}: the cells a string takes on
+   a terminal.}
 {- [console.input], the module {!Console_input}: a line editor that turns
    the bytes typed into echo and lines, and does no input or output
    itself.}}
