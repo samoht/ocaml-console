@@ -104,3 +104,6 @@ val to_string : t -> string
 
 val pp : Format.formatter -> t -> unit
 (** [pp] is {!Task.Event.val-pp}. *)
+
+val equal : t -> t -> bool
+(** [equal e0 e1] is {!Task.Event.val-equal}. *)

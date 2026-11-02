@@ -413,3 +413,4 @@ let of_string s =
   | Error e -> Error (`Msg (Console_text.strip e))
 
 let pp ppf e = Format.pp_print_string ppf (to_string e)
+let equal (a : t) b = a = b

@@ -41,6 +41,8 @@
 - Add `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#17).
 
+- Add `Task.Event.equal`, to compare two events (#17).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

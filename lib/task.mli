@@ -436,6 +436,9 @@ module Event : sig
 
   val pp : Format.formatter -> t -> unit
   (** [pp] formats an event as {!to_string} does. *)
+
+  val equal : t -> t -> bool
+  (** [equal e0 e1] is [true] iff [e0] and [e1] have the same members. *)
 end
 
 val on_event : t -> (Event.t -> unit) -> unit

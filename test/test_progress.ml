@@ -282,7 +282,9 @@ let test_other_listed () =
   in
   Alcotest.(check bool)
     "another unit reads back" true
-    (Event.of_string (Event.to_string files) = Ok files)
+    (match Event.of_string (Event.to_string files) with
+    | Ok e -> Event.equal e files
+    | Error _ -> false)
 
 let test_negative () =
   let refused what f =
@@ -315,12 +317,14 @@ let test_unknown_event_members () =
   in
   Alcotest.(check bool)
     "only the name and time" true
-    (read {|{"time":0,"event":"pause","id":"bad","text":5}|}
-    = Event.other ~time:0. "pause");
+    (Event.equal
+       (read {|{"time":0,"event":"pause","id":"bad","text":5}|})
+       (Event.other ~time:0. "pause"));
   Alcotest.(check bool)
     "its task" true
-    (read {|{"time":0,"event":"pause","id":4,"task":["a","b"],"text":5}|}
-    = Event.other ~task:(4, [ "a"; "b" ]) ~time:0. "pause")
+    (Event.equal
+       (read {|{"time":0,"event":"pause","id":4,"task":["a","b"],"text":5}|})
+       (Event.other ~task:(4, [ "a"; "b" ]) ~time:0. "pause"))
 
 let test_error_plain () =
   match Event.of_string {|{"event":"x"}|} with
