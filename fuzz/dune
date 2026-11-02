@@ -1,5 +1,3 @@
-(copy_files ../lib/input/width.{ml,mli})
-
 (rule
  (with-stdout-to
   matrix_version.ml
@@ -12,6 +10,7 @@
   console
   console.input
   console.text
+  console_width
   matrix.ansi
   matrix.grid
   console_vte

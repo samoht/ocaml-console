@@ -89,8 +89,9 @@ let check_chunk_lines ~width chunk =
       (* A carriage return moves to the first column; it draws nothing. *)
       let l = String.concat "" (String.split_on_char '\r' l) in
       let l = Console_text.strip l in
-      if Width.string_width l > width then
-        failf "a line of %d cells on %d columns: %S" (Width.string_width l)
+      if Console_width.string_width l > width then
+        failf "a line of %d cells on %d columns: %S"
+          (Console_width.string_width l)
           width l)
     (String.split_on_char '\n' chunk)
 
@@ -581,7 +582,7 @@ let sanitized_line line =
                | Some i -> String.sub text (i + 1) (String.length text - i - 1)
                | None -> text
              in
-             let stop = 8 - (Width.string_width last mod 8) in
+             let stop = 8 - (Console_width.string_width last mod 8) in
              Some (text ^ String.make stop ' ' ^ piece))
        None
   |> Option.value ~default:""
@@ -693,8 +694,9 @@ let test_wide n label =
   Display.close d;
   List.iter
     (fun l ->
-      if Width.string_width l > 100 then
-        failf "a line of %d cells on %d columns: %S" (Width.string_width l)
+      if Console_width.string_width l > 100 then
+        failf "a line of %d cells on %d columns: %S"
+          (Console_width.string_width l)
           width l)
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
@@ -935,7 +937,7 @@ let line_glyphs =
       [ c.top; c.left; c.right; c.bottom ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters = Width.clusters
+let clusters = Console_width.clusters
 
 (* A table of [cells] from [labels], or a panel with them as its title and
    its lines, as a printer and as a span at a width. *)
@@ -1028,7 +1030,8 @@ let test_view_frames kind cells n w times =
                 a <> b
                 && not
                      (List.mem b line_glyphs
-                     && Width.string_width a = Width.string_width b)
+                     && Console_width.string_width a
+                        = Console_width.string_width b)
               then failf "%S moved to %S" s m)
             a b)
         moving still)

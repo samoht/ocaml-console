@@ -78,7 +78,7 @@ let capped s =
     let room = kept_bytes - String.length ellipsis in
     let cut =
       try
-        Width.iter_clusters
+        Console_width.iter_clusters
           (fun ~offset ~len ~cells:_ ->
             if offset + len > room then raise_notrace (Cut offset))
           s;
@@ -92,8 +92,9 @@ let label s = capped (clean s)
 let last_line_cells s =
   match String.rindex_opt s '\n' with
   | Some i ->
-      Width.string_width (String.sub s (i + 1) (String.length s - i - 1))
-  | None -> Width.string_width s
+      Console_width.string_width
+        (String.sub s (i + 1) (String.length s - i - 1))
+  | None -> Console_width.string_width s
 
 (* [s] sanitized, a tab gone to the next stop of eight columns from the
    start of its line. A tab cannot be inside a character or a line end, so
@@ -113,7 +114,7 @@ let expand_tabs s =
              Buffer.add_string buf (String.make stop ' ');
              Buffer.add_string buf piece;
              if String.contains piece '\n' then last_line_cells piece
-             else col + stop + Width.string_width piece)
+             else col + stop + Console_width.string_width piece)
            (last_line_cells first) rest);
       Buffer.contents buf
 

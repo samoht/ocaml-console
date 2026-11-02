@@ -191,7 +191,7 @@ module F = struct
     drawn : bool;  (** Whether a part is drawn when printed. *)
   }
 
-  let ascii line = List.for_all (fun a -> Width.is_ascii a.text) line
+  let ascii line = List.for_all (fun a -> Console_width.is_ascii a.text) line
 
   let layout line =
     let parts = Array.of_list line in
@@ -218,7 +218,7 @@ module F = struct
       }
     else begin
       let starts = ref [] and widths = ref [] and n = ref 0 in
-      Width.iter_clusters
+      Console_width.iter_clusters
         (fun ~offset ~len:_ ~cells ->
           starts := offset :: !starts;
           widths := cells :: !widths;
@@ -299,9 +299,9 @@ module F = struct
               match p.draw with
               | Some draw when s > ps || e < pe ->
                   let first =
-                    Width.string_width (String.sub l.joined ps (s - ps))
+                    Console_width.string_width (String.sub l.joined ps (s - ps))
                   in
-                  let last = first + Width.string_width text in
+                  let last = first + Console_width.string_width text in
                   Some (fun look -> cells first last (draw look))
               | d -> d
             in
@@ -330,7 +330,8 @@ module F = struct
             let text = String.sub l.joined first (start l (i + 1) - first) in
             let style, glyph = g a.style text in
             let glyph =
-              if clean glyph = glyph && Width.string_width glyph = w then glyph
+              if clean glyph = glyph && Console_width.string_width glyph = w
+              then glyph
               else text
             in
             out := [ { a with style; text = glyph } ] :: sub l !run i :: !out;
@@ -365,16 +366,18 @@ module F = struct
   (* A line whose atoms no cluster crosses is as wide as their widths. *)
   let rec apart prev = function
     | [] -> true
-    | a :: rest -> (not (Width.joins prev a.text)) && apart a.text rest
+    | a :: rest -> (not (Console_width.joins prev a.text)) && apart a.text rest
 
   let line_width = function
-    | [ a ] -> Width.string_width a.text
+    | [ a ] -> Console_width.string_width a.text
     | [] -> 0
     | a :: rest as line ->
         if apart a.text rest then
-          List.fold_left (fun n a -> n + Width.string_width a.text) 0 line
+          List.fold_left
+            (fun n a -> n + Console_width.string_width a.text)
+            0 line
         else
-          Width.string_width
+          Console_width.string_width
             (String.concat "" (List.map (fun a -> a.text) line))
 
   let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
@@ -427,13 +430,13 @@ module F = struct
     if line_width line <= w then line
     else
       let ellipsis =
-        if Width.string_width ellipsis <= w then ellipsis
+        if Console_width.string_width ellipsis <= w then ellipsis
         else
           let e = layout (text ellipsis) in
           String.sub e.joined 0 (start e (fitting e w))
       in
       let l = layout line in
-      let k = fitting l (w - Width.string_width ellipsis) in
+      let k = fitting l (w - Console_width.string_width ellipsis) in
       let style = if k < l.n then (owner l k).style else Style.none in
       let draw =
         if k < l.n && is_drawn (owner l k) then

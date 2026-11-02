@@ -94,11 +94,11 @@ let runs =
 
 (* Console's width is the policy's, on any bytes. *)
 let test_policy s =
-  check_eq ~pp:Fmt.int (policy_width s) (Width.string_width s);
+  check_eq ~pp:Fmt.int (policy_width s) (Console_width.string_width s);
   check_eq
     ~pp:Fmt.(Dump.list Dump.string)
     (policy_clusters (Console_text.sanitize s))
-    (Width.clusters (Console_text.sanitize s))
+    (Console_width.clusters (Console_text.sanitize s))
 
 (* The width of a part is that of the part as a string. *)
 let test_sub s a b =
@@ -106,32 +106,34 @@ let test_sub s a b =
   let pos = if n = 0 then 0 else a mod (n + 1) in
   let len = if n - pos = 0 then 0 else b mod (n - pos + 1) in
   check_eq ~pp:Fmt.int
-    (Width.string_width (String.sub s pos len))
-    (Width.sub_width s ~pos ~len)
+    (Console_width.string_width (String.sub s pos len))
+    (Console_width.sub_width s ~pos ~len)
 
 (* Text that does not join the text before it adds its cells and its
    clusters to those of that text. *)
 let test_joins a b =
   let a = Console_text.sanitize a and b = Console_text.sanitize b in
-  if not (Width.joins a b) then begin
+  if not (Console_width.joins a b) then begin
     check_eq ~pp:Fmt.int
-      (Width.string_width a + Width.string_width b)
-      (Width.string_width (a ^ b));
+      (Console_width.string_width a + Console_width.string_width b)
+      (Console_width.string_width (a ^ b));
     check_eq
       ~pp:Fmt.(Dump.list Dump.string)
-      (Width.clusters a @ Width.clusters b)
-      (Width.clusters (a ^ b))
+      (Console_width.clusters a @ Console_width.clusters b)
+      (Console_width.clusters (a ^ b))
   end
 
 (* For printable UTF-8, the width is the column a terminal's cursor reaches
    after the same bytes. *)
 let test_matches_terminal s =
   let s = Console_text.sanitize ~keep_newlines:false s in
-  guard (Width.string_width s < 1000);
+  guard (Console_width.string_width s < 1000);
   Matrix_0_1.discard_newer_unicode s;
   let vte = Console_vte.v ~rows:1 ~cols:1000 () in
   Console_vte.feed vte s;
-  check_eq ~pp:Fmt.int (snd (Console_vte.cursor_pos vte)) (Width.string_width s)
+  check_eq ~pp:Fmt.int
+    (snd (Console_vte.cursor_pos vte))
+    (Console_width.string_width s)
 
 let suite =
   ( "width",
