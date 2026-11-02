@@ -6,6 +6,11 @@
  (libraries console console_vte matrix.vte alcotest astring fmt))
 
 (library
+ (name widget_harness)
+ (modules widget_harness)
+ (libraries alcobar console console.text console.width fmt))
+
+(library
  (name view_harness)
  (modules view_harness)
  (flags

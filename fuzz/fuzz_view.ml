@@ -341,7 +341,7 @@ let check_is_text ~theme t span =
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
 
-let theme_of k = snd (List.nth Theme.all (k mod List.length Theme.all))
+let theme_of k = Widget_harness.nth_theme k
 
 let test_gradient s k =
   let s = if k land 1 = 0 then text s else s in
@@ -377,7 +377,7 @@ let test_gradient_wrap s k =
          (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
   in
   let gradient = View.styled Style.bold (View.gradient (View.text input)) in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let render span =
     let buf = Buffer.create 64 in
     let ppf = Format.formatter_of_buffer buf in

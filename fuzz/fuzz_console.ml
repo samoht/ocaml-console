@@ -73,7 +73,7 @@ let test_hcat_margin n k =
   let blocks = List.init count (fun _ -> View.sized ~width (Rule.view ())) in
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  Theme.set ppf (Widget_harness.nth_theme k);
   Format.pp_set_margin ppf margin;
   Fmt.set_style_renderer ppf `Ansi_tty;
   View.pp ppf (View.hcat ~gap blocks);
@@ -326,7 +326,7 @@ type look = {
 
 let look k m =
   {
-    theme = snd (List.nth Theme.all (k mod List.length Theme.all));
+    theme = Widget_harness.nth_theme k;
     utf_8 = k land 0x100 = 0;
     depth =
       [| None; Some `Ansi_16; Some `Ansi_256; Some `True_color |].(k / 512 mod 4);
@@ -477,7 +477,7 @@ let is_text c = String.length c = 1 && Char.Ascii.is_alphanum c.[0]
    out as the still frame does, so motion changes no width, and keeps every
    letter and digit of it, so only the frame's lines move. *)
 let test_view block k w t =
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let width = 1 + (w mod 120) and height = 3 + (k / 64 mod 12) in
   let time = Float.of_int t /. 10. in
   let moving = view_screen theme ~width ~height ~time block
@@ -554,7 +554,7 @@ let test_nested_wrap s k n =
     View.styled Style.bold (View.gradient (View.text (nested_input s)))
   in
   let source = View.role `Warning (outer_widget k (inner_widget k content)) in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let render = render_nested ~theme ~utf_8:(k land 128 = 0) in
   let width = 2 + (n mod 19) in
   let pieces = View.wrap width source in
@@ -610,7 +610,7 @@ let test_hcat_nested_wrap input k n =
       | 1 -> Table.view [ Table.column (View.text "h") ] [ [ joined ] ]
       | _ -> Tree.view (Tree.v joined []))
   in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let render s =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
