@@ -40,8 +40,8 @@ let natural ~to_int64 ~of_int64 =
     if Float.is_integer f && f >= 0. && f < 0x1p63 then
       match of_int64 (Int64.of_float f) with
       | Some v -> v
-      | None -> natural_error (Fmt.str "%.17g" f)
-    else natural_error (Fmt.str "%.17g" f)
+      | None -> Fmt.kstr natural_error "%.17g" f
+    else Fmt.kstr natural_error "%.17g" f
   and of_digits s =
     match Int64.of_string_opt s with
     | Some n when String.for_all Char.Ascii.is_digit s -> (
@@ -71,13 +71,13 @@ let int64 = natural ~to_int64:Fun.id ~of_int64:Option.some
    significant digits, so that the number written reads back as it was. *)
 let max_seconds = 1e12
 
-let to_seconds x =
+let rounded_seconds x =
   if not (Float.is_finite x) then 0.
   else
     let x = Float.min max_seconds (Float.max (-.max_seconds) x) in
     (Float.round (x *. 1000.) /. 1000.) +. 0.
 
-let seconds = Jsont.map Jsont.number ~dec:to_seconds ~enc:to_seconds
+let seconds = Jsont.map Jsont.number ~dec:rounded_seconds ~enc:rounded_seconds
 
 (* A C1 control, U+0080 to U+009F, acts as an escape code on a terminal
    that reads 8-bit controls; jsont escapes C0 controls and DEL. *)
@@ -177,10 +177,10 @@ let natural64 what n =
 
 let kept s = Task_text.capped (clean s)
 
-let event ?task ~time kind =
+let bare ?task ~time kind =
   Option.iter (fun (id, _) -> natural "id" id) task;
   {
-    time = to_seconds time;
+    time = rounded_seconds time;
     kind;
     id = Option.map fst task;
     task = Option.map (fun (_, path) -> List.map kept path) task;
@@ -197,33 +197,33 @@ let event ?task ~time kind =
 
 let start ?parent ~time task =
   Option.iter (natural "parent") parent;
-  { (event ~task ~time `Start) with parent }
+  { (bare ~task ~time `Start) with parent }
 
 let progress ~time ~count ~total ~unit task =
   natural64 "count" count;
   natural64 "total" total;
   {
-    (event ~task ~time `Progress) with
+    (bare ~task ~time `Progress) with
     count = Some count;
     total = Some total;
     unit = Some (count_units.other unit);
   }
 
 let label ~time task text =
-  { (event ~task ~time `Label) with text = Some (kept text) }
+  { (bare ~task ~time `Label) with text = Some (kept text) }
 
 let output ?task ?level ~time text =
   {
-    (event ?task ~time `Output) with
+    (bare ?task ~time `Output) with
     text = Some (clean text);
     level = Option.map levels.other level;
   }
 
 let ended status ?task ?message ~time ~elapsed () =
   {
-    (event ?task ~time `End) with
+    (bare ?task ~time `End) with
     status = Some (statuses.other status);
-    elapsed = Some (to_seconds elapsed);
+    elapsed = Some (rounded_seconds elapsed);
     message = Option.map kept message;
   }
 
@@ -233,7 +233,7 @@ let cancelled = ended `Cancelled
 
 let other ?task ~time name =
   match kinds.other (`Other name) with
-  | `Other _ as kind -> event ?task ~time kind
+  | `Other _ as kind -> bare ?task ~time kind
   | _ -> Fmt.invalid_arg "Console.Task.Event.other: %S is listed" name
 
 let time e = e.time
