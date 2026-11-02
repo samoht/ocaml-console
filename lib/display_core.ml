@@ -81,6 +81,9 @@ let synchronized t s = if is_live t then sync_on ^ s ^ sync_off else s
 let stdout_failed = Atomic.make false
 let write_error t = function Sys_error _ -> true | e -> t.write_error e
 
+let flush_ppf t =
+  try Format.pp_print_flush t.ppf () with e when write_error t e -> ()
+
 let flush_stdout t =
   if (not (is_live t)) && t.ppf != Fmt.stdout && not (Atomic.get stdout_failed)
   then
@@ -513,7 +516,7 @@ let note_line t c = t.partial <- c <> '\n'
    watched for its last byte, so that a line the display prints starts at
    the first column. *)
 let watch_lines t =
-  Format.pp_print_flush t.ppf ();
+  flush_ppf t;
   let out, ours = tap t.ppf (note_line t) in
   t.release <-
     (fun () ->
@@ -624,7 +627,7 @@ let taken t on_output f =
    its line is ended, so the region starts on a line of its own. *)
 let with_output t f =
   let call () =
-    Format.pp_print_flush t.ppf ();
+    flush_ppf t;
     let margin = Format.pp_get_margin t.ppf () in
     let last = ref '\n' in
     let out, _ = tap t.ppf (( := ) last) in

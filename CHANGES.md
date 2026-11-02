@@ -49,6 +49,9 @@
 - `Display.close` now restores the terminal even when a `commit` or `plain`
   function raises, and raises the exception afterwards (#17).
 
+- A closed output, such as a pipe whose reader has gone, no longer raises when
+  a display starts or around `Display.with_output` (#18).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
