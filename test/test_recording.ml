@@ -200,6 +200,24 @@ let test_time () =
         ]
         (lines file))
 
+(* A clock that reads no number does not reach the recording. *)
+let test_time_not_finite () =
+  recording (fun file ->
+      let _, ppf = buffered () in
+      started ~time:(clock [ 1.; nan; 2.; infinity; 3.; neg_infinity ]) ppf;
+      List.iter (write ppf) [ "a"; "b"; "c"; "d"; "e"; "f" ];
+      check_lines "the last time that was one"
+        [
+          header;
+          {|[1,"o","a"]|};
+          {|[1,"o","b"]|};
+          {|[2,"o","c"]|};
+          {|[2,"o","d"]|};
+          {|[3,"o","e"]|};
+          {|[3,"o","f"]|};
+        ]
+        (lines file))
+
 (* A character or an escape code cut by a flush waits for the rest. *)
 let test_cut_short () =
   recording (fun file ->
@@ -428,6 +446,7 @@ let suite =
       Alcotest.test_case "time" `Quick test_time;
       Alcotest.test_case "cut short" `Quick test_cut_short;
       Alcotest.test_case "hostile bytes" `Quick test_hostile_bytes;
+      Alcotest.test_case "time not finite" `Quick test_time_not_finite;
       Alcotest.test_case "a large write" `Quick test_large_write;
       Alcotest.test_case "the same file goes on" `Quick test_same_file;
       Alcotest.test_case "another file ends it" `Quick test_other_file;
