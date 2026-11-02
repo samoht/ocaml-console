@@ -841,29 +841,34 @@ let rec flat_in c = function
   | Deferred d ->
       let k = d.kind (Ctx.look c) in
       let stateful = k.live || k.tasks in
-      if (not stateful) && not k.timed then (
-        match d.memo with
-        | Some (c', f) when Ctx.same_room c c' -> f
-        | _ ->
-            let f = flat_in c (d.lay c) in
-            d.memo <- Some (c, f);
-            f)
+      if (not stateful) && not k.timed then memoised c d
       else
         let f = flat_in c (d.lay c) in
-        if not d.still then f
-        else
-          let widths =
-            match d.size with
-            | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
-            | _ ->
-                let w =
-                  if Ctx.time c = 0. then line_widths f
-                  else line_widths (flat_in (Ctx.still c) (d.lay (Ctx.still c)))
-                in
-                if not stateful then d.size <- Some (c, w);
-                w
-          in
-          if F.is_empty f && widths = [] then f else to_size widths f
+        if d.still then held_still c d ~stateful f else f
+
+and memoised c d =
+  match d.memo with
+  | Some (c', f) when Ctx.same_room c c' -> f
+  | _ ->
+      let f = flat_in c (d.lay c) in
+      d.memo <- Some (c, f);
+      f
+
+(* The widths of the lines of [d] in a still frame; [f] is [d] in [c]. *)
+and still_widths c d ~stateful f =
+  match d.size with
+  | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
+  | _ ->
+      let w =
+        if Ctx.time c = 0. then line_widths f
+        else line_widths (flat_in (Ctx.still c) (d.lay (Ctx.still c)))
+      in
+      if not stateful then d.size <- Some (c, w);
+      w
+
+and held_still c d ~stateful f =
+  let widths = still_widths c d ~stateful f in
+  if F.is_empty f && widths = [] then f else to_size widths f
 
 let resolve c t = match t with Flat _ -> t | Deferred _ -> Flat (flat_in c t)
 

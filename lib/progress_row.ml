@@ -175,12 +175,57 @@ let centred n v =
     let before = (n - w) / 2 in
     V.(pad before ++ v ++ pad (n - w - before))
 
+let is_gone = function
+  | None -> true
+  | Some (Shown v) -> V.is_empty v
+  | Some _ -> false
+
+(* A piece that has given way, or that shows nothing, goes with the blank text
+   before it, or after it if none is before. *)
+let drop_blanks (pieces : Progress_layout.piece array) ~gone ~keep =
+  let n = Array.length pieces in
+  let blank i = keep.(i) && pieces.(i).blank in
+  for i = 0 to n - 1 do
+    if gone.(i) then
+      if i > 0 && blank (i - 1) then keep.(i - 1) <- false
+      else if i + 1 < n && blank (i + 1) then keep.(i + 1) <- false
+  done
+
+let rec drop_trailing_blanks (pieces : Progress_layout.piece array) ~keep i =
+  if i >= 0 && ((not keep.(i)) || pieces.(i).blank) then begin
+    keep.(i) <- false;
+    drop_trailing_blanks pieces ~keep (i - 1)
+  end
+
+(* The cells kept up to [i], their fixed cells and whether the bar grows. *)
+let rec collect pieces ~cells ~keep ~lead i acc fixed grows =
+  if i < 0 then (acc, fixed, grows)
+  else
+    match cells.(i) with
+    | Some (Shown v) when keep.(i) ->
+        let v =
+          match lead with
+          | Some l when is_lead pieces.(i) -> centred l v
+          | _ -> v
+        in
+        collect pieces ~cells ~keep ~lead (i - 1) (Shown v :: acc)
+          (fixed + V.width v)
+          grows
+    | Some Grows when keep.(i) ->
+        collect pieces ~cells ~keep ~lead (i - 1) (Grows :: acc) fixed true
+    | Some ((Name | Rest) as c) when keep.(i) ->
+        collect pieces ~cells ~keep ~lead (i - 1) (c :: acc) fixed grows
+    | _ -> collect pieces ~cells ~keep ~lead (i - 1) acc fixed grows
+
+let rec ends_with_name = function
+  | [] -> false
+  | [ Name ] -> true
+  | _ :: rest -> ends_with_name rest
+
 (* What [pieces] show at [stage], the cells of those of a fixed width,
-   whether the bar grows and whether the label ends the row. A piece that
-   has given way, or that shows nothing, goes with the blank text before
-   it, or after it if none is before; a row whose last piece has gone ends
-   with no blank. With [lead], the spinner and the mark take that many
-   cells. *)
+   whether the bar grows and whether the label ends the row. A row whose last
+   piece has gone ends with no blank. With [lead], the spinner and the mark
+   take that many cells. *)
 let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
   let n = Array.length pieces in
   let cells =
@@ -191,111 +236,58 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
         | _ -> Some (cell look r ~time ~stage p))
       pieces
   in
-  let gone =
-    Array.map
-      (function
-        | None -> true | Some (Shown v) -> V.is_empty v | Some _ -> false)
-      cells
-  in
+  let gone = Array.map is_gone cells in
   let keep = Array.map not gone in
-  let blank i = keep.(i) && pieces.(i).blank in
-  for i = 0 to n - 1 do
-    if gone.(i) then
-      if i > 0 && blank (i - 1) then keep.(i - 1) <- false
-      else if i + 1 < n && blank (i + 1) then keep.(i + 1) <- false
-  done;
-  if n > 0 && gone.(n - 1) then begin
-    let rec trim i =
-      if i >= 0 && ((not keep.(i)) || pieces.(i).blank) then begin
-        keep.(i) <- false;
-        trim (i - 1)
-      end
-    in
-    trim (n - 1)
-  end;
-  let rec collect i acc fixed grows =
-    if i < 0 then (acc, fixed, grows)
-    else
-      match cells.(i) with
-      | Some c when keep.(i) -> (
-          match c with
-          | Shown v ->
-              let v =
-                match lead with
-                | Some l when is_lead pieces.(i) -> centred l v
-                | _ -> v
-              in
-              collect (i - 1) (Shown v :: acc) (fixed + V.width v) grows
-          | Grows -> collect (i - 1) (c :: acc) fixed true
-          | Name | Rest -> collect (i - 1) (c :: acc) fixed grows)
-      | _ -> collect (i - 1) acc fixed grows
+  drop_blanks pieces ~gone ~keep;
+  if n > 0 && gone.(n - 1) then drop_trailing_blanks pieces ~keep (n - 1);
+  let cells, fixed, grows =
+    collect pieces ~cells ~keep ~lead (n - 1) [] 0 false
   in
-  let cells, fixed, grows = collect (n - 1) [] 0 false in
-  let rec ends = function
-    | [] -> false
-    | [ Name ] -> true
-    | _ :: rest -> ends rest
-  in
-  (cells, fixed, grows, ends cells)
+  (cells, fixed, grows, ends_with_name cells)
 
-(* The row of [r] by [layout], packed from the left, and whether its label
-   is whole. With [columns], until the count leaves its column, the spinner
-   or the mark takes the cells of the widest and the label is padded to the
-   label column. The bar grows to fill the room up to [bar_max], and a
-   spacer takes what is left. Short of room, the bar shrinks to [bar_min]
-   before the pieces give way, in the order of their stages, and the label
-   is cut once they all have. Without a room, nothing gives way. *)
-let laid look ~time ?width ?columns ~label layout r =
-  let layout = Progress_layout.for_task layout r in
-  let has is = List.exists is layout in
-  let named =
-    has (fun (p : Progress_layout.piece) ->
-        match p.kind with Label _ -> true | _ -> false)
+let has_label layout =
+  List.exists
+    (fun (p : Progress_layout.piece) ->
+      match p.kind with Label _ -> true | _ -> false)
+    layout
+
+let has_spacer layout =
+  List.exists (fun (p : Progress_layout.piece) -> p.kind = Spacer) layout
+
+(* What [shown] gives at [stage], and the cells of the label column. *)
+let at_stage look r ~time ~columns ~named ~label_w pieces stage =
+  let held = stage < apart in
+  let lead = match columns with Some c when held -> Some c.lead | _ -> None in
+  let cells, fixed, grows, ends = shown look r ~time ~stage ~lead pieces in
+  let column =
+    match columns with
+    | Some c when named && held -> max label_w c.label
+    | _ -> label_w
   in
-  let label_w = if named then V.width label else 0 in
-  let reserve =
-    if has (fun (p : Progress_layout.piece) -> p.kind = Spacer) then 1 else 0
-  in
-  let pieces = Array.of_list layout in
-  let at stage =
-    let held = stage < apart in
-    let lead =
-      match columns with Some c when held -> Some c.lead | _ -> None
-    in
-    let cells, fixed, grows, ends = shown look r ~time ~stage ~lead pieces in
-    let column =
-      match columns with
-      | Some c when named && held -> max label_w c.label
-      | _ -> label_w
-    in
-    (cells, fixed, grows, ends, column)
-  in
-  let width =
-    match width with
-    | Some w -> w
-    | None ->
-        let _, fixed, grows, _, column = at 0 in
-        column + fixed + reserve + if grows then bar_max else 0
-  in
-  let last = last_stage layout in
-  let rec fit stage =
-    let ((_, fixed, grows, _, column) as x) = at stage in
-    if width - fixed - reserve - column >= if grows then bar_min else 0 then
-      (x, true)
-    else if stage >= last then (x, false)
-    else fit (stage + 1)
-  in
-  let (cells, fixed, grows, ends, column), fits = fit 0 in
-  let room = width - fixed - reserve in
-  let label, column =
-    if fits || not named then (label, column)
-    else
-      let left = max 0 (room - if grows then 1 else 0) in
-      let label = if label_w <= left then label else cut look left label in
-      (label, V.width label)
-  in
-  let bar_w = if grows then max 1 (min bar_max (room - column)) else 0 in
-  let rest = reserve + max 0 (room - column - bar_w) in
+  (cells, fixed, grows, ends, column)
+
+(* The width the row takes with no room given. *)
+let natural_width at ~reserve =
+  let _, fixed, grows, _, column = at 0 in
+  column + fixed + reserve + if grows then bar_max else 0
+
+(* The first stage from [stage] whose pieces fit [width], or the last one,
+   and whether it fits. *)
+let rec fit at ~width ~reserve ~last stage =
+  let ((_, fixed, grows, _, column) as x) = at stage in
+  if width - fixed - reserve - column >= if grows then bar_min else 0 then
+    (x, true)
+  else if stage >= last then (x, false)
+  else fit at ~width ~reserve ~last (stage + 1)
+
+(* The label cut to the [room] the bar's last cell leaves, and its cells. *)
+let cut_label look ~room ~grows ~label_w label =
+  let left = max 0 (room - if grows then 1 else 0) in
+  let label = if label_w <= left then label else cut look left label in
+  (label, V.width label)
+
+(* [cells] drawn in a line, cut if they take more than [width]. *)
+let line_of_cells look r ~width ~fixed ~ends ~label ~column ~rest ~bar_w cells =
   let total = ref fixed in
   let line =
     V.concat
@@ -316,7 +308,36 @@ let laid look ~time ?width ?columns ~label layout r =
            | Shown v -> v)
          cells)
   in
-  ( (if !total <= width then line else cut look width line),
+  if !total <= width then line else cut look width line
+
+(* The row of [r] by [layout], packed from the left, and whether its label
+   is whole. With [columns], until the count leaves its column, the spinner
+   or the mark takes the cells of the widest and the label is padded to the
+   label column. The bar grows to fill the room up to [bar_max], and a
+   spacer takes what is left. Short of room, the bar shrinks to [bar_min]
+   before the pieces give way, in the order of their stages, and the label
+   is cut once they all have. Without a room, nothing gives way. *)
+let laid look ~time ?width ?columns ~label layout r =
+  let layout = Progress_layout.for_task layout r in
+  let named = has_label layout in
+  let label_w = if named then V.width label else 0 in
+  let reserve = if has_spacer layout then 1 else 0 in
+  let pieces = Array.of_list layout in
+  let at stage = at_stage look r ~time ~columns ~named ~label_w pieces stage in
+  let width =
+    match width with Some w -> w | None -> natural_width at ~reserve
+  in
+  let (cells, fixed, grows, ends, column), fits =
+    fit at ~width ~reserve ~last:(last_stage layout) 0
+  in
+  let room = width - fixed - reserve in
+  let label, column =
+    if fits || not named then (label, column)
+    else cut_label look ~room ~grows ~label_w label
+  in
+  let bar_w = if grows then max 1 (min bar_max (room - column)) else 0 in
+  let rest = reserve + max 0 (room - column - bar_w) in
+  ( line_of_cells look r ~width ~fixed ~ends ~label ~column ~rest ~bar_w cells,
     fits || V.width label = label_w )
 
 let live look ~time ?width ?columns layout r =

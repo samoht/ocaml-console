@@ -21,32 +21,40 @@ let is_selector u = Uucp.Gen.is_variation_selector u
    character removed leaves both as they were. *)
 type seen = { mutable cr : bool; mutable base : bool }
 
+let is_del_or_c1 c = c >= 0x7f && c <= 0x9f
+let is_line_feed c = (c >= 0x0a && c <= 0x0c) || c = 0x85
+
+(* [c] is the code point of [u]; ASCII is never removed. *)
+let is_dropped seen u c =
+  c >= 0x80 && (removed u || (is_selector u && not seen.base))
+
+(* Whether a variation selector may follow [u], of code point [c]. *)
+let is_base u c =
+  c > 0x20
+  && (not (is_del_or_c1 c))
+  && (c < 0x80 || not (is_selector u))
+  && c <> 0x200c && c <> 0x200d
+
+let add_line_end buf ~keep_newlines =
+  Buffer.add_char buf (if keep_newlines then '\n' else ' ')
+
 (* [text buf seen u] adds what [sanitize] makes of the character [u]:
    itself, nothing if it is {!removed} or a variation selector with no base,
    a line end for CR or a line feed (LF, VT, FF and NEL, U+0085), or a space
    for another control. *)
 let text buf ~keep_newlines seen u =
   let c = Uchar.to_int u in
-  let line_end () = Buffer.add_char buf (if keep_newlines then '\n' else ' ') in
   let after_cr = seen.cr in
-  let ascii = c < 0x80 in
-  let dropped =
-    (not ascii) && (removed u || (is_selector u && not seen.base))
-  in
+  let dropped = is_dropped seen u c in
   if not dropped then begin
     seen.cr <- c = 0x0d;
-    seen.base <-
-      c > 0x20
-      && (not (c >= 0x7f && c <= 0x9f))
-      && (ascii || not (is_selector u))
-      && c <> 0x200c && c <> 0x200d
+    seen.base <- is_base u c
   end;
-  if c = 0x0d then line_end ()
-  else if (c >= 0x0a && c <= 0x0c) || c = 0x85 then (
-    if not after_cr then line_end ())
+  if c = 0x0d then add_line_end buf ~keep_newlines
+  else if is_line_feed c then (
+    if not after_cr then add_line_end buf ~keep_newlines)
   else if dropped then ()
-  else if c >= 0x20 && not (c >= 0x7f && c <= 0x9f) then
-    Buffer.add_utf_8_uchar buf u
+  else if c >= 0x20 && not (is_del_or_c1 c) then Buffer.add_utf_8_uchar buf u
   else Buffer.add_char buf ' '
 
 let subdivision_flags =
