@@ -52,6 +52,9 @@
 - A closed output, such as a pipe whose reader has gone, no longer raises when
   a display starts or around `Display.with_output` (#18).
 
+- A clock that returns NaN or infinity no longer writes invalid times into a
+  `CONSOLE_CAST` recording (#19).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

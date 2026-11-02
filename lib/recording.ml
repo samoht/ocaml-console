@@ -40,10 +40,17 @@ let shown t data =
     data;
   Buffer.contents b
 
+(* A time is written to the microsecond, which a larger one overflows. *)
+let max_time = 1e12
+
 (* The time never goes back, though the clock of a later run starts again
-   at zero. *)
+   at zero, and is always a number that JSON can write. *)
 let emit t data =
-  let time = Float.max t.last (t.time ()) in
+  let now = t.time () in
+  let time =
+    if Float.is_finite now then Float.max t.last (Float.min max_time now)
+    else t.last
+  in
   t.last <- time;
   let data = shown t data in
   output_string t.oc (Cast.to_line Cast.event { time; data });

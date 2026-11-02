@@ -204,8 +204,10 @@ let test_time () =
 let test_time_not_finite () =
   recording (fun file ->
       let _, ppf = buffered () in
-      started ~time:(clock [ 1.; nan; 2.; infinity; 3.; neg_infinity ]) ppf;
-      List.iter (write ppf) [ "a"; "b"; "c"; "d"; "e"; "f" ];
+      started
+        ~time:(clock [ 1.; nan; 2.; infinity; 3.; neg_infinity; 1e303 ])
+        ppf;
+      List.iter (write ppf) [ "a"; "b"; "c"; "d"; "e"; "f"; "g" ];
       check_lines "the last time that was one"
         [
           header;
@@ -215,6 +217,7 @@ let test_time_not_finite () =
           {|[2,"o","d"]|};
           {|[3,"o","e"]|};
           {|[3,"o","f"]|};
+          {|[1000000000000,"o","g"]|};
         ]
         (lines file))
 
