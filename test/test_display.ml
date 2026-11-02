@@ -669,6 +669,27 @@ let test_pp_bytes () =
       (-1L, "0 B");
     ]
 
+(* [pp_duration] formats a duration as a row's elapsed time does: each
+   unit up to its last value, and the value that rounds to the next. *)
+let test_pp_duration () =
+  List.iter
+    (fun (secs, s) ->
+      Alcotest.(check string) s s (Fmt.str "%a" Progress.pp_duration secs))
+    [
+      (0., "0.0s");
+      (6.44, "6.4s");
+      (59.94, "59.9s");
+      (59.96, "1m00s");
+      (65., "1m05s");
+      (3599.4, "59m59s");
+      (3599.6, "1h00m");
+      (3720., "1h02m");
+      (359_940., "99h59m");
+      (359_999., "100h00m");
+      (-1., "0.0s");
+      (Float.nan, "0.0s");
+    ]
+
 (* [choose f] draws each running task's row by the layout [f] gives it. *)
 let test_layout_choose () =
   let layout =
@@ -2814,6 +2835,7 @@ let suite =
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
+      Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
       Alcotest.test_case "a transient child leaves" `Quick
         test_transient_child_leaves;

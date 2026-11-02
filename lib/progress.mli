@@ -225,6 +225,13 @@ val pp_bytes : int64 Fmt.t
     binary unit that keeps it below 1024 once rounded to two decimals, such as
     [1.50 MiB]. A negative count is [0 B]. *)
 
+val pp_duration : float Fmt.t
+(** [pp_duration] formats a duration in seconds as {!Layout.elapsed} and
+    {!summary} show it, rounded to its last digit: in tenths of a second below a
+    minute, such as [6.4s], then in minutes and seconds, such as [1m05s], then
+    in hours and minutes, such as [1h02m]. A negative or NaN duration is [0.0s].
+*)
+
 (** {1:views Task views} *)
 
 val row : ?layout:Layout.t -> Task.t -> View.t

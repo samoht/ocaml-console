@@ -15,6 +15,10 @@
   peer whose terminal is in raw mode, so that each line starts in the first
   column (#3).
 
+- `Progress.pp_duration` formats a duration as the rows and the summary
+  show it, such as `6.4s` or `1m05s`, so that a program's own lines can
+  match them (#4).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
