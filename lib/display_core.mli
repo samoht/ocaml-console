@@ -27,11 +27,22 @@ val v :
     without [once_width]. *)
 
 val set_view : t -> View.t -> unit
+(** [set_view d view] is {!Display.set_view}. *)
+
 val print : t -> View.t -> unit
+(** [print d v] is {!Display.print}. *)
+
 val with_output : t -> (Format.formatter -> 'a) -> 'a
+(** [with_output d f] is {!Display.with_output}. *)
+
 val redraw : t -> unit
+(** [redraw d] is {!Display.redraw}. *)
+
 val close : t -> unit
+(** [close d] is {!Display.close}. *)
+
 val pp : t Fmt.t
+(** [pp] is {!Display.pp}. *)
 
 (** {1:internal For progress and drivers} *)
 
