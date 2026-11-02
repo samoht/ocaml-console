@@ -56,6 +56,6 @@ let check_closed raw =
           if
             not
               (String.starts_with ~prefix:"\027[0m" rest
-              || String.starts_with ~prefix:"\027]8;;\027" rest)
+              || String.ends_with ~suffix:"\027]8;;\027\\" l)
           then Alcobar.failf "style left on: %S" l)
     (String.split_on_char (Char.chr 10) raw)
