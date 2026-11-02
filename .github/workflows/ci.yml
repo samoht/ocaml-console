@@ -117,6 +117,9 @@ jobs:
           opam-pin: false
 
       - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
+      # The overlay's eio-fs needs the eio commit the overlay carries, but that
+      # package's version sorts below the eio >= 1.6 eio-fs asks for. Remove this
+      # when the overlay's eio has a version that sorts above 1.6.
       - run: |
           for p in eio eio_linux eio_posix eio_main; do
             opam pin add -n $p.1.6 https://github.com/ocaml-multicore/eio.git#1fa776212551d717dfa19041328cceda1db97797
