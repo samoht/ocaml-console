@@ -8,6 +8,7 @@ module Style = Style
 module Border = Border
 module Guide = Guide
 module Theme = Theme
+module Env = Env
 module Room = Room
 module View = View
 module Spinner = Spinner

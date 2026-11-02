@@ -39,6 +39,10 @@
   a program knows a frame is drawn without sleeping until the next timed
   redraw (#10).
 
+- `Env.setup ~is_tty` and `Env.ensure ~is_tty` apply the colour, depth,
+  UTF-8 and theme rules of `Console_tty.setup` to a formatter, so a program
+  that cannot link Unix follows them too (#11).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

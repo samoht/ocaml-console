@@ -1,7 +1,6 @@
 (library
  (name console_tty)
  (public_name console.tty)
- (private_modules colour)
  (flags
   (:standard -open Console__))
  (libraries console fmt unix))

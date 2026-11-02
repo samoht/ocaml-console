@@ -1,4 +1,4 @@
-(copy_files ../../lib/tty/colour.{ml,mli})
+(copy_files ../../lib/colour.{ml,mli})
 
 (executable
  (name probe)

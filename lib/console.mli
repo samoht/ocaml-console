@@ -42,7 +42,8 @@
     Text is in colour when its formatter is set to colour
     ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows.
     [Console_tty.setup], in the [console.tty] library, sets both for standard
-    output and standard error, from the terminal and the environment.
+    output and standard error, from the terminal and the environment, by the
+    rules of {!Env}, which a program without Unix applies itself.
 
     {1:quickstart Quick start}
 
@@ -141,6 +142,9 @@ module Guide = Guide
 
 module Theme = Theme
 (** One look for every widget. *)
+
+module Env = Env
+(** How a formatter prints, from the environment: colour, depth and UTF-8. *)
 
 module Room = Room
 (** Where and when a view is laid out: its width, height, time and theme. *)

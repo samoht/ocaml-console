@@ -89,6 +89,43 @@ let test_setup () =
             (Fmt.style_renderer Fmt.stdout = `None);
           Alcotest.(check bool) "the locale" true (Fmt.utf_8 Fmt.stderr)))
 
+(* [Env.setup] applies the rules of [Console_tty.setup] to any formatter,
+   from the terminal's answer it is given rather than one it asks Unix:
+   so a formatter on a buffer, which no descriptor backs, gets colour when
+   the caller says it is a terminal. *)
+let test_env_setup () =
+  let renderer ppf =
+    match Fmt.style_renderer ppf with `Ansi_tty -> "ansi" | `None -> "none"
+  in
+  with_env
+    [
+      ("NO_COLOR", "");
+      ("CONSOLE_CAST", "");
+      ("TERM", "xterm-256color");
+      ("COLORTERM", "");
+      ("LC_ALL", "");
+      ("LC_CTYPE", "C.UTF-8");
+      ("LANG", "C");
+    ]
+    (fun () ->
+      let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+      Console.Env.setup ~is_tty:true ppf;
+      Alcotest.(check string) "a terminal" "ansi" (renderer ppf);
+      Alcotest.(check bool) "LC_CTYPE before LANG" true (Fmt.utf_8 ppf);
+      Alcotest.(check bool)
+        "the depth of TERM" true
+        (Console.Color.depth ppf = `Ansi_256);
+      let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+      Console.Env.setup ~is_tty:false ppf;
+      Alcotest.(check string) "not a terminal" "none" (renderer ppf);
+      let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+      Console.Env.ensure ~is_tty:true ppf;
+      Alcotest.(check string) "nothing chosen" "ansi" (renderer ppf);
+      let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+      Fmt.set_style_renderer ppf `None;
+      Console.Env.ensure ~is_tty:true ppf;
+      Alcotest.(check string) "a choice is kept" "none" (renderer ppf))
+
 (* [setup ~theme] gives both outputs the theme, and [setup] without one
    keeps it. *)
 let test_setup_theme () =
@@ -153,6 +190,8 @@ let suite =
     [
       Alcotest.test_case "colour rules" `Quick test_colour_rules;
       Alcotest.test_case "setup" `Quick test_setup;
+      Alcotest.test_case "Env.setup takes the terminal's answer" `Quick
+        test_env_setup;
       Alcotest.test_case "setup with a theme" `Quick test_setup_theme;
       Alcotest.test_case "ensure" `Quick test_ensure;
       Alcotest.test_case "is_terminal" `Quick test_is_terminal;
