@@ -43,6 +43,10 @@
   UTF-8 and theme rules of `Console_tty.setup` to a formatter, so a program
   that cannot link Unix follows them too (#11).
 
+- `Border.with_gradient colors b` grades the frame of a table or a panel
+  once round it in `colors`, still; a theme's motion draws over it
+  (#12).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
