@@ -227,7 +227,7 @@ let screen f =
         (Style.bg (rgb 0 0 0))
         (View.place ?width:(Room.width room) (f room)))
 
-let main_window =
+let player_window =
   let top room =
     View.hcat ~gap:3
       [
@@ -281,7 +281,7 @@ let playlist_window =
          View.vcat (Array.to_list (Array.mapi (entry room) playlist))))
 
 let view _root =
-  View.sized ~width:78 (View.vcat [ main_window; playlist_window ])
+  View.sized ~width:78 (View.vcat [ player_window; playlist_window ])
 
 let () =
   Console_tty.setup ~theme ();
