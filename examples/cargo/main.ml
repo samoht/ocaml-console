@@ -63,27 +63,27 @@ let crate ?path ?(build_rs = false) ?(deps = []) ?(warnings = []) name version
 
 let registry =
   [
-    crate "unicode-ident" "1.0.13" 42 0.10;
-    crate "proc-macro2" "1.0.86" 49 0.20 ~build_rs:true
+    crate "unicode-ident" "1.0.13" 42 0.20;
+    crate "proc-macro2" "1.0.86" 49 0.40 ~build_rs:true
       ~deps:[ "unicode-ident" ];
-    crate "quote" "1.0.37" 28 0.12 ~deps:[ "proc-macro2" ];
-    crate "syn" "2.0.79" 260 0.55
+    crate "quote" "1.0.37" 28 0.24 ~deps:[ "proc-macro2" ];
+    crate "syn" "2.0.79" 260 1.10
       ~deps:[ "proc-macro2"; "quote"; "unicode-ident" ];
-    crate "itoa" "1.0.11" 10 0.06;
-    crate "ryu" "1.0.18" 47 0.10;
-    crate "memchr" "2.7.4" 96 0.25;
-    crate "pin-project-lite" "0.2.14" 28 0.08;
-    crate "serde_derive" "1.0.210" 55 0.45
+    crate "itoa" "1.0.11" 10 0.12;
+    crate "ryu" "1.0.18" 47 0.20;
+    crate "memchr" "2.7.4" 96 0.50;
+    crate "pin-project-lite" "0.2.14" 28 0.16;
+    crate "serde_derive" "1.0.210" 55 0.90
       ~deps:[ "proc-macro2"; "quote"; "syn" ];
-    crate "tokio-macros" "2.4.0" 12 0.20 ~deps:[ "proc-macro2"; "quote"; "syn" ];
-    crate "serde" "1.0.210" 77 0.30 ~build_rs:true ~deps:[ "serde_derive" ];
-    crate "tokio" "1.40.0" 773 0.60 ~deps:[ "pin-project-lite"; "tokio-macros" ];
-    crate "serde_json" "1.0.128" 147 0.35 ~build_rs:true
+    crate "tokio-macros" "2.4.0" 12 0.40 ~deps:[ "proc-macro2"; "quote"; "syn" ];
+    crate "serde" "1.0.210" 77 0.60 ~build_rs:true ~deps:[ "serde_derive" ];
+    crate "tokio" "1.40.0" 773 1.20 ~deps:[ "pin-project-lite"; "tokio-macros" ];
+    crate "serde_json" "1.0.128" 147 0.70 ~build_rs:true
       ~deps:[ "itoa"; "memchr"; "ryu"; "serde" ];
   ]
 
 let app =
-  crate "app" "0.1.0" 0 0.32 ~path:"/home/user/app"
+  crate "app" "0.1.0" 0 0.64 ~path:"/home/user/app"
     ~deps:[ "serde"; "serde_json"; "tokio" ]
     ~warnings:[ unused_variable ]
 
@@ -106,8 +106,8 @@ let plan () =
   let of_crate ~target c =
     let script, built =
       if c.build_rs then
-        let compile = job (c.name ^ "(build.rs)") c 0.15 [] in
-        let run = job (c.name ^ "(build)") c 0.05 [ compile ] in
+        let compile = job (c.name ^ "(build.rs)") c 0.30 [] in
+        let run = job (c.name ^ "(build)") c 0.10 [ compile ] in
         ([ compile; run ], [ run ])
       else ([], [])
     in

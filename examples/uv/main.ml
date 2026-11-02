@@ -131,8 +131,8 @@ let resolve clock root =
 let fetch clock phase_task i p =
   Task.run ~transient:true phase_task p.name @@ fun t ->
   let total = Int64.of_float p.size in
-  (* Three mirrors, of 6, 8 and 10 MiB/s. *)
-  let speed = (6. +. float (i mod 3 * 2)) *. mib in
+  (* Three mirrors, of 2, 3 and 4 MiB/s. *)
+  let speed = (2. +. float (i mod 3)) *. mib in
   let rec go done_ =
     let count = Int64.of_float (Float.min p.size done_) in
     Task.set_bytes t ~count ~total;

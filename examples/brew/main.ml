@@ -159,12 +159,22 @@ let count t =
   | `Bytes (n, _) -> Int64.to_float n
   | `Spin | `Items _ -> 0.
 
+(* The row of a running download: its spinner, then its line in the cells
+   the spinner leaves, as the line it leaves in the scrollback. *)
 let row t =
   View.fit (fun room ->
-      let width = Option.value (Room.width room) ~default:80 in
-      View.text (line ~width (find (Task.label t)) (count t)))
+      let width = Option.value (Room.width room) ~default:80 - 2 in
+      let spinner = Progress.row ~layout:Progress.Layout.spinner t in
+      let rest = View.text (line ~width (find (Task.label t)) (count t)) in
+      View.(spinner ++ text " " ++ rest))
 
-let layout = Progress.Layout.(spinner ++ const (View.text " ") ++ custom row)
+let view root =
+  View.fit (fun _ ->
+      View.vcat
+        (List.filter_map
+           (fun t -> if Task.state t = `Running then Some (row t) else None)
+           (Task.children root)))
+
 let check = View.role `Succeeded (View.text "✔︎")
 
 (* A download that is done stays in the scrollback, checked. *)
@@ -183,10 +193,10 @@ let plain e =
       Some View.(check ++ text (" " ^ List.nth path (List.length path - 1)))
   | _ -> None
 
-(* Several mirrors of the bottles' CDN, at 4 to 12 MB/s. *)
+(* Several mirrors of the bottles' CDN, at 1 to 3 MB/s. *)
 let fetch clock root i d =
   Task.run ~transient:true root d.message @@ fun t ->
-  let speed = 4e6 +. (float (i mod 5 * 2) *. 1e6) in
+  let speed = 1e6 +. (float (i mod 5) *. 5e5) in
   Eio.Time.Mono.sleep clock (0.05 *. float (i mod 4));
   d.phase <- Downloading;
   let rec go fetched =
@@ -240,7 +250,7 @@ let () =
     View.(
       styled Style.bold (text "Fetching downloads for: ")
       ++ identifier target.name);
-  Console_eio.run ~clock ~ppf:Fmt.stdout ~layout ~commit ~plain (fun root ->
+  Console_eio.run ~clock ~ppf:Fmt.stdout ~view ~commit ~plain (fun root ->
       Eio.Fiber.List.iter
         (fun (i, d) -> fetch clock root i d)
         (List.mapi (fun i d -> (i, d)) downloads));
