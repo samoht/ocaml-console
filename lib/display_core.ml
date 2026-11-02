@@ -245,12 +245,20 @@ let raise_failure t =
       t.failure <- None;
       Printexc.raise_with_backtrace e bt
 
+(* Whatever a view raises is kept for {!raise_failure} to raise again, so that
+   drawing never fails a call that did not ask for it. *)
+let deferred t e =
+  fail t e;
+  true
+
+let quietly t f =
+  match f () with () -> () | exception e when deferred t e -> ()
+
 let framed t k =
   match frame t with
   | spans -> k spans
-  | exception e ->
-      fail t e;
-      k (try frame t with _ -> [])
+  | exception e when deferred t e ->
+      k (try frame t with e when deferred t e -> [])
 
 let max_size = 4096
 let bounded n = min max_size (max 1 n)
@@ -271,9 +279,8 @@ let final t =
   List.map fst
     (match lines t ~look c t.view with
     | lines -> lines
-    | exception e -> (
-        fail t e;
-        try lines t ~look c t.fallback with _ -> []))
+    | exception e when deferred t e -> (
+        try lines t ~look c t.fallback with e when deferred t e -> []))
 
 let add_up buf n =
   if n > 0 then begin
@@ -644,30 +651,45 @@ let with_output t f =
               paint t)
         end
 
+(* Closed first, so that what the hook ends draws no region. Whatever the hook
+   or the last frame raises, the terminal is restored before it is raised. *)
+let shut t =
+  t.closed <- true;
+  t.closing <- true;
+  quietly t t.on_close;
+  t.closing <- false;
+  quietly t (fun () -> ignore (refresh_size t));
+  let out =
+    match
+      String.concat "" (List.map (fun l -> render t l ^ eol t) (final t))
+    with
+    | out -> out
+    | exception e when deferred t e -> ""
+  in
+  if is_live t then begin
+    let buf = Buffer.create 256 in
+    clear buf t;
+    Buffer.add_string buf show_cursor;
+    Buffer.add_string buf out;
+    write t (Buffer.contents buf)
+  end
+  else begin
+    write t out;
+    t.release ()
+  end
+
 let close t =
   busy t @@ fun () ->
   if not t.closed then begin
-    (* Closed first, so that what the hook ends draws no region. *)
-    t.closed <- true;
-    t.closing <- true;
-    Fun.protect t.on_close ~finally:(fun () -> t.closing <- false);
-    ignore (refresh_size t);
-    let out =
-      String.concat "" (List.map (fun l -> render t l ^ eol t) (final t))
-    in
-    if is_live t then begin
-      let buf = Buffer.create 256 in
-      clear buf t;
-      Buffer.add_string buf show_cursor;
-      Buffer.add_string buf out;
-      write t (Buffer.contents buf)
-    end
-    else begin
-      write t out;
-      t.release ()
-    end;
+    shut t;
     raise_failure t
   end
+
+let close_quietly ~before t =
+  busy t @@ fun () ->
+  quietly t before;
+  if not t.closed then quietly t (fun () -> shut t);
+  t.failure <- None
 
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines

@@ -43,6 +43,9 @@
 
 - Add `Task.Event.equal`, to compare two events (#17).
 
+- `Display.close` now restores the terminal even when a `commit` or `plain`
+  function raises, and raises the exception afterwards (#17).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

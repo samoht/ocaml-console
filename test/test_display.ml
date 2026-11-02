@@ -859,7 +859,10 @@ let test_any_width () =
           Format.pp_print_flush ppf ();
           if Buffer.length buf > 100_000 then
             Alcotest.failf "width %d: %d bytes written" w (Buffer.length buf)
-      | exception e -> Alcotest.failf "width %d: %s" w (Printexc.to_string e))
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          Fmt.epr "width %d: raised@." w;
+          Printexc.raise_with_backtrace e bt)
     [ 1_000_000; Sys.max_string_length; max_int ]
 
 (* A fiber that outlives the display, or a library that holds on to it,
@@ -1762,6 +1765,53 @@ let test_view_exception_close () =
     "closing does not call the broken view again" false raised;
   Alcotest.(check bool)
     "cursor restored after the view exception" true
+    (Console_vte.cursor_visible t.vte)
+
+(* Any exception of a view waits for the close, which restores the terminal
+   first. *)
+let test_view_out_of_memory () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  ignore (Task.start t.root "running");
+  let broken = ref false in
+  Display.set_view t.display
+    (View.fit (fun _ ->
+         if !broken then raise Out_of_memory else View.text "fine"));
+  broken := true;
+  Display.print t.display (View.text "kept");
+  Alcotest.(check bool)
+    "the line printed went out" true
+    (List.exists (contains "kept") (screen t));
+  Alcotest.check_raises "closing" Out_of_memory (fun () ->
+      Display.close t.display);
+  Alcotest.(check bool)
+    "cursor restored" true
+    (Console_vte.cursor_visible t.vte);
+  Display.close t.display
+
+(* So may the size of the terminal. *)
+let test_size_raises_at_close () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let broken = ref false in
+  let size () = if !broken then raise Exit else (40, 10) in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
+  Display.redraw display;
+  broken := true;
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close display);
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "cursor restored" true
+    (contains "\027[?25h" (Buffer.contents buf))
+
+(* What ends a task as the display closes may raise: the terminal comes first. *)
+let test_commit_raises_at_close () =
+  let commit _ = raise Exit in
+  let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
+  ignore (Task.start t.root "running");
+  Display.redraw t.display;
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close t.display);
+  Alcotest.(check bool)
+    "cursor restored" true
     (Console_vte.cursor_visible t.vte)
 
 (* A view that raises in a frame that no call to the display asked for, the
@@ -2886,6 +2936,10 @@ let suite =
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;
       Alcotest.test_case "view" `Quick test_view;
+      Alcotest.test_case "view out of memory" `Quick test_view_out_of_memory;
+      Alcotest.test_case "commit raises at close" `Quick
+        test_commit_raises_at_close;
+      Alcotest.test_case "size raises at close" `Quick test_size_raises_at_close;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
       Alcotest.test_case "a view on a short terminal" `Quick test_view_short;

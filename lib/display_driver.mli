@@ -17,6 +17,11 @@ val when_idle : Display.t -> (unit -> unit) -> unit
 val closed : Display.t -> bool
 (** [closed display] is [true] once [display] is closed. *)
 
+val close_quietly : before:(unit -> unit) -> Display.t -> unit
+(** [close_quietly ~before display] calls [before] then closes [display] as
+    {!Display.close} does, and raises nothing that either raised, for a program
+    that ends for another reason. *)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

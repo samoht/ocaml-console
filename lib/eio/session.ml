@@ -287,6 +287,13 @@ let close_display run =
   settle run;
   Display.close run.display
 
+(* Closing while the program ends for another reason: that reason goes on, and
+   whatever a view raised on the way out gives way to it. *)
+let close_display_quietly ?(first = ignore) run =
+  Display_driver.close_quietly run.display ~before:(fun () ->
+      first ();
+      settle run)
+
 let restore () =
   List.iter
     (fun i ->
@@ -482,7 +489,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   Atomic.set ending
     (Some
        (fun () ->
-         (try close_display run with _ -> ());
+         close_display_quietly run;
          give_back ();
          restore ()));
   let s = share run in
@@ -511,8 +518,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
         v
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
-        end_work run.root (Error e);
-        (try close_display run with _ -> ());
+        close_display_quietly run ~first:(fun () -> end_work run.root (Error e));
         Printexc.raise_with_backtrace e bt
   in
   close_display run;

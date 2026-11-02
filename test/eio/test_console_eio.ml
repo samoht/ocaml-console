@@ -347,6 +347,31 @@ let test_run_raises () =
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
+(* The program's exception goes on, whatever the last frame raises. *)
+let test_run_keeps_its_exception () =
+  let last _ =
+    Console.View.fit (fun room ->
+        match Console.Room.height room with
+        | None -> raise Out_of_memory
+        | Some _ -> Console.View.text "rows")
+  in
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work" ~view:last
+            (fun _ -> failwith "boom")))
+
+(* So it does whatever the output raises on the way out. *)
+let test_run_keeps_its_exception_on_output () =
+  with_clock (fun clock ->
+      let failing = ref false in
+      let out _ _ _ = if !failing then raise Exit in
+      let ppf = Format.make_formatter out ignore in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work" (fun _ ->
+              failing := true;
+              failwith "boom")))
+
 (* A view that raises is dropped for the default one, and the run raises
    its exception: a view that raises at every frame, and one that raises
    only in the last, on a pipe and on a terminal. *)
@@ -949,6 +974,10 @@ let suite =
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
+      Alcotest.test_case "the program's exception goes on" `Quick
+        test_run_keeps_its_exception;
+      Alcotest.test_case "the program's exception goes on past the output"
+        `Quick test_run_keeps_its_exception_on_output;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
       Alcotest.test_case "the program's colour choice is kept" `Quick

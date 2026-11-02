@@ -41,6 +41,10 @@ val redraw : t -> unit
 val close : t -> unit
 (** [close d] is {!Display.close}. *)
 
+val close_quietly : before:(unit -> unit) -> t -> unit
+(** [close_quietly ~before d] calls [before] then closes [d] as {!close} does,
+    and raises nothing that either raised. *)
+
 val pp : t Fmt.t
 (** [pp] is {!Display.pp}. *)
 
