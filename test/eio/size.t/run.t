@@ -44,3 +44,9 @@ terminal's, else $COLUMNS, else none, where it prints whole:
 
   $ COLUMNS=5000 ../piped.exe width
   whole
+
+A recording lays out at the terminal it records, as a run does, even from a
+terminal of another size:
+
+  $ CONSOLE_CAST=run.cast COLUMNS=30 ../tty.exe ../piped.exe width
+  30
