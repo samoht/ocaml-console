@@ -37,7 +37,7 @@ let render pp margin v =
   let raw = Buffer.contents buf in
   (raw, List.map Console_text.strip (String.split_on_char (Char.chr 10) raw))
 
-let cells s = Width.string_width s
+let cells s = Console_width.string_width s
 
 let check_fits margin lines =
   List.iter

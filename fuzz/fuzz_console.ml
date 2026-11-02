@@ -16,7 +16,7 @@ let text s =
          alphabet.(Char.code s.[i] mod Array.length alphabet)))
 
 let lines s = String.split_on_char '\n' s
-let width = Width.string_width
+let width = Console_width.string_width
 
 (* Each line of [hcat] is the spans' lines up to the last span with text
    on it, each but the last padded to its span's width and followed by
@@ -422,7 +422,7 @@ let test_printed block k m =
       let plain = Console_text.strip out in
       List.iter
         (fun line ->
-          let cells = Width.string_width line in
+          let cells = Console_width.string_width line in
           if cells > look.margin && not (may_overflow block) then
             failf "a line of %d cells at a margin of %d: %S" cells look.margin
               line;
@@ -495,7 +495,7 @@ let test_view block k w t =
 let nested_cells raw =
   List.concat_map
     (fun line ->
-      let cols = Width.string_width (Console_text.strip line) + 2 in
+      let cols = Console_width.string_width (Console_text.strip line) + 2 in
       let vte = Console_vte.v ~rows:1 ~cols () in
       Console_vte.feed vte line;
       let g = Console_vte.grid vte in

@@ -8,7 +8,8 @@ type look = Look.t
 (* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
    replaced, all of a part at once so that its pieces still join; a piece a
    border leaves out stays out. *)
-let shows look glyphs = look.Look.utf_8 || List.for_all Width.is_ascii glyphs
+let shows look glyphs =
+  look.Look.utf_8 || List.for_all Console_width.is_ascii glyphs
 
 let muted look =
   match Theme.muted look.Look.theme with
@@ -99,7 +100,7 @@ let truncate look w s = View_core.truncate ~ellipsis:(ellipsis look) w s
 let one_line span =
   View_core.concat ~sep:(View_core.text " ") (View_core.lines span)
 
-let cells = Width.string_width
+let cells = Console_width.string_width
 let widest glyphs = List.fold_left (fun n g -> max n (cells g)) 0 glyphs
 
 let fill n glyph =
@@ -115,7 +116,7 @@ let fill n glyph =
       done;
       if rest > 0 then begin
         let used = ref 0 and full = ref false in
-        Width.iter_clusters
+        Console_width.iter_clusters
           (fun ~offset ~len ~cells:w ->
             if (not !full) && !used + w <= rest then begin
               Buffer.add_substring buf glyph offset len;

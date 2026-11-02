@@ -124,7 +124,9 @@ let test_truncate_closes s n =
    character every non-space one is kept, in order. *)
 (* The cells of the widest cluster of [s]. *)
 let widest s =
-  List.fold_left (fun w c -> max w (Width.string_width c)) 0 (Width.clusters s)
+  List.fold_left
+    (fun w c -> max w (Console_width.string_width c))
+    0 (Console_width.clusters s)
 
 (* A line cut into words after the bytes [cuts] picks, some of them empty:
    cuts inside a character or a cluster too. *)

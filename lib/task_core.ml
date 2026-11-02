@@ -294,7 +294,8 @@ let widen_label r =
     Array.blit w.label_cells 0 cells 0 (Array.length w.label_cells);
     w.label_cells <- cells
   end;
-  w.label_cells.(d) <- max w.label_cells.(d) (Width.string_width r.label)
+  w.label_cells.(d) <-
+    max w.label_cells.(d) (Console_width.string_width r.label)
 
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";

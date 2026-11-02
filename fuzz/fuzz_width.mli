@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Properties of {!Width}. *)
+(** Properties of {!Console_width}. *)
 
 val suite : string * Alcobar.test_case list
 (** [suite] is the property suite. *)

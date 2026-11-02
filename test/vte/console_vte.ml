@@ -47,7 +47,7 @@ let scan t = function
       let c =
         Uchar.to_int (Uchar.utf_decode_uchar (String.get_utf_8_uchar s 0))
       in
-      if Width.is_spacing_mark c then t.split <- Some (String.length s)
+      if Console_width.is_spacing_mark c then t.split <- Some (String.length s)
   | _ -> ()
 
 (* [s], a part of a character, is the start of one that more bytes can

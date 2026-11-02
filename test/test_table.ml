@@ -230,7 +230,7 @@ let test_formatter_margin_never_wraps_border () =
     (fun row ->
       Alcotest.(check int)
         "raw row reaches margin" width
-        (Width.string_width (Console_text.strip row)))
+        (Console_width.string_width (Console_text.strip row)))
     logical_rows;
   let vte = Console_vte.v ~rows:12 ~cols:width () in
   Console_vte.feed vte raw;
@@ -254,7 +254,7 @@ let test_formatter_margin_never_wraps_border () =
     (fun row ->
       Alcotest.(check int)
         "visual row reaches margin" width
-        (Width.string_width (Console_text.strip row)))
+        (Console_width.string_width (Console_text.strip row)))
     rows;
   Alcotest.(check int)
     "table does not enter scrollback" 0
@@ -309,7 +309,7 @@ let test_every_margin_is_a_hard_limit () =
         Alcotest.(check int)
           (Fmt.str "raw row at width %d" width)
           width
-          (Width.string_width (Console_text.strip row)))
+          (Console_width.string_width (Console_text.strip row)))
       logical_rows;
     let vte =
       Console_vte.v ~rows:(List.length logical_rows + 2) ~cols:width ()
@@ -343,7 +343,7 @@ let test_every_margin_is_a_hard_limit () =
         Alcotest.(check int)
           (Fmt.str "visual row at width %d" width)
           width
-          (Width.string_width (Console_text.strip row)))
+          (Console_width.string_width (Console_text.strip row)))
       visual_rows;
     Alcotest.(check (pair int int))
       (Fmt.str "cursor at width %d" width)
@@ -706,7 +706,7 @@ let test_simple () =
        ])
     (printed ~utf_8:false (table ()));
   let narrow =
-    List.map Width.string_width
+    List.map Console_width.string_width
       (String.split_on_char '\n'
          (View.to_string (View.sized ~width:10 (table ()))))
   in

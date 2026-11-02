@@ -92,7 +92,7 @@ let test_named_tests_exist () =
 
 let test_stdlib_utf8_boundaries () =
   let source =
-    read (Filename.concat root "lib/input/width.ml")
+    read (Filename.concat root "lib/width/console_width.ml")
     |> String.lowercase_ascii |> String.to_seq
     |> Seq.filter (fun c -> not (List.mem c [ ' '; '\t'; '\r'; '\n' ]))
     |> String.of_seq

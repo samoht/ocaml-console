@@ -90,8 +90,8 @@ let test_cursor_between_clusters keys =
   | [ before; after ] ->
       check_eq
         ~pp:Fmt.(Dump.list Dump.string)
-        (Width.clusters (before ^ after))
-        (Width.clusters before @ Width.clusters after)
+        (Console_width.clusters (before ^ after))
+        (Console_width.clusters before @ Console_width.clusters after)
   | _ -> failf "not one | in %S" (Console_input.pending editor)
 
 (* Inserting a multi-codepoint cluster before a suffix must redraw that
