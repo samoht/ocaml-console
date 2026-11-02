@@ -376,6 +376,11 @@ let with_output f =
   | Some d -> Console.Display.with_output d f
   | None -> f Fmt.stderr
 
+let redraw () =
+  match Session.display () with
+  | Some d -> Console.Display.redraw d
+  | None -> ()
+
 let size ppf =
   Option.map (fun (fd, _) () -> Terminal.dimensions (Some fd)) (terminal ppf)
 

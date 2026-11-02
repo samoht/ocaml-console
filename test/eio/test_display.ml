@@ -82,6 +82,31 @@ let test_reporter () =
   mem ~msg:"multiline log keeps physical rows" "╭───╮\n│ x │\n╰───╯\n" out;
   mem ~msg:"warning log" "\n! warning-line\n" out
 
+(* [redraw] writes the frame of the view as the program's state is when it
+   is called. The mock clock never moves, so no timed redraw draws it: a
+   [redraw] that drew nothing, or waited for the next tick, leaves the
+   buffer without the state set. *)
+let test_redraw () =
+  Eio_main.run @@ fun _env ->
+  let clock = Eio_mock.Clock.Mono.make () in
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let state = ref "first-state" in
+  let view _ = Console.View.fit (fun _ -> Console.View.text !state) in
+  Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+      state := "second-state";
+      Format.pp_print_flush ppf ();
+      Alcotest.(check bool)
+        "not drawn before the redraw" false
+        (contains "second-state" (Buffer.contents buf));
+      Console_eio.redraw ();
+      Format.pp_print_flush ppf ();
+      Alcotest.(check bool)
+        "drawn when the redraw returns" true
+        (contains "second-state" (Buffer.contents buf)));
+  (* Outside a run there is no display to draw. *)
+  Console_eio.redraw ()
+
 let absent ~msg needle haystack =
   Alcotest.(check bool) msg false (contains needle haystack)
 
@@ -356,6 +381,7 @@ let suite =
       ("run fail", `Quick, test_run_fail);
       ("run raises", `Quick, test_run_raises);
       ("reporter", `Quick, test_reporter);
+      ("redraw draws the frame at once", `Quick, test_redraw);
       ("Logs inside a task", `Quick, test_logs_in_task);
       ("two fibers, two tasks", `Quick, test_two_fibers);
       Alcotest.test_case "within a task from another fiber" `Quick

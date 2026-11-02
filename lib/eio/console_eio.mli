@@ -255,6 +255,18 @@ val print : Console.View.t -> unit
     codes, is an [output] event of no task. Outside a run, it is printed on
     {!Fmt.stderr}, at its margin. *)
 
+val redraw : unit -> unit
+(** [redraw ()] draws the display of the run of the calling fiber again, at
+    once, at the time of its clock, as {!Console.Display.redraw} does: when it
+    returns, the display has written the frame of its view as the program's
+    state is then. A program that must know a frame was drawn, such as the last
+    frame of a flash before it ends the run, calls it rather than sleeping until
+    the next of the redraws {!val-run} makes ten times a second. Outside a run,
+    and where the tasks print as lines and no frame is drawn, it does nothing.
+
+    It raises the exception of a view that raised since the last redraw, as
+    {!Console.Display.redraw} does. *)
+
 val size : Format.formatter -> (unit -> int * int) option
 (** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} and
     that output is a terminal whose [TERM] is set and not [dumb], as {!run}

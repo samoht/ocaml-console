@@ -35,6 +35,10 @@
   one `View.gradient` and the bars grade with, for a program that draws
   its own colours, such as a pulse at a time (#9).
 
+- `Console_eio.redraw ()` draws the display of the current run at once, so
+  a program knows a frame is drawn without sleeping until the next timed
+  redraw (#10).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
