@@ -384,12 +384,16 @@ let redraw () =
 let size ppf =
   Option.map (fun (fd, _) () -> Terminal.dimensions (Some fd)) (terminal ppf)
 
+(* The most a display takes, whatever a terminal says. *)
+let max_width = 4096
+
 let width ppf =
   let first (size : unit -> int * int) = fst (size ()) in
-  match size ppf with
-  | Some size -> Some (first size)
-  | None when Option.is_some (Cast.file ()) -> Some (first Recording.size)
-  | None -> Option.map first (Terminal.asked ())
+  if Option.is_some (Cast.file ()) then Some (first Recording.size)
+  else
+    match size ppf with
+    | Some size -> Some (Int.min max_width (first size))
+    | None -> Option.map first (Terminal.asked ())
 
 let print v =
   match Session.display () with
