@@ -101,12 +101,6 @@ let test_strip () =
    blank cells. [strip] keeps what is printed; [sanitize] keeps a cell for
    each. *)
 let test_strip_silent () =
-  let silent =
-    List.filter
-      (fun c -> not (List.mem c [ 0x09; 0x0a; 0x0b; 0x0c; 0x0d; 0x1b ]))
-      (List.init 0x20 Fun.id)
-    @ [ 0x7f ]
-  in
   List.iter
     (fun c ->
       let c = String.make 1 (Char.chr c) in
@@ -124,7 +118,7 @@ let test_strip_silent () =
       Alcotest.(check string)
         (what ^ ", sanitize") "a b"
         (Console_text.sanitize ("a" ^ c ^ "b")))
-    silent;
+    Text_harness.silent;
   Alcotest.(check string) "tab" "a b" (Console_text.strip "a\tb")
 
 (* Whatever the input, no ESC and no C1 control reaches the output, and it is

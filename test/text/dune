@@ -1,4 +1,4 @@
 (test
  (name test)
  (package console)
- (libraries console.text alcotest))
+ (libraries console.text text_harness alcotest))

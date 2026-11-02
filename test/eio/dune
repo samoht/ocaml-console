@@ -70,6 +70,7 @@
   console-eio
   pty_reader
   display_harness
+  eio_harness
   env_harness
   console_vte
   cstruct
