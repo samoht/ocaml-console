@@ -287,6 +287,31 @@ let test_flush_fails () =
       Alcotest.check succeeded label `Succeeded state)
     forms
 
+(* The output may be gone before the display is there. *)
+let test_flush_fails_at_once () =
+  List.iter
+    (fun (label, progress) ->
+      let flush () = raise Closed in
+      let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+      let state =
+        work
+          (fun ppf root -> driver ~write_error:is_closed () ~progress ppf root)
+          ppf
+      in
+      Alcotest.check succeeded label `Succeeded state)
+    forms
+
+(* So may it be before a program prints through the display. *)
+let test_with_output_flush_fails () =
+  let closed = ref false in
+  let flush () = if !closed then raise (Sys_error "EPIPE") in
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+  let display = Display.v ~now:(fun () -> 0.) ppf View.empty in
+  closed := true;
+  let called = ref false in
+  Display.with_output display (fun _ -> called := true);
+  Alcotest.(check bool) "what it prints is asked for" true !called
+
 (* The output can end at any write: the work still ends, and what came before
    stays as it was. *)
 let test_ends_at_any_write () =
@@ -358,6 +383,10 @@ let suite =
       Alcotest.test_case "Sys_error is always a write error" `Quick
         test_sys_error;
       Alcotest.test_case "a flush that fails" `Quick test_flush_fails;
+      Alcotest.test_case "a flush that fails at once" `Quick
+        test_flush_fails_at_once;
+      Alcotest.test_case "a flush that fails around output" `Quick
+        test_with_output_flush_fails;
       Alcotest.test_case "the output ends at any write" `Quick
         test_ends_at_any_write;
       Alcotest.test_case "a view that raises" `Quick test_view_raises;
