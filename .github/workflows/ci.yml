@@ -100,8 +100,21 @@ jobs:
 
       - uses: ocaml/setup-ocaml/lint-fmt@v3
 
-  # merlint is not on opam yet and its dependencies come from a private
-  # overlay, so this job reports without blocking until merlint is released.
+  # merlint is not on opam yet, so this job reports without blocking until
+  # merlint is released.
+  #
+  # merlint comes as a released binary, apart from the project's
+  # dependencies. It depends on console: built from source beside this
+  # checkout, it is built against the console under test, and a change to
+  # console's API breaks merlint's build before it lints anything. The bottle
+  # links the console it was released with. Locally, `brew install
+  # samoht/monopam/merlint` then `opam exec -- merlint --build` run the same
+  # check.
+  #
+  # merlint reads the .cmt files dune writes here, which a merlint built with
+  # another OCaml minor version cannot load: it then skips the rules that need
+  # types and exits 3. The bottles are built with OCaml 5.4, so the compiler
+  # below moves with them.
   merlint:
     name: Lint (merlint)
     runs-on: ubuntu-latest
@@ -114,7 +127,16 @@ jobs:
         with:
           ocaml-compiler: '5.4'
 
-      - run: opam repo add samoht https://tangled.org/gazagnaire.org/opam-overlay.git
       - run: opam install . --deps-only --with-test
-      - run: opam install merlint
-      - run: opam exec -- merlint --build
+
+      # Homebrew is on the Linux runners but not on their PATH. Without a
+      # bottle for this runner brew would build merlint from source, which is
+      # what this job avoids, so a missing bottle stops it here.
+      - run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew tap samoht/monopam
+          brew info --json=v2 samoht/monopam/merlint \
+            | jq -e '.formulae[0].bottle.stable.files.x86_64_linux' > /dev/null \
+            || { echo "::error::no x86_64_linux bottle of merlint in samoht/monopam"; exit 1; }
+          brew install samoht/monopam/merlint
+      - run: opam exec -- /home/linuxbrew/.linuxbrew/bin/merlint --build
