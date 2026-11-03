@@ -12,6 +12,10 @@ type metric = Spin | Count of int * int | Bytes of int64 * int64
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
 (** The type for task endings. *)
 
+val is_async : exn -> bool
+(** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
+    stack, wrapped by [Fun.protect] or not, which can arise anywhere. *)
+
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of Logs messages. *)
 

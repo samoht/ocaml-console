@@ -49,6 +49,21 @@ val close_quietly : before:(unit -> unit) -> t -> unit
     and raises nothing that either raised but what {!is_async} says, which a
     program ending for another reason does not hide. *)
 
+val unwritten : t -> bool
+(** [unwritten d] is [true] iff something of [d] waits for {!flush}: a write
+    that a signal handler could not do, or what remains of one cut short. *)
+
+val flush : t -> unit
+(** [flush d] writes what waits, also once [d] closed. *)
+
+val reveal : t -> unit
+(** [reveal d] shows the cursor of [d] at once, ahead of a close that may not
+    end, such as one that runs a view during [exit]. *)
+
+val set_cursor : t -> bool -> unit
+(** [set_cursor d visible] shows or hides the cursor through the output of [d],
+    around a stop of the program on an output with no descriptor. *)
+
 val is_async : exn -> bool
 (** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
     stack, which can arise anywhere and which no fallback answers. *)
@@ -78,8 +93,9 @@ val told : t -> unit
     ({!touch}): a redraw draws a view that reads the tasks and no other state
     only after a change or as the time moves. *)
 
-val write : t -> string -> unit
-(** [write d s] writes [s] as it is, in turn with what [d] writes. *)
+val write : ?salvage:string -> t -> string -> unit
+(** [write ~salvage d s] writes [s] as it is, in turn with what [d] writes. If
+    this is cut short, [salvage] (defaults to nothing) goes out in its place. *)
 
 val is_live : t -> bool
 (** [is_live d] is [true] iff [d] redraws a region on a terminal. *)

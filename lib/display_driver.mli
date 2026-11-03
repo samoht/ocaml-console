@@ -27,6 +27,22 @@ val close_quietly : before:(unit -> unit) -> Display.t -> unit
     nothing that either raised but what {!is_async} says, which the program must
     see all the same. *)
 
+val unwritten : Display.t -> bool
+(** [unwritten display] is [true] iff something of [display] waits for {!flush}:
+    a write a signal handler could not do on an Eio flow, or what remains of one
+    cut short. *)
+
+val flush : Display.t -> unit
+(** [flush display] writes what waits, also once [display] closed. *)
+
+val reveal : Display.t -> unit
+(** [reveal display] shows the cursor of [display] at once, ahead of a close
+    that may not end, such as one that runs a view during [exit]. *)
+
+val set_cursor : Display.t -> bool -> unit
+(** [set_cursor display visible] shows or hides the cursor through the output of
+    [display], around a stop of the program on an output with no descriptor. *)
+
 val is_async : exn -> bool
 (** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
     stack, which can arise anywhere and which no fallback answers. *)

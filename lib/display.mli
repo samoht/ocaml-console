@@ -90,8 +90,10 @@
     and [Stack_overflow] go on from the call that was drawing, whichever that
     is, a {!Task} report included, and the view stays. So does the cancellation
     of the fiber that draws, but for a report: the fiber meets it at its next
-    point of cancellation. A write it cut short goes out with the next one,
-    whole, and on an output that took part of it, that part shows twice.
+    point of cancellation. An update it cuts short on an output that may have
+    taken part of it is not written again: what it was to print goes out with
+    the next one, and the region starts again on a row of its own, which may
+    leave its old rows above it. Nothing that was above the region is erased.
 
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)

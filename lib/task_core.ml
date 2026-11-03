@@ -61,6 +61,7 @@ and t = {
   mutable ended_at : float option;
   mutable message : string option;
   mutable outcome : outcome option;
+  mutable finishing : bool;
   mutable children : t list;
   mutable child_limit : int;
   mutable gone : bool;
@@ -102,14 +103,20 @@ let rec root_of r = match r.parent with None -> r | Some p -> root_of p
 let changed r = r.version <- r.version + 1
 let keep r m = r.memo <- m
 
+let rec is_async = function
+  | Out_of_memory | Stack_overflow | Sys.Break -> true
+  | Fun.Finally_raised e -> is_async e
+  | _ -> false
+
 (* [f ()] then [g ()], whatever [f] raises: a task that ends does so whole, and
-   every watcher sees it, even with an interrupt under way. *)
+   every watcher sees it, even with an interrupt under way. The first exception
+   goes on, unless only a later one is what the program must see. *)
 let and_then f g =
   match f () with
   | () -> g ()
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      g ();
+      (try g () with later when is_async e || not (is_async later) -> ());
       Printexc.raise_with_backtrace e bt
 
 let rec tell change = function
@@ -157,6 +164,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     ended_at = None;
     message = None;
     outcome = None;
+    finishing = false;
     children = [];
     child_limit = 16;
     gone = false;
@@ -269,7 +277,8 @@ let child_outcome = function
 (* The tasks under one that ends end first, in the order they started: they
    succeed with it, and are cancelled when it fails or is cancelled. *)
 let rec finish outcome ?message r =
-  if is_running r then begin
+  if is_running r && not r.finishing then begin
+    r.finishing <- true;
     let w = r.work in
     and_then (fun () -> w.ending r) @@ fun () ->
     and_then (fun () ->

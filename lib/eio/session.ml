@@ -104,11 +104,34 @@ let scope =
 
 let write_error = function Eio.Io _ -> true | _ -> false
 
+let in_fiber () =
+  match Eio.Fiber.is_cancelled () with
+  | _ -> true
+  | exception Effect.Unhandled _ -> false
+
+(* A [Cancelled] where nothing cancelled the fiber is no cancellation of it. *)
+let cancelling e =
+  cancelled e && ((not (in_fiber ())) || Eio.Fiber.is_cancelled ())
+
 (* Nothing a broken output raises stops the display being given back. *)
 let safely f =
   match f () with
   | () -> ()
   | exception e when not (Display_driver.is_async e) -> ()
+
+(* How long the last frame of a cancelled run waits for an output that takes
+   nothing. A run that is not cancelled waits as any write does: a reader that
+   pauses, such as a pager, loses nothing. *)
+let grace = 1.
+
+(* The program's clock may be one that does not move. *)
+let wait_grace () =
+  match Eio_unix.sleep grace with
+  | () -> ()
+  | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
+
+(* [f ()] in a cancelled fiber too, which an Eio flow refuses to write from. *)
+let shielded f = Eio.Cancel.protect (fun () -> Eio.Fiber.first f wait_grace)
 
 let claim () =
   Lazy.force at_exit;
@@ -308,23 +331,22 @@ let close_quietly ?(first = ignore) (run : run) =
       first ();
       settle run)
 
-(* How long the last frame waits for an output that takes no more. *)
-let grace = 1.
+let if_cancelled_shielded f =
+  if Eio.Fiber.is_cancelled () then shielded f else f ()
 
-(* [f ()] in a cancelled fiber too, which an Eio flow refuses to write from, as
-   long as the output takes what is written. This needs a fiber of its own: a
-   signal handler or an [at_exit] function closes without it. *)
-let shielded f =
-  let waited () =
-    (* The program's clock may be one that does not move. *)
-    match Eio_unix.sleep grace with
-    | () -> ()
-    | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
-  in
-  Eio.Cancel.protect (fun () -> Eio.Fiber.first f waited)
+(* What the end of a run writes, and what a cut write left. *)
+let last_writes (run : run) f =
+  Display_driver.protect run.display
+    (fun () ->
+      (* An output that a cancellation cut may be why it was cut. *)
+      if Display_driver.unwritten run.display then shielded f
+      else if_cancelled_shielded f)
+    ~finally:(fun () ->
+      if Display_driver.unwritten run.display then
+        shielded (fun () -> safely (fun () -> Display_driver.flush run.display)))
 
 let close_display ?(first = ignore) (run : run) =
-  shielded (fun () ->
+  last_writes run (fun () ->
       Display_driver.close run.display ~before:(fun () ->
           first ();
           settle run))
@@ -506,7 +528,81 @@ let share run =
   Atomic.set shared (Some s);
   s
 
-let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
+(* A signal handler runs out of any fiber, and cannot write on an Eio flow: a
+   fiber of the run does what it could not, as long as there is one. *)
+type relay = {
+  pending : (unit -> unit) list Atomic.t;
+  wake : Eio.Condition.t;
+  listening : bool Atomic.t;
+}
+
+let relay () =
+  {
+    pending = Atomic.make [];
+    wake = Eio.Condition.create ();
+    listening = Atomic.make false;
+  }
+
+let start_relay ~sw relay display =
+  let next () =
+    match Atomic.exchange relay.pending [] with [] -> None | l -> Some l
+  in
+  let rec loop () =
+    List.iter
+      (fun k -> safely (fun () -> Display_driver.when_idle display k))
+      (List.rev (Eio.Condition.loop_no_mutex relay.wake next));
+    loop ()
+  in
+  Eio.Fiber.fork_daemon ~sw loop;
+  Atomic.set relay.listening true;
+  Eio.Switch.on_release sw (fun () -> Atomic.set relay.listening false)
+
+let rec relayed relay k =
+  let l = Atomic.get relay.pending in
+  if Atomic.compare_and_set relay.pending l (k :: l) then
+    Eio.Condition.broadcast relay.wake
+  else relayed relay k
+
+(* What the handler could not write goes out before the signal goes on. *)
+let settled relay display k =
+  if Atomic.get relay.listening && Display_driver.unwritten display then
+    relayed relay (fun () ->
+        safely (fun () -> Display_driver.flush display);
+        k ())
+  else k ()
+
+(* On a flow a fiber gives the terminal back. Work that never lets it run stops
+   all the same after [grace], with the terminal as it is. *)
+let suspended relay ~flow ~cursor display stop =
+  if flow && Atomic.get relay.listening then begin
+    let taken = Atomic.make false in
+    let once f = if not (Atomic.exchange taken true) then f () in
+    let cursor = Display_driver.set_cursor display in
+    relayed relay (fun () -> once (fun () -> suspend ~cursor display stop));
+    ignore
+      (Thread.create
+         (fun () ->
+           Thread.delay grace;
+           once stop)
+         ()
+        : Thread.t)
+  end
+  else suspend ~cursor display stop
+
+(* What a return, a raise or a cancellation does, [exit] does too, so that what a
+   later [at_exit] function logs or prints goes out as before. The cursor comes
+   first: the last frame runs a view, which may call [exit] again, and that one
+   ends the program at once. *)
+let ends_at_exit (run : run) ~give_back =
+  Atomic.set ending
+    (Some
+       (fun () ->
+         safely (fun () -> Display_driver.reveal run.display);
+         close_last run;
+         give_back ();
+         restore ()))
+
+let run ?(cursor = ignore) ?(flow = false) ~sleep ~intercept:formatters run f =
   let display = run.display in
   let previous = Logs.reporter () in
   let closed, close = Eio.Promise.create () in
@@ -514,24 +610,20 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Logs.set_reporter previous;
     ignore (Eio.Promise.try_resolve close ())
   in
-  (* What a return, a raise or a cancellation does, [exit] does too, so that
-     what a later [at_exit] function logs or prints goes out as before. *)
-  Atomic.set ending
-    (Some
-       (fun () ->
-         close_last run;
-         give_back ();
-         restore ()));
+  ends_at_exit run ~give_back;
   let s = share run in
   Display_driver.protect display ~finally:(fun () ->
       Display_driver.protect display
-        (fun () -> shielded restore)
+        (fun () -> if_cancelled_shielded restore)
         ~finally:release)
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
+  let relay = relay () in
   Interrupt.protect ~idle:(Display_driver.when_idle display)
-    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_last run)
+    ~settled:(settled relay display)
+    ~suspend:(suspended relay ~flow ~cursor display) ~restore:(fun () ->
+      close_last run)
   @@ fun () ->
   match
     Eio.Switch.run @@ fun sw ->
@@ -540,6 +632,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Logs.set_reporter
       (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
     animate ~sw ~sleep display;
+    start_relay ~sw relay display;
     Fun.protect ~finally:give_back @@ fun () -> first_run s f
   with
   | value ->
@@ -547,6 +640,6 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
       value
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      shielded (fun () ->
+      last_writes run (fun () ->
           close_quietly run ~first:(fun () -> end_work run.root (Error e)));
       Printexc.raise_with_backtrace e bt

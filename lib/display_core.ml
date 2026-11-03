@@ -41,7 +41,9 @@ type t = {
   mutable closing : bool;
   mutable suspended : int;
   mutable partial : bool;
-  writes : (string * bool) Queue.t;
+  writes : (string * bool * string) Queue.t;
+  mutable torn : bool;
+  mutable salvage : string;
   mutable writing : bool;
   mutable release : unit -> unit;
   mutable on_close : unit -> unit;
@@ -72,10 +74,7 @@ let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
    answer does not wait: an interrupt, an exhausted heap or stack, the fiber's
    cancellation. Those have not failed the view, and go on from the call under
    way, once the terminal is restored if it is the close. *)
-let rec is_async = function
-  | Out_of_memory | Stack_overflow | Sys.Break -> true
-  | Fun.Finally_raised e -> is_async e
-  | _ -> false
+let is_async = Task_core.is_async
 
 let rec is_cancelled t = function
   | Fun.Finally_raised e -> is_cancelled t e
@@ -152,7 +151,7 @@ let flush_stdout t =
     with Sys_error _ -> Atomic.set stdout_failed true
 
 (* A [framed] string is synchronized already. *)
-let write_now t (s, framed) =
+let write_now t (s, framed, _) =
   writing t @@ fun () ->
   let s =
     if framed then s
@@ -188,35 +187,70 @@ let rec when_idle t f =
     let fs = Atomic.get t.idle in
     if not (Atomic.compare_and_set t.idle fs (f :: fs)) then when_idle t f
 
-(* The output functions of [ppf] may yield to another fiber (an Eio flow)
-   in the middle of a write: what is written meanwhile waits in [writes],
-   and the write under way writes it out in turn, so that writes never mix.
-   A write cut short (a cancelled fiber) leaves itself and the rest to the
-   next: the frame the display counts is drawn then, whole, before any other. *)
-let send_now ~framed t s =
+(* A cancellation or an interrupt can cut a write anywhere, and what the output
+   took of it cannot be known: going out again, a frame's moves would erase what
+   is above the region. So nothing that moves goes out again. What was to be
+   printed once is kept, and the region starts again on a row of its own. *)
+let tear t =
+  Queue.iter (fun (_, _, salvage) -> t.salvage <- t.salvage ^ salvage) t.writes;
+  Queue.clear t.writes;
+  t.torn <- true;
+  t.frame <- [||];
+  t.frame_widths <- [||]
+
+(* What a tear left goes before what was written since. *)
+let mend t =
+  if t.torn then begin
+    t.torn <- false;
+    let salvage = t.salvage in
+    t.salvage <- "";
+    let next = Queue.create () in
+    if is_live t then
+      Queue.add (sync_off ^ "\r\n" ^ salvage, true, salvage) next
+    else if salvage <> "" then Queue.add (salvage, false, salvage) next;
+    Queue.transfer t.writes next;
+    Queue.transfer next t.writes
+  end
+
+(* The output functions of [ppf] may yield to another fiber in the middle of a
+   write: what is written meanwhile waits in [writes], and the write under way
+   writes it out in turn, so that writes never mix. *)
+let send_now ~framed ~salvage t s =
   if s <> "" then begin
     writing t (fun () ->
         flush_stdout t;
         Format.pp_print_flush t.ppf ());
-    Queue.add (s, framed) t.writes
+    Queue.add (s, framed, salvage) t.writes
   end;
   if not t.writing then begin
     t.writing <- true;
     Fun.protect
       ~finally:(fun () -> t.writing <- false)
       (fun () ->
+        mend t;
         while not (Queue.is_empty t.writes) do
           match write_now t (Queue.peek t.writes) with
           | () -> ignore (Queue.pop t.writes)
+          | exception (Effect.Unhandled _ as e) ->
+              (* A signal handler cannot write on an Eio flow, and wrote nothing:
+                 {!flush} does it from a fiber. *)
+              raise e
           | exception e when not (urgent t e) ->
               let bt = Printexc.get_raw_backtrace () in
               ignore (Queue.pop t.writes);
               Printexc.raise_with_backtrace e bt
+          | exception e ->
+              let bt = Printexc.get_raw_backtrace () in
+              tear t;
+              Printexc.raise_with_backtrace e bt
         done)
   end
 
-let send ?(framed = false) t s = busy t (fun () -> send_now ~framed t s)
-let write t s = send t s
+let send ?(framed = false) ?(salvage = "") t s =
+  busy t (fun () -> send_now ~framed ~salvage t s)
+
+let write ?salvage t s = send ?salvage t s
+let unwritten t = t.torn || not (Queue.is_empty t.writes)
 
 (* On a terminal the carriage return is written, not left to the tty: with
    output processing off a line feed keeps the column. *)
@@ -438,7 +472,7 @@ let mark t =
 
 (* The frame's bytes, synchronized, in the display's buffer, which every
    frame reuses; a frame of no bytes writes none. *)
-let framing t f =
+let framing ?salvage t f =
   let buf = t.buf in
   Buffer.clear buf;
   Buffer.add_string buf sync_on;
@@ -448,7 +482,7 @@ let framing t f =
     Buffer.add_string buf sync_off;
     let s = Buffer.contents buf in
     if Buffer.length buf > 65536 then Buffer.reset buf;
-    send ~framed:true t s
+    send ~framed:true ?salvage t s
   end
 
 (* The region starts once the delay passed, on a row of its own, the
@@ -456,14 +490,14 @@ let framing t f =
 let start_region t =
   if (not t.shown) && since_start t >= t.delay then begin
     t.shown <- true;
-    write t (hide_cursor ^ fresh_row t)
+    write ~salvage:hide_cursor t (hide_cursor ^ fresh_row t)
   end
 
-(* A write cut short goes out first, and no frame is added behind one that does
-   not go out: those it would replace pile up otherwise. *)
+(* What a tear left goes out first, and no frame is added behind a write that
+   does not go out: those it would replace pile up otherwise. *)
 let paintable t =
-  if (not t.closed) && not (Queue.is_empty t.writes) then write t "";
-  is_live t && (not t.closed) && t.suspended = 0 && Queue.is_empty t.writes
+  if (not t.closed) && unwritten t then write t "";
+  is_live t && (not t.closed) && t.suspended = 0 && not (unwritten t)
 
 let paint_now t =
   if paintable t then begin
@@ -473,10 +507,12 @@ let paint_now t =
       mark t;
       let spans = spans t in
       (* A narrower terminal has reflowed the old frame: it is cleared with
-         the old frame's rows counted at the new width. *)
-      framing t (fun buf ->
-          if resized then clear buf t;
-          draw buf t ~resized spans)
+         the old frame's rows counted at the new width. The view may have
+         closed the display. *)
+      if not t.closed then
+        framing t (fun buf ->
+            if resized then clear buf t;
+            draw buf t ~resized spans)
     end
   end
 
@@ -496,14 +532,14 @@ let commit_now t lines =
   let look = look t in
   if is_live t then begin
     ignore (refresh_size t);
+    let text =
+      String.concat ""
+        (List.map (fun line -> render_in look t line ^ "\r\n") lines)
+    in
     let commit spans =
-      framing t (fun buf ->
+      framing ~salvage:text t (fun buf ->
           clear buf t;
-          List.iter
-            (fun line ->
-              Buffer.add_string buf (render_in look t line);
-              Buffer.add_string buf "\r\n")
-            lines;
+          Buffer.add_string buf text;
           Option.iter
             (fun spans ->
               mark t;
@@ -513,7 +549,7 @@ let commit_now t lines =
     if t.suspended = 0 && not t.closed then start_region t;
     if t.suspended = 0 && (not t.closed) && t.shown then (
       match spans t with
-      | spans -> commit (Some spans)
+      | spans -> commit (if t.closed then None else Some spans)
       | exception e ->
           (* The lines are often what explains it: they still go out. *)
           let bt = Printexc.get_raw_backtrace () in
@@ -522,9 +558,11 @@ let commit_now t lines =
     else commit None
   end
   else
-    write t
-      (String.concat ""
-         (List.map (fun line -> render_in look t line ^ "\n") lines))
+    let text =
+      String.concat ""
+        (List.map (fun line -> render_in look t line ^ "\n") lines)
+    in
+    write ~salvage:text t text
 
 let commit t lines = busy t (fun () -> commit_now t lines)
 
@@ -619,6 +657,8 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
       partial = false;
       writes = Queue.create ();
       writing = false;
+      torn = false;
+      salvage = "";
       release = ignore;
       on_close = ignore;
       on_output = None;
@@ -719,9 +759,9 @@ let restore t out =
     clear buf t;
     Buffer.add_string buf show_cursor;
     Buffer.add_string buf out;
-    write t (Buffer.contents buf)
+    write ~salvage:(show_cursor ^ out) t (Buffer.contents buf)
   end
-  else protect t (fun () -> write t out) ~finally:t.release
+  else protect t (fun () -> write ~salvage:out t out) ~finally:t.release
 
 (* Closed first, so that what the hook ends draws no region. Each step runs
    whatever the one before it raised, so that the terminal is restored before
@@ -753,6 +793,16 @@ let close_quietly ~before t =
   busy t @@ fun () ->
   (try closing ~before t with e when not (is_async e) -> ());
   t.failure <- None
+
+let flush t = write t ""
+
+let reveal t =
+  if is_live t && t.shown && not t.closed then
+    write ~salvage:show_cursor t show_cursor
+
+let set_cursor t visible =
+  let s = if visible then show_cursor else hide_cursor in
+  write ~salvage:s t s
 
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines

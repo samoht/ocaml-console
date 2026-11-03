@@ -434,37 +434,57 @@ let test_with_output_cancelled () =
             "the task is cancelled" true
             (Option.map Console.Task.state !task = Some `Cancelled)))
 
-(* A write under way ends whole though its fiber is cancelled: an output that took
-   half of it never gets that half again. *)
-let test_write_not_cut () =
+(* A write that a cancellation cuts half way, on an output that took that half,
+   erases nothing above the region, and what it was to print still goes out. *)
+let test_write_cut () =
   with_clock (fun clock ->
       let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
       let slow = ref false in
       let out s o l =
         if !slow then begin
+          slow := false;
           Buffer.add_substring buf s o (l / 2);
-          ignore (Eio.Promise.try_resolve enter ());
-          for _ = 1 to 5 do
-            Eio.Fiber.yield ()
-          done;
-          Buffer.add_substring buf s (o + (l / 2)) (l - (l / 2))
+          Eio.Promise.resolve enter ();
+          Eio.Fiber.await_cancel ()
         end
         else Buffer.add_substring buf s o l
       in
       let ppf = Format.make_formatter out ignore in
       Console_eio.run ~clock ~ppf ~progress:`Tty (fun _ ->
+          List.iter
+            (fun s -> Console_eio.print (Console.View.text s))
+            [ "keep-1"; "keep-2"; "keep-3" ];
           slow := true;
           Eio.Fiber.first
             (fun () ->
-              (try Console_eio.print (Console.View.text "PRINTED")
-               with Eio.Cancel.Cancelled _ -> ());
+              Console_eio.print (Console.View.text "PRINTED");
               Eio.Fiber.await_cancel ())
-            (fun () -> Eio.Promise.await entered);
-          slow := false);
-      Alcotest.(check int)
-        "printed once" 2
-        (List.length (Astring.String.cuts ~sep:"PRINTED" (Buffer.contents buf)));
-      Alcotest.(check bool) "cursor shown" true (cursor_shown buf))
+            (fun () -> Eio.Promise.await entered));
+      let vte = Console_vte.v ~rows:20 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      List.iter
+        (fun line ->
+          Alcotest.(check bool)
+            line true
+            (List.exists (contains line) (Console_vte.screen vte)))
+        [ "keep-1"; "keep-2"; "keep-3"; "PRINTED" ];
+      Alcotest.(check bool) "cursor shown" true (Console_vte.cursor_visible vte))
+
+(* A reader that pauses as a run ends loses nothing: a pager, say. *)
+let test_reader_pauses () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and paused = ref false in
+      let out s o l =
+        if !paused then Eio_unix.sleep 1.2;
+        Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Plain (fun root ->
+          ignore (Console.Task.start root "the last line");
+          paused := true);
+      Alcotest.(check bool)
+        "the last line" true
+        (contains "the last line" (Buffer.contents buf)))
 
 (* An output that takes nothing does not hold up the end of a run. *)
 let test_output_stalls () =
@@ -492,9 +512,12 @@ let test_view_foreign_cancelled () =
       let _, ppf = buffer () in
       let foreign = Eio.Cancel.Cancelled Not_found in
       let view _ = Console.View.fit (fun _ -> raise foreign) in
+      let printed = ref false in
       Alcotest.check_raises "the run" foreign (fun () ->
           Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
-              Console_eio.print (Console.View.text "line"))))
+              Console_eio.print (Console.View.text "line");
+              printed := true));
+      Alcotest.(check bool) "the print went on" true !printed)
 
 (* A report is no point of cancellation: cleanup that reports or logs in a
    cancelled fiber runs to its end, and the fiber is still cancelled after. *)
@@ -1194,8 +1217,8 @@ let suite =
       Alcotest.test_case "cancelled in a view" `Quick test_view_cancelled;
       Alcotest.test_case "cancelled around with_output" `Quick
         test_with_output_cancelled;
-      Alcotest.test_case "a write under way is not cut" `Quick
-        test_write_not_cut;
+      Alcotest.test_case "a write that is cut" `Quick test_write_cut;
+      Alcotest.test_case "a reader that pauses" `Quick test_reader_pauses;
       Alcotest.test_case "an output that stalls" `Quick test_output_stalls;
       Alcotest.test_case "a foreign Cancelled" `Quick
         test_view_foreign_cancelled;

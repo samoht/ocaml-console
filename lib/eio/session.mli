@@ -31,6 +31,10 @@ val scope : Task_driver.scope
 val cancelled : exn -> bool
 (** [cancelled e] is [true] iff [e] is the cancellation of an Eio fiber. *)
 
+val cancelling : exn -> bool
+(** [cancelling e] is [true] iff [e] is the cancellation of the fiber that calls
+    it. A [Cancelled] elsewhere is an exception like another. *)
+
 val write_error : exn -> bool
 (** [write_error e] is [true] iff [e] is a write error of an Eio flow, such as a
     closed pipe. *)
@@ -61,6 +65,7 @@ val with_terminal : (unit -> 'a) -> 'a
 
 val run :
   ?cursor:(bool -> unit) ->
+  ?flow:bool ->
   sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   run ->
@@ -77,4 +82,5 @@ val run :
     it ({!Interrupt}). While SIGTSTP stops the program, the region is off the
     screen and the cursor shown with [cursor true] (default does nothing); once
     continued, [cursor false] hides it and the region is drawn again. A {!claim}
-    must be held; it is released. *)
+    must be held; it is released. With [flow] (defaults to [false]) its output
+    is an Eio flow, which only a fiber can write to. *)

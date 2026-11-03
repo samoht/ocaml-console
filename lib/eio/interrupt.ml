@@ -19,6 +19,7 @@ type holder = {
   id : int;
   idle : (unit -> unit) -> unit;
   restore : unit -> unit;
+  settled : (unit -> unit) -> unit;
   suspend : (unit -> unit) -> unit;
 }
 
@@ -85,7 +86,7 @@ and handle signo =
       | h :: rest ->
           h.idle (fun () ->
               (try h.restore () with Sys_error _ -> ());
-              close rest)
+              h.settled (fun () -> close rest))
     in
     close (Atomic.exchange holders []);
     if not (Atomic.get sent) then
@@ -106,11 +107,11 @@ let catch () =
       | chosen -> Sys.set_signal s chosen)
     ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
 
-let protect ?(idle = fun k -> k ()) ?(suspend = fun stop -> stop ()) ~restore f
-    =
+let protect ?(idle = fun k -> k ()) ?(suspend = fun stop -> stop ())
+    ?(settled = fun k -> k ()) ~restore f =
   let id = Atomic.fetch_and_add next 1 in
   if Atomic.get holders = [] then catch ();
-  update holders (List.cons { id; idle; restore; suspend });
+  update holders (List.cons { id; idle; restore; settled; suspend });
   Fun.protect f ~finally:(fun () ->
       update holders (List.filter (fun h -> h.id <> id));
       if Atomic.get holders = [] && not (Atomic.get ending) then release ())

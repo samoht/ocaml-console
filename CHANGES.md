@@ -65,9 +65,13 @@
   at once when they happen while a view draws, instead of waiting for the next
   redraw or the close. The view stays on screen afterwards (#26).
 
-- `Console_eio.run` now restores the cursor when its fiber is cancelled, unless
-  the output takes nothing for a second, and when a `commit` function raises as
-  the run ends. A signal ends the program even after a view raised (#26).
+- `Console_eio.run` now restores the cursor when its fiber is cancelled and when
+  a `commit` function raises as the run ends. A signal ends the program even
+  after a view raised, and restores the cursor on an Eio flow too (#26, #27).
+
+- A cancelled `Console_eio.run` no longer waits more than a second on an output
+  that takes nothing, and a write cut by cancellation no longer erases the lines
+  above the region (#27).
 
 - Reporting on a task or logging no longer raises in a cancelled fiber, and a
   task's end reaches its subtasks and every watcher even if drawing is

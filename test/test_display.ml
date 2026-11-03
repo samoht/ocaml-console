@@ -2091,6 +2091,25 @@ let test_view_wrapped () =
   broken := false;
   close t
 
+(* A task ends once, whatever its ending calls: Task.t's contract. *)
+let test_task_ends_once () =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let display = Progress.show ~progress:`Json ppf root in
+  let task = Task.start root "t" in
+  Console__.Task_driver.ending root Task.fail;
+  Task.succeed task;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  let ended =
+    List.filter
+      (fun l -> contains {|"event":"end"|} l && contains {|["t"]|} l)
+      (String.split_on_char '\n' (Buffer.contents buf))
+  in
+  Alcotest.(check int) "one end" 1 (List.length ended);
+  Alcotest.(check bool) "the first outcome" true (Task.state task = `Succeeded)
+
 (* A view may close its own display: nothing is drawn after that. *)
 let test_view_closes () =
   let buf = Buffer.create 256 in
@@ -3257,6 +3276,7 @@ let suite =
       Alcotest.test_case "a write cut short" `Quick test_write_cut_short;
       Alcotest.test_case "writes that stay cut" `Quick test_write_stays_cut;
       Alcotest.test_case "a view closes its display" `Quick test_view_closes;
+      Alcotest.test_case "a task ends once" `Quick test_task_ends_once;
       Alcotest.test_case "a write under way" `Quick test_write_under_way;
       Alcotest.test_case "a task's end interrupted" `Quick test_end_interrupted;
       Alcotest.test_case "an exception Fun.protect wrapped" `Quick
