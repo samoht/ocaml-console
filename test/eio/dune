@@ -72,6 +72,7 @@
   display_harness
   eio_harness
   env_harness
+  console.text
   console_vte
   cstruct
   eio

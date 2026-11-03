@@ -80,3 +80,8 @@ val boundary : string -> int
     bytes after [s] may complete, else at the end of [s]. Text read in pieces,
     such as a child process's output, cut there, gives each piece to {!strip}
     with no escape code split between two. *)
+
+val decimal : string -> int option
+(** [decimal s] is the integer that [s] writes in decimal digits alone, and
+    [None] for anything else, which {!int_of_string_opt} would also read: a
+    sign, an underscore, or a hexadecimal, octal or binary prefix. *)

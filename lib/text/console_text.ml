@@ -371,3 +371,7 @@ let boundary str =
   match snd (fold_tokens (fun () _ _ _ -> ()) () str) with
   | Some start when start > 0 -> start
   | Some _ | None -> character_end str
+
+let decimal s =
+  if s <> "" && String.for_all Char.Ascii.is_digit s then int_of_string_opt s
+  else None
