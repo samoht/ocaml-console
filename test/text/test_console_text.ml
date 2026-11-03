@@ -361,9 +361,17 @@ let test_variation_selectors () =
   check "after a line end" "a\nb" "a\n\u{E0100}b";
   check "after a joiner" "\u{1F468}\u{200D}b" "\u{1F468}\u{200D}\u{FE0F}b"
 
+(* Each maximal subpart is one U+FFFD: Unicode Core Spec, section 3.9. *)
+let test_maximal_subparts () =
+  List.iter
+    (fun (table, bytes, converted) ->
+      Alcotest.(check string) table converted (Console_text.sanitize bytes))
+    Text_harness.maximal_subparts
+
 let suite =
   ( "console_text",
     [
+      Alcotest.test_case "maximal subparts" `Quick test_maximal_subparts;
       Alcotest.test_case "boundary" `Quick test_boundary;
       Alcotest.test_case "reordering characters" `Quick test_reordering;
       Alcotest.test_case "truecolour is reset after text" `Quick
