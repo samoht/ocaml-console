@@ -20,3 +20,8 @@ and on a terminal:
   piped.exe: [WARNING] logged at exit
   printed at exit
   result at exit
+
+A signal ends the program as it asks, also once a view raised:
+
+  $ ../piped.exe signal 2>/dev/null
+  [130]

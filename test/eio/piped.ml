@@ -15,8 +15,9 @@
     one on standard error. With [sleeps] and a number of steps, a task's two
     fibers sleep on {!Console_eio.clock}, one of them working that many steps
     before each sleep. With [size], it prints the size of the terminal of
-    standard error. With [print], it prints a rule and a table above the rows,
-    as wide as the display lays them out. *)
+    standard error. With [signal], a signal comes after a view raised. With
+    [print], it prints a rule and a table above the rows, as wide as the display
+    lays them out. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -87,6 +88,18 @@ let () =
           Console.Task.run display "build" (fun _ ->
               Fmt.pr "from stdout@.";
               Fmt.epr "from stderr@."))
+  | [| _; "signal" |] ->
+      let armed = ref false in
+      let view _ =
+        Console.View.fit (fun _ ->
+            if !armed then failwith "view" else Console.View.text "row")
+      in
+      Console_eio.run ~clock ~progress:`Tty ~view (fun _ ->
+          armed := true;
+          Console_eio.print (Console.View.text "line");
+          Unix.kill (Unix.getpid ()) Sys.sigint;
+          Unix.sleepf 2.;
+          Fmt.pr "still running@.")
   | [| _; "size" |] -> (
       match Console_eio.size Fmt.stderr with
       | Some size ->
