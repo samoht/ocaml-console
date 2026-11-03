@@ -43,6 +43,11 @@ let answer t =
   in
   Alcotest.testable pp equal
 
+let asking input = prompt ~interactive:true input
+
+let check_asked msg want out =
+  Alcotest.(check string) msg want (Buffer.contents out)
+
 let string_answer = answer Alcotest.string
 let bool_answer = answer Alcotest.bool
 
@@ -55,30 +60,30 @@ let test_a_string_source_is_not_a_terminal () =
   Alcotest.check string_answer "line" Refused (seen (Prompt.line t "name: "));
   Alcotest.check bool_answer "confirm" Refused
     (seen (Prompt.confirm t "delete?"));
-  Alcotest.(check string) "asked nothing" "" (Buffer.contents out)
+  check_asked "asked nothing" "" out
 
 (* One [t] owns the read buffer, so the second question gets the second line
    rather than whatever survived the first read. *)
 let test_line_asks_verbatim_and_keeps_its_place () =
   run @@ fun () ->
-  let t, out = prompt ~interactive:true "alpha\nbeta\n" in
+  let t, out = asking "alpha\nbeta\n" in
   Alcotest.check string_answer "first answer" (Got "alpha")
     (seen (Prompt.line t "name: "));
-  Alcotest.(check string) "first question" "name: " (Buffer.contents out);
+  check_asked "first question" "name: " out;
   Alcotest.check string_answer "second answer" (Got "beta")
     (seen (Prompt.line t "again: "));
-  Alcotest.(check string) "both questions" "name: again: " (Buffer.contents out)
+  check_asked "both questions" "name: again: " out
 
 (* The answer is what was typed, spaces and all, minus the terminator. *)
 let test_line_keeps_the_spaces_it_was_given () =
   run @@ fun () ->
-  let t, _ = prompt ~interactive:true "  spaced out  \n" in
+  let t, _ = asking "  spaced out  \n" in
   Alcotest.check string_answer "answer" (Got "  spaced out  ")
     (seen (Prompt.line t "name: "))
 
 let test_line_drops_a_crlf_terminator () =
   run @@ fun () ->
-  let t, _ = prompt ~interactive:true "alpha\r\nbeta\r\n" in
+  let t, _ = asking "alpha\r\nbeta\r\n" in
   Alcotest.check string_answer "first" (Got "alpha")
     (seen (Prompt.line t "name: "));
   Alcotest.check string_answer "second" (Got "beta")
@@ -88,22 +93,22 @@ let test_line_drops_a_crlf_terminator () =
    the answer never comes. *)
 let test_line_at_end_of_input_is_refused () =
   run @@ fun () ->
-  let t, out = prompt ~interactive:true "" in
+  let t, out = asking "" in
   Alcotest.check string_answer "answer" Ended (seen (Prompt.line t "name: "));
-  Alcotest.(check string) "question" "name: " (Buffer.contents out);
-  let t, _ = prompt ~interactive:true "cut" in
+  check_asked "question" "name: " out;
+  let t, _ = asking "cut" in
   Alcotest.check string_answer "a line cut short" Ended
     (seen (Prompt.line t "name: "))
 
 let test_confirm_asks_with_a_default_of_no () =
   run @@ fun () ->
-  let t, out = prompt ~interactive:true "y\n" in
+  let t, out = asking "y\n" in
   Alcotest.check bool_answer "answer" (Got true)
     (seen (Prompt.confirm t "delete?"));
-  Alcotest.(check string) "question" "delete? [y/N] " (Buffer.contents out)
+  check_asked "question" "delete? [y/N] " out
 
 let check_confirm input expected =
-  let t, _ = prompt ~interactive:true (input ^ "\n") in
+  let t, _ = asking (input ^ "\n") in
   Alcotest.check bool_answer
     (Fmt.str "confirm %S" input)
     (Got expected)
@@ -121,13 +126,13 @@ let test_confirm_takes_everything_else_as_no () =
 
 let test_confirm_at_end_of_input_is_refused () =
   run @@ fun () ->
-  let t, _ = prompt ~interactive:true "" in
+  let t, _ = asking "" in
   Alcotest.check bool_answer "answer" Ended (seen (Prompt.confirm t "delete?"))
 
 (* A question is text: an escape in it cannot clear the screen. *)
 let test_question_is_text () =
   run @@ fun () ->
-  let t, out = prompt ~interactive:true "y\n" in
+  let t, out = asking "y\n" in
   ignore (Prompt.confirm t "\027[2Jdelete?");
   Alcotest.(check bool)
     "no escape" false
@@ -135,10 +140,10 @@ let test_question_is_text () =
 
 let test_secret_without_a_terminal_is_refused () =
   run @@ fun () ->
-  let t, out = prompt ~interactive:true "abc\n" in
+  let t, out = asking "abc\n" in
   Alcotest.check string_answer "answer" Refused
     (seen (Prompt.secret t "secret: "));
-  Alcotest.(check string) "nothing asked" "" (Buffer.contents out)
+  check_asked "nothing asked" "" out
 
 (* [f ()] with standard input on [stdin], given back as it was found. *)
 let with_stdin ~stdin f =
@@ -366,7 +371,7 @@ let test_prompt_leaves_other_fibers_attributed () =
    back as it found it; without a terminal it is refused. *)
 let test_keys () =
   run (fun () ->
-      let t, _ = prompt ~interactive:true "abc" in
+      let t, _ = asking "abc" in
       Alcotest.(check bool)
         "refused without a terminal" true
         (Result.is_error (Prompt.keys t (fun _ -> ()))));
@@ -444,7 +449,7 @@ let test_pp_error () =
 let test_line_at_limit () =
   run @@ fun () ->
   let line = String.make 4096 'x' in
-  let t, _ = prompt ~interactive:true (line ^ "\nnext\n") in
+  let t, _ = asking (line ^ "\nnext\n") in
   let first = seen (Prompt.line t "") in
   Alcotest.check string_answer "the next answer stays intact" (Got "next")
     (seen (Prompt.line t ""));
