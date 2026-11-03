@@ -243,9 +243,26 @@ let test_absurd_dimensions () =
   check_dimensions "only decimal digits" ~columns:"0x50" ~lines:"1_0" (80, 24);
   check_dimensions "too large" ~columns:"99999999999" ~lines:"4097" (80, 24)
 
+(* What a size may be written as, which [int_of_string_opt] alone reads more of. *)
+let test_decimal () =
+  List.iter
+    (fun (s, expected) ->
+      Alcotest.(check (option int)) s expected (Console_text.decimal s))
+    [
+      ("80", Some 80);
+      ("007", Some 7);
+      ("", None);
+      ("-1", None);
+      ("+1", None);
+      ("0x50", None);
+      ("1_000", None);
+      ("99999999999999999999", None);
+    ]
+
 let suite =
   ( "terminal",
     [
+      Alcotest.test_case "a size in decimal digits" `Quick test_decimal;
       Alcotest.test_case "small positive terminal dimensions are preserved"
         `Quick test_small_dimensions;
       Alcotest.test_case "absurd terminal dimensions are ignored" `Quick
