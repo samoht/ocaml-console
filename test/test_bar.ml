@@ -319,22 +319,12 @@ let test_horizontal_room () =
     [ Bar.horizontal ~width:20 0.5; Bar.horizontal ~brackets:true 0.5 ]
 
 let test_vertical_room () =
-  let v = View.sized ~width:2 ~height:3 (Bar.vertical ~width:5 1.) in
-  let terminal = Console_vte.v ~rows:12 ~cols:2 () in
-  Console_vte.feed terminal (View.to_string v);
-  Alcotest.(check int)
-    "three terminal rows" 2
-    (fst (Console_vte.cursor_pos terminal));
-  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+  Display_harness.check_room ~rows:12 ~cols:2 "three terminal rows" 2
+    (View.sized ~width:2 ~height:3 (Bar.vertical ~width:5 1.))
 
 let test_sparkline_room () =
-  let v = View.sized ~width:2 (Bar.sparkline [ 1.; 2.; 3.; 4. ]) in
-  let terminal = Console_vte.v ~rows:4 ~cols:2 () in
-  Console_vte.feed terminal (View.to_string v);
-  Alcotest.(check int)
-    "one terminal row" 0
-    (fst (Console_vte.cursor_pos terminal));
-  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+  Display_harness.check_room ~rows:4 ~cols:2 "one terminal row" 0
+    (View.sized ~width:2 (Bar.sparkline [ 1.; 2.; 3.; 4. ]))
 
 let test_chart_room () =
   let chart = Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ] in

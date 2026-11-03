@@ -244,19 +244,10 @@ let test_window_age () =
 (* A single completed task is subject to the waiting-region bound too.
    Neither the caller nor the output sink retains the task or its label. *)
 let test_oversized_waiting_task () =
-  let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let root = new_root () in
-  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
-  let parent = Task.start root "parent" in
-  let live_bytes () =
-    Gc.full_major ();
-    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  let retained =
+    retained (fun parent ->
+        Task.succeed (Task.start parent (String.make (4 * 1024 * 1024) 'x')))
   in
-  let before = live_bytes () in
-  Task.succeed (Task.start parent (String.make (4 * 1024 * 1024) 'x'));
-  let retained = live_bytes () - before in
-  Task.succeed (Task.start parent "replacement");
-  Display.close d;
   if retained > 1_048_576 + 65_536 then
     Alcotest.failf "one completed child retains %d bytes (limit 1 MiB)" retained
 

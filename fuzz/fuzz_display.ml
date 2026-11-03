@@ -1680,24 +1680,12 @@ let test_window_age n newest_child =
 (* The newest completed child cannot exempt an arbitrarily large label
    or ending message from the bound on tasks waiting for their parent. *)
 let test_oversized_waiting_task n message =
-  let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let root = Display_harness.new_root () in
-  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
-  let parent = Task.start root "parent" in
-  let live_bytes () =
-    Gc.full_major ();
-    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  let retained =
+    Display_harness.retained (fun parent ->
+        let text = String.make ((2 * 1024 * 1024) + (n * 1024)) 'x' in
+        if message then Task.succeed ~message:text (Task.start parent "child")
+        else Task.succeed (Task.start parent text))
   in
-  let before = live_bytes () in
-  let add () =
-    let text = String.make ((2 * 1024 * 1024) + (n * 1024)) 'x' in
-    if message then Task.succeed ~message:text (Task.start parent "child")
-    else Task.succeed (Task.start parent text)
-  in
-  add ();
-  let retained = live_bytes () - before in
-  Task.succeed (Task.start parent "replacement");
-  Display.close d;
   if retained > 1_048_576 + 65_536 then
     failf "one completed child retains %d bytes (limit 1 MiB)" retained
 
@@ -1716,7 +1704,7 @@ let test_tree_local_dimensions w h =
     View.to_string (View.sized ~width:80 ~height:11 (Progress.view t.root))
   in
   let before = frame () in
-  let writes = List.length !(t.chunks) in
+  let writes = Display_harness.writes t in
   let width = 1 + (w mod 200) and height = h mod 11 in
   List.iter
     (fun task ->
@@ -1729,7 +1717,7 @@ let test_tree_local_dimensions w h =
     [ t.root; parent; child ];
   let after = frame () in
   Display.redraw d;
-  let unchanged = List.length !(t.chunks) = writes in
+  let unchanged = Display_harness.writes t = writes in
   Display.close d;
   check_eq ~pp:Fmt.Dump.string before after;
   check unchanged

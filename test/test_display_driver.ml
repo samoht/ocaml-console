@@ -21,7 +21,7 @@ let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
    after the mark of its level, when it fails. *)
 let test_logs_in_task () =
   let run ~fails =
-    let t = terminal ~theme ~width:30 ~height:10 () in
+    let t = roomy () in
     Task.run ~log_lines:1 t.root "job" (fun job ->
         Driver.report t.root `Warning "first";
         Task.log job "out";
@@ -56,7 +56,7 @@ let test_logs_outside () =
       ]
   in
   let expected = [ "app"; "info"; ". debug"; "! warn"; "x error" ] in
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   report t.root;
   Display.redraw t.display;
   check_lines "above the rows, at once" expected

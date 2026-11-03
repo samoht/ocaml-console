@@ -307,7 +307,7 @@ let test_after_a_partial_line () =
 (* While a task runs, its window shows its latest lines of both kinds, a line
    too wide cut there and only there. *)
 let test_window () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let wide = "wide " ^ String.make 40 'w' in
   Task.run ~log_lines:3 t.root "job" (fun job ->
       List.iter (Task.log job) [ "one"; "two" ];
@@ -489,10 +489,10 @@ let test_redraw_idle () =
   let t = terminal ~theme () in
   ignore (Task.start t.root "job");
   Display.redraw t.display;
-  let before = List.length !(t.chunks) in
+  let before = writes t in
   Display.redraw t.display;
   Display.redraw t.display;
-  Alcotest.(check int) "nothing written" before (List.length !(t.chunks));
+  Alcotest.(check int) "nothing written" before (writes t);
   close t
 
 (* A terminal that narrows reflows the old frame onto more rows; the redraw
@@ -1055,7 +1055,7 @@ let test_root_line_wraps () =
 (* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
 let test_success_drops () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
   List.iter (Task.log job) [ "one"; "two"; "three" ];
   Display.redraw t.display;
@@ -1070,7 +1070,7 @@ let test_success_drops () =
    block, without its label and not cut: a line too wide goes on over the
    rows below. [with_task] fails its task when its function raises. *)
 let test_failure_block () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let wide = String.make 45 'w' in
   (match
      Task.run ~log_lines:2 t.root "job" (fun job ->
@@ -1156,7 +1156,7 @@ let test_failure_plain () =
    output under its line, as a failure does, the lines that left its window
    too. *)
 let test_cancelled_output () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
   let other = Task.start ~log_lines:1 t.root "other" in
   List.iter (Task.log job) [ "a"; "b"; "c" ];
@@ -1180,7 +1180,7 @@ let test_cancelled_output () =
    at once and stays, while a task runs and when that task fails, and also
    once the work ended. Ending it ends the work, once. *)
 let test_root () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let d = t.root in
   let root = d in
   (match
@@ -1281,7 +1281,7 @@ let test_within () =
 (* Two tasks that run at once: on a terminal each block is printed under
    its own line, never interleaved with the other's. *)
 let test_two_tasks () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
   List.iter
     (fun (task, s) -> Task.log task s)
@@ -1672,10 +1672,10 @@ let test_view_moves () =
     Display.redraw t.display;
     let frames =
       List.init 12 (fun _ ->
-          let before = List.length !(t.chunks) in
+          let before = writes t in
           t.advance 0.25;
           Display.redraw t.display;
-          (List.length !(t.chunks) > before, screen t))
+          (writes t > before, screen t))
     in
     close t;
     frames
@@ -3012,9 +3012,9 @@ let test_print () =
   let t = terminal ~theme ~width:30 ~height:8 () in
   ignore (Task.start t.root "job");
   Display.redraw t.display;
-  let before = List.length !(t.chunks) in
+  let before = writes t in
   Display.print t.display (View.text "printed");
-  Alcotest.(check int) "one write" (before + 1) (List.length !(t.chunks));
+  Alcotest.(check int) "one write" (before + 1) (writes t);
   check_lines "above the region, at once" [ "printed"; " |  job" ]
     (List.map untimed (screen t));
   close t;

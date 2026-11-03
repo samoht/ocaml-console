@@ -109,6 +109,8 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   in
   { vte; root; display; advance; size; chunks }
 
+let roomy () = terminal ~theme:Theme.dos ~width:30 ~height:10 ()
+let writes t = List.length !(t.chunks)
 let written t = String.concat "" (List.rev !(t.chunks))
 
 let resize t ~width ~height =
@@ -117,6 +119,28 @@ let resize t ~width ~height =
 
 let screen t = Console_vte.screen t.vte
 let lines t = Console_vte.screen ~scrollback:true t.vte
+
+let retained add =
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
+  let root = new_root () in
+  let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
+  let parent = Task.start root "parent" in
+  let live_bytes () =
+    Gc.full_major ();
+    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  in
+  let before = live_bytes () in
+  add parent;
+  let bytes = live_bytes () - before in
+  Task.succeed (Task.start parent "replacement");
+  Display.close d;
+  bytes
+
+let check_room ~rows ~cols msg row v =
+  let terminal = Console_vte.v ~rows ~cols () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int) msg row (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= cols)
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
