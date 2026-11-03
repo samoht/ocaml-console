@@ -2091,6 +2091,33 @@ let test_view_wrapped () =
   broken := false;
   close t
 
+(* A view may close its own display: nothing is drawn after that. *)
+let test_view_closes () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let display = ref None and armed = ref false in
+  let view =
+    View.fit (fun _ ->
+        if !armed then begin
+          armed := false;
+          Display.close (Option.get !display)
+        end;
+        View.text "x")
+  in
+  let d = Display.v ~size:(fun () -> (40, 10)) ~now:(fun () -> 0.) ppf view in
+  display := Some d;
+  armed := true;
+  Display.redraw d;
+  Format.pp_print_flush ppf ();
+  let after =
+    match Astring.String.cuts ~sep:"\027[?25h" (Buffer.contents buf) with
+    | [ _; after ] -> after
+    | l -> Alcotest.failf "the cursor shown %d times" (List.length l - 1)
+  in
+  Alcotest.(check bool)
+    "no update after the last" false
+    (contains "\027[?2026h" after)
+
 (* What ends a task as the display closes may raise: the terminal comes first. *)
 let test_commit_raises_at_close () =
   let commit _ = raise Exit in
@@ -3229,6 +3256,7 @@ let suite =
       Alcotest.test_case "what waits for idle raises" `Quick test_idle_raises;
       Alcotest.test_case "a write cut short" `Quick test_write_cut_short;
       Alcotest.test_case "writes that stay cut" `Quick test_write_stays_cut;
+      Alcotest.test_case "a view closes its display" `Quick test_view_closes;
       Alcotest.test_case "a write under way" `Quick test_write_under_way;
       Alcotest.test_case "a task's end interrupted" `Quick test_end_interrupted;
       Alcotest.test_case "an exception Fun.protect wrapped" `Quick

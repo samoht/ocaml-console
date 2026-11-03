@@ -25,3 +25,18 @@ A signal ends the program as it asks, also once a view raised:
 
   $ ../piped.exe signal 2>/dev/null
   [130]
+
+So does one that comes while the scheduler waits, with the display on an Eio
+flow, which a signal handler cannot write to, and the cursor is shown:
+
+  $ ../piped.exe idle-signal idle.out 2>/dev/null
+  [130]
+  $ grep -c '25h' idle.out
+  1
+
+A view that calls exit leaves the cursor shown:
+
+  $ ../piped.exe exit-view view.out 2>/dev/null
+  [3]
+  $ grep -c '25h' view.out
+  1

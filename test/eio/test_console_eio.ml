@@ -434,6 +434,68 @@ let test_with_output_cancelled () =
             "the task is cancelled" true
             (Option.map Console.Task.state !task = Some `Cancelled)))
 
+(* A write under way ends whole though its fiber is cancelled: an output that took
+   half of it never gets that half again. *)
+let test_write_not_cut () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
+      let slow = ref false in
+      let out s o l =
+        if !slow then begin
+          Buffer.add_substring buf s o (l / 2);
+          ignore (Eio.Promise.try_resolve enter ());
+          for _ = 1 to 5 do
+            Eio.Fiber.yield ()
+          done;
+          Buffer.add_substring buf s (o + (l / 2)) (l - (l / 2))
+        end
+        else Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun _ ->
+          slow := true;
+          Eio.Fiber.first
+            (fun () ->
+              (try Console_eio.print (Console.View.text "PRINTED")
+               with Eio.Cancel.Cancelled _ -> ());
+              Eio.Fiber.await_cancel ())
+            (fun () -> Eio.Promise.await entered);
+          slow := false);
+      Alcotest.(check int)
+        "printed once" 2
+        (List.length (Astring.String.cuts ~sep:"PRINTED" (Buffer.contents buf)));
+      Alcotest.(check bool) "cursor shown" true (cursor_shown buf))
+
+(* An output that takes nothing does not hold up the end of a run. *)
+let test_output_stalls () =
+  with_clock (fun clock ->
+      let stalled = ref false in
+      let out _ _ _ = if !stalled then Eio.Fiber.await_cancel () in
+      let ppf = Format.make_formatter out ignore in
+      let result =
+        Eio.Fiber.first
+          (fun () ->
+            Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+                ignore (Console.Task.start root "t");
+                stalled := true;
+                Eio.Fiber.await_cancel ()))
+          (fun () ->
+            Eio.Fiber.yield ();
+            "cancelled")
+      in
+      Alcotest.(check string) "the winner" "cancelled" result;
+      Console_eio.run ~clock ~progress:`Plain ignore)
+
+(* A [Cancelled] in a fiber that nothing cancelled is a view's own exception. *)
+let test_view_foreign_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let foreign = Eio.Cancel.Cancelled Not_found in
+      let view _ = Console.View.fit (fun _ -> raise foreign) in
+      Alcotest.check_raises "the run" foreign (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+              Console_eio.print (Console.View.text "line"))))
+
 (* A report is no point of cancellation: cleanup that reports or logs in a
    cancelled fiber runs to its end, and the fiber is still cancelled after. *)
 let test_report_cancelled () =
@@ -1132,6 +1194,11 @@ let suite =
       Alcotest.test_case "cancelled in a view" `Quick test_view_cancelled;
       Alcotest.test_case "cancelled around with_output" `Quick
         test_with_output_cancelled;
+      Alcotest.test_case "a write under way is not cut" `Quick
+        test_write_not_cut;
+      Alcotest.test_case "an output that stalls" `Quick test_output_stalls;
+      Alcotest.test_case "a foreign Cancelled" `Quick
+        test_view_foreign_cancelled;
       Alcotest.test_case "a report in a cancelled fiber" `Quick
         test_report_cancelled;
       Alcotest.test_case "the output breaks as the run ends" `Quick
