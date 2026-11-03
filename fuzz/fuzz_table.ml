@@ -7,8 +7,10 @@ open Alcobar
 open Console
 open Widget_harness
 
+let columns_of s = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4)
+
 let table ?(border = Border.rounded) s =
-  let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
+  let ncol = columns_of s in
   let columns =
     List.init ncol (fun i ->
         Table.column
@@ -184,7 +186,7 @@ let test_mixed_script_themes s n =
 (* [rules] draws a rule between each two rows, in the glyphs of the
    header's rule: with the header's, as many rules as rows. *)
 let test_rules s n =
-  let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
+  let ncol = columns_of s in
   let nrows = 1 + (abs n mod 6) in
   let columns = List.init ncol (fun _ -> Table.column (View.text "h")) in
   let rows =

@@ -35,23 +35,23 @@ let check_room width height v =
   check (View.height v <= height)
 
 let test_horizontal_room n requested brackets frac =
-  let width = 1 + (n mod 200) in
+  let width = Widget_harness.room_width n in
   let requested = requested mod 240 in
   check_room width 1 (Bar.horizontal ~width:requested ~brackets frac);
   check_room width 1 (Bar.horizontal ~brackets frac)
 
 let test_vertical_room n h requested frac =
   check_room
-    (1 + (n mod 200))
+    (Widget_harness.room_width n)
     (1 + (h mod 30))
     (Bar.vertical ~width:(requested mod 240) frac)
 
 let test_sparkline_room n values =
-  check_room (1 + (n mod 200)) 1 (Bar.sparkline values)
+  check_room (Widget_harness.room_width n) 1 (Bar.sparkline values)
 
 let test_chart_room n h labels =
   let bars = List.mapi (fun i label -> (label, float_of_int (i + 1))) labels in
-  check_room (1 + (n mod 200)) (1 + (h mod 30)) (Bar.chart bars)
+  check_room (Widget_harness.room_width n) (1 + (h mod 30)) (Bar.chart bars)
 
 let suite =
   ( "bar",

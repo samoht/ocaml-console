@@ -30,7 +30,7 @@ let test_spinner_room n frames =
   match frames with
   | [] -> ()
   | _ ->
-      let width = 1 + (n mod 200) in
+      let width = Widget_harness.room_width n in
       let v = View.sized ~width (Spinner.view ~frames ()) in
       check (View.width v <= width)
 

@@ -489,6 +489,11 @@ let test_output_exception s cancel =
   in
   check (colours grid index = colours plain first)
 
+(* What the terminal scrolled away and its screen. *)
+let all_rows vte =
+  String.concat "\n"
+    (Console_vte.scrollback_lines vte @ [ Console_vte.to_string vte ])
+
 let test_resize_erases_old_frame n =
   let t = terminal ~width:80 ~height:12 ~styled:true () in
   let d = display t in
@@ -502,18 +507,12 @@ let test_resize_erases_old_frame n =
   Task.set_label b "new-b";
   Display.redraw d;
   check_screen t;
-  let rows =
-    String.concat "\n"
-      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
-  in
+  let rows = all_rows t.vte in
   if has "OLD_SENTINEL" rows then failf "old frame survived shrink: %S" rows;
   t.size := (80, 12);
   Console_vte.resize t.vte ~rows:12 ~cols:80;
   Display.redraw d;
-  let rows =
-    String.concat "\n"
-      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
-  in
+  let rows = all_rows t.vte in
   if has "OLD_SENTINEL" rows then
     failf "old frame returned after growth: %S" rows;
   check (has "new-a" rows && has "new-b" rows);
@@ -771,8 +770,6 @@ type mtask = {
    whether that task still ran. *)
 type line = { token : string; owner : mtask option; output : bool; ran : bool }
 
-let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
-
 (* The model of [finish]: the children that run end first. *)
 let rec model_end o t =
   if Option.is_none t.outcome then begin
@@ -816,21 +813,22 @@ let end_task t o =
   | `Cancelled -> Task.cancel t.task);
   model_end o t
 
+let pick_task tasks i =
+  let n = Array.length !tasks in
+  if n = 0 then None else Some !tasks.(i mod n)
+
 (* Runs [steps] on the tasks of [root], whose scope reads its current task
    from [current], and closes [d], which shows them. *)
 let run_steps root d current steps =
   let tasks = ref [||] and lines = ref [] in
-  let pick i =
-    let n = Array.length !tasks in
-    if n = 0 then None else Some !tasks.(i mod n)
-  in
+  let pick = pick_task tasks in
   let add owner output =
     let token = Fmt.str "k%04d" (List.length !lines) in
     let ran =
       match owner with Some t -> Option.is_none t.outcome | None -> false
     in
     (match owner with
-    | Some t when ran -> t.window <- take t.window_size (token :: t.window)
+    | Some t when ran -> t.window <- List.take t.window_size (token :: t.window)
     | _ -> ());
     lines := { token; owner; output; ran } :: !lines;
     token
@@ -1286,10 +1284,7 @@ let start_tree_task ~keep_ended ~moves root tparent tname =
    step. *)
 let run_tree ?(keep_ended = false) root ~frame steps =
   let tasks = ref [||] and moves = ref [] in
-  let pick i =
-    let n = Array.length !tasks in
-    if n = 0 then None else Some !tasks.(i mod n)
-  in
+  let pick = pick_task tasks in
   let move x =
     if not x.moved then begin
       x.moved <- true;
@@ -1356,11 +1351,14 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
+(* The rows of [r] above the summary. *)
+let above_summary r = Option.map (fun h -> h - 1) (Room.height r)
+
 (* The trees of the top tasks of [root] side by side, then the summary. *)
 let side_by_side ~width root =
   View.fit (fun r ->
       let width = Option.value (Room.width r) ~default:width in
-      let height = Option.map (fun h -> h - 1) (Room.height r) in
+      let height = above_summary r in
       let tops = Task.children root in
       let n = max 1 (List.length tops) in
       let column = (min width 100 - (2 * (n - 1))) / n in
@@ -1445,7 +1443,7 @@ let test_default_view steps h =
   in
   let explicit root =
     View.fit (fun r ->
-        let height = Option.map (fun h -> h - 1) (Room.height r) in
+        let height = above_summary r in
         View.vcat
           [ View.sized ?height (Progress.tree root); Progress.summary root ])
   in

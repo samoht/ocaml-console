@@ -206,6 +206,8 @@ let prompt_on env ~echoed =
   in
   Prompt.v ~ppf (Eio.Stdenv.stdin env)
 
+let uncounted env = prompt_on env ~echoed:(Atomic.make 0)
+
 (* [secret t] answered on a pseudo-terminal with [typed] by another fiber
    of the domain, which runs only if the read lets it: a read that parks
    the domain hangs, and the run's guard ends it. The fiber types once the
@@ -213,7 +215,7 @@ let prompt_on env ~echoed =
 let secret_typed typed =
   with_pty @@ fun env tty master ->
   with_stdin ~stdin:tty (fun () ->
-      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      let t = uncounted env in
       let answer, () =
         Eio.Fiber.pair
           (fun () -> Prompt.secret t "secret: ")
@@ -303,7 +305,7 @@ let secret_after ~before typed =
     in
     let result =
       with_stdin ~stdin:tty (fun () ->
-          let t = prompt_on env ~echoed:(Atomic.make 0) in
+          let t = uncounted env in
           if before <> "" then
             Alcotest.check string_answer "the line" (Got before)
               (seen (Prompt.line t "line: "));
@@ -370,7 +372,7 @@ let test_keys () =
         (Result.is_error (Prompt.keys t (fun _ -> ()))));
   with_pty @@ fun env tty master ->
   with_stdin ~stdin:tty (fun () ->
-      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      let t = uncounted env in
       let before = Unix.tcgetattr tty in
       let keys, () =
         Eio.Fiber.pair
@@ -395,14 +397,14 @@ let test_keys () =
 let test_keys_at_end_of_input () =
   with_pty @@ fun env tty _ ->
   with_stdin ~stdin:tty (fun () ->
-      let t = prompt_on env ~echoed:(Atomic.make 0) in
+      let t = uncounted env in
       Alcotest.check string_answer "the end of the input" Ended
         (seen (Prompt.keys t (fun _ -> raise End_of_file))))
 
 let test_keys_split_sequences () =
   with_pty @@ fun env tty master ->
   with_stdin ~stdin:tty (fun () ->
-      let prompt = prompt_on env ~echoed:(Atomic.make 0) in
+      let prompt = uncounted env in
       let before = Unix.tcgetattr tty in
       let typed = "界\027[A👩‍💻\027OD" in
       let received, () =

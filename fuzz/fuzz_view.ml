@@ -23,10 +23,7 @@ let alphabet =
     "\n";
   |]
 
-let text s =
-  String.concat ""
-    (List.init (String.length s) (fun i ->
-         alphabet.(Char.code s.[i] mod Array.length alphabet)))
+let text = Widget_harness.spell alphabet
 
 (* A span in several styles, cut between characters where the generator
    says. *)
@@ -431,7 +428,7 @@ let test_still_size frames time width =
   check_eq ~pp:Fmt.(Dump.list int) (widths still) (widths moved)
 
 let test_weighted_room n a b =
-  let width = 1 + (n mod 200) in
+  let width = Widget_harness.room_width n in
   let v =
     View.hcat ~gap:0
       [ View_harness.fill 'a' (1 + a); View_harness.fill 'b' (1 + b) ]
@@ -439,7 +436,7 @@ let test_weighted_room n a b =
   check_eq ~pp:Fmt.int width (View.width (View.sized ~width v))
 
 let test_nested_room n h =
-  let width = 1 + (n mod 200) and height = 1 + (h mod 30) in
+  let width = Widget_harness.room_width n and height = 1 + (h mod 30) in
   let table =
     Table.view
       [ Table.column (View.text "界"); Table.column (View.text "n") ]
