@@ -4,85 +4,87 @@
   ---------------------------------------------------------------------------*)
 
 let lines = Alcotest.(list string)
+let check_lines msg want got = Alcotest.(check lines) msg want got
+let check_echo msg want echo = Alcotest.(check string) msg want echo
+
+let check_pending msg want t =
+  Alcotest.(check string) msg want (Console_input.pending t)
+
+(* A new editor fed [keys]: the editor, the echo and the submitted lines. *)
+let fed ?complete ?max_line keys =
+  let t = Console_input.v ?complete ?max_line () in
+  let echo, submitted = Console_input.feed t keys in
+  (t, echo, submitted)
+
+(* [keys] fed to a new editor leave [want] as its pending line. *)
+let check_fed msg keys want =
+  let t, _, _ = fed keys in
+  check_pending msg want t
 
 let test_printable () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "abc" in
-  Alcotest.(check string) "echoes the typed bytes" "abc" echo;
-  Alcotest.(check lines) "no line yet" [] ls;
-  Alcotest.(check string)
-    "pending holds the line" "abc" (Console_input.pending t)
+  let t, echo, ls = fed "abc" in
+  check_echo "echoes the typed bytes" "abc" echo;
+  check_lines "no line yet" [] ls;
+  check_pending "pending holds the line" "abc" t
 
 (* A control sequence with intermediate bytes, such as DECSCUSR (ESC [ 1 SP
    q) or SR (ESC [ 2 SP A), ends at its final byte: none of it is typed, and
    its final byte is no arrow. *)
 let test_csi_intermediate () =
-  let t = Console_input.v () in
-  let echo, _ = Console_input.feed t "ab\027[1 qc\027[2 Ad" in
-  Alcotest.(check string) "echo" "abcd" echo;
-  Alcotest.(check string) "the line" "abcd" (Console_input.pending t)
+  let t, echo, _ = fed "ab\027[1 qc\027[2 Ad" in
+  check_echo "echo" "abcd" echo;
+  check_pending "the line" "abcd" t
 
 let test_submit_cr () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "abc\r" in
-  Alcotest.(check string) "echo ends in CRLF" "abc\r\n" echo;
-  Alcotest.(check lines) "one completed line" [ "abc" ] ls;
-  Alcotest.(check string) "pending cleared" "" (Console_input.pending t)
+  let t, echo, ls = fed "abc\r" in
+  check_echo "echo ends in CRLF" "abc\r\n" echo;
+  check_lines "one completed line" [ "abc" ] ls;
+  check_pending "pending cleared" "" t
 
 let test_submit_lf () =
-  let t = Console_input.v () in
-  let _, ls = Console_input.feed t "abc\n" in
-  Alcotest.(check lines) "LF submits too" [ "abc" ] ls
+  let _, _, ls = fed "abc\n" in
+  check_lines "LF submits too" [ "abc" ] ls
 
 let test_crlf_is_one_line () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "abc\r\n" in
-  Alcotest.(check string) "echo is a single CRLF" "abc\r\n" echo;
-  Alcotest.(check lines) "CRLF yields one line, no empty second" [ "abc" ] ls
+  let _, echo, ls = fed "abc\r\n" in
+  check_echo "echo is a single CRLF" "abc\r\n" echo;
+  check_lines "CRLF yields one line, no empty second" [ "abc" ] ls
 
 let test_utf8_passthrough () =
-  let t = Console_input.v () in
-  let echo, _ = Console_input.feed t "caf\xc3\xa9" in
-  Alcotest.(check string) "high bytes echoed verbatim" "caf\xc3\xa9" echo;
-  Alcotest.(check string) "and stored" "caf\xc3\xa9" (Console_input.pending t)
+  let t, echo, _ = fed "caf\xc3\xa9" in
+  check_echo "high bytes echoed verbatim" "caf\xc3\xa9" echo;
+  check_pending "and stored" "caf\xc3\xa9" t
 
 let test_backspace () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "ab\127c\r" in
-  Alcotest.(check string)
-    "erase echoes backspace-space-backspace" "ab\b \bc\r\n" echo;
-  Alcotest.(check lines) "'b' erased, then 'c' appended" [ "ac" ] ls
+  let _, echo, ls = fed "ab\127c\r" in
+  check_echo "erase echoes backspace-space-backspace" "ab\b \bc\r\n" echo;
+  check_lines "'b' erased, then 'c' appended" [ "ac" ] ls
 
 let test_backspace_ctrl_h () =
-  let t = Console_input.v () in
-  let _, ls = Console_input.feed t "ab\008\r" in
-  Alcotest.(check lines) "Ctrl-H also erases" [ "a" ] ls
+  let _, _, ls = fed "ab\008\r" in
+  check_lines "Ctrl-H also erases" [ "a" ] ls
 
 let test_backspace_on_empty () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "\127" in
-  Alcotest.(check string) "nothing to erase, no echo" "" echo;
-  Alcotest.(check lines) "no line" [] ls
+  let _, echo, ls = fed "\127" in
+  check_echo "nothing to erase, no echo" "" echo;
+  check_lines "no line" [] ls
 
 let test_control_chars_ignored () =
-  let t = Console_input.v () in
-  let echo, ls = Console_input.feed t "a\001\002b\r" in
-  Alcotest.(check string)
-    "control bytes neither echoed nor stored" "ab\r\n" echo;
-  Alcotest.(check lines) "control bytes dropped" [ "ab" ] ls
+  let _, echo, ls = fed "a\001\002b\r" in
+  check_echo "control bytes neither echoed nor stored" "ab\r\n" echo;
+  check_lines "control bytes dropped" [ "ab" ] ls
 
 let test_masked_input () =
   let t = Console_input.v ~mask:"*" () in
   let echo, ls = Console_input.feed t "s3cr3t" in
-  Alcotest.(check string) "one mask per character" "******" echo;
-  Alcotest.(check lines) "no line yet" [] ls;
-  Alcotest.(check string)
-    "secret retained for the caller" "s3cr3t" (Console_input.pending t);
+  check_echo "one mask per character" "******" echo;
+  check_lines "no line yet" [] ls;
+  check_pending "secret retained for the caller" "s3cr3t" t;
   let echo, _ = Console_input.feed t "\127" in
-  Alcotest.(check string) "backspace erases one mask" "\b \b" echo;
+  check_echo "backspace erases one mask" "\b \b" echo;
   let echo, ls = Console_input.feed t "\r" in
-  Alcotest.(check string) "submit reveals nothing" "\r\n" echo;
-  Alcotest.(check lines) "submitted value is unmasked" [ "s3cr3" ] ls;
+  check_echo "submit reveals nothing" "\r\n" echo;
+  check_lines "submitted value is unmasked" [ "s3cr3" ] ls;
   Alcotest.(check (list string))
     "secrets are never retained in history" [] (Console_input.history t)
 
@@ -102,8 +104,7 @@ let test_masked_keeps_bytes () =
     ls
   in
   List.iter
-    (fun typed ->
-      Alcotest.(check lines) (Fmt.str "%S" typed) [ typed ] (secret typed))
+    (fun typed -> check_lines (Fmt.str "%S" typed) [ typed ] (secret typed))
     [
       "p\u{202e}w";
       "\u{200f}pw";
@@ -115,77 +116,59 @@ let test_masked_keeps_bytes () =
       "p\xe2\x82w";
       "\xed\xa0\x80";
     ];
-  Alcotest.(check lines)
-    "backspace erases what was typed" [ "p\xff" ] (secret "p\xff\xfe\127")
+  check_lines "backspace erases what was typed" [ "p\xff" ]
+    (secret "p\xff\xfe\127")
 
 let test_split_across_feeds () =
-  let t = Console_input.v () in
-  let _, ls1 = Console_input.feed t "he" in
-  Alcotest.(check lines) "nothing yet" [] ls1;
+  let t, _, ls1 = fed "he" in
+  check_lines "nothing yet" [] ls1;
   let _, ls2 = Console_input.feed t "llo\r" in
-  Alcotest.(check lines) "line accumulated across feeds" [ "hello" ] ls2
+  check_lines "line accumulated across feeds" [ "hello" ] ls2
 
 let test_split_crlf_across_feeds () =
-  let t = Console_input.v () in
-  let _, ls1 = Console_input.feed t "a\r" in
-  Alcotest.(check lines) "CR submits" [ "a" ] ls1;
+  let t, _, ls1 = fed "a\r" in
+  check_lines "CR submits" [ "a" ] ls1;
   let _, ls2 = Console_input.feed t "\nb\r" in
-  Alcotest.(check lines) "trailing LF swallowed" [ "b" ] ls2
+  check_lines "trailing LF swallowed" [ "b" ] ls2
 
 let left = "\027[D"
 let right = "\027[C"
 
 let test_cursor_insert () =
-  let t = Console_input.v () in
-  let _ = Console_input.feed t ("ab" ^ left ^ "X") in
-  Alcotest.(check string) "insert at the cursor" "aXb" (Console_input.pending t)
+  check_fed "insert at the cursor" ("ab" ^ left ^ "X") "aXb"
 
 let test_cursor_backspace_midline () =
-  let t = Console_input.v () in
-  let _ = Console_input.feed t ("abc" ^ left ^ "\127") in
-  Alcotest.(check string)
-    "backspace deletes before the cursor" "ac" (Console_input.pending t)
+  check_fed "backspace deletes before the cursor" ("abc" ^ left ^ "\127") "ac"
 
 let test_cursor_right_returns_to_end () =
-  let t = Console_input.v () in
-  let _ = Console_input.feed t ("ab" ^ left ^ right ^ "X") in
-  Alcotest.(check string)
-    "right cancels the left" "abX" (Console_input.pending t)
+  check_fed "right cancels the left" ("ab" ^ left ^ right ^ "X") "abX"
 
 let test_cursor_left_clamps () =
-  let t = Console_input.v () in
-  let _ = Console_input.feed t ("ab" ^ left ^ left ^ left ^ "X") in
-  Alcotest.(check string)
-    "left clamps at the start" "Xab" (Console_input.pending t)
+  check_fed "left clamps at the start" ("ab" ^ left ^ left ^ left ^ "X") "Xab"
 
 let test_utf8_backspace_whole_char () =
-  let t = Console_input.v () in
-  let echo, _ = Console_input.feed t "caf\xc3\xa9\127" in
-  Alcotest.(check string) "one cell erased" "caf\xc3\xa9\b \b" echo;
-  Alcotest.(check string) "whole character gone" "caf" (Console_input.pending t)
+  let t, echo, _ = fed "caf\xc3\xa9\127" in
+  check_echo "one cell erased" "caf\xc3\xa9\b \b" echo;
+  check_pending "whole character gone" "caf" t
 
 let test_utf8_split_across_feeds () =
-  let t = Console_input.v () in
-  let _, _ = Console_input.feed t "\xc3" in
-  Alcotest.(check string)
-    "incomplete character not yet in the line" "" (Console_input.pending t);
+  let t, _, _ = fed "\xc3" in
+  check_pending "incomplete character not yet in the line" "" t;
   let _, _ = Console_input.feed t "\xa9" in
-  Alcotest.(check string)
-    "completed once its bytes arrive" "\xc3\xa9" (Console_input.pending t)
+  check_pending "completed once its bytes arrive" "\xc3\xa9" t
 
 (* A character two cells wide drives the cursor motion and the erase by its
    cells, not by the character count. *)
 let test_wide_backspace_clears_two_cells () =
   let echo, _ = Console_input.feed (Console_input.v ()) "\xe4\xb8\xad\127" in
-  Alcotest.(check string) "two cells cleared" "\xe4\xb8\xad\b\b  \b\b" echo
+  check_echo "two cells cleared" "\xe4\xb8\xad\b\b  \b\b" echo
 
 let test_wide_left_steps_two_cells () =
   let echo, _ =
     Console_input.feed (Console_input.v ())
       ("\xe4\xb8\xad\xe6\x96\x87" ^ "\027[D")
   in
-  Alcotest.(check string)
-    "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
+  check_echo "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
 
 (* The screen a terminal shows after [keys] typed in an editor, and the
    line the editor holds. *)
@@ -247,8 +230,7 @@ let test_cluster_joins_after () =
   Alcotest.(check string)
     "erasing the joined cluster" "\b\b  \b\b"
     (fst (Console_input.feed t "\127"));
-  Alcotest.(check string)
-    "erasing the joined cluster: the line" "x" (Console_input.pending t)
+  check_pending "erasing the joined cluster: the line" "x" t
 
 let up = "\027[A"
 let down = "\027[B"
@@ -257,73 +239,72 @@ let test_history_up () =
   let t = Console_input.v () in
   let _ = Console_input.feed t "abc\r" in
   let echo, ls = Console_input.feed t up in
-  Alcotest.(check string)
-    "recalled line echoed (empty buffer, no erase)" "abc" echo;
-  Alcotest.(check lines) "no submit" [] ls;
-  Alcotest.(check string)
-    "pending is the recalled line" "abc" (Console_input.pending t)
+  check_echo "recalled line echoed (empty buffer, no erase)" "abc" echo;
+  check_lines "no submit" [] ls;
+  check_pending "pending is the recalled line" "abc" t
 
 let test_history_up_twice_clamps () =
   let t = Console_input.v () in
   let _ = Console_input.feed t "one\r" in
   let _ = Console_input.feed t "two\r" in
   let _ = Console_input.feed t up in
-  Alcotest.(check string) "first up = newest" "two" (Console_input.pending t);
+  check_pending "first up = newest" "two" t;
   let _ = Console_input.feed t up in
-  Alcotest.(check string) "second up = older" "one" (Console_input.pending t);
+  check_pending "second up = older" "one" t;
   let _ = Console_input.feed t up in
-  Alcotest.(check string)
-    "third up clamps at oldest" "one" (Console_input.pending t)
+  check_pending "third up clamps at oldest" "one" t
 
 let test_history_down_restores_draft () =
   let t = Console_input.v () in
   let _ = Console_input.feed t "old\r" in
   let _ = Console_input.feed t "dra" in
   let _ = Console_input.feed t up in
-  Alcotest.(check string) "up recalls history" "old" (Console_input.pending t);
+  check_pending "up recalls history" "old" t;
   let _ = Console_input.feed t down in
-  Alcotest.(check string)
-    "down restores the in-progress draft" "dra" (Console_input.pending t)
+  check_pending "down restores the in-progress draft" "dra" t
 
 let test_history_erase_on_recall () =
   let t = Console_input.v () in
   let _ = Console_input.feed t "abcd\r" in
   let _ = Console_input.feed t "xy" in
   let echo, _ = Console_input.feed t up in
-  Alcotest.(check string)
-    "erases the two draft chars then writes recalled line" "\b \b\b \babcd" echo
+  check_echo "erases the two draft chars then writes recalled line"
+    "\b \b\b \babcd" echo
 
 let test_history_dedup_consecutive () =
   let t = Console_input.v () in
   let _ = Console_input.feed t "x\r" in
   let _ = Console_input.feed t "x\r" in
-  Alcotest.(check lines)
-    "consecutive duplicate kept once" [ "x" ] (Console_input.history t)
+  check_lines "consecutive duplicate kept once" [ "x" ]
+    (Console_input.history t)
 
 let test_history_seed_and_order () =
   let t = Console_input.v ~history:[ "first"; "second" ] () in
   let _ = Console_input.feed t "third\r" in
-  Alcotest.(check lines)
-    "oldest first, then new"
+  check_lines "oldest first, then new"
     [ "first"; "second"; "third" ]
     (Console_input.history t)
 
+(* [typed], then a tab, in an editor that completes to [candidates]: the echo
+   of the tab and the line then. *)
+let check_tab candidates typed echo_msg echo line_msg line =
+  let t, _, _ = fed ~complete:(fun _ -> candidates) typed in
+  let got, _ = Console_input.feed t "\t" in
+  check_echo echo_msg echo got;
+  check_pending line_msg line t
+
 let test_complete_single () =
-  let t = Console_input.v ~complete:(fun _ -> [ "select" ]) () in
-  let _ = Console_input.feed t "sel" in
-  let echo, _ = Console_input.feed t "\t" in
-  Alcotest.(check string) "tab echoes only the completion suffix" "ect" echo;
-  Alcotest.(check string) "pending completed" "select" (Console_input.pending t)
+  check_tab [ "select" ] "sel" "tab echoes only the completion suffix" "ect"
+    "pending completed" "select"
 
 let test_complete_common_prefix () =
-  let t = Console_input.v ~complete:(fun _ -> [ "connections"; "config" ]) () in
-  let _ = Console_input.feed t "co\t" in
-  Alcotest.(check string)
-    "extends to longest common prefix" "con" (Console_input.pending t)
+  let t, _, _ = fed ~complete:(fun _ -> [ "connections"; "config" ]) "co\t" in
+  check_pending "extends to longest common prefix" "con" t
 
 let test_complete_lists_candidates () =
-  let t = Console_input.v ~complete:(fun _ -> [ "connections"; "config" ]) () in
-  let echo, _ = Console_input.feed t "co\t" in
+  let _, echo, _ =
+    fed ~complete:(fun _ -> [ "connections"; "config" ]) "co\t"
+  in
   Alcotest.(check bool)
     "lists both candidates" true
     (Display_harness.contains "connections  config" echo)
@@ -332,22 +313,16 @@ let test_complete_last_word () =
   let complete w = if String.equal w "co" then [ "connections" ] else [] in
   let t = Console_input.v ~complete () in
   let _ = Console_input.feed t "SELECT * FROM co\t" in
-  Alcotest.(check string)
-    "completes only the trailing word" "SELECT * FROM connections"
-    (Console_input.pending t)
+  check_pending "completes only the trailing word" "SELECT * FROM connections" t
 
 let test_complete_none () =
-  let t = Console_input.v ~complete:(fun _ -> []) () in
-  let _ = Console_input.feed t "zz" in
-  let echo, _ = Console_input.feed t "\t" in
-  Alcotest.(check string) "no candidates, tab echoes nothing" "" echo;
-  Alcotest.(check string) "pending unchanged" "zz" (Console_input.pending t)
+  check_tab [] "zz" "no candidates, tab echoes nothing" "" "pending unchanged"
+    "zz"
 
 let test_complete_utf8 () =
   let t = Console_input.v ~complete:(fun _ -> [ "é"; "ê" ]) () in
   ignore (Console_input.feed t "\t");
-  Alcotest.(check string)
-    "no complete character is shared" "" (Console_input.pending t)
+  check_pending "no complete character is shared" "" t
 
 (* Bytes that are not a character are replacement characters, one for each
    maximal part of a character that [String.get_utf_8_uchar] reads, as
@@ -358,9 +333,8 @@ let test_invalid_utf8 () =
     (fun bad ->
       let shown = Console_text.sanitize bad in
       let check t echo =
-        Alcotest.(check string)
-          (String.escaped bad) shown (Console_input.pending t);
-        Alcotest.(check string) "echo" shown echo
+        check_pending (String.escaped bad) shown t;
+        check_echo "echo" shown echo
       in
       let t = Console_input.v () in
       let echo, _ = Console_input.feed t bad in
@@ -396,21 +370,20 @@ let test_echo_is_text () =
 (* A typed character the terminal would act on, such as the one-byte CSI
    U+009B, is echoed and kept as a space. *)
 let test_typed_c1 () =
-  let t = Console_input.v () in
-  let echo, submitted = Console_input.feed t "a\xc2\x9b2Jb\r" in
+  let _, echo, submitted = fed "a\xc2\x9b2Jb\r" in
   Alcotest.(check bool)
     "no C1 control echoed" false
     (Display_harness.contains "\xc2\x9b" echo);
-  Alcotest.check lines "line" [ "a 2Jb" ] submitted
+  check_lines "line" [ "a 2Jb" ] submitted
 
 (* A terminal in application cursor mode sends the arrows as ESC O A to
    ESC O D; they move as ESC [ A to ESC [ D do and insert nothing. *)
 let test_application_arrows () =
   let t = Console_input.v ~history:[ "old" ] () in
   let _, submitted = Console_input.feed t "ab\027ODX\r" in
-  Alcotest.check lines "left arrow" [ "aXb" ] submitted;
+  check_lines "left arrow" [ "aXb" ] submitted;
   let _, submitted = Console_input.feed t "\027OA\r" in
-  Alcotest.check lines "up arrow" [ "aXb" ] submitted
+  check_lines "up arrow" [ "aXb" ] submitted
 
 (* A selector inserted before existing text must still join its base on
    the terminal, where the suffix has already been echoed. *)
@@ -418,9 +391,7 @@ let test_insert_emoji_before_text () =
   let editor = Console_input.v () in
   let input = "a\027[D\u{2764}\u{fe0f}" in
   let echo, _ = Console_input.feed editor input in
-  Alcotest.(check string)
-    "inserted before a" "\u{2764}\u{fe0f}a"
-    (Console_input.pending editor);
+  check_pending "inserted before a" "\u{2764}\u{fe0f}a" editor;
   let actual = Console_vte.v ~raw:true ~rows:1 ~cols:20 ()
   and expected = Console_vte.v ~raw:true ~rows:1 ~cols:20 () in
   Console_vte.feed actual echo;
@@ -436,8 +407,7 @@ let test_insert_emoji_before_text () =
 let test_masked_history_seed () =
   let editor = Console_input.v ~mask:"*" ~history:[ "previous password" ] () in
   let _, submitted = Console_input.feed editor "new password\n" in
-  Alcotest.(check lines)
-    "the typed answer is returned" [ "new password" ] submitted;
+  check_lines "the typed answer is returned" [ "new password" ] submitted;
   Alcotest.(check (list string))
     "a masked editor keeps no history, including its seed" []
     (Console_input.history editor)
@@ -449,13 +419,9 @@ let test_masked_history_seed () =
    that keeps the excess, one that truncates without a bell, and one that
    counts characters rather than bytes. *)
 let test_line_bound () =
-  let t = Console_input.v () in
-  let echo, _ = Console_input.feed t (String.make 5000 'a') in
-  Alcotest.(check string)
-    "the line keeps the first 4095 bytes" (String.make 4095 'a')
-    (Console_input.pending t);
-  Alcotest.(check string)
-    "each refused byte rings the bell"
+  let t, echo, _ = fed (String.make 5000 'a') in
+  check_pending "the line keeps the first 4095 bytes" (String.make 4095 'a') t;
+  check_echo "each refused byte rings the bell"
     (String.make 4095 'a' ^ String.make 905 '\007')
     echo
 
@@ -465,9 +431,8 @@ let test_line_bound_whole_character () =
   let t = Console_input.v () in
   let _ = Console_input.feed t (String.make 4094 'a') in
   let echo, _ = Console_input.feed t "\xc3\xa9" in
-  Alcotest.(check string) "the bell" "\007" echo;
-  Alcotest.(check string)
-    "the line is unchanged" (String.make 4094 'a') (Console_input.pending t)
+  check_echo "the bell" "\007" echo;
+  check_pending "the line is unchanged" (String.make 4094 'a') t
 
 (* ONLCR maps every NL to CR NL on output, including one a CR precedes
    (termios(3), c_oflag). *)
@@ -490,8 +455,7 @@ let test_history_bound () =
   for i = 1 to 600 do
     ignore (Console_input.feed t (numbered i ^ "\r"))
   done;
-  Alcotest.(check lines)
-    "the 500 newest, oldest first"
+  check_lines "the 500 newest, oldest first"
     (List.init 500 (fun i -> numbered (i + 101)))
     (Console_input.history t)
 
@@ -500,8 +464,7 @@ let test_history_bound_seed () =
   let t =
     Console_input.v ~history:(List.init 600 (fun i -> numbered (i + 1))) ()
   in
-  Alcotest.(check lines)
-    "the 500 newest of the seed"
+  check_lines "the 500 newest of the seed"
     (List.init 500 (fun i -> numbered (i + 101)))
     (Console_input.history t)
 
@@ -509,28 +472,27 @@ let test_history_bound_seed () =
 let test_bounds_given () =
   let t = Console_input.v ~max_line:3 ~history_size:2 () in
   let echo, _ = Console_input.feed t "abcd" in
-  Alcotest.(check string) "three bytes, then the bell" "abc\007" echo;
+  check_echo "three bytes, then the bell" "abc\007" echo;
   let _ = Console_input.feed t "\r" in
   let _ = Console_input.feed t "x\ry\rz\r" in
-  Alcotest.(check lines) "the two newest" [ "y"; "z" ] (Console_input.history t)
+  check_lines "the two newest" [ "y"; "z" ] (Console_input.history t)
 
 (* A completion that would take the line past the bound inserts nothing. *)
 let test_bound_completion () =
-  let t = Console_input.v ~max_line:4 ~complete:(fun _ -> [ "abcdef" ]) () in
-  let echo, _ = Console_input.feed t "ab\t" in
-  Alcotest.(check string) "the bell" "ab\007" echo;
-  Alcotest.(check string) "the line" "ab" (Console_input.pending t)
+  let t, echo, _ = fed ~max_line:4 ~complete:(fun _ -> [ "abcdef" ]) "ab\t" in
+  check_echo "the bell" "ab\007" echo;
+  check_pending "the line" "ab" t
 
 (* A seed line longer than the bound is recalled whole, and erasing it works:
    the bound refuses inserts, never a backspace. *)
 let test_bound_erase_long_recall () =
   let t = Console_input.v ~max_line:3 ~history:[ "abcdef" ] () in
   let _ = Console_input.feed t up in
-  Alcotest.(check string) "recalled" "abcdef" (Console_input.pending t);
+  check_pending "recalled" "abcdef" t;
   let _ = Console_input.feed t "\127\127" in
-  Alcotest.(check string) "erased" "abcd" (Console_input.pending t);
+  check_pending "erased" "abcd" t;
   let echo, _ = Console_input.feed t "x" in
-  Alcotest.(check string) "still full" "\007" echo
+  check_echo "still full" "\007" echo
 
 let suite =
   ( "console_input",
