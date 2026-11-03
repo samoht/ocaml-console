@@ -24,6 +24,11 @@ let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
   let root, view = rooted ?label ?view now in
   (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
 
+(* What [f] shows on a pipe, in lines. *)
+let check_plain msg f expected =
+  let (), out = plain ~theme f in
+  check_lines msg expected (split out)
+
 let test_plain_lines () =
   let (), out =
     plain ~theme ~label:"Building" (fun d advance ->
@@ -75,14 +80,11 @@ let test_plain_unfinished () =
   check_lines "cancelled"
     [ "[-] left"; "[~] left  0.0s  cancelled"; "" ]
     (split out);
-  let (), out =
-    plain ~theme (fun d _ ->
-        ignore (Task.start d "left");
-        Task.succeed ~message:"done" d)
-  in
-  check_lines "succeeded with the work"
+  check_plain "succeeded with the work"
+    (fun d _ ->
+      ignore (Task.start d "left");
+      Task.succeed ~message:"done" d)
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
-    (split out)
 
 (* Without a terminal no colour may tell a failure from a success: the
    closing line of a task that did not succeed says how it ended, in the
@@ -119,16 +121,14 @@ let test_plain_outcome_word () =
     (contains "0.0s  failed\027[" (Buffer.contents buffer))
 
 let test_plain_attribution () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" and b = Task.start d "b" in
-        Task.log a "one";
-        Task.log b "two";
-        Task.log a "three";
-        Task.fail a;
-        Task.cancel b)
-  in
-  check_lines "each line says its task, in order"
+  check_plain "each line says its task, in order"
+    (fun d _ ->
+      let a = Task.start d "a" and b = Task.start d "b" in
+      Task.log a "one";
+      Task.log b "two";
+      Task.log a "three";
+      Task.fail a;
+      Task.cancel b)
     [
       "[-] a";
       "[-] b";
@@ -139,18 +139,15 @@ let test_plain_attribution () =
       "[~] b  0.0s  cancelled";
       "";
     ]
-    (split out)
 
 (* A tab in a task's output goes to the next stop of eight columns from the
    start of its line, so tabbed columns stay aligned. *)
 let test_tabs () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" in
-        Task.log a "x\ty\n\u{754c}\tz\n12345678\tw";
-        Task.fail a)
-  in
-  check_lines "tab stops"
+  check_plain "tab stops"
+    (fun d _ ->
+      let a = Task.start d "a" in
+      Task.log a "x\ty\n\u{754c}\tz\n12345678\tw";
+      Task.fail a)
     [
       "[-] a";
       "  # a: x       y";
@@ -159,7 +156,6 @@ let test_tabs () =
       "[x] a  0.0s  failed";
       "";
     ]
-    (split out)
 
 let test_plain_sanitizes () =
   let (), out =
@@ -558,15 +554,13 @@ let test_nested () =
 
 (* A task that its parent ends still says how it ended, on a pipe too. *)
 let test_nested_plain () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let p = Task.start d "parent" in
-        let c1 = Task.start p "one" in
-        ignore (Task.start p "two");
-        Task.succeed c1;
-        Task.fail p)
-  in
-  check_lines "a start line and an end line each"
+  check_plain "a start line and an end line each"
+    (fun d _ ->
+      let p = Task.start d "parent" in
+      let c1 = Task.start p "one" in
+      ignore (Task.start p "two");
+      Task.succeed c1;
+      Task.fail p)
     [
       "[-] parent";
       "[-] parent \u{25B8} one";
@@ -576,39 +570,33 @@ let test_nested_plain () =
       "[x] parent  0.0s  failed";
       "";
     ]
-    (split out)
 
 let test_keys_and_transient () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start ~key:"k" d "first" in
-        let b = Task.start ~key:"k" d "second" in
-        Alcotest.(check bool) "same task" true (a == b);
-        Task.succeed a;
-        let c = Task.start ~key:"k" d "third" in
-        Alcotest.(check bool) "a new task once it ended" false (a == c);
-        Task.succeed c;
-        Task.succeed (Task.start ~transient:true d "gone"))
-  in
-  check_lines "no line for a transient task"
+  check_plain "no line for a transient task"
+    (fun d _ ->
+      let a = Task.start ~key:"k" d "first" in
+      let b = Task.start ~key:"k" d "second" in
+      Alcotest.(check bool) "same task" true (a == b);
+      Task.succeed a;
+      let c = Task.start ~key:"k" d "third" in
+      Alcotest.(check bool) "a new task once it ended" false (a == c);
+      Task.succeed c;
+      Task.succeed (Task.start ~transient:true d "gone"))
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
-    (split out)
 
 (* A with_task that finds its key running enters that task and ends
    nothing: the task ends as the call that started it says. *)
 let test_with_task_shared_key () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run ~key:"k" d "first" (fun a ->
-            Task.run ~key:"k" d "second" (fun b ->
-                Alcotest.(check bool) "same task" true (a == b);
-                Task.log b "inside");
-            Task.log a "after the second";
-            match Task.run ~key:"k" d "third" (fun _ -> raise Exit) with
-            | () -> Alcotest.fail "the exception was swallowed"
-            | exception Exit -> Task.log a "after the third"))
-  in
-  check_lines "one task, ended once by the first"
+  check_plain "one task, ended once by the first"
+    (fun d _ ->
+      Task.run ~key:"k" d "first" (fun a ->
+          Task.run ~key:"k" d "second" (fun b ->
+              Alcotest.(check bool) "same task" true (a == b);
+              Task.log b "inside");
+          Task.log a "after the second";
+          match Task.run ~key:"k" d "third" (fun _ -> raise Exit) with
+          | () -> Alcotest.fail "the exception was swallowed"
+          | exception Exit -> Task.log a "after the third"))
     [
       "[-] first";
       "  # first: inside";
@@ -617,23 +605,20 @@ let test_with_task_shared_key () =
       "[+] first  0.0s";
       "";
     ]
-    (split out)
 
 let test_counts () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let t = Task.start d "count" in
-        Task.set_items t ~count:5 ~total:10;
-        Task.set_items t ~count:3 ~total:8;
-        Task.set_items t ~count:12 ~total:10;
-        Task.succeed t;
-        let b = Task.start d "bytes" in
-        Task.set_bytes b ~count:1048576L ~total:2097152L;
-        check_invalid "Console.Task.set_items: the task counts bytes" (fun () ->
-            Task.set_items b ~count:1 ~total:1);
-        Task.succeed b)
-  in
-  check_lines "never back, total raised"
+  check_plain "never back, total raised"
+    (fun d _ ->
+      let t = Task.start d "count" in
+      Task.set_items t ~count:5 ~total:10;
+      Task.set_items t ~count:3 ~total:8;
+      Task.set_items t ~count:12 ~total:10;
+      Task.succeed t;
+      let b = Task.start d "bytes" in
+      Task.set_bytes b ~count:1048576L ~total:2097152L;
+      check_invalid "Console.Task.set_items: the task counts bytes" (fun () ->
+          Task.set_items b ~count:1 ~total:1);
+      Task.succeed b)
     [
       "[-] count";
       "[+] count  12/12  0.0s";
@@ -641,7 +626,6 @@ let test_counts () =
       "[+] bytes  1.00 MiB / 2.00 MiB  0.0s";
       "";
     ]
-    (split out)
 
 (* [label ~style] draws the label in [style], bold by default. *)
 let test_label_style () =
@@ -948,14 +932,12 @@ let test_synchronized () =
 (* On a pipe there is no window: a task says when it starts, each of its lines
    comes at once after its label, and it says when it ends. *)
 let test_pipe_lines () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "job" (fun job ->
-            Task.log job "one";
-            Driver.report d `Info "note";
-            Task.log job "two"))
-  in
-  check_lines "in turn, each after its task's label"
+  check_plain "in turn, each after its task's label"
+    (fun d _ ->
+      Task.run d "job" (fun job ->
+          Task.log job "one";
+          Driver.report d `Info "note";
+          Task.log job "two"))
     [
       "[-] job";
       "  # job: one";
@@ -964,7 +946,6 @@ let test_pipe_lines () =
       "[+] job  0.0s";
       "";
     ]
-    (split out)
 
 (* [plain] prints the program's own lines on a pipe, in place of those of
    the tasks; the output of no task and the last frame print as before, and
@@ -1165,15 +1146,12 @@ let test_cancelled_output () =
   check_lines "all of it under each line"
     [ "[~] job"; "  # a"; "  # b"; "  # c"; "[~] other"; "  # z" ]
     (List.map untimed (lines t));
-  let (), out =
-    plain ~theme (fun d _ ->
-        let job = Task.start ~log_lines:2 d "job" in
-        Task.log job "a";
-        Task.cancel job)
-  in
-  check_lines "nothing repeated on a pipe"
+  check_plain "nothing repeated on a pipe"
+    (fun d _ ->
+      let job = Task.start ~log_lines:2 d "job" in
+      Task.log job "a";
+      Task.cancel job)
     [ "[-] job"; "  # job: a"; "[~] job  0.0s  cancelled"; "" ]
-    (split out)
 
 (* The root is the work's top task: within it, output goes above the rows
    at once and stays, while a task runs and when that task fails, and also
@@ -1220,15 +1198,13 @@ let test_root () =
       "still there";
     ]
     (List.map untimed (lines t));
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "job" (fun _ ->
-            Task.within d (fun () ->
-                Driver.report d `Info "above";
-                Task.succeed (Task.start d "top"));
-            Driver.report d `Info "inside"))
-  in
-  check_lines "on a pipe, unlabelled"
+  check_plain "on a pipe, unlabelled"
+    (fun d _ ->
+      Task.run d "job" (fun _ ->
+          Task.within d (fun () ->
+              Driver.report d `Info "above";
+              Task.succeed (Task.start d "top"));
+          Driver.report d `Info "inside"))
     [
       "[-] job";
       "above";
@@ -1238,31 +1214,28 @@ let test_root () =
       "[+] job  0.0s";
       "";
     ]
-    (split out)
 
 (* [within task f] makes a task that runs current for [f], and ends nothing:
    what [f] prints and the tasks it starts are [task]'s, also when [f]
    raises. *)
 let test_within () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" in
-        Task.run d "b" (fun _ ->
-            let v =
-              Task.within a (fun () ->
-                  Driver.report d `Info "for a";
-                  ignore (Task.start a "under a");
-                  7)
-            in
-            Alcotest.(check int) "its value" 7 v;
-            Driver.report d `Info "for b");
-        (match Task.within a (fun () -> failwith "inside") with
-        | () -> Alcotest.fail "no exception"
-        | exception Failure _ -> ());
-        Task.log a "still runs";
-        Task.succeed a)
-  in
-  check_lines "the lines of the task given"
+  check_plain "the lines of the task given"
+    (fun d _ ->
+      let a = Task.start d "a" in
+      Task.run d "b" (fun _ ->
+          let v =
+            Task.within a (fun () ->
+                Driver.report d `Info "for a";
+                ignore (Task.start a "under a");
+                7)
+          in
+          Alcotest.(check int) "its value" 7 v;
+          Driver.report d `Info "for b");
+      (match Task.within a (fun () -> failwith "inside") with
+      | () -> Alcotest.fail "no exception"
+      | exception Failure _ -> ());
+      Task.log a "still runs";
+      Task.succeed a)
     [
       "[-] a";
       "[-] b";
@@ -1275,7 +1248,6 @@ let test_within () =
       "[+] a  0.0s";
       "";
     ]
-    (split out)
 
 (* Two tasks that run at once: on a terminal each block is printed under
    its own line, never interleaved with the other's. *)
@@ -1323,14 +1295,12 @@ let test_with_task () =
       "";
     ]
     (split out);
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "outer" (fun _ ->
-            let top = Task.start d "top" in
-            Driver.report d `Info "to outer";
-            Task.succeed top))
-  in
-  check_lines "a task goes under the task given, output to the current one"
+  check_plain "a task goes under the task given, output to the current one"
+    (fun d _ ->
+      Task.run d "outer" (fun _ ->
+          let top = Task.start d "top" in
+          Driver.report d `Info "to outer";
+          Task.succeed top))
     [
       "[-] outer";
       "[-] top";
@@ -1339,7 +1309,6 @@ let test_with_task () =
       "[+] outer  0.0s";
       "";
     ]
-    (split out)
 
 (* A task that [with_task] fails when its function raises says why, in its
    line and in its JSON end event. *)
@@ -2254,15 +2223,13 @@ let test_last_frame_label_readable () =
    their paths, not by an indentation: a child's lines name its parent, and
    a line of output names its own task, two columns in. *)
 let test_plain_output_not_sibling () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let p = Task.start d "parent" in
-        let c = Task.start p "child" in
-        Task.log p "parent says";
-        Task.succeed c;
-        Task.succeed p)
-  in
-  check_lines "each line names its task"
+  check_plain "each line names its task"
+    (fun d _ ->
+      let p = Task.start d "parent" in
+      let c = Task.start p "child" in
+      Task.log p "parent says";
+      Task.succeed c;
+      Task.succeed p)
     [
       "[-] parent";
       "[-] parent \u{25B8} child";
@@ -2271,7 +2238,6 @@ let test_plain_output_not_sibling () =
       "[+] parent  0.0s";
       "";
     ]
-    (split out)
 
 (* On a pipe a failure's output is printed once: the lines streamed as they
    came are not printed again under the failure. *)
