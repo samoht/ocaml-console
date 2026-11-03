@@ -27,7 +27,7 @@ let public : show = Progress.show
 (* A task that succeeds, one that fails, each with a line, under a header;
    the root's state once the display closed. *)
 let work display ppf =
-  let root = Task.root ~label:"Building" ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:"Building" () in
   let d = display ppf root in
   Task.run root "fine" (fun t -> Task.log t "quiet line");
   (try
@@ -161,7 +161,7 @@ let rows ?layout ?delay () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   let now = ref 0. in
-  let root = Task.root ~now:(fun () -> !now) () in
+  let root = Display_harness.new_root ~now () in
   let commit _ = None in
   let d = driver () ~progress:`Tty ~size ~commit ?layout ?delay ppf root in
   let task = Task.start root "fine" in
@@ -186,7 +186,7 @@ let test_rows () =
 (* A display that closes while its work runs ends it as cancelled. *)
 let test_close_cancels () =
   let run ppf =
-    let root = Task.root ~now:(fun () -> 0.) () in
+    let root = Display_harness.new_root () in
     Display.close (driver () ppf root);
     Task.state root
   in
@@ -356,7 +356,7 @@ let test_view_raises () =
       let view = View.fit (fun _ -> raise Exit) in
       Alcotest.check_raises label Exit (fun () ->
           let ppf = Format.formatter_of_buffer (Buffer.create 16) in
-          let root = Task.root ~now:(fun () -> 0.) () in
+          let root = Display_harness.new_root () in
           let d =
             driver ~write_error:(fun _ -> true) () ~progress ~view ppf root
           in

@@ -30,6 +30,15 @@ val bar_span : string -> (int * int) option
 val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
 
+val new_root : ?label:string -> ?now:float ref -> unit -> Task.t
+(** [new_root ()] is a {{!Console.Task.root}root} whose time is what [now] holds
+    (defaults to a time that stays at zero). *)
+
+val rooted :
+  ?label:string -> ?view:(Task.t -> 'a) -> (unit -> float) -> Task.t * 'a option
+(** [rooted now] is a {{!Console.Task.root}root} timed by [now] and [view] of
+    that root, if given. *)
+
 val plain :
   ?label:string ->
   ?layout:Progress.Layout.t ->

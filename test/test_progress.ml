@@ -32,7 +32,7 @@ let test_names () =
 let shown ?size progress =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
-  let root = Task.root ~label:"Building" ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:"Building" () in
   let d = Progress.show ?size ~progress ppf root in
   Task.run root "fine" (fun t -> Task.log t "quiet line");
   (try
@@ -105,7 +105,7 @@ let test_json () =
 let test_json_counts () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Progress.show ~progress:`Json ppf root in
   Task.run root "work" (fun t ->
       List.iter (fun count -> Task.set_items t ~count ~total:3) [ 1; 1; 2; 3 ]);

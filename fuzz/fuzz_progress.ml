@@ -168,7 +168,7 @@ let public_schema_events k raw =
   let clean s = Console_text.sanitize ~keep_newlines:false s in
   let now = ref 42. and out = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer out in
-  let root = Task.root ~now:(fun () -> !now) () in
+  let root = Display_harness.new_root ~now () in
   let d = Progress.show ~progress:`Json ppf root in
   let parent = Task.start root raw in
   now := 42.125;
@@ -377,7 +377,7 @@ let test_retained_cut k =
   in
   let out = Buffer.create 16384 in
   let ppf = Format.formatter_of_buffer out in
-  let root = Console.Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Console.Progress.show ~progress:`Json ppf root in
   let t = Console.Task.start root raw in
   Console.Task.set_label t raw;
@@ -400,7 +400,7 @@ let test_retained_cut k =
 
 let test_task_endings n ending =
   let module Task = Console.Task in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let starts = ref [] and ends = ref [] and work_ends = ref 0 in
   Task.on_event root (fun event ->
       match (Event.kind event, Event.task event) with
@@ -433,7 +433,7 @@ let test_task_endings n ending =
 
 let test_output_suffix n k =
   let module Task = Console.Task in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let task = Task.start root "bounded" in
   let length = 4070 + (k mod 26) and count = 260 + (n mod 40) in
   let lines =

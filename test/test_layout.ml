@@ -245,7 +245,7 @@ let test_window_age () =
    Neither the caller nor the output sink retains the task or its label. *)
 let test_oversized_waiting_task () =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = new_root () in
   let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
   let parent = Task.start root "parent" in
   let live_bytes () =

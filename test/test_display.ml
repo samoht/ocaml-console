@@ -20,8 +20,7 @@ let above top root = View.vcat [ top; Progress.view root ]
 
 (* A root timed by [now] whose tasks show on [ppf], and the display. *)
 let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
 
 let test_plain_lines () =
@@ -645,7 +644,7 @@ let test_counts () =
 
 (* [label ~style] draws the label in [style], bold by default. *)
 let test_label_style () =
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = new_root () in
   let task = Task.start root "job" in
   let drawn layout = View.to_string ~styled:true (Progress.row ~layout task) in
   Alcotest.(check string)
@@ -672,7 +671,7 @@ let test_pp_bytes () =
 (* [advance] adds to the count and keeps the total, as indicatif's inc,
    Rich's Progress.advance and tqdm's update do. *)
 let test_advance () =
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = new_root () in
   let progress = Alcotest.testable Fmt.nop ( = ) in
   let check msg expected t =
     Alcotest.check progress msg expected (Task.progress t)
@@ -981,7 +980,7 @@ let test_plain_own_lines () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Theme.set ppf theme;
-  let root = Task.root ~label:"Build" ~now:(fun () -> 0.) () in
+  let root = new_root ~label:"Build" () in
   let d = Progress.show ~progress:`Plain ~plain ppf root in
   Task.run root "job" (fun job ->
       Task.log job "one";
@@ -2906,7 +2905,7 @@ let rate_of s =
    show the same rate for the same bytes. *)
 let test_rate_time_weighted () =
   let now = ref 0. in
-  let root = Task.root ~now:(fun () -> !now) () in
+  let root = new_root ~now () in
   let often = Task.start root "often" and seldom = Task.start root "seldom" in
   (* 1 MiB/s for 3 s, then 256 KiB/s. *)
   let bytes t =
@@ -2932,7 +2931,7 @@ let test_rate_time_weighted () =
 (* The time left is what the count leaves at the task's rate. *)
 let test_eta () =
   let now = ref 0. in
-  let root = Task.root ~now:(fun () -> !now) () in
+  let root = new_root ~now () in
   let task = Task.start root "work" in
   Task.set_items task ~count:0 ~total:4;
   now := 1.;
@@ -2949,7 +2948,7 @@ let test_eta () =
 
 (* A program sees each event of the work, in order, the work's end last. *)
 let test_on_event () =
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = new_root () in
   let seen = ref [] in
   Task.on_event root (fun e -> seen := e :: !seen);
   Task.run root "a" (fun a ->

@@ -46,13 +46,22 @@ let finish root d =
   Task.succeed root;
   Display.close d
 
+let new_root ?label ?now () =
+  let now =
+    match now with Some now -> fun () -> !now | None -> fun () -> 0.
+  in
+  Task.root ?label ~now ()
+
+let rooted ?label ?view now =
+  let root = Task.root ?label ~now () in
+  (root, Option.map (fun f -> f root) view)
+
 let plain ?label ?layout ?theme ?(progress = `Plain) ?view ?keep_ended f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   let d = Progress.show ~progress ?layout ?view ?keep_ended ppf root in
   let v = f root advance in
   finish root d;
@@ -92,8 +101,7 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   end;
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   let display =
     Progress.show ?layout ?view ?keep_ended ?commit ?plain ?delay
       ~size:(fun () -> !size)

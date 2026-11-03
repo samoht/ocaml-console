@@ -177,7 +177,7 @@ let test_display_reads_it () =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
   Theme.set ppf Theme.dos;
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = new_root () in
   let d = Progress.show ppf root in
   Task.succeed (Task.start root "done");
   Display.close d;

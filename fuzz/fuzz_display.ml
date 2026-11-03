@@ -356,7 +356,7 @@ let test ops w h styled p =
 let test_plain ops =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
-  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:header () in
   let d = Progress.show ppf root in
   let tasks = ref [] in
   List.iter
@@ -384,7 +384,7 @@ let test_plain ops =
    holds is not printed. *)
 let test_retained_heap n =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Progress.show ~size:(fun () -> (80, 10)) ppf root in
   let task = Task.start ~log_lines:2 root "long running" in
   let batch () =
@@ -415,7 +415,7 @@ let test_retained_heap n =
 let test_pipe_attribution n =
   let b = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer b in
-  let root = Task.root ~label:"SUMMARY" ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:"SUMMARY" () in
   let d = Progress.show ppf root in
   let tasks =
     Array.init 4 (fun i -> Task.start root ("task" ^ string_of_int i))
@@ -620,7 +620,7 @@ let untrusted_run input lines =
         ])
   in
   Theme.set ppf theme;
-  let root = Task.root ~label:input ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:input () in
   let d = Progress.show ~layout ~size:(fun () -> (40, 8)) ppf root in
   let task = Task.start root input in
   Task.set_label task input;
@@ -1090,7 +1090,7 @@ let test_view_exception_close n k styled =
   in
   Theme.set ppf (Widget_harness.nth_theme k);
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Progress.show ~size:(fun () -> (width, height)) ppf root in
   ignore (Task.start root "running");
   (match
@@ -1121,7 +1121,7 @@ let test_view_exception_close n k styled =
 let test_finished_children_heap n terminal =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let size = if terminal then Some (fun () -> (80, 10)) else None in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Progress.show ?size ppf root in
   let parent = Task.start root "long lived parent" in
   let serial = ref 0 in
@@ -1174,7 +1174,7 @@ let theme_switch_display width theme =
   Fmt.set_utf_8 ppf true;
   Fmt.set_style_renderer ppf `Ansi_tty;
   Theme.set ppf theme;
-  let root = Task.root ~label:"build" ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:"build" () in
   let display = Progress.show ~size:(fun () -> (width, 12)) ppf root in
   let task = Task.start root "\u{754c} compile" in
   Task.set_items task ~count:1 ~total:2;
@@ -1398,7 +1398,7 @@ let test_columns steps h =
         check_chunk_lines ~width s;
         Console_vte.feed vte s)
   in
-  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:header () in
   let view = side_by_side ~width root in
   let d =
     Progress.show ~view ~keep_ended:true
@@ -1434,8 +1434,9 @@ let test_default_view steps h =
   let run view =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
-    let root = Task.root ~label:header ~now:(fun () -> 0.) () in
-    let view = Option.map (fun f -> f root) view in
+    let root, view =
+      Display_harness.rooted ~label:header ?view (fun () -> 0.)
+    in
     let d = Progress.show ?view ~size:(fun () -> (60, height)) ppf root in
     ignore (run_tree root ~frame:(fun () -> Display.redraw d) steps);
     Display.close d;
@@ -1556,7 +1557,7 @@ let run_packs steps w ~frame =
   let ppf = Display_harness.feeding vte in
   Theme.set ppf Theme.dos;
   let now = ref 0. in
-  let root = Task.root ~label:header ~now:(fun () -> !now) () in
+  let root = Display_harness.new_root ~label:header ~now () in
   let d =
     Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
   in
@@ -1680,7 +1681,7 @@ let test_window_age n newest_child =
    or ending message from the bound on tasks waiting for their parent. *)
 let test_oversized_waiting_task n message =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let d = Progress.show ~size:(fun () -> (40, 8)) ppf root in
   let parent = Task.start root "parent" in
   let live_bytes () =
@@ -1769,7 +1770,7 @@ let test_commit steps policy =
   let width = 80 and height = 8 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
   let ppf = Display_harness.feeding vte in
-  let root = Task.root ~label:header ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root ~label:header () in
   let commit t =
     if policy then Some (View.text ("DONE " ^ Task.label t)) else None
   in
@@ -1801,7 +1802,7 @@ let test_commit steps policy =
 let test_plain_callback_keeps_tree n =
   let out = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer out in
-  let root = Task.root ~now:(fun () -> 0.) () in
+  let root = Display_harness.new_root () in
   let observed = ref [] in
   let plain event =
     let line = Task.Event.to_string event in
