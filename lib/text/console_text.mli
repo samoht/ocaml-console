@@ -83,5 +83,5 @@ val boundary : string -> int
 
 val decimal : string -> int option
 (** [decimal s] is the integer that [s] writes in decimal digits alone, and
-    [None] for anything else, which {!int_of_string_opt} would also read: a
-    sign, an underscore, or a hexadecimal, octal or binary prefix. *)
+    [None] for anything else, which [int_of_string_opt] would also read: a sign,
+    an underscore, or a hexadecimal, octal or binary prefix. *)
