@@ -477,11 +477,7 @@ let test_dimensions_read_the_environment () =
   check "zero is no answer" "0" "0" (80, 24);
   check "nor is none" "" "" (80, 24)
 
-let open_pty ~sw =
-  match Eio_unix.Pty.open_pty ~sw () with
-  | pty -> pty
-  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-      Alcotest.skip ()
+let open_pty = Pty_harness.open_pty
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
    the terminal echoes what is typed once it has. With [continue], the child

@@ -14,13 +14,7 @@ open Display_harness
    (ESC [?25l), and an appending display writes no escape at all. *)
 
 let hide_cursor = "\027[?25l"
-
-let open_pty ~sw =
-  match Eio_unix.Pty.open_pty ~sw () with
-  | pty -> pty
-  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-      Alcotest.skip ()
-
+let open_pty = Pty_harness.open_pty
 let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
 
 (* [f ()] with standard output on [stdout], standard error on [stderr],

@@ -28,6 +28,8 @@ jobs:
       - run: opam install . --deps-only --with-test
       - run: opam exec -- dune build
       - run: opam exec -- dune test
+        env:
+          CONSOLE_TEST_REQUIRE_PTY: 1
 
   release:
     name: Release build
@@ -61,6 +63,8 @@ jobs:
       - run: opam install . --deps-only --with-test --criteria="+count[version-lag,solution]"
       - run: opam exec -- dune build
       - run: opam exec -- dune test
+        env:
+          CONSOLE_TEST_REQUIRE_PTY: 1
 
   # odoc cannot resolve references to the modules of other libraries, such as
   # Fmt.stderr, in console's documentation: those warnings are expected. Any
