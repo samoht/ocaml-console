@@ -392,6 +392,16 @@ module Report_domains = struct
 
   let with_runtime f = Eio_main.run f
 
+  let refusing_once message =
+    let first = ref true in
+    sink
+      ~on_write:(fun () ->
+        if !first then begin
+          first := false;
+          failwith message
+        end)
+      ()
+
   let run _env sink f =
     Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf:sink.ppf f
 
@@ -482,16 +492,7 @@ module Report_domains = struct
   let output_error () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
-    let first = ref true in
-    let sink =
-      sink
-        ~on_write:(fun () ->
-          if !first then begin
-            first := false;
-            failwith "owner sink refused"
-          end)
-        ()
-    in
+    let sink = refusing_once "owner sink refused" in
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
     run env sink (fun _ ->
@@ -514,16 +515,7 @@ module Report_domains = struct
   let output_refusal_falls_back () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
-    let first = ref true in
-    let sink =
-      sink
-        ~on_write:(fun () ->
-          if !first then begin
-            first := false;
-            failwith "display formatter refused"
-          end)
-        ()
-    in
+    let sink = refusing_once "display formatter refused" in
     let previous = Logs.reporter () in
     let over_count = ref 0 and continued = ref 0 in
     run env sink (fun _ ->
