@@ -82,7 +82,7 @@ let in_theme ?(utf_8 = true) theme bar = View_harness.printed ~theme ~utf_8 bar
    cells with full blocks on a light shade, in brackets, [ascii] draws [#]
    on [-] even in UTF-8, and the others heavy lines on light ones. *)
 let test_theme_glyphs () =
-  let check msg want got = Alcotest.(check string) msg want got in
+  let check = Alcotest.(check string) in
   let half = Bar.horizontal ~width:4 0.5 in
   check "dos" "\u{2588}\u{2588}\u{2591}\u{2591}" (in_theme Theme.dos half);
   check "dos brackets" "[\u{2588}\u{2591}\u{2591}]"

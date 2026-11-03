@@ -37,7 +37,7 @@ let test_theme s n =
     (t :: List.map snd Theme.all)
 
 let themes = List.map snd Theme.all
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
+let is_ascii = Text_harness.is_ascii
 
 (* On a formatter that is not UTF-8, every widget and a live display print
    ASCII alone, in every theme, for any ASCII text at any margin. *)

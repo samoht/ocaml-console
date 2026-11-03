@@ -9,13 +9,8 @@ open Console
 (* Text whose clusters, cells and bytes do not line up, over several
    lines. *)
 let alphabet = [| "x"; "\xe7\x95\x8c"; "e\xcc\x81"; " "; "\n"; "ab"; "\n\n" |]
-
-let text s =
-  String.concat ""
-    (List.init (String.length s) (fun i ->
-         alphabet.(Char.code s.[i] mod Array.length alphabet)))
-
-let lines s = String.split_on_char '\n' s
+let text = Widget_harness.spell alphabet
+let lines = Text_harness.lines
 let width = Console_width.string_width
 
 (* Each line of [hcat] is the spans' lines up to the last span with text
@@ -370,7 +365,7 @@ let escapes_whole s =
   in
   ground 0
 
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
+let is_ascii = Text_harness.is_ascii
 
 let rec texts_span = function
   | Text (_, s) | Gradient s | Link s -> [ s ]

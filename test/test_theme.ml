@@ -337,9 +337,7 @@ let test_header () =
     presets
 
 (* The escape code that selects [style], as a span in it starts. *)
-let sgr style =
-  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
-  String.sub s 0 (String.index s 'x')
+let sgr = View_harness.sgr
 
 (* Frames, guides, rules, the track of a bar and the counts and timers of a
    display are in the theme's muted colour; table headers, panel titles and
@@ -422,7 +420,7 @@ let test_names () =
   Alcotest.(check string) "custom" "custom" (Theme.name (Theme.v ()));
   Alcotest.(check string) "named" "mine" (Theme.name (Theme.v ~name:"mine" ()))
 
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
+let is_ascii = Text_harness.is_ascii
 
 (* A display on a terminal that is not UTF-8, with a spinner, a bar, a
    nested row, a log line, a label cut to fit and rows hidden behind a

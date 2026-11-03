@@ -19,6 +19,9 @@ type show =
   Task.t ->
   Display.t
 
+(* A formatter that drops what it is given and calls [flush]. *)
+let dropping flush = Format.make_formatter (fun _ _ _ -> ()) flush
+
 let driver ?(write_error = fun _ -> false) () : show =
   Progress_driver.show ~write_error ?cancelled:None
 
@@ -277,7 +280,7 @@ let test_flush_fails () =
     (fun (label, progress) ->
       let closed = ref false in
       let flush () = if !closed then raise Closed in
-      let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+      let ppf = dropping flush in
       let state =
         work
           (fun ppf root ->
@@ -294,7 +297,7 @@ let test_flush_fails_at_once () =
   List.iter
     (fun (label, progress) ->
       let flush () = raise Closed in
-      let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+      let ppf = dropping flush in
       let state =
         work
           (fun ppf root -> driver ~write_error:is_closed () ~progress ppf root)
@@ -307,7 +310,7 @@ let test_flush_fails_at_once () =
 let test_with_output_flush_fails () =
   let closed = ref false in
   let flush () = if !closed then raise (Sys_error "EPIPE") in
-  let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+  let ppf = dropping flush in
   let display = Display.v ~now:(fun () -> 0.) ppf View.empty in
   closed := true;
   let called = ref false in

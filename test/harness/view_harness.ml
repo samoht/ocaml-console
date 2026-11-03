@@ -21,9 +21,15 @@ let laid ?(live = false) ?(tasks = false) () =
   in
   (v, calls)
 
-let printed ?theme ?utf_8 ?margin ?depth v =
+let capture f =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
+  f ppf;
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+let printed ?theme ?utf_8 ?margin ?depth v =
+  capture @@ fun ppf ->
   Option.iter (Theme.set ppf) theme;
   Option.iter (Fmt.set_utf_8 ppf) utf_8;
   Option.iter (Format.pp_set_margin ppf) margin;
@@ -32,9 +38,11 @@ let printed ?theme ?utf_8 ?margin ?depth v =
       Fmt.set_style_renderer ppf `Ansi_tty;
       Color.set_depth ppf depth)
     depth;
-  View.pp ppf v;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  View.pp ppf v
+
+let sgr style =
+  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
+  String.sub s 0 (String.index s 'x')
 
 let fill glyph grow =
   View.fit ~grow (fun room ->

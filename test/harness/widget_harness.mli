@@ -11,6 +11,13 @@ val pick : string -> int -> string
 (** [pick s i] is a cell text chosen by byte [i] of [s], from texts whose bytes,
     clusters and cells do not line up. *)
 
+val spell : string array -> string -> string
+(** [spell alphabet s] is the text with an entry of [alphabet] for each byte of
+    [s], chosen by that byte. *)
+
+val room_width : int -> int
+(** [room_width n] is a width of at most 200 cells, chosen by [n]. *)
+
 val nth_theme : int -> Theme.t
 (** [nth_theme k] is theme [k] of {!Console.Theme.all}, wrapping round, for a
     [k] that is not negative. *)

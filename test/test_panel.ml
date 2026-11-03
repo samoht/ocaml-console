@@ -18,12 +18,9 @@ let test_with_title () =
   Alcotest.(check bool) "contains body" true (contains "body" output)
 
 let render renderer panel =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
+  View_harness.capture @@ fun ppf ->
   Fmt.set_style_renderer ppf renderer;
-  View.pp ppf panel;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  View.pp ppf panel
 
 (* A border's gradient grades the frame once round it, still, from the
    first colour at the top-left corner, clockwise and back: on a frame of
@@ -117,7 +114,7 @@ let test_fixed_width_truncates () =
     "content was clipped" false
     (contains "abcdefgh" (String.concat "\n" rendered))
 
-let lines s = String.split_on_char '\n' s
+let lines = Text_harness.lines
 let render_at margin panel = View_harness.printed ~margin panel
 
 (* The formatter's margin is a ceiling on the box: a line wider than the room

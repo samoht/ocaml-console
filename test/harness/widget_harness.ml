@@ -24,6 +24,12 @@ let pick s i =
   let s = s ^ "\000" in
   pool.((Char.code s.[i mod String.length s] + i) mod Array.length pool)
 
+let spell alphabet s =
+  String.concat ""
+    (List.init (String.length s) (fun i ->
+         alphabet.(Char.code s.[i] mod Array.length alphabet)))
+
+let room_width n = 1 + (n mod 200)
 let nth_theme k = snd (List.nth Theme.all (k mod List.length Theme.all))
 
 let render ?theme pp margin v =

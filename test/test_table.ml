@@ -79,13 +79,22 @@ let test_string_conversion_is_plain () =
   Alcotest.(check bool) "piped is plain" false (has_esc (View.to_string t))
 
 let render renderer table =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
+  View_harness.capture @@ fun ppf ->
   Fmt.set_style_renderer ppf renderer;
   View.pp ppf table;
-  Format.pp_print_char ppf '\n';
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  Format.pp_print_char ppf '\n'
+
+(* [table] printed in colour at a margin of [width]: the bytes, and the rows
+   that are not blank. *)
+let styled_rows ~width table =
+  let raw =
+    View_harness.capture @@ fun ppf ->
+    Format.pp_set_margin ppf width;
+    Fmt.set_style_renderer ppf `Ansi_tty;
+    View.pp ppf table;
+    Format.pp_print_char ppf '\n'
+  in
+  (raw, Text_harness.lines raw |> List.filter (fun row -> String.trim row <> ""))
 
 (* [table] printed on a formatter in [theme], in UTF-8 iff [utf_8], in
    true colour iff [styled]. *)
@@ -214,18 +223,7 @@ let test_formatter_margin_never_wraps_border () =
         [ "ocaml-sqlite"; "git@git.recoil.org:gazagnaire.org/ocaml-sqlite" ];
       ]
   in
-  let buffer = Buffer.create 512 in
-  let ppf = Format.formatter_of_buffer buffer in
-  Format.pp_set_margin ppf width;
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  View.pp ppf table;
-  Format.pp_print_char ppf '\n';
-  Format.pp_print_flush ppf ();
-  let raw = Buffer.contents buffer in
-  let logical_rows =
-    raw |> String.split_on_char '\n'
-    |> List.filter (fun row -> String.trim row <> "")
-  in
+  let raw, logical_rows = styled_rows ~width table in
   List.iter
     (fun row ->
       Alcotest.(check int)
@@ -289,18 +287,7 @@ let test_every_margin_is_a_hard_limit () =
   in
   let table = of_string_rows ~border:Border.rounded columns [ hostile ] in
   for width = 4 to 80 do
-    let buffer = Buffer.create 1024 in
-    let ppf = Format.formatter_of_buffer buffer in
-    Format.pp_set_margin ppf width;
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    View.pp ppf table;
-    Format.pp_print_char ppf '\n';
-    Format.pp_print_flush ppf ();
-    let raw = Buffer.contents buffer in
-    let logical_rows =
-      raw |> String.split_on_char '\n'
-      |> List.filter (fun row -> String.trim row <> "")
-    in
+    let raw, logical_rows = styled_rows ~width table in
     Alcotest.(check bool)
       (Fmt.str "width %d rendered a table" width)
       true (logical_rows <> []);

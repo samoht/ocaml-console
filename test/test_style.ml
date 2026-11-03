@@ -6,9 +6,7 @@
 open Console
 
 (* The escape code a style starts its text with, as a span prints it. *)
-let to_ansi style =
-  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
-  String.sub s 0 (String.index s 'x')
+let to_ansi = View_harness.sgr
 
 let test_none () =
   let ansi = to_ansi Style.none in

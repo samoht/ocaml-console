@@ -14,7 +14,7 @@ let test_colour_rules () =
     | `None -> "none"
   in
   let term = ("TERM", "xterm-256color") in
-  let check label expected got = Alcotest.(check string) label expected got in
+  let check = Alcotest.(check string) in
   check "terminal" "ansi" (renderer ~is_tty:true [ term ]);
   check "pipe" "none" (renderer ~is_tty:false [ term ]);
   check "NO_COLOR" "none" (renderer ~is_tty:true [ term; ("NO_COLOR", "1") ]);

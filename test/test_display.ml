@@ -10,6 +10,7 @@ open View_harness
 let strings = Alcotest.(list string)
 let check_lines msg expected actual = Alcotest.check strings msg expected actual
 let theme = Theme.dos
+let split = Text_harness.lines
 
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
@@ -44,7 +45,7 @@ let test_plain_lines () =
       "[+] Building 1.5s (1/1)";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* A line the display prints starts at the first column, even after the
    program left a line unfinished on the same formatter. *)
@@ -73,7 +74,7 @@ let test_plain_unfinished () =
   in
   check_lines "cancelled"
     [ "[-] left"; "[~] left  0.0s  cancelled"; "" ]
-    (String.split_on_char '\n' out);
+    (split out);
   let (), out =
     plain ~theme (fun d _ ->
         ignore (Task.start d "left");
@@ -81,7 +82,7 @@ let test_plain_unfinished () =
   in
   check_lines "succeeded with the work"
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* Without a terminal no colour may tell a failure from a success: the
    closing line of a task that did not succeed says how it ended, in the
@@ -105,7 +106,7 @@ let test_plain_outcome_word () =
       "[~] b  0.0s  cancelled";
       "";
     ]
-    (String.split_on_char '\n' out);
+    (split out);
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_style_renderer ppf `Ansi_tty;
@@ -138,7 +139,7 @@ let test_plain_attribution () =
       "[~] b  0.0s  cancelled";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* A tab in a task's output goes to the next stop of eight columns from the
    start of its line, so tabbed columns stay aligned. *)
@@ -158,7 +159,7 @@ let test_tabs () =
       "[x] a  0.0s  failed";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 let test_plain_sanitizes () =
   let (), out =
@@ -187,7 +188,7 @@ let test_plain_result () =
       "[x] it broke";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 let test_empty_header_pending () =
   let t = terminal ~label:"Building" () in
@@ -575,7 +576,7 @@ let test_nested_plain () =
       "[x] parent  0.0s  failed";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 let test_keys_and_transient () =
   let (), out =
@@ -591,7 +592,7 @@ let test_keys_and_transient () =
   in
   check_lines "no line for a transient task"
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* A with_task that finds its key running enters that task and ends
    nothing: the task ends as the call that started it says. *)
@@ -616,7 +617,7 @@ let test_with_task_shared_key () =
       "[+] first  0.0s";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 let test_counts () =
   let (), out =
@@ -640,7 +641,7 @@ let test_counts () =
       "[+] bytes  1.00 MiB / 2.00 MiB  0.0s";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* [label ~style] draws the label in [style], bold by default. *)
 let test_label_style () =
@@ -943,8 +944,6 @@ let test_synchronized () =
     !(t.chunks);
   let (), out = plain (fun d _ -> Task.succeed (Task.start d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
-
-let split out = String.split_on_char '\n' out
 
 (* On a pipe there is no window: a task says when it starts, each of its lines
    comes at once after its label, and it says when it ends. *)
@@ -1460,13 +1459,11 @@ let steps =
 
 (* [pp v] printed on a formatter in [theme], at [margin]. *)
 let printed ?(theme = theme) ~margin pp v =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf theme;
-  Format.pp_set_margin ppf margin;
-  pp ppf v;
-  Format.pp_print_flush ppf ();
-  String.split_on_char '\n' (Buffer.contents buf)
+  split
+    ( capture @@ fun ppf ->
+      Theme.set ppf theme;
+      Format.pp_set_margin ppf margin;
+      pp ppf v )
 
 let table ~width = View.sized ~width:(min width 100) steps
 
@@ -2409,7 +2406,7 @@ let test_pipe_output_mark_not_separator () =
         Task.succeed b;
         Task.succeed a)
   in
-  let line = List.find (contains ": x") (String.split_on_char '\n' out) in
+  let line = List.find (contains ": x") (split out) in
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
   Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
 

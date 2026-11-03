@@ -10,7 +10,7 @@ let check_lines msg expected actual =
   Alcotest.(check (list string)) msg expected actual
 
 let theme = Theme.dos
-let split = String.split_on_char '\n'
+let split = Text_harness.lines
 
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
