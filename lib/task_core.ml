@@ -102,11 +102,25 @@ let rec root_of r = match r.parent with None -> r | Some p -> root_of p
 let changed r = r.version <- r.version + 1
 let keep r m = r.memo <- m
 
+(* [f ()] then [g ()], whatever [f] raises: a task that ends does so whole, and
+   every watcher sees it, even with an interrupt under way. *)
+let and_then f g =
+  match f () with
+  | () -> g ()
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      g ();
+      Printexc.raise_with_backtrace e bt
+
+let rec tell change = function
+  | [] -> ()
+  | f :: rest -> and_then (fun () -> f change) (fun () -> tell change rest)
+
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
   | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
-  List.iter (fun f -> f change) w.watchers
+  tell change w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
 let on_ending r f = r.work.ending <- f
@@ -257,8 +271,10 @@ let child_outcome = function
 let rec finish outcome ?message r =
   if is_running r then begin
     let w = r.work in
-    w.ending r;
-    List.iter (finish (child_outcome outcome)) (List.rev (running_children r));
+    and_then (fun () -> w.ending r) @@ fun () ->
+    and_then (fun () ->
+        finish_all (child_outcome outcome) (List.rev (running_children r)))
+    @@ fun () ->
     Queue.clear r.window;
     r.ended_at <- Some (w.now ());
     r.message <- Option.map Task_text.label message;
@@ -281,6 +297,11 @@ let rec finish outcome ?message r =
           r.output_bytes <- 0
         end)
   end
+
+and finish_all outcome = function
+  | [] -> ()
+  | r :: rest ->
+      and_then (fun () -> finish outcome r) (fun () -> finish_all outcome rest)
 
 let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r

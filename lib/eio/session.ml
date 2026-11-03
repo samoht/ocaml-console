@@ -90,7 +90,10 @@ let at_exit =
   lazy
     (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
 
-let cancelled = function Eio.Cancel.Cancelled _ -> true | _ -> false
+let rec cancelled = function
+  | Eio.Cancel.Cancelled _ -> true
+  | Fun.Finally_raised e -> cancelled e
+  | _ -> false
 
 (* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
@@ -100,6 +103,12 @@ let scope =
     ~cancelled
 
 let write_error = function Eio.Io _ -> true | _ -> false
+
+(* Nothing a broken output raises stops the display being given back. *)
+let safely f =
+  match f () with
+  | () -> ()
+  | exception e when not (Display_driver.is_async e) -> ()
 
 let claim () =
   Lazy.force at_exit;
@@ -251,7 +260,7 @@ let intercept run ppf =
 
 let flush_all () =
   List.iter
-    (fun i -> try Format.pp_print_flush i.ppf () with Sys_error _ -> ())
+    (fun i -> safely (fun () -> Format.pp_print_flush i.ppf ()))
     (Atomic.get intercepted)
 
 (* What a task wrote and its formatters still hold is its own, and its line
@@ -283,28 +292,57 @@ let settle run =
       (Atomic.get intercepted)
   end
 
-let close_display run =
-  settle run;
-  Display.close run.display
+(* The work ends as a task's does: it succeeds when [f] returns, fails when
+   it raises, and is cancelled when its fiber is, unless [f] ended it. The
+   exception goes on to the caller, which says it: the work ends with no
+   message. *)
+let end_work root = function
+  | Ok _ -> Task.succeed root
+  | Error e -> if cancelled e then Task.cancel root else Task.fail root
 
 (* Closing while the program ends for another reason: that reason goes on, and
-   whatever a view raised on the way out gives way to it. *)
-let close_display_quietly ?(first = ignore) run =
+   whatever a view raised on the way out gives way to it, unless the program
+   must see it. *)
+let close_quietly ?(first = ignore) (run : run) =
   Display_driver.close_quietly run.display ~before:(fun () ->
       first ();
       settle run)
 
+(* How long the last frame waits for an output that takes no more. *)
+let grace = 1.
+
+(* [f ()] in a cancelled fiber too, which an Eio flow refuses to write from, as
+   long as the output takes what is written. This needs a fiber of its own: a
+   signal handler or an [at_exit] function closes without it. *)
+let shielded f =
+  let waited () =
+    (* The program's clock may be one that does not move. *)
+    match Eio_unix.sleep grace with
+    | () -> ()
+    | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
+  in
+  Eio.Cancel.protect (fun () -> Eio.Fiber.first f waited)
+
+let close_display ?(first = ignore) (run : run) =
+  shielded (fun () ->
+      Display_driver.close run.display ~before:(fun () ->
+          first ();
+          settle run))
+
+(* From a signal handler or an [at_exit] function, nothing goes on after it. *)
+let close_last run =
+  try close_quietly run with Out_of_memory | Stack_overflow | Sys.Break -> ()
+
 let restore () =
   List.iter
     (fun i ->
-      (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
+      safely (fun () -> Format.pp_print_flush i.ppf ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
       let rest = Buffer.contents i.held ^ Buffer.contents i.root.pending in
       if rest <> "" then
-        try
-          i.out.out_string rest 0 (String.length rest);
-          i.out.out_flush ()
-        with Sys_error _ -> ())
+        safely (fun () ->
+            i.out.out_string rest 0 (String.length rest);
+            i.out.out_flush ()))
     (Atomic.exchange intercepted []);
   Hashtbl.reset lines
 
@@ -468,14 +506,6 @@ let share run =
   Atomic.set shared (Some s);
   s
 
-(* The work ends as a task's does: it succeeds when [f] returns, fails when
-   it raises, and is cancelled when its fiber is, unless [f] ended it. The
-   exception goes on to the caller, which says it: the work ends with no
-   message. *)
-let end_work root = function
-  | Ok _ -> Task.succeed root
-  | Error e -> if cancelled e then Task.cancel root else Task.fail root
-
 let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   let display = run.display in
   let previous = Logs.reporter () in
@@ -489,37 +519,34 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   Atomic.set ending
     (Some
        (fun () ->
-         close_display_quietly run;
+         close_last run;
          give_back ();
          restore ()));
   let s = share run in
-  Fun.protect ~finally:(fun () ->
-      restore ();
-      release ())
+  Display_driver.protect display ~finally:(fun () ->
+      Display_driver.protect display
+        (fun () -> shielded restore)
+        ~finally:release)
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
   Interrupt.protect ~idle:(Display_driver.when_idle display)
-    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_display run)
+    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_last run)
   @@ fun () ->
-  let value =
-    match
-      Eio.Switch.run @@ fun sw ->
-      let requests = Eio.Stream.create 1 in
-      Eio.Fiber.fork_daemon ~sw (fun () ->
-          receive ~sw ~closed requests run.root);
-      Logs.set_reporter
-        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
-      animate ~sw ~sleep display;
-      Fun.protect ~finally:give_back @@ fun () -> first_run s f
-    with
-    | v ->
-        end_work run.root (Ok ());
-        v
-    | exception e ->
-        let bt = Printexc.get_raw_backtrace () in
-        close_display_quietly run ~first:(fun () -> end_work run.root (Error e));
-        Printexc.raise_with_backtrace e bt
-  in
-  close_display run;
-  value
+  match
+    Eio.Switch.run @@ fun sw ->
+    let requests = Eio.Stream.create 1 in
+    Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests run.root);
+    Logs.set_reporter
+      (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
+    animate ~sw ~sleep display;
+    Fun.protect ~finally:give_back @@ fun () -> first_run s f
+  with
+  | value ->
+      close_display run ~first:(fun () -> end_work run.root (Ok ()));
+      value
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      shielded (fun () ->
+          close_quietly run ~first:(fun () -> end_work run.root (Error e)));
+      Printexc.raise_with_backtrace e bt

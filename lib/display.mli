@@ -82,8 +82,16 @@
     A view that raises is dropped and nothing is drawn in its place. Its
     exception is raised again by the next call to {!redraw}, {!set_view} or
     {!close}, so that a frame drawn as a task changes or as a line is printed
-    raises in none of the program's other calls. {!close} raises it once the
-    display closed.
+    raises in none of the program's other calls. So is what the size function
+    raises, and the view stays. {!close} raises it once the display closed,
+    restoring the terminal first.
+
+    What only the program can answer does not wait: [Sys.Break], [Out_of_memory]
+    and [Stack_overflow] go on from the call that was drawing, whichever that
+    is, a {!Task} report included, and the view stays. So does the cancellation
+    of the fiber that draws, but for a report: the fiber meets it at its next
+    point of cancellation. A write it cut short goes out with the next one,
+    whole, and on an output that took part of it, that part shows twice.
 
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)

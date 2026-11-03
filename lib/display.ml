@@ -10,5 +10,5 @@ let set_view = Display_core.set_view
 let print = Display_core.print
 let with_output = Display_core.with_output
 let redraw = Display_core.redraw
-let close = Display_core.close
+let close t = Display_core.close t
 let pp = Display_core.pp

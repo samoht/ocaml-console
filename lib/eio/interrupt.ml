@@ -54,7 +54,8 @@ let rec stop signo =
       stop
       (List.rev (Atomic.get holders))
   in
-  try around () with Sys_error _ -> ()
+  (* Out of a fiber, an output that is an Eio flow cannot be written. *)
+  try around () with Sys_error _ | Effect.Unhandled _ -> ()
 
 (* Our handler gives way to the default disposition, and one the program
    installed since stays. *)

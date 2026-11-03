@@ -61,6 +61,18 @@
 - Add `Console_text.decimal`, to read an integer written in decimal digits alone
   (#24).
 
+- Ctrl-C, running out of memory or stack, and a cancelled fiber now take effect
+  at once when they happen while a view draws, instead of waiting for the next
+  redraw or the close. The view stays on screen afterwards (#26).
+
+- `Console_eio.run` now restores the cursor when its fiber is cancelled, unless
+  the output takes nothing for a second, and when a `commit` function raises as
+  the run ends. A signal ends the program even after a view raised (#26).
+
+- Reporting on a task or logging no longer raises in a cancelled fiber, and a
+  task's end reaches its subtasks and every watcher even if drawing is
+  interrupted (#26).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

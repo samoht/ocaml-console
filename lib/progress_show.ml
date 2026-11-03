@@ -160,8 +160,9 @@ let view_of_form ~layout root = function
   | Quiet -> verdict root
   | Json -> V.empty
 
-let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
-    ?(keep_ended = false) ?commit ?plain ?delay ?size ppf root =
+let show_with ?write_error ?cancelled ?(progress = `Auto)
+    ?(layout = Layout.default) ?view ?(keep_ended = false) ?commit ?plain ?delay
+    ?size ppf root =
   let root = root_of root in
   let shown_size, form = shape ?size progress in
   let default = view_of_form ~layout root form in
@@ -176,21 +177,25 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     | _ -> None
   in
   let d =
-    Display_core.v ?size:shown_size ?once_width ?write_error ?delay
+    Display_core.v ?size:shown_size ?once_width ?write_error ?cancelled ?delay
       ~fallback:default
       ~now:(Work.now (work root))
       ppf shown
   in
   Display_core.told d;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
+  let watching on_change =
+    watch (work root) (fun change ->
+        Display_core.reporting d (fun () -> on_change change))
+  in
   (match form with
-  | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
+  | Live -> watching (on_live d ~layout ~keep_ended ~commit)
   | Plain -> (
       match plain with
-      | None -> watch (work root) (on_plain d ~keep_ended)
-      | Some plain -> watch (work root) (on_own d ~keep_ended root plain))
-  | Quiet -> watch (work root) (on_quiet d)
+      | None -> watching (on_plain d ~keep_ended)
+      | Some plain -> watching (on_own d ~keep_ended root plain))
+  | Quiet -> watching (on_quiet d)
   | Json ->
       Display_core.on_output d (fun s -> log root (Console_text.strip s));
-      watch (work root) (on_json d root));
+      watching (on_json d root));
   d

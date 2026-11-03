@@ -13,18 +13,20 @@ val v :
   ?size:(unit -> int * int) ->
   ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
+  ?cancelled:(exn -> bool) ->
   ?delay:float ->
   ?fallback:View.t ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~once_width ~write_error ~delay ~fallback ~now ppf view] is
-    {!Display.v}, which also takes as the end of its output an exception that
-    [write_error] says is a write error (defaults to none but [Sys_error]), and
-    draws [fallback] (defaults to {!View.empty}) in place of a view that raises.
-    Without [size], what it prints once is [once_width ()] cells wide, and whole
-    without [once_width]. *)
+(** [v ~size ~once_width ~write_error ~cancelled ~delay ~fallback ~now ppf view]
+    is {!Display.v}, which also takes as the end of its output an exception that
+    [write_error] says is a write error (defaults to none but [Sys_error]),
+    holds back no exception that [cancelled] says is a cancellation (defaults to
+    none), and draws [fallback] (defaults to {!View.empty}) in place of a view
+    that raises. Without [size], what it prints once is [once_width ()] cells
+    wide, and whole without [once_width]. *)
 
 val set_view : t -> View.t -> unit
 (** [set_view d view] is {!Display.set_view}. *)
@@ -38,17 +40,34 @@ val with_output : t -> (Format.formatter -> 'a) -> 'a
 val redraw : t -> unit
 (** [redraw d] is {!Display.redraw}. *)
 
-val close : t -> unit
-(** [close d] is {!Display.close}. *)
+val close : ?before:(unit -> unit) -> t -> unit
+(** [close ~before d] calls [before] (defaults to doing nothing) then is
+    {!Display.close}, and what [before] raises waits until [d] closed. *)
 
 val close_quietly : before:(unit -> unit) -> t -> unit
 (** [close_quietly ~before d] calls [before] then closes [d] as {!close} does,
-    and raises nothing that either raised. *)
+    and raises nothing that either raised but what {!is_async} says, which a
+    program ending for another reason does not hide. *)
+
+val is_async : exn -> bool
+(** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
+    stack, which can arise anywhere and which no fallback answers. *)
+
+val protect : t -> finally:(unit -> unit) -> (unit -> 'a) -> 'a
+(** [protect d ~finally f] is [f ()] followed by [finally ()], whatever [f]
+    raises. If both raise, the worse of the two goes on, as itself: an interrupt
+    or an exhausted heap or stack, then an error, then a cancellation. *)
 
 val pp : t Fmt.t
 (** [pp] is {!Display.pp}. *)
 
 (** {1:internal For progress and drivers} *)
+
+val reporting : t -> (unit -> unit) -> unit
+(** [reporting d f] is [f ()], where [f] draws what a task reported, without the
+    cancellation of the fiber that reports: a report is no point of
+    cancellation, the fiber meets it at its next one, and what was cut short
+    goes out with the next write. *)
 
 val touch : t -> unit
 (** [touch d] says that what the view shows changed: it is drawn again, at most
