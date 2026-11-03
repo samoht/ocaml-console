@@ -40,7 +40,7 @@ let default_max_line = 4095
 
 (* The lines bash keeps by default (HISTSIZE). *)
 let default_history_size = 500
-let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
+let take n l = List.take (max 0 n) l
 
 let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask
     ?(max_line = default_max_line) ?(history_size = default_history_size) () =
