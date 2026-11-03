@@ -183,43 +183,41 @@ let test_carriage_returns () =
         ]
         (lines file))
 
-(* The time never goes back, and it is written to the microsecond. *)
-let test_time () =
+(* [writes] recorded, one for each of [times], come out as [expected]. *)
+let check_times msg times writes expected =
   recording (fun file ->
       let _, ppf = buffered () in
-      started ~time:(clock [ -1.; 5.; 2.; 5.1234567; 5.1234561 ]) ppf;
-      List.iter (write ppf) [ "a"; "b"; "c"; "d"; "e" ];
-      check_lines "times"
-        [
-          header;
-          {|[0,"o","a"]|};
-          {|[5,"o","b"]|};
-          {|[5,"o","c"]|};
-          {|[5.123457,"o","d"]|};
-          {|[5.123457,"o","e"]|};
-        ]
-        (lines file))
+      started ~time:(clock times) ppf;
+      List.iter (write ppf) writes;
+      check_lines msg (header :: expected) (lines file))
+
+(* The time never goes back, and it is written to the microsecond. *)
+let test_time () =
+  check_times "times"
+    [ -1.; 5.; 2.; 5.1234567; 5.1234561 ]
+    [ "a"; "b"; "c"; "d"; "e" ]
+    [
+      {|[0,"o","a"]|};
+      {|[5,"o","b"]|};
+      {|[5,"o","c"]|};
+      {|[5.123457,"o","d"]|};
+      {|[5.123457,"o","e"]|};
+    ]
 
 (* A clock that reads no number does not reach the recording. *)
 let test_time_not_finite () =
-  recording (fun file ->
-      let _, ppf = buffered () in
-      started
-        ~time:(clock [ 1.; nan; 2.; infinity; 3.; neg_infinity; 1e303 ])
-        ppf;
-      List.iter (write ppf) [ "a"; "b"; "c"; "d"; "e"; "f"; "g" ];
-      check_lines "the last time that was one"
-        [
-          header;
-          {|[1,"o","a"]|};
-          {|[1,"o","b"]|};
-          {|[2,"o","c"]|};
-          {|[2,"o","d"]|};
-          {|[3,"o","e"]|};
-          {|[3,"o","f"]|};
-          {|[1000000000000,"o","g"]|};
-        ]
-        (lines file))
+  check_times "the last time that was one"
+    [ 1.; nan; 2.; infinity; 3.; neg_infinity; 1e303 ]
+    [ "a"; "b"; "c"; "d"; "e"; "f"; "g" ]
+    [
+      {|[1,"o","a"]|};
+      {|[1,"o","b"]|};
+      {|[2,"o","c"]|};
+      {|[2,"o","d"]|};
+      {|[3,"o","e"]|};
+      {|[3,"o","f"]|};
+      {|[1000000000000,"o","g"]|};
+    ]
 
 (* A character or an escape code cut by a flush waits for the rest. *)
 let test_cut_short () =
