@@ -631,6 +631,29 @@ let test_held_line () =
     "the held line above the rows" true
     (List.exists (String.starts_with ~prefix:"a held line") rows)
 
+(* The first domain the program starts during a run leaves what it prints
+   to the display, and once the run ends standard error writes as Format's
+   functions do once a domain started. *)
+let test_spawn () =
+  let rows = final "spawn" in
+  List.iter
+    (fun i ->
+      let line = Fmt.str "spawned line %d" i in
+      Alcotest.(check bool)
+        ("a row of its own: " ^ line)
+        true (List.mem line rows))
+    [ 1; 2; 3 ];
+  let rec under = function
+    | l :: next :: _ when contains "\u{2717} work" l -> next
+    | _ :: rest -> under rest
+    | [] -> Alcotest.fail "no failed line"
+  in
+  Alcotest.(check string)
+    "the task's output" "  \u{203a} a task line" (under rows);
+  Alcotest.(check bool)
+    "after the run, Format's functions" true
+    (List.mem "held until a flush: true" rows)
+
 let test_sigint_teardown () =
   let _, out = teardown "sigint" in
   Alcotest.(check bool)
@@ -970,6 +993,7 @@ let suite =
       Alcotest.test_case "a task's output on a terminal" `Quick test_task_output;
       Alcotest.test_case "a held line stays outside the next task" `Quick
         test_held_line;
+      Alcotest.test_case "a domain started during a run" `Quick test_spawn;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;

@@ -14,6 +14,7 @@
    [orphaned-suspend], in a session of its own where no stop takes effect; or, with [unflushed], it
    prints lines it never flushes; or, with [held], it prints a line outside a
    task that it does not flush, then one in a task that fails; or, with
+   [spawn], it starts its first domain during the display; or, with
    [sigint-mid-write] or [sigint-blocked], it is interrupted in the middle
    of a frame's write. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
@@ -172,6 +173,27 @@ let held _env =
           Fmt.pr "a task line@.";
           Console.Task.fail task))
 
+(* The program's first domain starts in the middle of the display, and
+   Format gives the standard formatters a buffer per domain; lines follow,
+   outside a task and in one that fails. Once the display is gone, whether a
+   write on standard error waits for a flush, as Format's own do once a
+   domain started, rather than going on the channel. *)
+let spawn _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
+      Domain.join (Domain.spawn ignore);
+      for i = 1 to 3 do
+        Fmt.epr "spawned line %d@." i
+      done;
+      Console.Task.run root "work" (fun task ->
+          Fmt.epr "a task line@.";
+          Console.Task.fail task));
+  let out = Format.pp_get_formatter_out_functions Fmt.stderr () in
+  let before = pos_out stderr in
+  out.out_string "after the run\n" 0 14;
+  let held = pos_out stderr = before in
+  out.out_flush ();
+  Fmt.epr "held until a flush: %b@." held
+
 (* Quiet mode keeps terminal output only for a failed or cancelled task. *)
 let quiet ending _env =
   Logs.set_level (Some Logs.Info);
@@ -227,6 +249,7 @@ let () =
       suspend env
   | [| _; "unflushed" |] -> unflushed env
   | [| _; "held" |] -> held env
+  | [| _; "spawn" |] -> spawn env
   | [| _; "sigint-mid-write" |] -> mid_write ~blocked:false env
   | [| _; "sigint-blocked" |] -> mid_write ~blocked:true env
   | _ -> display env
