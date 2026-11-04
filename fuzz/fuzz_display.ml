@@ -1716,7 +1716,7 @@ let test_tree_local_dimensions w h =
     View.to_string (View.sized ~width:80 ~height:11 (Progress.view t.root))
   in
   let before = frame () in
-  let writes = List.length !(t.chunks) in
+  let writes = Display_harness.writes t in
   let width = 1 + (w mod 200) and height = h mod 11 in
   List.iter
     (fun task ->
@@ -1729,7 +1729,7 @@ let test_tree_local_dimensions w h =
     [ t.root; parent; child ];
   let after = frame () in
   Display.redraw d;
-  let unchanged = List.length !(t.chunks) = writes in
+  let unchanged = Display_harness.writes t = writes in
   Display.close d;
   check_eq ~pp:Fmt.Dump.string before after;
   check unchanged

@@ -103,6 +103,8 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   in
   { vte; root; display; advance; size; chunks }
 
+let roomy () = terminal ~theme:Theme.dos ~width:30 ~height:10 ()
+let writes t = List.length !(t.chunks)
 let written t = String.concat "" (List.rev !(t.chunks))
 
 let resize t ~width ~height =
@@ -111,6 +113,12 @@ let resize t ~width ~height =
 
 let screen t = Console_vte.screen t.vte
 let lines t = Console_vte.screen ~scrollback:true t.vte
+
+let check_room ~rows ~cols msg row v =
+  let terminal = Console_vte.v ~rows ~cols () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int) msg row (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= cols)
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
