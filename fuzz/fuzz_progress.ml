@@ -146,13 +146,6 @@ let test_time x =
     let x = Float.min 1e12 (Float.max (-1e12) x) in
     check_eq ~pp:Fmt.float ((Float.round (x *. 1000.) /. 1000.) +. 0.) back
 
-let contains ~affix s =
-  let n = String.length affix in
-  let rec go i =
-    i + n <= String.length s && (String.sub s i n = affix || go (i + 1))
-  in
-  go 0
-
 (* A count reads back as it was, a JSON number below 10^15 and a string of
    decimal digits from there. *)
 let test_count c n =
@@ -162,10 +155,9 @@ let test_count c n =
   in
   let exact = Int64.compare c 1_000_000_000_000_000L < 0 in
   check
-    (contains
-       ~affix:
-         (if exact then Fmt.str {|"count":%Ld,|} c
-          else Fmt.str {|"count":"%Ld",|} c)
+    (Display_harness.contains
+       (if exact then Fmt.str {|"count":%Ld,|} c
+        else Fmt.str {|"count":"%Ld",|} c)
        line);
   let e = decode line in
   check (Event.count e = Some c);

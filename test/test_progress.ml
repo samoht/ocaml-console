@@ -4,8 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Console
-
-let contains affix s = Astring.String.is_infix ~affix s
+open Display_harness
 
 let test_names () =
   Alcotest.(check (list string))
