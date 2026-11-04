@@ -10,6 +10,8 @@
     frame of its call stack that has a location, which is the module initialiser
     running. *)
 
-val words : unit -> (string * int) list
-(** [words ()] stops sampling and returns the words charged to each source file,
-    as the compiler names it. *)
+val words : ?through:string -> unit -> (string * int) list
+(** [words ?through ()] stops sampling and returns the words charged to each
+    source file, as the compiler names it. With [through], only the words
+    allocated while a function of the source file [through] was on the call
+    stack are counted. *)
