@@ -48,7 +48,17 @@
 (executable
  (name piped)
  (modules piped)
- (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt unix))
+ (libraries
+  console
+  console-eio
+  eio
+  eio.mock
+  eio_main
+  fmt
+  logs
+  logs.fmt
+  threads.posix
+  unix))
 
 (executable
  (name events)
