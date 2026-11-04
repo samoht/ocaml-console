@@ -130,6 +130,15 @@ let rec stop signo =
   end
   else attempt abandon
 
+(* The signal sent again, let through in the sending thread: the runtime
+   blocks it in a handler, and every other thread may block it too, as the
+   display's does when another domain handles it. POSIX delivers it to the
+   sending thread before [kill] returns once no other thread takes it. *)
+let resend signo =
+  let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
+  Unix.kill (Unix.getpid ()) signo;
+  ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
+
 (* Our handler gives way to the default disposition, and one the program
    installed since stays. *)
 let rec release () =
@@ -151,7 +160,7 @@ and handle signo =
       if not (Atomic.exchange sent true) then begin
         release ();
         Atomic.set ending false;
-        Unix.kill (Unix.getpid ()) signo
+        resend signo
       end
     in
     let hs = Atomic.exchange holders [] in

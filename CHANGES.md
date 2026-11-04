@@ -127,6 +127,9 @@
   `Console_eio.run` no longer raises `Effect.Unhandled`: the message goes to
   the reporter installed before the run, and the print above the rows (#37).
 
+- A SIGINT or SIGTERM handled in another domain, as when the display's thread
+  blocks it, now ends the program instead of staying pending (#37).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
