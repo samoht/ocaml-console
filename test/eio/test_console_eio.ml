@@ -951,6 +951,17 @@ let test_task_output () =
         (List.exists (contains text) rows))
     [ "an output line"; "a result line"; "a note line"; "a forked note" ]
 
+(* What a thread prints on the display's terminal goes above the rows, as
+   output outside any task. *)
+let test_printed_elsewhere () =
+  let status, out = teardown "elsewhere" in
+  Alcotest.(check bool)
+    "the program succeeds" true
+    (match status with `Exited 0 -> true | _ -> false);
+  Alcotest.(check bool)
+    "the line shows" true
+    (List.mem "from a thread" (final_of out))
+
 (* A line written outside a task is not the output of the task in which
    the next line is written, even when it waited for a flush until then. *)
 let test_held_line () =
@@ -1485,6 +1496,7 @@ let suite =
       Alcotest.test_case "a task's output on a terminal" `Quick test_task_output;
       Alcotest.test_case "a held line stays outside the next task" `Quick
         test_held_line;
+      Alcotest.test_case "printed from a thread" `Quick test_printed_elsewhere;
       Alcotest.test_case "a domain started during a run" `Quick test_spawn;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick

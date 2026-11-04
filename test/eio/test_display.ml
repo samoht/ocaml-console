@@ -557,6 +557,21 @@ module Report_domains = struct
       "the display writes nothing" ""
       (Buffer.contents sink.buffer)
 
+  (* A message logged from a thread of the display's domain, where no fiber
+     runs, goes to the reporter installed before the run. *)
+  let systhread () =
+    with_runtime @@ fun env ->
+    recording @@ fun kept ->
+    let sink = sink () in
+    run env sink (fun _ ->
+        let reporter = Logs.reporter () in
+        Eio_unix.run_in_systhread (fun () -> send reporter "from a thread"));
+    Alcotest.(check (list string))
+      "the previous reporter has the message" [ "from a thread" ] (kept ());
+    Alcotest.(check string)
+      "the display writes nothing" ""
+      (Buffer.contents sink.buffer)
+
   let blocked_sink enter =
     let in_output = ref false in
     let output =
@@ -621,6 +636,8 @@ module Report_domains = struct
           `Quick stale_reporter;
         Alcotest.test_case "a domain Eio does not run hands over" `Quick
           foreign_domain;
+        Alcotest.test_case "a thread of the display's domain hands over" `Quick
+          systhread;
         Alcotest.test_case "scope closure releases a waiting external worker"
           `Quick
           (close_waiting_worker ~fail:true);

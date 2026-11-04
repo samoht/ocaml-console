@@ -21,8 +21,8 @@
    write that never ends, cut inside a link or a control sequence; or, with
    [exit-thread-blocked] or [exit-domain-blocked], a thread or a domain calls
    [exit] during such a write; or, with [stop-blocked], it is stopped by
-   SIGTSTP during a write that ends after a while. It also prints a line on
-   standard
+   SIGTSTP during a write that ends after a while; or, with [elsewhere], a
+   thread prints on its terminal. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 (* SIGINT comes once the password is masked. *)
@@ -229,6 +229,13 @@ let unflushed _env =
       done;
       ignore (Unix.write_substring Unix.stdout "MARK\n" 0 5 : int))
 
+(* A line printed from a thread of the display's domain. *)
+let elsewhere _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
+      let task = Console.Task.start root "pushing" in
+      Eio_unix.run_in_systhread (fun () -> Fmt.pr "from a thread@.");
+      Console.Task.succeed task)
+
 (* A whole line outside a task, long enough that the formatter writes it,
    waits for a flush; the task's line that comes next must not take it
    along. *)
@@ -315,6 +322,7 @@ let () =
       suspend env
   | [| _; "unflushed" |] -> unflushed env
   | [| _; "held" |] -> held env
+  | [| _; "elsewhere" |] -> elsewhere env
   | [| _; "spawn" |] -> spawn env
   | [| _; "secret-lost" |] -> secret_lost env
   | [| _; "cut-link" |] -> blocked_at ~cut:in_link interrupt env
