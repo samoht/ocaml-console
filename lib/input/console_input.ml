@@ -3,10 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [Csi_intermediate] is after an intermediate byte of a control sequence,
-   which only intermediates and the final byte follow. [Ss3] is after ESC O,
-   which a terminal in application cursor mode sends before an arrow's
-   letter. *)
+(* [Csi_intermediate] follows an intermediate byte of a control sequence,
+   after which only intermediate bytes and the final byte come. [Ss3]
+   follows ESC O, which a terminal in application cursor mode sends before
+   the letter of an arrow. *)
 type esc = Normal | Esc | Csi | Csi_intermediate | Ss3
 
 (* The line is a zipper of grapheme clusters split at the cursor: [left]
@@ -16,19 +16,19 @@ type esc = Normal | Esc | Csi | Csi_intermediate | Ss3
 type t = {
   mutable left : string list;
   mutable right : string list;
-  mutable len : int; (* the bytes of [left] and [right] *)
+  mutable len : int; (* the length in bytes of [left] and [right] *)
   max_line : int; (* the most bytes a line holds *)
   history_size : int; (* the most lines [hist] holds *)
   prompt : string;
   complete : string -> string list;
-  mask : string option; (* replacement echoed for each secret character *)
+  mask : string option; (* echoed in place of each secret cluster *)
   mutable hist : string list; (* submitted lines, newest first, seed included *)
   mutable pos : int option; (* history index being viewed, newest is 0 *)
   mutable draft : string; (* line in progress, saved while navigating *)
   mutable esc : esc;
   mutable after_cr : bool; (* last byte was '\r', so swallow a following '\n' *)
   mutable partial : string; (* the start of a character, to be completed *)
-  widths : (string, int) Hashtbl.t; (* the cells of clusters met, a few *)
+  widths : (string, int) Hashtbl.t; (* the cells of recent clusters *)
 }
 
 (* What the editor echoes is text, never a control the terminal acts on. *)
@@ -96,8 +96,8 @@ let cluster_cells t c =
       Hashtbl.add t.widths c n;
       n
 
-(* [cols t cs], as the sum of the cells of each cluster where the line
-   shows the clusters themselves. *)
+(* [cells t cs] is [cols t cs]. Unmasked, it sums the cached cells of each
+   cluster instead of measuring their concatenation. *)
 let cells t cs =
   match t.mask with
   | None -> List.fold_left (fun n c -> n + cluster_cells t c) 0 cs
@@ -105,8 +105,8 @@ let cells t cs =
 
 let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
 
-(* The number of first clusters of [a] and [b], at most [max], that show
-   the same. *)
+(* The number of leading clusters of [a] and [b], at most [max], that
+   display the same. *)
 let rec same t ~max n a b =
   match (a, b) with
   | x :: a, y :: b
@@ -114,8 +114,9 @@ let rec same t ~max n a b =
       same t ~max (n + 1) a b
   | _ -> n
 
-(* The clusters [cs] split [at] bytes into their text or, if that is inside
-   a cluster, after it: those before, nearest-first, and those after. *)
+(* [split cs ~at] splits the clusters [cs] at byte [at] of their text, or
+   after the cluster that byte falls inside: the clusters before, nearest
+   first, and those after. *)
 let split cs ~at =
   let rec go acc off = function
     | c :: rest when off < at -> go (c :: acc) (off + String.length c) rest
@@ -123,11 +124,12 @@ let split cs ~at =
   in
   go [] 0 cs
 
-(* The clusters of [text] followed by those of [right] that it changes,
-   with the rest of [right]. An edit changes the clusters from the one
-   before the cursor up to the first one of [right] that is still a cluster
-   of its own after it: past it, the segmenter is in the state it was, as a
-   cluster after another starts with no mark to carry state across it. *)
+(* [rejoin text [] right] is [(cs, old, rest)]. [old] are the first
+   clusters of [right], up to the first one that is still a cluster of its
+   own after [text]; [cs] are the clusters of [text] followed by [old]; and
+   [rest] is the remainder of [right], which the edit leaves as it is. Past
+   that cluster the segmenter is in the state it was before the edit, since
+   no mark carries state across the start of a cluster. *)
 let rec rejoin text taken right =
   let cs = clusters (text ^ String.concat "" (List.rev taken)) in
   match (taken, right) with
@@ -136,18 +138,20 @@ let rec rejoin text taken right =
   | _, [] -> (cs, List.rev taken, [])
   | _, r :: right -> rejoin text (r :: taken) right
 
-(* Replace the cluster before the cursor, and [erased] if any, with that
-   cluster followed by [s]. The line is segmented again from that cluster,
-   since [s] can join the clusters on either side of the cursor and an
-   erased cluster can let its neighbours join. The cursor goes after [s],
-   or after the cluster [s] ends inside, so that it never stands inside a
-   cluster. On the screen, the line is drawn again from its first changed
-   cluster, whole, as a terminal does not join a mark written after the
-   text that follows it; the cells a narrower line leaves are blanked, and
-   the cursor steps back. A cluster of no width with nothing before it to
-   join is dropped, as a terminal drops it in the first column, except
-   from a secret. An insert that would take the line past [max_line] bytes
-   is refused and rings the bell. *)
+(* [edit t echo ~erased s] replaces [erased], the cluster before the cursor
+   or [""], with [s]. The line is segmented again from the cluster before
+   them, since [s] can join the clusters on either side of the cursor and
+   an erased cluster can let its neighbours join. The cursor goes after
+   [s], or after the cluster [s] ends inside, so that it never stands
+   inside a cluster.
+
+   The echo draws the line again from its first changed cluster, since a
+   terminal does not join a mark written after the text that follows it,
+   blanks the cells a narrower line leaves, and steps the cursor back.
+   Unless the editor is masked, a cluster of no width with nothing before
+   it to join is dropped, as a terminal drops it in the first column. An
+   insert that would take the line past [max_line] bytes rings the bell
+   instead. *)
 let edit t echo ~erased s =
   t.pos <- None;
   let left = if erased = "" then t.left else List.tl t.left in
@@ -225,7 +229,7 @@ let submit t echo =
   line
 
 (* Replace the whole line with [s] (history recall): move to the end, erase
-   every character, then write [s] with the cursor left at its end. *)
+   every cell, then write [s] with the cursor left at its end. *)
 let recall t echo s =
   add echo (display_chars t t.right);
   for _ = 1 to width t (line t) do
@@ -302,9 +306,10 @@ let complete t echo =
           reposition t echo
         end
 
-(* [bytes], a character or a maximal part of one that [String.get_utf_8_uchar]
-   reads as no character: inserted, the latter as one replacement character,
-   or kept as typed in a secret. *)
+(* Insert [bytes], a character or, if not [valid], a maximal part of one
+   that [String.get_utf_8_uchar] reads as no character. Unmasked, such a
+   part becomes one replacement character and the result is {!clean}; a
+   masked editor inserts the bytes as typed. *)
 let character t echo ~valid bytes =
   let c =
     if t.mask <> None then bytes
@@ -312,8 +317,8 @@ let character t echo ~valid bytes =
   in
   if c <> "" then insert t echo c
 
-(* [s], a part of a character, is the start of one that more bytes can
-   complete: some continuation byte makes the decoder read further. *)
+(* Whether more bytes can complete [s], the start of a character: some
+   continuation byte makes the decoder read past [s]. *)
 let continues s =
   List.exists
     (fun next ->

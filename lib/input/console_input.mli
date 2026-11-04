@@ -65,18 +65,18 @@ val v :
       {!history} keeps, the oldest dropped first. The [history] seed counts
       toward it.
 
-    What is typed then holds the editor to one line of at most [max_line] bytes
-    and [history_size] submitted lines of at most [max_line] bytes each, beside
-    the seed.
+    Whatever is typed, the editor holds a line of at most [max_line] bytes and
+    at most [history_size] submitted lines, each of at most [max_line] bytes
+    unless it comes from the seed.
 
     A control character in [prompt], [history], [mask] or a completion is echoed
     as a space, so none of them can move the cursor or change colours.
 
-    With [mask], {!pending} and the lines of {!feed} still hold the bytes typed
-    as they are, other than the keys. A byte above [0x7F] that is no character
-    is kept. The replacement character, the space for a C1 control and the
-    dropped mark of {!feed} are only in the echo. A masked editor, for a
-    password or a token, completes nothing and recalls nothing, and its
+    With [mask], {!pending} and the lines that {!feed} returns hold the bytes
+    typed as they are, keys aside: {!feed} keeps a byte above [0x7F] that is no
+    character, a C1 control and a mark with nothing to join, instead of turning
+    them into a replacement character, a space or nothing. A masked editor, for
+    a password or a token, completes nothing and recalls nothing, and its
     {!history} stays empty because it drops the [history] seed and keeps no line
     it submits. *)
 
