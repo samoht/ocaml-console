@@ -11,6 +11,7 @@
   matrix.ansi
   display_harness
   env_harness
+  text_harness
   view_harness
   matrix.grid
   matrix.vte

@@ -370,8 +370,6 @@ let escapes_whole s =
   in
   ground 0
 
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
-
 let rec texts_span = function
   | Text (_, s) | Gradient s | Link s -> [ s ]
   | Bar _ -> []
@@ -434,8 +432,8 @@ let test_printed block k m =
             ~pp:Fmt.(option Dump.string)
             (print { look with depth = None } block)
             (Some plain));
-      if (not look.utf_8) && List.for_all is_ascii (texts block) then
-        if not (is_ascii out) then failf "not ASCII: %S" out
+      if (not look.utf_8) && List.for_all Text_harness.is_ascii (texts block)
+      then if not (Text_harness.is_ascii out) then failf "not ASCII: %S" out
 
 (* The screen a display draws with [block] as its view, in [theme] at
    [time]. *)

@@ -333,18 +333,13 @@ let test_header () =
         Alcotest.failf "%s: plain headers" name)
     presets
 
-(* The escape code that selects [style], as a span in it starts. *)
-let sgr style =
-  let s = View.to_string ~styled:true (View.styled style (View.text "x")) in
-  String.sub s 0 (String.index s 'x')
-
 (* Frames, guides, rules, the track of a bar and the counts and timers of a
    display are in the theme's muted colour; table headers, panel titles and
    the display's header in its header style. *)
 let test_roles () =
   let t = Theme.nord in
-  let muted = sgr (Style.fg (Option.get (Theme.muted t)))
-  and header = sgr (Theme.header t) in
+  let muted = View_harness.sgr (Style.fg (Option.get (Theme.muted t)))
+  and header = View_harness.sgr (Theme.header t) in
   let print pp v = printed ~theme:t ~styled:true pp v in
   let check what affix s =
     if not (contains affix s) then Alcotest.failf "%s: no %S in %S" what affix s
@@ -419,8 +414,6 @@ let test_names () =
   Alcotest.(check string) "custom" "custom" (Theme.name (Theme.v ()));
   Alcotest.(check string) "named" "mine" (Theme.name (Theme.v ~name:"mine" ()))
 
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
-
 (* A display on a terminal that is not UTF-8, with a spinner, a bar, a
    nested row, a log line, a label cut to fit and rows hidden behind a
    marker. *)
@@ -472,7 +465,8 @@ let test_ascii_fallback () =
     (fun (name, theme) ->
       List.iter
         (fun (what, s) ->
-          if not (is_ascii s) then Alcotest.failf "%s: %s: %S" name what s)
+          if not (Text_harness.is_ascii s) then
+            Alcotest.failf "%s: %s: %S" name what s)
         (widgets theme))
     presets;
   Alcotest.(check string)
@@ -486,7 +480,7 @@ let test_ascii_on_utf_8 () =
   List.iter
     (fun (what, v) ->
       let s = printed ~theme:Theme.ascii ~utf_8:true ~margin:20 View.pp v in
-      if not (is_ascii s) then Alcotest.failf "%s: %S" what s)
+      if not (Text_harness.is_ascii s) then Alcotest.failf "%s: %S" what s)
     [
       ("chart", Bar.chart ~height:2 [ ("Mon", 2.); ("Tue", 4.) ]);
       ("rule", Rule.view ());
@@ -560,7 +554,11 @@ let test_still_printed () =
         match Theme.motion t with
         | Some `Sweep ->
             let first = List.hd (Theme.palette t) in
-            if not (String.starts_with ~prefix:(sgr (Style.fg first)) moving)
+            if
+              not
+                (String.starts_with
+                   ~prefix:(View_harness.sgr (Style.fg first))
+                   moving)
             then Alcotest.failf "%s %s: %S" name what moving;
             if List.length (colours moving) < 6 then
               Alcotest.failf "%s %s: a frame of %d colours" name what

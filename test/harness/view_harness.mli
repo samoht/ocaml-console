@@ -27,6 +27,9 @@ val laid : ?live:bool -> ?tasks:bool -> unit -> View.t * int ref
     tasks iff [tasks] (defaults to [false]), and the count of the times it was
     laid out. *)
 
+val capture : (Format.formatter -> unit) -> string
+(** [capture f] is what [f] prints on a formatter, once flushed. *)
+
 val printed :
   ?theme:Theme.t ->
   ?utf_8:bool ->
@@ -37,6 +40,9 @@ val printed :
 (** [printed v] is what {!Console.View.pp} prints of [v] on a formatter set up
     with the arguments given: [theme], [utf_8], [margin], and colour at [depth].
     Without [depth] it prints no colour. *)
+
+val sgr : Style.t -> string
+(** [sgr style] is the escape code a span in [style] starts with. *)
 
 val fill : char -> int -> View.t
 (** [fill glyph grow] is a view of weight [grow] that fills the width of its
