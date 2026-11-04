@@ -86,6 +86,7 @@
  (package console-eio)
  (deps teardown.exe piped.exe)
  (libraries
+  cast_harness
   console
   console.tty
   console-eio

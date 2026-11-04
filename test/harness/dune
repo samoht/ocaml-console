@@ -40,3 +40,8 @@
  (name matrix_0_1)
  (modules matrix_0_1 matrix_version)
  (libraries alcobar console_width uucp))
+
+(library
+ (name cast_harness)
+ (modules cast_harness)
+ (libraries alcotest jsont jsont.bytesrw))

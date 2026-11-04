@@ -211,11 +211,6 @@ let recording f =
   Sys.remove file;
   lines
 
-let decode t line =
-  match Jsont_bytesrw.decode_string t line with
-  | Ok v -> v
-  | Error e -> Alcotest.fail e
-
 (* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
    never moves: a sleep that waited on it would never end, and the work
    fails if it does not end first. *)
@@ -240,39 +235,33 @@ let recorded_nap () =
       done;
       Alcotest.fail "a sleep waited for the real time")
 
-(* A header, then one array a write, which reads back as it was written:
+(* asciicast v2: a header, then an event a line, each newline-delimited JSON:
    the rows drawn, and nothing on the output itself. *)
 let test_cast_format () =
   match recorded_nap () with
   | [] -> Alcotest.fail "no header"
-  | header :: events ->
-      Alcotest.(check string)
-        "the header"
-        {|{"version":2,"width":30,"height":6,"env":{"TERM":"xterm"}}|} header;
+  | header :: lines ->
+      Alcotest.check Cast_harness.json "the header"
+        (Cast_harness.parse
+           {|{"version":2,"width":30,"height":6,"env":{"TERM":"xterm"}}|})
+        (Cast_harness.parse header);
+      let events = List.map Cast_harness.event lines in
       Alcotest.(check bool) "events" true (List.length events > 2);
       List.iter
-        (fun line ->
-          let e = decode Console__.Cast.event line in
-          Alcotest.(check bool)
-            "an output event" true
-            (contains {|,"o","|} line && String.starts_with ~prefix:"[" line);
-          Alcotest.(check string)
-            "read back" (line ^ "\n")
-            (Console__.Cast.to_line Console__.Cast.event e))
+        (fun (e : Cast_harness.event) ->
+          Alcotest.(check string) "an output event" "o" e.code)
         events;
-      let first = decode Console__.Cast.event (List.hd events) in
       Alcotest.(check bool)
         "the rows drawn" true
-        (contains "\027[?25l" first.data)
+        (fst
+           (Console_vte.cursor_history (Cast_harness.event (List.hd lines)).data))
 
 (* Each write is at its time on the virtual clock: the redraws a tenth of a
    second apart, the count when the first sleep ends, the last write when
    the second does. *)
 let test_cast_times () =
-  let events =
-    List.map (decode Console__.Cast.event) (List.tl (recorded_nap ()))
-  in
-  let times = List.map (fun (e : Console__.Cast.event) -> e.time) events in
+  let events = Cast_harness.events (recorded_nap ()) in
+  let times = List.map (fun (e : Cast_harness.event) -> e.time) events in
   Alcotest.(check bool) "in order" true (List.sort Float.compare times = times);
   Alcotest.(check bool)
     "at tenths of a second" true
@@ -282,7 +271,7 @@ let test_cast_times () =
   Alcotest.(check bool)
     "the count as the first sleep ends" true
     (List.exists
-       (fun (e : Console__.Cast.event) -> e.time = 1.5 && contains "1/2" e.data)
+       (fun (e : Cast_harness.event) -> e.time = 1.5 && contains "1/2" e.data)
        events);
   Alcotest.(check (float 0.))
     "the end" 2.
@@ -301,7 +290,9 @@ let recorded_text text =
     Fmt.pf ppf "%s@?" text
   in
   String.concat ""
-    (List.map (fun l -> (decode Console__.Cast.event l).data) (List.tl lines))
+    (List.map
+       (fun (e : Cast_harness.event) -> e.data)
+       (Cast_harness.events lines))
 
 (* A line feed is recorded after a carriage return, as a terminal's driver
    writes it, and one that has its carriage return already is left alone. *)
@@ -325,7 +316,10 @@ let test_cast_schedule () =
   in
   let calm = recorded 0 in
   Alcotest.(check bool)
-    "the builds take the longer time" true (contains "\n[2.86," calm);
+    "the builds take the longer time" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> e.time = 2.86)
+       (Cast_harness.events (String.split_on_char '\n' (String.trim calm))));
   for seed = 1 to 50 do
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
@@ -1272,14 +1266,14 @@ let recorded f =
       Console_eio.run ~clock ~ppf (fun _ -> Console_eio.with_output f));
   In_channel.with_open_bin file In_channel.input_lines
 
+(* asciicast v2, "o": data must be valid UTF-8. *)
 let test_cast_utf_8 () =
   let lines = recorded (fun ppf -> Fmt.pf ppf "bad \xff byte\n%!") in
-  List.iter
-    (fun l ->
-      Alcotest.(check bool)
-        ("valid UTF-8: " ^ String.escaped l)
-        true (String.is_valid_utf_8 l))
-    lines
+  Alcotest.(check bool)
+    "the bad byte replaced" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> contains "bad \u{FFFD} byte" e.data)
+       (Cast_harness.events lines))
 
 (* [piped.exe args] under [Unix.waitpid], with its output dropped. *)
 let piped_status args =
