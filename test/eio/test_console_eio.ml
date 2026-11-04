@@ -477,20 +477,11 @@ let test_dimensions_read_the_environment () =
   check "zero is no answer" "0" "0" (80, 24);
   check "nor is none" "" "" (80, 24)
 
-let open_pty ~sw =
-  match Eio_unix.Pty.open_pty ~sw () with
-  | pty -> pty
-  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-      Alcotest.skip ()
+let open_pty = Pty_harness.open_pty
 
 (* What [teardown.exe how] writes on a terminal, how it exits, and whether
-   the terminal echoes what is typed once it has. With [continue], the child
-   is sent SIGCONT, as a shell's [fg] does, again and again until it exits,
-   once it has shown the cursor to stop: a SIGCONT that comes before the
-   child stops is lost, and none waits, but one that comes while its SIGTSTP
-   is pending discards it. *)
-let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
-    =
+   the terminal echoes what is typed once it has. *)
+let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let pty = open_pty ~sw in
@@ -508,36 +499,9 @@ let session ?(no_color = false) ?(lang = "en_US.UTF-8") ?(continue = false) how
       ~executable:"./teardown.exe" [ "teardown.exe"; how ]
   in
   let status = ref None and echo = ref None in
-  let exited = Atomic.make false and stopping = Atomic.make false in
-  let on_read out =
-    if not (Atomic.get stopping) then
-      match Astring.String.find_sub ~sub:"[?25l" out with
-      | Some i ->
-          if Option.is_some (Astring.String.find_sub ~start:i ~sub:"[?25h" out)
-          then Atomic.set stopping true
-      | None -> ()
-  in
-  let fg () =
-    let pid = Eio.Process.pid child in
-    while not (Atomic.get stopping || Atomic.get exited) do
-      Domain.cpu_relax ()
-    done;
-    while not (Atomic.get exited) do
-      (try Unix.kill pid Sys.sigcont with Unix.Unix_error _ -> ());
-      Domain.cpu_relax ()
-    done
-  in
-  let await () =
-    Fun.protect
-      ~finally:(fun () -> Atomic.set exited true)
-      (fun () -> status := Some (Eio.Process.await child))
-  in
   let written =
-    Pty_reader.read_all ~on_read pty (fun () ->
-        if continue then
-          Eio.Fiber.both await (fun () ->
-              Eio_unix.run_in_systhread ~label:"fg" fg)
-        else await ();
+    Pty_reader.read_all pty (fun () ->
+        status := Some (Eio.Process.await child);
         echo := Some (Eio_unix.Fd.use_exn "tcgetattr" tty Unix.tcgetattr))
   in
   (Option.get !status, written, (Option.get !echo).Unix.c_echo)
@@ -772,10 +736,40 @@ let test_theme_not_a_choice () =
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
 (* Ctrl-Z gives the terminal back before the program stops: the region is
-   erased and the cursor shown. Once continued, the region is drawn again and
-   the work goes on. *)
+   erased and the cursor shown. SIGTSTP's default action is to stop the
+   process: in a group of its own, under a parent in the same session, the
+   group is not orphaned and the stop takes effect, which waitpid sees before
+   anything continues it. Once continued, the region is drawn again and the
+   work goes on. *)
 let test_suspend () =
-  let status, out, _ = session ~continue:true "suspend" in
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  let tty = Eio_unix.Pty.tty pty in
+  let child =
+    Eio_unix.Process.spawn_unix ~sw ~pgid:0
+      (Eio.Stdenv.process_mgr env)
+      ~env:[| "TERM=xterm-256color"; "LANG=en_US.UTF-8" |]
+      ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
+      ~executable:"./teardown.exe"
+      [ "teardown.exe"; "suspend" ]
+  in
+  let pid = Eio.Process.pid child in
+  let stopped = ref false and status = ref None in
+  let out =
+    Pty_reader.read_all pty (fun () ->
+        (* It is gone by the time waitpid looks if it never stopped. *)
+        (stopped :=
+           match
+             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
+                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
+           with
+           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
+           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        if !stopped then Unix.kill pid Sys.sigcont;
+        status := Some (Eio.Process.await child))
+  in
+  Alcotest.(check bool) "stopped by SIGTSTP" true !stopped;
   let show = "\027[?25h" in
   let hidden = Option.get (Astring.String.find_sub ~sub:hide out) in
   match Astring.String.find_sub ~start:hidden ~sub:show out with
@@ -798,7 +792,7 @@ let test_suspend () =
         (List.exists (contains "\u{2713} pausing") (final_of out));
       Alcotest.(check bool)
         "exit status" true
-        (match status with `Exited 0 -> true | _ -> false)
+        (match !status with Some (`Exited 0) -> true | _ -> false)
 
 (* In a process group that no shell controls, a stop does not take effect:
    the terminal is given back and the region drawn again once, and the work

@@ -14,13 +14,7 @@ open Display_harness
    (ESC [?25l), and an appending display writes no escape at all. *)
 
 let hide_cursor = "\027[?25l"
-
-let open_pty ~sw =
-  match Eio_unix.Pty.open_pty ~sw () with
-  | pty -> pty
-  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-      Alcotest.skip ()
-
+let open_pty = Pty_harness.open_pty
 let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
 
 (* [f ()] with standard output on [stdout], standard error on [stderr],
@@ -237,6 +231,7 @@ let test_run_styles_a_terminal () =
     (contains hide_cursor plain);
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
+(* XBD 8.3: COLUMNS and LINES are decimal integers > 0. *)
 let test_small_dimensions () =
   let columns = Sys.getenv_opt "COLUMNS" and lines = Sys.getenv_opt "LINES" in
   Fun.protect
@@ -262,6 +257,10 @@ let test_absurd_dimensions () =
       Unix.putenv "LINES" "4096";
       Alcotest.(check (pair int int))
         "the largest" (4096, 4096) (Terminal.dimensions None);
+      Unix.putenv "COLUMNS" "0x50";
+      Unix.putenv "LINES" "1_0";
+      Alcotest.(check (pair int int))
+        "only decimal digits" (80, 24) (Terminal.dimensions None);
       Unix.putenv "COLUMNS" "99999999999";
       Unix.putenv "LINES" "4097";
       Alcotest.(check (pair int int))

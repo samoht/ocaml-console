@@ -154,12 +154,7 @@ let with_stdin ~stdin f =
 let with_pty f =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let pty =
-    match Eio_unix.Pty.open_pty ~sw () with
-    | pty -> pty
-    | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-        Alcotest.skip ()
-  in
+  let pty = Pty_harness.open_pty ~sw in
   let tty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup in
   let master = Eio_unix.Fd.use_exn "pty" (Eio_unix.Pty.pty pty) Unix.dup in
   Fun.protect ~finally:(fun () -> List.iter Unix.close [ tty; master ])

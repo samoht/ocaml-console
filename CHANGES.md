@@ -45,6 +45,25 @@
   longer held until the next redraw or close: they go on from the call that
   was drawing, and the view stays (#53).
 
+- A closed output, such as a pipe whose reader has gone, no longer raises when
+  a display starts or when a program prints through `Display.with_output`
+  (#18).
+
+- `$COLUMNS` and `$LINES` must now be decimal numbers: values such as `0x50` or
+  `1_000` are ignored (#20).
+
+- A `CONSOLE_CAST` recording now has a header in valid UTF-8 whatever bytes
+  `$TERM` holds, as the asciicast v2 format requires (#50).
+
+- A `CONSOLE_CAST` recording now writes C1 control characters as `\uXXXX`, as
+  the asciicast v2 format asks (#50).
+
+- `$COLUMNS` and `$LINES`, when set, now override the size of a terminal, as
+  POSIX says (#49).
+
+- Ctrl-Z now stops a program under `Console_eio.run`. It used to give the
+  terminal back and carry on running (#29).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

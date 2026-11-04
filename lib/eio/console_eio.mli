@@ -77,13 +77,13 @@ val run :
       {!Console.Progress.show}; [keep_ended], [commit], [plain], [delay] and
       [layout] are [show]'s too.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
-      [`Auto]). With [`Tty] the rows take the size of the terminal behind the
-      output, if there is one, else [$COLUMNS] by [$LINES], each when it is
-      between [1] and [4096], else 80 by 24. When the tasks print as lines on an
-      output that is not a terminal, what is printed above them and the last
-      frame are laid out as wide as [$COLUMNS] asks, when it is between [1] and
-      [4096], and whole otherwise, as {!Console.Progress.show} prints them with
-      and without a size.
+      [`Auto]). With [`Tty] the rows take [$COLUMNS] and [$LINES], each when it
+      is between [1] and [4096], which override the terminal's size as POSIX
+      says, else the size of the terminal behind the output, else 80 by 24. When
+      the tasks print as lines on an output that is not a terminal, what is
+      printed above them and the last frame are laid out as wide as [$COLUMNS]
+      asks, when it is between [1] and [4096], and whole otherwise, as
+      {!Console.Progress.show} prints them with and without a size.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
     the program chose nothing gets the colours its terminal and environment
@@ -271,7 +271,8 @@ val size : Format.formatter -> (unit -> int * int) option
 (** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} and
     that output is a terminal whose [TERM] is set and not [dumb], as {!run}
     finds out, and [None] otherwise. [size ()] is the terminal's width and
-    height, read again at each call, which is what {!Console.Display.v} takes:
+    height, which [$COLUMNS] and [$LINES] override as in {!run}, read again at
+    each call, which is what {!Console.Display.v} takes:
 
     {[
     let display ~now ppf view =
@@ -279,19 +280,21 @@ val size : Format.formatter -> (unit -> int * int) option
     ]} *)
 
 val width : Format.formatter -> int option
-(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the
-    terminal's width when [ppf] is a terminal ({!size}), else the recorded
+(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the recorded
     terminal's under [CONSOLE_CAST], else [$COLUMNS] when it is between [1] and
-    [4096], and [None] otherwise, where a line is printed whole. A program that
-    lays out its own lines, outside a run, fits them as a run would, through the
-    margin {!Console.View.pp} lays a view out in (a margin past [Format]'s
-    largest is that largest, which prints whole):
+    [4096], else the terminal's width when [ppf] is a terminal ({!size}), at
+    most [4096], and [None] otherwise, where a line is printed whole. A program
+    that lays out its own lines, outside a run, fits them as a run would,
+    through the margin {!Console.View.pp} lays a view out in, and at its natural
+    size with {!Console.View.to_string} when there is no width:
 
     {[
     let print v =
-      let w = Option.value (Console_eio.width Fmt.stdout) ~default:max_int in
-      Format.pp_set_margin Fmt.stdout w;
-      Fmt.pr "%a@." Console.View.pp v
+      match Console_eio.width Fmt.stdout with
+      | None -> Fmt.pr "%s@." (Console.View.to_string v)
+      | Some w ->
+          Format.pp_set_margin Fmt.stdout w;
+          Fmt.pr "%a@." Console.View.pp v
     ]} *)
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t

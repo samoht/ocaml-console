@@ -23,16 +23,17 @@ type header = { width : int; height : int; term : string option }
 
 val header : header Jsont.t
 (** [header] maps the header of a recording, [version] 2, the terminal's [TERM]
-    in its [env]. *)
+    in its [env], written as valid UTF-8 as {!event} writes its data. *)
 
 type event = { time : float; data : string }
 (** The type for the bytes a terminal was given at a time, in seconds. *)
 
 val event : event Jsont.t
-(** [event] maps an output event, the array [[time, "o", data]]. A byte of
-    {!field-data} that is not part of a UTF-8 character is written as U+FFFD, so
-    that a recording is valid UTF-8. *)
+(** [event] maps an output event, the array [[time, "o", data]]. Each ill-formed
+    sequence of {!field-data}, as [String.get_utf_8_uchar] decodes it, is
+    written as one U+FFFD, so that a recording is valid UTF-8. *)
 
 val to_line : 'a Jsont.t -> 'a -> string
 (** [to_line t v] is [v] on one line, ended. A time is written to the
-    microsecond. *)
+    microsecond, and a C1 control as [\uXXXX], as asciicast v2 asks of
+    non-printable characters. *)

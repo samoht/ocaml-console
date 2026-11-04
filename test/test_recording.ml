@@ -90,7 +90,12 @@ let test_size () =
   check "beyond an int" (80, 24)
     ("99999999999999999999", "-99999999999999999999");
   check "max_int" (80, 24) (string_of_int max_int, string_of_int max_int);
-  check "invalid bytes" (80, 24) ("\xff\xfe", "\027[31m")
+  check "invalid bytes" (80, 24) ("\xff\xfe", "\027[31m");
+  check "hexadecimal" (80, 24) ("0x50", "0x18");
+  check "octal and binary" (80, 24) ("0o17", "0b11");
+  check "unsigned" (80, 24) ("0u20", "0u20");
+  check "underscores" (80, 24) ("1_000", "1_0");
+  check "a sign" (80, 24) ("+5", "+5")
 
 let test_not_asked () =
   with_env
@@ -120,7 +125,17 @@ let test_header () =
     {|{"version":2,"width":80,"height":24}|};
   check "a TERM that is not text is still one line"
     [ ("TERM", "a\"\n\027") ]
-    {|{"version":2,"width":80,"height":24,"env":{"TERM":"a\"\n\u001B"}}|}
+    {|{"version":2,"width":80,"height":24,"env":{"TERM":"a\"\n\u001B"}}|};
+  (* RFC 8259 section 8.1: JSON text exchanged is UTF-8, whatever the bytes of
+     the variable. A lead byte must not take the closing quote for its own. *)
+  List.iter
+    (fun term ->
+      check
+        ("a TERM that is not UTF-8: " ^ String.escaped term)
+        [ ("TERM", term) ]
+        (Fmt.str {|{"version":2,"width":80,"height":24,"env":{"TERM":"%s"}}|}
+           "\u{FFFD}"))
+    [ "\xc2"; "\xff"; "\xe2\x82" ]
 
 let test_events () =
   recording (fun file ->
@@ -244,6 +259,17 @@ let test_hostile_bytes () =
               line replaced;
             ]
             (lines file)))
+
+(* asciicast v2, "o": non-printable code points are encoded as \\uXXXX. Here
+   DEL and the C1 control NEL, which JSON itself would let through. *)
+let test_non_printable () =
+  recording (fun file ->
+      let _, ppf = buffered () in
+      started ppf;
+      write ppf "a\x7f\xc2\x85b";
+      check_lines "escaped"
+        [ header; {|[0,"o","a\u007F\u0085b"]|} ]
+        (lines file))
 
 let test_large_write () =
   recording (fun file ->
@@ -428,6 +454,7 @@ let suite =
       Alcotest.test_case "time" `Quick test_time;
       Alcotest.test_case "cut short" `Quick test_cut_short;
       Alcotest.test_case "hostile bytes" `Quick test_hostile_bytes;
+      Alcotest.test_case "non-printable code points" `Quick test_non_printable;
       Alcotest.test_case "a large write" `Quick test_large_write;
       Alcotest.test_case "the same file goes on" `Quick test_same_file;
       Alcotest.test_case "another file ends it" `Quick test_other_file;
