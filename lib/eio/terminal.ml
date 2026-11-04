@@ -19,7 +19,7 @@ let width_of_ioctl fd () =
 
 let dimension_of_env name usable =
   Option.bind (Sys.getenv_opt name) (fun value ->
-      Option.bind (int_of_string_opt value) usable)
+      Option.bind (Recording.decimal value) usable)
 
 let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)

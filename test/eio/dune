@@ -1,5 +1,16 @@
 (copy_files ../../lib/eio/terminal.{ml,mli})
 
+; Terminal is private to console-eio: its copy is built as console-eio builds
+; it, with the modules of console in scope.
+
+(library
+ (name terminal)
+ (wrapped false)
+ (modules terminal)
+ (flags
+  (:standard -open Console__))
+ (libraries console eio eio.unix unix))
+
 (executable
  (name teardown)
  (modules teardown)
@@ -61,7 +72,7 @@
 
 (test
  (name test)
- (modules :standard \ teardown tty piped events pty_reader)
+ (modules :standard \ teardown tty piped events pty_reader terminal)
  (package console-eio)
  (deps teardown.exe)
  (libraries
@@ -69,6 +80,7 @@
   console.tty
   console-eio
   pty_reader
+  terminal
   display_harness
   console_vte
   cstruct
