@@ -1434,8 +1434,9 @@ let test_default_view steps h =
   let run view =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
-    let root = Task.root ~label:header ~now:(fun () -> 0.) () in
-    let view = Option.map (fun f -> f root) view in
+    let root, view =
+      Display_harness.rooted ~label:header ?view (fun () -> 0.)
+    in
     let d = Progress.show ?view ~size:(fun () -> (60, height)) ppf root in
     ignore (run_tree root ~frame:(fun () -> Display.redraw d) steps);
     Display.close d;

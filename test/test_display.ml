@@ -20,8 +20,7 @@ let above top root = View.vcat [ top; Progress.view root ]
 
 (* A root timed by [now] whose tasks show on [ppf], and the display. *)
 let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
 
 let test_plain_lines () =
