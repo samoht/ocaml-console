@@ -217,7 +217,8 @@ let job clock root slots steps =
           Task.set_label task text;
           Eio.Time.Mono.sleep clock duration)
         steps;
-      (* Counted before the task ends, when its row goes. *)
+      (* The job is counted before its task ends, so the status line counts
+         it as soon as its row goes. *)
       incr finished
 
 let line v = Fmt.pr "%a@." View.pp v

@@ -117,8 +117,9 @@ let rows width step =
   in
   (row :: List.map action (Task.children step)) @ tail
 
-(* Set by [plain], off a terminal: its lines told the build, so the last frame
-   is empty, as BuildKit's plain progress ends with the last step. *)
+(* Set by [plain] off a terminal, where its lines already told the build:
+   the view is then empty, so the output ends with the last step, as
+   BuildKit's plain progress does. *)
 let plain_lines = ref false
 
 (* The header, then as many of the last rows as the room holds. *)

@@ -159,8 +159,8 @@ let count t =
   | `Bytes (n, _) -> Int64.to_float n
   | `Spin | `Items _ -> 0.
 
-(* The row of a running download: its spinner, then its line in the cells
-   the spinner leaves, as the line it leaves in the scrollback. *)
+(* The row of a running download: its spinner, then, in the cells the
+   spinner leaves, its line drawn as the one it leaves in the scrollback. *)
 let row t =
   View.fit (fun room ->
       let width = Option.value (Room.width room) ~default:80 - 2 in

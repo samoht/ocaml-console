@@ -92,8 +92,9 @@ let download =
               Progress.pp_bytes total
         | `Spin | `Items _ -> View.empty))
 
-(* Each row as its task counts. A download that ends leaves at once, as
-   indicatif's [finish_and_clear] does: it is transient. *)
+(* A row is a download's when its task counts bytes, and a phase's
+   otherwise. A download that ends leaves at once, as indicatif's
+   [finish_and_clear] does: it is transient. *)
 let layout =
   Progress.Layout.choose (fun t ->
       match Task.progress t with `Bytes _ -> download | _ -> phase)

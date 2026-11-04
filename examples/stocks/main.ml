@@ -100,7 +100,7 @@ let next_round () =
     List.iter (fun s -> s.session <- s.price :: s.session) stocks
 
 (* The day's change in whole cents, so that a change too small to show is
-   none, never [-0.00]. *)
+   [0.], never printed as [-0.00]. *)
 let change s =
   let cents = Float.round ((s.price -. s.close) *. 100.) in
   if cents = 0. then 0. else cents /. 100.
