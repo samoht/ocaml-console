@@ -9,14 +9,14 @@ place, and the screen keeps the tree of the tasks that ended, then the
 summary:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=auto
-  [+] RUN make             ######################                       5/5   3.0s
-    +-- [+] sha256:abcd... ######################       2.00 GiB / 2.00 GiB   3.0s
-  [+] Building 3.0s (2/2)
+  ✓ RUN make             ━━━━━━━━━━                       5/5                 3.0s
+    └── ✓ sha256:abcd... ━━━━━━━━━━       2.00 GiB / 2.00 GiB    1.25 GiB/s   3.0s
+  ✓ Building 3.0s (2/2)
 
   $ ../tty.exe ../../../examples/progress/main.exe
-  [+] RUN make             ######################                       5/5   3.0s
-    +-- [+] sha256:abcd... ######################       2.00 GiB / 2.00 GiB   3.0s
-  [+] Building 3.0s (2/2)
+  ✓ RUN make             ━━━━━━━━━━                       5/5                 3.0s
+    └── ✓ sha256:abcd... ━━━━━━━━━━       2.00 GiB / 2.00 GiB    1.25 GiB/s   3.0s
+  ✓ Building 3.0s (2/2)
 
 A pipe gets plain lines instead, one when a task starts, its output and one
 when it ends, then the summary:
@@ -37,17 +37,17 @@ when it ends, then the summary:
 --progress=plain prints those lines on a terminal too:
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=plain
-  [-] RUN make
-  [-] RUN make > sha256:abcd...
-    # RUN make:   CC src/file0.c
-    # RUN make:   CC src/file1.c
-    # RUN make:   CC src/file2.c
-    # RUN make:   CC src/file3.c
-    # RUN make:   CC src/file4.c
-    # RUN make:   CC src/file5.c
-  [+] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  3.0s
-  [+] RUN make  5/5  3.0s
-  [+] Building 3.0s (2/2)
+  • RUN make
+  • RUN make ▸ sha256:abcd...
+    › RUN make:   CC src/file0.c
+    › RUN make:   CC src/file1.c
+    › RUN make:   CC src/file2.c
+    › RUN make:   CC src/file3.c
+    › RUN make:   CC src/file4.c
+    › RUN make:   CC src/file5.c
+  ✓ RUN make ▸ sha256:abcd...  2.00 GiB / 2.00 GiB  3.0s
+  ✓ RUN make  5/5  3.0s
+  ✓ Building 3.0s (2/2)
 
 --progress=tty redraws the rows on a pipe too, such as one a terminal
 recorder reads: the bytes leave the screen a terminal shows. The rows are
@@ -72,15 +72,15 @@ not:
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet
 
   $ ../tty.exe ../../../examples/progress/main.exe --progress=quiet --fail
-  [x] RUN make > sha256:abcd...  2.00 GiB / 2.00 GiB  3.0s  failed
-    # checksum mismatch  +3.0s
-  [x] RUN make  5/5  3.0s  failed
-    #   CC src/file0.c
-    #   CC src/file1.c
-    #   CC src/file2.c
-    #   CC src/file3.c
-    #   CC src/file4.c
-    #   CC src/file5.c
+  ✗ RUN make ▸ sha256:abcd...  2.00 GiB / 2.00 GiB  3.0s  failed
+    › checksum mismatch  +3.0s
+  ✗ RUN make  5/5  3.0s  failed
+    ›   CC src/file0.c
+    ›   CC src/file1.c
+    ›   CC src/file2.c
+    ›   CC src/file3.c
+    ›   CC src/file4.c
+    ›   CC src/file5.c
 
 The example then exits with 1:
 

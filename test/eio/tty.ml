@@ -18,7 +18,9 @@ let rows = 24
 let cols = 80
 
 let environment () =
-  let ours = [ "TERM=xterm-256color"; "LANG=en_US.UTF-8"; "NO_COLOR=" ] in
+  let ours =
+    [ "TERM=xterm-256color"; "LANG=en_US.UTF-8"; "LC_ALL="; "NO_COLOR=" ]
+  in
   let name b = List.hd (String.split_on_char '=' b) in
   let names = List.map name ours in
   Array.of_list

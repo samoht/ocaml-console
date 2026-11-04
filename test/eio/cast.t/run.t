@@ -3,7 +3,7 @@ asciicast v2, rather than on the output: a header, then one
 [time, "o", data] line per write, at its time on the virtual clock. The terminal is $COLUMNS by $LINES, with no pty
 behind it, and the program's sleeps take no real time.
 
-  $ export CONSOLE_DETERMINISTIC_CLOCK=1 TERM=xterm-256color LANG=en_US.UTF-8
+  $ export CONSOLE_DETERMINISTIC_CLOCK=1 TERM=xterm-256color LANG=en_US.UTF-8 LC_ALL=
   $ export COLUMNS=80 LINES=24
   $ CONSOLE_CAST=columns.cast ../../../examples/columns/main.exe
   $ head -1 columns.cast
@@ -32,7 +32,7 @@ The recording leaves the screen that the program leaves on a terminal:
   $ ../tty.exe --cast columns.cast > recorded
   $ cmp terminal recorded
   $ grep Building recorded
-  [+] Building 2.9s (9/9)
+  ✓ Building 2.9s (9/9)
 
 A program that prints without a run is recorded from Console_tty.setup
 on, each write at time zero, and the recording leaves its screen too:
