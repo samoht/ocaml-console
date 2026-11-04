@@ -1155,6 +1155,48 @@ let test_suspend () =
         "exit status" true
         (match !status with Some (`Exited 0) -> true | _ -> false)
 
+(* A stop during a write that does not end within a second gives the
+   terminal up, and the program goes on once continued. *)
+let test_suspend_blocked () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = Pty_harness.open_pty ~sw in
+  let tty = Eio_unix.Pty.tty pty in
+  let child =
+    Eio_unix.Process.spawn_unix ~sw ~pgid:0
+      (Eio.Stdenv.process_mgr env)
+      ~env:[| "TERM=xterm-256color"; "LANG=en_US.UTF-8" |]
+      ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
+      ~executable:"./teardown.exe"
+      [ "teardown.exe"; "stop-blocked" ]
+  in
+  let pid = Eio.Process.pid child in
+  let stopped = ref false and status = ref None in
+  let out =
+    Pty_reader.read_all pty (fun () ->
+        (stopped :=
+           match
+             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
+                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
+           with
+           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
+           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        if !stopped then Unix.kill pid Sys.sigcont;
+        status := Some (Eio.Process.await child))
+  in
+  Alcotest.(check bool) "stopped by SIGTSTP" true !stopped;
+  Alcotest.(check bool)
+    "the escape code cut is ended" true
+    (contains "\027[?2\024\027\\" out);
+  Alcotest.(check bool)
+    "ends once continued" true
+    (match !status with Some (`Exited 0) -> true | _ -> false);
+  let vte = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed vte out;
+  Alcotest.(check bool)
+    "the cursor is shown" true
+    (Console_vte.cursor_visible vte)
+
 (* In a process group that no shell controls, a stop does not take effect:
    the terminal is given back and the region drawn again once, and the work
    goes on. A display that gave the terminal back again and again would
@@ -1222,6 +1264,45 @@ let test_sigint_secret () =
     "SIGINT still ends the program" true
     (match status with `Signaled s -> Int.equal s Sys.sigint | _ -> false);
   Alcotest.(check bool) "SIGINT during a password restores echo" true echo
+
+(* A restoration that fails still lets the signal end the program. *)
+let test_sigint_restore_fails () =
+  let status, _ = teardown "secret-lost" in
+  Alcotest.(check bool)
+    "SIGINT still ends the program" true
+    (signaled_by_sigint status)
+
+let exited n = function `Exited m -> Int.equal n m | _ -> false
+
+(* A write that never ends gives way to a sequence written once on the
+   terminal: whatever escape code it cut is ended, and what is written next
+   shows as on a fresh terminal, the cursor shown. *)
+let test_last_resort () =
+  List.iter
+    (fun (how, ends) ->
+      let status, out = teardown how in
+      Alcotest.(check bool) (how ^ ": how the program ends") true (ends status);
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
+      Alcotest.(check bool)
+        (how ^ ": the cursor is shown")
+        true
+        (Console_vte.cursor_visible vte);
+      Alcotest.(check bool)
+        (how ^ ": no update left open")
+        false
+        (Console_vte.synchronized_open out);
+      Console_vte.feed vte "AFTER";
+      Alcotest.(check bool)
+        (how ^ ": what comes next shows")
+        true
+        (List.exists (contains "AFTER") (Console_vte.screen vte)))
+    [
+      ("cut-link", signaled_by_sigint);
+      ("cut-sequence", signaled_by_sigint);
+      ("exit-thread-blocked", exited 3);
+      ("exit-domain-blocked", exited 3);
+    ]
 
 let test_quiet_terminal_capture () =
   let status, out = teardown "quiet-ok" in
@@ -1340,6 +1421,8 @@ let suite =
         test_cast_without_deterministic;
       Alcotest.test_case "a signal ends the process by that signal" `Quick
         test_signal_terminates;
+      Alcotest.test_case "SIGTSTP during a write that does not end" `Quick
+        test_suspend_blocked;
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
@@ -1389,6 +1472,10 @@ let suite =
         test_sigint_mid_write;
       Alcotest.test_case "SIGINT ends a write that never ends" `Quick
         test_sigint_blocked;
+      Alcotest.test_case "a write that never ends, then the last resort" `Quick
+        test_last_resort;
+      Alcotest.test_case "SIGINT when a restoration fails" `Quick
+        test_sigint_restore_fails;
       Alcotest.test_case "a stop that does not take effect resumes once" `Quick
         test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick

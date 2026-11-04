@@ -23,6 +23,7 @@
   eio_main
   fmt
   logs
+  threads.posix
   unix))
 
 (library
