@@ -69,28 +69,14 @@ let test_v_styles () =
 (* bar.mli: on a formatter that is not UTF-8, whole cells of [#] on a track
    of [-]. *)
 let test_ascii () =
-  let ascii bar =
-    let buf = Buffer.create 16 in
-    let ppf = Format.formatter_of_buffer buf in
-    Fmt.set_utf_8 ppf false;
-    View.pp ppf bar;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let ascii bar = View_harness.printed ~utf_8:false bar in
   Alcotest.(check string) "half" "##--" (ascii (Bar.horizontal ~width:4 0.5));
   Alcotest.(check string)
     "brackets" "[#--]"
     (ascii (Bar.horizontal ~brackets:true ~width:3 0.4))
 
 (* [bar] printed on a formatter in [theme]. *)
-let in_theme ?(utf_8 = true) theme bar =
-  let buf = Buffer.create 16 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf theme;
-  Fmt.set_utf_8 ppf utf_8;
-  View.pp ppf bar;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+let in_theme ?(utf_8 = true) theme bar = View_harness.printed ~theme ~utf_8 bar
 
 (* theme.mli, bar: a theme gives its bars their glyphs. [dos] fills whole
    cells with full blocks on a light shade, in brackets, [ascii] draws [#]
@@ -121,16 +107,7 @@ let test_theme_glyphs () =
    one in a palette of one colour is in that colour, as a progress row's bar
    is, whatever the main colour. *)
 let test_palette () =
-  let styled theme bar =
-    let buf = Buffer.create 64 in
-    let ppf = Format.formatter_of_buffer buf in
-    Theme.set ppf theme;
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
-    View.pp ppf bar;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let styled theme bar = View_harness.printed ~theme ~depth:`True_color bar in
   let palette = Array.of_list (Theme.palette Theme.rainbow) in
   let muted = Style.faint in
   let cells n =
@@ -375,13 +352,7 @@ let test_empty_and_full_differ () =
   List.iter
     (fun (name, theme) ->
       let printed frac =
-        let buf = Buffer.create 32 in
-        let ppf = Format.formatter_of_buffer buf in
-        Fmt.set_utf_8 ppf true;
-        Theme.set ppf theme;
-        View.pp ppf (Bar.horizontal ~width:10 frac);
-        Format.pp_print_flush ppf ();
-        Buffer.contents buf
+        View_harness.printed ~theme ~utf_8:true (Bar.horizontal ~width:10 frac)
       in
       if String.equal (printed 0.) (printed 1.) then
         Alcotest.failf "%s: an empty and a full bar are both %S" name

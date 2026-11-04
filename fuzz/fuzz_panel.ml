@@ -37,27 +37,7 @@ let test_refused n =
 
 let test_wide_border n =
   let glyph = String.make (2 + (n mod 3)) '#' in
-  let border =
-    Border.v
-      Border.
-        {
-          top_left = glyph;
-          top = glyph;
-          top_right = glyph;
-          left = glyph;
-          right = glyph;
-          bottom_left = glyph;
-          bottom = glyph;
-          bottom_right = glyph;
-          vertical = glyph;
-          horizontal = glyph;
-          cross = glyph;
-          top_cross = glyph;
-          bottom_cross = glyph;
-          left_cross = glyph;
-          right_cross = glyph;
-        }
-  in
+  let border = View_harness.frame glyph in
   let width = 20 in
   let out =
     View.to_string

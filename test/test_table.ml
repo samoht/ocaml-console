@@ -591,32 +591,8 @@ let test_huge_min_width () =
     (String.split_on_char '\n' out)
 
 let test_wide_border () =
-  let border =
-    Border.v
-      Border.
-        {
-          top_left = "\u{754c}";
-          top = "\u{754c}";
-          top_right = "\u{754c}";
-          left = "\u{754c}";
-          right = "\u{754c}";
-          bottom_left = "\u{754c}";
-          bottom = "\u{754c}";
-          bottom_right = "\u{754c}";
-          vertical = "\u{754c}";
-          horizontal = "\u{754c}";
-          cross = "\u{754c}";
-          top_cross = "\u{754c}";
-          bottom_cross = "\u{754c}";
-          left_cross = "\u{754c}";
-          right_cross = "\u{754c}";
-        }
-  in
-  let t =
-    Table.view ~border
-      [ Table.column (View.text "A"); Table.column (View.text "B") ]
-      [ [ View.text "x"; View.text "y" ] ]
-  in
+  let border = View_harness.frame "\u{754c}" in
+  let t = View_harness.small_table ~border in
   let widths =
     List.map
       (fun l -> View.width (View.text l))
@@ -719,11 +695,7 @@ let test_simple () =
 (* Empty edge glyphs do not remove the other pieces of a custom frame. *)
 let test_empty_left_edge () =
   let border = Border.v { (Border.chars Border.single) with left = "" } in
-  let table =
-    Table.view ~border
-      [ Table.column (View.text "A"); Table.column (View.text "B") ]
-      [ [ View.text "x"; View.text "y" ] ]
-  in
+  let table = View_harness.small_table ~border in
   Alcotest.(check string)
     "the empty left edge is padded to the corners' width"
     (String.concat "\n"

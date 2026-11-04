@@ -18,6 +18,10 @@ val contains : string -> string -> bool
 val glyphs : string -> Uchar.t array
 (** [glyphs s] are the characters of [s], in order. *)
 
+val feeding : Console_vte.t -> Format.formatter
+(** [feeding vte] is a formatter that feeds [vte] what it holds at each flush.
+*)
+
 val bar_span : string -> (int * int) option
 (** [bar_span row] is the cells of the first and the last block or shade glyph
     of [row], each glyph one cell: the ends of a bar in {!Console.Theme.dos}, if

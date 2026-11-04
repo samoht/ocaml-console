@@ -2726,12 +2726,7 @@ let test_kept_rows () =
   let root = Task.root ~label:"build" ~now () in
   let screen layout =
     let vte = Console_vte.v ~rows:16 ~cols:60 () in
-    let buf = Buffer.create 256 in
-    let ppf =
-      Format.make_formatter (Buffer.add_substring buf) (fun () ->
-          Console_vte.feed vte (Buffer.contents buf);
-          Buffer.clear buf)
-    in
+    let ppf = feeding vte in
     Fmt.set_utf_8 ppf true;
     ( vte,
       Display.v ~size:(fun () -> (60, 16)) ~now ppf (Progress.view ~layout root)
@@ -2781,12 +2776,7 @@ let test_redraw_reads_state () =
   let now () = 0. in
   let root = Task.root ~label:"build" ~now () in
   let vte = Console_vte.v ~rows:8 ~cols:40 () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed vte (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = feeding vte in
   let jobs = ref [] in
   let status = View.fit (fun _ -> View.text (String.concat "," !jobs)) in
   let still, calls = laid () in

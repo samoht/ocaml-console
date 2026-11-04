@@ -536,15 +536,7 @@ let outer_widget k inner =
   | _ -> Tree.view (Tree.v (View.text "root") [ Tree.v inner [] ])
 
 let render_nested ~theme ~utf_8 span =
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  Color.set_depth ppf `True_color;
-  Fmt.set_utf_8 ppf utf_8;
-  Theme.set ppf theme;
-  View.pp ppf span;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  View_harness.printed ~theme ~utf_8 ~depth:`True_color span
 
 (* Wrapping changes where a widget's lines break, not the glyphs, colours
    or attributes of its non-space cells. Compare those cells on matrix.vte,
@@ -611,17 +603,7 @@ let test_hcat_nested_wrap input k n =
       | _ -> Tree.view (Tree.v joined []))
   in
   let theme = Widget_harness.nth_theme k in
-  let render s =
-    let buf = Buffer.create 256 in
-    let ppf = Format.formatter_of_buffer buf in
-    Theme.set ppf theme;
-    Fmt.set_utf_8 ppf (k land 128 = 0);
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
-    View.pp ppf s;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let render = render_nested ~theme ~utf_8:(k land 128 = 0) in
   let width = 4 + (n mod 29) in
   let pieces = View.wrap width source in
   List.iter

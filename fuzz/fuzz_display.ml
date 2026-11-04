@@ -1776,12 +1776,7 @@ let test_static_view w h k times =
 let test_commit steps policy =
   let width = 80 and height = 8 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed vte (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = Display_harness.feeding vte in
   let root = Task.root ~label:header ~now:(fun () -> 0.) () in
   let commit t =
     if policy then Some (View.text ("DONE " ^ Task.label t)) else None

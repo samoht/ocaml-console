@@ -343,21 +343,6 @@ let test_zero_width_blank_lines () =
     "zero width returns empty even for blank lines" ""
     (View.to_string (View.truncate 0 (View.text "\n")))
 
-(* [span] printed on a formatter in [theme] at [depth], in colour iff
-   [depth] is given. *)
-let printed ?(theme = Theme.default) ?depth span =
-  let buf = Buffer.create 16 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf theme;
-  Option.iter
-    (fun depth ->
-      Fmt.set_style_renderer ppf `Ansi_tty;
-      Color.set_depth ppf depth)
-    depth;
-  View.pp ppf span;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
-
 let fg c s = View.styled (Style.fg c) (View.text s)
 
 (* Each grapheme cluster of a line takes the blend of the stops at its
@@ -516,13 +501,7 @@ let test_with_role () =
     (printed ~theme:Theme.nord
        (View.role `Succeeded View.(text "a" ++ styled Style.bold (text "b"))))
 
-let pp_at margin v =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf margin;
-  View.pp ppf v;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+let pp_at margin v = printed ~margin v
 
 (* A [fit] part is laid out in the room it is printed in: the margin under
    [pp], none where it is measured or printed whole. *)
@@ -680,11 +659,7 @@ let test_matrix_moves () =
     (at ~live:false ~theme:Theme.matrix ~time:0.9 table)
 
 let test_weighted_room () =
-  let part c grow =
-    View.fit ~grow (fun r ->
-        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
-  in
-  let v = View.hcat ~gap:0 [ part 'a' 2; part 'b' 1 ] in
+  let v = View.hcat ~gap:0 [ fill 'a' 2; fill 'b' 1 ] in
   let raw = pp_at 11 v in
   let terminal = Console_vte.v ~rows:4 ~cols:11 () in
   Console_vte.feed terminal raw;
@@ -696,24 +671,20 @@ let test_weighted_room () =
 (* Weights share the room by their ratio, however large, and a negative
    weight is refused. *)
 let test_weights () =
-  let part c grow =
-    View.fit ~grow (fun r ->
-        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
-  in
   Alcotest.(check string)
     "huge weights" "aaaaabbbbb"
     (View.to_string
        (View.sized ~width:10
-          (View.hcat ~gap:0 [ part 'a' max_int; part 'b' max_int ])));
+          (View.hcat ~gap:0 [ fill 'a' max_int; fill 'b' max_int ])));
   Alcotest.(check string)
     "the largest remainder" "aaabbbbbbb"
     (View.to_string
-       (View.sized ~width:10 (View.hcat ~gap:0 [ part 'a' 1; part 'b' 2 ])));
+       (View.sized ~width:10 (View.hcat ~gap:0 [ fill 'a' 1; fill 'b' 2 ])));
   Alcotest.(check string)
     "the first on a tie" "aaaabbbccc"
     (View.to_string
        (View.sized ~width:10
-          (View.hcat ~gap:0 [ part 'a' 1; part 'b' 1; part 'c' 1 ])));
+          (View.hcat ~gap:0 [ fill 'a' 1; fill 'b' 1; fill 'c' 1 ])));
   Alcotest.check_raises "negative grow"
     (Invalid_argument "Console.View.fit: negative grow") (fun () ->
       ignore (View.fit ~grow:(-1) (fun _ -> View.empty)))
