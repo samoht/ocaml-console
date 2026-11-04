@@ -2132,6 +2132,42 @@ let test_write_cut_short () =
     [ "keep-1"; "keep-2"; "keep-3"; "keep-4"; "after" ];
   Alcotest.(check bool) "the cursor shown" true (Console_vte.cursor_visible vte)
 
+(* Mode 2026: a terminal holds back what it draws until the update ends, so an
+   update cut in the middle ends before anything else is written. *)
+let test_update_cut_in_the_middle () =
+  let buf = Buffer.create 256 and armed = ref false in
+  let out s o l =
+    if !armed then begin
+      armed := false;
+      Buffer.add_substring buf s o (l / 2);
+      raise Sys.Break
+    end;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d =
+    Display.v
+      ~size:(fun () -> (40, 12))
+      ~now:(fun () -> 0.)
+      ppf (View.text "row")
+  in
+  Display.redraw d;
+  Display.print d (View.text "kept");
+  armed := true;
+  Alcotest.check_raises "the print" Sys.Break (fun () ->
+      Display.print d (View.text "a line long enough to be cut"));
+  let torn = Buffer.contents buf in
+  Alcotest.(check bool)
+    "cut inside the update" true
+    (Console_vte.synchronized_open torn);
+  Display.print d (View.text "after");
+  let written = Buffer.contents buf in
+  let line_after = String.index_from written (String.length torn) '\n' in
+  Alcotest.(check bool)
+    "ended before the next line" false
+    (Console_vte.synchronized_open (String.sub written 0 line_after));
+  Display.close d
+
 (* A write cut short goes out first, and what would come behind it does not pile
    up. What the cut update may have drawn stays above the region. *)
 let test_write_stays_cut () =
@@ -3372,6 +3408,8 @@ let suite =
         test_commit_raises_at_close;
       Alcotest.test_case "a hook raises as a task ends" `Quick test_hook_raises;
       Alcotest.test_case "a write cut short" `Quick test_write_cut_short;
+      Alcotest.test_case "an update cut in the middle" `Quick
+        test_update_cut_in_the_middle;
       Alcotest.test_case "writes that stay cut" `Quick test_write_stays_cut;
       Alcotest.test_case "a write under way" `Quick test_write_under_way;
       Alcotest.test_case "view fits" `Quick test_view_fits;
