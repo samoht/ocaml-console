@@ -90,7 +90,12 @@ let test_size () =
   check "beyond an int" (80, 24)
     ("99999999999999999999", "-99999999999999999999");
   check "max_int" (80, 24) (string_of_int max_int, string_of_int max_int);
-  check "invalid bytes" (80, 24) ("\xff\xfe", "\027[31m")
+  check "invalid bytes" (80, 24) ("\xff\xfe", "\027[31m");
+  check "hexadecimal" (80, 24) ("0x50", "0x18");
+  check "octal and binary" (80, 24) ("0o17", "0b11");
+  check "unsigned" (80, 24) ("0u20", "0u20");
+  check "underscores" (80, 24) ("1_000", "1_0");
+  check "a sign" (80, 24) ("+5", "+5")
 
 let test_not_asked () =
   with_env
