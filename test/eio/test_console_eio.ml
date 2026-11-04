@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Display_harness
+open Env_harness
 
 let with_clock f = Eio_main.run @@ fun _env -> f (Eio_mock.Clock.Mono.make ())
 
@@ -39,12 +40,6 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 (* A display reads the time on its monotonic clock. *)
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
-
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
 (* [mock] at its next timer, if any: a sleep that waits for its turn on
    [Console_eio.clock] has none. *)

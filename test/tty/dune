@@ -10,4 +10,4 @@
  (modules :standard \ probe)
  (package console)
  (deps probe.exe)
- (libraries console console.tty alcotest fmt unix))
+ (libraries console console.tty env_harness alcotest fmt unix))

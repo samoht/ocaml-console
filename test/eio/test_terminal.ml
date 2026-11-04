@@ -22,7 +22,6 @@ let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
    each given back as it was found. *)
 let with_fds ~stdout ~stderr ~term f =
   let saved_out = Unix.dup Unix.stdout and saved_err = Unix.dup Unix.stderr in
-  let saved_term = Sys.getenv_opt "TERM" in
   let stds = [ Fmt.stdout; Fmt.stderr ] in
   let looks = List.map (fun p -> (Fmt.style_renderer p, Fmt.utf_8 p)) stds in
   Fun.protect ~finally:(fun () ->
@@ -32,7 +31,6 @@ let with_fds ~stdout ~stderr ~term f =
       Unix.dup2 saved_err Unix.stderr;
       Unix.close saved_out;
       Unix.close saved_err;
-      Unix.putenv "TERM" (Option.value saved_term ~default:"");
       List.iter2
         (fun p (r, u) ->
           Fmt.set_style_renderer p r;
@@ -41,7 +39,7 @@ let with_fds ~stdout ~stderr ~term f =
   @@ fun () ->
   Unix.dup2 stdout Unix.stdout;
   Unix.dup2 stderr Unix.stderr;
-  Unix.putenv "TERM" term;
+  Env_harness.with_env [ ("TERM", term) ] @@ fun () ->
   Console_tty.setup ~utf_8:true ();
   f ()
 

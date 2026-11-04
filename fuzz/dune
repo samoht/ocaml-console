@@ -50,6 +50,7 @@
   console-eio
   console_vte
   console.text
+  env_harness
   eio
   eio.mock
   mtime
