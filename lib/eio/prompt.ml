@@ -14,10 +14,9 @@ type t = {
   ppf : Format.formatter;
 }
 
-(* A typed answer is one line from a human. The cap keeps a source that never
-   sends a terminator from growing the buffer without bound; crossing it is an
-   [Error] like any other unanswerable question. The buffer holds an answer
-   and its CRLF. *)
+(* The longest answer, in bytes. The cap keeps a source that never sends a
+   line feed from growing the buffer without bound; a longer line is an
+   [Error]. The buffer holds an answer and its CRLF. *)
 let max_answer = 4096
 
 (* Whether the input is a terminal is a property of its descriptor: a flow
@@ -53,8 +52,8 @@ let line t question =
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
     Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
-    (* [Buf_read.line] returns an unterminated last line as if it were one;
-       an answer cut short by the end of the input is no answer. *)
+    (* [Buf_read.line] would return an unterminated last line as a line, but
+       an answer cut short by the end of the input is [`End_of_input]. *)
     let read () =
       let line = Eio.Buf_read.take_while (fun c -> c <> '\n') t.input in
       let answer =
@@ -68,8 +67,9 @@ let line t question =
         Some answer
       end
     in
-    (* The rest of the line goes, so that the next question reads the line
-       after it; skipping keeps the buffer within its cap. *)
+    (* The rest of the line is skipped, so that the next question reads the
+       line after it; skipping, unlike reading, keeps the buffer within its
+       cap. *)
     let too_long () =
       Eio.Buf_read.skip_while (fun c -> c <> '\n') t.input;
       (try Eio.Buf_read.char '\n' t.input with End_of_file -> ());
@@ -136,19 +136,20 @@ let secret t question =
         Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
         Interrupt.protect ~restore @@ fun () ->
-        (* As getpass(3) does, the input not read yet is discarded with
-           the echo turned off: typed before the question was masked, the
-           terminal echoed it. *)
+        (* [TCSAFLUSH] discards the input not read yet, as getpass(3) does:
+           the terminal echoed what was typed before the echo went off. *)
         Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
-        (* The cap is the prompt's own, past which it answers with an error:
-           the editor must not refuse a byte before it. *)
+        (* [read_masked] answers with an error past [max_answer] bytes, so
+           the editor's own cap is above it and never refuses a byte
+           first. *)
         let input = Console_input.v ~mask:"*" ~max_line:(max_answer + 1) () in
         read_masked t input 0
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
 
-(* Keys come as they are typed and unshown; stopped, the program gives the
-   terminal back as it found it, and takes the keys again once continued. *)
+(* The terminal sends keys as they are typed, without echo. While SIGTSTP
+   stops the program, [suspend] gives the terminal back as it was found, and
+   it sets the keys mode again once the program continues. *)
 let keys t f =
   match t.terminal with
   | None -> Error (`Msg "no terminal to read keys on")

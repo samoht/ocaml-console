@@ -8,11 +8,12 @@ module Task = Console.Task
 
 type run = { display : Display.t; root : Task.t; json : bool }
 
-(* A terminal has one live region at a time. The display that holds it is a
-   fiber-local value, so a [run] in a fiber under another one finds it and
-   adds to it, and a global one, so a [run] in another fiber of its domain
-   joins it, a [run] in another domain is refused, and an exit in the middle
-   of the work still closes it. *)
+(* A terminal has one live region at a time. The display that holds it is
+   bound in the fibers of its run ([current]), so that a [run] in a fiber
+   under another finds it and adds to it. It is also global ([shared]), so
+   that a [run] in another fiber of its domain joins it, a [run] in another
+   domain is refused, and an exit in the middle of the work still closes
+   it. *)
 
 let current : run Eio.Fiber.key = Eio.Fiber.create_key ()
 let task : Task.t Eio.Fiber.key = Eio.Fiber.create_key ()
@@ -32,8 +33,9 @@ type shared = {
 
 let shared : shared option Atomic.t = Atomic.make None
 
-(* A fiber that outlives its run keeps the binding of a display that
-   closed: that one is no longer found. *)
+(* A fiber that outlives its run keeps the binding of a display that has
+   closed, so the binding counts only while it is the shared display and that
+   display is not closing. *)
 let find () =
   match (Eio.Fiber.get current, Atomic.get shared) with
   | Some r, Some s when r == s.run && not s.closing -> Some r.root
@@ -45,8 +47,6 @@ let display () =
   | _ -> None
   | exception Effect.Unhandled _ -> None
 
-(* The task a run inside another is given: the one current where it is
-   called, or the root. *)
 let given root = Option.value (Task_driver.current root) ~default:root
 
 let join f =
@@ -84,11 +84,11 @@ let last_out s =
     Eio.Promise.await idle
   end
 
-(* [exit] runs the [at_exit] functions but no [finally]: the run's ending
-   is run there. It is registered by the first run, so that the [at_exit]
-   functions registered before it run once the display is closed; an atomic
-   flag, not a lazy value, since two domains may start their first run at
-   once. *)
+(* [exit] runs the [at_exit] functions but no [finally], so the end of a run
+   ([ending]) is registered there. The first run registers it, so that the
+   [at_exit] functions registered before it run after the display is closed.
+   [registered] is an atomic flag rather than a lazy value, since two domains
+   may start their first run at once. *)
 let registered = Atomic.make false
 
 let at_exit () =
@@ -100,8 +100,9 @@ let rec cancelled = function
   | Fun.Finally_raised e -> cancelled e
   | _ -> false
 
-(* A task is current in the fibers its function forks, as a binding is, and
-   none is outside any fiber, as in a thread or a signal handler. *)
+(* The current task is a fiber binding, so it stays current in the fibers
+   that its function forks. Outside any fiber, as in a thread or a signal
+   handler, no task is current. *)
 let scope =
   Task_driver.scope
     ~current:(fun () ->
@@ -116,19 +117,20 @@ let in_fiber () =
   | _ -> true
   | exception Effect.Unhandled _ -> false
 
-(* A [Cancelled] where nothing cancelled the fiber, or out of any fiber, is no
-   cancellation of it. *)
+(* A [Cancelled] raised in a fiber that is not cancelled, or outside any
+   fiber, is not a cancellation of the caller. *)
 let cancelling e = cancelled e && in_fiber () && Eio.Fiber.is_cancelled ()
 
-(* How long a write that a cancellation waits for gives its output, when the
-   run is cancelled or a cancellation cut a write: the output may be why. A
-   write that nothing cancels waits as any write does: a reader that pauses,
-   such as a pager, loses nothing. *)
+(* How long, in seconds, a write waits for its output in a cancelled run or
+   after a cancellation cut a write: the output may be why the run was
+   cancelled. A write that nothing cancels waits as any write does, so that a
+   reader that pauses, such as a pager, loses nothing. *)
 let grace = 1.
 
-(* When the writes that a cancellation waits for give up on the output: set by
-   the first of them, and cleared by the first that goes out, so that an output
-   that takes nothing holds up all of them, nested or not, for [grace] in all. *)
+(* The time at which the writes that a cancellation waits for give up on the
+   output. The first of them sets it and the first that goes out clears it,
+   so that an output that takes nothing holds them all up, nested or not, for
+   [grace] in total. *)
 let giving_up = Atomic.make None
 
 let deadline () =
@@ -139,15 +141,17 @@ let deadline () =
       Atomic.set giving_up (Some d);
       d
 
-(* The program's clock may be one that does not move. *)
+(* [sleep_until] waits on the real time, since the program's clock may be one
+   that does not move. *)
 let sleep_until deadline =
   match Eio_unix.sleep (Float.max 0. (deadline -. Unix.gettimeofday ())) with
   | () -> ()
   | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
 
-(* [f ()] where no cancellation stops it, as an Eio flow requires to write,
-   until the {!deadline} that [armed] (defaults to returning) leads to at most:
-   then [f] is cancelled. It is [true] iff [f] finished before. *)
+(* [shielded ~armed f] runs [f ()] protected from cancellation, which an Eio
+   flow needs to write, until the {!deadline} at most, taken once [armed ()]
+   returns (defaults to at once); then [f] is cancelled. It is [true] iff [f]
+   finished in time. *)
 let shielded ?(armed = ignore) f =
   let finished = ref false and late = ref false in
   Eio.Cancel.protect (fun () ->
@@ -163,17 +167,19 @@ let shielded ?(armed = ignore) f =
   if in_time then Atomic.set giving_up None;
   in_time
 
-(* An update written in a cancelled fiber goes out whole, as one that nothing
-   cancelled does, but waits for its output until the {!deadline} at most: cut
-   short, the cancellation goes on. Cut by the cancellation half way, it would
-   leave rows of the region on the screen. *)
+(* An update written in a cancelled fiber goes out whole, as in a fiber that
+   is not cancelled, but waits for its output until the {!deadline} at most;
+   if the deadline cuts it short, the cancellation propagates. Cut half way
+   by the cancellation, the update would leave rows of the region on the
+   screen. *)
 let atomic f =
   if not (in_fiber () && Eio.Fiber.is_cancelled ()) then f ()
   else if not (shielded f) then Eio.Fiber.check ()
 
-(* [f ()], which a cancellation that comes once it started does not cut: from
-   then on it waits for the output until the {!deadline} at most, and cut short
-   there, the cancellation goes on. *)
+(* [whole f] is [f ()], which a cancellation that arrives after it started
+   does not cut. From the cancellation on, [f] waits for the output until the
+   {!deadline} at most; if the deadline cuts it short, the cancellation
+   propagates. *)
 let whole f =
   let cancelled, cancel = Eio.Promise.create () in
   let finished = ref false in
@@ -185,7 +191,9 @@ let whole f =
           Eio.Promise.resolve cancel ()));
   if not !finished then Eio.Fiber.check ()
 
-(* Nothing a broken output raises stops the formatters being given back. *)
+(* [safely f] runs [f] and drops what it raises, unless that is
+   asynchronous, so that a broken output does not stop the formatters being
+   given back. *)
 let safely f =
   match f () with
   | () -> ()
@@ -204,17 +212,17 @@ let release () =
   Atomic.set busy false
 
 (* While a display runs, what the program writes on the standard formatters
-   it takes is output, a whole line at a time. Bytes belong to the task
-   current in the fiber that writes them: each task collects its own lines,
-   without their escape codes, and its line under way is ended when it ends.
-   Bytes written outside any task go above the region as they are, a whole
-   line at a time that waits for a flush, and the line under way there goes
-   out when the display closes; as events, they are the output of no task.
-   A line under way waits for its end up to {!max_pending} bytes, and is cut
-   there. Inside {!with_terminal}, the bytes of the fibers it runs go
-   straight out. *)
+   that it takes becomes output, a whole line at a time. Bytes belong to the
+   task current in the fiber that writes them: each task collects its own
+   lines, without their escape codes, and its unended line is ended when the
+   task ends. Bytes written outside any task go above the region as they are,
+   in whole lines held until a flush, and the unended line there goes out
+   when the display closes; with JSON events, they are output that belongs to
+   no task. An unended line waits for its line feed up to {!max_pending}
+   bytes, and is cut there. Inside {!with_terminal}, the bytes of the fibers
+   it runs go straight out. *)
 
-(* A line under way, and whether the one before it was cut short rather
+(* An unended line, and whether the line before it was cut short rather
    than ended. *)
 type line = { pending : Buffer.t; mutable cut : bool }
 
@@ -227,25 +235,27 @@ type intercepted = {
   mutable pass : Format.formatter_out_functions;
       (* [out], watched by the display *)
   held : Buffer.t; (* whole lines for above the region *)
-  root : line; (* the line under way outside any task *)
+  root : line; (* the unended line outside any task *)
 }
 
 let intercepted : intercepted list Atomic.t = Atomic.make []
 let direct : unit Eio.Fiber.key = Eio.Fiber.create_key ()
 
-(* Out of a fiber, as from an [at_exit] function, no bytes are direct. *)
+(* Outside any fiber, as in an [at_exit] function, no bytes go straight
+   out. *)
 let is_direct () =
   try Option.is_some (Eio.Fiber.get direct) with Effect.Unhandled _ -> false
 
-(* The line under way of each task that wrote one, by the task's id. *)
+(* The unended line of each task that wrote one, by the task's id. *)
 let lines : (int, line) Hashtbl.t = Hashtbl.create 16
 
-(* What a line under way holds at most, as a channel's buffer: more is
-   written out, cut between two characters, outside an escape code if one
-   does not take it all. *)
+(* The most bytes that an unended line holds, the size of a channel's
+   buffer. Past it, the line is written out, cut between two characters and
+   outside an escape code, unless one escape code takes it all. *)
 let max_pending = 65536
 
-(* The first [k all] bytes of [b], which holds [all], taken out of it. *)
+(* [take_from b k] removes the first [k all] bytes of [b], where [all] is the
+   contents of [b], and returns them. *)
 let take_from b k =
   let all = Buffer.contents b in
   let k = k all in
@@ -253,8 +263,9 @@ let take_from b k =
   Buffer.add_substring b all k (String.length all - k);
   String.sub all 0 k
 
-(* [s] added to [l]: [emit ~cut piece] for the whole lines it ends, or for
-   the piece cut off a line grown past {!max_pending}. *)
+(* [take l s o len emit] adds [s] to [l], then calls [emit ~cut:false] with
+   the whole lines that this ends, or [emit ~cut:true] with the piece cut off
+   a line grown past {!max_pending}. *)
 let take l s o len emit =
   Buffer.add_substring l.pending s o len;
   let ends_a_line =
@@ -268,8 +279,8 @@ let take l s o len emit =
   else if Buffer.length l.pending > max_pending then
     emit ~cut:true (take_from l.pending Console_text.boundary)
 
-(* [s] as [task]'s output. The line feed that ends a line cut short ends
-   no line of its own. *)
+(* [give l ~cut task s] logs [s] as output of [task]. The line feed that
+   ends a line cut short does not make an empty line of its own. *)
 let give l ~cut task s =
   let s =
     if l.cut && String.starts_with ~prefix:"\n" s then
@@ -288,8 +299,9 @@ let send_held display i =
         i.pass.out_flush ())
   end
 
-(* [s], written outside any task: held for above the region, or as events
-   the output of no task. *)
+(* [outside run i ~cut s] takes [s], written outside any task: it is held
+   for above the region, or with JSON events it is logged on the root as
+   output that belongs to no task. *)
 let outside run i ~cut s =
   if run.json then give i.root ~cut run.root s
   else begin
@@ -346,12 +358,13 @@ let intercept run ppf =
   in
   remember ()
 
-(* Before the program's first domain starts, Format gives [Fmt.stdout] and
-   [Fmt.stderr] the [out_string] and [out_flush] of a buffer per domain, and
-   keeps the rest of the functions they have. This function, registered
-   after Format's, runs after it: a formatter taken is taken again over
-   those two, which {!restore} gives back. A domain started before this
-   module was loaded leaves nothing to register. *)
+(* Before the program's first domain starts, Format replaces the
+   [out_string] and [out_flush] of [Fmt.stdout] and [Fmt.stderr] with those
+   of a buffer per domain, and keeps their other functions. This function is
+   registered after Format's, so it runs after it: a formatter that a run
+   took is taken again over the new pair, which {!restore} gives back. If a
+   domain started before this module was loaded, there is nothing to
+   register. *)
 let () =
   let rebase i =
     if i.ppf == Format.std_formatter || i.ppf == Format.err_formatter then begin
@@ -372,9 +385,10 @@ let flush_all () =
     (fun i -> safely (fun () -> Format.pp_print_flush i.ppf ()))
     (Atomic.get intercepted)
 
-(* What a task wrote and its formatters still hold is its own, and its line
-   under way is ended. Out of a fiber, as from an [at_exit] function, no task
-   can be made current, and what they hold goes as written then. *)
+(* When a task ends, what the formatters still hold is flushed as its
+   output, and its unended line is ended. Outside any fiber, as in an
+   [at_exit] function, no task can be made current, so what they hold is
+   flushed with no task current. *)
 let task_ended task =
   (match Atomic.get intercepted with
   | [] -> ()
@@ -388,8 +402,9 @@ let task_ended task =
       let s = Buffer.contents l.pending in
       if s <> "" then give l ~cut:false task s
 
-(* As events, what the formatters still hold outside any task is output
-   before the display closes, so that every line it wrote is an event. *)
+(* With JSON events, what the formatters still hold outside any task is
+   output before the display closes, so that every line the program wrote is
+   an event. *)
 let settle run =
   if run.json then begin
     flush_all ();
@@ -401,8 +416,8 @@ let settle run =
       (Atomic.get intercepted)
   end
 
-(* [first ()] then what the program wrote, whatever either raises, and the
-   display closes. *)
+(* [close_display ~first run] runs [first ()] then {!settle}, and closes the
+   display whatever either raises. *)
 let close_display ?(first = ignore) run =
   Task_driver.protect
     (fun () ->
@@ -410,20 +425,24 @@ let close_display ?(first = ignore) run =
       settle run)
     ~finally:(fun () -> Display.close run.display)
 
-(* Closing while the program ends for another reason: that reason goes on, and
-   what a view or a hook raised on the way out gives way to it, unless the
-   program must see it and the reason is not [urgent] already. *)
+(* [close_quietly ~first ~urgent run] closes the display while the program
+   ends for another reason, which propagates. An exception that a view or a
+   hook raises while closing is dropped, unless it is asynchronous and the
+   reason is not [urgent] already. *)
 let close_quietly ?first ?(urgent = false) run =
   try close_display ?first run
   with e when urgent || not (Task_driver.is_async e) -> ()
 
-(* From a signal handler or an [at_exit] function, nothing goes on after it. *)
+(* [close_last run] closes the display from a signal handler or an [at_exit]
+   function, where nothing runs after it, so it also drops an interrupt or an
+   exhausted heap or stack. *)
 let close_last run =
   try close_quietly run with Out_of_memory | Stack_overflow | Sys.Break -> ()
 
-(* Without [flush], as from another thread, the formatters only get their
-   functions back: what they hold is the display's, whose state is not
-   read there. *)
+(* [restore ()] gives the formatters their functions back and writes out
+   what they still hold. Without [flush], as from another thread, they only
+   get their functions back: what they hold belongs to the display, whose
+   state is not read from there. *)
 let restore ?(flush = true) () =
   List.iter
     (fun i ->
@@ -451,9 +470,9 @@ let level : Logs.level -> Task_driver.level = function
   | Logs.Info -> `Info
   | Logs.Debug -> `Debug
 
-(* A message is answered once the display wrote it, or once the display
-   closed without writing it. It keeps the task current where it was
-   logged, which the fiber that writes it does not have. *)
+(* A message for the display, answered once the display wrote it or closed
+   without writing it. [within] is the task current where it was logged,
+   since that task is not current in the fiber that writes it. *)
 type request = {
   within : Task.t option;
   level : Task_driver.level;
@@ -461,10 +480,11 @@ type request = {
   reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
 }
 
-(* A message for the display, from a fiber of the domain that runs it or
-   handed to that domain: [`Closed] if the display closes first. A thread of
-   that domain, a signal handler out of any fiber or a domain that Eio does
-   not run cannot wait for the answer, so its message is not taken. *)
+(* [deliver] gives a message to the display, at once from a fiber of the
+   domain that runs it, or through [requests] from another domain. It is
+   [`Closed] if the display closes first. A thread of that domain, a signal
+   handler outside any fiber or a domain that Eio does not run cannot wait
+   for the answer, so the display does not take its message. *)
 let deliver ~owner ~closed ~requests root level message =
   if Option.is_some (Eio.Promise.peek closed) then `Closed
   else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
@@ -486,11 +506,12 @@ let deliver ~owner ~closed ~requests root level message =
           `Closed)
     with Effect.Unhandled _ -> `Closed
 
-(* A message the display cannot take, closed or refusing its output, goes
-   to the reporter it replaced, so that a log call never fails. A diagnostic
-   from a source of its own is prefixed with the source's name, which tells
-   apart the libraries whose messages interleave; an App message is the
-   program's own output and has no header, as with Logs_fmt.reporter. *)
+(* A message that the display cannot take, because it is closed or its
+   output fails, goes to the reporter it replaced, so that a log call never
+   fails. A message from a source other than [Logs.default] is prefixed with
+   the source's name, which tells apart the libraries whose messages
+   interleave. An [App] message is the program's own output and has no
+   header, as with [Logs_fmt.reporter]. *)
 let reporter ~previous ~owner ~closed ~requests root =
   let report src l ~over k msgf =
     if Option.is_some (Eio.Promise.peek closed) then
@@ -552,9 +573,10 @@ let receive ~sw ~closed requests root =
   in
   loop ()
 
-(* The display redraws on its clock, so that the spinners turn and the
-   timers run while no task reports, and draws afresh after [repaint] is
-   set. The end of the run, which stops the redraws, cuts none half way. *)
+(* The display redraws every tenth of a second on its clock, so that the
+   spinners turn and the timers run while no task reports, and it draws
+   afresh once [repaint] is set. The end of the run stops the redraws, but
+   never in the middle of one ({!whole}). *)
 let animate ~sw ~sleep ~repaint display =
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
@@ -568,9 +590,9 @@ let animate ~sw ~sleep ~repaint display =
       in
       loop ())
 
-(* Stopped, the program gives the terminal back as it is without a region,
-   the cursor shown; continued, it hides the cursor and draws the region
-   again. *)
+(* While the program is stopped, the terminal is as it would be without a
+   region, with the cursor shown. Once the program continues, the cursor is
+   hidden and the region drawn again. *)
 let suspend ~cursor display stop =
   if Display_driver.closed display then stop ()
   else
@@ -578,8 +600,9 @@ let suspend ~cursor display stop =
         cursor true;
         Fun.protect stop ~finally:(fun () -> cursor false))
 
-(* [f] for the run that opened [s]'s display. A function that raised waits
-   for the others as one that returned does; a cancelled one cannot wait. *)
+(* [first_run s f] runs [f] for the run that opened the display of [s]. When
+   [f] raises, it still waits for the runs that joined, as when it returns,
+   unless it is cancelled and cannot wait. *)
 let first_run s f =
   match Eio.Fiber.with_binding current s.run (fun () -> f s.run.root) with
   | v ->
@@ -590,7 +613,8 @@ let first_run s f =
       (try last_out s with Eio.Cancel.Cancelled _ -> ());
       Printexc.raise_with_backtrace e bt
 
-(* [display] as the domain's, for the runs that join it. *)
+(* [share run] makes the display of [run] the domain's, for the runs that
+   join it. *)
 let share run =
   let s =
     {
@@ -605,10 +629,10 @@ let share run =
   Atomic.set shared (Some s);
   s
 
-(* The work ends as a task's does: it succeeds when [f] returns, fails when
-   it raises, and is cancelled when its fiber is, unless [f] ended it. The
-   exception goes on to the caller, which says it: the work ends with no
-   message. *)
+(* The work ends as a task does: it succeeds when [f] returns, fails when
+   [f] raises, and is cancelled when its fiber is, unless [f] ended it. The
+   exception propagates to the caller, which reports it, so the work ends
+   with no message. *)
 let end_work root = function
   | Ok _ -> Task.succeed root
   | Error e -> if cancelled e then Task.cancel root else Task.fail root
@@ -620,8 +644,8 @@ let last_writes display f =
     ignore (shielded f : bool)
   else f ()
 
-(* A signal handler that runs out of any fiber cannot write on an Eio flow: a
-   fiber of the run does what it asks, as long as there is one. *)
+(* A signal handler that runs outside any fiber cannot write on an Eio flow,
+   so a fiber of the run does what it asks, while that fiber runs. *)
 type relay = {
   pending : (unit -> unit) list Atomic.t;
   wake : Eio.Condition.t;
@@ -659,12 +683,12 @@ let idle relay ~flow display k =
     relayed relay k
   else k ()
 
-(* What a return, a raise or a cancellation does, [exit] does too, so that what
-   a later [at_exit] function logs or prints goes out as before. The cursor
-   comes first: the last frame runs a view, which may call [exit] again, and
-   that one ends the program at once. From another thread or domain, or while a
-   write is under way, the display's state is not touched: the terminal is
-   given up. *)
+(* [exit] ends the run as a return, a raise or a cancellation does, so that
+   what a later [at_exit] function logs or prints goes out as before. The
+   cursor is shown first: the last frame runs a view, which may call [exit]
+   again, and that call ends the program at once. From another thread or
+   domain, or while a write is under way, the display's state is not
+   touched, and the terminal is given up instead. *)
 let ends_at_exit (run : run) ~thread ~give_back =
   let owner = Domain.self () in
   Atomic.set ending

@@ -30,16 +30,17 @@ val protect :
     point within a second, gives up instead: {!last_resort}, then the signal
     ends or stops the program, and once a stopped program continues, [resume] is
     called (defaults to doing nothing). A SIGINT or SIGTERM that arrives
-    meanwhile is part of the same ending. Nothing that [restore] or [suspend]
-    raises keeps the signal from going on. *)
+    meanwhile is part of the same ending. Whatever [restore] or [suspend]
+    raises, the signal still ends or stops the program. *)
 
 val last_resort : unit -> unit
 (** [last_resort ()] makes {!is_dead} [true] and writes, once, on the [terminal]
-    of each {!protect} under way, a sequence that needs nothing of what wrote
-    there: it ends an escape code cut in half, a link, the colours and a
-    synchronized update, and shows the cursor. The terminal is expected
-    non-blocking: what it does not take at once is dropped. *)
+    of each {!protect} under way, a sequence that does not depend on what was
+    written there before: it ends an escape code cut in half, a link, the
+    colours and a synchronized update, and shows the cursor. The terminal is
+    expected to be non-blocking: what it does not take at once is dropped. *)
 
 val is_dead : unit -> bool
-(** [is_dead ()] is [true] once {!last_resort} was written, until a stopped
-    program continues: an output writes nothing then. *)
+(** [is_dead ()] is [true] from the moment the terminal is given up, by
+    {!last_resort} or by a signal, until a stopped program continues. The
+    display's output writes nothing while it is [true]. *)

@@ -5,7 +5,8 @@
 
 let positive n = if n > 0 then Some n else None
 
-(* No terminal has more than the 4096 columns or rows a display takes. *)
+(* A display draws at most 4096 columns or rows, so a larger [$COLUMNS] or
+   [$LINES] is taken as unset. *)
 let usable n = if n > 0 && n <= 4096 then Some n else None
 
 let window_size = function
@@ -25,8 +26,8 @@ let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)
 
 (* POSIX XBD 8.3: when set, COLUMNS and LINES override the size of the terminal.
-   No [tput] fallback: it reads the termcap entry the shell read, at the cost of
-   a fork. *)
+   There is no [tput] fallback: it would fork only to read the termcap entry
+   that the shell already read. *)
 let width fd =
   first ~default:80
     [ (fun () -> dimension_of_env "COLUMNS" usable); width_of_ioctl fd ]

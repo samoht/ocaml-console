@@ -5,8 +5,8 @@
 
 module Prompt = Prompt
 
-(* The descriptor a formatter writes to, when it is one of the two the
-   standard library opens on them. *)
+(* The descriptor that [ppf] writes to, when [ppf] is {!Fmt.stdout} or
+   {!Fmt.stderr}. *)
 let descriptor ppf =
   if ppf == Fmt.stdout then Some (Eio_unix.Fd.stdout, Unix.stdout)
   else if ppf == Fmt.stderr then Some (Eio_unix.Fd.stderr, Unix.stderr)
@@ -17,14 +17,15 @@ let terminal ppf =
   | Some (fd, unix) when Console_tty.is_terminal unix -> Some (fd, unix)
   | _ -> None
 
-(* Two descriptors on one terminal are on one device. *)
+(* Two descriptors on one terminal have the same device. *)
 let device unix =
   match Unix.fstat unix with
   | st -> Some st.Unix.st_rdev
   | exception Unix.Unix_error _ -> None
 
-(* The standard formatters on the display's terminal, whose lines go above
-   its region; one on another terminal goes out as it is written. *)
+(* The standard formatters on the same terminal as [unix], whose lines the
+   display prints above its region. A standard formatter on another terminal
+   writes straight out. *)
 let routed unix =
   let on_display std =
     match terminal std with
@@ -33,7 +34,7 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
-(* The names a terminal device may have: the controlling terminal, then the
+(* The paths a terminal device may have: the controlling terminal, then the
    pseudo-terminals of Linux and of BSD and macOS. *)
 let terminal_names () =
   let entries dir keep =
@@ -47,9 +48,10 @@ let terminal_names () =
   ("/dev/tty" :: entries "/dev/pts" (Fun.const true))
   @ entries "/dev" (String.starts_with ~prefix:"ttys")
 
-(* The display's terminal opened again, found by its device, to write the
-   last resort on without blocking and without changing the flags of a
-   descriptor the program shares with its shell. *)
+(* [reopened unix] is the terminal of [unix] opened again, found by its
+   device, so that the last resort is written on it without blocking and
+   without changing the flags of a descriptor that the program shares with
+   its shell. *)
 let reopened unix =
   let rdev name =
     match Unix.stat name with
@@ -71,8 +73,8 @@ let reopened unix =
   match device unix with
   | None -> None
   | Some d ->
-      (* /dev/tty names the controlling terminal, whose device only an
-         opened descriptor tells. *)
+      (* [stat] on /dev/tty gives the device of /dev/tty itself: only an
+         opened descriptor tells the device of the controlling terminal. *)
       List.find_map
         (fun name ->
           if name = "/dev/tty" || rdev name = Some d then opened d name
@@ -93,11 +95,11 @@ let sharing unix =
   in
   List.filter shares [ Fmt.stdout; Fmt.stderr ]
 
-(* The display writes on a formatter of its own, to the same output as
-   [ppf] and with the same tag functions, which hold its colours, its theme
-   and whether it is UTF-8, as [Fmt.with_buffer ~like] does, so that [ppf]
-   itself can be routed above the region. Once the terminal was given up,
-   it writes nothing. *)
+(* A formatter for the display alone, with the output and the tag
+   functions of [ppf], as [Fmt.with_buffer ~like] makes one. The tag
+   functions carry the colours, the theme and whether [ppf] is UTF-8. With a
+   formatter of its own, the display can route what is written on [ppf]
+   above its region. Once the terminal is given up, it writes nothing. *)
 let own ppf =
   let out = Format.pp_get_formatter_out_functions ppf () in
   let alive f = if not (Interrupt.is_dead ()) then f () in
@@ -126,17 +128,20 @@ let seconds clock =
 
 let deterministic = Cast.deterministic
 
-(* A virtual clock. A sleep of [d] started at [t] wakes at [t + d], once it
-   has also lasted [d] on [real]. Sleeps wake one at a time, in the order of
-   their wake-up times then of their start, and each sets the time to its
-   own wake-up time as its fiber resumes. The next one wakes only once the
-   fibers the last one made runnable have run, until the clock sees no use
-   for two yields in a row, so the time never depends on the order in which
-   the real durations ended. A passive sleep, a redraw's, wakes in that order
-   too, but only before a sleep of the program, so that it never moves the
-   time further than the program would, and as soon as a sleep of the program
-   after it has lasted its real duration, so that it never holds one up.
-   For a recording, which has its own times, no sleep waits on [real]. *)
+(* The virtual clock of CONSOLE_DETERMINISTIC_CLOCK. A sleep of [d] started
+   at time [t] wakes at [t + d], once it has also lasted [d] on [real].
+   Sleeps wake one at a time, by wake-up time and then by start, and each
+   sets the time to its wake-up time as its fiber resumes. Before the next
+   one wakes, {!settle} lets the fibers that the last one made runnable run,
+   until two yields in a row see no use of the clock. So the time does not
+   depend on the order in which the real durations end.
+
+   A passive sleep, that of a redraw, wakes in the same order, but only while
+   an active sleep, one of the program, comes after it, so that a redraw
+   never moves the time further than the program would. It stops waiting on
+   [real] as soon as an active sleep after it has lasted its real duration,
+   so that it never holds the program up. For a recording, which has its own
+   times, no sleep waits on [real]. *)
 module Sleeps = struct
   type sleep = {
     until : Mtime.t;
@@ -306,21 +311,22 @@ let clock c =
         sleeps )
   else real
 
-(* The redraws of a clock of {!clock}, which wait on its time. *)
+(* The sleep of a redraw on a virtual clock of {!clock}, which waits on its
+   time; [None] for another clock. *)
 let redraw (Eio.Resource.T (t, ops)) =
   Option.map (fun redraw -> redraw t) (Eio.Resource.get_opt ops Redraw)
 
-(* The time of a clock of {!clock}, or zero. *)
+(* The time of a virtual clock of {!clock}; zero for another clock. *)
 let virtual_time clock =
   let (Eio.Resource.T (t, ops)) = (clock :> Eio.Time.Mono.ty Eio.Resource.t) in
   match Eio.Resource.get_opt ops Seconds with
   | Some seconds -> seconds t
   | None -> fun () -> 0.
 
-(* What the display reads and what its redraws wait for. Under
-   CONSOLE_DETERMINISTIC_CLOCK the display reads a clock of {!clock} and
-   redraws at its instants, without moving its time, or reads a clock
-   stopped at zero. *)
+(* The time the display reads and the sleep its redraws wait on. Under
+   CONSOLE_DETERMINISTIC_CLOCK, a virtual clock of {!clock} gives both, and a
+   redraw does not move its time; with any other clock the time stays at
+   zero. *)
 let reading clock =
   let clock = (clock :> Eio.Time.Mono.ty Eio.Resource.t) in
   if not (deterministic ()) then (seconds clock, Eio.Time.Mono.sleep clock)
@@ -329,12 +335,16 @@ let reading clock =
     | Some redraw -> (seconds clock, redraw)
     | None -> ((fun () -> 0.), Eio.Time.Mono.sleep clock)
 
-(* The display of [root], the formatters whose lines it takes and what
-   shows or hides the cursor. On a terminal it takes the standard formatters
-   on that terminal; quiet or as events, those that write where [ppf] does,
-   so that a task's output is printed only if it fails, or is an event;
-   drawn on another output, [ppf] alone; [recorded], the terminal of the
-   recording, which the standard formatters share if [ppf] is one. *)
+(* The display of [root], the formatters whose lines it takes, and the
+   function that shows or hides the cursor. The display takes:
+   - on a terminal, the standard formatters on that terminal;
+   - quiet or as JSON events, the standard formatters that write where [ppf]
+     does, so that a task's output is printed only if it fails, or becomes
+     an event;
+   - live on another output, [ppf] if it is a standard formatter;
+   - live when [recorded], both standard formatters if [ppf] is one, since
+     they share the recorded terminal;
+   - as plain lines, none. *)
 let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
     ppf root =
   let show ?size progress ppf =
@@ -354,8 +364,9 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
           ~intercept:(routed unix) ~cursor:(cursor unix))
       (terminal ppf)
   in
-  (* Plain lines end with the last frame as wide as the terminal, or as
-     the recording's, and on a pipe as wide as $COLUMNS asks, or whole. *)
+  (* In plain lines, the last frame is as wide as the terminal or the
+     recording; on a pipe, as wide as $COLUMNS asks, or not cut without
+     it. *)
   let lines form =
     match (form, descriptor ppf) with
     | (`Json | `Quiet), Some (_, unix) ->
@@ -392,7 +403,7 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
           live ~size:(fun () -> Terminal.dimensions None) ~intercept ~cursor)
   | (`Plain | `Quiet | `Json) as form -> lines form
 
-(* A display of its own, and the root of the work, which [f] is given. *)
+(* Open a new display and run [f] on its root task. *)
 let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
     ?delay ~progress f =
   Console_tty.ensure ();
@@ -445,7 +456,7 @@ let redraw () =
 let size ppf =
   Option.map (fun (fd, _) () -> Terminal.dimensions (Some fd)) (terminal ppf)
 
-(* The most a display takes, whatever a terminal says. *)
+(* The widest a display draws, whatever the terminal says. *)
 let max_width = 4096
 
 let width ppf =
