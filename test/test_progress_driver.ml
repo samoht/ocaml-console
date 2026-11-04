@@ -271,6 +271,40 @@ let test_sys_error () =
       Alcotest.(check int) (label ^ ": not asked") 0 !asked)
     forms
 
+(* A flush fails as a write does, whether the output is gone before the
+   display is there or once it is. *)
+let test_flush_fails () =
+  List.iter
+    (fun at_once ->
+      List.iter
+        (fun (label, progress) ->
+          let closed = ref at_once in
+          let flush () = if !closed then raise Closed in
+          let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+          let state =
+            work
+              (fun ppf root ->
+                let d = driver ~write_error:is_closed () ~progress ppf root in
+                closed := true;
+                d)
+              ppf
+          in
+          let label = if at_once then label ^ ", closed at once" else label in
+          Alcotest.check succeeded label `Succeeded state)
+        forms)
+    [ false; true ]
+
+(* So may it be before a program prints through the display. *)
+let test_with_output_flush_fails () =
+  let closed = ref false in
+  let flush () = if !closed then raise (Sys_error "EPIPE") in
+  let ppf = Format.make_formatter (fun _ _ _ -> ()) flush in
+  let display = Display.v ~now:(fun () -> 0.) ppf View.empty in
+  closed := true;
+  let called = ref false in
+  Display.with_output display (fun _ -> called := true);
+  Alcotest.(check bool) "what it prints is asked for" true !called
+
 (* A view that raises is the program's, whatever [write_error] says. *)
 let test_view_raises () =
   List.iter
@@ -304,5 +338,8 @@ let suite =
       Alcotest.test_case "a write error not taken" `Quick
         test_write_error_not_taken;
       Alcotest.test_case "Sys_error" `Quick test_sys_error;
+      Alcotest.test_case "a flush that fails" `Quick test_flush_fails;
+      Alcotest.test_case "a flush that fails around output" `Quick
+        test_with_output_flush_fails;
       Alcotest.test_case "a view that raises" `Quick test_view_raises;
     ] )
