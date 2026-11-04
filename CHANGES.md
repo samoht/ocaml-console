@@ -95,6 +95,17 @@
   there instead of raising its `Cancelled` from the next redraw or the close,
   and a report or a log in a cancelled fiber no longer raises (#42).
 
+- An update cut short by an interrupt or a cancellation no longer erases lines
+  above the region when the next one goes out, and the lines it was to print
+  still go out (#27).
+
+- Frames no longer pile up behind a write under way or one cut short (#27).
+
+- A task that ends in a cancelled fiber, on an Eio flow, no longer loses its
+  last line nor leaves its running row on the screen, and the redraw that the
+  end of a run stops goes out whole instead of leaving its row above the last
+  frame (#27).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

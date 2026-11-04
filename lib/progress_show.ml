@@ -174,7 +174,7 @@ let view_of_form ~layout root = function
   | Quiet -> verdict root
   | Json -> V.empty
 
-let show_with ?write_error ?cancelled ?(progress = `Auto)
+let show_with ?write_error ?cancelled ?atomic ?(progress = `Auto)
     ?(layout = Layout.default) ?view ?(keep_ended = false) ?commit ?plain ?delay
     ?size ppf root =
   let root = root_of root in
@@ -191,8 +191,8 @@ let show_with ?write_error ?cancelled ?(progress = `Auto)
     | _ -> None
   in
   let d =
-    Display_core.v ?size:shown_size ?once_width ?write_error ?cancelled ?delay
-      ~fallback:default
+    Display_core.v ?size:shown_size ?once_width ?write_error ?cancelled ?atomic
+      ?delay ~fallback:default
       ~now:(Work.now (work root))
       ppf shown
   in

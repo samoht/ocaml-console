@@ -20,7 +20,7 @@ type show =
   Display.t
 
 let driver ?(write_error = fun _ -> false) () : show =
-  Progress_driver.show ~write_error ?cancelled:None
+  Progress_driver.show ~write_error ?cancelled:None ?atomic:None
 
 let public : show = Progress.show
 

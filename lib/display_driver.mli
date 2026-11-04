@@ -17,6 +17,10 @@ val when_idle : Display.t -> (unit -> unit) -> unit
 val closed : Display.t -> bool
 (** [closed display] is [true] once [display] is closed. *)
 
+val unwritten : Display.t -> bool
+(** [unwritten display] is [true] iff a write of [display] is under way, waits,
+    or was cut short and what remains of it waits for the next. *)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

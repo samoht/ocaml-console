@@ -113,10 +113,24 @@ let in_fiber () =
    cancellation of it. *)
 let cancelling e = cancelled e && in_fiber () && Eio.Fiber.is_cancelled ()
 
-(* How long the end of a cancelled run waits, in all, for an output that takes
-   nothing. A run that is not cancelled waits as any write does: a reader that
-   pauses, such as a pager, loses nothing. *)
+(* How long a write that a cancellation waits for gives its output, when the
+   run is cancelled or a cancellation cut a write: the output may be why. A
+   write that nothing cancels waits as any write does: a reader that pauses,
+   such as a pager, loses nothing. *)
 let grace = 1.
+
+(* When the writes that a cancellation waits for give up on the output: set by
+   the first of them, and cleared by the first that goes out, so that an output
+   that takes nothing holds up all of them, nested or not, for [grace] in all. *)
+let giving_up = Atomic.make None
+
+let deadline () =
+  match Atomic.get giving_up with
+  | Some d -> d
+  | None ->
+      let d = Unix.gettimeofday () +. grace in
+      Atomic.set giving_up (Some d);
+      d
 
 (* The program's clock may be one that does not move. *)
 let sleep_until deadline =
@@ -124,14 +138,45 @@ let sleep_until deadline =
   | () -> ()
   | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
 
-(* [f ()], in a cancelled fiber too, which an Eio flow refuses to write from,
-   and until [deadline] at most. *)
-let shielded ~deadline f =
-  if Eio.Fiber.is_cancelled () then
-    let deadline = Lazy.force deadline in
-    Eio.Cancel.protect (fun () ->
-        Eio.Fiber.first f (fun () -> sleep_until deadline))
-  else f ()
+(* [f ()] where no cancellation stops it, as an Eio flow requires to write,
+   until the {!deadline} that [armed] (defaults to returning) leads to at most:
+   then [f] is cancelled. It is [true] iff [f] finished before. *)
+let shielded ?(armed = ignore) f =
+  let finished = ref false and late = ref false in
+  Eio.Cancel.protect (fun () ->
+      Eio.Fiber.first
+        (fun () ->
+          f ();
+          finished := true)
+        (fun () ->
+          armed ();
+          sleep_until (deadline ());
+          late := true));
+  let in_time = !finished && not !late in
+  if in_time then Atomic.set giving_up None;
+  in_time
+
+(* An update written in a cancelled fiber goes out whole, as one that nothing
+   cancelled does, but waits for its output until the {!deadline} at most: cut
+   short, the cancellation goes on. Cut by the cancellation half way, it would
+   leave rows of the region on the screen. *)
+let atomic f =
+  if not (in_fiber () && Eio.Fiber.is_cancelled ()) then f ()
+  else if not (shielded f) then Eio.Fiber.check ()
+
+(* [f ()], which a cancellation that comes once it started does not cut: from
+   then on it waits for the output until the {!deadline} at most, and cut short
+   there, the cancellation goes on. *)
+let whole f =
+  let cancelled, cancel = Eio.Promise.create () in
+  let finished = ref false in
+  Eio.Fiber.first
+    (fun () ->
+      finished := shielded ~armed:(fun () -> Eio.Promise.await cancelled) f)
+    (fun () ->
+      Fun.protect Eio.Fiber.await_cancel ~finally:(fun () ->
+          Eio.Promise.resolve cancel ()));
+  if not !finished then Eio.Fiber.check ()
 
 (* Nothing a broken output raises stops the formatters being given back. *)
 let safely f =
@@ -491,12 +536,13 @@ let receive ~sw ~closed requests root =
   loop ()
 
 (* The display redraws on its clock, so that the spinners turn and the
-   timers run while no task reports. *)
+   timers run while no task reports. The end of the run, which stops the
+   redraws, cuts none half way. *)
 let animate ~sw ~sleep display =
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
         sleep 0.1;
-        Display.redraw display;
+        whole (fun () -> Display.redraw display);
         loop ()
       in
       loop ())
@@ -554,6 +600,13 @@ let close_at_exit run ~give_back =
     (fun () -> close_quietly run)
     ~finally:(fun () -> Task_driver.protect give_back ~finally:restore)
 
+(* The end of a cancelled run, or of one whose output a cancellation cut,
+   waits for the output until the {!deadline} at most. *)
+let last_writes display f =
+  if Eio.Fiber.is_cancelled () || Display_driver.unwritten display then
+    ignore (shielded f : bool)
+  else f ()
+
 let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   let display = run.display in
   let previous = Logs.reporter () in
@@ -566,11 +619,12 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
      what a later [at_exit] function logs or prints goes out as before. *)
   Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
   let s = share run in
-  let deadline = lazy (Unix.gettimeofday () +. grace) in
   Task_driver.protect ~finally:(fun () ->
       Task_driver.protect
-        (fun () -> shielded ~deadline restore)
-        ~finally:release)
+        (fun () -> last_writes display restore)
+        ~finally:(fun () ->
+          Atomic.set giving_up None;
+          release ()))
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
@@ -587,12 +641,12 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Fun.protect ~finally:give_back @@ fun () -> first_run s f
   with
   | value ->
-      shielded ~deadline (fun () ->
+      last_writes display (fun () ->
           close_display run ~first:(fun () -> end_work run.root (Ok ())));
       value
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      shielded ~deadline (fun () ->
+      last_writes display (fun () ->
           close_quietly run ~urgent:(Task_driver.is_async e) ~first:(fun () ->
               end_work run.root (Error e)));
       Printexc.raise_with_backtrace e bt

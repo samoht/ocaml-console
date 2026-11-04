@@ -32,6 +32,11 @@ val cancelling : exn -> bool
 (** [cancelling e] is [true] iff [e] is the cancellation of the fiber that calls
     it. A [Cancelled] elsewhere is an exception like another. *)
 
+val atomic : (unit -> unit) -> unit
+(** [atomic f] is [f ()], which writes an update: in a cancelled fiber too, in
+    full, and until a deadline at most that all such writes share, a second
+    after the first of them until one goes out. *)
+
 val write_error : exn -> bool
 (** [write_error e] is [true] iff [e] is a write error of an Eio flow, such as a
     closed pipe. *)

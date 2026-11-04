@@ -14,20 +14,22 @@ val v :
   ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
   ?cancelled:(exn -> bool) ->
+  ?atomic:((unit -> unit) -> unit) ->
   ?delay:float ->
   ?fallback:View.t ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~once_width ~write_error ~cancelled ~delay ~fallback ~now ppf view]
-    is {!Display.v}, which also takes as the end of its output an exception that
-    [write_error] says is a write error (defaults to none but [Sys_error]),
-    holds back no exception that [cancelled] says is the cancellation of the
-    fiber that draws (defaults to none), and draws [fallback] (defaults to
-    {!View.empty}) in place of a view that raises. Without [size], what it
-    prints once is [once_width ()] cells wide, and whole without [once_width].
-*)
+(** [v ~size ~once_width ~write_error ~cancelled ~atomic ~delay ~fallback ~now
+     ppf view] is {!Display.v}, which also takes as the end of its output an
+    exception that [write_error] says is a write error (defaults to none but
+    [Sys_error]), holds back no exception that [cancelled] says is the
+    cancellation of the fiber that draws (defaults to none), writes each update
+    through [atomic] (defaults to calling it), which may keep a cancellation
+    from cutting it, and draws [fallback] (defaults to {!View.empty}) in place
+    of a view that raises. Without [size], what it prints once is
+    [once_width ()] cells wide, and whole without [once_width]. *)
 
 val set_view : t -> View.t -> unit
 (** [set_view d view] is {!Display.set_view}. *)
@@ -68,8 +70,14 @@ val told : t -> unit
     ({!touch}): a redraw draws a view that reads the tasks and no other state
     only after a change or as the time moves. *)
 
-val write : t -> string -> unit
-(** [write d s] writes [s] as it is, in turn with what [d] writes. *)
+val write : ?salvage:string -> t -> string -> unit
+(** [write ~salvage d s] writes [s] as it is, in turn with what [d] writes. If
+    this is cut short, [salvage] (defaults to nothing) goes out in its place
+    with the next write. *)
+
+val unwritten : t -> bool
+(** [unwritten d] is [true] iff a write of [d] is under way, waits, or was cut
+    short and what remains of it waits for the next. *)
 
 val is_live : t -> bool
 (** [is_live d] is [true] iff [d] redraws a region on a terminal. *)

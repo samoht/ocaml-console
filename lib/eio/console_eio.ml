@@ -287,8 +287,8 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
   let show ?size progress ppf =
     let view = Option.map (fun f -> f root) view in
     Progress_driver.show ~write_error:Session.write_error
-      ~cancelled:Session.cancelling ~progress ?layout ?view ?keep_ended ?commit
-      ?plain ?delay ?size ppf root
+      ~cancelled:Session.cancelling ~atomic:Session.atomic ~progress ?layout
+      ?view ?keep_ended ?commit ?plain ?delay ?size ppf root
   in
   let live ~size ~intercept ~cursor =
     (show ~size `Tty (own ppf), intercept, cursor)

@@ -90,6 +90,14 @@
     from the call that was drawing, whichever that is, a {!Task} report
     included, and the view stays.
 
+    An update that one of them or a cancellation cuts short, on an output that
+    may have taken part of it, is not written again. The lines it was to print
+    go out whole with the next update, so that a part of them may show twice, on
+    a terminal too. On a terminal the region starts again on the row below the
+    one the cut left the cursor on, with what is below it erased: what the cut
+    update drew above that row stays on the screen, rows of the region included,
+    and nothing that was above the region is erased.
+
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)
 

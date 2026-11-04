@@ -3,5 +3,5 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let show ~write_error ?cancelled =
-  Progress_show.show_with ~write_error ?cancelled
+let show ~write_error ?cancelled ?atomic =
+  Progress_show.show_with ~write_error ?cancelled ?atomic
