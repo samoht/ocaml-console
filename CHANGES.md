@@ -64,6 +64,9 @@
 - Ctrl-Z now stops a program under `Console_eio.run`. It used to give the
   terminal back and carry on running (#29).
 
+- Console no longer builds its width cache as a program starts, only when it
+  first measures text (#30).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
