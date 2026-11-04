@@ -27,4 +27,5 @@ let () =
       Test_display_driver.suite;
       Test_console.suite;
       Test_console_vte.suite;
+      Test_recording.suite;
     ]
