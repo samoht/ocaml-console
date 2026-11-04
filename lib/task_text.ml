@@ -41,18 +41,33 @@ let bytes_short n =
   else if v < 9.95 then Fmt.str "%.1f%c" v unit
   else Fmt.str "%.0f%c" v unit
 
-(* The text of every duration under a minute, built once: a display formats
-   one per task at each frame. *)
-let tenths =
-  Array.init 600 (fun t ->
-      string_of_int (t / 10) ^ "." ^ string_of_int (t mod 10) ^ "s")
+(* Every duration under a minute, each made when first shown, since a display
+   shows one per task at each frame. The table itself is made at the first
+   duration. An entry read as "" by a domain racing another's write is made
+   again. *)
+let table = Atomic.make [||]
+
+let tenth t =
+  let a = Atomic.get table in
+  let a =
+    if Array.length a > 0 then a
+    else
+      let b = Array.make 600 "" in
+      if Atomic.compare_and_set table [||] b then b else Atomic.get table
+  in
+  match a.(t) with
+  | "" ->
+      let s = string_of_int (t / 10) ^ "." ^ string_of_int (t mod 10) ^ "s" in
+      a.(t) <- s;
+      s
+  | s -> s
 
 let duration secs =
   let secs =
     if Float.is_nan secs then 0. else Float.min 1e15 (Float.max 0. secs)
   in
   let t = Float.round (secs *. 10.) in
-  if t < 600. then tenths.(int_of_float t)
+  if t < 600. then tenth (int_of_float t)
   else
     let s = int_of_float (Float.round secs) in
     if s < 3600 then
