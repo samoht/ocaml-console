@@ -22,7 +22,10 @@
    [exit-thread-blocked] or [exit-domain-blocked], a thread or a domain calls
    [exit] during such a write; or, with [stop-blocked], it is stopped by
    SIGTSTP during a write that ends after a while; or, with [elsewhere], a
-   thread prints on its terminal. It also prints a line on standard
+   thread prints on its terminal; or, with [sigint-beside], SIGINT comes while
+   another domain computes, and with [sigint-masked] while its thread blocks it
+   too; or, with [exit-domain-drawing] or [exit-thread-drawing], a domain or a
+   thread calls [exit] while it redraws. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 (* SIGINT comes once the password is masked. *)
@@ -283,6 +286,58 @@ let quiet ending _env =
           | _ -> ());
       Console.Task.within root (fun () -> Fmt.pr "root line@."))
 
+(* SIGINT while another domain computes and the display's domain sleeps,
+   which then lets the other domain handle it; with [masked], the display's
+   thread blocks it, so that the other domain always does. *)
+let sigint_beside ~masked env =
+  let clock = Eio.Stdenv.mono_clock env in
+  let stop = Atomic.make false in
+  let worker =
+    Domain.spawn (fun () ->
+        while not (Atomic.get stop) do
+          ignore (Sys.opaque_identity (ref 0))
+        done)
+  in
+  if masked then
+    ignore (Thread.sigmask Unix.SIG_BLOCK [ Sys.sigint ] : int list);
+  at_exit (fun () -> Atomic.set stop true);
+  Console_eio.run ~clock (fun root ->
+      let task = Console.Task.start root "spinning" in
+      for i = 1 to 100 do
+        Console.Task.set_items task ~count:i ~total:100;
+        if i = 10 then Unix.kill (Unix.getpid ()) Sys.sigint;
+        Eio.Time.Mono.sleep clock 0.005
+      done;
+      Console.Task.succeed task);
+  Atomic.set stop true;
+  Domain.join worker
+
+(* [exit] from another domain, or from a thread, while the display redraws. *)
+let exit_drawing ~from env =
+  let clock = Eio.Stdenv.mono_clock env in
+  Console_eio.run ~clock (fun root ->
+      let task = Console.Task.start root "drawing" in
+      (match from with
+      | `Domain ->
+          ignore
+            (Domain.spawn (fun () ->
+                 Unix.sleepf 0.05;
+                 exit 3)
+              : unit Domain.t)
+      | `Thread ->
+          ignore
+            (Thread.create
+               (fun () ->
+                 Thread.delay 0.05;
+                 exit 4)
+               ()
+              : Thread.t));
+      for i = 1 to 1000 do
+        Console.Task.set_items task ~count:i ~total:1000;
+        Eio.Time.Mono.sleep clock 0.001
+      done;
+      Console.Task.succeed task)
+
 let display _env =
   let clock = Eio_mock.Clock.Mono.make () in
   let run () =
@@ -324,6 +379,10 @@ let () =
   | [| _; "held" |] -> held env
   | [| _; "elsewhere" |] -> elsewhere env
   | [| _; "spawn" |] -> spawn env
+  | [| _; "sigint-masked" |] -> sigint_beside ~masked:true env
+  | [| _; "sigint-beside" |] -> sigint_beside ~masked:false env
+  | [| _; "exit-domain-drawing" |] -> exit_drawing ~from:`Domain env
+  | [| _; "exit-thread-drawing" |] -> exit_drawing ~from:`Thread env
   | [| _; "secret-lost" |] -> secret_lost env
   | [| _; "cut-link" |] -> blocked_at ~cut:in_link interrupt env
   | [| _; "cut-sequence" |] -> blocked_at ~cut:in_sequence interrupt env

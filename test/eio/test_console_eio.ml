@@ -1276,14 +1276,36 @@ let test_sigint_secret () =
     (match status with `Signaled s -> Int.equal s Sys.sigint | _ -> false);
   Alcotest.(check bool) "SIGINT during a password restores echo" true echo
 
+let exited n = function `Exited m -> Int.equal n m | _ -> false
+
+(* A signal handled in another domain, as when the display's domain sleeps
+   or its thread blocks the signal, still ends the program by that signal;
+   [exit] from another domain or thread while the display redraws ends it
+   with its status. Either way the cursor is shown. *)
+let test_elsewhere_ends () =
+  List.iter
+    (fun (how, ends) ->
+      let status, out = teardown how in
+      Alcotest.(check bool) (how ^ ": how the program ends") true (ends status);
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
+      Alcotest.(check bool)
+        (how ^ ": the cursor is shown")
+        true
+        (Console_vte.cursor_visible vte))
+    [
+      ("sigint-beside", signaled_by_sigint);
+      ("sigint-masked", signaled_by_sigint);
+      ("exit-domain-drawing", exited 3);
+      ("exit-thread-drawing", exited 4);
+    ]
+
 (* A restoration that fails still lets the signal end the program. *)
 let test_sigint_restore_fails () =
   let status, _ = teardown "secret-lost" in
   Alcotest.(check bool)
     "SIGINT still ends the program" true
     (signaled_by_sigint status)
-
-let exited n = function `Exited m -> Int.equal n m | _ -> false
 
 (* A write that never ends gives way to a sequence written once on the
    terminal: whatever escape code it cut is ended, and what is written next
@@ -1487,6 +1509,8 @@ let suite =
         test_last_resort;
       Alcotest.test_case "SIGINT when a restoration fails" `Quick
         test_sigint_restore_fails;
+      Alcotest.test_case "ended from another domain or thread" `Quick
+        test_elsewhere_ends;
       Alcotest.test_case "a stop that does not take effect resumes once" `Quick
         test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
