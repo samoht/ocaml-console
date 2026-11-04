@@ -19,6 +19,7 @@ let () =
       Test_bar.suite;
       Test_theme.suite;
       Test_progress.suite;
+      Test_progress_driver.suite;
       Test_slot.suite;
       Test_spinner.suite;
       Test_display.suite;
