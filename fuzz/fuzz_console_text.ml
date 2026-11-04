@@ -75,15 +75,8 @@ let test_line_ends s =
   let lines = String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 in
   check_eq ~pp:Fmt.int (line_ends s) (lines (Console_text.sanitize s))
 
-(* The controls a terminal acts on without printing, CAN and SUB among them:
-   put between two characters of text that holds no escape, they leave it as
-   it was. *)
-let silent =
-  List.filter
-    (fun c -> not (List.mem c [ 0x09; 0x0a; 0x0b; 0x0c; 0x0d; 0x1b ]))
-    (List.init 0x20 Fun.id)
-  @ [ 0x7f ]
-
+(* A silent control put between two characters of text that holds no escape
+   leaves it as it was. *)
 let test_silent_discarded s p k =
   let s = Console_text.strip s in
   let rec boundary i =
@@ -93,7 +86,9 @@ let test_silent_discarded s p k =
   in
   let i = boundary (if s = "" then 0 else p mod (String.length s + 1)) in
   let c =
-    String.make 1 (Char.chr (List.nth silent (k mod List.length silent)))
+    String.make 1
+      (Char.chr
+         (List.nth Text_harness.silent (k mod List.length Text_harness.silent)))
   in
   let with_c = String.sub s 0 i ^ c ^ String.sub s i (String.length s - i) in
   check_eq ~pp:Fmt.Dump.string s (Console_text.strip with_c)

@@ -558,34 +558,12 @@ let test_forced_tty_screen k label =
            (fun line -> String.contains line 'Z')
            (Console_vte.screen ~scrollback:true screen)))
 
-(* What [run] writes on {!Fmt.stdout} as [ppf], which it also takes the
-   program's lines from under [progress]. *)
-let capture_stdout progress f =
-  Eio_mock.Backend.run @@ fun () ->
-  Format.pp_print_flush Fmt.stdout ();
-  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
-  let out = Buffer.create 256 in
-  Format.pp_set_formatter_out_functions Fmt.stdout
-    {
-      saved with
-      out_string = Buffer.add_substring out;
-      out_flush = (fun () -> ());
-    };
-  Fun.protect
-    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
-    (fun () ->
-      Console_eio.run
-        ~clock:(Eio_mock.Clock.Mono.make ())
-        ~ppf:Fmt.stdout ~progress f;
-      Format.pp_print_flush Fmt.stdout ());
-  Buffer.contents out
-
 (* Quiet stays silent when all tasks succeed, even if they flush or yield
    in the middle of a line. Replay the bytes on a terminal as well. *)
 let test_quiet_unended_success size flush =
   let text = String.make (1 + (size mod 64)) 'x' in
   let out =
-    capture_stdout `Quiet (fun d ->
+    Eio_harness.capture_stdout `Quiet (fun d ->
         Console.Task.run d "success" (fun _ ->
             Fmt.pr "%s" text;
             if flush then Format.pp_print_flush Fmt.stdout ();
@@ -602,7 +580,7 @@ let test_quiet_unended_success size flush =
 let test_json_partial_attribution size newline =
   let prefix i = string_of_int i ^ String.make (1 + (size mod 32)) 'x' in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         Eio.Fiber.List.iter
           (fun i ->
             Console.Task.run d (string_of_int i) (fun _ ->
@@ -649,7 +627,7 @@ let test_json_long_line size split =
   let text = String.make length 'x' in
   let cut = min length (split * 257) in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         Console.Task.run d "large" (fun _ ->
             Fmt.pr "%s%!" (String.sub text 0 cut);
             Fmt.pr "%s@." (String.sub text cut (length - cut))))

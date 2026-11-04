@@ -261,39 +261,18 @@ let output_events out =
 
 let outputs out = List.map snd (output_events out)
 
-(* Capture the standard formatter itself: run only takes program output
-   from Fmt.stdout and Fmt.stderr in quiet and JSON modes. *)
-let capture_stdout progress f =
-  Eio_mock.Backend.run @@ fun () ->
-  Format.pp_print_flush Fmt.stdout ();
-  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
-  let out = Buffer.create 256 in
-  Format.pp_set_formatter_out_functions Fmt.stdout
-    {
-      saved with
-      out_string = Buffer.add_substring out;
-      out_flush = (fun () -> ());
-    };
-  Fun.protect
-    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
-    (fun () ->
-      Console_eio.run
-        ~clock:(Eio_mock.Clock.Mono.make ())
-        ~ppf:Fmt.stdout ~progress f;
-      Format.pp_print_flush Fmt.stdout ());
-  Buffer.contents out
-
 (* A successful task's last line is still its output without a newline. *)
 let test_quiet_unended_success () =
   let out =
-    capture_stdout `Quiet (fun d -> D.run d "ok" (fun _ -> Fmt.pr "secret%!"))
+    Eio_harness.capture_stdout `Quiet (fun d ->
+        D.run d "ok" (fun _ -> Fmt.pr "secret%!"))
   in
   Alcotest.(check string) "a successful run is silent" "" out
 
 (* A line begun in one task cannot become the next task's output. *)
 let test_json_unended_attribution () =
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         D.run d "ok" (fun _ -> Fmt.pr "secret%!");
         D.run d "fail" (fun task ->
             Fmt.pr "public@.";
@@ -312,7 +291,7 @@ let test_json_unended_attribution () =
 let test_json_long_line () =
   let text = String.make 65537 'x' in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         D.run d "large" (fun _ -> Fmt.pr "%s@." text))
   in
   let output = outputs out in
@@ -327,7 +306,7 @@ let test_long_line_cut () =
   let x = String.make 65535 'x' in
   let cut first rest =
     outputs
-      (capture_stdout `Json (fun d ->
+      (Eio_harness.capture_stdout `Json (fun d ->
            D.run d "large" (fun _ ->
                Fmt.pr "%s%s%!" x first;
                Fmt.pr "%s@." rest)))

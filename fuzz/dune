@@ -10,6 +10,7 @@
   matrix.grid
   console_vte
   display_harness
+  text_harness
   view_harness
   widget_harness
   matrix_0_1
@@ -50,6 +51,7 @@
   console-eio
   console_vte
   console.text
+  eio_harness
   env_harness
   eio
   eio.mock

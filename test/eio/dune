@@ -82,6 +82,7 @@
   pty_reader
   terminal
   display_harness
+  eio_harness
   env_harness
   console_vte
   cstruct

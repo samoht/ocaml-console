@@ -16,6 +16,15 @@
  (libraries unix))
 
 (library
+ (name eio_harness)
+ (modules eio_harness)
+ (libraries console console-eio eio.mock fmt))
+
+(library
+ (name text_harness)
+ (modules text_harness))
+
+(library
  (name view_harness)
  (modules view_harness)
  (flags
