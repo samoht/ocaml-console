@@ -855,18 +855,20 @@ let rec flat_in c = function
         let f = flat_in c (d.lay c) in
         if not d.still then f
         else
-          let widths =
-            match d.size with
-            | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
-            | _ ->
-                let w =
-                  if Ctx.time c = 0. then line_widths f
-                  else line_widths (flat_in (Ctx.still c) (d.lay (Ctx.still c)))
-                in
-                if not stateful then d.size <- Some (c, w);
-                w
-          in
+          let widths = still_widths c d ~stateful f in
           if F.is_empty f && widths = [] then f else to_size widths f
+
+(* The widths of the lines of [d] in a still frame; [f] is [d] in [c]. *)
+and still_widths c d ~stateful f =
+  match d.size with
+  | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
+  | _ ->
+      let w =
+        if Ctx.time c = 0. then line_widths f
+        else line_widths (flat_in (Ctx.still c) (d.lay (Ctx.still c)))
+      in
+      if not stateful then d.size <- Some (c, w);
+      w
 
 let resolve c t = match t with Flat _ -> t | Deferred _ -> Flat (flat_in c t)
 

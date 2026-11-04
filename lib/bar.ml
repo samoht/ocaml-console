@@ -253,8 +253,22 @@ let value v =
     in
     if plain = "0" then plain else sign ^ plain
 
-(* An empty bar on its baseline says zero, so it has no value above it.
-   The bars take the room's height but for the three lines around them;
+(* A bar's column: the value above it, the bar and the label under it, and
+   their width. An empty bar on its baseline says zero, so it has no value
+   above it. *)
+let chart_column look ?style ~top (name, v) =
+  let frac = if top > 0. then v /. top else 0. in
+  let label = Widget.one_line (View_core.text name) in
+  let shown =
+    if v = 0. then View_core.empty
+    else View_core.ink (Widget.muted look) (value v)
+  in
+  let w = max 1 (max (View_core.width label) (View_core.width shown)) in
+  let at v = View_core.place ~align:`Center ~width:w v in
+  let style = Option.map (fun f -> f name v) style in
+  (at shown, vertical ?style ~width:w frac, at label, w)
+
+(* The bars take the room's height but for the three lines around them;
    in a room too short for those, the values above them go first, then
    the baseline, then the labels. Lines wider than the room are cut. *)
 let chart ?height ?scale ?style bars =
@@ -263,7 +277,6 @@ let chart ?height ?scale ?style bars =
     | Some s -> s
     | None -> List.fold_left (fun m (_, v) -> Float.max m v) 0. bars
   in
-  let frac v = if top > 0. then v /. top else 0. in
   View_core.deferred (fun c ->
       let look = Ctx.look c in
       let rows =
@@ -276,22 +289,7 @@ let chart ?height ?scale ?style bars =
       let spare =
         match Ctx.height c with Some room -> room - rows | None -> 3
       in
-      let columns =
-        List.map
-          (fun (name, v) ->
-            let label = Widget.one_line (View_core.text name) in
-            let shown =
-              if v = 0. then View_core.empty
-              else View_core.ink (Widget.muted look) (value v)
-            in
-            let w =
-              max 1 (max (View_core.width label) (View_core.width shown))
-            in
-            let at v = View_core.place ~align:`Center ~width:w v in
-            let style = Option.map (fun f -> f name v) style in
-            (at shown, vertical ?style ~width:w (frac v), at label, w))
-          bars
-      in
+      let columns = List.map (chart_column look ?style ~top) bars in
       let band f = View_core.hcat ~gap:1 (List.map f columns) in
       let total =
         List.fold_left (fun n (_, _, _, w) -> n + w + 1) (-1) columns

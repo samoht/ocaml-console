@@ -175,6 +175,26 @@ let centred n v =
     let before = (n - w) / 2 in
     V.(pad before ++ v ++ pad (n - w - before))
 
+(* The cells kept up to [i], their fixed cells and whether the bar grows. *)
+let rec collect pieces ~cells ~keep ~lead i acc fixed grows =
+  if i < 0 then (acc, fixed, grows)
+  else
+    match cells.(i) with
+    | Some (Shown v) when keep.(i) ->
+        let v =
+          match lead with
+          | Some l when is_lead pieces.(i) -> centred l v
+          | _ -> v
+        in
+        collect pieces ~cells ~keep ~lead (i - 1) (Shown v :: acc)
+          (fixed + V.width v)
+          grows
+    | Some Grows when keep.(i) ->
+        collect pieces ~cells ~keep ~lead (i - 1) (Grows :: acc) fixed true
+    | Some ((Name | Rest) as c) when keep.(i) ->
+        collect pieces ~cells ~keep ~lead (i - 1) (c :: acc) fixed grows
+    | _ -> collect pieces ~cells ~keep ~lead (i - 1) acc fixed grows
+
 (* What [pieces] show at [stage], the cells of those of a fixed width,
    whether the bar grows and whether the label ends the row. A piece that
    has given way, or that shows nothing, goes with the blank text before
@@ -213,30 +233,39 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
     in
     trim (n - 1)
   end;
-  let rec collect i acc fixed grows =
-    if i < 0 then (acc, fixed, grows)
-    else
-      match cells.(i) with
-      | Some c when keep.(i) -> (
-          match c with
-          | Shown v ->
-              let v =
-                match lead with
-                | Some l when is_lead pieces.(i) -> centred l v
-                | _ -> v
-              in
-              collect (i - 1) (Shown v :: acc) (fixed + V.width v) grows
-          | Grows -> collect (i - 1) (c :: acc) fixed true
-          | Name | Rest -> collect (i - 1) (c :: acc) fixed grows)
-      | _ -> collect (i - 1) acc fixed grows
+  let cells, fixed, grows =
+    collect pieces ~cells ~keep ~lead (n - 1) [] 0 false
   in
-  let cells, fixed, grows = collect (n - 1) [] 0 false in
   let rec ends = function
     | [] -> false
     | [ Name ] -> true
     | _ :: rest -> ends rest
   in
   (cells, fixed, grows, ends cells)
+
+(* [cells] drawn in a line, cut if they take more than [width]. *)
+let line_of_cells look r ~width ~fixed ~ends ~label ~column ~rest ~bar_w cells =
+  let total = ref fixed in
+  let line =
+    V.concat
+      (List.map
+         (function
+           | Name when ends ->
+               total := !total + V.width label;
+               label
+           | Name ->
+               total := !total + column;
+               V.(label ++ pad (column - V.width label))
+           | Rest ->
+               total := !total + rest;
+               pad rest
+           | Grows ->
+               total := !total + bar_w;
+               bar look r bar_w
+           | Shown v -> v)
+         cells)
+  in
+  if !total <= width then line else cut look width line
 
 (* The row of [r] by [layout], packed from the left, and whether its label
    is whole. With [columns], until the count leaves its column, the spinner
@@ -296,27 +325,7 @@ let laid look ~time ?width ?columns ~label layout r =
   in
   let bar_w = if grows then max 1 (min bar_max (room - column)) else 0 in
   let rest = reserve + max 0 (room - column - bar_w) in
-  let total = ref fixed in
-  let line =
-    V.concat
-      (List.map
-         (function
-           | Name when ends ->
-               total := !total + V.width label;
-               label
-           | Name ->
-               total := !total + column;
-               V.(label ++ pad (column - V.width label))
-           | Rest ->
-               total := !total + rest;
-               pad rest
-           | Grows ->
-               total := !total + bar_w;
-               bar look r bar_w
-           | Shown v -> v)
-         cells)
-  in
-  ( (if !total <= width then line else cut look width line),
+  ( line_of_cells look r ~width ~fixed ~ends ~label ~column ~rest ~bar_w cells,
     fits || V.width label = label_w )
 
 let live look ~time ?width ?columns layout r =

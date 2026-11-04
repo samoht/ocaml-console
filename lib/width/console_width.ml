@@ -114,6 +114,24 @@ let take c u at =
   end;
   c.after_text_emoji <- p land 8 <> 0
 
+let cluster_at start =
+  {
+    start;
+    widest = 0;
+    marks = 0;
+    ris = 0;
+    emoji = false;
+    after_text_emoji = false;
+  }
+
+(* Printable ASCII between printable ASCII is a cluster of one cell (GB999),
+   and the segmenter, whose last character is printable ASCII too, is in the
+   state it would be after it. *)
+let is_lone_ascii s i stop =
+  Char.Ascii.is_print s.[i - 1]
+  && Char.Ascii.is_print s.[i]
+  && (i + 1 = stop || Char.Ascii.is_print s.[i + 1])
+
 (* [segment f acc s ~pos ~len] folds [f] over the grapheme clusters
    (UAX #29) of [s] from [pos] for [len] bytes, given as their offset,
    length and cells. [out] is where the next character the segmenter gives
@@ -121,16 +139,7 @@ let take c u at =
 let segment f acc s ~pos ~len =
   let stop = pos + len in
   let seg = Uuseg.create `Grapheme_cluster in
-  let c =
-    {
-      start = pos;
-      widest = 0;
-      marks = 0;
-      ris = 0;
-      emoji = false;
-      after_text_emoji = false;
-    }
-  in
+  let c = cluster_at pos in
   let acc = ref acc and out = ref pos in
   let close at =
     if at > c.start then begin
@@ -152,15 +161,7 @@ let segment f acc s ~pos ~len =
   in
   let rec go i =
     if i < stop then
-      if
-        i > pos && !out = i
-        && Char.Ascii.is_print s.[i - 1]
-        && Char.Ascii.is_print s.[i]
-        && (i + 1 = stop || Char.Ascii.is_print s.[i + 1])
-      then begin
-        (* Printable ASCII between printable ASCII is a cluster of one
-           cell (GB999), and the segmenter, whose last character is
-           printable ASCII too, is in the state it would be after it. *)
+      if i > pos && !out = i && is_lone_ascii s i stop then begin
         close i;
         acc := f !acc ~offset:i ~len:1 ~cells:1;
         start c (i + 1);
