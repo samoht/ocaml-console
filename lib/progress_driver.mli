@@ -24,7 +24,7 @@ val show :
   Task.t ->
   Display.t
 (** [show ~write_error ~cancelled ~atomic ppf root] is
-    {!Progress.show}[ ppf root] whose display takes as the end of its output an
-    exception that [write_error] says is a write error, such as a closed pipe,
-    holds back none that [cancelled] says is a cancellation, and writes each
-    update through [atomic], which may keep a cancellation from cutting it. *)
+    {!Progress.show}[ ppf root], whose display ends its output on an exception
+    for which [write_error] is [true], such as a closed pipe, does not keep for
+    later an exception for which [cancelled] is [true], and writes each update
+    through [atomic], which may keep a cancellation from cutting it short. *)

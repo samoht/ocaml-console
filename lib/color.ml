@@ -168,7 +168,8 @@ let gradient stops =
     let f = if Float.is_nan f then 0. else Float.max 0. (Float.min 1. f) in
     let x = f *. float_of_int (n - 1) in
     let i = int_of_float x in
-    (* A stop itself where it stands, so that a palette colour stays one. *)
+    (* Where [f] falls on a stop, the stop as given, so that a named or
+       palette colour stays one. *)
     if i >= n - 1 then stops.(n - 1)
     else if Float.of_int i = x then stops.(i)
     else blend stops.(i) stops.(i + 1) (x -. float_of_int i)

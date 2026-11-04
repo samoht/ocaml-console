@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The rules of cmdliner and fmt: NO_COLOR set and not empty, or a TERM that
-   is unset or dumb, turn colour off; otherwise a terminal gets colour. *)
+(* As in cmdliner and fmt: a non-empty NO_COLOR, or a TERM that is unset,
+   empty or dumb, turns colour off; otherwise a terminal gets colour. *)
 let dumb ~getenv =
   match getenv "TERM" with None | Some ("" | "dumb") -> true | Some _ -> false
 

@@ -10,11 +10,12 @@
 
 val start : time:(unit -> float) -> Format.formatter -> bool
 (** [start ~time ppf] is [true] iff [CONSOLE_CAST] asks for a recording
-    ({!Cast.file}), which [ppf] then writes to, with the standard formatters if
-    [ppf] is one, each write an event at [time ()], in seconds. A recording of
-    the same file goes on; one of another file, or none, ends the last one,
-    whose formatters write where they did. A file that cannot be opened ends the
-    program: [start] prints why on [stderr] and exits with [1]. *)
+    ({!Cast.file}). [ppf] then writes to the recording instead of its output,
+    and so do both {!Fmt.stdout} and {!Fmt.stderr} if [ppf] is one of them. Each
+    write is an event at [time ()], in seconds. A recording to the same file
+    goes on. Otherwise the previous recording ends, and its formatters write
+    where they did before it. A file that cannot be opened ends the program:
+    [start] prints why on [stderr] and exits with [1]. *)
 
 val decimal : string -> int option
 (** [decimal s] is the integer that [s] writes in decimal digits alone, and

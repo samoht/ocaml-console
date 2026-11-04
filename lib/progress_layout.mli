@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (** Row layouts: the representation behind {!Progress.Layout}, which documents
-    the values both have. *)
+    the values the two modules share. *)
 
 type kind =
   | Spinner

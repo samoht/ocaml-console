@@ -95,12 +95,12 @@ val blend : t -> t -> float -> t
     from [c0] to [c1], whereas {!scale} takes its factor first. *)
 
 val gradient : t list -> float -> t
-(** [gradient stops f] is the colour [f] of the way along [stops], spread evenly
-    from [0.] to [1.]: the {!blend} of the two stops around [f], or the stop
-    itself where [f] falls on one, as given, so that a named colour stays one.
-    [f] is clamped to 0 to 1, and NaN is 0. So [gradient [c0; c1]] is
-    [blend c0 c1] but at its ends, and {!View.gradient} grades a line with
-    [gradient stops] from its first cluster to its last.
+(** [gradient stops f] is the colour [f] of the way along [stops], which are
+    spread evenly from [0.] to [1.]. It is the {!blend} of the two stops around
+    [f] or, where [f] falls on a stop, that stop as given, so that a named
+    colour stays named. [f] is clamped to 0 to 1, and NaN is 0. So
+    [gradient [c0; c1]] is [blend c0 c1] except at its ends. {!View.gradient}
+    grades a line with [gradient stops] from its first cluster to its last.
 
     @raise Invalid_argument if [stops] is empty. *)
 
@@ -123,7 +123,7 @@ val compare : t -> t -> int
 (** {1:depths Colour depth} *)
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
-(** The type for the colours a terminal shows: the 16 named colours, the
+(** The type for colour depths: a terminal shows the 16 named colours, the
     xterm-256 palette, or any 24-bit colour. *)
 
 val depth : Format.formatter -> depth
@@ -143,7 +143,7 @@ val downsample : depth -> t -> t
       whichever is nearer in RGB, as tmux's [colour_find_rgb] chooses;
     - at [`Ansi_16], the named colour nearest by the CIE 1976 colour difference
       (the distance in CIE L*a*b*, D65 white), against the xterm defaults of the
-      16.
+      16 named colours.
 
     It is idempotent: [downsample d (downsample d c)] is [downsample d c]. *)
 
@@ -156,4 +156,4 @@ val pp : t Fmt.t
 (**/**)
 
 val sgr : depth -> t -> Sgr.color
-(** [sgr d c] is [downsample d c] as an escape code selects it. *)
+(** [sgr d c] is [downsample d c], as an [Sgr.color]. *)

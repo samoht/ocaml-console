@@ -11,9 +11,9 @@ type look = Look.t
 
 val border : look -> Border.t option -> Border.t
 (** [border look b] is [b] if given, else the border of [look]'s theme, in
-    {!muted} if it has no style; in the glyphs of {!Border.ascii}, in the same
-    style, when [look] is not UTF-8 and one of its glyphs is not ASCII, each
-    glyph [b] leaves empty still empty. *)
+    {!muted} if it has no style. When [look] is not UTF-8 and one of its glyphs
+    is not ASCII, it takes the glyphs of {!Border.ascii} in the same style, and
+    each glyph the border leaves empty stays empty. *)
 
 val guide : look -> Guide.t option -> Guide.t
 (** [guide look g] is like {!border} for the guide of a tree. *)

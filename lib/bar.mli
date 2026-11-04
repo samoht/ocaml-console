@@ -29,8 +29,8 @@
     - [`Block] fills whole cells with full blocks (U+2588) on a track of light
       shade (U+2591). Its brackets are [\[] and [\]].
     - [`Ascii] fills whole cells with [#] on a track of [-]. Its brackets are
-      [\[] and [\]]. Every theme draws its bars so on a formatter that is not
-      {!Fmt.utf_8}.
+      [\[] and [\]]. Every theme draws its bars this way on a formatter that is
+      not {!Fmt.utf_8}.
 
     A bar has brackets only with [~brackets:true] ({!horizontal}). *)
 
@@ -86,10 +86,10 @@ val vertical :
 
     Each cell shows the eighths of it that are filled, rounded to the nearest
     eighth of the whole bar: a lower block from U+2581 (one eighth) to U+2587
-    (seven eighths), a full block (U+2588), or a blank when empty. Off
-    {!Fmt.utf_8}, and in a theme whose bars are [`Ascii], a cell is a blank, a
-    dot ([.]) when filled to less than half, a colon ([:]) to less than seven
-    eighths, and a hash ([#]) above.
+    (seven eighths), a full block (U+2588), or a blank when empty. On a
+    formatter that is not {!Fmt.utf_8}, and in a theme whose bars are [`Ascii],
+    a cell is a blank, a dot ([.]) when filled to less than half, a colon ([:])
+    to less than seven eighths, and a hash ([#]) above.
 
     Without [style], each cell takes the colour of the height its fill reaches:
     up the {!Theme.palette} of the formatter's theme when it has several
@@ -118,13 +118,14 @@ val vertical :
 
 val sparkline :
   ?style:Style.t -> ?min:float -> ?max:float -> float list -> View.t
-(** [sparkline values] is a {!vertical} bar one cell wide for each of [values],
-    side by side on one row in a room of any height: each filled to its value
-    between [min] and [max] (default to the lowest and the highest of [values]),
-    and without [min] the lowest at an eighth, so that every value shows. In a
-    room narrower than [values], it shows the last values that fit, and it may
-    be laid out one cell wide ({!View.fit}'s [min_width]), so that a {!Table}
-    narrows its column as it narrows the others. *)
+(** [sparkline values] is one {!vertical} bar, one cell wide, for each of
+    [values], side by side on one row in a room of any height. Each bar is
+    filled to its value between [min] and [max] (defaults to the lowest and the
+    highest of [values]). Without [min], the lowest value fills an eighth, so
+    that every value shows. In a room narrower than [values], it shows the last
+    values that fit. It may be laid out one cell wide ({!View.fit}'s
+    [min_width]), so that a {!Table} narrows its column as it narrows the
+    others. *)
 
 val chart :
   ?height:int ->
@@ -135,19 +136,20 @@ val chart :
 (** [chart bars] is a bar chart of [bars], a [(label, value)] each: a
     {!vertical} bar as wide as the wider of its label and its value, the value
     above it in the muted colour and the label under it, the bars one cell apart
-    on a baseline in the muted colour. A value is written as a plain number: a
-    whole value below a million in full, such as [12346], another value below
-    ten thousand to three significant digits, or to the unit from a thousand up,
-    such as [3.14], and any other value to three digits in thousands, millions
-    and so on, such as [12.3k] for [12345.5]. A value of [0.] has no number
-    above its bar, and a negative or NaN value has an empty bar under its
-    number. The bars are [height] lines tall (defaults to the height of the room
-    less the three lines of values, baseline and labels, and to 8 without one),
-    filled to their value over [scale] (defaults to the largest value), each bar
-    in [style label value] if [style] is given, and otherwise in the colours of
-    a {!vertical} bar given no style.
+    on a baseline in the muted colour. A value is written as a plain number. A
+    whole value below a million is written in full, such as [12346]. Another
+    value below ten thousand is written to three significant digits, such as
+    [3.14], or to the unit from a thousand up. Any other value is written to
+    three digits in thousands, millions and so on, such as [12.3k] for
+    [12345.5]. A value of [0.] has no number above its bar, and a negative or
+    NaN value has an empty bar under its number. The bars are [height] lines
+    tall (defaults to the height of the room less the three lines of values,
+    baseline and labels, and to 8 without one), filled to their value over
+    [scale] (defaults to the largest value), each bar in [style label value] if
+    [style] is given, and otherwise in the colours of a {!vertical} bar given no
+    style.
 
     The chart keeps to its room: the bars are at most the room's height less
-    three lines and at least one line, and in a room too short for all three
-    lines the values go first, then the baseline, then the labels. A label is
-    drawn on one line, and a line wider than the room is cut. *)
+    three lines and at least one line. In a room too short for all three lines,
+    the values are left out first, then the baseline, then the labels. A label
+    is drawn on one line, and a line wider than the room is cut. *)

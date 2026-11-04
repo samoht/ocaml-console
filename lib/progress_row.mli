@@ -22,17 +22,19 @@ val bar_min : int
     row give way. *)
 
 type columns = {
-  label : int;  (** The cells of the label column. *)
-  lead : int;  (** The cells of the widest spinner frame or mark. *)
+  label : int;  (** The width in cells of the label column. *)
+  lead : int;  (** The width in cells of the widest spinner frame or mark. *)
 }
 (** The type for the columns a row shares with the rows around it. *)
 
 val lead : Look.t -> int
-(** [lead look] is the cells of the widest spinner frame or mark of [look]. *)
+(** [lead look] is the width in cells of the widest spinner frame or mark of
+    [look]. *)
 
 val columns : Look.t -> t -> columns
-(** [columns look r] are the columns of a row of [r] alone: its label column is
-    as wide as the widest label of [r]'s work. *)
+(** [columns look r] are the columns of a row of [r] drawn alone: its label
+    column is as wide as the widest label {!Task_core.widen_label} was given in
+    [r]'s work. *)
 
 (** {1:rows Tasks} *)
 
@@ -76,10 +78,10 @@ val finished :
     stands for [n] tasks that ended. *)
 
 val shed : Look.t -> int -> View_core.t
-(** [shed look n] says that [n] tasks were dropped. *)
+(** [shed look n] is the line that says [n] tasks were dropped. *)
 
 val more : Look.t -> int -> View_core.t
-(** [more look n] says that [n] more tasks run. *)
+(** [more look n] is the line that says [n] more tasks are running. *)
 
 (** {1:lines Lines printed in turn} *)
 
@@ -97,10 +99,10 @@ val under : Look.t -> ?width:int -> line -> View_core.t list
 (** [under look ~width l] is [l] printed under a task's line. *)
 
 val dropped : Look.t -> int -> View_core.t
-(** [dropped look n] says that [n] lines of output were dropped. *)
+(** [dropped look n] is the line that says [n] lines of output were dropped. *)
 
 val message : Look.t -> ?width:int -> line -> View_core.t list
-(** [message look ~width l] is the line [l] of no task, after its level's mark,
+(** [message look ~width l] is [l], a line of the root, after its level's mark,
     folded to [width] if given. *)
 
 (** {1:summary The summary and the verdict} *)

@@ -82,8 +82,8 @@ let red = Color.ansi_256 160
 let blue = Color.ansi_256 63
 let magenta = Color.ansi_256 164
 
-(* The colours of the terminal's own palette, which its user chose to read
-   on its background, and its text made faint. *)
+(* The terminal's own named colours, which its user chose for its
+   background, and faint text for what is muted. *)
 let default =
   {
     name = "default";
@@ -161,16 +161,15 @@ let rainbow =
 
 let still t = { t with motion = None; spinner = Frames.still }
 
-(* The colours of each scheme are taken from its upstream source, named
-   beside it, and degrade to 256 or 16 colours as a terminal's depth asks.
-   Where a scheme's colour is below its contrast on its own background,
-   4.5:1 for the colours text takes (the main colour, the roles and the muted
-   colour) and 3:1 for the palette, it is moved to just above it: the muted
-   colour towards the scheme's text, the others by their lightness alone,
-   their hue and saturation kept. Headers are bold, in the accent unless
-   [header] names another colour, and frames shimmer in the accent. *)
+(* Each scheme's colours come from the upstream source named beside it. A
+   colour below its contrast on the scheme's background (4.5:1 for the main
+   colour, the roles and the muted colour, 3:1 for the palette) is written
+   here moved to just above it: the muted colour towards the scheme's text,
+   the others by their lightness alone, keeping their hue and saturation.
+   Headers are bold, in the accent unless [header] names another colour,
+   and frames shimmer in the accent. *)
 
-(* A colour written in a theme's source is valid. *)
+(* [hex] reads the literals below, which are all valid. *)
 let hex s =
   match Color.of_hex s with Ok c -> c | Error (`Msg m) -> invalid_arg m
 
@@ -293,8 +292,8 @@ let of_string s =
       Fmt.error_msg "unknown theme %S, expected one of: %s" s
         (String.concat ", " (List.map fst all))
 
-(* A theme is not a choice of colours: a formatter given one alone still has
-   them decided for it. *)
+(* The theme slot is not a setting ([Slot.unset]), so [Env.ensure] still
+   sets up the colours of a formatter given only a theme. *)
 let slot = Slot.v ~setting:false ~watched:true ()
 let get ppf = Option.value (Slot.find slot ppf) ~default
 let set ppf t = Slot.set slot ppf t

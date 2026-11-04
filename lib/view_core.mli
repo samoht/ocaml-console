@@ -15,12 +15,13 @@ type align = [ `Left | `Center | `Right ]
 (** {1:room Room and time} *)
 
 type kind = { live : bool; tasks : bool; timed : bool }
-(** The type for what a deferred view reads besides its room: state outside the
-    view, which changes between frames, the tasks among it, and the time. A view
-    that reads none caches its layout for its room. *)
+(** The type for what a deferred view reads besides its room: [live] for state
+    outside the view that changes between frames, [tasks] for the tasks, which
+    are part of that state, and [timed] for the time. A view that reads none
+    caches its layout per room. *)
 
 val static : kind
-(** [static] reads none. *)
+(** [static] reads nothing besides the room. *)
 
 val timed : kind
 (** [timed] reads the time alone. *)
@@ -41,12 +42,12 @@ val deferred :
   ?still:bool ->
   (Ctx.t -> t) ->
   t
-(** [deferred ~kind ~grow ~min_width ~still lay] is the view [lay c] where it is
-    laid out in [c]. [kind] (defaults to {!static} in every look) says what it
-    reads, [grow] (defaults to [0]) its weight in an {!hcat} that shares a room,
-    [min_width] the width below which it should not be laid out. With [still]
-    (defaults to [false]), every frame takes the cells of its frame at time
-    [0.], each line cut or padded to them. *)
+(** [deferred ~kind ~grow ~min_width ~still lay] is the view that is [lay c]
+    when laid out in [c]. [kind] (defaults to {!static} in every look) says what
+    it reads, [grow] (defaults to [0]) is its weight in an {!hcat} that shares a
+    room, and [min_width] is the width below which it should not be laid out.
+    With [still] (defaults to [false]), every frame has the lines of its frame
+    at time [0.], each cut or padded to the width it has there. *)
 
 val kind : t -> Look.t -> kind
 (** [kind v look] is what [v] reads in [look]: what any of its parts reads. *)
@@ -59,12 +60,12 @@ val is_flat : t -> bool
 
 val min_width : Ctx.t -> t -> int
 (** [min_width c v] is the width below which [v] should not be laid out in [c]:
-    the widest word of a flat view, the hint of a deferred one, or else the
-    [min_width] of the view it lays out in [c]. *)
+    the widest word of a flat view, the [min_width] given to a deferred one, or
+    else the [min_width] of the view it lays out in [c]. *)
 
 val resolve : Ctx.t -> t -> t
-(** [resolve c v] is [v] laid out in [c], with no deferred part. A part drawn in
-    its look ({!drawn}) stays one. *)
+(** [resolve c v] is [v] laid out in [c], with no deferred part. A {!drawn} part
+    stays drawn. *)
 
 (** {1:views Views} *)
 
@@ -155,16 +156,16 @@ val block : t list -> t
 *)
 
 val seamed : t -> (bool * t) list
-(** [seamed v] are the {!lines} of [v], each after [true] iff it goes on the
-    {!block} of the line above it. *)
+(** [seamed v] is the {!lines} of [v], each paired with [true] iff it is in the
+    same {!block} as the line above it. *)
 
 val pad_to : int -> t -> t
 (** [pad_to w line] is the line [line] cut to its first [w] cells, between two
     clusters, then padded with spaces to exactly [w] cells. *)
 
 val wrap_hanging : int -> t -> t list
-(** [wrap_hanging w v] is like {!wrap} but the lines after the first of each
-    line start under the text after its first word, at most [w / 2] cells in. *)
+(** [wrap_hanging w v] is like {!wrap} but the continuation lines of each line
+    start under the text after its first word, at most [w / 2] cells in. *)
 
 val chop : int -> t -> t list
 (** [chop w v] is like {!wrap} but breaks each line of [v] every [w] cells,
@@ -184,10 +185,11 @@ val paint : Look.t -> t -> t
 
 val recell :
   (cell:int -> (Style.t -> string -> Style.t * string) option) -> t -> t
-(** [recell f line] is the line [line] with each cluster [g] in style [s] that
-    starts [cell] cells in, when [f ~cell] is [Some r], drawn as [r s g]: a new
-    style and glyph. A glyph that does not take the cells of [g], or holds a
-    control character, is [g]; a cluster of a {!drawn} part is kept. *)
+(** [recell f line] is [line] with some clusters redrawn: a cluster [g] in style
+    [s] that starts [cell] cells in is drawn as [r s g], a new style and glyph,
+    when [f ~cell] is [Some r]. A new glyph that does not take the cells of [g],
+    or holds a control character, is replaced by [g]. A cluster of a {!drawn}
+    part is kept. *)
 
 val render : look:Look.t -> ?depth:Color.depth -> t -> string
 (** [render ~look ~depth v] is [v] drawn in [look] with its styles at [depth],

@@ -51,8 +51,8 @@ let equal left right =
   && Option.equal Color.equal left.fg right.fg
   && Option.equal Color.equal left.bg right.bg
 
-(* Booleans and colours, so the structural order is compatible with
-   [equal]. *)
+(* A style holds only booleans and colours, so the structural order is
+   compatible with [equal]. *)
 let compare (left : t) right = Stdlib.compare left right
 let is_none style = equal style none
 
@@ -60,8 +60,8 @@ let sgr depth style =
   let down = Option.map (Color.sgr depth) in
   Sgr.start { style with fg = down style.fg; bg = down style.bg }
 
-(* The style the enclosing [styled] calls of a formatter have on, which an
-   inner call adds to and selects again when it ends. *)
+(* The style that the enclosing [styled] calls have selected on a formatter.
+   An inner call adds its style to it, and selects it again when it ends. *)
 let current = Slot.v ~setting:false ()
 
 let styled style pp_v ppf v =

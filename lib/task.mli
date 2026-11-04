@@ -19,10 +19,10 @@
           Console.Task.set_items step ~count:2 ~total:2)
     ]}
 
-    A task belongs to the domain that runs its root, so call its functions from
-    that domain alone. A task that ended ignores what it is told, and a line
-    given to it with {!log} is dropped; the root alone takes {!log} after it
-    ended, as output of no task. *)
+    A task belongs to the domain that runs its root: call its functions from
+    that domain only. A task that ended ignores every change and drops a line
+    given to it with {!log}. Only the root still takes {!log} after it ended, as
+    lines that belong to no task. *)
 
 type t = Task_core.t
 (** The type for tasks. *)
@@ -31,21 +31,21 @@ type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of a line of output: those of [Logs]. *)
 
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
-(** The type for where a task is: running, or how it ended. A task that ended
-    has the {!Event.type-status} of the same name in its ["end"] event, and the
-    {!Theme.type-mark} of the same name on its line. *)
+(** The type for the state of a task: running, or how it ended. A task that
+    ended has the {!Event.type-status} of the same name in its ["end"] event,
+    and the {!Theme.type-mark} of the same name on its line. *)
 
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
-(** The type for how much of a task is done: not said yet, so its row shows a
-    spinner, or a count of items or of bytes done out of a total. *)
+(** The type for the progress of a task: [`Spin] while it has no count, and its
+    row shows a spinner, or a count of items or of bytes done out of a total. *)
 
 (** {1:tree Roots and tasks} *)
 
 val root : ?label:string -> now:(unit -> float) -> unit -> t
 (** [root ~now ()] is the work as a whole, timed by the clock [now], in seconds.
     [label], if given, names the work on the summary line ({!Progress.summary}).
-    A root is a task: it is current where no other is, its output is the output
-    of no task, and ending it ends the work. *)
+    A root is a task: it is current where no other task is, its lines belong to
+    no task, and ending it ends the work. *)
 
 val start : ?key:string -> ?log_lines:int -> ?transient:bool -> t -> string -> t
 (** [start parent label] starts a task named [label] (a line feed in it is a
@@ -58,13 +58,13 @@ val start : ?key:string -> ?log_lines:int -> ?transient:bool -> t -> string -> t
       while it runs (defaults to [8]).
     - [transient] (defaults to [false]) makes a task that shows only while it
       runs, and leaves neither a line of its own nor any of its output when it
-      succeeds. Its output is all that is printed while it is current, [Logs]
-      messages included, so a line that should stay is printed outside it, or
-      after it ended. One that fails or is cancelled shows as any other task
-      does.
+      succeeds. Everything printed while it is current, [Logs] messages
+      included, is its output, so a line that should stay is printed outside it,
+      or after it ended. A transient task that fails or is cancelled shows as
+      any other task does.
 
-    A task started under a task that ended, the root included, takes its ending
-    at once.
+    A task started under a task that ended, the root included, ends at once: it
+    succeeds if that task succeeded, and is cancelled otherwise.
 
     @raise Invalid_argument if [key] is empty or [log_lines] is negative. *)
 
@@ -77,22 +77,21 @@ val run :
   (t -> 'a) ->
   'a
 (** [run parent label f] is [f task], for a [task] started as {!start} starts it
-    and current while [f] runs ({!within}). The task succeeds when [f] returns
-    and fails when [f] raises, with the message
-    [label ^ ": " ^ Printexc.to_string e] for the exception [e] ({!fail}), which
-    is raised again; but if [f] ended the task itself, that ending counts. Under
+    and current while [f] runs ({!within}). The task succeeds when [f] returns.
+    When [f] raises [e], the task fails with the message
+    [label task ^ ": " ^ Printexc.to_string e] ({!fail}) and [e] is raised
+    again. If [f] ended the task itself, that ending stands. Under
     [Console_eio.run], a cancelled fiber cancels the task instead of failing it.
 
     When [key] names a task that runs, [run] is [within task (fun () -> f task)]
-    for that task. It ends nothing, and the task ends as the call that started
-    it says. *)
+    for that task. It ends nothing: the call that started the task ends it. *)
 
 val within : t -> (unit -> 'a) -> 'a
 (** [within t f] is [f ()] with [t] current while [f] runs and, under
     [Console_eio.run], in the fibers [f] starts. The current task decides only
-    where output goes: what [f] prints, and its [Logs] messages, are [t]'s
-    output. Where {!run} starts a task, [within] enters one that exists, so it
-    ends nothing, even when [f] raises. *)
+    where output goes: what [f] prints and logs with [Logs] is [t]'s output.
+    Unlike {!run}, [within] starts no task and ends none, even when [f] raises.
+*)
 
 (** {1:changes Changes} *)
 
@@ -104,10 +103,10 @@ val set_items : t -> count:int -> total:int -> unit
     count never goes back: a smaller [count] or [total] than before is ignored,
     and a [count] above [total] raises the total.
 
-    The root counts nothing, as its summary line counts its tasks
-    ({!Progress.summary}): a count of the whole work is that of a task started
-    for it. So a library that a nested [Console_eio.run] gives the root counts
-    as it would under any task.
+    It does nothing on the root or on a task that ended. The summary line of the
+    root counts its tasks ({!Progress.summary}), so a count of the whole work
+    belongs to a task started for it. A library that a nested [Console_eio.run]
+    gives the root then counts as it would under any task.
 
     @raise Invalid_argument
       if [count] or [total] is negative, or [t] counts bytes. *)
@@ -127,29 +126,29 @@ val advance : ?by:int -> t -> unit
     {!set_items} does.
 
     @raise Invalid_argument
-      if [by] is negative, or [t] runs and counts nothing yet: its total is said
-      first, with {!set_items} or {!set_bytes}. *)
+      if [by] is negative, or [t] is running and has no count yet: give its
+      total first, with {!set_items} or {!set_bytes}. *)
 
 val log : ?level:level -> t -> string -> unit
-(** [log t text] gives each line of [text] to [t] as its output, at [level] for
-    a [Logs] message (by default, a line the program printed). It is the
-    one-line form of {!within}, for code where [t] is not current.
+(** [log t text] adds each line of [text] to the output of [t]: a [Logs] message
+    at [level] if given, and a line the program printed otherwise. It is a
+    shorter form of {!within}, for code where [t] is not current.
 
     - A tab goes to the next stop of eight columns from the start of its line.
     - A running task keeps its latest lines, which its row shows, and up to 1
       MiB of all of them for its failure: past that, the oldest go first and a
       line counts them. A line, a label and a message are each kept up to 4 KiB,
       cut between two characters and ended with three dots.
-    - The output of the root is the output of no task.
-    - A line given to a task that ended with [log] is dropped. A [Logs] message
-      or a printed line from a fiber whose task ended is not: it goes to the
-      scrollback at once, as that task's ({!Progress.design}). *)
+    - The lines of the root belong to no task.
+    - [log] drops a line given to a task that ended. A [Logs] message or a
+      printed line from a fiber whose task ended is not dropped: it goes to the
+      scrollback at once, labelled with that task ({!Progress.design}). *)
 
 val succeed : ?message:string -> t -> unit
 (** [succeed t] ends [t] as a success, with [message] in place of its label if
     given. A task ends once: the first of {!succeed}, {!fail} and {!cancel}
-    counts, and the others do nothing. A task's ending is what the program says
-    of it: a task that failed under [t] does not fail it.
+    counts, and the others do nothing. How a task ends is the program's call: a
+    task that failed under [t] does not fail [t].
 
     The tasks under [t] that still run end first, in the order they started:
     they succeed with it, and are cancelled when it fails or is cancelled. On
@@ -179,7 +178,7 @@ val path : t -> string list
 (** [path t] is the labels from the top task down to [t], [[]] for a root. *)
 
 val state : t -> state
-(** [state t] is where [t] is. *)
+(** [state t] is the state of [t]. *)
 
 val progress : t -> progress
 (** [progress t] is how much of [t] is done. *)
@@ -192,19 +191,19 @@ val elapsed : t -> float
 
 val rate : t -> float option
 (** [rate t] is the items or bytes per second that [t] counts, as
-    {!Progress.Layout.rate} shows it, once a count was said after [t] started:
-    it weighs the past by [exp (-dt /. 2.)] for [dt] seconds ago, so it depends
-    on the time, not on how often the count is said. It is [None] before, and
-    while nothing was counted. *)
+    {!Progress.Layout.rate} shows it. It is a moving average that weighs a rate
+    measured [dt] seconds ago by [exp (-dt /. 2.)], so it depends on time, not
+    on how often the count is given. It is [None] until a count given after [t]
+    started shows progress. *)
 
 val output : t -> string list
 (** [output t] is the lines of output [t] keeps, oldest first, each as {!log}
     keeps it, the latest within 1 MiB. A task that failed or was cancelled keeps
-    them until {!Progress} printed it: as its top task moves to the scrollback,
-    or as it ends without a terminal ({!Progress.design}). A task that succeeded
-    keeps them only while it ends, for {!Progress.show}'s [commit] to draw. The
-    root has none ({!log}). The last [log_lines] of them ({!start}) are those
-    its row shows. *)
+    them until {!Progress} has printed it: as its top task moves to the
+    scrollback, or as it ends without a terminal ({!Progress.design}). A task
+    that succeeded keeps them only while it ends, for {!Progress.show}'s
+    [commit] to draw. The root has none ({!log}). The last [log_lines] of them
+    ({!start}) are those its row shows. *)
 
 val dropped : t -> int
 (** [dropped t] is the number of [t]'s oldest lines that {!output} no longer
@@ -242,17 +241,18 @@ val pp : t Fmt.t
       number;
     - [task], the labels from the top task down to it, an array of strings.
 
-    An event of no task, such as output outside any task or the ["end"] of the
-    work as a whole, has neither.
+    An event that belongs to no task, such as output outside any task or the
+    ["end"] of the work as a whole, has neither.
 
     The other members are those of each event, in the order of
-    {{!Event.members}its accessors}, a member that an event does not have being
+    {{!Event.members}its accessors}; a member that an event does not have is
     absent. Strings are valid UTF-8 and hold no C1 control (U+0080 to U+009F),
     which a terminal may take for an escape code: each C1 control is U+FFFD, and
     so is each maximal subpart of an ill-formed sequence, as
     [String.get_utf_8_uchar] decodes it. The C0 controls and DEL are escaped.
-    Numbers have at most 15 significant digits, so an integer, never negative,
-    is a JSON number below 10{^ 15}, and a string of decimal digits from there.
+    Numbers have at most 15 significant digits, so an integer, which is never
+    negative, is a JSON number below 10{^ 15} and a string of decimal digits
+    from 10{^ 15} on.
 
     A label, in [task] or in ["label"], and the [message] of ["end"] are at most
     4 KiB: a longer one is cut between two characters and ends with [...]
@@ -276,10 +276,9 @@ module Event : sig
 
       The types of the names of events and of the values of their members are
       open: constructors may be added, so a value read as [`Other s] today may
-      read as a constructor of its own later, and a match on one has a case for
-      the others. An event never holds [`Other s] with [s] a listed name: the
-      constructors take it as that name's constructor, and {!jsont} reads [s] as
-      it. *)
+      read as a constructor of its own later, and a match on one needs a case
+      for the others. An event never holds [`Other s] with [s] a listed name:
+      the constructors and {!jsont} turn [s] into that name's constructor. *)
 
   type kind =
     [ `Start  (** ["start"]: the task started. *)
@@ -308,17 +307,18 @@ module Event : sig
       the labels from the top task down to it. *)
 
   type t = Event.t
-  (** The type for events. A transient task ({!start}) has its events as any
-      other task has. *)
+  (** The type for events. A transient task ({!start}) has the same events as
+      any other task. *)
 
   (** {1:make Constructors}
 
-      Each event has a constructor that takes its members, those it may lack as
-      optional arguments, so that a member added later is an optional argument.
-      The task of an event is its [id] and its [task], the labels from the top
-      task down to it, the last positional argument but for {!Event.label}'s
-      text. [time] and [elapsed] are taken as {!jsont} writes them, and each
-      string as valid UTF-8 without a C1 control.
+      Each event has a constructor that takes its members, with those it may
+      lack as optional arguments, so that a member added later is an optional
+      argument too. The task of an event, its [id] and its [task] (the labels
+      from the top task down to it), is the last positional argument, except in
+      {!Event.label}, whose text comes after it. [time] and [elapsed] are taken
+      as {!jsont} writes them, and each string as valid UTF-8 without a C1
+      control.
 
       The constructors raise [Invalid_argument] if given a negative [id],
       [parent], [count] or [total]. *)
@@ -331,7 +331,8 @@ module Event : sig
     time:float -> count:int64 -> total:int64 -> unit:count_unit -> task -> t
   (** [progress ~time ~count ~total ~unit task] is ["progress"]: the count of
       [task] changed to [count] of [total], in [unit]. Each call to {!set_items}
-      or {!set_bytes} that changes them is one event, however often it comes. *)
+      or {!set_bytes} that changes them is one event, however often they are
+      called. *)
 
   val label : time:float -> task -> string -> t
   (** [label ~time task text] is ["label"]: the label of [task] changed to
@@ -339,8 +340,8 @@ module Event : sig
 
   val output : ?task:task -> ?level:level -> time:float -> string -> t
   (** [output ~task ~level ~time text] is ["output"]: [text] is a line of output
-      of [task], or of no task if [task] is absent, and [level], only for a Logs
-      message, its level. *)
+      of [task], or a line that belongs to no task without [task], and [level]
+      is the level of a Logs message. *)
 
   val succeeded :
     ?task:task -> ?message:string -> time:float -> elapsed:float -> unit -> t
@@ -379,7 +380,7 @@ module Event : sig
       ["end"] of the work and for an event of another name that has none. *)
 
   val parent : t -> int option
-  (** [parent e] is the [id] of the task over that of ["start"], if any. *)
+  (** [parent e] is the [id] of the parent of the task of ["start"], if any. *)
 
   val count : t -> int64 option
   (** [count e] is the count of ["progress"]. It is written as a JSON number
@@ -441,5 +442,6 @@ end
 val on_event : t -> (Event.t -> unit) -> unit
 (** [on_event t f] calls [f] with each event of the work of [t], every task
     under its root and the root itself, in the order they happen, from now on.
-    [f] runs where the change is made, and must not change a task. A program
-    writes its own lines from them, as [`Json] writes the JSON objects. *)
+    [f] runs in the call that makes the change, and must not change a task. A
+    program can write its own lines from the events, as [`Json] writes JSON
+    objects. *)

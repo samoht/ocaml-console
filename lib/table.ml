@@ -16,13 +16,13 @@ type column = {
   style : Style.t;
 }
 
-(* The cells of the frame's three columns: its left edge, the rule between
-   two cells and its right edge, each as wide as its widest glyph. *)
+(* The widths of the frame's three columns (its left edge, the line between
+   two cells and its right edge), each that of its widest glyph. *)
 type frame = { left : int; mid : int; right : int }
 
-(* A cell is kept as its lines at its natural size, split once, the width
-   below which it should not be laid out, and as the view it is, laid out
-   again at the width of its column when it is not flat. *)
+(* A cell keeps its view, its lines at its natural size, split once, and
+   [word], the width below which it should not be laid out. A view that is
+   not flat is laid out again at the width of its column. *)
 type cell = { view : View_core.t; lines : View_core.t list; word : int }
 
 type drawn = {
@@ -63,10 +63,11 @@ let frame border =
 
 let chars t = Border.chars t.border
 
-(* A border whose three columns have no glyph has no edge: no padding
-   outside the first and the last cell, the last cell not padded out to its
-   column, and a line ends at its last cell that is not empty. A column with
-   a glyph anywhere is drawn on every line, padded where its glyph is empty. *)
+(* A border with no glyph in its three columns has no edges: there is no
+   padding outside the first and the last cell, the last cell is not padded
+   to its column, and a line ends at its last cell that is not empty. A
+   frame column with a glyph on any line is drawn on every line, padded
+   where its glyph is empty. *)
 let edged t = t.frame.left > 0 || t.frame.mid > 0 || t.frame.right > 0
 let separator_width t = if edged t then t.gap + t.frame.mid else t.gap
 
@@ -85,8 +86,8 @@ let rendered_width t widths =
 let lines_width c =
   List.fold_left (fun n l -> max n (View_core.width l)) 0 c.lines
 
-(* The widest word of a cell, or the width a cell laid out in its room says
-   it needs: what a column keeps while another column can still give room,
+(* The widest word of a cell, or the [min_width] of a cell laid out in its
+   room. A column keeps this width while another column can still narrow,
    so that an identifier stays whole. *)
 let word_width c = c.word
 
@@ -107,8 +108,9 @@ let widen measure t widths =
     t.rows
 
 (* Columns narrow, the widest first, until the table fits [max_width]: the
-   shrinkable ones down to their widest word, then all of them, then down to
-   their minimum, then to nothing. *)
+   shrinkable ones down to their widest word, then all of them; then the
+   shrinkable ones down to their minimum, then all of them; then all of
+   them down to nothing. *)
 let shrink ~max_width t words widths =
   let cols = t.columns in
   let min_of i = Option.value cols.(i).min_width ~default:1 in
@@ -194,8 +196,9 @@ let align_span ~pad_right align target span =
     in
     View_core.(pad left ++ span ++ if pad_right then pad right else empty)
 
-(* The physical lines of a cell in [width] cells; [None] is a cell nothing
-   bounds, the last of a line without edges and no width. *)
+(* The lines of a cell laid out in [width] cells. [None] is for a cell that
+   nothing bounds: the last cell of a line in a table without edges and
+   without a room. *)
 let fit t overflow width cell =
   match width with
   | None -> cell.lines
@@ -234,8 +237,8 @@ let slot_width ?max_width t widths row i =
 let at lines k = if k < Array.length lines then lines.(k) else View_core.empty
 let edge t s = View_core.ink (Border.style t.border) s
 
-(* Line [k] of a row of [(column, width, lines)] cells in [style]; a cell
-   has the half of the gap on its left, the rest on its right. *)
+(* Line [k] of a row of [(column, width, lines)] cells in [style]. A cell has
+   half of the gap on its left and the rest on its right. *)
 let edged_line t style cells k =
   let chars = chars t and last = Array.length cells - 1 in
   let before = pad (t.gap / 2) and after = pad (t.gap - (t.gap / 2)) in

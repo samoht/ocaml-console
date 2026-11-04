@@ -5,7 +5,8 @@
 
 let units = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB" |]
 
-(* [n] bytes as a number below 1024 of the unit [units.(i)]. *)
+(* [scaled n] is [(v, i)] such that [n] bytes are [v] of the unit
+   [units.(i)], with [v] below 1024 unless [i] is the last unit. *)
 let scaled n =
   let rec pick i v =
     if v < 1024. || i = Array.length units - 1 then (v, i)
@@ -40,8 +41,8 @@ let bytes_short n =
   else if v < 9.95 then Fmt.str "%.1f%c" v unit
   else Fmt.str "%.0f%c" v unit
 
-(* Every duration under a minute, made once: a display shows one at each
-   frame for each task. *)
+(* The text of every duration under a minute, built once: a display formats
+   one per task at each frame. *)
 let tenths =
   Array.init 600 (fun t ->
       string_of_int (t / 10) ^ "." ^ string_of_int (t mod 10) ^ "s")
@@ -60,15 +61,15 @@ let duration secs =
       let m = int_of_float (Float.round (secs /. 60.)) in
       String.concat "" [ string_of_int (m / 60); "h"; two (m mod 60); "m" ]
 
-(* [duration] is six wide at its widest below a hundred hours ("59m59s",
-   "23h59m"). A longer run takes the columns it needs rather than losing a
+(* [duration] is at most six cells wide below a hundred hours ("59m59s",
+   "99h59m"). A longer run takes the cells it needs rather than losing a
    digit. *)
 let duration_cells = 6
 let clean = Console_text.sanitize ~keep_newlines:false
 let kept_bytes = 4096
 
-(* ASCII dots, so that a line of ASCII cut stays ASCII, which the
-   sanitizing of each redraw passes over at once. *)
+(* ASCII dots, so that a cut ASCII line stays ASCII, which the sanitizing
+   done at each redraw skips quickly. *)
 let ellipsis = "..."
 
 exception Cut of int
@@ -97,9 +98,10 @@ let last_line_cells s =
         (String.sub s (i + 1) (String.length s - i - 1))
   | None -> Console_width.string_width s
 
-(* [s] sanitized, a tab gone to the next stop of eight columns from the
-   start of its line. A tab cannot be inside a character or a line end, so
-   the text between two is sanitized alone. *)
+(* [expand_tabs s] is [s] sanitized, each tab replaced by spaces up to the
+   next stop of eight columns from the start of its line. A tab cannot be
+   inside a character or a line end, so the pieces between tabs are sanitized
+   separately. *)
 let expand_tabs s =
   match String.split_on_char '\t' s with
   | [] -> ""

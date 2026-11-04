@@ -24,7 +24,8 @@ let decimal s =
   if s <> "" && String.for_all Char.Ascii.is_digit s then int_of_string_opt s
   else None
 
-(* No terminal has more than the 4096 columns or rows a display takes. *)
+(* A display takes at most 4096 columns or rows, so a larger size is not a
+   terminal's. *)
 let dimension name ~default =
   match Option.bind (Sys.getenv_opt name) decimal with
   | Some n when n > 0 && n <= 4096 -> n
@@ -32,8 +33,8 @@ let dimension name ~default =
 
 let size () = (dimension "COLUMNS" ~default:80, dimension "LINES" ~default:24)
 
-(* [data] as a terminal shows it: its driver puts a carriage return before
-   each line feed that has none. *)
+(* [shown t data] is [data] as the terminal receives it: the tty driver puts
+   a carriage return before each line feed that lacks one. *)
 let shown t data =
   let b = Buffer.create (String.length data + 16) in
   String.iter
@@ -44,8 +45,8 @@ let shown t data =
     data;
   Buffer.contents b
 
-(* The time never goes back, though the clock of a later run starts again
-   at zero. *)
+(* The time written never goes back, even when the clock of a later run
+   starts again at zero. *)
 let emit t data =
   let time = Float.max t.last (t.time ()) in
   t.last <- time;
@@ -53,8 +54,8 @@ let emit t data =
   output_string t.oc (Cast.to_line Cast.event { time; data });
   flush t.oc
 
-(* Each flush is a write, cut between two characters: the bytes of one cut
-   short wait for those that end it. *)
+(* Each flush writes one event, cut at a character boundary: the bytes of a
+   character cut short wait in [pending] for the rest of it. *)
 let written t o =
   let all = Buffer.contents o.pending in
   match Console_text.boundary all with
@@ -98,8 +99,8 @@ let stop t =
     t.outputs;
   close_out t.oc
 
-(* A recording asked for and impossible ends the program before it runs,
-   as a bad option would. *)
+(* A recording that cannot be opened ends the program, as a bad option
+   would. *)
 let open_cast file =
   let oc =
     try open_out_bin file

@@ -3,11 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** What the environment says about colour. *)
+(** Colour and character set from the environment. *)
 
 val dumb : getenv:(string -> string option) -> bool
-(** [dumb ~getenv] is [true] iff [TERM] is unset, empty or [dumb]: a terminal
-    that has no cursor to move. *)
+(** [dumb ~getenv] is [true] iff [TERM] is unset, empty or [dumb], which names a
+    terminal without cursor movement. *)
 
 val renderer :
   getenv:(string -> string option) -> is_tty:bool -> Fmt.style_renderer

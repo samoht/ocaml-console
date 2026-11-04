@@ -88,7 +88,6 @@ let rec depth r = match r.parent with None -> 0 | Some p -> 1 + depth p
 let children r = List.rev (List.filter (fun c -> not c.gone) r.children)
 let running_children r = List.filter is_running r.children
 
-(* The labels from the top task down to [r]; the root has none. *)
 let path r =
   let rec up acc r =
     if is_root r then acc
@@ -122,9 +121,9 @@ let rec run_all = function
   | [] -> ()
   | f :: rest -> protect f ~finally:(fun () -> run_all rest)
 
-(* Every watcher sees the change, whatever one of them raises, as with
-   {!run_all}, with nothing allocated when none raises: a change is the cost
-   of a progress update. *)
+(* [tell change ws] gives [change] to every watcher of [ws], whatever one of
+   them raises, as {!run_all} does, but allocates nothing when none raises:
+   every progress update makes a change. *)
 let rec tell change = function
   | [] -> ()
   | f :: rest -> (
@@ -217,8 +216,6 @@ let root ?label ?scope ~now () =
   row w ~id:(-1) ~log_lines:0 ~transient:true
     (Option.value w.summary ~default:"")
 
-(* The task of [w] where it is asked, if it is not the root: the one that
-   [within] made current, running or not. *)
 let scoped w =
   match w.scope.current () with
   | Some r when r.work == w && not (is_root r) -> Some r
@@ -231,7 +228,8 @@ let adopt p r =
   p.children <- r :: p.children;
   p.child_limit <- p.child_limit - 1;
   if p.child_limit <= 0 then begin
-    (* The children that are gone are forgotten each time the list doubles. *)
+    (* Gone children are dropped from the list each time it doubles, so that
+       adopting stays amortised constant time. *)
     p.children <- List.filter (fun c -> not c.gone) p.children;
     p.child_limit <- max 16 (List.length p.children)
   end
@@ -249,11 +247,12 @@ let rec forget r =
 let rec size r =
   List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
 
-(* The tasks that ended and wait under a task are bounded: past 1 MiB, the
-   oldest are dropped, down to half of it, never the latest. *)
+(* The ended tasks kept under a task weigh at most [held_cap] bytes, as
+   [weight] estimates them. Past it, the oldest are forgotten until they weigh
+   half of it; the task that just ended is kept. *)
 let held_cap = 1_048_576
 
-(* A success lets go of its output once it ended. *)
+(* The bytes an ended task holds; a success drops its output. *)
 let weight r =
   256 + String.length r.label
   + Option.fold ~none:0 ~some:String.length r.message
@@ -302,7 +301,7 @@ let ended outcome ?message r =
   end;
   Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
   hold r;
-  (* A success folds its output away, once its end was seen. *)
+  (* A success clears its output after the watchers saw its end. *)
   Fun.protect
     (fun () -> notify w (Ended r))
     ~finally:(fun () ->
@@ -311,9 +310,10 @@ let ended outcome ?message r =
         r.output_bytes <- 0
       end)
 
-(* The tasks under one that ends end first, in the order they started: they
-   succeed with it, and are cancelled when it fails or is cancelled. A task
-   ends once, and whole, whatever its ending or a subtask's raises. *)
+(* When a task ends, the [ending] function of its work runs first, then the
+   running tasks under it end, in the order they started: they succeed if it
+   succeeds, and are cancelled otherwise. A task ends once, and whole,
+   whatever that function or a subtask raises. *)
 let rec finish outcome ?message r =
   if is_running r && not r.finishing then begin
     r.finishing <- true;
@@ -355,7 +355,8 @@ let start ?key ?(log_lines = 8) ?(transient = false) parent label =
       Option.iter (fun k -> Hashtbl.replace w.by_key k r) key;
       if not parent.gone then adopt parent r;
       notify w (Started r);
-      (* A task started under one that ended takes its ending. *)
+      (* A task started under an ended task ends at once: it succeeds if its
+         parent succeeded, and is cancelled otherwise. *)
       (match parent.outcome with
       | None -> ()
       | Some `Succeeded -> succeed r
@@ -367,7 +368,8 @@ let within r f =
   r.work.scope.within r (fun () -> value := Some (f ()));
   Option.get !value
 
-(* A task found by its key ends as the call that started it says. *)
+(* A task found by its key is ended by the call that started it, not by this
+   one. *)
 let run ?key ?log_lines ?transient parent label f =
   match start ?key ?log_lines ?transient parent label with
   | r, false -> within r (fun () -> f r)
@@ -396,8 +398,8 @@ let count_text = function
 
 let rec digits n = if n < 10 then 1 else 1 + digits (n / 10)
 
-(* The widest a count of items can get, known from its total: as wide as
-   its total twice, and at least [999/999]. *)
+(* The widest a count of items can get, given its total: [total/total], and at
+   least [999/999]. *)
 let items_width total = max (String.length "999/999") ((2 * digits total) + 1)
 
 let rate_text metric rate =
@@ -412,9 +414,9 @@ let same_metric a b =
   | Bytes (c, n), Bytes (c', n') -> Int64.equal c c' && Int64.equal n n'
   | _ -> false
 
-(* The rate weighs the past by the time since it was measured, not by the
-   number of reports: a count reported often or seldom gives the same rate
-   for the same work. *)
+(* The rate is a moving average that weighs the past by the time since it was
+   measured, with time constant [tau] seconds, not by the number of reports:
+   reporting often or seldom gives the same rate for the same work. *)
 let tau = 2.
 
 let measure r cur =
@@ -431,11 +433,11 @@ let measure r cur =
     r.last_t <- now
   end
 
-(* The columns widen at most once for each kind of progress, and only when
-   the total changes: the first task of bytes widens the count column to
-   the widest count of bytes and opens the rate column at the widest rate,
-   which no later count or rate passes, as [Task_text.bytes] is never wider
-   than "1023.99 KiB". A count of items is as wide as its total needs. *)
+(* The first task that counts bytes sets the count and rate columns to the
+   widest count and rate of bytes, which no later count or rate passes, as
+   [Task_text.bytes] is never wider than "1023.99 KiB". A count of items
+   widens the count column to what its total needs, when the total
+   changes. *)
 let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
 let widest_rate = String.length "1023.99 MiB/s"
 
@@ -484,7 +486,7 @@ let set_bytes r ~count ~total =
     set_metric r (Bytes (count, total))
   end
 
-(* A count past the largest is the largest, as a total already is. *)
+(* The count saturates at the largest integer instead of overflowing. *)
 let advance ?(by = 1) r =
   if by < 0 then invalid_arg "Console.Task.advance: negative progress";
   if is_running r && not (is_root r) then
@@ -519,7 +521,8 @@ let eta r =
   | Some left when r.rate > 0. && is_running r -> Some (left /. r.rate)
   | _ -> None
 
-(* The lines a task keeps for its failure, the oldest dropped first. *)
+(* A task keeps at most [output_cap] bytes of output to show if it fails,
+   dropping the oldest lines first. *)
 let output_cap = 1_048_576
 
 let keep_output r line =
@@ -531,15 +534,14 @@ let keep_output r line =
     r.dropped <- r.dropped + 1
   done
 
-(* A window holds the latest lines its task shows. *)
 let push r line =
   if r.log_lines > 0 then begin
     Queue.add line r.window;
     if Queue.length r.window > r.log_lines then ignore (Queue.take r.window)
   end
 
-(* A running task keeps each line, capped, in its window and for its
-   failure; every line is a change, whole. *)
+(* A running task keeps each line, capped, in its window and its output. The
+   watchers see every line, uncapped, also from an ended task. *)
 let add r kind text =
   let w = r.work in
   List.iter
@@ -559,7 +561,8 @@ let add r kind text =
       notify w (Line (r, line)))
     (Task_text.lines text)
 
-(* A line of the root is output of no task. *)
+(* A line of the root belongs to no task: it is not kept, and its [gap] and
+   [seq] are [0]. *)
 let above root kind text =
   List.iter
     (fun text ->

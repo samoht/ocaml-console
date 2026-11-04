@@ -33,8 +33,9 @@ let natural_width panel =
     (max (label panel.title) (label panel.subtitle) - (2 * panel.padding))
     panel.lines
 
-(* The cells a content line has: the fixed width's room, else the content's
-   own, capped by what [margin] leaves beside the border and padding. *)
+(* The width of a content line: what the fixed width leaves inside the
+   frame, or else the content's natural width, capped by what [margin]
+   leaves beside the border and padding. *)
 let content_width ~margin panel =
   let frame = frame panel.border panel.padding in
   let room =
@@ -59,8 +60,8 @@ let fitted_lines panel cw =
 
 let pad = Widget.pad
 
-(* A top or bottom edge, [label] centred in it, and the cells the label and
-   the spaces around it take. *)
+(* A top or bottom edge with [label] centred in it, and the span of cells
+   that the label and its two spaces take, which [Border_motion] skips. *)
 let edge look style ~left ~mid ~right inner label =
   let draw n = View_core.ink style (Widget.fill n mid) in
   let middle, gap =
@@ -77,8 +78,8 @@ let edge look style ~left ~mid ~right inner label =
   in
   (View_core.(ink style left ++ middle ++ ink style right), gap)
 
-(* A frame that fits the margin and has its two edges moves; one cut to a
-   margin too narrow for the border still bounds every line. *)
+(* Only a frame that fits the margin and has both edges moves. A frame wider
+   than the margin has every line cut to it. *)
 let framed panel ~margin ~width ~left ~right (top, top_gap) body
     (bottom, bottom_gap) =
   let lines = top @ body @ bottom in
@@ -136,9 +137,8 @@ let lines_of ~margin panel =
   framed panel ~margin ~width ~left:lw ~right:rw (top, top_gap) body
     (bottom, bottom_gap)
 
-(* A panel is laid out in the room and the look it is printed in: its
-   content in the room the frame leaves it, a fixed width when it expands to
-   its room. *)
+(* The content is laid out in the room the frame leaves. A panel that
+   expands takes the whole room as its fixed width. *)
 let view ?border ?title ?subtitle ?(padding = 1) ?(expand = false) content =
   if padding < 0 then invalid_arg "Console.Panel.view: negative padding";
   let edges =

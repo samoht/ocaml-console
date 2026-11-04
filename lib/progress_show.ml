@@ -52,8 +52,8 @@ let view ?(layout = Layout.default) root =
 
 type form = Live | Plain | Quiet | Json
 
-(* The size in which the rows are redrawn, if they are, and the lines
-   printed otherwise. *)
+(* The size of the region the rows are redrawn in, [None] when lines are
+   printed instead, and the form of the display. *)
 let shape ?size = function
   | `Auto -> (size, if Option.is_some size then Live else Plain)
   | `Tty -> (Some (Option.value size ~default:(fun () -> (80, 24))), Live)
@@ -71,10 +71,10 @@ let laid_out d ~layout ~commit r =
   in
   Option.map (V.resolve (Ctx.v ~width look)) committed
 
-(* A top task that ends, unless the ended tasks are kept, leaves the region
-   for the scrollback as [commit] draws it, its tree by default: laid out
-   first, then forgotten, then printed, so it never shows twice. What [commit]
-   raises leaves it forgotten and nothing printed. *)
+(* [moved d ~layout ~commit r] moves the ended task [r] from the region to the
+   scrollback, drawn by [commit], as its tree by default. It is laid out
+   first, then forgotten, then printed, so that it never shows twice. If
+   [commit] raises, [r] is still forgotten and nothing is printed. *)
 let moved d ~layout ~commit r =
   let committed =
     protect
@@ -87,8 +87,9 @@ let moved d ~layout ~commit r =
   | Some v when not (V.is_empty v) -> Display_core.print d v
   | _ -> Display_core.touch d
 
-(* A task that ended moves once no task above it runs, the root aside: a
-   top task as it ends, and one started under a task that moved. *)
+(* [running_above r] is [true] iff a task above [r], other than the root, is
+   running. A task that ends moves to the scrollback only if none is: a top
+   task as it ends, or a task started under a task that already moved. *)
 let rec running_above r =
   match parent r with
   | None -> false
@@ -122,7 +123,8 @@ let on_plain d ~keep_ended = function
         if not keep_ended then forget r
       end
 
-(* The program's lines for the changes of tasks, in place of console's. *)
+(* With [plain], the program prints its own lines for the changes of tasks
+   instead of console's; the lines of the root print as without it. *)
 let on_own d ~keep_ended root plain = function
   | (Line (r, _) | Ended r) as change when is_root r ->
       on_plain d ~keep_ended change
@@ -166,9 +168,9 @@ let on_json d root change =
   | None -> ());
   match change with Ended r when not (is_root r) -> forget r | _ -> ()
 
-(* What a display shows of a root in each form: the tree and the summary,
-   the message the work ended with alone when only failures print, and
-   nothing as events. *)
+(* The default view of a root in each form: the tree and the summary for
+   [Live] and [Plain], only the message the work ended with for [Quiet], and
+   nothing for [Json]. *)
 let view_of_form ~layout root = function
   | Live | Plain -> view ~layout root
   | Quiet -> verdict root

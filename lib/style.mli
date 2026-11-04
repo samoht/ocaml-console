@@ -57,10 +57,10 @@ val compare : t -> t -> int
 val styled : t -> 'a Fmt.t -> 'a Fmt.t
 (** [styled s pp_v] formats like [pp_v] in [s] iff the formatter's style
     renderer ({!Fmt.style_renderer}) is [`Ansi_tty], and like [pp_v] otherwise.
-    Its colours are those the formatter's {!Color.val-depth} shows.
+    Its colours are reduced to the formatter's {!Color.val-depth}.
 
-    - In the printer of another [styled], [s] is added to the outer style
-      ({!( + )}), which is on again after it.
+    - Inside another [styled], [s] is added to the outer style ({!( + )}), and
+      the outer style is selected again after [pp_v].
     - The escape codes take no room on the line, so the boxes and breaks of
       [pp_v] lay out as they do without colour. *)
 
@@ -70,5 +70,5 @@ val pp : t Fmt.t
 (**/**)
 
 val sgr : Color.depth -> t -> string
-(** [sgr d s] is the escape code that selects [s], its colours
-    {!Color.downsample}d to [d], or [""] if [s] sets nothing. *)
+(** [sgr d s] is the escape code that selects [s], with its colours reduced to
+    [d] ({!Color.downsample}), or [""] if [s] sets nothing. *)
