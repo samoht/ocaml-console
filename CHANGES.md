@@ -120,6 +120,9 @@
 - A restoration that fails, such as giving back the echo of a terminal that has
   gone, no longer stops SIGINT or SIGTERM from ending the program (#37).
 
+- Two domains or threads that start their first `Console_eio.run` at once no
+  longer raise `Lazy.Undefined` (#37).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

@@ -85,10 +85,15 @@ let last_out s =
   end
 
 (* [exit] runs the [at_exit] functions but no [finally]: the run's ending
-   is run there. *)
-let at_exit =
-  lazy
-    (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
+   is run there. It is registered by the first run, so that the [at_exit]
+   functions registered before it run once the display is closed; an atomic
+   flag, not a lazy value, since two domains may start their first run at
+   once. *)
+let registered = Atomic.make false
+
+let at_exit () =
+  if not (Atomic.exchange registered true) then
+    Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending))
 
 let rec cancelled = function
   | Eio.Cancel.Cancelled _ -> true
@@ -185,7 +190,7 @@ let safely f =
   | exception e when not (Task_driver.is_async e) -> ()
 
 let claim () =
-  Lazy.force at_exit;
+  at_exit ();
   if not (Atomic.compare_and_set busy false true) then
     invalid_arg "Console_eio.run: a display is already running"
 
