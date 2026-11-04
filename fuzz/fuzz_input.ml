@@ -5,9 +5,9 @@
 
 open Alcobar
 
-(* Feeding input at once or a byte at a time echoes and submits the same; a
-   masked editor keeps no history; the echo never holds an escape the input
-   did not ask for. *)
+(* Feeding input at once or a byte at a time gives the same echo, lines,
+   pending text and history; the history given is kept sanitized; the echo
+   holds no escape character; a masked editor keeps no history. *)
 let test_chunks s =
   let make () =
     Console_input.v ~prompt:s ~history:[ s ]
@@ -38,8 +38,8 @@ let test_chunks s =
   ignore (Console_input.feed masked "\n");
   check (Console_input.history masked = [])
 
-(* The keys that edit a line in place are characters one or two cells wide,
-   both erasing keys and the arrows that move along the line. A combining
+(* Keys that edit a line in place: characters one or two cells wide, both
+   erasing keys, and the left and right arrows. A combining
    mark, a spacing mark, a VS16 and a ZWJ join the character before them. A
    VS16 after the heart, or a ZWJ between two emoji, makes an emoji sequence
    two cells wide. *)
@@ -173,8 +173,9 @@ let test_masked_clusters data split =
     ~eq:(List.equal String.equal) [ secret ] lines;
   check (Console_input.history editor = [])
 
-(* A secret is byte data, including malformed and unfinished UTF-8. The
-   read buffer's chunk boundaries must not change either it or the masking. *)
+(* A masked editor submits its secret as the bytes typed, malformed and
+   unfinished UTF-8 included, and fed at once or a byte at a time gives the
+   same secret and the same echo. *)
 let test_secret_bytes data =
   let data = String.sub data 0 (min 256 (String.length data)) in
   let secret =
@@ -207,8 +208,7 @@ let test_secret_bytes data =
       check (Console_input.history editor = []))
     [ whole; pieces ]
 
-(* Masking disables history, including history supplied by shared editor
-   configuration before the prompt is chosen to be secret. *)
+(* A masked editor keeps no history, not even the history it is given. *)
 let test_masked_history_seed data =
   let editor =
     Console_input.v ~mask:"*" ~history:[ "previous answer"; data ] ()

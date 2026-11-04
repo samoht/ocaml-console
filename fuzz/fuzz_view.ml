@@ -62,8 +62,8 @@ let no_space s =
   String.concat ""
     (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s)))
 
-(* Every span prints, whatever its bytes: a control is a space and
-   malformed UTF-8 the replacement character. *)
+(* Any bytes print as valid UTF-8 with no control character but the line
+   feed, styled or not. *)
 let test_sanitized s =
   let p = plain (View.text s) in
   check (String.is_valid_utf_8 p);
@@ -85,7 +85,8 @@ let test_width_styles s =
   check_eq ~pp:Fmt.int (View.width (View.text s)) (View.width (span s))
 
 (* [width (truncate w s) <= max 0 w], [truncate w s = s] when it fits, a cut
-   line ends with an ellipsis, and what is kept is a prefix of the line. *)
+   line ends with an ellipsis after a prefix of the line, and truncating
+   again changes nothing. *)
 let test_truncate s n =
   let s = span (text s) and w = abs n mod 50 in
   let t = View.truncate w s in
@@ -120,8 +121,6 @@ let test_truncate_closes s n =
       if not (String.starts_with ~prefix:"\027[0m" rest) then
         failf "a style left on: %S" t
 
-(* Every line fits, the result is never empty, and with room for any
-   character every non-space one is kept, in order. *)
 (* The cells of the widest cluster of [s]. *)
 let widest s =
   List.fold_left
@@ -145,8 +144,9 @@ let cut_words cuts line =
   let n = String.length line in
   List.rev (String.sub line !first (n - !first) :: !words)
 
-(* Every character is kept but those wider than a line, which cannot be
-   drawn, whatever words the lines are cut into. *)
+(* Whatever words the line is cut into, [wrap] gives at least one line,
+   every line fits, and when every cluster fits in a line every non-space
+   character is kept, in order. *)
 let test_wrap s n cuts =
   let s = span (text s) and w = width n in
   let words = if cuts = "" then None else Some (cut_words cuts) in
@@ -225,10 +225,10 @@ let uri_char = function
       true
   | _ -> false
 
-(* A link's label is all its plain form, and the target it writes holds
-   only the characters of a URI, as many escapes as [uri] has bytes outside
-   them; an empty URI writes no link, and neither does a label of line ends
-   alone, which has no text to click. *)
+(* A link prints as its label, and the target it writes holds only URI
+   characters: each byte of [uri] outside them becomes a three-byte percent
+   escape. An empty URI writes no link, and neither does a label of line
+   ends alone, which has no text to click. *)
 let test_link label uri =
   let l = View.link ~uri (View.text label) in
   check_eq ~pp:Fmt.Dump.string (plain (View.text label)) (plain l);
@@ -256,7 +256,8 @@ let test_concat a b c =
     (String.concat "," (List.map plain parts))
     (plain (View.concat ~sep:(View.text ",") parts))
 
-(* Each line must release its attributes before another writer can print. *)
+(* Each line of a styled span of several lines opens its style and ends
+   with a reset, so no style stays on across a line feed. *)
 let test_multiline_resets s =
   let line = Console_text.sanitize ~keep_newlines:false s ^ "x" in
   let raw =
@@ -311,10 +312,8 @@ let test_linked_unicode_cuts s n =
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
 
-(* A gradient is as wide as its text, which it is without colour; in
-   colour, at any depth and in any theme, it is that text and escape codes. *)
-(* [span] is as wide as [t] and prints as [t]'s text in [theme], without
-   colour and, its escapes taken out, at every depth. *)
+(* [span] is as wide as [t] and prints as [t]'s text in [theme]: as it is
+   without colour, and with its escapes removed at every depth. *)
 let check_is_text ~theme t span =
   check_eq ~pp:Fmt.int (View.width t) (View.width span);
   check_eq ~pp:Fmt.Dump.string (plain t) (plain span);
@@ -329,6 +328,8 @@ let check_is_text ~theme t span =
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
 
+(* A gradient is its text: as wide, and printed as that text with escape
+   codes added, at any depth and in any theme. *)
 let test_gradient s k =
   let s = if k land 1 = 0 then text s else s in
   let colors =
@@ -355,8 +356,9 @@ let test_role s k =
     (View.text s)
     (View.role role (View.text s))
 
-(* Fitting a gradient changes line breaks, not the colours of the text
-   kept. Compare terminal cells after joining the wrapped pieces again. *)
+(* Wrapping a gradient changes where its lines break, not the colours of
+   its text: the pieces printed one after the other draw the same cells on
+   the terminal as the whole. *)
 let test_gradient_wrap s k =
   let clusters =
     [| "x"; "\u{754c}"; "e\u{0301}"; "\u{1f469}\u{200d}\u{1f4bb}"; "\u{0645}" |]

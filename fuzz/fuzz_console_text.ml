@@ -12,9 +12,9 @@ let printable s =
           (fun c -> (Char.code c < 0x20 && c <> '\n') || c = '\127')
           s)
 
-(* [sanitize] and [strip] give printable UTF-8 and are idempotent; [strip]
-   leaves no escape; [strip ~keep_styles] leaves nothing on after it: text
-   printed after it is drawn as it would be on its own. *)
+(* [sanitize] and [strip] give printable UTF-8 and are idempotent, [strip]
+   leaves no escape, and [sanitize ~keep_newlines:false] leaves no line
+   feed. *)
 let test_laws s =
   let san = Console_text.sanitize s and str = Console_text.strip s in
   check (printable san && printable str);
@@ -24,6 +24,8 @@ let test_laws s =
   check
     (not (String.contains (Console_text.sanitize ~keep_newlines:false s) '\n'))
 
+(* [strip ~keep_styles] leaves no style on after it: text printed after it
+   is drawn as it would be on its own. *)
 let test_styles_isolated s =
   let draw prefix =
     let vte = Console_vte.v ~rows:2 ~cols:8 () in
@@ -35,10 +37,11 @@ let test_styles_isolated s =
   let styled = Console_text.strip ~keep_newlines:false ~keep_styles:true s in
   check (draw styled = draw "")
 
-(* A line ends at LF, VT, FF, at NEL (U+0085, which UTF-8 writes C2 85),
-   and at a CR that none of them follows once the characters [sanitize]
-   removes are gone: [sanitize] keeps one line feed for each. After a CR, a
-   variation selector has no base and is removed too. *)
+(* A line ends at LF, VT, FF, NEL (U+0085, C2 85 in UTF-8), and at a CR
+   not followed by one of them once the characters [sanitize] removes are
+   skipped. [sanitize] keeps one line feed for each line end. A variation
+   selector is among the removed characters because after a CR it has no
+   base. *)
 let removed c =
   c = 0x061c || c = 0x200b || c = 0x200e || c = 0x200f
   || (c >= 0x202a && c <= 0x202e)
@@ -75,8 +78,8 @@ let test_line_ends s =
   let lines = String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 in
   check_eq ~pp:Fmt.int (line_ends s) (lines (Console_text.sanitize s))
 
-(* A silent control put between two characters of text that holds no escape
-   leaves it as it was. *)
+(* [strip] removes a silent control inserted between two characters of text
+   without escapes, and gives back that text. *)
 let test_silent_discarded s p k =
   let s = Console_text.strip s in
   let rec boundary i =
@@ -93,9 +96,9 @@ let test_silent_discarded s p k =
   let with_c = String.sub s 0 i ^ c ^ String.sub s i (String.length s - i) in
   check_eq ~pp:Fmt.Dump.string s (Console_text.strip with_c)
 
-(* Zeros inside an extended colour are components or palette indices,
-   not resets. Relaying a tool's colours keeps those colours on its text
-   and restores the default style for the caller's next character. *)
+(* Zeros inside an extended colour are components or palette indices, not
+   resets: [strip ~keep_styles] keeps the colour on the text and restores
+   the default style for the next character. *)
 let test_extended_colours r g k =
   let sequence =
     match k mod 4 with
