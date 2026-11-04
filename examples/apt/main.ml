@@ -43,7 +43,7 @@ let qualified p = if p.multi_arch then p.name ^ ":amd64" else p.name
 let sum f = List.fold_left (fun n p -> n + f p) 0 pkgs
 
 (* apt's SizeToStr: four significant digits at most, in powers of 1000. *)
-let size_to_str n =
+let str_of_size n =
   let digits x =
     let n = Float.to_int (Float.round x) in
     if n >= 1000 then Fmt.str "%d,%03d" (n / 1000) (n mod 1000)
@@ -56,7 +56,7 @@ let size_to_str n =
   in
   go (Int.to_float n) "" [ "k"; "M"; "G" ] ^ "B"
 
-let time_to_str s = Fmt.str "%ds" (Float.to_int s)
+let str_of_time s = Fmt.str "%ds" (Float.to_int s)
 
 (* apt's lines and dpkg's are the root's output, which goes above the region. *)
 let say root fmt = Fmt.kstr (Task.log root) fmt
@@ -98,9 +98,9 @@ let plan root =
   say root "%s" (names all);
   say root "0 upgraded, %d newly installed, 0 to remove and 0 not upgraded."
     (List.length pkgs);
-  say root "Need to get %s of archives." (size_to_str (sum (fun p -> p.size)));
+  say root "Need to get %s of archives." (str_of_size (sum (fun p -> p.size)));
   say root "After this operation, %s of additional disk space will be used."
-    (size_to_str (sum (fun p -> p.installed)));
+    (str_of_size (sum (fun p -> p.installed)));
   say root "Do you want to continue? [Y/n] y"
 
 (* [45% [6 libcurl4 154 kB/391 kB 39%]], the rate and the time left on the
@@ -115,8 +115,8 @@ let acquire fetch =
         match Task.progress t with
         | `Bytes (n, total) ->
             Fmt.str " [%s %s/%s %.0f%%]" (Task.label t)
-              (size_to_str (Int64.to_int n))
-              (size_to_str (Int64.to_int total))
+              (str_of_size (Int64.to_int n))
+              (str_of_size (Int64.to_int total))
               (percent t)
         | _ -> " [Working]")
     | None -> " [Working]"
@@ -129,8 +129,8 @@ let acquire fetch =
         Fmt.kstr
           (fun s -> Some s)
           " %s/s %s"
-          (size_to_str (Float.to_int cps))
-          (time_to_str eta)
+          (str_of_size (Float.to_int cps))
+          (str_of_time eta)
     | _ -> None
   in
   match (right, Room.width room) with
@@ -153,7 +153,7 @@ let download clock root fetch ~before id p =
   Task.set_bytes t ~count:0L ~total:size;
   say root
     "Get:%d http://deb.debian.org/debian bookworm/main amd64 %s %s %s [%s]" id
-    p.name p.arch p.version (size_to_str p.size);
+    p.name p.arch p.version (str_of_size p.size);
   let rec go n =
     if n < p.size then begin
       let chunk = min (rate / 10) (p.size - n) in
@@ -179,8 +179,8 @@ let fetch clock root =
              (1, 0) pkgs));
     Task.elapsed fetch
   in
-  say root "Fetched %s in %s (%s/s)" (size_to_str total) (time_to_str elapsed)
-    (size_to_str (Float.to_int (Int.to_float total /. elapsed)))
+  say root "Fetched %s in %s (%s/s)" (str_of_size total) (str_of_time elapsed)
+    (str_of_size (Float.to_int (Int.to_float total /. elapsed)))
 
 (* [Progress: [ 45%]] in black on green, then a bar of [#] on [.] as wide as
    the row leaves it. *)
