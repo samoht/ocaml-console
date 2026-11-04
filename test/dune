@@ -4,6 +4,7 @@
  (name test)
  (package console)
  (libraries
+  cast_harness
   console
   console.text
   console_width
