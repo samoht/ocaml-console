@@ -2051,6 +2051,118 @@ let test_commit_raises_at_close () =
     "cursor restored" true
     (Console_vte.cursor_visible t.vte)
 
+(* A view that changes at every frame, on a terminal of twelve rows. *)
+let numbered ppf =
+  let n = ref 0 in
+  let view =
+    View.fit (fun _ ->
+        incr n;
+        Fmt.kstr View.text "frame %d" !n)
+  in
+  Display.v ~size:(fun () -> (40, 12)) ~now:(fun () -> 0.) ppf view
+
+let updates s = List.length (Astring.String.cuts ~sep:"\027[?2026h" s) - 1
+
+(* The last frame [numbered] drew in [s], and the rows [s] leaves on a screen. *)
+let last_frame s =
+  Re.Group.get
+    (List.hd (List.rev (Re.all (Re.Perl.compile_pat "frame [0-9]+") s)))
+    0
+
+let rows s =
+  let vte = Console_vte.v ~rows:12 ~cols:40 () in
+  Console_vte.feed vte s;
+  List.filter (( <> ) "") (Console_vte.screen vte)
+
+(* A write cut short goes out with the next one: the frame the display counts
+   is the one on the screen, and no line above it is erased. *)
+let test_write_cut_short () =
+  let buf = Buffer.create 256 and armed = ref false in
+  let out s o l =
+    if !armed then begin
+      armed := false;
+      raise Sys.Break
+    end;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let rows = ref 1 in
+  let view =
+    View.fit (fun _ ->
+        View.vcat (List.init !rows (fun i -> Fmt.kstr View.text "row%d" i)))
+  in
+  let d = Display.v ~size:(fun () -> (40, 12)) ~now:(fun () -> 0.) ppf view in
+  List.iter
+    (fun s -> Display.print d (View.text s))
+    [ "keep-1"; "keep-2"; "keep-3"; "keep-4" ];
+  rows := 4;
+  armed := true;
+  Alcotest.check_raises "the redraw" Sys.Break (fun () -> Display.redraw d);
+  rows := 1;
+  Display.print d (View.text "after");
+  Display.close d;
+  let vte = Console_vte.v ~rows:12 ~cols:40 () in
+  Console_vte.feed vte (Buffer.contents buf);
+  List.iter
+    (fun keep ->
+      Alcotest.(check bool)
+        keep true
+        (List.exists (contains keep) (Console_vte.screen vte)))
+    [ "keep-1"; "keep-2"; "keep-3"; "keep-4"; "after" ];
+  Alcotest.(check bool) "the cursor shown" true (Console_vte.cursor_visible vte)
+
+(* A write cut short goes out first, and what would come behind it does not pile
+   up. What the cut update may have drawn stays above the region. *)
+let test_write_stays_cut () =
+  let buf = Buffer.create 256 and failing = ref false in
+  let out s o l =
+    if !failing then raise Sys.Break;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d = numbered ppf in
+  Display.redraw d;
+  let before = Buffer.length buf in
+  failing := true;
+  for _ = 1 to 50 do
+    Alcotest.check_raises "the redraw" Sys.Break (fun () -> Display.redraw d)
+  done;
+  failing := false;
+  Display.redraw d;
+  let all = Buffer.contents buf in
+  let after = String.sub all before (String.length all - before) in
+  Alcotest.(check int) "one update after the cut" 1 (updates after);
+  check_lines "the rows"
+    [ last_frame (String.sub all 0 before); last_frame all ]
+    (rows all);
+  Display.close d
+
+(* Frames do not pile up behind a write that takes its time, which another fiber
+   would redraw during. *)
+let test_write_under_way () =
+  let buf = Buffer.create 256 and during = ref ignore in
+  let out s o l =
+    let f = !during in
+    during := ignore;
+    f ();
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d = numbered ppf in
+  Display.redraw d;
+  let before = Buffer.length buf in
+  (during :=
+     fun () ->
+       for _ = 1 to 50 do
+         Display.redraw d
+       done);
+  Display.redraw d;
+  let all = Buffer.contents buf in
+  let after = String.sub all before (String.length all - before) in
+  Alcotest.(check int) "one update" 1 (updates after);
+  check_lines "the rows" [ last_frame all ] (rows all);
+  Display.close d
+
 (* What a hook raises as a task ends waits for a call that asks: the task ends,
    its function's value goes on, and its row leaves the region. *)
 let test_hook_raises () =
@@ -3238,6 +3350,9 @@ let suite =
       Alcotest.test_case "commit raises at close" `Quick
         test_commit_raises_at_close;
       Alcotest.test_case "a hook raises as a task ends" `Quick test_hook_raises;
+      Alcotest.test_case "a write cut short" `Quick test_write_cut_short;
+      Alcotest.test_case "writes that stay cut" `Quick test_write_stays_cut;
+      Alcotest.test_case "a write under way" `Quick test_write_under_way;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
       Alcotest.test_case "a view on a short terminal" `Quick test_view_short;

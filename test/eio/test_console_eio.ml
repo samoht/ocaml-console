@@ -423,6 +423,98 @@ let test_with_output_cancelled () =
             "the task is cancelled" true
             (Option.map Console.Task.state !task = Some `Cancelled)))
 
+(* A write that a cancellation cuts half way, on an output that took that half,
+   erases nothing above the region, and what it was to print still goes out. *)
+let test_write_cut () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
+      let slow = ref false in
+      let out s o l =
+        if !slow then begin
+          slow := false;
+          Buffer.add_substring buf s o (l / 2);
+          Eio.Promise.resolve enter ();
+          Eio.Fiber.await_cancel ()
+        end
+        else Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun _ ->
+          List.iter
+            (fun s -> Console_eio.print (Console.View.text s))
+            [ "keep-1"; "keep-2"; "keep-3" ];
+          slow := true;
+          Eio.Fiber.first
+            (fun () ->
+              Console_eio.print (Console.View.text "PRINTED");
+              Eio.Fiber.await_cancel ())
+            (fun () -> Eio.Promise.await entered));
+      let vte = Console_vte.v ~rows:20 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      List.iter
+        (fun line ->
+          Alcotest.(check bool)
+            line true
+            (List.exists (contains line) (Console_vte.screen vte)))
+        [ "keep-1"; "keep-2"; "keep-3"; "PRINTED" ];
+      Alcotest.(check bool) "cursor shown" true (Console_vte.cursor_visible vte))
+
+(* A task ended by the cancellation of its fiber, on an output that a cancelled
+   fiber cannot write to, leaves one row: the one it ends with. *)
+let test_cancelled_task_row () =
+  with_clock (fun clock ->
+      let buf, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let started, start = Eio.Promise.create () in
+          Eio.Fiber.first
+            (fun () ->
+              Console.Task.run root "INNER" (fun _ ->
+                  Console_eio.print (Console.View.text "above");
+                  Eio.Promise.resolve start ();
+                  Eio.Fiber.await_cancel ()))
+            (fun () -> Eio.Promise.await started);
+          Console_eio.print (Console.View.text "below"));
+      let vte = Console_vte.v ~rows:12 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      let screen = List.filter (( <> ) "") (Console_vte.screen vte) in
+      Alcotest.(check int)
+        "one row of the task" 1
+        (List.length (List.filter (contains "INNER") screen));
+      Alcotest.(check bool)
+        "the lines printed" true
+        (List.mem "above" screen && List.mem "below" screen))
+
+(* The redraw on the clock, under way as the run ends, goes out whole: the
+   region the run leaves holds the task once. *)
+let test_tick_as_the_run_ends () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
+      let slow = ref false in
+      let out s o l =
+        if !slow then begin
+          slow := false;
+          Buffer.add_substring buf s o (l / 2);
+          Eio.Promise.resolve enter ();
+          Eio_unix.sleep 0.03;
+          Buffer.add_substring buf s (o + (l / 2)) (l - (l / 2))
+        end
+        else Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          Console_eio.print (Console.View.text "above");
+          Console.Task.run root "WORK" (fun _ ->
+              slow := true;
+              Eio_mock.Clock.Mono.advance clock;
+              Eio.Promise.await entered));
+      let vte = Console_vte.v ~rows:12 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      let screen = List.filter (( <> ) "") (Console_vte.screen vte) in
+      Alcotest.(check (list string))
+        "the screen"
+        [ "above"; "\u{2713} WORK" ]
+        (List.map (fun l -> String.sub l 0 (min (String.length l) 8)) screen))
+
 (* A reader that pauses as a run ends loses nothing: a pager, say. *)
 let test_reader_pauses () =
   with_clock (fun clock ->
@@ -439,21 +531,24 @@ let test_reader_pauses () =
         "the last line" true
         (contains "the last line" (Buffer.contents buf)))
 
-(* An output that takes nothing holds up the end of a cancelled run for a second
-   at most, and the next run starts. *)
-let test_output_stalls () =
+(* An output that takes nothing once [work root stall] calls [stall] holds up
+   the end of a cancelled run for a second at most, however many writes wait
+   for it, and the next run starts. *)
+let stalls work =
   with_clock (fun clock ->
       let stalled = ref false in
       let out _ _ _ = if !stalled then Eio.Fiber.await_cancel () in
       let ppf = Format.make_formatter out ignore in
+      let stall () =
+        stalled := true;
+        Eio.Fiber.await_cancel ()
+      in
       let start = Unix.gettimeofday () in
       let result =
         Eio.Fiber.first
           (fun () ->
             Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
-                ignore (Console.Task.start root "t");
-                stalled := true;
-                Eio.Fiber.await_cancel ()))
+                work root stall))
           (fun () ->
             Eio.Fiber.yield ();
             "cancelled")
@@ -462,6 +557,20 @@ let test_output_stalls () =
       Alcotest.(check string) "the winner" "cancelled" result;
       if waited > 1.5 then Alcotest.failf "the run waited %.2fs" waited;
       Console_eio.run ~clock ~progress:`Plain ignore)
+
+let test_output_stalls () =
+  stalls (fun root stall ->
+      ignore (Console.Task.start root "t");
+      stall ())
+
+let test_output_stalls_in_a_task () =
+  stalls (fun root stall -> Console.Task.run root "t" (fun _ -> stall ()))
+
+let test_output_stalls_in_nested_tasks () =
+  stalls (fun root stall ->
+      Console.Task.run root "a" (fun a ->
+          Console.Task.run a "b" (fun b ->
+              Console.Task.run b "c" (fun _ -> stall ()))))
 
 (* A [Cancelled] in a fiber that nothing cancelled is a view's own exception. *)
 let test_view_foreign_cancelled () =
@@ -1204,8 +1313,17 @@ let suite =
       Alcotest.test_case "cancelled in a view" `Quick test_view_cancelled;
       Alcotest.test_case "cancelled around with_output" `Quick
         test_with_output_cancelled;
+      Alcotest.test_case "a write that is cut" `Quick test_write_cut;
+      Alcotest.test_case "a task ended in a cancelled fiber" `Quick
+        test_cancelled_task_row;
+      Alcotest.test_case "a redraw under way as the run ends" `Quick
+        test_tick_as_the_run_ends;
       Alcotest.test_case "a reader that pauses" `Quick test_reader_pauses;
       Alcotest.test_case "an output that stalls" `Quick test_output_stalls;
+      Alcotest.test_case "an output that stalls in a task" `Quick
+        test_output_stalls_in_a_task;
+      Alcotest.test_case "an output that stalls in nested tasks" `Quick
+        test_output_stalls_in_nested_tasks;
       Alcotest.test_case "a foreign Cancelled" `Quick
         test_view_foreign_cancelled;
       Alcotest.test_case "a report in a cancelled fiber" `Quick
