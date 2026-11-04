@@ -20,8 +20,9 @@ let end_recording () =
       let unused = Format.formatter_of_buffer (Buffer.create 0) in
       ignore (Recording.start ~time:(fun () -> 0.) unused : bool))
 
-(* [f file] under a recording asked for on a temporary [file], with a known
-   terminal; no recording is left, nor the file, nor a variable changed. *)
+(* [recording f] runs [f file] with a recording asked for on a temporary
+   [file] and a known terminal, then leaves no recording, no file and no
+   variable changed. *)
 let recording ?(env = []) f =
   with_temp (fun file ->
       with_env
@@ -127,7 +128,8 @@ let test_header () =
     [ ("TERM", "a\"\n\027") ]
     {|{"version":2,"width":80,"height":24,"env":{"TERM":"a\"\n\u001B"}}|};
   (* RFC 8259 section 8.1: JSON text exchanged is UTF-8, whatever the bytes of
-     the variable. A lead byte must not take the closing quote for its own. *)
+     the variable. A lead byte at the end of the value must not swallow the
+     closing quote. *)
   List.iter
     (fun term ->
       check
@@ -238,9 +240,9 @@ let test_cut_short () =
         ]
         (lines file))
 
-(* asciicast v2, "o": data is valid UTF-8. Bytes that are no text come out as
-   Unicode Core Spec 3.9 replaces them, and those left at the end come out as
-   the recording ends. *)
+(* asciicast v2, "o": data is valid UTF-8. Bytes that are not UTF-8 are
+   replaced as Unicode Core Spec 3.9 says, and the bytes of a character left
+   unfinished are written, replaced, when the recording ends. *)
 let test_hostile_bytes () =
   let replaced = "\u{fffd}" in
   with_temp (fun other ->
@@ -299,8 +301,9 @@ let test_large_write () =
         [ header; Fmt.str {|[0,"o","%s"]|} large ]
         (lines file))
 
-(* The same file goes on: no second header, the new clock, the time still not
-   going back, a formatter seen twice recorded once. *)
+(* A second start on the same file goes on with the recording: no second
+   header, the new clock, a time that still does not go back, and a formatter
+   seen twice recorded once. *)
 let test_same_file () =
   recording (fun file ->
       let _, first = buffered () in

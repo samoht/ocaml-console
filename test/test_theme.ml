@@ -268,15 +268,14 @@ let test_default_named () =
     @ List.map (fun c -> ("palette", c)) (Theme.palette t));
   Alcotest.(check bool) "no muted colour" true (Theme.muted t = None)
 
-(* Text a theme colours reads on its background at 4.5:1 or more, and a
-   glyph it colours alone at 3:1 or more, as WCAG 2.1 asks of text and of
-   graphics. The muted colour and the header's are text: counts, timers and
-   headings; so are the colours of the roles, which [View.role] gives text,
-   on a theme that names its background. A theme without one is read on
-   black and on white alike, where 4.5:1 on both asks a luminance of 0.175
-   to 0.183, which no amber of the 256-colour palette has: its roles are
-   held to 3:1 on both, as glyphs. A named colour is the terminal's own,
-   which its scheme shows in its own contrast. *)
+(* WCAG 2.1 asks a contrast of 4.5:1 for text and 3:1 for graphics. The
+   colours of text are the muted and header colours (counts, timers,
+   headings) and, on a theme that names its background, the colours of the
+   roles, which [View.role] gives to text; the palette colours glyphs. A theme
+   without a background is read on both black and white, where 4.5:1 needs a
+   luminance between 0.175 and 0.183, which no amber of the 256-colour palette
+   has, so its roles are held to 3:1, as glyphs. A named colour is not
+   measured: the terminal's scheme sets its contrast. *)
 let test_contrast () =
   List.iter
     (fun (name, t) ->
@@ -520,10 +519,9 @@ let test_still () =
     [ frame 0.; frame 0. ]
     [ frame 0.1; frame 0.55 ]
 
-(* Printed on a formatter, a frame is motionless: its glyphs are those of
-   the theme without motion, and so are its colours, but for a sweep, which
-   colours the whole frame and prints the palette graded round it, as a
-   display draws it at its start. *)
+(* A frame printed on a formatter does not move: its glyphs and colours are
+   those of the theme without motion, except that a sweep grades its palette
+   round the whole frame, as a display draws it at its start. *)
 let test_still_printed () =
   let table =
     Table.view

@@ -4,8 +4,8 @@
   ---------------------------------------------------------------------------*)
 
 (** A reader of {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2}
-    that shares nothing with the writer under test: a line is any JSON that
-    means the same. *)
+    that shares no code with the writer under test. It compares lines as JSON
+    values, so any text that encodes the same JSON matches. *)
 
 val json : Jsont.json Alcotest.testable
 (** [json] compares JSON values, not the text that writes them. *)

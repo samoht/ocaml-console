@@ -25,7 +25,7 @@ let test_printable () =
 
 (* A control sequence with intermediate bytes, such as DECSCUSR (ESC [ 1 SP
    q) or SR (ESC [ 2 SP A), ends at its final byte: none of it is typed, and
-   its final byte is no arrow. *)
+   a final [A] is not read as an arrow. *)
 let test_csi_intermediate () =
   let t, echo, _ = fed "ab\027[1 qc\027[2 Ad" in
   Alcotest.(check string) "echo" "abcd" echo;
@@ -88,7 +88,7 @@ let test_masked_input () =
     "secrets are never retained in history" [] (Console_input.history t)
 
 (* A secret is the bytes typed, whatever they are: a bidi mark, a C1
-   control, a byte that is no UTF-8, a mark with nothing to join, or a
+   control, a byte that is not UTF-8, a mark with nothing to join, or a
    character cut short. Only masks are echoed, the cursor moved by
    backspaces. *)
 let test_masked_keeps_bytes () =
@@ -227,7 +227,8 @@ let test_cluster_joins_after () =
     [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
     ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x";
   (* matrix 0.1.0's emulator draws U+2764 ZWJ U+1F469 in the one cell of
-     U+2764, where console counts the two of U+1F469, so this reads the echo. *)
+     U+2764, where console counts the two of U+1F469, so this checks the echo
+     rather than the screen. *)
   let t = Console_input.v () in
   ignore (Console_input.feed t ("x\u{1F469}" ^ left ^ "\u{2764}\u{200D}"));
   Alcotest.(check string)
@@ -429,12 +430,12 @@ let test_masked_history_seed () =
     "a masked editor keeps no history, including its seed" []
     (Console_input.history editor)
 
-(* What a peer types bounds what the editor holds: a line holds at most 4095
-   bytes, the canonical-mode line of the Linux tty line discipline (its
-   4096-byte N_TTY_BUF_SIZE less the terminator), and each byte refused past it
-   rings the bell, as readline does. The exact line and echo catch an editor
-   that keeps the excess, one that truncates without a bell, and one that
-   counts characters rather than bytes. *)
+(* A line holds at most 4095 bytes, the canonical-mode line of the Linux tty
+   line discipline (its 4096-byte N_TTY_BUF_SIZE less the terminator), so that
+   a peer cannot grow it without bound. Each byte refused past it rings the
+   bell, as readline does. The exact line and echo catch an editor that keeps
+   the excess, one that truncates without a bell, and one that counts
+   characters rather than bytes. *)
 let test_line_bound () =
   let t, echo, _ = fed (String.make 5000 'a') in
   Alcotest.(check string)

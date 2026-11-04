@@ -49,7 +49,8 @@ let stripped =
     ("PM, 8-bit", "a\u{009E}pm\u{009C}b", "ab");
     ("APC", "a\027_apc\027\\b", "ab");
     ("APC, 8-bit", "a\u{009F}apc\u{009C}b", "ab");
-    (* A control string the text ends inside is the terminal's to the end. *)
+    (* A control string or sequence that the text ends inside takes the rest
+       of the text, as a terminal reads it. *)
     ("unterminated OSC", "a\027]0;title", "a");
     ("unterminated CSI", "a\027[31", "a");
     ("lone ESC", "a\027", "a");
@@ -79,10 +80,11 @@ let stripped =
     (* A character outside 5.4's ranges ends the sequence, and is text. *)
     ("CSI cut short", "a\027[3\u{00E9}b", "a\u{00E9}b");
     (* Malformed UTF-8 is the replacement glyph, a lone 09/11 byte too: in a
-       UTF-8 stream it is no CSI. *)
+       UTF-8 stream it is not a CSI. *)
     ("malformed UTF-8", "a\255b", "a\u{FFFD}b");
     ("raw 09/11 byte", "a\15531mb", "a\u{FFFD}31mb");
-    (* The rest is {!Console_text.sanitize}'s. *)
+    (* The other cases are {!Console_text.sanitize}'s: a tab is a space and
+       DEL is removed. *)
     ("tab and DEL", "a\tb\127c", "a bc");
     ("plain text", "\u{4E16}\u{754C} ok", "\u{4E16}\u{754C} ok");
   ]
@@ -147,8 +149,8 @@ let test_truecolour_reset () =
     (Console_text.strip ~keep_styles:true input)
 
 (* 8.3.117: 38, 48 and 58 take their colour as the parameters after them. A
-   head with too few of them is no reset, so what came before it is still on
-   and is turned off at the end. *)
+   38, 48 or 58 with too few of them does not reset, so the style before it
+   is still on and is turned off at the end. *)
 let test_truncated_colour () =
   List.iter
     (fun tail ->
@@ -158,9 +160,9 @@ let test_truncated_colour () =
         (Console_text.strip ~keep_styles:true input))
     [ "\027[38;0m"; "\027[38;2;0;0m"; "\027[48;2;255;0m"; "\027[58;5m" ]
 
-(* A line ends at a line feed, a carriage return, or the two together, which
-   end one line: none leaves a carriage return, as a space, in a column of
-   its own. Without [keep_newlines] a line end is one space. *)
+(* A line ends at a line feed, a carriage return, or CR LF, which ends one
+   line; no line end leaves a carriage return behind as a space. Without
+   [keep_newlines] a line end is one space. *)
 let test_line_ends () =
   let check what expected f input =
     Alcotest.(check string) what expected (f input)

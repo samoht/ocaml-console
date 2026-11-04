@@ -199,7 +199,8 @@ let test_vertical_palette () =
   in
   Alcotest.(check string) "plain" "█\n█" s
 
-(* A sparkline spans its values, its lowest at an eighth. *)
+(* A sparkline runs from its lowest value to its highest, the lowest drawn as
+   an eighth of a cell. *)
 let test_sparkline () =
   Alcotest.(check string)
     "from the lowest to the highest" "▁▃▆█"

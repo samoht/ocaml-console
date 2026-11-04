@@ -66,8 +66,9 @@ let test_partial_eof () =
   let t, _ =
     prompt ~interactive:true [ `Return "unfinished"; `Raise End_of_file ]
   in
-  (* Buf_read.line permits an unterminated final line; the prompt documents
-     an Error when input ends. A partial answer must not open a typed gate. *)
+  (* [Buf_read.line] accepts an unterminated last line, but the prompt
+     answers [Error] when the input ends, so that a partial answer does not
+     open a typed gate. *)
   ended (P.line t "line: ")
 
 exception Read_failure
@@ -213,8 +214,9 @@ let test_sibling_fibers () =
   Alcotest.(check (pair bool bool))
     "a run after the other's display" (false, true) (siblings ~overlap:false)
 
-(* A callback failure belongs to its run; it cannot close the display a
-   sibling still uses, even when that sibling yields while producing output. *)
+(* A run whose function raises waits for a sibling run that shares its
+   display, even when that sibling yields while it prints: the display does
+   not close under it. *)
 let test_failing_first_run_waits () =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -252,8 +254,8 @@ let test_failing_first_run_waits () =
     "a successful sibling is not cancelled" false
     (contains "\u{25cb} sibling" (Buffer.contents out))
 
-(* A fiber may outlive the run that forked it by using an outer switch.
-   Its inherited context must not resurrect the display that already closed. *)
+(* A fiber forked on an outer switch outlives the run that forked it. The
+   binding it inherits does not bring back the display, which has closed. *)
 let test_run_from_surviving_fiber () =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in

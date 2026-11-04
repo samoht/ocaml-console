@@ -3,10 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Demonstrates Console.Progress in plain mode: a 4-step job whose tasks print
-    a line when they start and when they end, the last one failing with its
-    output, then a summary. A fixed clock keeps the timers deterministic so cram
-    diffs are stable. *)
+(** {!Console.Progress} in plain mode: a job of four steps whose tasks print a
+    line when they start and when they end, the last one failing with its
+    output, then a summary. A fixed clock keeps the timers deterministic, so the
+    cram output is stable. *)
 
 let () =
   let now = ref 0. in

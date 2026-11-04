@@ -119,8 +119,8 @@ let rows () =
           | _ -> Alcotest.failf "a short row: %S" line)
       | [] -> Alcotest.failf "an empty row: %S" line)
 
-(* Console counts what its policy says, which is what the terminals show
-   where they agree, and one of their counts where they do not. *)
+(* Console's width of each string is the count every terminal shows where
+   they agree, and the count of one of them where they do not. *)
 let test_real_terminals () =
   let rows = rows () in
   Alcotest.(check bool) "the table has rows" true (List.length rows > 10);

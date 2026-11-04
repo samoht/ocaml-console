@@ -25,11 +25,11 @@ let render renderer panel =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* A border's gradient grades the frame once round it, still, from the
-   first colour at the top-left corner, clockwise and back: on a frame of
-   ten cells, the second of two colours is at the fifth cell from it, the
-   bottom-right corner, and each cell between blends the two around its
-   place, as Color.gradient does. Not the content. *)
+(* A border's gradient runs once round the frame, clockwise from the
+   top-left corner and back to the first colour, and it does not move; the
+   content is not graded. On a frame of ten cells, the second of two colours
+   is at the fifth cell, the bottom-right corner, and each cell between blends
+   the two around its place, as [Color.gradient] does. *)
 let test_gradient_frame () =
   let border =
     Border.with_gradient [ Color.rgb 255 0 0; Color.rgb 0 0 255 ] Border.ascii
@@ -143,7 +143,8 @@ let test_margin_wraps () =
        ])
     (render_at 30 panel)
 
-(* A box that fits keeps its natural width, and [to_string] is natural. *)
+(* A box that fits keeps its natural width, and [to_string] lays a box out
+   at its natural width whatever its length. *)
 let test_margin_natural () =
   Alcotest.(check string)
     "fits" "╭────╮\n│ ok │\n╰────╯"

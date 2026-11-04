@@ -6,5 +6,4 @@
 (** Tests for {!Console_text}. *)
 
 val suite : string * unit Alcotest.test_case list
-(** The visible-text strip against ECMA-48's coding examples and control
-    strings. *)
+(** [suite] is the Alcotest test suite for {!Test_console_text}. *)

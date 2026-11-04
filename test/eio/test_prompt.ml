@@ -20,8 +20,8 @@ let prompt ?interactive input =
 
 (* The wording of a refusal is the implementation's to choose, so an answer is
    compared after collapsing every error but the end of the input to
-   [Refused]. The one message whose content is itself a specification -- the
-   gate must not echo the word it is asking for -- gets its own assertion. *)
+   [Refused]. The one message whose content is specified, that the gate does
+   not echo the word it asks for, gets its own assertion. *)
 type 'a answer = Got of 'a | Ended | Refused
 
 let seen = function
@@ -140,7 +140,8 @@ let test_secret_without_a_terminal_is_refused () =
     (seen (Prompt.secret t "secret: "));
   Alcotest.(check string) "nothing asked" "" (Buffer.contents out)
 
-(* [f ()] with standard input on [stdin], given back as it was found. *)
+(* [with_stdin ~stdin f] is [f ()] with standard input on [stdin], put back
+   as it was found once [f] ends. *)
 let with_stdin ~stdin f =
   let saved = Unix.dup Unix.stdin in
   Fun.protect ~finally:(fun () ->
@@ -150,7 +151,8 @@ let with_stdin ~stdin f =
   Unix.dup2 stdin Unix.stdin;
   f ()
 
-(* A pseudo-terminal for [f tty master], each a descriptor of its own. *)
+(* [with_pty f] is [f env tty master] on a new pseudo-terminal, [tty] and
+   [master] each a descriptor of its own. *)
 let with_pty f =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -166,7 +168,8 @@ let masked tty = not (Unix.tcgetattr tty).Unix.c_echo
 let ready fd =
   match Unix.select [ fd ] [] [] 0. with [], _, _ -> false | _ -> true
 
-(* What the terminal shows, read until it shows nothing more for now. *)
+(* [drain master] reads what the terminal shows until it shows nothing more
+   for now. *)
 let rec drain master =
   if ready master then begin
     ignore (Unix.read master (Bytes.create 4096) 0 4096 : int);
@@ -176,9 +179,9 @@ let rec drain master =
 let type_in master s =
   ignore (Unix.write_substring master s 0 (String.length s) : int)
 
-(* Waits until the terminal shows [s]. On Linux what is typed reaches the
-   line discipline later, and a flush meanwhile misses it: once echoed, it
-   is there. *)
+(* [await_echo master s] waits until the terminal shows [s]. On Linux typed
+   input reaches the line discipline later, and a flush meanwhile misses it;
+   once echoed, it is there. *)
 let await_echo master s =
   let shown = Buffer.create 64 in
   let buf = Bytes.create 4096 in
@@ -188,8 +191,8 @@ let await_echo master s =
     Buffer.add_subbytes shown buf 0 n
   done
 
-(* A prompt on [tty] whose questions and masks go to a formatter that
-   counts the masks, [*], in [echoed]. *)
+(* [prompt_on env ~echoed] is a prompt on standard input whose questions and
+   masks go to a formatter that counts the masks, [*], in [echoed]. *)
 let prompt_on env ~echoed =
   let ppf =
     Format.make_formatter
@@ -201,10 +204,11 @@ let prompt_on env ~echoed =
   in
   Prompt.v ~ppf (Eio.Stdenv.stdin env)
 
-(* [secret t] answered on a pseudo-terminal with [typed] by another fiber
-   of the domain, which runs only if the read lets it: a read that parks
-   the domain hangs, and the run's guard ends it. The fiber types once the
-   question is masked, since what is typed before is discarded. *)
+(* [secret_typed typed] is the answer of [secret] on a pseudo-terminal where
+   another fiber of the domain types [typed]. That fiber runs only if the read
+   lets it: a read that blocks the domain hangs, and the run's guard ends it.
+   The fiber types once the question is masked, since what is typed before is
+   discarded. *)
 let secret_typed typed =
   with_pty @@ fun env tty master ->
   with_stdin ~stdin:tty (fun () ->
@@ -220,24 +224,24 @@ let secret_typed typed =
       in
       seen answer)
 
-(* [secret] waits for the terminal the way a fiber waits, so the rest of the
-   domain runs meanwhile: the answer is typed by another fiber of the same
-   domain, which only runs if the read let it. *)
+(* [secret] waits for the terminal as a fiber waits, so the rest of the
+   domain runs meanwhile. *)
 let test_secret_leaves_the_domain_running () =
   Alcotest.check string_answer "the typed line" (Got "abc")
     (secret_typed "abc\n")
 
 (* A password is the bytes typed: a bidi mark, a C1 control and a byte
-   that is no UTF-8 come back as they were typed. *)
+   that is not UTF-8 come back as they were typed. *)
 let test_secret_keeps_bytes () =
   let password = "\u{202e}p\xc2\x85w\xff" in
   Alcotest.check string_answer "the bytes typed" (Got password)
     (secret_typed (password ^ "\n"))
 
-(* A domain types the line in pieces once the question is masked, each
-   piece once the prompt has masked all typed before it, so that the
-   terminal's input queue never fills; past the cap the prompt masks no
-   more, and the rest, less than a queue, is typed at once. *)
+(* [secret] does not take a line longer than its cap. Another domain types
+   the line in pieces once the question is masked, each piece once the
+   prompt has masked all typed before it, so that the terminal's input queue
+   never fills; past the cap the prompt masks no more, and the rest, less
+   than a queue, is typed at once. *)
 let test_secret_cap () =
   let line = String.make 5000 'a' ^ "\n" in
   let cap = 4097 in
@@ -318,8 +322,8 @@ let test_secret_drops_typeahead () = secret_after ~before:"" "early\n"
 let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
 
 (* While one fiber waits for an answer, the output of another fiber is
-   still its task's: only the prompting fiber writes straight out. Run takes
-   the program's output from Fmt.stdout, which writes into a buffer here. *)
+   still its task's: only the prompting fiber writes straight out. [run] takes
+   the program's output from [Fmt.stdout], which writes into a buffer here. *)
 let test_prompt_leaves_other_fibers_attributed () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->

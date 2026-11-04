@@ -5,8 +5,8 @@
 
 open Display_harness
 
-(* Console_eio driver, on a buffer: no terminal, so each task line, log line
-   and the result is printed as plain text. *)
+(* Most tests run [Console_eio.run] on a buffer: with no terminal, each task
+   line, log line and the result is printed as plain text. *)
 
 module D = Console.Task
 
@@ -22,7 +22,8 @@ let capture ?label f =
 let mem ~msg needle haystack =
   Alcotest.(check bool) msg true (contains needle haystack)
 
-(* A finished task commits its label; the work's success prints its message. *)
+(* A task that ends prints its label, and the root's success prints its
+   message. *)
 let test_run_banner () =
   let out =
     capture ~label:"Build" (fun t ->
@@ -36,7 +37,7 @@ let test_run_banner () =
   mem ~msg:"verdict marker" "✓" out;
   mem ~msg:"verdict message" "build succeeded" out
 
-(* The work's failure prints its message. *)
+(* The root's failure prints its message. *)
 let test_run_fail () =
   let out =
     capture (fun t ->
@@ -47,7 +48,7 @@ let test_run_fail () =
   mem ~msg:"fail marker" "✗" out;
   mem ~msg:"fail message" "link failed" out
 
-(* An unhandled exception clears the region and propagates. *)
+(* An exception that the function raises goes on out of [run]. *)
 let test_run_raises () =
   Alcotest.check_raises "propagates" (Failure "boom") (fun () ->
       ignore
@@ -55,8 +56,9 @@ let test_run_raises () =
              let _ = D.start t "doomed" in
              failwith "boom")))
 
-(* Logs messages are routed into the same permanent semantic history while the
-   driver owns the reporter. *)
+(* While [run] owns the Logs reporter, messages go to the display: an [App]
+   message as it was written, a message at another level after its mark, and
+   one from a source other than the default after the source's name. *)
 let named = Logs.Src.create "console.test"
 
 let test_reporter () =

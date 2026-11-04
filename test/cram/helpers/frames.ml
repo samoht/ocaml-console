@@ -3,15 +3,15 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Render a {!Console.Progress} TTY session (real control characters) through
-    Matrix's terminal emulator and print the reconstructed screen after each
-    frame, so a cram test can pin exactly what a terminal shows: nested rows
-    with log windows, rows being finished, fresh logs, and the redraw in
-    between.
+(** The screens of a {!Console.Progress} session on a terminal. The control
+    sequences go through Matrix's terminal emulator, and the screen is printed
+    after each frame, so a cram test pins what a terminal shows: nested rows
+    with log windows, rows that end, new log lines, and the redraws between
+    them.
 
-    A fixed clock keeps spinners and timers deterministic. Width and height are
-    taken from [$COLUMNS]/[$LINES] (set by the cram test) so the geometry -- and
-    therefore the wrapping and the height cap -- is stable. *)
+    A fixed clock keeps spinners and timers deterministic. Width and height come
+    from [$COLUMNS] and [$LINES], which the cram test sets, so the wrapping and
+    the height cap are stable. *)
 
 let geom name default =
   match Option.bind (Sys.getenv_opt name) int_of_string_opt with
@@ -30,9 +30,10 @@ let () =
     Console_vte.feed vte (Buffer.contents buf);
     Buffer.clear buf
   in
-  (* A frame is what the driver's tick painted. An update of its own repaints
-     at the eye's pace, which on this pinned clock is never, so a frame taken
-     without the tick shows the region as the previous one left it. *)
+  (* [frame title] redraws the display, as the driver's tick does, then prints
+     the screen. On its own the display repaints at a pace that this pinned
+     clock never reaches, so without the redraw a frame would show the region
+     as the previous one left it. *)
   let frame ?display title =
     Option.iter Console.Display.redraw display;
     sync ();

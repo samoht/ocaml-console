@@ -241,8 +241,10 @@ let test_window_age () =
     "the oldest window line gives way" false
     (List.exists (contains "older") rows)
 
-(* A single completed task is subject to the waiting-region bound too.
-   Neither the caller nor the output sink retains the task or its label. *)
+(* The bound of the waiting region holds for a single completed task: one
+   with a 4 MiB label keeps about 1 MiB at most. The test keeps neither the
+   task nor its label and the formatter drops what it is given, so the live
+   bytes measured are the display's. *)
 let test_oversized_waiting_task () =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
   let root = Task.root ~now:(fun () -> 0.) () in

@@ -56,8 +56,9 @@ let test_only_documented () =
     "utf_8" false
     (Colour.utf_8 ~getenv:(only [ "LC_ALL"; "LC_CTYPE"; "LANG" ] pairs))
 
-(* What the environment holds is not ours: bytes that are not text, control
-   characters and very long values are only values that do not match. *)
+(* Environment values are untrusted: bytes that are not UTF-8, control
+   characters and very long values are read as any other value is, and
+   raise nothing. *)
 let test_hostile_values () =
   let long = String.make (1024 * 1024) 'x' in
   let check_depth label expected term =

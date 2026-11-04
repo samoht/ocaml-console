@@ -67,8 +67,8 @@ let test_keep_styles_passes_sgr () =
     (Console_text.strip ~keep_newlines:false ~keep_styles:true
        "\027[31ma\nb\027[0m")
 
-(* The parameter run is bounded, because an unbounded scan over untrusted bytes
-   is a scan whoever wrote the bytes sizes. *)
+(* The parameter run is bounded at 64 bytes, so that untrusted bytes cannot
+   make the scan as long as they like. *)
 let test_keep_styles_bounds_the_parameters () =
   let params n = String.make n '1' in
   Alcotest.(check string)
@@ -119,9 +119,9 @@ let lines s = String.split_on_char '\n' s
 let side ?gap spans = View.to_string (View.hcat ?gap spans)
 let text = View.text
 
-(* [hcat] puts spans side by side, [gap] spaces apart, each padded to its
-   widest line and a shorter one with blank lines, a line ending at its last
-   span that has text there, and a span with no text left out. *)
+(* [hcat] puts spans side by side, [gap] spaces apart. Each span is padded to
+   its widest line, and a shorter one with blank lines; a line ends after the
+   last span with text on it, and a span with no text is left out. *)
 let test_hcat () =
   Alcotest.(check string)
     "side by side" "a    1\nbbb  2\n     3"
@@ -320,8 +320,8 @@ let test_to_span_cells () =
     (List.map (fun w -> w + 2) (widths (View.to_string steps)))
     (widths (shown wide ~margin:200 (fun ppf -> View.pp ppf span)))
 
-(* A span of no cell is still text: here its accent belongs to the span
-   before it when there is no gap. *)
+(* A span that takes no cell still prints: here its combining accent joins
+   the letter of the span before it when there is no gap. *)
 let test_hcat_combining_suffix () =
   Alcotest.(check string)
     "the accent survives composition" "e\u{0301}"
@@ -347,8 +347,8 @@ let check_fits name margin pp =
           margin l)
     (lines margin pp)
 
-(* Cases the properties of widgets put together found, and nested widgets
-   each guarantee holds in. *)
+(* Composed widgets from cases the property tests found: each of their lines
+   fits the margin. *)
 let test_put_together () =
   let open Console in
   let emoji =
@@ -367,8 +367,8 @@ let test_put_together () =
        (Panel.view ~border:Border.ascii ~padding:0
           (View.text
              "\u{1f468}\u{200d}\u{1f469}1\u{fe0f}\u{20e3}x 1\u{fe0f}\u{20e3}")));
-  (* A table and a tree side by side, each at half of less room than they
-     need. *)
+  (* A table and a tree side by side, each given half of a room narrower than
+     they need. *)
   let half m = max 1 ((m - 1) / 2) in
   let side_by_side m =
     Fmt.const View.pp
@@ -386,8 +386,8 @@ let test_put_together () =
   List.iter
     (fun m -> check_fits "a table by a tree" m (side_by_side m))
     [ 3; 5; 9 ];
-  (* In colour, a panel with a gradient title by a rule with a bar in its
-     label is its plain text with escape codes. *)
+  (* In colour, a panel with a gradient title beside a rule with a bar in its
+     label prints its plain text plus escape codes. *)
   let scene m =
     Fmt.const View.pp
       (View.hcat

@@ -17,7 +17,7 @@ val discard_stray_vs16 : string -> unit
 (** [discard_stray_vs16 s] discards the sample being tested, with
     {!Alcobar.bad_test}, when [s] holds a grapheme cluster with a VS16 (U+FE0F)
     that console does not count two cells wide, as after a character with no
-    emoji presentation, or with a VS16 after a character that is no emoji.
+    emoji presentation, or with a VS16 after a character that is not an emoji.
     matrix 0.1.0 draws such a cluster two cells wide, and the cell of a spacing
     mark that a VS16 follows, which the test terminal draws apart, two cells
     wide too (invariant-hq/mosaic#89). *)
