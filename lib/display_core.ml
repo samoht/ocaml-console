@@ -770,6 +770,10 @@ let close t =
     (fun () -> if not t.closed then shut t)
     ~finally:(fun () -> raise_failure t)
 
+let reveal t =
+  if is_live t && t.shown && not t.closed then
+    write ~salvage:show_cursor t show_cursor
+
 let reporting t f x =
   match f x with () -> () | exception e when t.cancelled e -> ()
 

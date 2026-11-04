@@ -355,7 +355,9 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
     in
     ({ Session.display; root; json = progress = `Json }, intercept, cursor)
   with
-  | run, intercept, cursor -> Session.run ~cursor ~sleep ~intercept run f
+  | run, intercept, cursor ->
+      let flow = Option.is_none (descriptor ppf) in
+      Session.run ~cursor ~flow ~sleep ~intercept run f
   | exception e ->
       Session.release ();
       raise e

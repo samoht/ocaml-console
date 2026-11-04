@@ -106,6 +106,12 @@
   end of a run stops goes out whole instead of leaving its row above the last
   frame (#27).
 
+- A signal now ends a `Console_eio.run` even after a view raised, and restores
+  the cursor on an Eio flow too (#43).
+
+- A view that calls `exit` during a `Console_eio.run` now leaves the cursor
+  shown (#43).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

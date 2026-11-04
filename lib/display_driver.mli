@@ -21,6 +21,10 @@ val unwritten : Display.t -> bool
 (** [unwritten display] is [true] iff a write of [display] is under way, waits,
     or was cut short and what remains of it waits for the next. *)
 
+val reveal : Display.t -> unit
+(** [reveal display] shows the cursor of [display] at once, ahead of a close
+    that may not end, such as one that runs a view during [exit]. *)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

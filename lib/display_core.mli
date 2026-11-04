@@ -75,6 +75,10 @@ val write : ?salvage:string -> t -> string -> unit
     this is cut short, [salvage] (defaults to nothing) goes out in its place
     with the next write. *)
 
+val reveal : t -> unit
+(** [reveal d] shows the cursor of [d] at once, ahead of a close that may not
+    end, such as one that runs a view during [exit]. *)
+
 val unwritten : t -> bool
 (** [unwritten d] is [true] iff a write of [d] is under way, waits, or was cut
     short and what remains of it waits for the next. *)

@@ -410,6 +410,10 @@ let close_quietly ?first ?(urgent = false) run =
   try close_display ?first run
   with e when urgent || not (Task_driver.is_async e) -> ()
 
+(* From a signal handler or an [at_exit] function, nothing goes on after it. *)
+let close_last run =
+  try close_quietly run with Out_of_memory | Stack_overflow | Sys.Break -> ()
+
 let restore () =
   List.iter
     (fun i ->
@@ -592,14 +596,6 @@ let end_work root = function
   | Ok _ -> Task.succeed root
   | Error e -> if cancelled e then Task.cancel root else Task.fail root
 
-(* At [exit] the program is ending already: what the close raises gives way
-   to that, unless the program must see it, and the terminal is restored
-   whatever it raises. *)
-let close_at_exit run ~give_back =
-  Task_driver.protect
-    (fun () -> close_quietly run)
-    ~finally:(fun () -> Task_driver.protect give_back ~finally:restore)
-
 (* The end of a cancelled run, or of one whose output a cancellation cut,
    waits for the output until the {!deadline} at most. *)
 let last_writes display f =
@@ -607,7 +603,59 @@ let last_writes display f =
     ignore (shielded f : bool)
   else f ()
 
-let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
+(* A signal handler that runs out of any fiber cannot write on an Eio flow: a
+   fiber of the run does what it asks, as long as there is one. *)
+type relay = {
+  pending : (unit -> unit) list Atomic.t;
+  wake : Eio.Condition.t;
+  listening : bool Atomic.t;
+}
+
+let relay () =
+  {
+    pending = Atomic.make [];
+    wake = Eio.Condition.create ();
+    listening = Atomic.make false;
+  }
+
+let start_relay ~sw relay =
+  let next () =
+    match Atomic.exchange relay.pending [] with [] -> None | l -> Some l
+  in
+  let rec loop () =
+    List.iter safely (List.rev (Eio.Condition.loop_no_mutex relay.wake next));
+    loop ()
+  in
+  Eio.Fiber.fork_daemon ~sw loop;
+  Atomic.set relay.listening true;
+  Eio.Switch.on_release sw (fun () -> Atomic.set relay.listening false)
+
+let rec relayed relay k =
+  let l = Atomic.get relay.pending in
+  if Atomic.compare_and_set relay.pending l (k :: l) then
+    Eio.Condition.broadcast relay.wake
+  else relayed relay k
+
+let idle relay ~flow display k =
+  let k () = Display_driver.when_idle display k in
+  if flow && Atomic.get relay.listening && not (in_fiber ()) then
+    relayed relay k
+  else k ()
+
+(* What a return, a raise or a cancellation does, [exit] does too, so that what
+   a later [at_exit] function logs or prints goes out as before. The cursor
+   comes first: the last frame runs a view, which may call [exit] again, and
+   that one ends the program at once. *)
+let ends_at_exit (run : run) ~give_back =
+  Atomic.set ending
+    (Some
+       (fun () ->
+         safely (fun () -> Display_driver.reveal run.display);
+         close_last run;
+         give_back ();
+         restore ()))
+
+let run ?(cursor = ignore) ?(flow = false) ~sleep ~intercept:formatters run f =
   let display = run.display in
   let previous = Logs.reporter () in
   let closed, close = Eio.Promise.create () in
@@ -615,9 +663,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Logs.set_reporter previous;
     ignore (Eio.Promise.try_resolve close ())
   in
-  (* What a return, a raise or a cancellation does, [exit] does too, so that
-     what a later [at_exit] function logs or prints goes out as before. *)
-  Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
+  ends_at_exit run ~give_back;
   let s = share run in
   Task_driver.protect ~finally:(fun () ->
       Task_driver.protect
@@ -628,8 +674,9 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
-  Interrupt.protect ~idle:(Display_driver.when_idle display)
-    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_display run)
+  let relay = relay () in
+  Interrupt.protect ~idle:(idle relay ~flow display)
+    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_last run)
   @@ fun () ->
   match
     Eio.Switch.run @@ fun sw ->
@@ -638,6 +685,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Logs.set_reporter
       (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
     animate ~sw ~sleep display;
+    start_relay ~sw relay;
     Fun.protect ~finally:give_back @@ fun () -> first_run s f
   with
   | value ->

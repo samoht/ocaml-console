@@ -67,6 +67,7 @@ val with_terminal : (unit -> 'a) -> 'a
 
 val run :
   ?cursor:(bool -> unit) ->
+  ?flow:bool ->
   sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   run ->
@@ -82,5 +83,7 @@ val run :
     when [f] returns, raises, is cancelled, the program exits or a signal ends
     it ({!Interrupt}). While SIGTSTP stops the program, the region is off the
     screen and the cursor shown with [cursor true] (default does nothing); once
-    continued, [cursor false] hides it and the region is drawn again. A {!claim}
+    continued, [cursor false] hides it and the region is drawn again. With
+    [flow] (defaults to [false]) its output is an Eio flow, which a signal
+    handler that runs out of any fiber leaves to a fiber of the run. A {!claim}
     must be held; it is released. *)
