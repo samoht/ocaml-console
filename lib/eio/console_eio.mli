@@ -279,13 +279,13 @@ val size : Format.formatter -> (unit -> int * int) option
     ]} *)
 
 val width : Format.formatter -> int option
-(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the
-    terminal's width when [ppf] is a terminal ({!size}), else the recorded
-    terminal's under [CONSOLE_CAST], else [$COLUMNS] when it is between [1] and
-    [4096], and [None] otherwise, where a line is printed whole. A program that
-    lays out its own lines, outside a run, fits them as a run would, through the
-    margin {!Console.View.pp} lays a view out in (a margin past [Format]'s
-    largest is that largest, which prints whole):
+(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the recorded
+    terminal's under [CONSOLE_CAST], else the terminal's width when [ppf] is a
+    terminal ({!size}), at most [4096], else [$COLUMNS] when it is between [1]
+    and [4096], and [None] otherwise, where a line is printed whole. A program
+    that lays out its own lines, outside a run, fits them as a run would,
+    through the margin {!Console.View.pp} lays a view out in (a margin past
+    [Format]'s largest is that largest, which prints whole):
 
     {[
     let print v =
