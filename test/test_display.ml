@@ -1808,6 +1808,273 @@ let test_end_interrupted () =
   Display.close watcher;
   Display.close live
 
+(* A terminal whose size raises once [broken] is set. *)
+let breaking_size () =
+  let buf = Buffer.create 256 in
+  let broken = ref false in
+  let size () = if !broken then raise Exit else (40, 10) in
+  (buf, Format.formatter_of_buffer buf, broken, size)
+
+let cursor_shown ppf buf =
+  Format.pp_print_flush ppf ();
+  contains "\027[?25h" (Buffer.contents buf)
+
+(* What only the program can answer is not held back: a view that cannot go on
+   for these reasons has not failed, and it stays. *)
+let urgent = [ Out_of_memory; Stack_overflow; Sys.Break ]
+
+let breaking e =
+  let broken = ref false in
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  let step = Task.start t.root "running" in
+  Display.set_view t.display
+    (View.fit (fun _ -> if !broken then raise e else View.text "fine"));
+  (t, step, broken)
+
+let test_view_urgent_print () =
+  List.iter
+    (fun e ->
+      let t, _, broken = breaking e in
+      broken := true;
+      Alcotest.check_raises "the print" e (fun () ->
+          Display.print t.display (View.text "kept"));
+      Alcotest.(check bool)
+        "the line printed went out" true
+        (List.exists (contains "kept") (screen t));
+      broken := false;
+      Display.redraw t.display;
+      Alcotest.(check bool)
+        "the view stays" true
+        (List.exists (contains "fine") (screen t));
+      close t;
+      Alcotest.(check bool)
+        "cursor restored" true
+        (Console_vte.cursor_visible t.vte))
+    urgent
+
+let test_view_urgent_report () =
+  List.iter
+    (fun e ->
+      let t, step, broken = breaking e in
+      broken := true;
+      t.advance 1.;
+      Alcotest.check_raises "the report" e (fun () ->
+          Task.set_items step ~count:1 ~total:2);
+      broken := false;
+      close t)
+    urgent
+
+let test_view_urgent_close () =
+  List.iter
+    (fun e ->
+      let t, _, broken = breaking e in
+      broken := true;
+      Alcotest.check_raises "the close" e (fun () -> Display.close t.display);
+      Alcotest.(check bool)
+        "cursor restored" true
+        (Console_vte.cursor_visible t.vte))
+    urgent
+
+(* At the close, what the program must see wins over what came first. *)
+let test_urgent_beats_kept () =
+  let buf, ppf, broken, size = breaking_size () in
+  let view =
+    View.fit (fun _ -> if !broken then raise Sys.Break else View.text "x")
+  in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf view in
+  Display.redraw display;
+  broken := true;
+  Alcotest.check_raises "closing" Sys.Break (fun () -> Display.close display);
+  Alcotest.(check bool) "cursor restored" true (cursor_shown ppf buf)
+
+(* So may the size of the terminal. *)
+let test_size_raises_at_close () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let broken = ref false in
+  let size () = if !broken then raise Exit else (40, 10) in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
+  Display.redraw display;
+  broken := true;
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close display);
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "cursor restored" true
+    (contains "\027[?25h" (Buffer.contents buf));
+  Alcotest.(check bool)
+    "the view is not what failed" true
+    (contains "x" (Buffer.contents buf))
+
+(* Elsewhere it waits for a call that asks, and the view stays. *)
+let test_size_raises_in_print () =
+  let buf, ppf, broken, size = breaking_size () in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
+  broken := true;
+  Display.print display (View.text "kept");
+  Alcotest.check_raises "the redraw" Exit (fun () -> Display.redraw display);
+  broken := false;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "the view stays" true
+    (contains "x" (Buffer.contents buf))
+
+(* An output that raises what is no write error: that is the program's, and the
+   close still gives the formatter back. *)
+let test_output_raises () =
+  let failing = ref false in
+  let out _ _ _ = if !failing then failwith "output" in
+  let ppf = Format.make_formatter out ignore in
+  let before = (Format.pp_get_formatter_out_functions ppf ()).out_string in
+  let display = Display.v ~now:(fun () -> 0.) ppf (View.text "x") in
+  failing := true;
+  Alcotest.check_raises "the print" (Failure "output") (fun () ->
+      Display.print display (View.text "kept"));
+  Alcotest.check_raises "the close" (Failure "output") (fun () ->
+      Display.close display);
+  Alcotest.(check bool)
+    "the formatter given back" true
+    ((Format.pp_get_formatter_out_functions ppf ()).out_string == before);
+  Display.redraw display
+
+(* What [with_output] does after its function neither hides the function's
+   exception nor skips giving the formatter back. *)
+let test_with_output_finally () =
+  let check_ending ~label ~raises ~expect =
+    let failing = ref false in
+    let out_flush () = if !failing then raise raises in
+    let ppf = Format.make_formatter (fun _ _ _ -> ()) out_flush in
+    let margin = Format.pp_get_margin ppf () in
+    let display =
+      Display.v
+        ~size:(fun () -> (40, 10))
+        ~now:(fun () -> 0.)
+        ppf (View.text "x")
+    in
+    let before = (Format.pp_get_formatter_out_functions ppf ()).out_string in
+    Alcotest.check_raises label expect (fun () ->
+        Display.with_output display (fun _ ->
+            failing := true;
+            failwith "work"));
+    Alcotest.(check int) "the margin" margin (Format.pp_get_margin ppf ());
+    Alcotest.(check bool)
+      "the formatter" true
+      ((Format.pp_get_formatter_out_functions ppf ()).out_string == before);
+    failing := false;
+    try Display.close display with Exit -> ()
+  in
+  check_ending ~label:"the work's" ~raises:Exit ~expect:(Failure "work");
+  check_ending ~label:"an interrupt" ~raises:Sys.Break ~expect:Sys.Break
+
+(* What waits for an idle point all runs, whatever one of them raises, and an
+   exception under way stays the one that goes on. *)
+let test_idle_raises () =
+  let queue d ran =
+    Console__.Display_driver.when_idle d (fun () -> raise Exit);
+    Console__.Display_driver.when_idle d (fun () -> ran := true)
+  in
+  let ran = ref false and armed = ref false and failure = ref None in
+  let display = ref None in
+  let view =
+    View.fit (fun _ ->
+        if !armed then begin
+          armed := false;
+          queue (Option.get !display) ran;
+          Option.iter raise !failure
+        end;
+        View.text "x")
+  in
+  let d =
+    Display.v
+      ~size:(fun () -> (40, 10))
+      ~now:(fun () -> 0.)
+      Format.str_formatter view
+  in
+  display := Some d;
+  armed := true;
+  Alcotest.check_raises "the first raises" Exit (fun () -> Display.redraw d);
+  Alcotest.(check bool) "the next one ran" true !ran;
+  armed := true;
+  failure := Some Out_of_memory;
+  ran := false;
+  Alcotest.check_raises "the worse goes on" Out_of_memory (fun () ->
+      Display.redraw d);
+  Alcotest.(check bool) "the next one ran" true !ran;
+  armed := false;
+  Display.close d
+
+(* [Fun.protect] wraps what its [finally] raises: that is what it was. *)
+let test_view_wrapped () =
+  let wrapped = Fun.Finally_raised Sys.Break in
+  let t, _, broken = breaking wrapped in
+  broken := true;
+  Alcotest.check_raises "the print" wrapped (fun () ->
+      Display.print t.display (View.text "kept"));
+  broken := false;
+  close t
+
+(* A view may close its own display: nothing is drawn after that. *)
+let test_view_closes () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let display = ref None and armed = ref false in
+  let view =
+    View.fit (fun _ ->
+        if !armed then begin
+          armed := false;
+          Display.close (Option.get !display)
+        end;
+        View.text "x")
+  in
+  let d = Display.v ~size:(fun () -> (40, 10)) ~now:(fun () -> 0.) ppf view in
+  display := Some d;
+  armed := true;
+  Display.redraw d;
+  Format.pp_print_flush ppf ();
+  let after =
+    match Astring.String.cuts ~sep:"\027[?25h" (Buffer.contents buf) with
+    | [ _; after ] -> after
+    | l -> Alcotest.failf "the cursor shown %d times" (List.length l - 1)
+  in
+  Alcotest.(check bool)
+    "no update after the last" false
+    (contains "\027[?2026h" after)
+
+(* What ends a task as the display closes may raise: the terminal comes first. *)
+let test_commit_raises_at_close () =
+  let commit _ = raise Exit in
+  let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
+  ignore (Task.start t.root "running");
+  Display.redraw t.display;
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close t.display);
+  Alcotest.(check bool)
+    "cursor restored" true
+    (Console_vte.cursor_visible t.vte)
+
+(* What a hook raises as a task ends waits for a call that asks: the task ends,
+   its function's value goes on, and its row leaves the region. *)
+let test_hook_raises () =
+  let commit _ = failwith "commit" in
+  let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
+  Alcotest.(check int)
+    "the run's value" 42
+    (Task.run t.root "the task" (fun _ -> 42));
+  Alcotest.check_raises "the close" (Failure "commit") (fun () ->
+      Display.close t.display);
+  Alcotest.(check bool)
+    "no row of the task" false
+    (List.exists (contains "the task") (screen t));
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let plain _ = failwith "plain" in
+  let display = Progress.show ~progress:`Plain ~plain ppf root in
+  Alcotest.(check int)
+    "the run's value" 42
+    (Task.run root "the task" (fun _ -> 42));
+  Alcotest.check_raises "the close" (Failure "plain") (fun () ->
+      Display.close display)
+
 (* A view that raises in a frame that no call to the display asked for, the
    first one or the last one, is dropped for the default view, the display
    still closes, and the next redraw or the close raises its exception. *)
@@ -2951,6 +3218,26 @@ let suite =
       Alcotest.test_case "view" `Quick test_view;
       Alcotest.test_case "a task ends once" `Quick test_task_ends_once;
       Alcotest.test_case "a task's end interrupted" `Quick test_end_interrupted;
+      Alcotest.test_case "urgent in a view, a print" `Quick
+        test_view_urgent_print;
+      Alcotest.test_case "urgent in a view, a report" `Quick
+        test_view_urgent_report;
+      Alcotest.test_case "urgent in a view, the close" `Quick
+        test_view_urgent_close;
+      Alcotest.test_case "urgent beats what was kept" `Quick
+        test_urgent_beats_kept;
+      Alcotest.test_case "size raises at close" `Quick test_size_raises_at_close;
+      Alcotest.test_case "size raises in a print" `Quick
+        test_size_raises_in_print;
+      Alcotest.test_case "output raises" `Quick test_output_raises;
+      Alcotest.test_case "with_output's ending" `Quick test_with_output_finally;
+      Alcotest.test_case "what waits for idle raises" `Quick test_idle_raises;
+      Alcotest.test_case "an exception Fun.protect wrapped" `Quick
+        test_view_wrapped;
+      Alcotest.test_case "a view closes its display" `Quick test_view_closes;
+      Alcotest.test_case "commit raises at close" `Quick
+        test_commit_raises_at_close;
+      Alcotest.test_case "a hook raises as a task ends" `Quick test_hook_raises;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
       Alcotest.test_case "a view on a short terminal" `Quick test_view_short;

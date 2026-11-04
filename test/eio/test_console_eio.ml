@@ -342,6 +342,89 @@ let test_run_raises () =
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
+let cursor_shown buf = contains "\027[?25h" (Buffer.contents buf)
+
+(* A run that ends well closes however its last task ends, and what the commit
+   raised goes on. *)
+let test_commit_raises_at_end () =
+  List.iter
+    (fun e ->
+      with_clock (fun clock ->
+          let buf, ppf = buffer () in
+          Alcotest.check_raises "the commit's" e (fun () ->
+              Console_eio.run ~clock ~ppf ~progress:`Tty
+                ~commit:(fun _ -> raise e)
+                (fun root -> ignore (Console.Task.start root "running")));
+          Format.pp_print_flush ppf ();
+          Alcotest.(check bool) "cursor shown" true (cursor_shown buf)))
+    [ Failure "hook"; Sys.Break ]
+
+(* An output that breaks, or an interrupt on the way out, does not stop the next
+   run from starting. *)
+let test_restore_raises () =
+  let check_breaking e =
+    with_clock (fun clock ->
+        let saved = Format.pp_get_formatter_out_functions Fmt.stderr () in
+        let failing = ref false in
+        let out s o l = if !failing then raise e else saved.out_string s o l in
+        Format.pp_set_formatter_out_functions Fmt.stderr
+          { saved with out_string = out; out_flush = ignore };
+        Fun.protect ~finally:(fun () ->
+            Format.pp_set_formatter_out_functions Fmt.stderr saved)
+        @@ fun () ->
+        (try
+           Console_eio.run ~clock ~progress:`Tty (fun _ ->
+               Fmt.epr "an unended line";
+               failing := true)
+         with Sys.Break -> ());
+        failing := false;
+        let finished =
+          Eio.Fiber.first
+            (fun () ->
+              Console_eio.run ~clock ~progress:`Tty ignore;
+              true)
+            (fun () ->
+              for _ = 1 to 1000 do
+                Eio.Fiber.yield ()
+              done;
+              false)
+        in
+        Alcotest.(check bool) "the next run ended" true finished)
+  in
+  check_breaking
+    (Eio.Net.err
+       (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", ""))));
+  check_breaking Sys.Break
+
+(* The program's exception goes on, whatever the last frame raises, unless the
+   frame ran into what the program must see. *)
+let test_run_keeps_its_exception () =
+  let last e _ =
+    Console.View.fit (fun room ->
+        match Console.Room.height room with
+        | None -> raise e
+        | Some _ -> Console.View.text "rows")
+  in
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
+            ~view:(last Exit) (fun _ -> failwith "boom"));
+      Alcotest.check_raises "what the program must see" Out_of_memory (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
+            ~view:(last Out_of_memory) (fun _ -> failwith "boom")))
+
+(* So it does whatever the output raises on the way out. *)
+let test_run_keeps_its_exception_on_output () =
+  with_clock (fun clock ->
+      let failing = ref false in
+      let out _ _ _ = if !failing then raise Exit in
+      let ppf = Format.make_formatter out ignore in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work" (fun _ ->
+              failing := true;
+              failwith "boom")))
+
 (* A view that raises is dropped for the default one, and the run raises
    its exception: a view that raises at every frame, and one that raises
    only in the last, on a pipe and on a terminal. *)
@@ -961,6 +1044,14 @@ let suite =
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
+      Alcotest.test_case "a commit raises as the run ends" `Quick
+        test_commit_raises_at_end;
+      Alcotest.test_case "the output breaks as the run ends" `Quick
+        test_restore_raises;
+      Alcotest.test_case "the program's exception goes on" `Quick
+        test_run_keeps_its_exception;
+      Alcotest.test_case "the program's exception goes on past the output"
+        `Quick test_run_keeps_its_exception_on_output;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
       Alcotest.test_case "the program's colour choice is kept" `Quick
