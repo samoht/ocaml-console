@@ -84,7 +84,7 @@
  (name test)
  (modules :standard \ teardown tty piped events pty_reader terminal)
  (package console-eio)
- (deps teardown.exe)
+ (deps teardown.exe piped.exe)
  (libraries
   console
   console.tty

@@ -15,11 +15,12 @@
     one on standard error. With [sleeps] and a number of steps, a task's two
     fibers sleep on {!Console_eio.clock}, one of them working that many steps
     before each sleep. With [size], it prints the size of the terminal of
-    standard error. With [signal], a signal comes after a view raised. With
-    [idle-signal], one comes while the scheduler waits, with the display on an
-    Eio flow to a file. With [exit-view], a view calls [exit] each time it
-    draws, on such a flow. With [print], it prints a rule and a table above the
-    rows, as wide as the display lays them out. *)
+    standard error. With [signal], SIGINT comes after a view raised, and SIGTERM
+    with [sigterm]. With [idle-signal], SIGINT comes while the scheduler waits,
+    with the display on an Eio flow to a file, and SIGTERM with [idle-sigterm].
+    With [exit-view], a view calls [exit] each time it draws, on such a flow.
+    With [print], it prints a rule and a table above the rows, as wide as the
+    display lays them out. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -90,7 +91,7 @@ let () =
           Console.Task.run display "build" (fun _ ->
               Fmt.pr "from stdout@.";
               Fmt.epr "from stderr@."))
-  | [| _; "signal" |] ->
+  | [| _; ("signal" | "sigterm") as name |] ->
       let armed = ref false in
       let view _ =
         Console.View.fit (fun _ ->
@@ -99,10 +100,11 @@ let () =
       Console_eio.run ~clock ~progress:`Tty ~view (fun _ ->
           armed := true;
           Console_eio.print (Console.View.text "line");
-          Unix.kill (Unix.getpid ()) Sys.sigint;
+          Unix.kill (Unix.getpid ())
+            (if name = "sigterm" then Sys.sigterm else Sys.sigint);
           Unix.sleepf 2.;
           Fmt.pr "still running@.")
-  | [| _; "idle-signal"; file |] ->
+  | [| _; ("idle-signal" | "idle-sigterm") as name; file |] ->
       let path = Eio.Path.(Eio.Stdenv.cwd env / file) in
       Eio.Path.with_open_out ~create:(`Or_truncate 0o644) path @@ fun out ->
       let write s o l = Eio.Flow.copy_string (String.sub s o l) out in
@@ -115,7 +117,8 @@ let () =
             (Thread.create
                (fun () ->
                  Thread.delay 0.2;
-                 Unix.kill pid Sys.sigint)
+                 Unix.kill pid
+                   (if name = "idle-sigterm" then Sys.sigterm else Sys.sigint))
                ());
           Eio.Time.Mono.sleep clock 3.;
           Fmt.pr "still running@.")

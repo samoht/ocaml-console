@@ -1281,6 +1281,43 @@ let test_cast_utf_8 () =
         true (String.is_valid_utf_8 l))
     lines
 
+(* [piped.exe args] under [Unix.waitpid], with its output dropped. *)
+let piped_status args =
+  let null = Unix.openfile "/dev/null" [ Unix.O_RDWR ] 0 in
+  Fun.protect ~finally:(fun () -> Unix.close null) @@ fun () ->
+  let pid =
+    Unix.create_process "./piped.exe"
+      (Array.of_list ("piped.exe" :: args))
+      null null null
+  in
+  let rec wait () =
+    try snd (Unix.waitpid [] pid)
+    with Unix.Unix_error (Unix.EINTR, _, _) -> wait ()
+  in
+  wait ()
+
+(* The default action of SIGINT and SIGTERM is abnormal termination (XBD
+   signal.h): the process ends by the signal, not by an exit that a shell would
+   also show as 128 plus its number. *)
+let test_signal_terminates () =
+  let check msg signo args =
+    Alcotest.(check bool)
+      msg true
+      (match piped_status args with
+      | Unix.WSIGNALED s -> Int.equal s signo
+      | _ -> false)
+  in
+  check "SIGINT after a view raised" Sys.sigint [ "signal" ];
+  check "SIGTERM after a view raised" Sys.sigterm [ "sigterm" ];
+  let file = Filename.temp_file ~temp_dir:"." "console" ".out" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  List.iter
+    (fun (signo, mode) ->
+      check mode signo [ mode; file ];
+      check_cursor_restored mode
+        (In_channel.with_open_bin file In_channel.input_all))
+    [ (Sys.sigint, "idle-signal"); (Sys.sigterm, "idle-sigterm") ]
+
 let test_repeated_signal_mid_write () =
   let input =
     Unix.open_process_args_in "./teardown.exe"
@@ -1307,6 +1344,8 @@ let suite =
         `Quick test_repeated_signal_mid_write;
       Alcotest.test_case "recording alone makes sleeps virtual" `Quick
         test_cast_without_deterministic;
+      Alcotest.test_case "a signal ends the process by that signal" `Quick
+        test_signal_terminates;
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
