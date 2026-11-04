@@ -76,6 +76,18 @@
 - A task now ends whole, with its subtasks, and every display of its work sees
   it end, when an interrupt comes as it ends (#41).
 
+- An exception from a `commit` or `plain` function of `Progress.show` no longer
+  escapes `Task.run` or the end of a task, and waits for the next redraw or
+  close as a view's does (#26).
+
+- `Display.close` now restores the terminal and gives the formatter back
+  whatever the view, a hook, the size function or the output raises, and
+  raises the exception afterwards (#26).
+
+- `Console_eio.run` now restores the cursor when a `commit` function raises as
+  the run ends, and an output that breaks as it ends no longer keeps the next
+  run from starting (#26).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

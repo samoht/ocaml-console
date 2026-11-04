@@ -63,17 +63,26 @@ let shape ?size = function
 
 let print d vs = Display_core.print_lines d vs
 
-(* A top task that ends, unless the ended tasks are kept, leaves the region
-   for the scrollback as [commit] draws it, its tree by default: laid out
-   first, then forgotten, then printed, so it never shows twice. *)
-let moved d ~layout ~commit r =
+let laid_out d ~layout ~commit r =
   let look = Display_core.look d in
   let width = min (Display_core.width d) 100 in
   let committed =
     match commit with None -> Some (tree ~layout r) | Some f -> f r
   in
-  let committed = Option.map (V.resolve (Ctx.v ~width look)) committed in
-  forget r;
+  Option.map (V.resolve (Ctx.v ~width look)) committed
+
+(* A top task that ends, unless the ended tasks are kept, leaves the region
+   for the scrollback as [commit] draws it, its tree by default: laid out
+   first, then forgotten, then printed, so it never shows twice. What [commit]
+   raises leaves it forgotten and nothing printed. *)
+let moved d ~layout ~commit r =
+  let committed =
+    protect
+      (fun () ->
+        Display_core.caught d ~default:None (fun () ->
+            laid_out d ~layout ~commit r))
+      ~finally:(fun () -> forget r)
+  in
   match committed with
   | Some v when not (V.is_empty v) -> Display_core.print d v
   | _ -> Display_core.touch d
@@ -117,11 +126,16 @@ let on_plain d ~keep_ended = function
 let on_own d ~keep_ended root plain = function
   | (Line (r, _) | Ended r) as change when is_root r ->
       on_plain d ~keep_ended change
-  | change -> (
-      (match event change ~time:(since_start (work root)) with
-      | Some e -> Option.iter (Display_core.print d) (plain e)
-      | None -> ());
-      match change with Ended r when not keep_ended -> forget r | _ -> ())
+  | change ->
+      protect
+        (fun () ->
+          match event change ~time:(since_start (work root)) with
+          | Some e ->
+              Display_core.caught d ~default:() (fun () ->
+                  Option.iter (Display_core.print d) (plain e))
+          | None -> ())
+        ~finally:(fun () ->
+          match change with Ended r when not keep_ended -> forget r | _ -> ())
 
 (* The output a task kept, under its line. *)
 let kept look r =

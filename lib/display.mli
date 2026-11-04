@@ -82,11 +82,13 @@
     A view that raises is dropped and nothing is drawn in its place. Its
     exception is raised again by the next call to {!redraw}, {!set_view} or
     {!close}, so that a frame drawn as a task changes or as a line is printed
-    raises in none of the program's other calls. {!close} raises it once the
-    display closed.
+    raises in none of the program's other calls. So is what the size function,
+    the output or a {!Progress.show} hook raises, and the view stays. {!close}
+    raises it once the display closed and the terminal is restored.
 
     [Sys.Break], [Out_of_memory] and [Stack_overflow] do not wait: they go on
-    from the call that was drawing, whichever that is.
+    from the call that was drawing, whichever that is, a {!Task} report
+    included, and the view stays.
 
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)

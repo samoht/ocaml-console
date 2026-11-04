@@ -66,6 +66,38 @@ let show_cursor = "\027[?25h"
    carriage return then goes to the first column. *)
 let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
+(* What a view, a hook, the size or the output raises waits for a call that
+   asks, so that drawing fails no call that did not ask for it, and closing
+   restores the terminal first. An interrupt or an exhausted heap or stack does
+   not wait: the view has not failed, and only the program can answer it. *)
+let is_async = Task_core.is_async
+let protect = Task_core.protect
+
+(* The first one waits. *)
+let keep t e =
+  let bt = Printexc.get_raw_backtrace () in
+  if Option.is_none t.failure then t.failure <- Some (e, bt)
+
+(* A view that raises is dropped: what was to be written is written with the
+   fallback view. *)
+let fail t e =
+  keep t e;
+  t.view <- t.fallback
+
+let raise_failure t =
+  match t.failure with
+  | None -> ()
+  | Some (e, bt) ->
+      t.failure <- None;
+      Printexc.raise_with_backtrace e bt
+
+let caught t ~default f =
+  match f () with
+  | v -> v
+  | exception e when not (is_async e) ->
+      keep t e;
+      default
+
 (* Everything the display writes goes out in one piece per operation, on a
    terminal as one synchronized update (mode 2026), so that a terminal never
    shows a region half erased or half drawn. A write error (a closed pipe)
@@ -110,23 +142,15 @@ let rec drain t =
   match Atomic.exchange t.idle [] with
   | [] -> ()
   | fs ->
-      List.iter (fun f -> f ()) (List.rev fs);
-      drain t
+      protect
+        (fun () -> Task_core.run_all (List.rev fs))
+        ~finally:(fun () -> drain t)
 
 let busy t f =
   t.busy <- t.busy + 1;
-  let leave () =
-    t.busy <- t.busy - 1;
-    if t.busy = 0 then drain t
-  in
-  match f () with
-  | v ->
-      leave ();
-      v
-  | exception e ->
-      let bt = Printexc.get_raw_backtrace () in
-      leave ();
-      Printexc.raise_with_backtrace e bt
+  protect f ~finally:(fun () ->
+      t.busy <- t.busy - 1;
+      if t.busy = 0 then drain t)
 
 let rec when_idle t f =
   if t.busy = 0 then f ()
@@ -234,33 +258,15 @@ let frame t =
       let c = Ctx.v ~width:t.width ~height ~time:(since_start t) look in
       lines t ~look ~height c t.view
 
-(* What a view raises waits for {!raise_failure}, so that drawing fails no
-   call that did not ask for it. An interrupt or an exhausted heap or stack
-   does not wait: the view has not failed, and only the program can answer
-   it. *)
-let is_async = Task_core.is_async
-
-(* A view that raises is dropped: what was to be written is written with
-   the fallback view, and the first exception waits for {!raise_failure}. *)
-let fail t e =
-  let bt = Printexc.get_raw_backtrace () in
-  if Option.is_none t.failure then t.failure <- Some (e, bt);
-  t.view <- t.fallback
-
-let raise_failure t =
-  match t.failure with
-  | None -> ()
-  | Some (e, bt) ->
-      t.failure <- None;
-      Printexc.raise_with_backtrace e bt
-
-let framed t k =
-  match frame t with
-  | spans -> k spans
-  | exception e when not (is_async e) ->
+(* [draw ()] from the view, and from the fallback once the view raised. *)
+let or_fallback t draw =
+  match draw () with
+  | lines -> lines
+  | exception e when not (is_async e) -> (
       fail t e;
-      k (try frame t with e when not (is_async e) -> [])
+      try draw () with e when not (is_async e) -> [])
 
+let spans t = or_fallback t (fun () -> frame t)
 let max_size = 4096
 let bounded n = min max_size (max 1 n)
 
@@ -277,12 +283,7 @@ let once t =
 (* A view that raises in the last frame gives way to the fallback. *)
 let final t =
   let look, c = once t in
-  List.map fst
-    (match lines t ~look c t.view with
-    | lines -> lines
-    | exception e when not (is_async e) -> (
-        fail t e;
-        try lines t ~look c t.fallback with e when not (is_async e) -> []))
+  List.map fst (or_fallback t (fun () -> lines t ~look c t.view))
 
 let add_up buf n =
   if n > 0 then begin
@@ -316,13 +317,17 @@ let clear buf t =
 let refresh_size t =
   match t.size with
   | None -> false
-  | Some size ->
-      let w, h = size () in
-      let w = bounded w and h = bounded h in
-      let changed = w <> t.width || h <> t.height in
-      t.width <- w;
-      t.height <- h;
-      changed
+  | Some size -> (
+      match size () with
+      | exception e when not (is_async e) ->
+          keep t e;
+          false
+      | w, h ->
+          let w = bounded w and h = bounded h in
+          let changed = w <> t.width || h <> t.height in
+          t.width <- w;
+          t.height <- h;
+          changed)
 
 (* No line end after the last line: on the bottom row of the screen it would
    scroll the region up on every redraw. A line is erased before it is
@@ -421,12 +426,14 @@ let paint_now t =
     start_region t;
     if t.shown && (resized || stale t || t.frame = [||]) then begin
       mark t;
+      let spans = spans t in
       (* A narrower terminal has reflowed the old frame: it is cleared with
-         the old frame's rows counted at the new width. *)
-      framed t (fun spans ->
-          framing t (fun buf ->
-              if resized then clear buf t;
-              draw buf t ~resized spans))
+         the old frame's rows counted at the new width. The view may have
+         closed the display. *)
+      if not t.closed then
+        framing t (fun buf ->
+            if resized then clear buf t;
+            draw buf t ~resized spans)
     end
   end
 
@@ -461,8 +468,14 @@ let commit_now t lines =
             spans)
     in
     if t.suspended = 0 && not t.closed then start_region t;
-    if t.suspended = 0 && (not t.closed) && t.shown then
-      framed t (fun spans -> commit (Some spans))
+    if t.suspended = 0 && (not t.closed) && t.shown then begin
+      (* The lines are often what explains an interrupt in the frame: they
+         still go out. *)
+      let drawn = ref None in
+      protect
+        (fun () -> drawn := Some (spans t))
+        ~finally:(fun () -> commit (if t.closed then None else !drawn))
+    end
     else commit None
   end
   else
@@ -616,7 +629,7 @@ let taken t on_output f =
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_utf_8 ppf (Fmt.utf_8 t.ppf);
   Format.pp_set_margin ppf t.width;
-  Fun.protect
+  protect
     (fun () -> f ppf)
     ~finally:(fun () ->
       Format.pp_print_flush ppf ();
@@ -631,12 +644,14 @@ let with_output t f =
     let last = ref '\n' in
     let out, _ = tap t.ppf (( := ) last) in
     Format.pp_set_margin t.ppf t.width;
-    Fun.protect
+    protect
       (fun () -> f t.ppf)
       ~finally:(fun () ->
-        end_line t out last;
-        Format.pp_set_formatter_out_functions t.ppf out;
-        Format.pp_set_margin t.ppf margin)
+        protect
+          (fun () -> end_line t out last)
+          ~finally:(fun () ->
+            Format.pp_set_formatter_out_functions t.ppf out;
+            Format.pp_set_margin t.ppf margin))
   in
   if t.closed then f t.ppf
   else
@@ -648,43 +663,47 @@ let with_output t f =
           ignore (refresh_size t);
           erase t;
           t.suspended <- t.suspended + 1;
-          Fun.protect call ~finally:(fun () ->
+          protect call ~finally:(fun () ->
               t.suspended <- t.suspended - 1;
               paint t)
         end
 
+(* What is left of closing once the last frame is known: the region gives way
+   to it, the cursor shown, and the formatter is given back. *)
+let restore t out =
+  if is_live t then begin
+    let buf = Buffer.create 256 in
+    clear buf t;
+    Buffer.add_string buf show_cursor;
+    Buffer.add_string buf out;
+    write t (Buffer.contents buf)
+  end
+  else protect (fun () -> write t out) ~finally:t.release
+
+(* Closed first, so that what the hook ends draws no region. Each step runs
+   whatever the ones before it raised: the terminal is restored before the
+   worst of it goes on. *)
+let shut t =
+  t.closed <- true;
+  t.closing <- true;
+  let out = ref "" in
+  Task_core.run_all
+    [
+      t.on_close;
+      (fun () ->
+        t.closing <- false;
+        ignore (refresh_size t));
+      (fun () ->
+        out :=
+          String.concat "" (List.map (fun l -> render t l ^ eol t) (final t)));
+      (fun () -> restore t !out);
+    ]
+
 let close t =
   busy t @@ fun () ->
-  if not t.closed then begin
-    (* Closed first, so that what the hook ends draws no region. *)
-    t.closed <- true;
-    t.closing <- true;
-    Fun.protect t.on_close ~finally:(fun () -> t.closing <- false);
-    ignore (refresh_size t);
-    let finish out =
-      if is_live t then begin
-        let buf = Buffer.create 256 in
-        clear buf t;
-        Buffer.add_string buf show_cursor;
-        Buffer.add_string buf out;
-        write t (Buffer.contents buf)
-      end
-      else begin
-        write t out;
-        t.release ()
-      end
-    in
-    (* An interrupt in the last frame goes on once the terminal is given
-       back. *)
-    match final t with
-    | lines ->
-        finish (String.concat "" (List.map (fun l -> render t l ^ eol t) lines));
-        raise_failure t
-    | exception e ->
-        let bt = Printexc.get_raw_backtrace () in
-        finish "";
-        Printexc.raise_with_backtrace e bt
-  end
+  protect
+    (fun () -> if not t.closed then shut t)
+    ~finally:(fun () -> raise_failure t)
 
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines

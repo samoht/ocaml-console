@@ -101,6 +101,12 @@ let scope =
 
 let write_error = function Eio.Io _ -> true | _ -> false
 
+(* Nothing a broken output raises stops the formatters being given back. *)
+let safely f =
+  match f () with
+  | () -> ()
+  | exception e when not (Task_driver.is_async e) -> ()
+
 let claim () =
   Lazy.force at_exit;
   if not (Atomic.compare_and_set busy false true) then
@@ -279,7 +285,7 @@ let () =
 
 let flush_all () =
   List.iter
-    (fun i -> try Format.pp_print_flush i.ppf () with Sys_error _ -> ())
+    (fun i -> safely (fun () -> Format.pp_print_flush i.ppf ()))
     (Atomic.get intercepted)
 
 (* What a task wrote and its formatters still hold is its own, and its line
@@ -311,21 +317,32 @@ let settle run =
       (Atomic.get intercepted)
   end
 
-let close_display run =
-  settle run;
-  Display.close run.display
+(* [first ()] then what the program wrote, whatever either raises, and the
+   display closes. *)
+let close_display ?(first = ignore) run =
+  Task_driver.protect
+    (fun () ->
+      first ();
+      settle run)
+    ~finally:(fun () -> Display.close run.display)
+
+(* Closing while the program ends for another reason: that reason goes on, and
+   what a view or a hook raised on the way out gives way to it, unless the
+   program must see it and the reason is not [urgent] already. *)
+let close_quietly ?first ?(urgent = false) run =
+  try close_display ?first run
+  with e when urgent || not (Task_driver.is_async e) -> ()
 
 let restore () =
   List.iter
     (fun i ->
-      (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
+      safely (fun () -> Format.pp_print_flush i.ppf ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
       let rest = Buffer.contents i.held ^ Buffer.contents i.root.pending in
       if rest <> "" then
-        try
-          i.out.out_string rest 0 (String.length rest);
-          i.out.out_flush ()
-        with Sys_error _ -> ())
+        safely (fun () ->
+            i.out.out_string rest 0 (String.length rest);
+            i.out.out_flush ()))
     (Atomic.exchange intercepted []);
   Hashtbl.reset lines
 
@@ -501,11 +518,9 @@ let end_work root = function
    to that, unless the program must see it, and the terminal is restored
    whatever it raises. *)
 let close_at_exit run ~give_back =
-  Fun.protect ~finally:(fun () ->
-      give_back ();
-      restore ())
-  @@ fun () ->
-  try close_display run with e when not (Task_driver.is_async e) -> ()
+  Task_driver.protect
+    (fun () -> close_quietly run)
+    ~finally:(fun () -> Task_driver.protect give_back ~finally:restore)
 
 let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   let display = run.display in
@@ -519,39 +534,28 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
      what a later [at_exit] function logs or prints goes out as before. *)
   Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
   let s = share run in
-  Fun.protect ~finally:(fun () ->
-      restore ();
-      release ())
+  Task_driver.protect ~finally:(fun () ->
+      Task_driver.protect restore ~finally:release)
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
   Interrupt.protect ~idle:(Display_driver.when_idle display)
     ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_display run)
   @@ fun () ->
-  let value =
-    match
-      Eio.Switch.run @@ fun sw ->
-      let requests = Eio.Stream.create 1 in
-      Eio.Fiber.fork_daemon ~sw (fun () ->
-          receive ~sw ~closed requests run.root);
-      Logs.set_reporter
-        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
-      animate ~sw ~sleep display;
-      Fun.protect ~finally:give_back @@ fun () -> first_run s f
-    with
-    | v ->
-        end_work run.root (Ok ());
-        v
-    | exception e ->
-        let bt = Printexc.get_raw_backtrace () in
-        end_work run.root (Error e);
-        (try close_display run
-         with
-         | later
-         when Task_driver.is_async e || not (Task_driver.is_async later)
-         ->
-           ());
-        Printexc.raise_with_backtrace e bt
-  in
-  close_display run;
-  value
+  match
+    Eio.Switch.run @@ fun sw ->
+    let requests = Eio.Stream.create 1 in
+    Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests run.root);
+    Logs.set_reporter
+      (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
+    animate ~sw ~sleep display;
+    Fun.protect ~finally:give_back @@ fun () -> first_run s f
+  with
+  | value ->
+      close_display run ~first:(fun () -> end_work run.root (Ok ()));
+      value
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      close_quietly run ~urgent:(Task_driver.is_async e) ~first:(fun () ->
+          end_work run.root (Error e));
+      Printexc.raise_with_backtrace e bt

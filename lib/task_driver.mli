@@ -56,3 +56,8 @@ val id : Task.t -> int
 val is_async : exn -> bool
 (** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
     stack, which only the program can answer. *)
+
+val protect : finally:(unit -> unit) -> (unit -> 'a) -> 'a
+(** [protect ~finally f] is [f ()] then [finally ()], whatever [f] raises. If
+    both raise, the exception of [f] goes on, unless only that of [finally] is
+    {!is_async}. *)

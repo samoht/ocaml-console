@@ -46,6 +46,11 @@ val pp : t Fmt.t
 
 (** {1:internal For progress and drivers} *)
 
+val caught : t -> default:'a -> (unit -> 'a) -> 'a
+(** [caught d ~default f] is [f ()], or [default] once [f] raised: what it
+    raised waits for a call to [d] that asks, as a view's exception does, unless
+    it is {!Task_core.is_async}. *)
+
 val touch : t -> unit
 (** [touch d] says that what the view shows changed: it is drawn again, at most
     ten times a second. *)
