@@ -46,16 +46,37 @@ let check_fits margin lines =
         Alcobar.failf "%d cells at margin %d: %S" (cells l) margin l)
     lines
 
-let check_closed raw =
-  List.iter
-    (fun l ->
-      match String.rindex_opt l (Char.chr 27) with
-      | None -> ()
-      | Some i ->
-          let rest = String.sub l i (String.length l - i) in
-          if
-            not
-              (String.starts_with ~prefix:"\027[0m" rest
-              || String.starts_with ~prefix:"\027]8;;\027" rest)
-          then Alcobar.failf "style left on: %S" l)
-    (String.split_on_char (Char.chr 10) raw)
+(* The index after the escape sequence at [i] of [l], and whether it turns a
+   style on or off, opens or closes a link, or neither. An OSC ends at BEL or
+   at ESC \. *)
+let escape l i =
+  let n = String.length l in
+  let rec upto p j = if j >= n || p l.[j] then j else upto p (j + 1) in
+  if i + 1 < n && l.[i + 1] = '[' then
+    let f = upto (fun c -> c >= '@' && c <= '~') (i + 2) in
+    let params = String.sub l (i + 2) (f - i - 2) in
+    if f < n && l.[f] = 'm' then (f + 1, `Style (params <> "" && params <> "0"))
+    else (min n (f + 1), `Other)
+  else if i + 1 < n && l.[i + 1] = ']' then
+    let e = upto (fun c -> c = '\007' || c = '\027') (i + 2) in
+    let next = min n (if e < n && l.[e] = '\027' then e + 2 else e + 1) in
+    match String.split_on_char ';' (String.sub l (i + 2) (e - i - 2)) with
+    | "8" :: _ :: uri -> (next, `Link (String.concat ";" uri <> ""))
+    | _ -> (next, `Other)
+  else (min n (i + 2), `Other)
+
+let check_line l =
+  let rec go i ~style ~link =
+    match String.index_from_opt l i '\027' with
+    | None ->
+        if style then Alcobar.failf "style left on: %S" l;
+        if link then Alcobar.failf "link left open: %S" l
+    | Some i -> (
+        match escape l i with
+        | next, `Style style -> go next ~style ~link
+        | next, `Link link -> go next ~style ~link
+        | next, `Other -> go next ~style ~link)
+  in
+  go 0 ~style:false ~link:false
+
+let check_closed raw = List.iter check_line (String.split_on_char '\n' raw)

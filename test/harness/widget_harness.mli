@@ -32,5 +32,6 @@ val check_fits : int -> string list -> unit
     [margin]. *)
 
 val check_closed : string -> unit
-(** [check_closed raw] checks that every style a line of [raw] turns on is off
-    before that line ends. *)
+(** [check_closed raw] checks that each line of [raw] ends with no style on and
+    no link open: an SGR other than a reset turns a style on, and an OSC 8 with
+    a target opens a link. *)
