@@ -121,15 +121,16 @@ let acquire fetch =
         | _ -> " [Working]")
     | None -> " [Working]"
   in
-  let left = View.text (Fmt.str "%.0f%%%s" (percent fetch) item) in
+  let left = Fmt.kstr View.text "%.0f%%%s" (percent fetch) item in
   let right =
     match (Task.progress fetch, Task.rate fetch) with
     | `Bytes (n, total), Some cps ->
         let eta = Int64.to_float (Int64.sub total n) /. cps in
-        Some
-          (Fmt.str " %s/s %s"
-             (size_to_str (Float.to_int cps))
-             (time_to_str eta))
+        Fmt.kstr
+          (fun s -> Some s)
+          " %s/s %s"
+          (size_to_str (Float.to_int cps))
+          (time_to_str eta)
     | _ -> None
   in
   match (right, Room.width room) with

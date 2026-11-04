@@ -109,7 +109,7 @@ let plain e =
           View.(
             role `Accent (styled Style.bold (text "Downloading"))
             ++ Fmt.kstr text " %s " name
-            ++ muted (Fmt.str "(%a)" Progress.pp_bytes (Int64.of_float p.size))))
+            ++ Fmt.kstr muted "(%a)" Progress.pp_bytes (Int64.of_float p.size)))
   | `End, Some (_, [ _; name ])
     when List.exists (fun p -> p.name = name && large p) installed ->
       Some

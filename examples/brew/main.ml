@@ -228,7 +228,7 @@ let rec sentence = function
   | a :: rest -> a ^ ", " ^ sentence rest
 
 let pour clock f =
-  ohai (Fmt.str "Pouring %s--%s.%s.bottle.tar.gz" f.name f.version f.bottle);
+  Fmt.kstr ohai "Pouring %s--%s.%s.bottle.tar.gz" f.name f.version f.bottle;
   Eio.Time.Mono.sleep clock (0.2 +. (f.size /. 2e7));
   Fmt.pr "🍺  /opt/homebrew/Cellar/%s/%s: %s files, %s@." f.name f.version
     (if f.files >= 1000 then
@@ -272,4 +272,4 @@ let () =
   arrow Color.green
     View.(styled Style.bold (text "Installing ") ++ identifier target.name);
   pour clock target;
-  ohai (Fmt.str "Running `brew cleanup %s`..." target.name)
+  Fmt.kstr ohai "Running `brew cleanup %s`..." target.name

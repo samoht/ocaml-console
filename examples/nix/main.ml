@@ -73,6 +73,9 @@ let bash = fetched "bash-5.2p37"
 let coreutils = fetched "coreutils-9.5"
 
 type log = Phase of string | Line of string
+
+let line fmt = Fmt.kstr (fun s -> Line s) fmt
+
 type build = { drv : string; name : string; log : log list }
 
 let tarball =
@@ -106,31 +109,25 @@ let stdenv ~name ~configure ~build ~check ~bin =
     log =
       [
         Phase "unpackPhase";
-        Line (Fmt.str "unpacking source archive %s" (store (name ^ ".tar.gz")));
-        Line (Fmt.str "source root is %s" name);
+        line "unpacking source archive %s" (store (name ^ ".tar.gz"));
+        line "source root is %s" name;
         Phase "patchPhase";
         Phase "configurePhase";
-        Line (Fmt.str "configure flags: --prefix=%s" out);
+        line "configure flags: --prefix=%s" out;
       ]
       @ List.map (fun l -> Line l) configure
-      @ [
-          Phase "buildPhase";
-          Line (Fmt.str "build flags: SHELL=%s/bin/bash" bash);
-        ]
+      @ [ Phase "buildPhase"; line "build flags: SHELL=%s/bin/bash" bash ]
       @ List.map (fun l -> Line l) build
       @ (match check with
         | [] -> []
         | _ -> Phase "checkPhase" :: List.map (fun l -> Line l) check)
       @ [
           Phase "installPhase";
-          Line (Fmt.str "install flags: SHELL=%s/bin/bash install" bash);
+          line "install flags: SHELL=%s/bin/bash install" bash;
           Phase "fixupPhase";
-          Line
-            (Fmt.str "shrinking RPATHs of ELF executables and libraries in %s"
-               out);
-          Line
-            (Fmt.str "stripping (with command strip and flags -S -p) in  %s/%s"
-               out bin);
+          line "shrinking RPATHs of ELF executables and libraries in %s" out;
+          line "stripping (with command strip and flags -S -p) in  %s/%s" out
+            bin;
         ];
   }
 
@@ -226,7 +223,7 @@ let activities root kind =
 
 let running = Style.(bold + fg Color.blue)
 let finished = Style.(bold + fg Color.green)
-let number pp style x = View.styled style (View.text (Fmt.str "%a" pp x))
+let number pp style x = View.styled style (Fmt.kstr View.text "%a" pp x)
 
 (* [running/done/expected], each part shown as Nix shows it. *)
 let numbers pp ~running:r ~done_ expected =
@@ -320,7 +317,7 @@ let status root =
           let phase =
             match phase lines with
             | None -> View.empty
-            | Some p -> View.text (Fmt.str " (%s)" p)
+            | Some p -> Fmt.kstr View.text " (%s)" p
           in
           let last =
             match List.rev lines with
@@ -357,11 +354,9 @@ let fetch clock ~copies ~downloads (s : substitute) =
       (wrapped
          View.(
            warning ++ text " " ++ error
-           ++ text
-                (Fmt.str
-                   " unable to download '%s': HTTP error 500; retrying in 283 \
-                    ms"
-                   url)));
+           ++ Fmt.kstr text
+                " unable to download '%s': HTTP error 500; retrying in 283 ms"
+                url));
     Eio.Time.Mono.sleep clock 0.283
   end;
   let steps = 1 + Int64.to_int (Int64.div s.download (bytes 2.)) in

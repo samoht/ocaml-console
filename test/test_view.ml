@@ -548,7 +548,7 @@ let test_fit_room () =
     (at ~width:5 ~time:1.5 room);
   let theme =
     View.fit (fun r ->
-        View.text (Fmt.str "%s %b" (Theme.name (Room.theme r)) (Room.utf_8 r)))
+        Fmt.kstr View.text "%s %b" (Theme.name (Room.theme r)) (Room.utf_8 r))
   in
   Alcotest.(check string)
     "its theme and character set" "ascii false"

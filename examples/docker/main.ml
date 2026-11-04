@@ -165,7 +165,7 @@ let plain e =
       Hashtbl.replace vertices name v;
       let blank = if !current = 0 then "" else "\n" in
       current := v.n;
-      Some (View.text (Fmt.str "%s#%d %s" blank v.n name))
+      Some (Fmt.kstr View.text "%s#%d %s" blank v.n name)
   | `Progress, Some (id, _) -> (
       match (E.unit e, E.count e, E.total e) with
       | Some `Bytes, Some c, Some t ->
