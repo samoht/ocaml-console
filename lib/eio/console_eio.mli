@@ -32,13 +32,14 @@
     - its [Task.log] lines;
     - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes.
 
-    Of what [run] takes, bytes belong to the task current when they are written.
-    A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that another
-    fiber printed there without flushing them go to whichever task ends first.
-    Each task collects its own lines, so a line is what one task wrote up to a
-    line feed, and a task's unended last line is ended when the task ends. Bytes
-    written outside any task are the output of no task, ended when the display
-    closes.
+    Of what [run] takes, bytes belong to the task current when they are written,
+    in the fiber that writes them: none is current outside any fiber, as in a
+    thread. A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that
+    another fiber printed there without flushing them go to whichever task ends
+    first. Each task collects its own lines, so a line is what one task wrote up
+    to a line feed, and a task's unended last line is ended when the task ends.
+    Bytes written outside any task are the output of no task, ended when the
+    display closes.
 
     Text that [print_string], [Printf] or a child process writes on the terminal
     goes past the display and garbles the rows, so print it with {!with_output}.
@@ -147,7 +148,9 @@ val run :
     - a message logged after the display closed, through a reporter kept from
       [f];
     - a message still waiting for the display when it closes;
-    - a message from a domain that Eio does not run.
+    - a message from a domain that Eio does not run;
+    - a message logged outside any fiber of the domain that runs [f], as from a
+      thread or a signal handler.
 
     That reporter is put back when [f] ends, and when the program exits during
     [f], so what an [at_exit] function logs after the display closed goes to it.

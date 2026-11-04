@@ -100,10 +100,12 @@ let rec cancelled = function
   | Fun.Finally_raised e -> cancelled e
   | _ -> false
 
-(* A task is current in the fibers its function forks, as a binding is. *)
+(* A task is current in the fibers its function forks, as a binding is, and
+   none is outside any fiber, as in a thread or a signal handler. *)
 let scope =
   Task_driver.scope
-    ~current:(fun () -> Eio.Fiber.get task)
+    ~current:(fun () ->
+      try Eio.Fiber.get task with Effect.Unhandled _ -> None)
     ~within:(fun t f -> Eio.Fiber.with_binding task t f)
     ~cancelled
 
@@ -459,15 +461,18 @@ type request = {
   reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
 }
 
-(* A message for the display, from the domain that runs it or handed to
-   that domain: [`Closed] if the display closes first. A domain that Eio
-   does not run cannot wait for the answer, so its message is not taken. *)
+(* A message for the display, from a fiber of the domain that runs it or
+   handed to that domain: [`Closed] if the display closes first. A thread of
+   that domain, a signal handler out of any fiber or a domain that Eio does
+   not run cannot wait for the answer, so its message is not taken. *)
 let deliver ~owner ~closed ~requests root level message =
   if Option.is_some (Eio.Promise.peek closed) then `Closed
-  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then begin
-    Task_driver.report root level message;
-    `Written
-  end
+  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
+    if in_fiber () then begin
+      Task_driver.report root level message;
+      `Written
+    end
+    else `Closed
   else
     try
       Eio.Fiber.first
