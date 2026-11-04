@@ -67,6 +67,9 @@
 - Console no longer builds its width cache as a program starts, only when it
   first measures text (#30).
 
+- Starting a domain during `Console_eio.run` no longer stops the display from
+  taking the program's output (#39).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

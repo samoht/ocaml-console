@@ -131,9 +131,11 @@ type line = { pending : Buffer.t; mutable cut : bool }
 let line () = { pending = Buffer.create 256; cut = false }
 
 type intercepted = {
+  by : run; (* the run whose display takes [ppf] *)
   ppf : Format.formatter;
-  out : Format.formatter_out_functions; (* given back by {!restore} *)
-  pass : Format.formatter_out_functions; (* [out], watched by the display *)
+  mutable out : Format.formatter_out_functions; (* given back by {!restore} *)
+  mutable pass : Format.formatter_out_functions;
+      (* [out], watched by the display *)
   held : Buffer.t; (* whole lines for above the region *)
   root : line; (* the line under way outside any task *)
 }
@@ -215,13 +217,9 @@ let task_line task =
       Hashtbl.replace lines id l;
       l
 
-let intercept run ppf =
-  Format.pp_print_flush ppf ();
-  let out = Format.pp_get_formatter_out_functions ppf () in
-  let pass = Display_driver.watch run.display out in
-  let i = { ppf; out; pass; held = Buffer.create 256; root = line () } in
+let take_over ({ by = run; _ } as i) =
   let add s o len =
-    if is_direct () then pass.out_string s o len
+    if is_direct () then i.pass.out_string s o len
     else
       match Task_driver.current run.root with
       | Some task ->
@@ -232,22 +230,52 @@ let intercept run ppf =
       | None -> take i.root s o len (outside run i)
   in
   let flush () =
-    if is_direct () then pass.out_flush () else send_held run.display i
+    if is_direct () then i.pass.out_flush () else send_held run.display i
   in
-  Format.pp_set_formatter_out_functions ppf
+  Format.pp_set_formatter_out_functions i.ppf
     {
-      out with
+      i.out with
       out_string = add;
       out_flush = flush;
       out_newline = (fun () -> add "\n" 0 1);
       out_spaces = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
       out_indent = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
-    };
+    }
+
+let intercept run ppf =
+  Format.pp_print_flush ppf ();
+  let out = Format.pp_get_formatter_out_functions ppf () in
+  let pass = Display_driver.watch run.display out in
+  let i =
+    { by = run; ppf; out; pass; held = Buffer.create 256; root = line () }
+  in
+  take_over i;
   let rec remember () =
     let l = Atomic.get intercepted in
     if not (Atomic.compare_and_set intercepted l (i :: l)) then remember ()
   in
   remember ()
+
+(* Before the program's first domain starts, Format gives [Fmt.stdout] and
+   [Fmt.stderr] the [out_string] and [out_flush] of a buffer per domain, and
+   keeps the rest of the functions they have. This function, registered
+   after Format's, runs after it: a formatter taken is taken again over
+   those two, which {!restore} gives back. A domain started before this
+   module was loaded leaves nothing to register. *)
+let () =
+  let rebase i =
+    if i.ppf == Format.std_formatter || i.ppf == Format.err_formatter then begin
+      let now = Format.pp_get_formatter_out_functions i.ppf () in
+      i.out <-
+        { i.out with out_string = now.out_string; out_flush = now.out_flush };
+      i.pass <- Display_driver.watch i.by.display i.out;
+      take_over i
+    end
+  in
+  try
+    Domain.before_first_spawn (fun () ->
+        List.iter rebase (Atomic.get intercepted))
+  with Invalid_argument _ -> ()
 
 let flush_all () =
   List.iter
