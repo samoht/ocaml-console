@@ -102,6 +102,11 @@ let rec root_of r = match r.parent with None -> r | Some p -> root_of p
 let changed r = r.version <- r.version + 1
 let keep r m = r.memo <- m
 
+let rec is_async = function
+  | Out_of_memory | Stack_overflow | Sys.Break -> true
+  | Fun.Finally_raised e -> is_async e
+  | _ -> false
+
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with

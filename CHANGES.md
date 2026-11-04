@@ -41,6 +41,10 @@
 - Add `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#34).
 
+- `Sys.Break`, `Out_of_memory` and `Stack_overflow` raised in a view are no
+  longer held until the next redraw or close: they go on from the call that
+  was drawing, and the view stays (#53).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

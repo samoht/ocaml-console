@@ -85,6 +85,9 @@
     raises in none of the program's other calls. {!close} raises it once the
     display closed.
 
+    [Sys.Break], [Out_of_memory] and [Stack_overflow] do not wait: they go on
+    from the call that was drawing, whichever that is.
+
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)
 

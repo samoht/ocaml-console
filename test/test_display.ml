@@ -859,7 +859,10 @@ let test_any_width () =
           Format.pp_print_flush ppf ();
           if Buffer.length buf > 100_000 then
             Alcotest.failf "width %d: %d bytes written" w (Buffer.length buf)
-      | exception e -> Alcotest.failf "width %d: %s" w (Printexc.to_string e))
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          Fmt.epr "width %d:@." w;
+          Printexc.raise_with_backtrace e bt)
     [ 1_000_000; Sys.max_string_length; max_int ]
 
 (* A fiber that outlives the display, or a library that holds on to it,
@@ -1797,6 +1800,35 @@ let test_view_exception_later () =
     (Console_vte.cursor_visible t.vte);
   Alcotest.check_raises "on a pipe" Exit (fun () ->
       ignore (plain ~view:last (fun _ _ -> ())))
+
+(* What only the program can answer is not held back: a view that meets an
+   interrupt or runs out of heap or stack has not failed. It goes on from the
+   call that was drawing, the view stays, and the close still restores the
+   terminal before it goes on. *)
+let test_view_urgent () =
+  List.iter
+    (fun e ->
+      let broken = ref false in
+      let view _ =
+        View.fit (fun _ -> if !broken then raise e else View.text "fine")
+      in
+      let t = terminal ~styled:true ~width:40 ~height:10 ~view () in
+      ignore (Task.start t.root "running");
+      Display.redraw t.display;
+      broken := true;
+      Alcotest.check_raises "the print" e (fun () ->
+          Display.print t.display (View.text "kept"));
+      broken := false;
+      Display.redraw t.display;
+      Alcotest.(check bool)
+        "the view stays" true
+        (List.exists (contains "fine") (screen t));
+      broken := true;
+      Alcotest.check_raises "the close" e (fun () -> Display.close t.display);
+      Alcotest.(check bool)
+        "the cursor shown" true
+        (Console_vte.cursor_visible t.vte))
+    [ Sys.Break; Out_of_memory; Stack_overflow; Fun.Finally_raised Sys.Break ]
 
 (* On a narrow terminal the label is what tells two rows apart: it gives
    way last, after the bar, and the row still ends with its timer. *)
@@ -2809,6 +2841,8 @@ let suite =
         test_view_exception_close;
       Alcotest.test_case "a view that raises later" `Quick
         test_view_exception_later;
+      Alcotest.test_case "an interrupt in a view goes on" `Quick
+        test_view_urgent;
       Alcotest.test_case "a view side by side" `Quick test_view_hcat;
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_view_stands_still;

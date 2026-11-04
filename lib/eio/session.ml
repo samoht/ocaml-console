@@ -482,9 +482,11 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   Atomic.set ending
     (Some
        (fun () ->
-         (try close_display run with _ -> ());
-         give_back ();
-         restore ()));
+         Fun.protect ~finally:(fun () ->
+             give_back ();
+             restore ())
+         @@ fun () ->
+         try close_display run with e when not (Task_driver.is_async e) -> ()));
   let s = share run in
   Fun.protect ~finally:(fun () ->
       restore ();
@@ -512,7 +514,12 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     | exception e ->
         let bt = Printexc.get_raw_backtrace () in
         end_work run.root (Error e);
-        (try close_display run with _ -> ());
+        (try close_display run
+         with
+         | later
+         when Task_driver.is_async e || not (Task_driver.is_async later)
+         ->
+           ());
         Printexc.raise_with_backtrace e bt
   in
   close_display run;
