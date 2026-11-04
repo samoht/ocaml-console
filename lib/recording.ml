@@ -100,7 +100,7 @@ let open_cast file =
   let oc =
     try open_out_bin file
     with Sys_error e ->
-      Printf.eprintf "%s: CONSOLE_CAST: cannot record: %s\n%!"
+      Fmt.epr "%s: CONSOLE_CAST: cannot record: %s@."
         (Filename.basename Sys.executable_name)
         e;
       exit 1
