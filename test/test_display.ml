@@ -1815,9 +1815,10 @@ let breaking_size () =
   let size () = if !broken then raise Exit else (40, 10) in
   (buf, Format.formatter_of_buffer buf, broken, size)
 
-let cursor_shown ppf buf =
+(* What [ppf] wrote on [buf], whose cursor it hid, shows it again: DECTCEM. *)
+let check_buffer_restored ppf buf =
   Format.pp_print_flush ppf ();
-  contains "\027[?25h" (Buffer.contents buf)
+  check_cursor_restored "cursor" (Buffer.contents buf)
 
 (* What only the program can answer is not held back: a view that cannot go on
    for these reasons has not failed, and it stays. *)
@@ -1885,7 +1886,7 @@ let test_urgent_beats_kept () =
   Display.redraw display;
   broken := true;
   Alcotest.check_raises "closing" Sys.Break (fun () -> Display.close display);
-  Alcotest.(check bool) "cursor restored" true (cursor_shown ppf buf)
+  check_buffer_restored ppf buf
 
 (* So may the size of the terminal. *)
 let test_size_raises_at_close () =
@@ -1896,14 +1897,13 @@ let test_size_raises_at_close () =
   let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
   Display.redraw display;
   broken := true;
-  Alcotest.check_raises "closing" Exit (fun () -> Display.close display);
   Format.pp_print_flush ppf ();
+  let drawn = Buffer.length buf in
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close display);
+  check_buffer_restored ppf buf;
   Alcotest.(check bool)
-    "cursor restored" true
-    (contains "\027[?25h" (Buffer.contents buf));
-  Alcotest.(check bool)
-    "the view is not what failed" true
-    (contains "x" (Buffer.contents buf))
+    "the view stays for the last frame" true
+    (contains "x" (Buffer.sub buf drawn (Buffer.length buf - drawn)))
 
 (* Elsewhere it waits for a call that asks, and the view stays. *)
 let test_size_raises_in_print () =
@@ -2031,14 +2031,19 @@ let test_view_closes () =
   armed := true;
   Display.redraw d;
   Format.pp_print_flush ppf ();
-  let after =
-    match Astring.String.cuts ~sep:"\027[?25h" (Buffer.contents buf) with
-    | [ _; after ] -> after
-    | l -> Alcotest.failf "the cursor shown %d times" (List.length l - 1)
-  in
+  let written = Buffer.contents buf in
+  check_cursor_restored "cursor" written;
   Alcotest.(check bool)
-    "no update after the last" false
-    (contains "\027[?2026h" after)
+    "no update left open" false
+    (Console_vte.synchronized_open written);
+  let vte = Console_vte.v ~rows:10 ~cols:40 () in
+  Console_vte.feed vte written;
+  Alcotest.(check (list string))
+    "the last frame, once" [ "x" ]
+    (List.filter (contains "x") (Console_vte.screen vte));
+  Display.redraw d;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check string) "nothing after it" written (Buffer.contents buf)
 
 (* What ends a task as the display closes may raise: the terminal comes first. *)
 let test_commit_raises_at_close () =
