@@ -428,8 +428,11 @@ let test_task_endings n ending =
   | _ -> Task.cancel root);
   Task.succeed root;
   Task.fail root;
-  let expected = if ending mod 3 = 0 then `Succeeded else `Cancelled in
-  List.iter (fun child -> check (Task.state child = expected)) children;
+  let ended_with_root child =
+    if ending mod 3 = 0 then Task.state child = `Succeeded
+    else Task.state child = `Cancelled
+  in
+  List.iter (fun child -> check (ended_with_root child)) children;
   check_eq ~pp:Fmt.int 1 !work_ends;
   check_eq
     ~pp:Fmt.(Dump.list int)
