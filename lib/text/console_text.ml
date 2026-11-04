@@ -21,6 +21,13 @@ let is_selector u = Uucp.Gen.is_variation_selector u
    character removed leaves both as they were. *)
 type seen = { mutable cr : bool; mutable base : bool }
 
+(* Whether a variation selector may follow [u], of code point [c]. *)
+let is_base u c =
+  c > 0x20
+  && (not (c >= 0x7f && c <= 0x9f))
+  && (c < 0x80 || not (is_selector u))
+  && c <> 0x200c && c <> 0x200d
+
 (* [text buf seen u] adds what [sanitize] makes of the character [u]:
    itself, nothing if it is {!removed} or a variation selector with no base,
    a line end for CR or a line feed (LF, VT, FF and NEL, U+0085), or a space
@@ -35,11 +42,7 @@ let text buf ~keep_newlines seen u =
   in
   if not dropped then begin
     seen.cr <- c = 0x0d;
-    seen.base <-
-      c > 0x20
-      && (not (c >= 0x7f && c <= 0x9f))
-      && (ascii || not (is_selector u))
-      && c <> 0x200c && c <> 0x200d
+    seen.base <- is_base u c
   end;
   if c = 0x0d then line_end ()
   else if (c >= 0x0a && c <= 0x0c) || c = 0x85 then (
