@@ -58,6 +58,9 @@
 - A `CONSOLE_CAST` recording now writes C1 control characters as `\uXXXX`, as
   the asciicast v2 format asks (#50).
 
+- `$COLUMNS` and `$LINES`, when set, now override the size of a terminal, as
+  POSIX says (#49).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

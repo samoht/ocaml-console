@@ -24,18 +24,19 @@ let dimension_of_env name usable =
 let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)
 
-(* No [tput] fallback: it reads the termcap entry the shell read, at the
-   cost of a fork. *)
+(* POSIX XBD 8.3: when set, COLUMNS and LINES override the size of the terminal.
+   No [tput] fallback: it reads the termcap entry the shell read, at the cost of
+   a fork. *)
 let width fd =
   first ~default:80
-    [ width_of_ioctl fd; (fun () -> dimension_of_env "COLUMNS" usable) ]
+    [ (fun () -> dimension_of_env "COLUMNS" usable); width_of_ioctl fd ]
 
 let height_of_ioctl fd () =
   Option.bind (window_size fd) (fun w -> positive w.rows)
 
 let height fd =
   first ~default:24
-    [ height_of_ioctl fd; (fun () -> dimension_of_env "LINES" usable) ]
+    [ (fun () -> dimension_of_env "LINES" usable); height_of_ioctl fd ]
 
 let asked () =
   Option.map (fun w () -> (w, height None)) (dimension_of_env "COLUMNS" usable)

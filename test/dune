@@ -20,3 +20,12 @@
   jsont.bytesrw
   fmt
   unix))
+
+; The terminal a test sees is the one it sets up, not the one dune runs in:
+; $COLUMNS and $LINES would override its size.
+
+(env
+ (_
+  (env-vars
+   (COLUMNS "")
+   (LINES ""))))
