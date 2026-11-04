@@ -18,9 +18,10 @@
     standard error. With [signal], SIGINT comes after a view raised, and SIGTERM
     with [sigterm]. With [idle-signal], SIGINT comes while the scheduler waits,
     with the display on an Eio flow to a file, and SIGTERM with [idle-sigterm].
-    With [exit-view], a view calls [exit] each time it draws, on such a flow.
-    With [print], it prints a rule and a table above the rows, as wide as the
-    display lays them out. *)
+    With [exit-cancelled], a cancelled fiber calls [exit], on such a flow. With
+    [exit-view], a view calls [exit] each time it draws, on such a flow. With
+    [print], it prints a rule and a table above the rows, as wide as the display
+    lays them out. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -122,6 +123,17 @@ let () =
                ());
           Eio.Time.Mono.sleep clock 3.;
           Fmt.pr "still running@.")
+  | [| _; "exit-cancelled"; file |] ->
+      let path = Eio.Path.(Eio.Stdenv.cwd env / file) in
+      Eio.Path.with_open_out ~create:(`Or_truncate 0o644) path @@ fun out ->
+      let write s o l = Eio.Flow.copy_string (String.sub s o l) out in
+      let ppf = Format.make_formatter write ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          ignore (Console.Task.start root "t");
+          Eio.Fiber.first
+            (fun () ->
+              Fun.protect ~finally:(fun () -> exit 3) Eio.Fiber.await_cancel)
+            ignore)
   | [| _; "exit-view"; file |] ->
       let path = Eio.Path.(Eio.Stdenv.cwd env / file) in
       Eio.Path.with_open_out ~create:(`Or_truncate 0o644) path @@ fun out ->

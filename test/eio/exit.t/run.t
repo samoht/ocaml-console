@@ -34,6 +34,14 @@ flow, which a signal handler cannot write to, and the cursor is shown:
   $ ../tty.exe --cursor idle.out
   hidden, then shown
 
+So does an exit from a cancelled fiber, which the flow refuses to write
+for:
+
+  $ ../piped.exe exit-cancelled cancelled.out 2>/dev/null
+  [3]
+  $ ../tty.exe --cursor cancelled.out
+  hidden, then shown
+
 A view that calls exit leaves the cursor shown:
 
   $ ../piped.exe exit-view view.out 2>/dev/null
