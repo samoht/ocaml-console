@@ -50,11 +50,6 @@ let test_cases source =
   in
   go 0 []
 
-let is_infix ~affix s =
-  let n = String.length affix and m = String.length s in
-  let rec go i = i + n <= m && (String.sub s i n = affix || go (i + 1)) in
-  go 0
-
 (* A test exists when an OCaml file has a test case of that name, or a cram
    file holds that phrase. *)
 let exists (file, name) =
@@ -63,7 +58,7 @@ let exists (file, name) =
   &&
   let source = read path in
   if Filename.check_suffix file ".ml" then List.mem name (test_cases source)
-  else is_infix ~affix:name source
+  else Astring.String.is_infix ~affix:name source
 
 let rows () =
   read (Filename.concat root "INVARIANTS.md")
@@ -99,7 +94,7 @@ let test_stdlib_utf8_boundaries () =
   in
   Alcotest.(check bool)
     "UTF-8 boundaries do not scan continuation bytes with a bit mask" false
-    (is_infix ~affix:"land0xc0=0x80" source)
+    (Astring.String.is_infix ~affix:"land0xc0=0x80" source)
 
 let () =
   Alcotest.run "invariants"
