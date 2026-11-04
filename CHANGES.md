@@ -55,6 +55,9 @@
 - A `CONSOLE_CAST` recording now has a header in valid UTF-8 whatever bytes
   `$TERM` holds, as the asciicast v2 format requires (#50).
 
+- A `CONSOLE_CAST` recording now writes C1 control characters as `\uXXXX`, as
+  the asciicast v2 format asks (#50).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

@@ -35,4 +35,5 @@ val event : event Jsont.t
 
 val to_line : 'a Jsont.t -> 'a -> string
 (** [to_line t v] is [v] on one line, ended. A time is written to the
-    microsecond. *)
+    microsecond, and a C1 control as [\uXXXX], as asciicast v2 asks of
+    non-printable characters. *)

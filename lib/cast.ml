@@ -55,8 +55,27 @@ let event =
   in
   Jsont.t3 ~kind:"asciicast event" ~dec ~enc Jsont.json
 
+(* asciicast v2 encodes the non-printable code points as \uXXXX, and JSON itself
+   lets the C1 controls through. In UTF-8 they are C2 80 to C2 9F, which no
+   other character contains. *)
+let escape_c1 s =
+  let b = Buffer.create (String.length s) in
+  let n = String.length s in
+  let rec go i =
+    if i < n then
+      match s.[i] with
+      | '\xc2' when i + 1 < n && Char.code s.[i + 1] land 0xe0 = 0x80 ->
+          Fmt.kstr (Buffer.add_string b) "\\u%04X" (Char.code s.[i + 1]);
+          go (i + 2)
+      | c ->
+          Buffer.add_char b c;
+          go (i + 1)
+  in
+  go 0;
+  Buffer.contents b
+
 (* A time to the microsecond is written as short as it can be: 1.5, or 0. *)
 let to_line t v =
   match Jsont_bytesrw.encode_string ~number_format:"%.15g" t v with
-  | Ok s -> s ^ "\n"
+  | Ok s -> escape_c1 s ^ "\n"
   | Error e -> invalid_arg e
