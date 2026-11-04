@@ -17,6 +17,15 @@ val is_async : exn -> bool
     stack, wrapped by [Fun.protect] or not: it can arise anywhere, and only the
     program can answer it. *)
 
+val protect : finally:(unit -> unit) -> (unit -> 'a) -> 'a
+(** [protect ~finally f] is [f ()] then [finally ()], whatever [f] raises. If
+    both raise, the exception of [f] goes on, unless only that of [finally] is
+    {!is_async}; neither is wrapped in [Fun.Finally_raised]. *)
+
+val run_all : (unit -> unit) list -> unit
+(** [run_all fs] calls each of [fs] in turn, whatever one raises, and raises
+    what {!protect} says goes on. *)
+
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of Logs messages. *)
 

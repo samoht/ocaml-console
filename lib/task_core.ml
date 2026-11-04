@@ -61,6 +61,7 @@ and t = {
   mutable ended_at : float option;
   mutable message : string option;
   mutable outcome : outcome option;
+  mutable finishing : bool;
   mutable children : t list;
   mutable child_limit : int;
   mutable gone : bool;
@@ -107,11 +108,39 @@ let rec is_async = function
   | Fun.Finally_raised e -> is_async e
   | _ -> false
 
+let protect ~finally f =
+  match f () with
+  | v ->
+      finally ();
+      v
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      (try finally () with later when is_async e || not (is_async later) -> ());
+      Printexc.raise_with_backtrace e bt
+
+let rec run_all = function
+  | [] -> ()
+  | f :: rest -> protect f ~finally:(fun () -> run_all rest)
+
+(* Every watcher sees the change, whatever one of them raises, as with
+   {!run_all}, with nothing allocated when none raises: a change is the cost
+   of a progress update. *)
+let rec tell change = function
+  | [] -> ()
+  | f :: rest -> (
+      match f change with
+      | () -> tell change rest
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          (try tell change rest
+           with later when is_async e || not (is_async later) -> ());
+          Printexc.raise_with_backtrace e bt)
+
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
   | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
-  List.iter (fun f -> f change) w.watchers
+  tell change w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
 let on_ending r f = r.work.ending <- f
@@ -148,6 +177,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     ended_at = None;
     message = None;
     outcome = None;
+    finishing = false;
     children = [];
     child_limit = 16;
     gone = false;
@@ -257,34 +287,41 @@ let child_outcome = function
   | `Succeeded -> `Succeeded
   | `Failed | `Cancelled -> `Cancelled
 
+let ended outcome ?message r =
+  let w = r.work in
+  Queue.clear r.window;
+  r.ended_at <- Some (w.now ());
+  r.message <- Option.map Task_text.label message;
+  r.outcome <- Some outcome;
+  if not (is_root r) then begin
+    w.finished <- w.finished + 1;
+    match outcome with
+    | `Failed -> w.failed <- w.failed + 1
+    | `Cancelled -> w.cancelled <- w.cancelled + 1
+    | `Succeeded -> ()
+  end;
+  Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
+  hold r;
+  (* A success folds its output away, once its end was seen. *)
+  Fun.protect
+    (fun () -> notify w (Ended r))
+    ~finally:(fun () ->
+      if outcome = `Succeeded then begin
+        Queue.clear r.output;
+        r.output_bytes <- 0
+      end)
+
 (* The tasks under one that ends end first, in the order they started: they
-   succeed with it, and are cancelled when it fails or is cancelled. *)
+   succeed with it, and are cancelled when it fails or is cancelled. A task
+   ends once, and whole, whatever its ending or a subtask's raises. *)
 let rec finish outcome ?message r =
-  if is_running r then begin
-    let w = r.work in
-    w.ending r;
-    List.iter (finish (child_outcome outcome)) (List.rev (running_children r));
-    Queue.clear r.window;
-    r.ended_at <- Some (w.now ());
-    r.message <- Option.map Task_text.label message;
-    r.outcome <- Some outcome;
-    if not (is_root r) then begin
-      w.finished <- w.finished + 1;
-      match outcome with
-      | `Failed -> w.failed <- w.failed + 1
-      | `Cancelled -> w.cancelled <- w.cancelled + 1
-      | `Succeeded -> ()
-    end;
-    Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
-    hold r;
-    (* A success folds its output away, once its end was seen. *)
-    Fun.protect
-      (fun () -> notify w (Ended r))
-      ~finally:(fun () ->
-        if outcome = `Succeeded then begin
-          Queue.clear r.output;
-          r.output_bytes <- 0
-        end)
+  if is_running r && not r.finishing then begin
+    r.finishing <- true;
+    let children = List.rev (running_children r) in
+    run_all
+      ((fun () -> r.work.ending r)
+       :: List.map (fun c () -> finish (child_outcome outcome) c) children
+      @ [ (fun () -> ended outcome ?message r) ])
   end
 
 let succeed ?message r = finish `Succeeded ?message r

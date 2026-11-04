@@ -73,6 +73,9 @@
 - Updating a task's progress no longer formats text, so a program that reports
   its progress often spends less time on it (#40).
 
+- A task now ends whole, with its subtasks, and every display of its work sees
+  it end, when an interrupt comes as it ends (#41).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
