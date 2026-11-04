@@ -83,6 +83,16 @@ val unwritten : t -> bool
 (** [unwritten d] is [true] iff a write of [d] is under way, waits, or was cut
     short and what remains of it waits for the next. *)
 
+val writing : t -> bool
+(** [writing d] is [true] while a write of [d] is under way, such as one
+    suspended on an output that takes nothing. *)
+
+val restart : t -> unit
+(** [restart d] forgets what [d] drew, so that the next frame is drawn from a
+    row of its own with the cursor hidden again: what is on the screen is not
+    known, as once a program continues from a stop that wrote over it. It does
+    nothing while {!writing}. *)
+
 val is_live : t -> bool
 (** [is_live d] is [true] iff [d] redraws a region on a terminal. *)
 

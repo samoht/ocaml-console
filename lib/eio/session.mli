@@ -68,6 +68,7 @@ val with_terminal : (unit -> 'a) -> 'a
 val run :
   ?cursor:(bool -> unit) ->
   ?flow:bool ->
+  ?terminal:Unix.file_descr ->
   sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   run ->
@@ -85,5 +86,8 @@ val run :
     screen and the cursor shown with [cursor true] (default does nothing); once
     continued, [cursor false] hides it and the region is drawn again. With
     [flow] (defaults to [false]) its output is an Eio flow, which a signal
-    handler that runs out of any fiber leaves to a fiber of the run. A {!claim}
-    must be held; it is released. *)
+    handler that runs out of any fiber leaves to a fiber of the run. A signal or
+    an exit that cannot wait for the display, from another domain or thread or
+    during a write that does not end, writes {!Interrupt.last_resort} on
+    [terminal], a non-blocking descriptor on the display's terminal, if given. A
+    {!claim} must be held; it is released. *)

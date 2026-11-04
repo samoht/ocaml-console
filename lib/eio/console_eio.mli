@@ -159,8 +159,7 @@ val run :
 
     - SIGINT or SIGTERM during [f]: the display closes once the frame it is
       writing, if any, is written, then the signal ends the program as it would
-      have. If that write does not end within a second, the signal ends the
-      program with the frame as it is.
+      have.
     - SIGTSTP (Ctrl-Z): the rows are taken off the terminal and the cursor is
       shown before the program stops, and the rows are drawn again once [fg]
       continues it. In a process group that no shell controls, where the stop
@@ -168,6 +167,23 @@ val run :
       goes on.
 
     A signal the program handles or ignores is left to it.
+
+    The display belongs to the domain that runs [f]. Where it cannot be reached
+    from there, the terminal is given up rather than restored: for a signal
+    handled in another domain, a write that does not end within a second, and an
+    [exit] from another thread or domain or while a write is under way. A fixed
+    sequence is then written once, without blocking, on the display's terminal,
+    opened again when [run] starts: it ends an escape code cut in half, a link
+    and the colours, and shows the cursor. The rows stay as they are and the
+    display writes nothing more. The signal then ends or stops the program, and
+    a program continued after such a stop draws the rows afresh. A write the
+    kernel already holds cannot be stopped and may still follow the sequence.
+
+    On {!Fmt.stdout} or {!Fmt.stderr}, a signal handler writes the last frame
+    itself. On a formatter that writes through an Eio flow, which takes a fiber,
+    a signal handler that runs outside any fiber leaves the last frame to a
+    fiber of the run: when none runs within a second, as while the program
+    computes, the frame is lost and the cursor may stay hidden.
 
     A closed pipe on [ppf] ends the display's output and nothing else, while one
     on standard output is met by the program's own writes, as without console

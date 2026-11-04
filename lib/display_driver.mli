@@ -25,6 +25,16 @@ val reveal : Display.t -> unit
 (** [reveal display] shows the cursor of [display] at once, ahead of a close
     that may not end, such as one that runs a view during [exit]. *)
 
+val writing : Display.t -> bool
+(** [writing display] is [true] while a write of [display] is under way, such as
+    one suspended on an output that takes nothing. *)
+
+val restart : Display.t -> unit
+(** [restart display] forgets what [display] drew, so that its next frame is
+    drawn afresh on a row of its own, the cursor hidden again, once a program
+    continues from a stop that wrote over it. It does nothing while {!writing}.
+*)
+
 val watch :
   Display.t -> Format.formatter_out_functions -> Format.formatter_out_functions
 (** [watch display out] is [out], which also tells [display] whether what it

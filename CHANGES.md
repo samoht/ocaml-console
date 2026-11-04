@@ -112,6 +112,14 @@
 - A view that calls `exit` during a `Console_eio.run` now leaves the cursor
   shown (#43).
 
+- When the display cannot be reached, from another domain or thread or during
+  a write that does not end within a second, a signal or an `exit` now ends a
+  cut escape code and shows the cursor before the program ends or stops,
+  instead of leaving the terminal as it was (#37).
+
+- A restoration that fails, such as giving back the echo of a terminal that has
+  gone, no longer stops SIGINT or SIGTERM from ending the program (#37).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

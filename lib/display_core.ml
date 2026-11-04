@@ -777,6 +777,15 @@ let reveal t =
 let reporting t f x =
   match f x with () -> () | exception e when t.cancelled e -> ()
 
+let writing t = t.writing
+
+let restart t =
+  busy t @@ fun () ->
+  if is_live t && t.shown && (not t.closed) && not t.writing then begin
+    tear t;
+    write ~salvage:hide_cursor t hide_cursor
+  end
+
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines
 

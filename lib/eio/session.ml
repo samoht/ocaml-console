@@ -414,18 +414,21 @@ let close_quietly ?first ?(urgent = false) run =
 let close_last run =
   try close_quietly run with Out_of_memory | Stack_overflow | Sys.Break -> ()
 
-let restore () =
+(* Without [flush], as from another thread, the formatters only get their
+   functions back: what they hold is the display's, whose state is not
+   read there. *)
+let restore ?(flush = true) () =
   List.iter
     (fun i ->
-      safely (fun () -> Format.pp_print_flush i.ppf ());
+      if flush then safely (fun () -> Format.pp_print_flush i.ppf ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
       let rest = Buffer.contents i.held ^ Buffer.contents i.root.pending in
-      if rest <> "" then
+      if flush && rest <> "" then
         safely (fun () ->
             i.out.out_string rest 0 (String.length rest);
             i.out.out_flush ()))
     (Atomic.exchange intercepted []);
-  Hashtbl.reset lines
+  if flush then Hashtbl.reset lines
 
 let with_terminal f =
   match (Eio.Fiber.get current, Atomic.get shared) with
@@ -540,12 +543,16 @@ let receive ~sw ~closed requests root =
   loop ()
 
 (* The display redraws on its clock, so that the spinners turn and the
-   timers run while no task reports. The end of the run, which stops the
-   redraws, cuts none half way. *)
-let animate ~sw ~sleep display =
+   timers run while no task reports, and draws afresh after [repaint] is
+   set. The end of the run, which stops the redraws, cuts none half way. *)
+let animate ~sw ~sleep ~repaint display =
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
         sleep 0.1;
+        if Atomic.get repaint && not (Display_driver.writing display) then begin
+          Atomic.set repaint false;
+          Display_driver.restart display
+        end;
         whole (fun () -> Display.redraw display);
         loop ()
       in
@@ -645,25 +652,41 @@ let idle relay ~flow display k =
 (* What a return, a raise or a cancellation does, [exit] does too, so that what
    a later [at_exit] function logs or prints goes out as before. The cursor
    comes first: the last frame runs a view, which may call [exit] again, and
-   that one ends the program at once. *)
-let ends_at_exit (run : run) ~give_back =
+   that one ends the program at once. From another thread or domain, or while a
+   write is under way, the display's state is not touched: the terminal is
+   given up. *)
+let ends_at_exit (run : run) ~thread ~give_back =
+  let owner = Domain.self () in
   Atomic.set ending
     (Some
        (fun () ->
-         safely (fun () -> Display_driver.reveal run.display);
-         close_last run;
-         give_back ();
-         restore ()))
+         if
+           Int.equal (Domain.self () :> int) (owner :> int)
+           && Int.equal (Thread.id (Thread.self ())) thread
+           && not (Display_driver.writing run.display)
+         then begin
+           safely (fun () -> Display_driver.reveal run.display);
+           close_last run;
+           give_back ();
+           restore ()
+         end
+         else begin
+           Interrupt.last_resort ();
+           give_back ();
+           restore ~flush:false ()
+         end))
 
-let run ?(cursor = ignore) ?(flow = false) ~sleep ~intercept:formatters run f =
+let run ?(cursor = ignore) ?(flow = false) ?terminal ~sleep
+    ~intercept:formatters run f =
   let display = run.display in
+  let repaint = Atomic.make false in
   let previous = Logs.reporter () in
   let closed, close = Eio.Promise.create () in
   let give_back () =
     Logs.set_reporter previous;
     ignore (Eio.Promise.try_resolve close ())
   in
-  ends_at_exit run ~give_back;
+  ends_at_exit run ~thread:(Thread.id (Thread.self ())) ~give_back;
   let s = share run in
   Task_driver.protect ~finally:(fun () ->
       Task_driver.protect
@@ -676,7 +699,10 @@ let run ?(cursor = ignore) ?(flow = false) ~sleep ~intercept:formatters run f =
   Task_driver.ending run.root task_ended;
   let relay = relay () in
   Interrupt.protect ~idle:(idle relay ~flow display)
-    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_last run)
+    ~suspend:(suspend ~cursor display)
+    ~resume:(fun () -> Atomic.set repaint true)
+    ?terminal
+    ~restore:(fun () -> close_last run)
   @@ fun () ->
   match
     Eio.Switch.run @@ fun sw ->
@@ -684,7 +710,7 @@ let run ?(cursor = ignore) ?(flow = false) ~sleep ~intercept:formatters run f =
     Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests run.root);
     Logs.set_reporter
       (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
-    animate ~sw ~sleep display;
+    animate ~sw ~sleep ~repaint display;
     start_relay ~sw relay;
     Fun.protect ~finally:give_back @@ fun () -> first_run s f
   with

@@ -8,3 +8,5 @@ let when_idle = Display_core.when_idle
 let closed = Display_core.closed
 let unwritten = Display_core.unwritten
 let reveal = Display_core.reveal
+let writing = Display_core.writing
+let restart = Display_core.restart
