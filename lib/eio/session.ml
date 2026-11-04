@@ -469,6 +469,16 @@ let end_work root = function
   | Ok _ -> Task.succeed root
   | Error e -> if cancelled e then Task.cancel root else Task.fail root
 
+(* At [exit] the program is ending already: what the close raises gives way
+   to that, unless the program must see it, and the terminal is restored
+   whatever it raises. *)
+let close_at_exit run ~give_back =
+  Fun.protect ~finally:(fun () ->
+      give_back ();
+      restore ())
+  @@ fun () ->
+  try close_display run with e when not (Task_driver.is_async e) -> ()
+
 let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   let display = run.display in
   let previous = Logs.reporter () in
@@ -479,14 +489,7 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
   in
   (* What a return, a raise or a cancellation does, [exit] does too, so that
      what a later [at_exit] function logs or prints goes out as before. *)
-  Atomic.set ending
-    (Some
-       (fun () ->
-         Fun.protect ~finally:(fun () ->
-             give_back ();
-             restore ())
-         @@ fun () ->
-         try close_display run with e when not (Task_driver.is_async e) -> ()));
+  Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
   let s = share run in
   Fun.protect ~finally:(fun () ->
       restore ();
