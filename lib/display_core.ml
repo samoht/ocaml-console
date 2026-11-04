@@ -24,6 +24,7 @@ type t = {
   delay : float;
   mutable shown : bool;
   write_error : exn -> bool;
+  cancelled : exn -> bool;
   mutable width : int;
   mutable height : int;
   mutable view : View_core.t;
@@ -68,9 +69,10 @@ let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
 (* What a view, a hook, the size or the output raises waits for a call that
    asks, so that drawing fails no call that did not ask for it, and closing
-   restores the terminal first. An interrupt or an exhausted heap or stack does
-   not wait: the view has not failed, and only the program can answer it. *)
-let is_async = Task_core.is_async
+   restores the terminal first. An interrupt, an exhausted heap or stack or the
+   cancellation of the fiber does not wait: the view has not failed, and only
+   the program can answer it. *)
+let urgent t e = Task_core.is_async e || t.cancelled e
 let protect = Task_core.protect
 
 (* The first one waits. *)
@@ -94,7 +96,7 @@ let raise_failure t =
 let caught t ~default f =
   match f () with
   | v -> v
-  | exception e when not (is_async e) ->
+  | exception e when not (urgent t e) ->
       keep t e;
       default
 
@@ -262,9 +264,9 @@ let frame t =
 let or_fallback t draw =
   match draw () with
   | lines -> lines
-  | exception e when not (is_async e) -> (
+  | exception e when not (urgent t e) -> (
       fail t e;
-      try draw () with e when not (is_async e) -> [])
+      try draw () with e when not (urgent t e) -> [])
 
 let spans t = or_fallback t (fun () -> frame t)
 let max_size = 4096
@@ -319,7 +321,7 @@ let refresh_size t =
   | None -> false
   | Some size -> (
       match size () with
-      | exception e when not (is_async e) ->
+      | exception e when not (urgent t e) ->
           keep t e;
           false
       | w, h ->
@@ -538,8 +540,9 @@ let watch_lines t =
 
 let watch t out = tapped out (note_line t)
 
-let v ?size ?once_width ?(write_error = fun _ -> false) ?(delay = 0.)
-    ?(fallback = View_core.empty) ~now ppf view =
+let v ?size ?once_width ?(write_error = fun _ -> false)
+    ?(cancelled = fun _ -> false) ?(delay = 0.) ?(fallback = View_core.empty)
+    ~now ppf view =
   let depth =
     match Fmt.style_renderer ppf with
     | `Ansi_tty -> Some (Color.depth ppf)
@@ -556,6 +559,7 @@ let v ?size ?once_width ?(write_error = fun _ -> false) ?(delay = 0.)
       delay;
       shown = false;
       write_error;
+      cancelled;
       width = 80;
       height = 24;
       view;
@@ -704,6 +708,9 @@ let close t =
   protect
     (fun () -> if not t.closed then shut t)
     ~finally:(fun () -> raise_failure t)
+
+let reporting t f x =
+  match f x with () -> () | exception e when t.cancelled e -> ()
 
 let print_lines t lines =
   if ((not t.closed) || t.closing) && lines <> [] then commit t lines

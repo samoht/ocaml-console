@@ -20,6 +20,7 @@ val view : ?layout:Progress_layout.t -> Task_core.t -> View_core.t
 
 val show_with :
   ?write_error:(exn -> bool) ->
+  ?cancelled:(exn -> bool) ->
   ?progress:[ `Auto | `Tty | `Plain | `Quiet | `Json ] ->
   ?layout:Progress_layout.t ->
   ?view:View_core.t ->
@@ -31,6 +32,7 @@ val show_with :
   Format.formatter ->
   Task_core.t ->
   Display_core.t
-(** [show_with ~write_error ppf root] is {!Progress.show}, whose display takes
-    as the end of its output an exception that [write_error] says is a write
-    error. *)
+(** [show_with ~write_error ~cancelled ppf root] is {!Progress.show}, whose
+    display takes as the end of its output an exception that [write_error] says
+    is a write error, and holds back none that [cancelled] says is a
+    cancellation. *)

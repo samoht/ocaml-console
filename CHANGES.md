@@ -88,6 +88,13 @@
   the run ends, and an output that breaks as it ends no longer keeps the next
   run from starting (#26).
 
+- A cancelled `Console_eio.run` now restores the terminal, waiting a second at
+  most for an output that takes nothing (#42).
+
+- A fiber cancelled in a view or around `Console_eio.with_output` now stops
+  there instead of raising its `Cancelled` from the next redraw or the close,
+  and a report or a log in a cancelled fiber no longer raises (#42).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

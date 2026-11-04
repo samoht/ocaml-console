@@ -13,18 +13,21 @@ val v :
   ?size:(unit -> int * int) ->
   ?once_width:(unit -> int) ->
   ?write_error:(exn -> bool) ->
+  ?cancelled:(exn -> bool) ->
   ?delay:float ->
   ?fallback:View.t ->
   now:(unit -> float) ->
   Format.formatter ->
   View.t ->
   t
-(** [v ~size ~once_width ~write_error ~delay ~fallback ~now ppf view] is
-    {!Display.v}, which also takes as the end of its output an exception that
-    [write_error] says is a write error (defaults to none but [Sys_error]), and
-    draws [fallback] (defaults to {!View.empty}) in place of a view that raises.
-    Without [size], what it prints once is [once_width ()] cells wide, and whole
-    without [once_width]. *)
+(** [v ~size ~once_width ~write_error ~cancelled ~delay ~fallback ~now ppf view]
+    is {!Display.v}, which also takes as the end of its output an exception that
+    [write_error] says is a write error (defaults to none but [Sys_error]),
+    holds back no exception that [cancelled] says is the cancellation of the
+    fiber that draws (defaults to none), and draws [fallback] (defaults to
+    {!View.empty}) in place of a view that raises. Without [size], what it
+    prints once is [once_width ()] cells wide, and whole without [once_width].
+*)
 
 val set_view : t -> View.t -> unit
 (** [set_view d view] is {!Display.set_view}. *)
@@ -49,7 +52,12 @@ val pp : t Fmt.t
 val caught : t -> default:'a -> (unit -> 'a) -> 'a
 (** [caught d ~default f] is [f ()], or [default] once [f] raised: what it
     raised waits for a call to [d] that asks, as a view's exception does, unless
-    it is {!Task_core.is_async}. *)
+    it is {!Task_core.is_async} or a cancellation. *)
+
+val reporting : t -> ('a -> unit) -> 'a -> unit
+(** [reporting d f x] is [f x], where [f] draws what a task reported, without
+    the cancellation of the fiber that reports: a report is no point of
+    cancellation, and the fiber meets it at its next one. *)
 
 val touch : t -> unit
 (** [touch d] says that what the view shows changed: it is drawn again, at most

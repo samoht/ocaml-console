@@ -90,7 +90,10 @@ let at_exit =
   lazy
     (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
 
-let cancelled = function Eio.Cancel.Cancelled _ -> true | _ -> false
+let rec cancelled = function
+  | Eio.Cancel.Cancelled _ -> true
+  | Fun.Finally_raised e -> cancelled e
+  | _ -> false
 
 (* A task is current in the fibers its function forks, as a binding is. *)
 let scope =
@@ -100,6 +103,35 @@ let scope =
     ~cancelled
 
 let write_error = function Eio.Io _ -> true | _ -> false
+
+let in_fiber () =
+  match Eio.Fiber.is_cancelled () with
+  | _ -> true
+  | exception Effect.Unhandled _ -> false
+
+(* A [Cancelled] where nothing cancelled the fiber, or out of any fiber, is no
+   cancellation of it. *)
+let cancelling e = cancelled e && in_fiber () && Eio.Fiber.is_cancelled ()
+
+(* How long the end of a cancelled run waits, in all, for an output that takes
+   nothing. A run that is not cancelled waits as any write does: a reader that
+   pauses, such as a pager, loses nothing. *)
+let grace = 1.
+
+(* The program's clock may be one that does not move. *)
+let sleep_until deadline =
+  match Eio_unix.sleep (Float.max 0. (deadline -. Unix.gettimeofday ())) with
+  | () -> ()
+  | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
+
+(* [f ()], in a cancelled fiber too, which an Eio flow refuses to write from,
+   and until [deadline] at most. *)
+let shielded ~deadline f =
+  if Eio.Fiber.is_cancelled () then
+    let deadline = Lazy.force deadline in
+    Eio.Cancel.protect (fun () ->
+        Eio.Fiber.first f (fun () -> sleep_until deadline))
+  else f ()
 
 (* Nothing a broken output raises stops the formatters being given back. *)
 let safely f =
@@ -534,8 +566,11 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
      what a later [at_exit] function logs or prints goes out as before. *)
   Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
   let s = share run in
+  let deadline = lazy (Unix.gettimeofday () +. grace) in
   Task_driver.protect ~finally:(fun () ->
-      Task_driver.protect restore ~finally:release)
+      Task_driver.protect
+        (fun () -> shielded ~deadline restore)
+        ~finally:release)
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
@@ -552,10 +587,12 @@ let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
     Fun.protect ~finally:give_back @@ fun () -> first_run s f
   with
   | value ->
-      close_display run ~first:(fun () -> end_work run.root (Ok ()));
+      shielded ~deadline (fun () ->
+          close_display run ~first:(fun () -> end_work run.root (Ok ())));
       value
   | exception e ->
       let bt = Printexc.get_raw_backtrace () in
-      close_quietly run ~urgent:(Task_driver.is_async e) ~first:(fun () ->
-          end_work run.root (Error e));
+      shielded ~deadline (fun () ->
+          close_quietly run ~urgent:(Task_driver.is_async e) ~first:(fun () ->
+              end_work run.root (Error e)));
       Printexc.raise_with_backtrace e bt

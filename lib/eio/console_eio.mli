@@ -107,10 +107,13 @@ val run :
       line of [ppf] is an event.
 
     The display closes once the work ended, and an exception from [f] is raised
-    again. A fiber cancelled inside a {!Console.Task.run} cancels its task. A
-    [view] that raises is dropped for the default one, and [run] raises its
-    exception: at once, cancelling [f], when a redraw meets it, and once the
-    display closed otherwise, unless [f] raised first.
+    again. A run whose fiber is cancelled still closes it and restores the
+    terminal, waiting a second at most for an output that takes nothing; one
+    that is not cancelled waits for its output as any write does. A fiber
+    cancelled inside a {!Console.Task.run} cancels its task. A [view] that
+    raises is dropped for the default one, and [run] raises its exception: at
+    once, cancelling [f], when a redraw meets it, and once the display closed
+    otherwise, unless [f] raised first.
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a

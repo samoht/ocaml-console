@@ -28,6 +28,10 @@ val scope : Task_driver.scope
     fibers it forked from. A fiber cancelled in a {!Console.Task.run} cancels
     its task. *)
 
+val cancelling : exn -> bool
+(** [cancelling e] is [true] iff [e] is the cancellation of the fiber that calls
+    it. A [Cancelled] elsewhere is an exception like another. *)
+
 val write_error : exn -> bool
 (** [write_error e] is [true] iff [e] is a write error of an Eio flow, such as a
     closed pipe. *)
