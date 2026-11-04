@@ -13,18 +13,21 @@ let rgb r g b =
     invalid_arg "Console.Color.rgb: component outside 0..255";
   Rgb (r, g, b)
 
+(* The digits are read in place, with no copy and no closure. The themes parse
+   their colours as console loads. *)
+let rec hex_from s i =
+  i >= String.length s || (Char.Ascii.is_hex_digit s.[i] && hex_from s (i + 1))
+
+let digit s i = Char.Ascii.hex_digit_to_int s.[i]
+let byte s i = (digit s i * 16) + digit s (i + 1)
+
 let of_hex s =
-  let s =
-    if String.starts_with ~prefix:"#" s then String.sub s 1 (String.length s - 1)
-    else s
-  in
-  if not (String.for_all Char.Ascii.is_hex_digit s) then
-    Error (`Msg "invalid hex character")
+  let o = if String.length s > 0 && s.[0] = '#' then 1 else 0 in
+  if not (hex_from s o) then Error (`Msg "invalid hex character")
   else
-    let d i = Char.Ascii.hex_digit_to_int s.[i] in
-    match String.length s with
-    | 6 -> Ok (Rgb ((d 0 * 16) + d 1, (d 2 * 16) + d 3, (d 4 * 16) + d 5))
-    | 3 -> Ok (Rgb (d 0 * 17, d 1 * 17, d 2 * 17))
+    match String.length s - o with
+    | 6 -> Ok (Rgb (byte s o, byte s (o + 2), byte s (o + 4)))
+    | 3 -> Ok (Rgb (digit s o * 17, digit s (o + 1) * 17, digit s (o + 2) * 17))
     | _ -> Error (`Msg "expected 3 or 6 hex digits")
 
 let ansi_256 index =
