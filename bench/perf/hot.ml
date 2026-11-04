@@ -83,8 +83,9 @@ let gated ctx op =
     (String.starts_with ~prefix:"eio" ctx
     || (String.equal ctx "show `Plain" && String.equal op "log"))
 
-(* An update allocates nothing but the clock's reading, and a line of
-   output its own record; a line printed on [`Plain] has no target. *)
+(* The budget of [op] in [ctx]: an update allocates only the clock's
+   reading, and a line of output only its own record as well. A line printed
+   on [`Plain] has no target. *)
 let target ctx op =
   let clock = if String.starts_with ~prefix:"eio" ctx then 4. else 0. in
   let printed =
@@ -146,8 +147,8 @@ let bare () =
   show ~ctx:"show `Plain" ~now:(ticking ()) `Plain;
   if not check then show ~ctx:"show `Tty, real clock" ~now:(real_clock ()) `Tty
 
-(* On the machine's clock, or on the deterministic clock, which stays at
-   zero as no fiber sleeps. *)
+(* The same calls under [Console_eio.run], on the machine's clock or on the
+   deterministic clock, which stays at zero since no fiber sleeps. *)
 let eio env =
   let mono = Eio.Stdenv.mono_clock env in
   let run ~ctx ?(still = false) progress =

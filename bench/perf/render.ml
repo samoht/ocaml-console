@@ -25,8 +25,8 @@ let visible = if check then [ 1; 10; 100 ] else [ 1; 10; 100; 1000 ]
 let rates =
   if check then [ 10; 1_000; 10_000 ] else [ 10; 1_000; 100_000; 1_000_000 ]
 
-(* The frames a case draws, fewer under [--check], which needs their words
-   alone. *)
+(* The number of frames a case draws; fewer with [--check], which needs
+   only their words. *)
 let frames_of tasks = max 10 ((if check then 2_000 else 20_000) / tasks)
 
 (* The words a frame may allocate, by tasks in view and whether they moved:
@@ -45,7 +45,8 @@ let ratchet tasks busy =
 let target tasks = 1000. *. float (tasks + 1)
 let max_fps = 11.
 
-(* The rows of [n] tasks fit, with the summary under them. *)
+(* A terminal size that fits the rows of [n] tasks and the summary under
+   them. *)
 let size n () = (100, n + 8)
 
 let setup ~now tasks =
@@ -79,7 +80,7 @@ let frames () =
           for _ = 1 to 5 do
             frame ()
           done;
-          (* The advances are counted apart, and taken off. *)
+          (* What the advances cost is measured on its own and subtracted. *)
           let adv_w, adv_c =
             if not busy then (0., 0.)
             else begin
@@ -107,7 +108,8 @@ let frames () =
         [ false; true ])
     visible
 
-(* [rate * secs] updates on a virtual clock: the frames they drew. *)
+(* For each number of tasks and each rate, [rate * secs] updates on a
+   virtual clock, and the frames they drew per simulated second. *)
 let coalescing () =
   Fmt.pr "@.coalescing, virtual clock: frames drawn per simulated second@.";
   Fmt.pr "%6s" "tasks";
