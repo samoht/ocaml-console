@@ -231,6 +231,7 @@ let test_run_styles_a_terminal () =
     (contains hide_cursor plain);
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
+(* XBD 8.3: COLUMNS and LINES are decimal integers > 0. *)
 let test_small_dimensions () =
   let columns = Sys.getenv_opt "COLUMNS" and lines = Sys.getenv_opt "LINES" in
   Fun.protect

@@ -53,3 +53,12 @@ terminal of another size: without $COLUMNS, it records 80 columns.
 
   $ CONSOLE_CAST=run.cast COLUMNS= ../tty.exe --cols 50 ../piped.exe width
   80
+
+POSIX XBD 8.3: "When COLUMNS is set, the number of columns in the terminal
+window size [...] [is] overridden", and likewise for LINES:
+
+  $ COLUMNS=30 ../tty.exe ../piped.exe width
+  30
+
+  $ COLUMNS=30 LINES=10 ../tty.exe ../piped.exe size
+  30x10
