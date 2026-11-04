@@ -34,12 +34,12 @@ let frames_of tasks = max 10 ((if check then 2_000 else 20_000) / tasks)
    is more; [target] is a thousand words a row. *)
 let ratchet tasks busy =
   match (tasks, busy) with
-  | 1, false -> 4_618.
-  | 1, true -> 5_983.
-  | 10, false -> 33_997.
-  | 10, true -> 63_644.
-  | 100, false -> 328_061.
-  | 100, true -> 763_292.
+  | 1, false -> 4_036.
+  | 1, true -> 5_018.
+  | 10, false -> 28_177.
+  | 10, true -> 50_910.
+  | 100, false -> 269_861.
+  | 100, true -> 604_580.
   | _ -> infinity
 
 let target tasks = 1000. *. float (tasks + 1)

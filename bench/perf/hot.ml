@@ -52,24 +52,24 @@ let ops =
    draws frames as the machine's clock says, and is only printed. *)
 let ratchet ctx op =
   match (ctx, op) with
-  | "no display", "advance (items)" -> Some 31.
-  | "no display", "advance ~by (bytes)" -> Some 1459.
+  | "no display", "advance (items)" -> Some 15.
+  | "no display", "advance ~by (bytes)" -> Some 18.
   | "no display", "set_label" -> Some 6.
   | "no display", "log" -> Some 61.
-  | "show `Tty, clock still", "advance (items)" -> Some 27.
-  | "show `Tty, clock still", "advance ~by (bytes)" -> Some 1092.
+  | "show `Tty, clock still", "advance (items)" -> Some 11.
+  | "show `Tty, clock still", "advance ~by (bytes)" -> Some 14.
   | "show `Tty, clock still", "set_label" -> Some 6.
   | "show `Tty, clock still", "log" -> Some 83.
-  | "show `Plain", "advance (items)" -> Some 31.
-  | "show `Plain", "advance ~by (bytes)" -> Some 1459.
+  | "show `Plain", "advance (items)" -> Some 15.
+  | "show `Plain", "advance ~by (bytes)" -> Some 18.
   | "show `Plain", "set_label" -> Some 6.
   | "show `Plain", "log" -> Some 964.
-  | "eio `Tty, clock still", "advance (items)" -> Some 51.
-  | "eio `Tty, clock still", "advance ~by (bytes)" -> Some 1116.
+  | "eio `Tty, clock still", "advance (items)" -> Some 35.
+  | "eio `Tty, clock still", "advance ~by (bytes)" -> Some 38.
   | "eio `Tty, clock still", "set_label" -> Some 18.
   | "eio `Tty, clock still", "log" -> Some 107.
-  | "eio `Plain, clock still", "advance (items)" -> Some 39.
-  | "eio `Plain, clock still", "advance ~by (bytes)" -> Some 1104.
+  | "eio `Plain, clock still", "advance (items)" -> Some 23.
+  | "eio `Plain, clock still", "advance ~by (bytes)" -> Some 26.
   | "eio `Plain, clock still", "set_label" -> Some 6.
   | "eio `Plain, clock still", "log" -> Some 974.
   | _ -> None

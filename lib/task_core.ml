@@ -357,23 +357,11 @@ let count_text = function
   | Count (c, tot) -> string_of_int c ^ "/" ^ string_of_int tot
   | Bytes (c, tot) -> Task_text.bytes c ^ " / " ^ Task_text.bytes tot
 
-(* The widest the count of a task can get, known from its total: a count
-   of items as wide as its total twice, and at least [999/999]; a count of
-   bytes below a total of a KiB or more as wide as "1023.99 KiB" in front
-   of it. *)
-let count_width = function
-  | Spin -> 0
-  | Count (_, total) ->
-      max (String.length "999/999")
-        (String.length (count_text (Count (total, total))))
-  | Bytes (cur, total) ->
-      let whole = Task_text.bytes total in
-      let widest =
-        if Int64.compare total 1024L < 0 then whole else "1023.99 KiB"
-      in
-      max
-        (String.length (count_text (Bytes (cur, total))))
-        (String.length widest + 3 + String.length whole)
+let rec digits n = if n < 10 then 1 else 1 + digits (n / 10)
+
+(* The widest a count of items can get, known from its total: as wide as
+   its total twice, and at least [999/999]. *)
+let items_width total = max (String.length "999/999") ((2 * digits total) + 1)
 
 let rate_text metric rate =
   match metric with
@@ -406,27 +394,27 @@ let measure r cur =
     r.last_t <- now
   end
 
-(* The columns widen at most once for each kind of progress: the first
-   task of bytes widens the count column to the widest count of bytes and
-   opens the rate column at the widest rate, so that no later total and no
-   first rate widens them again. A count of items is as wide as its total
-   needs. *)
+(* The columns widen at most once for each kind of progress, and only when
+   the total changes: the first task of bytes widens the count column to
+   the widest count of bytes and opens the rate column at the widest rate,
+   which no later count or rate passes, as [Task_text.bytes] is never wider
+   than "1023.99 KiB". A count of items is as wide as its total needs. *)
 let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
 let widest_rate = String.length "1023.99 MiB/s"
 
 let set_metric r metric =
   let moved = not (same_metric r.metric metric) in
+  let w = r.work in
+  (match (r.metric, metric) with
+  | Count (_, n), Count (_, n') when n = n' -> ()
+  | Bytes _, Bytes _ -> ()
+  | _, Count (_, total) -> w.count_cell <- max w.count_cell (items_width total)
+  | _, Bytes _ ->
+      w.count_cell <- max w.count_cell widest_bytes;
+      w.rate_cell <- max w.rate_cell widest_rate
+  | _, Spin -> ());
   changed r;
   r.metric <- metric;
-  let w = r.work in
-  w.count_cell <- max w.count_cell (count_width metric);
-  (match metric with
-  | Bytes _ ->
-      w.count_cell <- max w.count_cell widest_bytes;
-      w.rate_cell <-
-        max w.rate_cell
-          (max widest_rate (String.length (rate_text metric r.rate)))
-  | Spin | Count _ -> ());
   if moved then notify w (Progressed r)
 
 let set_items r ~count ~total =

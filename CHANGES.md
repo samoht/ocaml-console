@@ -70,6 +70,9 @@
 - Starting a domain during `Console_eio.run` no longer stops the display from
   taking the program's output (#39).
 
+- Updating a task's progress no longer formats text, so a program that reports
+  its progress often spends less time on it (#40).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

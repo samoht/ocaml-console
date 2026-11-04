@@ -669,6 +669,25 @@ let test_pp_bytes () =
       (-1L, "0 B");
     ]
 
+(* A count of bytes is never wider than "1023.99 KiB", which the count and
+   rate columns are opened at. *)
+let test_bytes_width () =
+  let widest = String.length "1023.99 KiB" in
+  let check n =
+    let s = Fmt.str "%a" Progress.pp_bytes n in
+    if String.length s > widest then Alcotest.failf "%Ld is %S" n s
+  in
+  List.iter check [ Int64.max_int; Int64.min_int; 0L ];
+  for unit = 0 to 6 do
+    let base = Int64.shift_left 1L (10 * unit) in
+    for k = 1 to 1024 do
+      let n = Int64.mul base (Int64.of_int k) in
+      List.iter
+        (fun d -> if Int64.compare n 0L > 0 then check (Int64.add n d))
+        [ -1L; 0L; 1L; Int64.neg (Int64.div n 2000L) ]
+    done
+  done
+
 (* [advance] adds to the count and keeps the total, as indicatif's inc,
    Rich's Progress.advance and tqdm's update do. *)
 let test_advance () =
@@ -2907,6 +2926,7 @@ let suite =
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
+      Alcotest.test_case "bytes fit their column" `Quick test_bytes_width;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
       Alcotest.test_case "advance" `Quick test_advance;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
