@@ -496,15 +496,31 @@ let test_redraw_idle () =
    moves up over all of them. *)
 let test_narrowing () =
   let t = terminal ~theme ~width:40 ~height:8 ~label:"Header" () in
+  Display.print t.display (View.text "above");
   Task.set_items (Task.start t.root "job") ~count:1 ~total:4;
   Display.redraw t.display;
+  (* A terminal reflows what it holds when it narrows, and the cursor stays on
+     the last row: the task's row of 40 cells and the summary of 21 take four
+     rows at 20. *)
+  let wide = Console_vte.v ~rows:8 ~cols:40 () in
+  Console_vte.feed wide (written t);
+  let held = List.filter (( <> ) "") (Console_vte.screen wide) in
+  let vte = Console_vte.v ~rows:8 ~cols:20 () in
+  Console_vte.feed vte (String.concat "\r\n" held);
   t.chunks := [];
   resize t ~width:20 ~height:8;
   Display.redraw t.display;
-  (* Two lines of 40 cells take four rows at 20. *)
+  Console_vte.feed vte (written t);
+  let rows = Console_vte.screen vte in
   Alcotest.(check bool)
-    "moved up over the reflowed rows" true
-    (contains "\r\027[3A\027[J" (written t));
+    "the line above is kept" true
+    (List.exists (contains "above") rows);
+  Alcotest.(check int)
+    "the old summary is gone" 1
+    (List.length (List.filter (contains "Header") rows));
+  Alcotest.(check bool)
+    "the old bar is gone" false
+    (List.exists (contains "\u{2591}") rows);
   close t
 
 let test_height_changes () =
