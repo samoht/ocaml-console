@@ -52,6 +52,9 @@
 - `$COLUMNS` and `$LINES` must now be decimal numbers: values such as `0x50` or
   `1_000` are ignored (#20).
 
+- A `CONSOLE_CAST` recording now has a header in valid UTF-8 whatever bytes
+  `$TERM` holds, as the asciicast v2 format requires (#50).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

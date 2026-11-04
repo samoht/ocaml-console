@@ -23,7 +23,7 @@ type header = { width : int; height : int; term : string option }
 
 val header : header Jsont.t
 (** [header] maps the header of a recording, [version] 2, the terminal's [TERM]
-    in its [env]. *)
+    in its [env], written as valid UTF-8 as {!event} writes its data. *)
 
 type event = { time : float; data : string }
 (** The type for the bytes a terminal was given at a time, in seconds. *)

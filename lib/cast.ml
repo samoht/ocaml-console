@@ -11,6 +11,9 @@ let deterministic () =
 
 type header = { width : int; height : int; term : string option }
 
+(* [s] with each ill-formed UTF-8 sequence as one U+FFFD. *)
+let utf_8 = Event.replaced (fun _ -> true)
+
 let env =
   Jsont.Object.map ~kind:"asciicast env" Fun.id
   |> Jsont.Object.opt_mem "TERM" Jsont.string ~enc:Fun.id
@@ -29,7 +32,7 @@ let header =
   |> Jsont.Object.mem "width" Jsont.int ~enc:(fun h -> h.width)
   |> Jsont.Object.mem "height" Jsont.int ~enc:(fun h -> h.height)
   |> Jsont.Object.mem "env" env ~dec_absent:None ~enc_omit:Option.is_none
-       ~enc:(fun h -> h.term)
+       ~enc:(fun h -> Option.map utf_8 h.term)
   |> Jsont.Object.finish
 
 type event = { time : float; data : string }
@@ -38,9 +41,6 @@ let field t json =
   match Jsont.Json.decode t json with
   | Ok v -> v
   | Error e -> Jsont.Error.msg Jsont.Meta.none e
-
-(* [s] with each ill-formed UTF-8 sequence as one U+FFFD. *)
-let utf_8 = Event.replaced (fun _ -> true)
 
 let event =
   let dec time code data =
