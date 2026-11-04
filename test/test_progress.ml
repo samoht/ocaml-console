@@ -19,7 +19,8 @@ let test_names () =
         (match Progress.of_string name with
         | Ok p' -> p' = p
         | Error _ -> false);
-      Alcotest.(check string) ("to_string " ^ name) name (Progress.to_string p))
+      Alcotest.(check string) ("to_string " ^ name) name (Progress.to_string p);
+      Alcotest.(check string) ("pp " ^ name) name (Fmt.str "%a" Progress.pp p))
     Progress.all;
   match Progress.of_string "silent" with
   | Ok _ -> Alcotest.fail "unknown name accepted"
@@ -161,6 +162,9 @@ let test_json_reads_back () =
 
 module Event = Task.Event
 
+(* Two events are the same if they write the same line: [Event.t] is
+   abstract, and its line holds each of its members. *)
+let same_event a b = String.equal (Event.to_string a) (Event.to_string b)
 let event time make = Event.to_string (make ~time)
 
 (* The line of each event, its members in order. *)
@@ -281,7 +285,9 @@ let test_other_listed () =
   in
   Alcotest.(check bool)
     "another unit reads back" true
-    (Event.of_string (Event.to_string files) = Ok files)
+    (match Event.of_string (Event.to_string files) with
+    | Ok e -> same_event e files
+    | Error _ -> false)
 
 let test_negative () =
   let refused what f =
@@ -314,12 +320,14 @@ let test_unknown_event_members () =
   in
   Alcotest.(check bool)
     "only the name and time" true
-    (read {|{"time":0,"event":"pause","id":"bad","text":5}|}
-    = Event.other ~time:0. "pause");
+    (same_event
+       (read {|{"time":0,"event":"pause","id":"bad","text":5}|})
+       (Event.other ~time:0. "pause"));
   Alcotest.(check bool)
     "its task" true
-    (read {|{"time":0,"event":"pause","id":4,"task":["a","b"],"text":5}|}
-    = Event.other ~task:(4, [ "a"; "b" ]) ~time:0. "pause")
+    (same_event
+       (read {|{"time":0,"event":"pause","id":4,"task":["a","b"],"text":5}|})
+       (Event.other ~task:(4, [ "a"; "b" ]) ~time:0. "pause"))
 
 let test_error_plain () =
   match Event.of_string {|{"event":"x"}|} with

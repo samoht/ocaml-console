@@ -111,7 +111,7 @@ let test_fixed_width_truncates () =
     (fun line ->
       Alcotest.(check int)
         "fixed width" 8
-        (Width.string_width (Console_text.strip line)))
+        (Console_width.string_width (Console_text.strip line)))
     rendered;
   Alcotest.(check bool)
     "content was clipped" false
@@ -158,7 +158,7 @@ let test_margin_natural () =
   let long = String.make 100 'x' in
   Alcotest.(check int)
     "to_string is natural" 104
-    (Width.string_width
+    (Console_width.string_width
        (List.hd (lines (View.to_string (Panel.view (View.text long))))))
 
 (* A styled border opens one sequence for each run of border glyphs. *)

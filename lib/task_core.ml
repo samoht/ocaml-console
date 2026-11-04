@@ -102,6 +102,11 @@ let rec root_of r = match r.parent with None -> r | Some p -> root_of p
 let changed r = r.version <- r.version + 1
 let keep r m = r.memo <- m
 
+let rec is_async = function
+  | Out_of_memory | Stack_overflow | Sys.Break -> true
+  | Fun.Finally_raised e -> is_async e
+  | _ -> false
+
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
@@ -294,7 +299,8 @@ let widen_label r =
     Array.blit w.label_cells 0 cells 0 (Array.length w.label_cells);
     w.label_cells <- cells
   end;
-  w.label_cells.(d) <- max w.label_cells.(d) (Width.string_width r.label)
+  w.label_cells.(d) <-
+    max w.label_cells.(d) (Console_width.string_width r.label)
 
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";

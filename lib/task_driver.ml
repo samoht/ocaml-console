@@ -12,3 +12,4 @@ let report = Task_core.report
 let current (root : Task.t) = Task_core.current (Task_core.work root)
 let ending = Task_core.on_ending
 let id (t : Task.t) = Task_core.id t
+let is_async = Task_core.is_async

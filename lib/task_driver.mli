@@ -52,3 +52,7 @@ val ending : Task.t -> (Task.t -> unit) -> unit
 
 val id : Task.t -> int
 (** [id task] names [task] in its work: negative for the root. *)
+
+val is_async : exn -> bool
+(** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
+    stack, which only the program can answer. *)

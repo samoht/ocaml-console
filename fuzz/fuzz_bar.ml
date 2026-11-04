@@ -15,7 +15,7 @@ let test_width n f b =
       if width < 0 then fail "negative width accepted";
       check_eq ~pp:Fmt.int
         (width + if b then 2 else 0)
-        (Width.string_width (View.to_string bar))
+        (Console_width.string_width (View.to_string bar))
   | exception Invalid_argument _ -> if width >= 0 then fail "width refused"
 
 (* A vertical bar is one cell wide and exactly as tall as its room, at any

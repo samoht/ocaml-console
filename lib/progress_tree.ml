@@ -143,15 +143,18 @@ let split ~fold nodes =
 (* The running tasks alone count no task dropped. *)
 let shed form r = if form = Bare then 0 else shed r
 
+(* The lines under a top task's row are two cells further in than the row,
+   behind the tree's indent, so they have two cells less. *)
+let under ~top width =
+  Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
+
+let cut_under look ~top width l =
+  match under ~top width with Some w -> Widget.truncate look w l | None -> l
+
 (* The label of a node: a running task's row, with the lines of its window
    newer than [cut] in the full and folded forms, and [extra] lines; a task
    that ended, its line, with its output when whole. *)
-(* The lines under a top task's row are two cells further in than the row,
-   behind the tree's indent, so they have two cells less. *)
 let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
-  let under width =
-    Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
-  in
   let row look ~time width lay =
     if extra <> [] || not (keeps layout look) then lay ()
     else
@@ -172,24 +175,13 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
           | Full | Fold ->
               List.filter_map
                 (fun (seq, l) ->
-                  if seq > cut then
-                    Some
-                      (match under width with
-                      | Some w -> Widget.truncate look w l
-                      | None -> l)
-                  else None)
+                  if seq > cut then Some (cut_under look ~top width l) else None)
                 (Progress_row.tail look r)
           | Bare | Whole -> []
         in
         V.concat ~sep:(V.text "\n")
           ((Progress_row.live look ~time ?width ~columns layout r :: tail)
-          @ List.map
-              (fun f ->
-                let l = f look in
-                match under width with
-                | Some w -> Widget.truncate look w l
-                | None -> l)
-              extra))
+          @ List.map (fun f -> cut_under look ~top width (f look)) extra))
   else
     label (fun look ~time width ->
         row look ~time width @@ fun () ->
@@ -198,7 +190,7 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
         let output =
           if whole && outcome r <> Some `Succeeded then
             Progress_row.output look
-              ~width:(Option.value (under width) ~default:max_int)
+              ~width:(Option.value (under ~top width) ~default:max_int)
               r
           else []
         in

@@ -74,6 +74,10 @@ let decode line =
   | Ok e -> e
   | Error (`Msg e) -> failf "%S does not decode: %s" line e
 
+(* Two events are the same if they write the same line: [Event.t] is
+   abstract, and its line holds each of its members. *)
+let same_event a b = String.equal (Event.to_string a) (Event.to_string b)
+
 (* An event's line decodes, and its event is written as the line is: valid
    UTF-8 on one line, without a control character. *)
 let test_round_trip time kind =
@@ -83,7 +87,7 @@ let test_round_trip time kind =
   check (no_control line);
   let back = decode line in
   check_eq ~pp:Fmt.Dump.string line (Event.to_string back);
-  check (back = e)
+  check (same_event back e)
 
 (* [other] refuses a listed event name; [`Other s] with [s] a listed value
    is that value. Either reads back as it is. *)
@@ -91,18 +95,18 @@ let test_other s =
   (match Event.other ~time:0. s with
   | e ->
       if List.mem s known_events then failf "%S, a listed name, taken" s;
-      check (decode (Event.to_string e) = e)
+      check (same_event (decode (Event.to_string e)) e)
   | exception Invalid_argument _ ->
       if not (List.mem s known_events) then failf "%S refused as other" s);
   List.iter
-    (fun e -> check (decode (Event.to_string e) = e))
+    (fun e -> check (same_event (decode (Event.to_string e)) e))
     [
       Event.progress ~time:0. ~count:0L ~total:0L ~unit:(`Other s) (0, []);
       Event.output ~level:(`Other s) ~time:0. "";
     ];
   let status = Fmt.str {|{"time":0,"event":"end","status":%S,"elapsed":0}|} s in
   match Event.of_string status with
-  | Ok e -> check (decode (Event.to_string e) = e)
+  | Ok e -> check (same_event (decode (Event.to_string e)) e)
   | Error _ -> ()
 
 (* [s] as an event holds it: each maximal subpart of an ill-formed
@@ -261,7 +265,7 @@ let test_public_schema k text =
   check_eq ~pp:Fmt.int (List.length expected) (List.length events);
   List.iteri
     (fun i (expected, actual) ->
-      if expected <> actual then
+      if not (same_event expected actual) then
         failf "event %d is %a, not %a" i Event.pp actual Event.pp expected)
     (List.combine expected events)
 
@@ -299,7 +303,7 @@ let test_unknown_schema k =
   in
   let name, json = members.(k mod Array.length members) in
   let line = Fmt.str {|{"time":1.25,"event":"pause","%s":%s}|} name json in
-  check (decode line = Event.other ~time:1.25 "pause")
+  check (same_event (decode line) (Event.other ~time:1.25 "pause"))
 
 (* Deliberately malformed inputs, not prefixes cut out of UTF-8 text. *)
 let invalid_prefix =
@@ -381,7 +385,7 @@ let test_retained_cut k =
             prefix (c :: acc) (n + String.length c) rest
         | _ -> String.concat "" (List.rev acc)
       in
-      prefix [] 0 (Width.clusters clean) ^ "..."
+      prefix [] 0 (Console_width.clusters clean) ^ "..."
   in
   let out = Buffer.create 16384 in
   let ppf = Format.formatter_of_buffer out in
@@ -424,8 +428,11 @@ let test_task_endings n ending =
   | _ -> Task.cancel root);
   Task.succeed root;
   Task.fail root;
-  let expected = if ending mod 3 = 0 then `Succeeded else `Cancelled in
-  List.iter (fun child -> check (Task.state child = expected)) children;
+  let ended_with_root child =
+    if ending mod 3 = 0 then Task.state child = `Succeeded
+    else Task.state child = `Cancelled
+  in
+  List.iter (fun child -> check (ended_with_root child)) children;
   check_eq ~pp:Fmt.int 1 !work_ends;
   check_eq
     ~pp:Fmt.(Dump.list int)

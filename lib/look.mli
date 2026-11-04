@@ -28,7 +28,7 @@ val ellipsis : t -> string
 
 val equal : t -> t -> bool
 (** [equal l0 l1] is [true] iff [l0] and [l1] have the same theme, physically,
-    and the same [utf_8] and [live]. *)
+    and the same {!field-utf_8} and {!field-live}. *)
 
 val pp : t Fmt.t
 (** [pp] formats a look for diagnostics, in an unspecified format. *)

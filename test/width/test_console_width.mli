@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tests for the Width module. *)
+(** Tests for {!Console_width}. *)
 
 val suite : string * unit Alcotest.test_case list
-(** [suite] is the Alcotest test suite for {!Test_width}. *)
+(** [suite] is the Alcotest test suite for {!Test_console_width}. *)

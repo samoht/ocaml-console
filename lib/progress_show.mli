@@ -7,9 +7,16 @@
     and documents the values both have. *)
 
 val row : ?layout:Progress_layout.t -> Task_core.t -> View_core.t
+(** [row ~layout task] is {!Progress.row}. *)
+
 val tree : ?layout:Progress_layout.t -> Task_core.t -> View_core.t
+(** [tree ~layout task] is {!Progress.tree}. *)
+
 val summary : Task_core.t -> View_core.t
+(** [summary root] is {!Progress.summary}. *)
+
 val view : ?layout:Progress_layout.t -> Task_core.t -> View_core.t
+(** [view ~layout root] is {!Progress.view}. *)
 
 val show_with :
   ?write_error:(exn -> bool) ->

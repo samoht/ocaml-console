@@ -114,7 +114,7 @@ val scale : float -> t -> t
 
 val equal : t -> t -> bool
 (** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour as given:
-    [red] and [ansi_256 1] are not equal, although a terminal may draw them
+    {!val-red} and [ansi_256 1] are not equal, although a terminal may draw them
     alike. *)
 
 val compare : t -> t -> int

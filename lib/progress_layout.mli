@@ -47,21 +47,52 @@ val reads : t -> Look.t -> View_core.kind
     {!constructor-Const} view that reads it. *)
 
 val spinner : t
+(** [spinner] is {!Progress.Layout.spinner}. *)
+
 val label : ?style:Style.t -> unit -> t
+(** [label ~style ()] is {!Progress.Layout.label}. *)
+
 val bar : ?width:int -> unit -> t
+(** [bar ~width ()] is {!Progress.Layout.bar}. *)
+
 val percent : t
+(** [percent] is {!Progress.Layout.percent}. *)
+
 val count : t
+(** [count] is {!Progress.Layout.count}. *)
+
 val rate : t
+(** [rate] is {!Progress.Layout.rate}. *)
+
 val eta : t
+(** [eta] is {!Progress.Layout.eta}. *)
+
 val elapsed : t
+(** [elapsed] is {!Progress.Layout.elapsed}. *)
+
 val spacer : t
+(** [spacer] is {!Progress.Layout.spacer}. *)
+
 val const : View.t -> t
+(** [const v] is {!Progress.Layout.const}. *)
+
 val custom : (Task_core.t -> View.t) -> t
+(** [custom f] is {!Progress.Layout.custom}. *)
+
 val choose : (Task_core.t -> t) -> t
+(** [choose f] is {!Progress.Layout.choose}. *)
+
 val give_way : int -> t -> t
+(** [give_way n l] is {!Progress.Layout.give_way}. *)
+
 val ( ++ ) : t -> t -> t
+(** [l0 ++ l1] is [l0] then [l1], as in {!Progress.Layout}. *)
+
 val list : ?sep:t -> t list -> t
+(** [list ~sep ls] is {!Progress.Layout.list}. *)
+
 val default : t
+(** [default] is {!Progress.Layout.default}. *)
 
 val ended : t
 (** [ended] is {!default} with the mark of how the task ended in place of the

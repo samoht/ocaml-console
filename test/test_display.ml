@@ -243,7 +243,7 @@ let test_region () =
 let test_tall_header () =
   let t = terminal ~width:40 ~height:8 ~label:"S" () in
   let rows =
-    View.vcat (List.init 20 (fun i -> View.text (Fmt.str "row %d" i)))
+    View.vcat (List.init 20 (fun i -> Fmt.kstr View.text "row %d" i))
   in
   Display.set_view t.display (above rows t.root);
   let a = Task.start t.root "a" in
@@ -859,7 +859,10 @@ let test_any_width () =
           Format.pp_print_flush ppf ();
           if Buffer.length buf > 100_000 then
             Alcotest.failf "width %d: %d bytes written" w (Buffer.length buf)
-      | exception e -> Alcotest.failf "width %d: %s" w (Printexc.to_string e))
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          Fmt.epr "width %d:@." w;
+          Printexc.raise_with_backtrace e bt)
     [ 1_000_000; Sys.max_string_length; max_int ]
 
 (* A fiber that outlives the display, or a library that holds on to it,
@@ -908,7 +911,7 @@ let test_wide () =
   Task.set_items task ~count:1 ~total:3;
   Task.log task "a log line";
   Display.redraw t.display;
-  let widths () = List.map Width.string_width (lines t) in
+  let widths () = List.map Console_width.string_width (lines t) in
   Alcotest.(check int) "the live row" 100 (List.fold_left max 0 (widths ()));
   Task.succeed task;
   close t;
@@ -1568,7 +1571,9 @@ let test_view_width () =
     ~count:1 ~total:3;
   Display.redraw t.display;
   Alcotest.(check int) "the width" 160 !given;
-  Alcotest.(check int) "the row" 100 (Width.string_width (List.hd (screen t)))
+  Alcotest.(check int)
+    "the row" 100
+    (Console_width.string_width (List.hd (screen t)))
 
 (* The default view and the summary take the width they are given, so a
    view puts them in a column narrower than the terminal. *)
@@ -1588,7 +1593,7 @@ let test_default_view_column () =
     (View.width (View.sized ~width:12 (Progress.summary t.root)) <= 12);
   Alcotest.(check bool)
     "the panel on the screen" true
-    (List.for_all (fun r -> Width.string_width r <= 120) (screen t)
+    (List.for_all (fun r -> Console_width.string_width r <= 120) (screen t)
     && List.exists (contains "status") (screen t));
   close t
 
@@ -1655,7 +1660,7 @@ let border_glyphs =
       ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters = Width.clusters
+let clusters = Console_width.clusters
 
 (* A table's frame moves in a live display drawn in a theme with motion:
    from one frame to the next, only its border cells change, each to a glyph
@@ -1694,7 +1699,8 @@ let test_view_moves () =
                 a <> b
                 && not
                      (List.mem a border_glyphs
-                     && Width.string_width a = Width.string_width b)
+                     && Console_width.string_width a
+                        = Console_width.string_width b)
               then Alcotest.failf "row %d: %S became %S" i still row)
             a b)
         (List.combine still
@@ -1794,6 +1800,35 @@ let test_view_exception_later () =
     (Console_vte.cursor_visible t.vte);
   Alcotest.check_raises "on a pipe" Exit (fun () ->
       ignore (plain ~view:last (fun _ _ -> ())))
+
+(* What only the program can answer is not held back: a view that meets an
+   interrupt or runs out of heap or stack has not failed. It goes on from the
+   call that was drawing, the view stays, and the close still restores the
+   terminal before it goes on. *)
+let test_view_urgent () =
+  List.iter
+    (fun e ->
+      let broken = ref false in
+      let view _ =
+        View.fit (fun _ -> if !broken then raise e else View.text "fine")
+      in
+      let t = terminal ~styled:true ~width:40 ~height:10 ~view () in
+      ignore (Task.start t.root "running");
+      Display.redraw t.display;
+      broken := true;
+      Alcotest.check_raises "the print" e (fun () ->
+          Display.print t.display (View.text "kept"));
+      broken := false;
+      Display.redraw t.display;
+      Alcotest.(check bool)
+        "the view stays" true
+        (List.exists (contains "fine") (screen t));
+      broken := true;
+      Alcotest.check_raises "the close" e (fun () -> Display.close t.display);
+      Alcotest.(check bool)
+        "the cursor shown" true
+        (Console_vte.cursor_visible t.vte))
+    [ Sys.Break; Out_of_memory; Stack_overflow; Fun.Finally_raised Sys.Break ]
 
 (* On a narrow terminal the label is what tells two rows apart: it gives
    way last, after the bar, and the row still ends with its timer. *)
@@ -2703,7 +2738,7 @@ let test_kept_rows () =
     if i mod 2 = 0 then time := !time +. 0.037;
     Task.set_items a ~count:i ~total:12;
     if i mod 3 = 0 then Task.log c (Fmt.str "line %d" i);
-    check (Fmt.str "step %d" i)
+    Fmt.kstr check "step %d" i
   done;
   Task.set_label c "src/b.c";
   check "renamed";
@@ -2806,6 +2841,8 @@ let suite =
         test_view_exception_close;
       Alcotest.test_case "a view that raises later" `Quick
         test_view_exception_later;
+      Alcotest.test_case "an interrupt in a view goes on" `Quick
+        test_view_urgent;
       Alcotest.test_case "a view side by side" `Quick test_view_hcat;
       Alcotest.test_case "a simple table stands still" `Quick
         test_simple_view_stands_still;

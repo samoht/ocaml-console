@@ -89,8 +89,9 @@ let check_chunk_lines ~width chunk =
       (* A carriage return moves to the first column; it draws nothing. *)
       let l = String.concat "" (String.split_on_char '\r' l) in
       let l = Console_text.strip l in
-      if Width.string_width l > width then
-        failf "a line of %d cells on %d columns: %S" (Width.string_width l)
+      if Console_width.string_width l > width then
+        failf "a line of %d cells on %d columns: %S"
+          (Console_width.string_width l)
           width l)
     (String.split_on_char '\n' chunk)
 
@@ -581,7 +582,7 @@ let sanitized_line line =
                | Some i -> String.sub text (i + 1) (String.length text - i - 1)
                | None -> text
              in
-             let stop = 8 - (Width.string_width last mod 8) in
+             let stop = 8 - (Console_width.string_width last mod 8) in
              Some (text ^ String.make stop ' ' ^ piece))
        None
   |> Option.value ~default:""
@@ -602,42 +603,43 @@ let sanitized_log_lines input =
   in
   if String.ends_with ~suffix:"\r" input then text ^ "\n" else text
 
-let test_untrusted_arguments s =
-  let render input lines =
-    let ppf, out, frames = capture_frames () in
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    let theme = Theme.v ~marks:(fun _ -> input) ~spinner:[ input ] () in
-    let layout =
-      Progress.Layout.(
-        list
-          [
-            const (View.text input);
-            custom (fun _ -> View.styled Style.bold (View.text input));
-            label ();
-            spacer;
-            elapsed;
-          ])
-    in
-    Theme.set ppf theme;
-    let root = Task.root ~label:input ~now:(fun () -> 0.) () in
-    let d = Progress.show ~layout ~size:(fun () -> (40, 8)) ppf root in
-    let task = Task.start root input in
-    Task.set_label task input;
-    Task.log task lines;
-    Driver.report root `Warning lines;
-    Display.redraw d;
-    Task.succeed ~message:input task;
-    Task.log root lines;
-    Task.succeed ~message:input root;
-    Display.close d;
-    Format.pp_print_flush ppf ();
-    (Buffer.contents out, List.rev !frames)
+(* What a run shows with [input] as its every name and [lines] as its logs. *)
+let untrusted_run input lines =
+  let ppf, out, frames = capture_frames () in
+  Fmt.set_style_renderer ppf `Ansi_tty;
+  let theme = Theme.v ~marks:(fun _ -> input) ~spinner:[ input ] () in
+  let layout =
+    Progress.Layout.(
+      list
+        [
+          const (View.text input);
+          custom (fun _ -> View.styled Style.bold (View.text input));
+          label ();
+          spacer;
+          elapsed;
+        ])
   in
+  Theme.set ppf theme;
+  let root = Task.root ~label:input ~now:(fun () -> 0.) () in
+  let d = Progress.show ~layout ~size:(fun () -> (40, 8)) ppf root in
+  let task = Task.start root input in
+  Task.set_label task input;
+  Task.log task lines;
+  Driver.report root `Warning lines;
+  Display.redraw d;
+  Task.succeed ~message:input task;
+  Task.log root lines;
+  Task.succeed ~message:input root;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  (Buffer.contents out, List.rev !frames)
+
+let test_untrusted_arguments s =
   List.iter
     (fun input ->
-      let raw, actual = render input input in
+      let raw, actual = untrusted_run input input in
       let _, expected =
-        render (Console_text.sanitize input) (sanitized_log_lines input)
+        untrusted_run (Console_text.sanitize input) (sanitized_log_lines input)
       in
       check (String.is_valid_utf_8 raw && not (has "\027]" raw));
       check_styles_closed raw;
@@ -693,8 +695,9 @@ let test_wide n label =
   Display.close d;
   List.iter
     (fun l ->
-      if Width.string_width l > 100 then
-        failf "a line of %d cells on %d columns: %S" (Width.string_width l)
+      if Console_width.string_width l > 100 then
+        failf "a line of %d cells on %d columns: %S"
+          (Console_width.string_width l)
           width l)
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
@@ -935,7 +938,7 @@ let line_glyphs =
       [ c.top; c.left; c.right; c.bottom ])
     Border.[ ascii; single; rounded; double; heavy ]
 
-let clusters = Width.clusters
+let clusters = Console_width.clusters
 
 (* A table of [cells] from [labels], or a panel with them as its title and
    its lines, as a printer and as a span at a width. *)
@@ -1028,7 +1031,8 @@ let test_view_frames kind cells n w times =
                 a <> b
                 && not
                      (List.mem b line_glyphs
-                     && Width.string_width a = Width.string_width b)
+                     && Console_width.string_width a
+                        = Console_width.string_width b)
               then failf "%S moved to %S" s m)
             a b)
         moving still)
@@ -1260,6 +1264,25 @@ let pp_tree_step ppf = function
 
 let tree_step = with_printer pp_tree_step tree_step
 
+(* A new task named [tname], under [tparent] or else [root]. Under a tree
+   already in the scrollback, unless [keep_ended], it moves there alone. *)
+let start_tree_task ~keep_ended ~moves root tparent tname =
+  let tk =
+    Task.start (match tparent with Some p -> p.tk | None -> root) tname
+  in
+  let x = { tk; tname; tparent; tkids = []; ended = false; moved = false } in
+  (match tparent with
+  | Some p when keep_ended || not (top p).moved -> p.tkids <- x :: p.tkids
+  | Some _ ->
+      x.ended <- true;
+      moves := [ tname ] :: !moves;
+      x.moved <- true
+  | None -> ());
+  (match tparent with
+  | Some p when p.ended && not x.moved -> x.ended <- true
+  | _ -> ());
+  x
+
 (* Runs [steps] on [d]: the tasks, and the groups of names, in the order
    they move to the scrollback, unless [keep_ended]. [frame] is called after each
    step. *)
@@ -1281,26 +1304,7 @@ let run_tree ?(keep_ended = false) root ~frame steps =
       | Start p when Array.length !tasks < 16 ->
           let tparent = Option.bind p pick in
           let tname = Fmt.str "n%02d" (Array.length !tasks) in
-          let tk =
-            Task.start
-              (match tparent with Some p -> p.tk | None -> root)
-              tname
-          in
-          let x =
-            { tk; tname; tparent; tkids = []; ended = false; moved = false }
-          in
-          (match tparent with
-          | Some p when keep_ended || not (top p).moved ->
-              p.tkids <- x :: p.tkids
-          | Some _ ->
-              (* Under a tree already in the scrollback: alone. *)
-              x.ended <- true;
-              moves := [ tname ] :: !moves;
-              x.moved <- true
-          | None -> ());
-          (match tparent with
-          | Some p when p.ended && not x.moved -> x.ended <- true
-          | _ -> ());
+          let x = start_tree_task ~keep_ended ~moves root tparent tname in
           tasks := Array.append !tasks [| x |]
       | Start _ | Wait -> ()
       | Stop (i, o) ->
@@ -1354,6 +1358,34 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
+(* The trees of the top tasks of [root] side by side, then the summary. *)
+let side_by_side ~width root =
+  View.fit (fun r ->
+      let width = Option.value (Room.width r) ~default:width in
+      let height = Option.map (fun h -> h - 1) (Room.height r) in
+      let tops = Task.children root in
+      let n = max 1 (List.length tops) in
+      let column = (min width 100 - (2 * (n - 1))) / n in
+      View.vcat
+        [
+          View.hcat
+            (List.map
+               (fun t -> View.sized ~width:column ?height (Progress.tree t))
+               tops);
+          Progress.summary root;
+        ])
+
+(* At most three top tasks, so that each column holds its names. *)
+let at_most_three_tops steps =
+  let tops = ref 0 in
+  List.filter
+    (function
+      | Start None ->
+          incr tops;
+          !tops <= 3
+      | _ -> true)
+    steps
+
 (* With [keep_ended] and a view of the top tasks' trees side by side, every frame
    fits the screen, the summary last, and the last frame holds every task
    once. *)
@@ -1369,22 +1401,7 @@ let test_columns steps h =
         Console_vte.feed vte s)
   in
   let root = Task.root ~label:header ~now:(fun () -> 0.) () in
-  let view =
-    View.fit (fun r ->
-        let width = Option.value (Room.width r) ~default:width in
-        let height = Option.map (fun h -> h - 1) (Room.height r) in
-        let tops = Task.children root in
-        let n = max 1 (List.length tops) in
-        let column = (min width 100 - (2 * (n - 1))) / n in
-        View.vcat
-          [
-            View.hcat
-              (List.map
-                 (fun t -> View.sized ~width:column ?height (Progress.tree t))
-                 tops);
-            Progress.summary root;
-          ])
-  in
+  let view = side_by_side ~width root in
   let d =
     Progress.show ~view ~keep_ended:true
       ~size:(fun () -> (width, height))
@@ -1398,18 +1415,9 @@ let test_columns steps h =
     | last :: _ when has header last -> ()
     | _ -> fail "the summary is not last"
   in
-  (* At most three top tasks, so that each column holds its names. *)
-  let steps =
-    let tops = ref 0 in
-    List.filter
-      (function
-        | Start None ->
-            incr tops;
-            !tops <= 3
-        | _ -> true)
-      steps
+  let tasks, _ =
+    run_tree ~keep_ended:true root ~frame (at_most_three_tops steps)
   in
-  let tasks, _ = run_tree ~keep_ended:true root ~frame steps in
   Display.close d;
   let lines = Console_vte.screen ~scrollback:true vte in
   Array.iter
@@ -1471,7 +1479,7 @@ let pp_pack ppf = function
 let pack = with_printer pp_pack pack
 
 (* The cell [s] starts at in [row], each glyph one cell. *)
-let find_cell s row =
+let start_cell s row =
   let s = Display_harness.glyphs s in
   let n = Array.length s in
   let rec go i =
@@ -1496,7 +1504,7 @@ let laid_out label row =
         bar = Display_harness.bar_span row;
         last = Array.length cells;
       })
-    (find_cell label cells)
+    (start_cell label cells)
 
 (* The columns a frame's rows share widen only with a wider label, a first
    task of bytes or a count of items with more digits. *)
@@ -1509,199 +1517,149 @@ let widening tasks =
       | `Spin -> (bytes, items))
     (false, 0) tasks
 
+(* What [step] does to the [tasks] under [root], with their labels, and to
+   the clock [now]. *)
+let apply_pack ~root ~now ~tasks step =
+  let pick i =
+    match !tasks with
+    | [] -> None
+    | l -> Some (fst (List.nth l (i mod List.length l)))
+  in
+  match step with
+  | Begin (p, n) when List.length !tasks < 12 ->
+      let label =
+        Fmt.str "t%02d%s" (List.length !tasks) (String.make (n mod 24) '-')
+      in
+      let parent = Option.value (Option.bind p pick) ~default:root in
+      tasks := !tasks @ [ (Task.start parent label, label) ]
+  | Begin _ -> ()
+  | Items (i, c, n) ->
+      let total = [| 5; 12; 120; 1200; 99_999 |].(n mod 5) in
+      Option.iter
+        (fun task ->
+          try Task.set_items task ~count:(c mod (total + 1)) ~total
+          with Invalid_argument _ -> ())
+        (pick i)
+  | Bytes_of (i, c) ->
+      let total = 2147483648L in
+      let count = Int64.(div (mul total (of_int c)) 255L) in
+      Option.iter
+        (fun task ->
+          try Task.set_bytes task ~count ~total with Invalid_argument _ -> ())
+        (pick i)
+  | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
+  | Tick -> now := !now +. 0.25
+
+(* Runs [steps] on a region, [frame rows tasks] after each with the rows on
+   the screen and the tasks with their labels. *)
+let run_packs steps w ~frame =
+  let width = 40 + (w mod 81) and height = 24 in
+  let vte = Console_vte.v ~rows:height ~cols:width () in
+  let buf = Buffer.create 256 in
+  let ppf =
+    Format.make_formatter (Buffer.add_substring buf) (fun () ->
+        let s = Buffer.contents buf in
+        Buffer.clear buf;
+        Console_vte.feed vte s)
+  in
+  Theme.set ppf Theme.dos;
+  let now = ref 0. in
+  let root = Task.root ~label:header ~now:(fun () -> !now) () in
+  let d =
+    Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
+  in
+  let tasks = ref [] in
+  List.iter
+    (fun step ->
+      apply_pack ~root ~now ~tasks step;
+      Display.redraw d;
+      frame (nonblank vte) !tasks)
+    steps;
+  Display.close d
+
+let row_showing rows label = List.find_opt (fun r -> has (label ^ " ") r) rows
+
+let check_rows_pack ~previous rows tasks =
+  let shown = String.concat "\n" rows in
+  let laid =
+    List.filter_map
+      (fun (_, label) -> Option.bind (row_showing rows label) (laid_out label))
+      tasks
+  in
+  match List.filter_map (fun l -> l.bar) laid with
+  | [] -> ()
+  | (first, last) :: _ as bars ->
+      if List.exists (( <> ) (first, last)) bars then
+        failf "the bars are not in one column:@.%s" shown;
+      let column = List.fold_left (fun n l -> max n l.ends) 0 laid in
+      if first <> column + 1 then
+        failf "the bars start at %d, after the labels at %d:@.%s" first column
+          shown;
+      let ends = List.sort_uniq Int.compare (List.map (fun l -> l.last) laid) in
+      (match ends with
+      | [ _ ] -> ()
+      | _ -> failf "the rows end in several columns:@.%s" shown);
+      let key = (column, widening tasks) in
+      (match !previous with
+      | Some (_, (first', _), _, shown') when first < first' ->
+          failf "the bars moved left:@.%s@.then@.%s" shown' shown
+      | Some (key', bar', ends', shown')
+        when key = key' && (bar' <> (first, last) || ends' <> ends) ->
+          failf "the columns moved:@.%s@.then@.%s" shown' shown
+      | _ -> ());
+      previous := Some (key, (first, last), ends, shown)
+
 (* The rows of a region pack from the left: the bars of all rows start in
    one column, one cell after the widest label, and are as wide; every row
    with columns ends in one column; and over a run at one width, the bars
    never move left, and the columns move only when they widen. *)
 let test_rows_pack steps w =
-  let width = 40 + (w mod 81) and height = 24 in
-  let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        let s = Buffer.contents buf in
-        Buffer.clear buf;
-        Console_vte.feed vte s)
-  in
-  Theme.set ppf Theme.dos;
-  let now = ref 0. in
-  let root = Task.root ~label:header ~now:(fun () -> !now) () in
-  let d =
-    Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
-  in
-  let tasks = ref [] in
-  let pick i =
-    match !tasks with
-    | [] -> None
-    | l -> Some (fst (List.nth l (i mod List.length l)))
-  in
   let previous = ref None in
-  let frame () =
-    Display.redraw d;
-    let rows = nonblank vte in
-    let shown = String.concat "\n" rows in
-    let laid =
-      List.filter_map
-        (fun (_, label) ->
-          Option.bind
-            (List.find_opt (fun r -> has (label ^ " ") r) rows)
-            (laid_out label))
-        !tasks
-    in
-    match List.filter_map (fun l -> l.bar) laid with
-    | [] -> ()
-    | (first, last) :: _ as bars ->
-        if List.exists (( <> ) (first, last)) bars then
-          failf "the bars are not in one column:@.%s" shown;
-        let column = List.fold_left (fun n l -> max n l.ends) 0 laid in
-        if first <> column + 1 then
-          failf "the bars start at %d, after the labels at %d:@.%s" first column
-            shown;
-        let ends =
-          List.sort_uniq Int.compare (List.map (fun l -> l.last) laid)
-        in
-        (match ends with
-        | [ _ ] -> ()
-        | _ -> failf "the rows end in several columns:@.%s" shown);
-        let key = (column, widening !tasks) in
-        (match !previous with
-        | Some (_, (first', _), _, shown') when first < first' ->
-            failf "the bars moved left:@.%s@.then@.%s" shown' shown
-        | Some (key', bar', ends', shown')
-          when key = key' && (bar' <> (first, last) || ends' <> ends) ->
-            failf "the columns moved:@.%s@.then@.%s" shown' shown
-        | _ -> ());
-        previous := Some (key, (first, last), ends, shown)
-  in
+  run_packs steps w ~frame:(check_rows_pack ~previous)
+
+(* [row] from the cell [label] starts at. *)
+let from_label label row =
+  let cells = Display_harness.glyphs row in
+  Option.map
+    (fun at ->
+      let b = Buffer.create 80 in
+      for i = at to Array.length cells - 1 do
+        Buffer.add_utf_8_uchar b cells.(i)
+      done;
+      Buffer.contents b)
+    (start_cell label cells)
+
+(* The cell after the widest label on the screen. *)
+let label_column rows tasks =
+  List.fold_left
+    (fun n (_, label) ->
+      match row_showing rows label with
+      | None -> n
+      | Some r ->
+          Option.fold ~none:n ~some:(fun l -> max n l.ends) (laid_out label r))
+    0 tasks
+
+let check_ended_rows ~seen rows tasks =
+  let key = (label_column rows tasks, widening tasks) in
   List.iter
-    (fun step ->
-      (match step with
-      | Begin (p, n) when List.length !tasks < 12 ->
-          let label =
-            Fmt.str "t%02d%s" (List.length !tasks) (String.make (n mod 24) '-')
-          in
-          let parent = Option.value (Option.bind p pick) ~default:root in
-          tasks := !tasks @ [ (Task.start parent label, label) ]
-      | Begin _ -> ()
-      | Items (i, c, n) ->
-          let total = [| 5; 12; 120; 1200; 99_999 |].(n mod 5) in
-          Option.iter
-            (fun task ->
-              try Task.set_items task ~count:(c mod (total + 1)) ~total
-              with Invalid_argument _ -> ())
-            (pick i)
-      | Bytes_of (i, c) ->
-          let total = 2147483648L in
-          let count = Int64.(div (mul total (of_int c)) 255L) in
-          Option.iter
-            (fun task ->
-              try Task.set_bytes task ~count ~total
-              with Invalid_argument _ -> ())
-            (pick i)
-      | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
-      | Tick -> now := !now +. 0.25);
-      frame ())
-    steps;
-  Display.close d
+    (fun (task, label) ->
+      if Task.state task <> `Running then
+        match Option.bind (row_showing rows label) (from_label label) with
+        | None -> ()
+        | Some row -> (
+            match Hashtbl.find_opt seen label with
+            | Some (key', row') when key = key' && row <> row' ->
+                failf "the row of %s moved:@.%s@.then@.%s@.in@.%s" label row'
+                  row (String.concat "\n" rows)
+            | _ -> Hashtbl.replace seen label (key, row)))
+    tasks
 
 (* The row of a task that ended, from its label on, is the same in every
    frame while the columns of the rows stay as they are, as the time moves
    and the other tasks move, start and end. *)
 let test_ended_rows_stay steps w =
-  let width = 40 + (w mod 81) and height = 24 in
-  let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        let s = Buffer.contents buf in
-        Buffer.clear buf;
-        Console_vte.feed vte s)
-  in
-  Theme.set ppf Theme.dos;
-  let now = ref 0. in
-  let root = Task.root ~label:header ~now:(fun () -> !now) () in
-  let d =
-    Progress.show ~keep_ended:true ~size:(fun () -> (width, height)) ppf root
-  in
-  let tasks = ref [] in
-  let pick i =
-    match !tasks with
-    | [] -> None
-    | l -> Some (fst (List.nth l (i mod List.length l)))
-  in
   let seen = Hashtbl.create 16 in
-  let frame () =
-    Display.redraw d;
-    let rows = nonblank vte in
-    let own label =
-      Option.bind
-        (List.find_opt (fun r -> has (label ^ " ") r) rows)
-        (fun r ->
-          let cells = Display_harness.glyphs r in
-          Option.map
-            (fun at ->
-              let b = Buffer.create 80 in
-              for i = at to Array.length cells - 1 do
-                Buffer.add_utf_8_uchar b cells.(i)
-              done;
-              Buffer.contents b)
-            (find_cell label cells))
-    in
-    let column =
-      List.fold_left
-        (fun n (_, label) ->
-          match List.find_opt (fun r -> has (label ^ " ") r) rows with
-          | None -> n
-          | Some r ->
-              Option.fold ~none:n
-                ~some:(fun l -> max n l.ends)
-                (laid_out label r))
-        0 !tasks
-    in
-    let key = (column, widening !tasks) in
-    List.iter
-      (fun (task, label) ->
-        if Task.state task <> `Running then
-          match own label with
-          | None -> ()
-          | Some row -> (
-              match Hashtbl.find_opt seen label with
-              | Some (key', row') when key = key' && row <> row' ->
-                  failf "the row of %s moved:@.%s@.then@.%s@.in@.%s" label row'
-                    row (String.concat "\n" rows)
-              | _ -> Hashtbl.replace seen label (key, row)))
-      !tasks
-  in
-  List.iter
-    (fun step ->
-      (match step with
-      | Begin (p, n) when List.length !tasks < 12 ->
-          let label =
-            Fmt.str "t%02d%s" (List.length !tasks) (String.make (n mod 24) '-')
-          in
-          let parent = Option.value (Option.bind p pick) ~default:root in
-          tasks := !tasks @ [ (Task.start parent label, label) ]
-      | Begin _ -> ()
-      | Items (i, c, n) ->
-          let total = [| 5; 12; 120; 1200; 99_999 |].(n mod 5) in
-          Option.iter
-            (fun task ->
-              try Task.set_items task ~count:(c mod (total + 1)) ~total
-              with Invalid_argument _ -> ())
-            (pick i)
-      | Bytes_of (i, c) ->
-          let total = 2147483648L in
-          let count = Int64.(div (mul total (of_int c)) 255L) in
-          Option.iter
-            (fun task ->
-              try Task.set_bytes task ~count ~total
-              with Invalid_argument _ -> ())
-            (pick i)
-      | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
-      | Tick -> now := !now +. 0.25);
-      frame ())
-    steps;
-  Display.close d
+  run_packs steps w ~frame:(check_ended_rows ~seen)
 
 (* Shrinking windows keeps the latest output, regardless of tree order. *)
 let test_window_age n newest_child =
@@ -1923,75 +1881,91 @@ let test_delay_deadline n quick =
   check_eq ~pp:Fmt.(Dump.list string) [ "notice"; "live" ] (lines t);
   check (Console_vte.cursor_visible t.vte)
 
+let drawing_tests =
+  [
+    test_case "delayed displays wait for the controlled deadline"
+      [ uint8; bool ] test_delay_deadline;
+    test_case "custom pipe lines keep ended trees for the final view" [ uint8 ]
+      test_plain_callback_keeps_tree;
+    test_case "a still view is drawn once"
+      [ uint8; uint8; uint8; list uint8 ]
+      test_static_view;
+    test_case "a top task leaves what its commit makes of it"
+      [ list tree_step; bool ]
+      test_commit;
+    test_case "tree dimensions belong to each composition" [ uint8; uint8 ]
+      test_tree_local_dimensions;
+    test_case "one oversized waiting task stays bounded" [ uint8; bool ]
+      test_oversized_waiting_task;
+    test_case "windows give way oldest first across tasks" [ uint8; bool ]
+      test_window_age;
+    test_case "switching themes redraws like a fresh display"
+      [ uint8; uint8; uint8 ] test_theme_switch;
+    test_case "a running parent keeps a bounded part of completed children"
+      [ uint8; bool ] test_finished_children_heap;
+  ]
+
+let layout_tests =
+  [
+    test_case "the scrollback keeps every tree whole, in its order"
+      [ list tree_step; uint8 ]
+      test_scrollback_tree;
+    test_case "rows pack from the left, their bars in one column"
+      [ list pack; uint8 ]
+      test_rows_pack;
+    test_case "the row of a task that ended stays as it is"
+      [ list pack; uint8 ]
+      test_ended_rows_stay;
+    test_case "trees side by side hold every task once"
+      [ list tree_step; uint8 ]
+      test_columns;
+    test_case "the default view is the tree and the summary"
+      [ list tree_step; uint8 ]
+      test_default_view;
+  ]
+
+let robustness_tests =
+  [
+    test_case "view exceptions leave the terminal usable" [ uint8; uint8; bool ]
+      test_view_exception_close;
+    test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
+      test_wide;
+    test_case "extreme terminal sizes keep region width and height bounded"
+      [ uint8; bool ] test_extreme_terminals;
+    test_case "untrusted display arguments behave like sanitized text" [ bytes ]
+      test_untrusted_arguments;
+    test_case "only live rows change and idle frames write nothing" [ uint8 ]
+      test_static_rows_and_idle;
+    test_case "resize erases every old live row" [ uint8 ]
+      test_resize_erases_old_frame;
+    test_case "callback exceptions restore a usable terminal" [ bytes; bool ]
+      test_output_exception;
+    test_case "pipe logs retain order and task attribution" [ uint8 ]
+      test_pipe_attribution;
+    test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
+  ]
+
+let screen_tests =
+  [
+    test_case "screen guarantees" [ list op; uint8; uint8; bool; uint8 ] test;
+    test_case "plain output" [ list op ] test_plain;
+    test_case "on a pipe each line comes once after its task's label"
+      [ list step ]
+      test_pipe_lines;
+    test_case "on a terminal a line stays as its task ended"
+      [ list step ]
+      test_terminal_lines;
+    test_case "the region fits and counts what it hides" [ uint8; uint8; uint8 ]
+      test_marker_counts;
+    test_case "a view's frames move only its border"
+      [ bool; list uint8; uint8; uint8; list uint8 ]
+      test_view_frames;
+    test_case "a view is still off a live display"
+      [ bool; list uint8; uint8; uint8 ]
+      test_view_pipe;
+  ]
+
 let suite =
   ( "display",
-    [
-      test_case "delayed displays wait for the controlled deadline"
-        [ uint8; bool ] test_delay_deadline;
-      test_case "custom pipe lines keep ended trees for the final view"
-        [ uint8 ] test_plain_callback_keeps_tree;
-      test_case "a still view is drawn once"
-        [ uint8; uint8; uint8; list uint8 ]
-        test_static_view;
-      test_case "a top task leaves what its commit makes of it"
-        [ list tree_step; bool ]
-        test_commit;
-      test_case "tree dimensions belong to each composition" [ uint8; uint8 ]
-        test_tree_local_dimensions;
-      test_case "one oversized waiting task stays bounded" [ uint8; bool ]
-        test_oversized_waiting_task;
-      test_case "windows give way oldest first across tasks" [ uint8; bool ]
-        test_window_age;
-      test_case "switching themes redraws like a fresh display"
-        [ uint8; uint8; uint8 ] test_theme_switch;
-      test_case "a running parent keeps a bounded part of completed children"
-        [ uint8; bool ] test_finished_children_heap;
-      test_case "the scrollback keeps every tree whole, in its order"
-        [ list tree_step; uint8 ]
-        test_scrollback_tree;
-      test_case "rows pack from the left, their bars in one column"
-        [ list pack; uint8 ]
-        test_rows_pack;
-      test_case "the row of a task that ended stays as it is"
-        [ list pack; uint8 ]
-        test_ended_rows_stay;
-      test_case "trees side by side hold every task once"
-        [ list tree_step; uint8 ]
-        test_columns;
-      test_case "the default view is the tree and the summary"
-        [ list tree_step; uint8 ]
-        test_default_view;
-      test_case "view exceptions leave the terminal usable"
-        [ uint8; uint8; bool ] test_view_exception_close;
-      test_case "rows keep to 100 columns on a wide terminal" [ int; bytes ]
-        test_wide;
-      test_case "extreme terminal sizes keep region width and height bounded"
-        [ uint8; bool ] test_extreme_terminals;
-      test_case "untrusted display arguments behave like sanitized text"
-        [ bytes ] test_untrusted_arguments;
-      test_case "only live rows change and idle frames write nothing" [ uint8 ]
-        test_static_rows_and_idle;
-      test_case "resize erases every old live row" [ uint8 ]
-        test_resize_erases_old_frame;
-      test_case "callback exceptions restore a usable terminal" [ bytes; bool ]
-        test_output_exception;
-      test_case "pipe logs retain order and task attribution" [ uint8 ]
-        test_pipe_attribution;
-      test_case "long runs retain bounded heap" [ uint8 ] test_retained_heap;
-      test_case "screen guarantees" [ list op; uint8; uint8; bool; uint8 ] test;
-      test_case "plain output" [ list op ] test_plain;
-      test_case "on a pipe each line comes once after its task's label"
-        [ list step ]
-        test_pipe_lines;
-      test_case "on a terminal a line stays as its task ended"
-        [ list step ]
-        test_terminal_lines;
-      test_case "the region fits and counts what it hides"
-        [ uint8; uint8; uint8 ] test_marker_counts;
-      test_case "a view's frames move only its border"
-        [ bool; list uint8; uint8; uint8; list uint8 ]
-        test_view_frames;
-      test_case "a view is still off a live display"
-        [ bool; list uint8; uint8; uint8 ]
-        test_view_pipe;
-    ] )
+    List.concat [ drawing_tests; layout_tests; robustness_tests; screen_tests ]
+  )

@@ -12,6 +12,11 @@ type metric = Spin | Count of int * int | Bytes of int64 * int64
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
 (** The type for task endings. *)
 
+val is_async : exn -> bool
+(** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
+    stack, wrapped by [Fun.protect] or not: it can arise anywhere, and only the
+    program can answer it. *)
+
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of Logs messages. *)
 
@@ -59,12 +64,26 @@ val id : t -> int
 (** [id r] is [r]'s number in its work, negative for the root alone. *)
 
 val work : t -> work
+(** [work r] is what [r] shares with the other tasks of its root. *)
+
 val parent : t -> t option
+(** [parent r] is {!Task.parent}. *)
+
 val label : t -> string
+(** [label r] is {!Task.label}. *)
+
 val metric : t -> metric
+(** [metric r] is how far [r] is. *)
+
 val transient : t -> bool
+(** [transient r] is [true] iff [r] is a root or was started transient
+    ({!Task.start}). *)
+
 val message : t -> string option
+(** [message r] is {!Task.message}. *)
+
 val outcome : t -> outcome option
+(** [outcome r] is how [r] ended, [None] while it runs. *)
 
 val window : t -> line Queue.t
 (** [window r] holds [r]'s latest lines, as many as it shows. *)
@@ -74,6 +93,7 @@ val output : t -> line Queue.t
     left out. *)
 
 val dropped : t -> int
+(** [dropped r] is {!Task.dropped}. *)
 
 val gone : t -> bool
 (** [gone r] is [true] once [r] is forgotten, and its parent then forgets it. *)
@@ -83,6 +103,7 @@ val shed : t -> int
     wait bounded. *)
 
 val rate : t -> float
+(** [rate r] is the rate of {!Task.rate}, [0.] where that is [None]. *)
 
 val version : t -> int
 (** [version r] counts the changes to what [r] shows. *)
@@ -92,14 +113,24 @@ val memo : t -> memo list
 
 module Work : sig
   val now : work -> unit -> float
+  (** [now w ()] is the time on the clock of [w]'s root, in seconds. *)
 
   val summary : work -> string option
   (** [summary w] is the label of the root, if it was given one. *)
 
   val started : work -> int
+  (** [started w] is the number of tasks started in [w], without the root. *)
+
   val finished : work -> int
+  (** [finished w] is the number of tasks of [w] that ended, without the root.
+  *)
+
   val failed : work -> int
+  (** [failed w] is the number of tasks of [w] that failed, without the root. *)
+
   val cancelled : work -> int
+  (** [cancelled w] is the number of tasks of [w] that were cancelled, without
+      the root. *)
 
   val count_cell : work -> int
   (** [count_cell w] is the cells of the widest count a total has allowed. *)
@@ -151,13 +182,28 @@ val within : t -> (unit -> 'a) -> 'a
 (** See {!Task.within}. *)
 
 val set_label : t -> string -> unit
+(** [set_label r label] is {!Task.set_label}. *)
+
 val set_items : t -> count:int -> total:int -> unit
+(** [set_items r ~count ~total] is {!Task.set_items}. *)
+
 val set_bytes : t -> count:int64 -> total:int64 -> unit
+(** [set_bytes r ~count ~total] is {!Task.set_bytes}. *)
+
 val advance : ?by:int -> t -> unit
+(** [advance ~by r] is {!Task.advance}. *)
+
 val log : ?level:level -> t -> string -> unit
+(** [log ~level r text] is {!Task.log}. *)
+
 val succeed : ?message:string -> t -> unit
+(** [succeed ~message r] is {!Task.succeed}. *)
+
 val fail : ?message:string -> t -> unit
+(** [fail ~message r] is {!Task.fail}. *)
+
 val cancel : ?message:string -> t -> unit
+(** [cancel ~message r] is {!Task.cancel}. *)
 
 val report : t -> level -> string -> unit
 (** [report root level text] gives each line of [text], a message of [level], to
@@ -188,11 +234,23 @@ val forget : t -> unit
 (** {1:read Reading tasks} *)
 
 val is_root : t -> bool
+(** [is_root r] is [true] iff [r] is the root of its work. *)
+
 val is_running : t -> bool
+(** [is_running r] is [true] iff [r] has not ended. *)
+
 val state : t -> [ `Running | outcome ]
+(** [state r] is {!Task.state}. *)
+
 val elapsed : t -> float
+(** [elapsed r] is {!Task.elapsed}. *)
+
 val since_start : work -> float
+(** [since_start w] is the seconds since the root of [w] started. *)
+
 val depth : t -> int
+(** [depth r] is the number of tasks above [r], the root included: [0] for the
+    root. *)
 
 val path : t -> string list
 (** [path r] is the labels from the top task down to [r], [[]] for the root. *)
@@ -223,3 +281,4 @@ val eta : t -> float option
 (** [eta r] is the seconds [r] has left at its rate, if it runs and has one. *)
 
 val pp : t Fmt.t
+(** [pp] is {!Task.pp}. *)

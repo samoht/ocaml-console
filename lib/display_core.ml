@@ -231,6 +231,12 @@ let frame t =
       let c = Ctx.v ~width:t.width ~height ~time:(since_start t) look in
       lines t ~look ~height c t.view
 
+(* What a view raises waits for {!raise_failure}, so that drawing fails no
+   call that did not ask for it. An interrupt or an exhausted heap or stack
+   does not wait: the view has not failed, and only the program can answer
+   it. *)
+let is_async = Task_core.is_async
+
 (* A view that raises is dropped: what was to be written is written with
    the fallback view, and the first exception waits for {!raise_failure}. *)
 let fail t e =
@@ -248,9 +254,9 @@ let raise_failure t =
 let framed t k =
   match frame t with
   | spans -> k spans
-  | exception e ->
+  | exception e when not (is_async e) ->
       fail t e;
-      k (try frame t with _ -> [])
+      k (try frame t with e when not (is_async e) -> [])
 
 let max_size = 4096
 let bounded n = min max_size (max 1 n)
@@ -271,9 +277,9 @@ let final t =
   List.map fst
     (match lines t ~look c t.view with
     | lines -> lines
-    | exception e -> (
+    | exception e when not (is_async e) -> (
         fail t e;
-        try lines t ~look c t.fallback with _ -> []))
+        try lines t ~look c t.fallback with e when not (is_async e) -> []))
 
 let add_up buf n =
   if n > 0 then begin
@@ -652,21 +658,29 @@ let close t =
     t.closing <- true;
     Fun.protect t.on_close ~finally:(fun () -> t.closing <- false);
     ignore (refresh_size t);
-    let out =
-      String.concat "" (List.map (fun l -> render t l ^ eol t) (final t))
+    let finish out =
+      if is_live t then begin
+        let buf = Buffer.create 256 in
+        clear buf t;
+        Buffer.add_string buf show_cursor;
+        Buffer.add_string buf out;
+        write t (Buffer.contents buf)
+      end
+      else begin
+        write t out;
+        t.release ()
+      end
     in
-    if is_live t then begin
-      let buf = Buffer.create 256 in
-      clear buf t;
-      Buffer.add_string buf show_cursor;
-      Buffer.add_string buf out;
-      write t (Buffer.contents buf)
-    end
-    else begin
-      write t out;
-      t.release ()
-    end;
-    raise_failure t
+    (* An interrupt in the last frame goes on once the terminal is given
+       back. *)
+    match final t with
+    | lines ->
+        finish (String.concat "" (List.map (fun l -> render t l ^ eol t) lines));
+        raise_failure t
+    | exception e ->
+        let bt = Printexc.get_raw_backtrace () in
+        finish "";
+        Printexc.raise_with_backtrace e bt
   end
 
 let print_lines t lines =
