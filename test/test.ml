@@ -7,6 +7,7 @@ let () =
   Alcotest.run "console"
     [
       Test_color.suite;
+      Test_colour.suite;
       Test_style.suite;
       Test_view.suite;
       Test_table.suite;
