@@ -21,9 +21,13 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; mutable blank : bool option }
 (** The type for the pieces of a row: what each shows, the stage at which it
-    gives way, if it does, and whether it is blank text. *)
+    gives way, if it does, and whether it is blank text, once {!val-blank} has
+    found it. *)
+
+val blank : piece -> bool
+(** [blank p] is [true] if [p] is a constant whose text is blank. *)
 
 type t
 (** The type for layouts: at most one {!constructor-Label} and one

@@ -226,7 +226,7 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
       cells
   in
   let keep = Array.map not gone in
-  let blank i = keep.(i) && pieces.(i).blank in
+  let blank i = keep.(i) && Progress_layout.blank pieces.(i) in
   for i = 0 to n - 1 do
     if gone.(i) then
       if i > 0 && blank (i - 1) then keep.(i - 1) <- false
@@ -234,7 +234,7 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
   done;
   if n > 0 && gone.(n - 1) then begin
     let rec trim i =
-      if i >= 0 && ((not keep.(i)) || pieces.(i).blank) then begin
+      if i >= 0 && ((not keep.(i)) || Progress_layout.blank pieces.(i)) then begin
         keep.(i) <- false;
         trim (i - 1)
       end
@@ -260,7 +260,7 @@ let blank_piece r (p : Progress_layout.piece) =
   | Percent -> Option.is_none (percent (metric r))
   | Rate -> rate_text (metric r) (rate r) = ""
   | Eta -> Option.is_none (Task_core.eta r)
-  | Const _ -> p.blank
+  | Const _ -> Progress_layout.blank p
   | _ -> false
 
 let is_const (p : Progress_layout.piece) =

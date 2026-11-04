@@ -18,7 +18,7 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; mutable blank : bool option }
 
 type t = piece list
 
@@ -44,13 +44,20 @@ let reads t =
   if List.exists own t then fun look -> reads_in look View_core.tasks t
   else fun _ -> View_core.tasks
 
-let one ?stage kind =
-  let blank =
-    match kind with
-    | Const v -> String.trim (View_core.to_string v) = ""
-    | _ -> false
-  in
-  [ { kind; stage; blank } ]
+(* Programs build their layouts as they load, before they show anything, so a
+   constant piece is drawn to find whether it is blank only when a row first
+   asks. A copy made before that asks again, and two domains that ask at once
+   find the same answer. *)
+let blank p =
+  match (p.blank, p.kind) with
+  | Some b, _ -> b
+  | None, Const v ->
+      let b = String.trim (View_core.to_string v) = "" in
+      p.blank <- Some b;
+      b
+  | None, _ -> false
+
+let one ?stage kind = [ { kind; stage; blank = None } ]
 
 (* The stages at which pieces give way: 1 for the rate and the time left, 2
    for the bar and the percentage, 5 for the elapsed time. The label is cut at

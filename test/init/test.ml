@@ -14,8 +14,8 @@ let ours (file, _) =
 (* Console's initialisers must allocate the values its interfaces name. These
    are the eighteen themes, the codecs of Task.Event and Cast, the borders, the
    progress layouts, the modules [include] copies, and the keys, exceptions and
-   atomics its modules hold. That is 6196 words with OCaml 5.4.1 and jsont
-   0.4.0, and the bound leaves 140 words above it for other versions. *)
+   atomics its modules hold. That is 6173 words with OCaml 5.4.1 and jsont
+   0.4.0, and the bound leaves 163 words above it for other versions. *)
 let bound = 6336
 
 (* A program builds the layout of its rows as it loads. This one has a constant
