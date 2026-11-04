@@ -44,7 +44,14 @@ let buffered () =
 (* The lines of a finished recording. *)
 let lines file = List.filter (( <> ) "") (String.split_on_char '\n' (read file))
 let header = {|{"version":2,"width":80,"height":24,"env":{"TERM":"xterm"}}|}
-let check_lines = Alcotest.(check (list string))
+
+(* Lines are compared as the JSON values they write: asciicast v2 is
+   newline-delimited JSON, whatever its spacing or number format. *)
+let check_lines msg expected actual =
+  Alcotest.(check (list Cast_harness.json))
+    msg
+    (List.map Cast_harness.parse expected)
+    (List.map Cast_harness.parse actual)
 
 let write ppf s =
   Format.pp_print_string ppf s;
@@ -231,8 +238,9 @@ let test_cut_short () =
         ]
         (lines file))
 
-(* Bytes that are no text come out replaced, each event on one line of valid
-   UTF-8, and those left at the end come out as the recording ends. *)
+(* asciicast v2, "o": data is valid UTF-8. Bytes that are no text come out as
+   Unicode Core Spec 3.9 replaces them, and those left at the end come out as
+   the recording ends. *)
 let test_hostile_bytes () =
   let replaced = "\u{fffd}" in
   with_temp (fun other ->
@@ -254,15 +262,32 @@ let test_hostile_bytes () =
             (lines file)))
 
 (* asciicast v2, "o": non-printable code points are encoded as \\uXXXX. Here
-   DEL and the C1 control NEL, which JSON itself would let through. *)
+   DEL and the C1 control NEL, which JSON itself would let through. The
+   lines are compared as text: as JSON values, an escaped NEL is NEL. *)
 let test_non_printable () =
   recording (fun file ->
       let _, ppf = buffered () in
       started ppf;
       write ppf "a\x7f\xc2\x85b";
-      check_lines "escaped"
+      Alcotest.(check (list string))
+        "escaped"
         [ header; {|[0,"o","a\u007F\u0085b"]|} ]
         (lines file))
+
+(* Each maximal subpart is one U+FFFD, not each ill-formed sequence. *)
+let test_maximal_subparts () =
+  List.iter
+    (fun (table, bytes, converted) ->
+      recording (fun file ->
+          let _, ppf = buffered () in
+          started ppf;
+          write ppf bytes;
+          Alcotest.(check (list string))
+            table [ converted ]
+            (List.map
+               (fun (e : Cast_harness.event) -> e.data)
+               (Cast_harness.events (lines file)))))
+    Text_harness.maximal_subparts
 
 let test_large_write () =
   recording (fun file ->
@@ -448,6 +473,7 @@ let suite =
       Alcotest.test_case "cut short" `Quick test_cut_short;
       Alcotest.test_case "hostile bytes" `Quick test_hostile_bytes;
       Alcotest.test_case "non-printable code points" `Quick test_non_printable;
+      Alcotest.test_case "maximal subparts" `Quick test_maximal_subparts;
       Alcotest.test_case "a large write" `Quick test_large_write;
       Alcotest.test_case "the same file goes on" `Quick test_same_file;
       Alcotest.test_case "another file ends it" `Quick test_other_file;
