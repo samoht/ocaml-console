@@ -49,6 +49,17 @@ val cursor_pos : t -> int * int
 val cursor_visible : t -> bool
 (** [cursor_visible t] is [true] iff the cursor is shown. *)
 
+val cursor_history : string -> bool * bool
+(** [cursor_history s] reads [s] on a fresh terminal, a byte at a time: whether
+    the cursor was hidden at some point, and whether it is shown at the end. A
+    terminal starts with its cursor shown, so the first says the second means
+    something. *)
+
+val synchronized_open : string -> bool
+(** [synchronized_open s] is [true] iff a terminal that read [s] is left in a
+    synchronized update: mode 2026 was last set. Matrix does not model this
+    mode, so [s] is scanned for it. *)
+
 val to_string : t -> string
 (** [to_string t] is the visible screen, a line per row. *)
 

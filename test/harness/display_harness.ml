@@ -23,6 +23,11 @@ let feeding vte =
       Console_vte.feed vte (Buffer.contents buf);
       Buffer.clear buf)
 
+let check_cursor_restored msg written =
+  let hidden, shown = Console_vte.cursor_history written in
+  Alcotest.(check bool) (msg ^ ": hidden while it ran") true hidden;
+  Alcotest.(check bool) (msg ^ ": shown at the end") true shown
+
 let bar_span row =
   let bar u =
     Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)

@@ -31,12 +31,12 @@ flow, which a signal handler cannot write to, and the cursor is shown:
 
   $ ../piped.exe idle-signal idle.out 2>/dev/null
   [130]
-  $ grep -c '25h' idle.out
-  1
+  $ ../tty.exe --cursor idle.out
+  hidden, then shown
 
 A view that calls exit leaves the cursor shown:
 
   $ ../piped.exe exit-view view.out 2>/dev/null
   [3]
-  $ grep -c '25h' view.out
-  1
+  $ ../tty.exe --cursor view.out
+  hidden, then shown

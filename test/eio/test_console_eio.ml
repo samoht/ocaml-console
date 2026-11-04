@@ -342,8 +342,6 @@ let test_run_raises () =
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
-let cursor_shown buf = contains "\027[?25h" (Buffer.contents buf)
-
 (* An output that a cancelled fiber cannot write to, as an Eio flow. *)
 let flow () =
   let buf = Buffer.create 256 in
@@ -370,7 +368,7 @@ let test_cancelled_run_restores () =
             "cancelled")
       in
       Alcotest.(check string) "the winner" "cancelled" result;
-      Alcotest.(check bool) "cursor shown" true (cursor_shown buf))
+      check_cursor_restored "cursor" (Buffer.contents buf))
 
 (* A fiber cancelled in a view stops there: its [Cancelled] is no one else's. *)
 let test_view_cancelled () =
@@ -457,7 +455,11 @@ let test_write_cut () =
             line true
             (List.exists (contains line) (Console_vte.screen vte)))
         [ "keep-1"; "keep-2"; "keep-3"; "PRINTED" ];
-      Alcotest.(check bool) "cursor shown" true (Console_vte.cursor_visible vte))
+      let written = Buffer.contents buf in
+      Alcotest.(check bool)
+        "no update left open" false
+        (Console_vte.synchronized_open written);
+      check_cursor_restored "cursor" written)
 
 (* A task ended by the cancellation of its fiber, on an output that a cancelled
    fiber cannot write to, leaves one row: the one it ends with. *)
@@ -620,7 +622,7 @@ let test_commit_raises_at_end () =
                 ~commit:(fun _ -> raise e)
                 (fun root -> ignore (Console.Task.start root "running")));
           Format.pp_print_flush ppf ();
-          Alcotest.(check bool) "cursor shown" true (cursor_shown buf)))
+          check_cursor_restored "cursor" (Buffer.contents buf)))
     [ Failure "hook"; Sys.Break ]
 
 (* An output that breaks, or an interrupt on the way out, does not stop the next

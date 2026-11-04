@@ -113,6 +113,27 @@ let feed t s =
   characters 0;
   write ()
 
+let cursor_history s =
+  let t = v ~rows:24 ~cols:80 () in
+  let hidden = ref false in
+  String.iter
+    (fun c ->
+      feed t (String.make 1 c);
+      if not (cursor_visible t) then hidden := true)
+    s;
+  (!hidden, cursor_visible t)
+
+let synchronized_open s =
+  let mode = "\027[?2026" in
+  let m = String.length mode in
+  let rec go i last =
+    if i + m >= String.length s then last
+    else if String.sub s i m = mode then
+      go (i + m) (match s.[i + m] with 'h' -> true | 'l' -> false | _ -> last)
+    else go (i + 1) last
+  in
+  go 0 false
+
 let rstrip s =
   let n = ref (String.length s) in
   while !n > 0 && (s.[!n - 1] = ' ' || s.[!n - 1] = '\t') do
