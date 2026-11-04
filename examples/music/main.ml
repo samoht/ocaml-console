@@ -262,7 +262,7 @@ let playlist_window =
         [
           View.text (if playing then glyph room "▶" ">" else " ");
           View.place ~width:(width - 8)
-            (View.text (Fmt.str "%d. %s - %s" (i + 1) t.artist t.title));
+            (Fmt.kstr View.text "%d. %s - %s" (i + 1) t.artist t.title);
           View.place ~align:`Right ~width:5 (View.text (mmss t.length));
         ]
     in
@@ -272,7 +272,7 @@ let playlist_window =
   let sum tracks = Array.fold_left (fun n t -> n + t.length) 0 tracks in
   let total _ =
     let played = sum (Array.sub playlist 0 player.current) + seconds () in
-    View.text (Fmt.str "%s/%s" (mmss played) (mmss (sum playlist)))
+    Fmt.kstr View.text "%s/%s" (mmss played) (mmss (sum playlist))
   in
   Panel.view ~expand:true
     ~title:(View.text "WINAMP PLAYLIST")
