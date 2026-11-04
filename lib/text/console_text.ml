@@ -15,10 +15,11 @@ let removed u =
 
 let is_selector u = Uucp.Gen.is_variation_selector u
 
-(* What [sanitize] has seen: [cr] after a CR, whose line end a line feed
-   then completes, and [base] where a variation selector may follow, which
-   the start of the text is, since its base may end the text before. A
-   character removed leaves both as they were. *)
+(* The state [sanitize] carries from one character to the next. [cr] is set
+   after a CR, so that a line feed right after it adds no second line end.
+   [base] is set where a variation selector may follow, as at the start of
+   the text, whose base may end the text before it. A removed character
+   changes neither. *)
 type seen = { mutable cr : bool; mutable base : bool }
 
 (* Whether a variation selector may follow [u], of code point [c]. *)
@@ -67,8 +68,9 @@ let subdivision_flags =
 
 let flag_length = String.length (List.hd subdivision_flags)
 
-(* [tag_sequence str i d] is where the flag at [i], whose first character
-   [d] decodes, ends, if one of {!subdivision_flags} starts there. *)
+(* [tag_sequence str i d] is [Some stop] if one of {!subdivision_flags}
+   starts at [i] and ends at [stop], [d] being the character decoded at
+   [i]. *)
 let tag_sequence str i d =
   if
     Uchar.to_int (Uchar.utf_decode_uchar d) = 0x1f3f4
@@ -104,9 +106,9 @@ let sanitize_into buf ~keep_newlines seen str =
 
 let seen () = { cr = false; base = true }
 
-(* Whether [sanitize] gives [str] back as it is: valid UTF-8 with no
-   control but, if kept, the line feed, nothing removed, and no variation
-   selector without a base. *)
+(* Whether [sanitize] gives [str] back unchanged: valid UTF-8 with no
+   control character other than the line feed, and that only if kept, no
+   character to remove and no variation selector without a base. *)
 let rec is_clean ~keep_newlines str i base =
   i >= String.length str
   ||
@@ -139,7 +141,7 @@ let sanitize ?(keep_newlines = true) str =
     sanitize_into buf ~keep_newlines (seen ()) str;
     Buffer.contents buf
 
-(* What the scan is inside of. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
+(* What the escape scanner is inside. ECMA-48 (5th ed.) 5.3: a C1 control is ESC Fe
    in a 7-bit code, Fe in 04/00 to 05/15, and 08/00 to 09/15 in an 8-bit code,
    which UTF-8 writes as U+0080 to U+009F. *)
 type state =
@@ -157,9 +159,9 @@ let can = 0x18
 let sub = 0x1a
 let del = 0x7f
 
-(* The controls a terminal acts on without printing anything: DEL and the C0
-   controls but HT, which leaves blank cells, the line ends LF, VT, FF and CR,
-   and ESC. *)
+(* The controls a terminal acts on without printing anything: DEL, and the
+   C0 controls other than HT (which leaves blank cells), the line ends LF,
+   VT, FF and CR, and ESC. *)
 let silent c = (c < 0x20 && c <> esc && not (c >= 0x09 && c <= 0x0d)) || c = del
 let is_c1 c = c >= 0x80 && c <= 0x9f
 let nel = 0x85
@@ -199,14 +201,9 @@ let continues = function
   | Escape_intermediate -> after_intermediate
   | Ground | Sequence | String _ -> in_sequence
 
-(* Inside an escape or a control sequence, the DEC parser xterm follows acts on
-   a C0 control and stays, ignores DEL, and lets ESC, CAN, SUB and a C1 control
-   end the sequence and act on their own; any other character outside the
-   sequence's ranges ends it in error, and is text. A control string ends at
-   ST, ESC 05/12 or 09/12, an OSC also at BEL; CAN, SUB, ESC and a C1 control
-   end it and act. A {!silent} control acts by being discarded. *)
-(* What the character at [i], [len] bytes long, does from [state] in a token
-   that began at [start]: the tokens it ends, and where the scan goes on. *)
+(* What one character does to the scan: the tokens it ends, as kind, start
+   and stop; the state [next]; the offset [at] of the next character to
+   read; and the start [from] of the token under way. *)
 type move = {
   ends : ([ `Text | `Escape ] * int * int) list;
   next : state;
@@ -232,6 +229,13 @@ let in_ground ~valid ~c ~i ~len ~start =
     | next -> move ~ends:[ (`Text, start, i) ] next (i + len) i
   else move Ground (i + len) start
 
+(* Inside an escape or a control sequence, the DEC parser that xterm follows
+   acts on a C0 control and stays in the sequence, ignores DEL, and lets ESC,
+   CAN, SUB and a C1 control end the sequence and then act. Any other
+   character outside the ranges of the sequence ends it in error and is read
+   again as text. A control string ends at ST (ESC 05/12 or 09/12), and an
+   OSC also at BEL; CAN, SUB, ESC and a C1 control end it and then act. A
+   {!silent} control acts by being discarded. *)
 let in_string str ~bel:b state ~valid ~c ~i ~len ~start =
   let n = String.length str in
   if not valid then move state (i + len) start
@@ -258,8 +262,8 @@ let in_sequence_or_escape state ~valid ~c ~i ~len ~start =
     | Some next -> move next (i + len) start
     | None -> move ~ends:[ (`Escape, start, i) ] Ground i i
 
-(* [fold_tokens f acc str] folds [f] over the tokens of [str], and gives
-   where the escape code under way at its end starts, if one is. *)
+(* [fold_tokens f acc str] folds [f] over the tokens of [str], and returns
+   the start of the escape code under way at the end of [str], if any. *)
 let fold_tokens f acc str =
   let n = String.length str in
   let emit acc (kind, start, stop) =
@@ -286,8 +290,8 @@ let fold_tokens f acc str =
   go acc 0 Ground 0
 
 (* ECMA-48 8.3.117 SELECT GRAPHIC RENDITION: CSI, parameter bytes, final byte
-   'm'. The accepted parameter bytes are a strict subset of 5.4's -- the
-   digits and ';' -- and at most 64 of them, which no real SGR reaches. *)
+   'm'. The accepted parameter bytes are the digits and ';', a strict subset
+   of those of 5.4, and at most 64 of them, more than any real SGR has. *)
 let sgr seq =
   let n = String.length seq in
   let params_ok =
