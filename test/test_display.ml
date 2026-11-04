@@ -1751,6 +1751,63 @@ let test_view_exception_close () =
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
 
+(* A task ends once, whatever its ending calls: Task.t's contract. *)
+let test_task_ends_once () =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let display = Progress.show ~progress:`Json ppf root in
+  let task = Task.start root "t" in
+  Console__.Task_driver.ending root Task.fail;
+  Task.succeed task;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  let ended =
+    List.filter
+      (fun l -> contains {|"event":"end"|} l && contains {|["t"]|} l)
+      (String.split_on_char '\n' (Buffer.contents buf))
+  in
+  Alcotest.(check int) "one end" 1 (List.length ended);
+  Alcotest.(check bool) "the first outcome" true (Task.state task = `Succeeded)
+
+(* An interrupt as a task ends, in what its ending calls or in a watcher, leaves
+   no task half ended: its subtasks end, and every watcher sees each end. *)
+let test_end_interrupted () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let commit _ = raise Sys.Break in
+  let live =
+    Progress.show ~commit
+      ~size:(fun () -> (40, 10))
+      (Format.formatter_of_buffer (Buffer.create 64))
+      root
+  in
+  let buf = Buffer.create 64 in
+  let other = Format.formatter_of_buffer buf in
+  let watcher = Progress.show ~progress:`Plain other root in
+  let parent = Task.start root "parent" in
+  let first = Task.start parent "first" in
+  let second = Task.start parent "second" in
+  Console__.Task_driver.ending root (fun r ->
+      if r == first then raise Sys.Break);
+  Alcotest.check_raises "the interrupt goes on" Sys.Break (fun () ->
+      Task.succeed parent);
+  Alcotest.(check bool)
+    "the tasks ended" true
+    (List.for_all
+       (fun task -> Task.state task = `Succeeded)
+       [ parent; first; second ]);
+  Format.pp_print_flush other ();
+  List.iter
+    (fun label ->
+      Alcotest.(check bool)
+        ("the other display saw " ^ label ^ " end")
+        true
+        (contains ("\xe2\x9c\x93 " ^ label ^ "  0.0s") (Buffer.contents buf)))
+    [ "parent \xe2\x96\xb8 first"; "parent \xe2\x96\xb8 second"; "parent" ];
+  Console__.Task_driver.ending root ignore;
+  Display.close watcher;
+  Display.close live
+
 (* A view that raises in a frame that no call to the display asked for, the
    first one or the last one, is dropped for the default view, the display
    still closes, and the next redraw or the close raises its exception. *)
@@ -2892,6 +2949,8 @@ let suite =
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;
       Alcotest.test_case "view" `Quick test_view;
+      Alcotest.test_case "a task ends once" `Quick test_task_ends_once;
+      Alcotest.test_case "a task's end interrupted" `Quick test_end_interrupted;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
       Alcotest.test_case "a view on a short terminal" `Quick test_view_short;
