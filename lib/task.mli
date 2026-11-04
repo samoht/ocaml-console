@@ -410,19 +410,19 @@ module Event : sig
   (** {1:json JSON} *)
 
   val jsont : t Jsont.t
-  (** [jsont] maps an event to its JSON object. It reads and writes [time] and
-      [elapsed] rounded to the millisecond in \[[-10{^ 12}];[10{^ 12}]\], a
-      larger magnitude as the bound and [0] if not finite, so that each reads
-      back as it was written. It encodes an integer of 10{^ 15} or more as a
-      string, and each string as valid UTF-8 without a C1 control. It decodes an
-      event of another name as [`Other] with its [time], and its [id] and [task]
-      if they have the types of {{!json}an event of a task}: its other members,
-      whatever their types, are skipped. It decodes a value of a
-      {!type-count_unit}, a {!type-level} or a {!type-status} it does not list
-      as [`Other], and skips the members it does not know. An event of a listed
-      name that lacks a member of its kind, or has a listed member of another
-      type, does not decode, and neither does a negative or fractional integer.
-  *)
+  (** [jsont] maps an event to its JSON object. It reads and writes {!val-time}
+      and {!val-elapsed} rounded to the millisecond in
+      \[[-10{^ 12}];[10{^ 12}]\], a larger magnitude as the bound and [0] if not
+      finite, so that each reads back as it was written. It encodes an integer
+      of 10{^ 15} or more as a string, and each string as valid UTF-8 without a
+      C1 control. It decodes an event of another name as [`Other] with its
+      {!val-time}, and its [id] and [task] if they have the types of
+      {{!json}an event of a task}: its other members, whatever their types, are
+      skipped. It decodes a value of a {!type-count_unit}, a {!type-level} or a
+      {!type-status} it does not list as [`Other], and skips the members it does
+      not know. An event of a listed name that lacks a member of its kind, or
+      has a listed member of another type, does not decode, and neither does a
+      negative or fractional integer. *)
 
   val of_string : string -> (t, [ `Msg of string ]) result
   (** [of_string s] is the event of the JSON object [s], decoded with {!jsont}.

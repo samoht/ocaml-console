@@ -35,11 +35,11 @@ val plain :
   ?keep_ended:bool ->
   (Task.t -> (float -> unit) -> 'a) ->
   'a * string
-(** [plain f] is the value of [f root advance] for a [root] whose tasks show on
-    a formatter that is not a terminal, in [progress] (defaults to [`Plain]),
-    and what it wrote once the work succeeded, unless [f] ended it, and the
-    display closed, as under [Console_eio.run]. [theme], if given, is set on the
-    formatter. *)
+(** [plain f] is the value of [f root advance] for a {{!Console.Task.root}root}
+    whose tasks show on a formatter that is not a terminal, in [progress]
+    (defaults to [`Plain]), and what it wrote once the work succeeded, unless
+    [f] ended it, and the display closed, as under [Console_eio.run]. [theme],
+    if given, is set on the formatter. *)
 
 type term = private {
   vte : Console_vte.t;
@@ -103,5 +103,5 @@ val check_invalid : string -> (unit -> unit) -> unit
     0.2.0. *)
 
 val skip_on_matrix_0_1 : string -> ('a -> unit) -> 'a -> unit
-(** [skip_on_matrix_0_1 fix test] is [test], skipped. [fix] names the upstream
-    change it needs. *)
+(** [skip_on_matrix_0_1 fix test v] skips the test without running [test v].
+    [fix] names the upstream change it needs. *)
