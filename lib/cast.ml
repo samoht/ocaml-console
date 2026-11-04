@@ -39,7 +39,7 @@ let field t json =
   | Ok v -> v
   | Error e -> Jsont.Error.msg Jsont.Meta.none e
 
-(* [s] with each byte that is not part of a UTF-8 character as U+FFFD. *)
+(* [s] with each ill-formed UTF-8 sequence as one U+FFFD. *)
 let utf_8 = Event.replaced (fun _ -> true)
 
 let event =
