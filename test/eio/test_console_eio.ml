@@ -344,6 +344,161 @@ let test_run_raises () =
 
 let cursor_shown buf = contains "\027[?25h" (Buffer.contents buf)
 
+(* An output that a cancelled fiber cannot write to, as an Eio flow. *)
+let flow () =
+  let buf = Buffer.create 256 in
+  let out s o l =
+    Eio.Fiber.check ();
+    Buffer.add_substring buf s o l
+  in
+  (buf, Format.make_formatter out ignore)
+
+(* A run that is cancelled still gives the terminal back. *)
+let test_cancelled_run_restores () =
+  with_clock (fun clock ->
+      let buf, ppf = flow () in
+      let started, start = Eio.Promise.create () in
+      let result =
+        Eio.Fiber.first
+          (fun () ->
+            Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+                ignore (Console.Task.start root "t");
+                Eio.Promise.resolve start ();
+                Eio.Fiber.await_cancel ()))
+          (fun () ->
+            Eio.Promise.await started;
+            "cancelled")
+      in
+      Alcotest.(check string) "the winner" "cancelled" result;
+      Alcotest.(check bool) "cursor shown" true (cursor_shown buf))
+
+(* A fiber cancelled in a view stops there: its [Cancelled] is no one else's. *)
+let test_view_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let armed = ref false in
+      let view _ =
+        Console.View.fit (fun _ ->
+            if !armed then begin
+              armed := false;
+              Eio.Fiber.yield ()
+            end;
+            Console.View.text "row")
+      in
+      let value =
+        Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+            let winner =
+              Eio.Fiber.first
+                (fun () ->
+                  armed := true;
+                  Console_eio.print (Console.View.text "line");
+                  Eio.Fiber.await_cancel ())
+                (fun () -> "winner")
+            in
+            Alcotest.(check string) "the winner" "winner" winner;
+            42)
+      in
+      Alcotest.(check int) "the run's value" 42 value)
+
+(* Cancelled around [with_output], it is still cancelled. *)
+let test_with_output_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let winner =
+            Eio.Fiber.first
+              (fun () ->
+                Console_eio.with_output (fun _ -> Eio.Fiber.await_cancel ()))
+              (fun () -> "winner")
+          in
+          Alcotest.(check string) "the winner" "winner" winner;
+          let task = ref None in
+          Eio.Fiber.first
+            (fun () ->
+              Console.Task.run root "inner" (fun t ->
+                  task := Some t;
+                  Console_eio.with_output (fun _ -> Eio.Fiber.await_cancel ())))
+            ignore;
+          Alcotest.(check bool)
+            "the task is cancelled" true
+            (Option.map Console.Task.state !task = Some `Cancelled)))
+
+(* A reader that pauses as a run ends loses nothing: a pager, say. *)
+let test_reader_pauses () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and paused = ref false in
+      let out s o l =
+        if !paused then Eio_unix.sleep 1.2;
+        Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Plain (fun root ->
+          ignore (Console.Task.start root "the last line");
+          paused := true);
+      Alcotest.(check bool)
+        "the last line" true
+        (contains "the last line" (Buffer.contents buf)))
+
+(* An output that takes nothing holds up the end of a cancelled run for a second
+   at most, and the next run starts. *)
+let test_output_stalls () =
+  with_clock (fun clock ->
+      let stalled = ref false in
+      let out _ _ _ = if !stalled then Eio.Fiber.await_cancel () in
+      let ppf = Format.make_formatter out ignore in
+      let start = Unix.gettimeofday () in
+      let result =
+        Eio.Fiber.first
+          (fun () ->
+            Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+                ignore (Console.Task.start root "t");
+                stalled := true;
+                Eio.Fiber.await_cancel ()))
+          (fun () ->
+            Eio.Fiber.yield ();
+            "cancelled")
+      in
+      let waited = Unix.gettimeofday () -. start in
+      Alcotest.(check string) "the winner" "cancelled" result;
+      if waited > 1.5 then Alcotest.failf "the run waited %.2fs" waited;
+      Console_eio.run ~clock ~progress:`Plain ignore)
+
+(* A [Cancelled] in a fiber that nothing cancelled is a view's own exception. *)
+let test_view_foreign_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let foreign = Eio.Cancel.Cancelled Not_found in
+      let view _ = Console.View.fit (fun _ -> raise foreign) in
+      let printed = ref false in
+      Alcotest.check_raises "the run" foreign (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+              Console_eio.print (Console.View.text "line");
+              printed := true));
+      Alcotest.(check bool) "the print went on" true !printed)
+
+(* A report is no point of cancellation: cleanup that reports or logs in a
+   cancelled fiber runs to its end, and the fiber is still cancelled after. *)
+let test_report_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let task = Console.Task.start root "t" in
+          let cleaned = ref false in
+          let winner =
+            Eio.Fiber.first
+              (fun () ->
+                Fun.protect
+                  ~finally:(fun () ->
+                    Console.Task.set_items task ~count:1 ~total:2;
+                    Logs.app (fun m -> m "cleaning up");
+                    Console.Task.log task "cleaned";
+                    cleaned := true)
+                  Eio.Fiber.await_cancel)
+              (fun () -> "winner")
+          in
+          Alcotest.(check string) "the winner" "winner" winner;
+          Alcotest.(check bool) "the cleanup ended" true !cleaned))
+
 (* A run that ends well closes however its last task ends, and what the commit
    raised goes on. *)
 let test_commit_raises_at_end () =
@@ -1044,6 +1199,17 @@ let suite =
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
+      Alcotest.test_case "a cancelled run restores the terminal" `Quick
+        test_cancelled_run_restores;
+      Alcotest.test_case "cancelled in a view" `Quick test_view_cancelled;
+      Alcotest.test_case "cancelled around with_output" `Quick
+        test_with_output_cancelled;
+      Alcotest.test_case "a reader that pauses" `Quick test_reader_pauses;
+      Alcotest.test_case "an output that stalls" `Quick test_output_stalls;
+      Alcotest.test_case "a foreign Cancelled" `Quick
+        test_view_foreign_cancelled;
+      Alcotest.test_case "a report in a cancelled fiber" `Quick
+        test_report_cancelled;
       Alcotest.test_case "a commit raises as the run ends" `Quick
         test_commit_raises_at_end;
       Alcotest.test_case "the output breaks as the run ends" `Quick
