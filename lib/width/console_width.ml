@@ -3,7 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* No closure: a width is measured for every atom of every frame. *)
+(* A top-level loop with no closure: [is_ascii] runs on every atom of every
+   frame. *)
 let rec ascii_from s i n =
   i >= n
   || (Char.Ascii.is_print (String.unsafe_get s i) && ascii_from s (i + 1) n)
@@ -14,17 +15,17 @@ let is_ascii_sub s ~pos ~len =
   let rec go i = i >= pos + len || (Char.Ascii.is_print s.[i] && go (i + 1)) in
   go pos
 
-(* A spacing mark is of general category Mc, or a SpacingMark of UAX #29
-   that is not: Thai SARA AM U+0E33 and Lao AM U+0EB3, letters (Lo) that
-   join their consonant's cluster and that terminals draw in a cell of
+(* A spacing mark is of general category Mc or a SpacingMark of UAX #29.
+   The second adds Thai SARA AM U+0E33 and Lao AM U+0EB3, letters (Lo) that
+   join the cluster of their consonant and that terminals draw in a cell of
    their own. *)
 let is_mark u =
   Uucp.Gc.general_category u = `Mc || Uucp.Break.grapheme_cluster u = `SM
 
 let is_spacing_mark c = Uchar.is_valid c && is_mark (Uchar.unsafe_of_int c)
 
-(* A character that is text by default and that VS16 shows as an emoji:
-   emoji, with no emoji presentation, the bases of
+(* Whether [u] is text by default and shown as an emoji by a VS16 after
+   it: an emoji with no emoji presentation, as are the bases of
    emoji-variation-sequences.txt. *)
 let is_text_emoji u =
   Uucp.Emoji.is_emoji u && not (Uucp.Emoji.is_emoji_presentation u)
@@ -35,16 +36,18 @@ let is_regional_indicator u =
 
 let vs16 = Uchar.of_int 0xfe0f
 
-(* A character that no rule of UAX #29 but GB9b and GB999 reads starts a
-   cluster after any character but a prepend, as printable ASCII does. *)
+(* Whether no rule of UAX #29 other than GB9b and GB999 applies to [u].
+   Such a character starts a cluster after any character except a prepend,
+   as printable ASCII does. *)
 let is_alone u =
   Uucp.Break.grapheme_cluster u = `XX
   && Uucp.Break.indic_conjunct_break u = `None
   && not (Uucp.Emoji.is_extended_pictographic u)
 
-(* What the widths read of a character, from uucp, in a byte: its cells
-   (bits 0-1), whether it is a spacing mark (bit 2), a text emoji (bit 3)
-   and {!is_alone} (bit 5), with bit 4 set. *)
+(* The uucp properties of [u] that widths depend on, packed in a byte: its
+   cells (bits 0-1), whether it is a spacing mark (bit 2), a text emoji
+   (bit 3) and {!is_alone} (bit 5). Bit 4 is always set, so that [0] in
+   {!cached} means not computed yet. *)
 let props_of u =
   let w = max 0 (Uucp.Break.tty_width_hint u) in
   w
@@ -54,10 +57,10 @@ let props_of u =
   lor if is_alone u then 32 else 0
 
 (* The bytes of [props_of] for the first two planes, where most text is,
-   each computed once as it is first read: uucp's lookups of general
-   category and East Asian width take tens of nanoseconds and allocate. A
-   byte read as 0 by a domain racing another's write is computed again. The
-   cache is made at the first lookup, not as the module loads, and published
+   each computed when first read: uucp's lookups of general category and
+   East Asian width take tens of nanoseconds and allocate. A domain that
+   reads [0] while another writes the byte computes it again. The cache is
+   made at the first lookup rather than when the module loads, and published
    through an Atomic rather than a Lazy, which raises when two domains force
    it at once. *)
 let cache = Atomic.make Bytes.empty
@@ -88,10 +91,10 @@ let decode s i stop =
   if i + Uchar.utf_decode_length d <= stop then d
   else String.get_utf_8_uchar (String.sub s i (stop - i)) 0
 
-(* The cluster under way: where it starts, the cells of its widest
-   character, those of its spacing marks, its regional indicators, whether
-   a VS16 shows it as an emoji, and whether its last character is a text
-   emoji. *)
+(* The cluster being read: where it starts, the cells of its widest
+   character and of its spacing marks, its number of regional indicators,
+   whether a VS16 shows it as an emoji, and whether its last character is a
+   text emoji. *)
 type cluster = {
   mutable start : int;
   mutable widest : int;
@@ -135,9 +138,10 @@ let cluster_at start =
     after_text_emoji = false;
   }
 
-(* Printable ASCII between printable ASCII is a cluster of one cell (GB999),
-   and the segmenter, whose last character is printable ASCII too, is in the
-   state it would be after it. *)
+(* Whether the byte at [i] is printable ASCII between printable ASCII bytes
+   or [stop]. Such a byte is a cluster of one cell (GB999), and {!segment}
+   can skip it: after the printable ASCII byte before it, the segmenter is
+   already in the state that feeding it would leave. *)
 let is_lone_ascii s i stop =
   Char.Ascii.is_print s.[i - 1]
   && Char.Ascii.is_print s.[i]
@@ -145,8 +149,9 @@ let is_lone_ascii s i stop =
 
 (* [segment f acc s ~pos ~len] folds [f] over the grapheme clusters
    (UAX #29) of [s] from [pos] for [len] bytes, given as their offset,
-   length and cells. [out] is where the next character the segmenter gives
-   back starts: the one just added at [i], of [n] bytes, or one before. *)
+   length and cells. [out] is the offset of the next character the
+   segmenter gives back: the one just added at [i], [n] bytes long, or one
+   before it. *)
 let segment f acc s ~pos ~len =
   let stop = pos + len in
   let seg = Uuseg.create `Grapheme_cluster in
@@ -191,16 +196,18 @@ let segment f acc s ~pos ~len =
   close stop;
   !acc
 
-(* The bytes of [s] from [i] to [stop] are copies of the [k] at [pos]. No
-   closure, as {!ascii_from}. *)
+(* Whether the bytes of [s] from [i] to [stop] repeat the [k] bytes at
+   [pos], [j] being the offset into them. No closure, as in
+   {!ascii_from}. *)
 let rec copies s ~pos ~k j i stop =
   i >= stop
   || String.unsafe_get s i = String.unsafe_get s (pos + j)
      && copies s ~pos ~k (if j + 1 = k then 0 else j + 1) (i + 1) stop
 
-(* A single character, such as a glyph of a frame, a bar or a spinner, is a
-   cluster alone and takes its own cells, and so is each copy of one that
-   {!is_alone}, such as the fill of a bar or a rule. *)
+(* Two cases skip {!segment}. A single character, such as a glyph of a
+   frame, a bar or a spinner, is one cluster. A run of copies of a character
+   that {!is_alone}, such as the fill of a bar or a rule, is one cluster per
+   copy. *)
 let fold_cells f acc s ~pos ~len =
   if len = 0 then acc
   else
@@ -236,7 +243,8 @@ let sub_width s ~pos ~len =
   if is_ascii_sub s ~pos ~len then len
   else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
 
-(* The last character of [a], which ends with a byte that is not ASCII. *)
+(* The last character of [a], when [a] ends with a byte that is not
+   ASCII. *)
 let last_char a =
   let n = String.length a in
   let rec ending i =
@@ -258,8 +266,9 @@ let last_char a =
       in
       last 0 (String.get_utf_8_uchar a 0)
 
-(* Printable ASCII, and any character that {!is_alone}, starts a cluster
-   after any character but a prepend (UAX #29 GB9b, GB999). *)
+(* [b] starts a cluster of its own if its first character is printable
+   ASCII or {!is_alone} and the last character of [a] is not a prepend
+   (UAX #29 GB9b, GB999). A malformed last character may join. *)
 let joins a b =
   let n = String.length a in
   n > 0

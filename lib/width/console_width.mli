@@ -6,9 +6,9 @@
 (** Text width in terminal cells. *)
 
 val string_width : string -> int
-(** [string_width s] is the cells a terminal takes to draw [s], a text with no
-    control character. Each grapheme cluster (UAX #29) takes the cells of its
-    widest character, by its East Asian width (UAX #11):
+(** [string_width s] is the number of cells a terminal takes to draw [s], a text
+    with no control character. Each grapheme cluster (UAX #29) takes the cells
+    of its widest character, by its East Asian width (UAX #11):
     - a wide character takes two cells, a combining mark, a format character and
       a control none, and any other character one;
     - an emoji sequence takes two cells. A ZWJ sequence, a skin tone, a flag, a
@@ -18,9 +18,9 @@ val string_width : string -> int
       its vowel sign take two, and a wide mark adds two. A spacing mark is of
       general category Mc, or is Thai SARA AM U+0E33 or Lao AM U+0EB3, letters
       that UAX #29 makes spacing marks;
-    - a VS16 shows as an emoji only the character before it that is text by
-      default, a base of emoji-variation-sequences.txt; after any other it
-      selects nothing and adds no cell.
+    - a VS16 shows the character before it as an emoji only if that character is
+      text by default, a base of emoji-variation-sequences.txt; after any other
+      character it selects nothing and adds no cell.
 
     A character with no emoji presentation, such as U+2764 or U+203C, is text
     and takes one cell. A malformed byte takes the cell of U+FFFD.
@@ -28,8 +28,8 @@ val string_width : string -> int
     This is how terminals that cluster graphemes draw text, kitty and Ghostty
     among them. Terminals that give each code point its own width, xterm and VTE
     among them, differ. They draw a ZWJ sequence or a skin tone as the sum of
-    its emoji, and an emoji that VS16 selects in one cell. The cells each takes
-    are in test/width/widths.txt. *)
+    its emoji, and an emoji that VS16 selects in one cell. test/width/widths.txt
+    lists the cells each terminal takes. *)
 
 val sub_width : string -> pos:int -> len:int -> int
 (** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)
@@ -49,8 +49,8 @@ val is_spacing_mark : int -> bool
 
 val joins : string -> string -> bool
 (** [joins a b] is [false] if the last cluster of [a] ends where [b] starts, so
-    that [string_width (a ^ b)] is [string_width a + string_width b]. It is
-    [true] when it may not. *)
+    that [string_width (a ^ b)] is [string_width a + string_width b], and [true]
+    if a cluster may span both. *)
 
 val is_ascii : string -> bool
-(** [is_ascii s] is [true] iff [s] is printable ASCII, a cell a byte. *)
+(** [is_ascii s] is [true] iff [s] is printable ASCII, one cell per byte. *)
