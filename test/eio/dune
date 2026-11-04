@@ -34,6 +34,7 @@
  (name tty)
  (modules tty)
  (libraries
+  fmt
   pty_reader
   console
   console_vte

@@ -12,8 +12,8 @@ behind it, and the program's sleeps take no real time.
 The two builds of examples/columns take the time of the longer, 26 sleeps
 of 0.11 seconds, when the last write comes:
 
-  $ tail -1 columns.cast | cut -c 1-12
-  [2.86,"o","\
+  $ ../tty.exe --times columns.cast | tail -1
+  2.86
 
 Two recordings are the same bytes:
 
@@ -38,8 +38,8 @@ A program that prints without a run is recorded from Console_tty.setup
 on, each write at time zero, and the recording leaves its screen too:
 
   $ CONSOLE_CAST=charts.cast ../../../examples/charts/main.exe
-  $ tail -n +2 charts.cast | cut -c 1-6 | sort -u
-  [0,"o"
+  $ ../tty.exe --times charts.cast | sort -u
+  0
   $ ../tty.exe ../../../examples/charts/main.exe > terminal
   $ ../tty.exe --cast charts.cast > recorded
   $ cmp terminal recorded
