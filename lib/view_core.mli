@@ -69,25 +69,55 @@ val resolve : Ctx.t -> t -> t
 (** {1:views Views} *)
 
 val empty : t
+(** [empty] is {!View.empty}. *)
+
 val is_empty : t -> bool
+(** [is_empty v] is [true] iff [v] has no text at its natural size. *)
+
 val text : string -> t
+(** [text s] is {!View.text}. *)
 
 val ink : Style.t -> string -> t
 (** [ink style s] is [styled style (text s)]. *)
 
 val link : uri:string -> t -> t
+(** [link ~uri v] is {!View.link}. *)
+
 val styled : Style.t -> t -> t
+(** [styled base v] is {!View.styled}. *)
+
 val role : Theme.role -> t -> t
+(** [role r v] is {!View.role}. *)
+
 val gradient : ?colors:Color.t list -> t -> t
+(** [gradient ~colors v] is {!View.gradient}. *)
+
 val ( ++ ) : t -> t -> t
+(** [v0 ++ v1] is [v0] followed by [v1]. *)
+
 val concat : ?sep:t -> t list -> t
+(** [concat ~sep views] is {!View.concat}. *)
+
 val hcat : ?gap:int -> t list -> t
+(** [hcat ~gap views] is {!View.hcat}. *)
+
 val vcat : ?gap:int -> t list -> t
+(** [vcat ~gap views] is {!View.vcat}. *)
+
 val fit : ?min_width:int -> ?grow:int -> (Ctx.t -> t) -> t
+(** [fit ~min_width ~grow f] is {!View.fit}. *)
+
 val sized : ?width:int -> ?height:int -> t -> t
+(** [sized ~width ~height v] is {!View.sized}. *)
+
 val place : ?align:align -> ?width:int -> ?height:int -> t -> t
+(** [place ~align ~width ~height v] is {!View.place}. *)
+
 val width : t -> int
+(** [width v] is {!View.width}. *)
+
 val height : t -> int
+(** [height v] is {!View.height}. *)
 
 val ellipsis : string
 (** [ellipsis] is U+2026. *)
@@ -99,9 +129,16 @@ val truncate : ?ellipsis:string -> int -> t -> t
     fit in them. *)
 
 val crop : ?left:int -> ?width:int -> t -> t
+(** [crop ~left ~width v] is {!View.crop}. *)
+
 val wrap : ?words:(string -> string list) -> int -> t -> t list
+(** [wrap ~words w v] is {!View.wrap}. *)
+
 val pp : t Fmt.t
+(** [pp] is {!View.pp}. *)
+
 val to_string : ?styled:bool -> t -> string
+(** [to_string ~styled v] is {!View.to_string}. *)
 
 (** {1:widgets For the widgets}
 
