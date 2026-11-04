@@ -114,7 +114,7 @@ let downloads =
 let longest =
   List.fold_left (fun n d -> max n (String.length d.message)) 0 downloads
 
-let find label = List.find (fun d -> d.message = label) downloads
+let download_of_label label = List.find (fun d -> d.message = label) downloads
 
 (* As [Formatter.disk_usage_readable_size_unit]: decimal units, to one
    decimal, the unit right-aligned in two cells. *)
@@ -165,7 +165,9 @@ let row t =
   View.fit (fun room ->
       let width = Option.value (Room.width room) ~default:80 - 2 in
       let spinner = Progress.row ~layout:Progress.Layout.spinner t in
-      let rest = View.text (line ~width (find (Task.label t)) (count t)) in
+      let rest =
+        View.text (line ~width (download_of_label (Task.label t)) (count t))
+      in
       View.(spinner ++ text " " ++ rest))
 
 let view root =
@@ -179,7 +181,7 @@ let check = View.role `Succeeded (View.text "✔︎")
 
 (* A download that is done stays in the scrollback, checked. *)
 let commit t =
-  let d = find (Task.label t) in
+  let d = download_of_label (Task.label t) in
   Some
     (View.fit (fun room ->
          let width = Option.value (Room.width room) ~default:80 - 2 in
