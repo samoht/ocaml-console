@@ -260,6 +260,17 @@ let test_hostile_bytes () =
             ]
             (lines file)))
 
+(* asciicast v2, "o": non-printable code points are encoded as \\uXXXX. Here
+   DEL and the C1 control NEL, which JSON itself would let through. *)
+let test_non_printable () =
+  recording (fun file ->
+      let _, ppf = buffered () in
+      started ppf;
+      write ppf "a\x7f\xc2\x85b";
+      check_lines "escaped"
+        [ header; {|[0,"o","a\u007F\u0085b"]|} ]
+        (lines file))
+
 let test_large_write () =
   recording (fun file ->
       let _, ppf = buffered () in
@@ -443,6 +454,7 @@ let suite =
       Alcotest.test_case "time" `Quick test_time;
       Alcotest.test_case "cut short" `Quick test_cut_short;
       Alcotest.test_case "hostile bytes" `Quick test_hostile_bytes;
+      Alcotest.test_case "non-printable code points" `Quick test_non_printable;
       Alcotest.test_case "a large write" `Quick test_large_write;
       Alcotest.test_case "the same file goes on" `Quick test_same_file;
       Alcotest.test_case "another file ends it" `Quick test_other_file;
