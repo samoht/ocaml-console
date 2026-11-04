@@ -11,9 +11,17 @@ type t
     started, [0.] for a view printed once. *)
 
 val look : t -> Look.t
+(** [look c] is the look a view is drawn in. *)
+
 val width : t -> int option
+(** [width c] is {!Room.width}. *)
+
 val height : t -> int option
+(** [height c] is {!Room.height}. *)
+
 val time : t -> float
+(** [time c] is the seconds since the display that draws the view started, [0.]
+    for a view printed once. *)
 
 val v : ?width:int -> ?height:int -> ?time:float -> Look.t -> t
 (** [v ~width ~height ~time look] is that room (defaults: unbounded, at time
