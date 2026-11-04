@@ -1,0 +1,21 @@
+; What loading console costs: a program that links console pays, as it starts,
+; for every value a console module builds as it loads, whether it draws
+; anything or not. Every module of every library is linked, so each
+; initialiser runs, and init_first comes first, so it samples them all.
+
+(test
+ (name test)
+ (package console-eio)
+ (deps
+  (glob_files_rec %{project_root}/lib/**.ml))
+ (link_flags (-linkall))
+ (libraries
+  init_first
+  console
+  console.text
+  console_width
+  console.input
+  console.tty
+  console-eio
+  alcotest
+  fmt))
