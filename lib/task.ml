@@ -19,17 +19,32 @@ let rec children t =
 
 let root ?label ~now () = Task_core.root ?label ~now ()
 
+(* What a program reads includes what other domains sent. *)
+let settled f t =
+  settle t;
+  f t
+
+let label t = settled Task_core.label t
+let state t = settled Task_core.state t
+let message t = settled Task_core.message t
+let dropped t = settled Task_core.dropped t
+let children t = settled children t
+
 let start ?key ?log_lines ?transient parent label =
   fst (Task_core.start ?key ?log_lines ?transient parent label)
 
 let progress (t : t) : progress =
+  settle t;
   match metric t with
   | Spin -> `Spin
   | Count (c, n) -> `Items (c, n)
   | Bytes (c, n) -> `Bytes (c, n)
 
 let output t =
+  settle t;
   List.rev
     (Queue.fold (fun acc (l : Task_core.line) -> l.text :: acc) [] (output t))
 
-let rate t = match rate t with r when r > 0. -> Some r | _ -> None
+let rate t =
+  settle t;
+  match rate t with r when r > 0. -> Some r | _ -> None

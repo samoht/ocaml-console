@@ -1,7 +1,7 @@
-(copy_files ../../lib/eio/terminal.{ml,mli})
+(copy_files ../../lib/tty/terminal.{ml,mli})
 
-; Terminal is private to console-eio: its copy is built as console-eio builds
-; it, with the modules of console in scope.
+; Terminal is private to console.driver: its copy is built as console.driver
+; builds it, with the modules of console in scope.
 
 (library
  (name terminal)
@@ -9,7 +9,7 @@
  (modules terminal)
  (flags
   (:standard -open Console__))
- (libraries console eio eio.unix unix))
+ (libraries console console.tty fmt unix))
 
 (executable
  (name teardown)
@@ -54,6 +54,7 @@
  (libraries
   console
   console-eio
+  console.tty
   eio
   eio.mock
   eio_main

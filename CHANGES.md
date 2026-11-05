@@ -19,8 +19,8 @@
 - `Console_eio.redraw`, to draw the display now instead of at the next refresh
   (#10).
 
-- `Console_eio.width`, to fit output printed outside `Console_eio.run` to the
-  terminal, or to `$COLUMNS` on a pipe (#13).
+- `Console_tty.width`, to fit output printed outside `Console_eio.run` to the
+  terminal, or to `$COLUMNS` on a pipe (#13, #61).
 
 - `Env.setup` and `Env.ensure`, to apply console's colour and UTF-8 rules in a
   program that can't link Unix (#11).
@@ -28,7 +28,12 @@
 - `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#34).
 
+- `console.driver`, to run console on a scheduler other than Eio (#61).
+
 ### Changed
+
+- `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
+  needs no scheduler (#61).
 
 - `Console_input` limits a line to 4095 bytes (`?max_line`) and its history to
   500 lines (`?history_size`). Typing past the limit rings the bell (#1).
@@ -55,6 +60,17 @@
 
 ### Fixed
 
+- `Task` and `Display` now work from any domain, so a worker of an
+  `Eio.Executor_pool` can report progress. `Task.advance` from several domains
+  used to lose steps, and `Task.log` could end the program (#57).
+
+- `Console_eio.run` from another domain now joins the run under way instead of
+  raising `Invalid_argument` (#57).
+
+- A `Logs` message from a worker domain no longer waits for the display, so a
+  program that waits for its workers no longer hangs. Past 4 MiB of waiting
+  lines, the oldest are dropped and a line says how many (#59).
+
 - `Console_eio.run` now restores the terminal and shows the cursor when a view,
   a hook or the output raises (#26), when a signal comes after a view raised,
   and when a view calls `exit` (#43). An output that breaks as a run ends no
@@ -66,6 +82,10 @@
 - A signal or an `exit` that can't reach the display still shows the cursor,
   and ends an escape code cut in half. This covers another domain or thread,
   and a write that does not end within a second (#37).
+
+- Progress rows short of room keep their count and time in their columns, and
+  a label a task was renamed from no longer widens its column once the task
+  ends (#58).
 
 - A SIGINT or SIGTERM now ends the program when it is handled in another
   domain, and when giving the terminal back fails (#37).
@@ -98,6 +118,9 @@
 
 - `CONSOLE_CAST` recordings are now valid asciicast v2: the header is UTF-8
   whatever `$TERM` holds, and C1 control characters are escaped (#50).
+
+- `Bar.horizontal ~brackets:true` given a width near `max_int` now fills its
+  room, instead of drawing one cell or none (#60).
 
 ## 0.9.0 (29/10/2026)
 

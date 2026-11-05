@@ -74,13 +74,15 @@ let test_logs_outside () =
 let test_scope () =
   let current = ref None in
   let scope =
-    Driver.scope
-      ~current:(fun () -> !current)
-      ~within:(fun task f ->
-        let saved = !current in
-        current := Some task;
-        Fun.protect f ~finally:(fun () -> current := saved))
-      ~cancelled:(fun _ -> false)
+    {
+      Driver.current = (fun () -> !current);
+      within =
+        (fun task f ->
+          let saved = !current in
+          current := Some task;
+          Fun.protect f ~finally:(fun () -> current := saved));
+      cancelled = (fun _ -> false);
+    }
   in
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in

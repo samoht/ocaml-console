@@ -77,14 +77,16 @@ let horizontal ?style ?track ?(brackets = false) ?width frac =
     v ?style ?track ~brackets ~width:(Option.value width ~default:10) frac
   in
   let frame = if brackets then 2 else 0 in
+  (* Adding the brackets saturates at [max_int]. *)
+  let framed w = min w (max_int - frame) + frame in
   View_core.deferred
     ~grow:(if width = None then 1 else 0)
     (fun c ->
       let cells =
         match (width, Ctx.width c) with
         | None, Some room -> max 0 room
-        | Some w, Some room -> min (w + frame) (max 0 room)
-        | _, None -> t.width + frame
+        | Some w, Some room -> min (framed w) (max 0 room)
+        | _, None -> framed t.width
       in
       let t =
         if brackets && cells >= 3 then { t with width = cells - 2 }

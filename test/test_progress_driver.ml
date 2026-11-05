@@ -120,7 +120,7 @@ let test_keep_ended () =
   check_shown "kept to the last frame"
     (printed
     @ [
-        "\u{2713} fine     0.0s";
+        "\u{2713} fine                        0.0s";
         "\u{2717} broken: Failure(\"broken\")   0.0s";
         "  \u{203a} loud line";
       ]

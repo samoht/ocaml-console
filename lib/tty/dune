@@ -3,6 +3,9 @@
  (public_name console.tty)
  (flags
   (:standard -open Console__))
+ (foreign_stubs
+  (language c)
+  (names console_tty_stubs))
  (libraries console fmt unix))
 
 (mdx

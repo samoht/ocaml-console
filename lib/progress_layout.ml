@@ -53,8 +53,9 @@ let one ?stage kind =
   [ { kind; stage; blank } ]
 
 (* The stages at which pieces give way: 1 for the rate and the time left, 2
-   for the bar and the percentage, 4 for the elapsed time. The count has no
-   stage: it gets shorter at stage 3 ([Progress_row.apart]). *)
+   for the bar and the percentage, 5 for the elapsed time. The label is cut at
+   stage 3 and the count gets shorter at stage 4, as [Progress_row] draws
+   them. *)
 let spinner = one Spinner
 let label ?(style = Style.bold) () = one (Label style)
 
@@ -69,7 +70,7 @@ let percent = one ~stage:2 Percent
 let count = one Count
 let rate = one ~stage:1 Rate
 let eta = one ~stage:1 Eta
-let elapsed = one ~stage:4 Elapsed
+let elapsed = one ~stage:5 Elapsed
 let spacer = one Spacer
 let const v = one (Const v)
 let custom f = one (Custom f)

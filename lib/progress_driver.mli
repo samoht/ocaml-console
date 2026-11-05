@@ -6,7 +6,7 @@
 (** Showing tasks for a scheduler.
 
     This module is internal to console: [Console] does not expose it, and
-    [console-eio] reads it through [Console__]. *)
+    [console.driver] reads it through [Console__]. *)
 
 val show :
   write_error:(exn -> bool) ->

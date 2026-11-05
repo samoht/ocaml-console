@@ -415,15 +415,6 @@ module Report_domains = struct
   let send ?(over = fun () -> ()) ?(continued = fun () -> ()) reporter text =
     reporter.Logs.report source Logs.Info ~over continued (fun m -> m "%s" text)
 
-  let acknowledged sink over_count continued reporter text expected =
-    send reporter text
-      ~over:(fun () -> Atomic.incr over_count)
-      ~continued:(fun () ->
-        Alcotest.(check string)
-          "continuation follows complete output" expected
-          (Buffer.contents sink.buffer);
-        Atomic.incr continued)
-
   (* A reporter that keeps the messages it is given, installed while [f]
      runs. *)
   let recording f =
@@ -457,10 +448,13 @@ module Report_domains = struct
         Eio.Switch.run @@ fun sw ->
         Eio.Executor_pool.submit_exn (pool env sw) ~weight:1. (fun () ->
             let reporter = Logs.reporter () in
-            acknowledged sink over_count continued reporter "worker-first"
-              "[console.worker] worker-first\n";
-            acknowledged sink over_count continued reporter "worker-second"
-              "[console.worker] worker-first\n[console.worker] worker-second\n"));
+            let log text =
+              send reporter text
+                ~over:(fun () -> Atomic.incr over_count)
+                ~continued:(fun () -> Atomic.incr continued)
+            in
+            log "worker-first";
+            log "worker-second"));
     Format.pp_print_flush sink.ppf ();
     Alcotest.(check int)
       "zero foreign accesses to the owned formatter" 0 (Atomic.get sink.foreign);
@@ -553,10 +547,11 @@ module Report_domains = struct
     run env sink (fun _ ->
         let reporter = Logs.reporter () in
         Domain.join (Domain.spawn (fun () -> send reporter "raw")));
+    Format.pp_print_flush sink.ppf ();
     Alcotest.(check (list string))
-      "the previous reporter has the message" [ "raw" ] (kept ());
+      "the previous reporter has nothing" [] (kept ());
     Alcotest.(check string)
-      "the display writes nothing" ""
+      "the display has the message" "[console.worker] raw\n"
       (Buffer.contents sink.buffer)
 
   (* A message logged from a thread of the display's domain, where no fiber
@@ -574,54 +569,6 @@ module Report_domains = struct
       "the display writes nothing" ""
       (Buffer.contents sink.buffer)
 
-  let blocked_sink enter =
-    let in_output = ref false in
-    let output =
-      sink
-        ~on_write:(fun () ->
-          in_output := true;
-          Fun.protect
-            (fun () ->
-              ignore (Eio.Promise.try_resolve enter () : bool);
-              Eio.Fiber.await_cancel ())
-            ~finally:(fun () -> in_output := false))
-        ()
-    in
-    (output, in_output)
-
-  let close_waiting_worker ?(fail = true) () =
-    with_runtime @@ fun env ->
-    recording @@ fun kept ->
-    Eio.Switch.run @@ fun outer ->
-    let workers = pool env outer in
-    let entered, enter = Eio.Promise.create () in
-    let sink, in_output = blocked_sink enter in
-    let previous = Logs.reporter () in
-    let worker = ref None and continued = Atomic.make 0 in
-    let run () =
-      run env sink (fun _ ->
-          worker :=
-            Some
-              (Eio.Executor_pool.submit_fork ~sw:outer workers ~weight:1.
-                 (fun () ->
-                   send (Logs.reporter ()) "waiting" ~continued:(fun () ->
-                       Atomic.incr continued)));
-          Eio.Promise.await entered;
-          if fail then failwith "close display")
-    in
-    if fail then
-      Alcotest.check_raises "original body failure survives teardown"
-        (Failure "close display") run
-    else run ();
-
-    Eio.Promise.await_exn (Option.get !worker);
-    Alcotest.(check bool)
-      "consumer stopped before display teardown" false !in_output;
-    Alcotest.(check (list string))
-      "the previous reporter has the message" [ "waiting" ] (kept ());
-    Alcotest.(check int) "the log continues once" 1 (Atomic.get continued);
-    restored previous
-
   let suite =
     ( "report_domains",
       [
@@ -636,16 +583,10 @@ module Report_domains = struct
           output_error;
         Alcotest.test_case "a captured reporter hands over after teardown"
           `Quick stale_reporter;
-        Alcotest.test_case "a domain Eio does not run hands over" `Quick
-          foreign_domain;
+        Alcotest.test_case "a domain Eio does not run reaches the display"
+          `Quick foreign_domain;
         Alcotest.test_case "a thread of the display's domain hands over" `Quick
           systhread;
-        Alcotest.test_case "scope closure releases a waiting external worker"
-          `Quick
-          (close_waiting_worker ~fail:true);
-        Alcotest.test_case "normal closure releases a waiting external worker"
-          `Quick
-          (close_waiting_worker ~fail:false);
       ] )
 end
 

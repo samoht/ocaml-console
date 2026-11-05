@@ -18,4 +18,6 @@ let ensure () =
     (fun (ppf, fd) -> Console.Env.ensure ~is_tty:(Unix.isatty fd) ppf)
     outputs
 
-let is_terminal fd = Unix.isatty fd && not (Colour.dumb ~getenv:Sys.getenv_opt)
+let is_terminal = Terminal.is_terminal
+let size = Terminal.size
+let width = Terminal.width_of

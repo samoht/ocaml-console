@@ -797,18 +797,102 @@ let test_nested_run_reuses_the_display () =
            ~prefix:"\xe2\x80\xa2 nested work\n\xe2\x9c\x93 nested work"
            (Buffer.contents buf)))
 
-(* A display in another domain is refused, and the one that runs is not
-   disturbed. *)
-let test_second_display_refused () =
+(* A run in another domain joins the one that runs: there is one terminal. *)
+let test_run_in_another_domain_joins () =
   Eio_main.run @@ fun env ->
   let clock = Eio_mock.Clock.Mono.make () in
-  let _, ppf = buffer () in
-  Console_eio.run ~clock ~ppf (fun _ ->
-      Eio.Domain_manager.run (Eio.Stdenv.domain_mgr env) (fun () ->
-          Alcotest.check_raises "refused"
-            (Invalid_argument "Console_eio.run: a display is already running")
-            (fun () -> Console_eio.run ~clock ~ppf ignore)));
+  let buf, ppf = buffer () in
+  let inner =
+    Console_eio.run ~clock ~ppf ~progress:`Plain (fun root ->
+        let outer = Console.Task.start root "outer" in
+        let inner, in_root =
+          Eio.Domain_manager.run (Eio.Stdenv.domain_mgr env) (fun () ->
+              Console_eio.run ~clock ~ppf (fun given ->
+                  Console.Task.run given "from a worker" (fun t ->
+                      Console.Task.set_items t ~count:1 ~total:1;
+                      (t, given == root))))
+        in
+        Alcotest.(check bool) "given the run's root" true in_root;
+        Console.Task.succeed outer;
+        inner)
+  in
+  Alcotest.(check bool) "succeeded" true (Console.Task.state inner = `Succeeded);
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "shown by the run" true
+    (Astring.String.is_infix ~affix:"from a worker" (Buffer.contents buf));
   Console_eio.run ~clock ~ppf ignore
+
+(* A worker of an Eio pool reports as a fiber of the run does. *)
+let test_workers_report () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let clock = Eio.Stdenv.mono_clock env in
+  let pool =
+    Eio.Executor_pool.create ~sw ~domain_count:3 (Eio.Stdenv.domain_mgr env)
+  in
+  let buf, ppf = buffer () in
+  let steps = 10_000 in
+  let count =
+    Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+        Console.Task.run root "work" (fun t ->
+            Console.Task.set_items t ~count:0 ~total:(4 * steps);
+            Eio.Fiber.List.iter
+              (fun d ->
+                Eio.Executor_pool.submit_exn pool ~weight:1. (fun () ->
+                    Console.Task.log t (Fmt.str "worker %d" d);
+                    Fmt.kstr
+                      (fun s -> Console_eio.print (Console.View.text s))
+                      "above %d" d;
+                    Console_eio.with_output (fun ppf ->
+                        Fmt.pf ppf "output %d@." d);
+                    Console_eio.redraw ();
+                    for _ = 1 to steps do
+                      Console.Task.advance t
+                    done))
+              [ 0; 1; 2; 3 ];
+            Eio.Time.Mono.sleep clock 0.25;
+            Console.Task.progress t))
+  in
+  Alcotest.(check bool) "every step" true (count = `Items (4 * steps, 4 * steps));
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buf in
+  let has what d =
+    Fmt.kstr
+      (fun affix ->
+        Alcotest.(check bool) affix true (Astring.String.is_infix ~affix out))
+      "%s %d" what d
+  in
+  List.iter
+    (fun d ->
+      has "above" d;
+      has "output" d)
+    [ 0; 1; 2; 3 ]
+
+(* Logs messages of another domain reach the display wherever they come from,
+   and never wait for the domain that runs it: that one may be waiting for
+   them. *)
+let test_logs_from_other_domains () =
+  Eio_main.run @@ fun env ->
+  let clock = Eio.Stdenv.mono_clock env in
+  let buf, ppf = buffer () in
+  Console_eio.run ~clock ~ppf ~progress:`Plain (fun _ ->
+      Domain.join
+        (Domain.spawn (fun () -> Logs.app (fun m -> m "from a bare domain")));
+      Domain.join
+        (Domain.spawn (fun () ->
+             Eio_main.run @@ fun _ ->
+             for i = 1 to 100 do
+               Logs.app (fun m -> m "from a worker %d" i)
+             done)));
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buf in
+  let has affix =
+    Alcotest.(check bool) affix true (Astring.String.is_infix ~affix out)
+  in
+  has "from a bare domain";
+  has "from a worker 1\n";
+  has "from a worker 100\n"
 
 let test_dimensions_read_the_environment () =
   let check msg columns lines expected =
@@ -1550,8 +1634,11 @@ let suite =
       Alcotest.test_case "print outside Eio" `Quick test_print_outside_eio;
       Alcotest.test_case "nested run reuses the display" `Quick
         test_nested_run_reuses_the_display;
-      Alcotest.test_case "a display in another domain is refused" `Quick
-        test_second_display_refused;
+      Alcotest.test_case "a run in another domain joins" `Quick
+        test_run_in_another_domain_joins;
+      Alcotest.test_case "workers report" `Quick test_workers_report;
+      Alcotest.test_case "logs from other domains" `Quick
+        test_logs_from_other_domains;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
       Alcotest.test_case "teardown on a terminal" `Quick test_teardown;

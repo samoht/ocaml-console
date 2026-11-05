@@ -1,20 +1,18 @@
 (library
  (name console_eio)
  (public_name console-eio)
- (private_modules interrupt session terminal)
+ (private_modules backend virtual_clock)
  (flags
   (:standard -open Console__))
  (libraries
   console
+  console.driver
   console.input
-  console.tty
   console.text
   eio
   eio.unix
   fmt
-  logs
   mtime
-  threads.posix
   unix))
 
 (mdx

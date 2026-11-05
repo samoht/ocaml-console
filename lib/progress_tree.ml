@@ -79,6 +79,7 @@ type key = {
   width : int option;
   column : int;
   count_cell : int;
+  short_cell : int;
   rate_cell : int;
   spin : int;
   timer : string;
@@ -94,6 +95,7 @@ let same a b =
   && Option.equal Int.equal a.width b.width
   && a.column = b.column
   && a.count_cell = b.count_cell
+  && a.short_cell = b.short_cell
   && a.rate_cell = b.rate_cell && a.spin = b.spin
   && String.equal a.timer b.timer
   && a.form = b.form && a.cut = b.cut && Bool.equal a.top b.top
@@ -109,6 +111,7 @@ let key ~layout ~form ~cut ~top ~column ~time look width r =
     width;
     column;
     count_cell = Work.count_cell (work r);
+    short_cell = Work.short_cell (work r);
     rate_cell = Work.rate_cell (work r);
     spin = (if running then int_of_float (Float.floor (time *. 10.)) else 0);
     timer = (if running then Task_text.duration (elapsed r) else "");
@@ -257,7 +260,9 @@ let rec widen layout nodes =
 
 (* The columns of the rows of [r]'s tree, by the depth they are drawn at:
    the label column ends where the widest label drawn at any depth ends,
-   behind the guides of its depth. *)
+   behind the guides of its depth. Cut, it keeps as many cells as the
+   label column of the shallowest depth keeps, [narrowest] at most, so
+   that the rows of every depth give way at once. *)
 let columns ~layout look r nodes =
   widen layout nodes;
   let w = work r in
@@ -276,9 +281,10 @@ let columns ~layout look r nodes =
     (fun d o -> widest := max !widest (o + Work.label_cell w (base + d)))
     offsets;
   let widest = !widest and lead = Progress_row.lead look in
+  let least = min widest Progress_row.narrowest in
   fun d ->
     let o = if d < Array.length offsets then offsets.(d) else offset d in
-    { Progress_row.label = widest - o; lead }
+    { Progress_row.label = widest - o; least = max 0 (least - o); lead }
 
 let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
 

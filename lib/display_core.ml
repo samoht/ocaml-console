@@ -59,6 +59,9 @@ type t = {
   mutable looked : int;
   mutable busy : int;
   idle : (unit -> unit) list Atomic.t;
+  owner : Domain.id;
+  latest_width : int Atomic.t;
+  mutable settle : unit -> unit;
 }
 
 let pp ppf t =
@@ -167,11 +170,33 @@ let busy t f =
       t.busy <- t.busy - 1;
       if t.busy = 0 then drain t)
 
-let rec when_idle t f =
-  if t.busy = 0 then f ()
-  else
-    let fs = Atomic.get t.idle in
-    if not (Atomic.compare_and_set t.idle fs (f :: fs)) then when_idle t f
+let foreign t = not (Int.equal (Domain.self () :> int) (t.owner :> int))
+
+let rec post t f =
+  let fs = Atomic.get t.idle in
+  if not (Atomic.compare_and_set t.idle fs (f :: fs)) then post t f
+
+let when_idle t f = if t.busy = 0 && not (foreign t) then f () else post t f
+
+(* What another domain asked waits for the domain that runs the display. It
+   did not make the owner's call, so what it raises stays there, unless it is an
+   interrupt or an exhausted heap or stack. *)
+let routed t f =
+  post t (fun () -> try f () with e when not (Task_core.is_async e) -> ())
+
+(* The owner does what waits before it does what it is called for. *)
+let settle t =
+  if t.busy = 0 then begin
+    t.settle ();
+    drain t
+  end
+
+let rec owned t f =
+  if foreign t then routed t (fun () -> owned t f)
+  else begin
+    settle t;
+    f ()
+  end
 
 (* An interrupt or a cancellation can cut a write anywhere, and how much of it
    the output took is unknown. Written again, a frame's cursor moves would
@@ -385,6 +410,7 @@ let refresh_size t =
       | w, h ->
           let w = bounded w and h = bounded h in
           let changed = w <> t.width || h <> t.height in
+          if w <> t.width then Atomic.set t.latest_width w;
           t.width <- w;
           t.height <- h;
           changed)
@@ -610,20 +636,25 @@ let watch_lines t =
 
 let watch t out = tapped out (note_line t)
 
+let started t =
+  ignore (refresh_size t);
+  if is_live t then paint t else watch_lines t;
+  t
+
+let depth_of ppf =
+  match Fmt.style_renderer ppf with
+  | `Ansi_tty -> Some (Color.depth ppf)
+  | `None -> None
+
 let v ?size ?once_width ?(write_error = fun _ -> false)
     ?(cancelled = fun _ -> false) ?(atomic = fun f -> f ()) ?(delay = 0.)
     ?(fallback = View_core.empty) ~now ppf view =
-  let depth =
-    match Fmt.style_renderer ppf with
-    | `Ansi_tty -> Some (Color.depth ppf)
-    | `None -> None
-  in
-  let t =
+  started
     {
       ppf;
       size;
       once_width;
-      depth;
+      depth = depth_of ppf;
       now;
       start = now ();
       delay;
@@ -658,17 +689,21 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
       looked = -1;
       busy = 0;
       idle = Atomic.make [];
+      owner = Domain.self ();
+      latest_width = Atomic.make 80;
+      settle = ignore;
     }
-  in
-  ignore (refresh_size t);
-  if is_live t then paint t else watch_lines t;
-  t
 
 let redraw t =
-  paint t;
-  raise_failure t
+  if foreign t then routed t (fun () -> paint t)
+  else begin
+    settle t;
+    paint t;
+    raise_failure t
+  end
 
 let set_view t view =
+  owned t @@ fun () ->
   if not t.closed then begin
     t.view <- view;
     t.changes <- t.changes + 1;
@@ -678,6 +713,7 @@ let set_view t view =
 
 (* A view printed once is laid out as {!once} says and printed at once. *)
 let print t view =
+  owned t @@ fun () ->
   if (not t.closed) || t.closing then begin
     ignore (refresh_size t);
     let look, c = once t in
@@ -704,7 +740,7 @@ let taken t on_output f =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
   Fmt.set_utf_8 ppf (Fmt.utf_8 t.ppf);
-  Format.pp_set_margin ppf t.width;
+  Format.pp_set_margin ppf (Atomic.get t.latest_width);
   protect
     (fun () -> f ppf)
     ~finally:(fun () ->
@@ -713,7 +749,7 @@ let taken t on_output f =
 
 (* What [f] writes is watched for its last byte: output that does not end
    its line is ended, so the region starts on a line of its own. *)
-let with_output t f =
+let with_output_here t f =
   let call () =
     flush_ppf t;
     let margin = Format.pp_get_margin t.ppf () in
@@ -743,6 +779,19 @@ let with_output t f =
               t.suspended <- t.suspended - 1;
               paint t)
         end
+
+let with_output t f =
+  if foreign t then
+    taken t
+      (fun s ->
+        routed t (fun () ->
+            settle t;
+            with_output_here t (fun ppf -> Format.pp_print_string ppf s)))
+      f
+  else begin
+    settle t;
+    with_output_here t f
+  end
 
 (* The last step of closing, given the last frame [out]: on a terminal, erase
    the region, show the cursor and write [out]; otherwise write [out] and give
@@ -777,6 +826,7 @@ let shut t =
     ]
 
 let close t =
+  owned t @@ fun () ->
   busy t @@ fun () ->
   protect
     (fun () -> if not t.closed then shut t)
@@ -805,4 +855,6 @@ let told t = t.told <- true
 let closed t = t.closed
 let width t = t.width
 let on_close t f = t.on_close <- f
+let drawing t = t.busy > 0 || t.writing
+let on_settle t f = t.settle <- f
 let on_output t f = t.on_output <- Some f

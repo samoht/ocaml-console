@@ -55,6 +55,8 @@ console comes as two opam packages, which hold five libraries:
   Unix alone.
 - `console.text`: makes untrusted text safe to print.
 - `console.input`: a line editor that does no input or output.
+- `console.driver`: what a backend for another scheduler builds on, in direct
+  style. Its interface may change until a second backend has settled it.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
 
@@ -773,6 +775,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console_tty` | Colour and UTF-8 on the standard outputs (`console.tty`) |
 | `Console_text` | Untrusted text made safe for a terminal (`console.text`) |
 | `Console_input` | A line editor that does no input or output (`console.input`) |
+| `Console_driver` | Runs console on a scheduler (`console.driver`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
 

@@ -23,7 +23,7 @@ let max_answer = 4096
    with none, such as a string source or a mock's pipe, is not one. *)
 let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
-      if Terminal.is_tty fd then Some fd else None)
+      if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
 
 let v ?interactive ?(ppf = Fmt.stderr) stdin =
   let terminal = terminal stdin in
@@ -48,7 +48,7 @@ let interactive t = t.interactive
 let line t question =
   if not t.interactive then Error (`Msg "no terminal to ask on")
   else
-    Session.with_terminal @@ fun () ->
+    Backend.with_terminal @@ fun () ->
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
     Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
@@ -129,13 +129,13 @@ let secret t question =
   | Some _ when not t.interactive -> Error (`Msg "no terminal to ask on")
   | Some fd -> (
       try
-        Session.with_terminal @@ fun () ->
+        Backend.with_terminal @@ fun () ->
         Eio_unix.Fd.use_exn "secret" fd @@ fun fd ->
         let original = Unix.tcgetattr fd in
         let restore () = Unix.tcsetattr fd Unix.TCSANOW original in
         Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
-        Interrupt.protect ~restore @@ fun () ->
+        Console_driver.on_signals ~restore @@ fun () ->
         (* [TCSAFLUSH] discards the input not read yet, as getpass(3) does:
            the terminal echoed what was typed before the echo went off. *)
         Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
@@ -167,7 +167,7 @@ let keys t f =
           Fun.protect stop ~finally:raw
         in
         Fun.protect ~finally:restore @@ fun () ->
-        Interrupt.protect ~suspend ~restore @@ fun () ->
+        Console_driver.on_signals ~suspend ~restore @@ fun () ->
         raw ();
         Ok (f t.input)
       with
