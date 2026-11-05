@@ -10,8 +10,8 @@ open Widget_harness
 (* A panel is no wider than the margin, turns its styles off, and a panel of
    fixed width that fits the margin is a rectangle of that width. *)
 let test_fits s n m =
-  let margin = 1 + (abs m mod 80) in
-  let width = 4 + (abs n mod 40) in
+  let margin = 1 + abs (m mod 80) in
+  let width = 4 + abs (n mod 40) in
   let content = View.text (pick s 0 ^ "\n" ^ pick s 1) in
   let title = View.text (pick s 2) in
   List.iter

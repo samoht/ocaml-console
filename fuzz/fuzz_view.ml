@@ -55,7 +55,7 @@ let span s =
   in
   go 0 View.empty
 
-let width n = 1 + (abs n mod 40)
+let width n = 1 + abs (n mod 40)
 let plain = View.to_string
 
 let no_space s =
@@ -88,7 +88,7 @@ let test_width_styles s =
    line ends with an ellipsis after a prefix of the line, and truncating
    again changes nothing. *)
 let test_truncate s n =
-  let s = span (text s) and w = abs n mod 50 in
+  let s = span (text s) and w = abs (n mod 50) in
   let t = View.truncate w s in
   check (View.width t <= max 0 w);
   if w > 0 && View.width s <= w then
@@ -195,7 +195,7 @@ let on_screen s =
 (* With VS16, VS15, joiners and marks, a cut line and every wrapped line
    fit their width, as console measures it and on the terminal. *)
 let test_joiners_fit s n =
-  let s = View.text (joined s) and w = 1 + (abs n mod 12) in
+  let s = View.text (joined s) and w = 1 + abs (n mod 12) in
   let fits what l =
     Matrix_0_1.discard_stray_vs16 (plain l);
     let cells = on_screen (plain l) in

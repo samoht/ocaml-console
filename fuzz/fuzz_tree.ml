@@ -10,7 +10,7 @@ open Widget_harness
 (* A tree is no wider than the margin, and shows each node on a line of its
    own when the margin leaves room for every label. *)
 let test_fits s n =
-  let margin = 1 + (abs n mod 80) in
+  let margin = 1 + abs (n mod 80) in
   let leaf i = Tree.v (View.text (pick s i)) [] in
   let tree =
     Tree.v
