@@ -319,6 +319,18 @@ let test_horizontal_room () =
       Alcotest.(check bool) "within its room" true (View.width v <= width))
     [ Bar.horizontal ~width:20 0.5; Bar.horizontal ~brackets:true 0.5 ]
 
+(* bar.mli, horizontal: a bar wider than its room takes the room, however
+   wide it asks to be. *)
+let test_horizontal_huge_width () =
+  let check msg want bar =
+    Alcotest.(check int) msg want (View.width (View.sized ~width:20 bar))
+  in
+  check "max_int" 20 (Bar.horizontal ~width:max_int 0.5);
+  check "max_int with brackets" 20
+    (Bar.horizontal ~brackets:true ~width:max_int 0.5);
+  check "max_int - 1 with brackets" 20
+    (Bar.horizontal ~brackets:true ~width:(max_int - 1) 0.5)
+
 let test_vertical_room () =
   Display_harness.check_room ~rows:12 ~cols:2 "three terminal rows" 2
     (View.sized ~width:2 ~height:3 (Bar.vertical ~width:5 1.))
@@ -362,6 +374,8 @@ let suite =
         test_sparkline_room;
       Alcotest.test_case "fixed vertical bars keep to their room" `Quick
         test_vertical_room;
+      Alcotest.test_case "a huge horizontal bar keeps to its room" `Quick
+        test_horizontal_huge_width;
       Alcotest.test_case "horizontal bars keep to their room" `Quick
         test_horizontal_room;
       Alcotest.test_case "a sparkline is one row" `Quick test_sparkline_one_row;
