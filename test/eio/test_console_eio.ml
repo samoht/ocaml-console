@@ -869,6 +869,31 @@ let test_workers_report () =
       has "output" d)
     [ 0; 1; 2; 3 ]
 
+(* Logs messages of another domain reach the display wherever they come from,
+   and never wait for the domain that runs it: that one may be waiting for
+   them. *)
+let test_logs_from_other_domains () =
+  Eio_main.run @@ fun env ->
+  let clock = Eio.Stdenv.mono_clock env in
+  let buf, ppf = buffer () in
+  Console_eio.run ~clock ~ppf ~progress:`Plain (fun _ ->
+      Domain.join
+        (Domain.spawn (fun () -> Logs.app (fun m -> m "from a bare domain")));
+      Domain.join
+        (Domain.spawn (fun () ->
+             Eio_main.run @@ fun _ ->
+             for i = 1 to 100 do
+               Logs.app (fun m -> m "from a worker %d" i)
+             done)));
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buf in
+  let has affix =
+    Alcotest.(check bool) affix true (Astring.String.is_infix ~affix out)
+  in
+  has "from a bare domain";
+  has "from a worker 1\n";
+  has "from a worker 100\n"
+
 let test_dimensions_read_the_environment () =
   let check msg columns lines expected =
     with_env
@@ -1612,6 +1637,8 @@ let suite =
       Alcotest.test_case "a run in another domain joins" `Quick
         test_run_in_another_domain_joins;
       Alcotest.test_case "workers report" `Quick test_workers_report;
+      Alcotest.test_case "logs from other domains" `Quick
+        test_logs_from_other_domains;
       Alcotest.test_case "dimensions read the environment" `Quick
         test_dimensions_read_the_environment;
       Alcotest.test_case "teardown on a terminal" `Quick test_teardown;

@@ -123,27 +123,63 @@ let test_lines_keep_their_order () =
       mine
   done
 
+let flood t =
+  let padding = String.make 4096 'x' in
+  for i = 1 to 4096 do
+    Task.log t (Fmt.str "%d %s" i padding)
+  done
+
+let number line = int_of_string (List.hd (String.split_on_char ' ' line))
+
 (* An owner that never looks costs a worker no more than what it holds back:
-   the worker goes on, and the lines it could not leave are counted. *)
-let test_a_flood_of_lines_is_bounded () =
+   the worker goes on, the owner shows the newest lines, and it says first how
+   many older ones it lost. *)
+let test_a_flood_keeps_the_newest_lines () =
   let root = Task.root ~now () in
   let t = Task.start root "t" in
   let said = ref [] in
   Task.on_event root (fun e ->
       match Task.Event.text e with Some s -> said := s :: !said | None -> ());
-  let line = String.make 4096 'x' in
-  ignore
-    (Domain.join
-       (Domain.spawn (fun () ->
-            for _ = 1 to 4096 do
-              Task.log t line
-            done;
-            Task.log t "last")));
+  ignore (Domain.join (Domain.spawn (fun () -> flood t)));
   ignore (Task.state t : Task.state);
+  match List.rev !said with
+  | [] -> Alcotest.fail "nothing shown"
+  | notice :: kept ->
+      let lost = 4096 - List.length kept in
+      Alcotest.(check bool) "some are lost" true (lost > 0);
+      Alcotest.(check string)
+        "says how many"
+        (Fmt.str "[console: %d older lines from other domains dropped]" lost)
+        notice;
+      Alcotest.(check (list int))
+        "the newest, in order"
+        (List.init (List.length kept) (fun i -> lost + i + 1))
+        (List.map number kept)
+
+(* Lost lines take nothing else with them, and the rest happens in the order it
+   was asked. *)
+let test_a_flood_loses_only_lines () =
+  let root = Task.root ~now () in
+  let t = Task.start root "t" in
+  let child =
+    Domain.join
+      (Domain.spawn (fun () ->
+           flood t;
+           let child = Task.start t "child" in
+           Task.log child "on the child";
+           Task.log t "before the end";
+           Task.fail t;
+           Task.log t "after the end";
+           child))
+  in
+  Alcotest.(check bool) "ended" true (Task.state t = `Failed);
   Alcotest.(check bool)
-    "says how many were dropped" true
-    (List.exists (String.starts_with ~prefix:"[console: ") !said);
-  Alcotest.(check bool) "fewer kept" true (List.length !said < 4096)
+    "the line before its end" true
+    (List.mem "before the end" (Task.output t));
+  Alcotest.(check bool)
+    "no line after it" false
+    (List.mem "after the end" (Task.output t));
+  Alcotest.(check (list string)) "the child" [ "on the child" ] (Task.output child)
 
 let test_steps_after_the_end_are_ignored () =
   let root = Task.root ~now () in
@@ -237,8 +273,10 @@ let suite =
       Alcotest.test_case "a key names one task" `Quick test_a_key_names_one_task;
       Alcotest.test_case "lines keep their order" `Quick
         test_lines_keep_their_order;
-      Alcotest.test_case "a flood of lines is bounded" `Quick
-        test_a_flood_of_lines_is_bounded;
+      Alcotest.test_case "a flood keeps the newest lines" `Quick
+        test_a_flood_keeps_the_newest_lines;
+      Alcotest.test_case "a flood loses only lines" `Quick
+        test_a_flood_loses_only_lines;
       Alcotest.test_case "steps after the end are ignored" `Quick
         test_steps_after_the_end_are_ignored;
       Alcotest.test_case "display from a worker" `Quick
