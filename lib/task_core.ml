@@ -61,6 +61,7 @@ and t = {
   mutable ended_at : float option;
   mutable message : string option;
   mutable outcome : outcome option;
+  mutable finishing : bool;
   mutable children : t list;
   mutable child_limit : int;
   mutable gone : bool;
@@ -107,11 +108,39 @@ let rec is_async = function
   | Fun.Finally_raised e -> is_async e
   | _ -> false
 
+let protect ~finally f =
+  match f () with
+  | v ->
+      finally ();
+      v
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      (try finally () with later when is_async e || not (is_async later) -> ());
+      Printexc.raise_with_backtrace e bt
+
+let rec run_all = function
+  | [] -> ()
+  | f :: rest -> protect f ~finally:(fun () -> run_all rest)
+
+(* Every watcher sees the change, whatever one of them raises, as with
+   {!run_all}, with nothing allocated when none raises: a change is the cost
+   of a progress update. *)
+let rec tell change = function
+  | [] -> ()
+  | f :: rest -> (
+      match f change with
+      | () -> tell change rest
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          (try tell change rest
+           with later when is_async e || not (is_async later) -> ());
+          Printexc.raise_with_backtrace e bt)
+
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
   | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
-  List.iter (fun f -> f change) w.watchers
+  tell change w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
 let on_ending r f = r.work.ending <- f
@@ -148,6 +177,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     ended_at = None;
     message = None;
     outcome = None;
+    finishing = false;
     children = [];
     child_limit = 16;
     gone = false;
@@ -257,34 +287,41 @@ let child_outcome = function
   | `Succeeded -> `Succeeded
   | `Failed | `Cancelled -> `Cancelled
 
+let ended outcome ?message r =
+  let w = r.work in
+  Queue.clear r.window;
+  r.ended_at <- Some (w.now ());
+  r.message <- Option.map Task_text.label message;
+  r.outcome <- Some outcome;
+  if not (is_root r) then begin
+    w.finished <- w.finished + 1;
+    match outcome with
+    | `Failed -> w.failed <- w.failed + 1
+    | `Cancelled -> w.cancelled <- w.cancelled + 1
+    | `Succeeded -> ()
+  end;
+  Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
+  hold r;
+  (* A success folds its output away, once its end was seen. *)
+  Fun.protect
+    (fun () -> notify w (Ended r))
+    ~finally:(fun () ->
+      if outcome = `Succeeded then begin
+        Queue.clear r.output;
+        r.output_bytes <- 0
+      end)
+
 (* The tasks under one that ends end first, in the order they started: they
-   succeed with it, and are cancelled when it fails or is cancelled. *)
+   succeed with it, and are cancelled when it fails or is cancelled. A task
+   ends once, and whole, whatever its ending or a subtask's raises. *)
 let rec finish outcome ?message r =
-  if is_running r then begin
-    let w = r.work in
-    w.ending r;
-    List.iter (finish (child_outcome outcome)) (List.rev (running_children r));
-    Queue.clear r.window;
-    r.ended_at <- Some (w.now ());
-    r.message <- Option.map Task_text.label message;
-    r.outcome <- Some outcome;
-    if not (is_root r) then begin
-      w.finished <- w.finished + 1;
-      match outcome with
-      | `Failed -> w.failed <- w.failed + 1
-      | `Cancelled -> w.cancelled <- w.cancelled + 1
-      | `Succeeded -> ()
-    end;
-    Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
-    hold r;
-    (* A success folds its output away, once its end was seen. *)
-    Fun.protect
-      (fun () -> notify w (Ended r))
-      ~finally:(fun () ->
-        if outcome = `Succeeded then begin
-          Queue.clear r.output;
-          r.output_bytes <- 0
-        end)
+  if is_running r && not r.finishing then begin
+    r.finishing <- true;
+    let children = List.rev (running_children r) in
+    run_all
+      ((fun () -> r.work.ending r)
+       :: List.map (fun c () -> finish (child_outcome outcome) c) children
+      @ [ (fun () -> ended outcome ?message r) ])
   end
 
 let succeed ?message r = finish `Succeeded ?message r
@@ -357,23 +394,11 @@ let count_text = function
   | Count (c, tot) -> string_of_int c ^ "/" ^ string_of_int tot
   | Bytes (c, tot) -> Task_text.bytes c ^ " / " ^ Task_text.bytes tot
 
-(* The widest the count of a task can get, known from its total: a count
-   of items as wide as its total twice, and at least [999/999]; a count of
-   bytes below a total of a KiB or more as wide as "1023.99 KiB" in front
-   of it. *)
-let count_width = function
-  | Spin -> 0
-  | Count (_, total) ->
-      max (String.length "999/999")
-        (String.length (count_text (Count (total, total))))
-  | Bytes (cur, total) ->
-      let whole = Task_text.bytes total in
-      let widest =
-        if Int64.compare total 1024L < 0 then whole else "1023.99 KiB"
-      in
-      max
-        (String.length (count_text (Bytes (cur, total))))
-        (String.length widest + 3 + String.length whole)
+let rec digits n = if n < 10 then 1 else 1 + digits (n / 10)
+
+(* The widest a count of items can get, known from its total: as wide as
+   its total twice, and at least [999/999]. *)
+let items_width total = max (String.length "999/999") ((2 * digits total) + 1)
 
 let rate_text metric rate =
   match metric with
@@ -406,27 +431,27 @@ let measure r cur =
     r.last_t <- now
   end
 
-(* The columns widen at most once for each kind of progress: the first
-   task of bytes widens the count column to the widest count of bytes and
-   opens the rate column at the widest rate, so that no later total and no
-   first rate widens them again. A count of items is as wide as its total
-   needs. *)
+(* The columns widen at most once for each kind of progress, and only when
+   the total changes: the first task of bytes widens the count column to
+   the widest count of bytes and opens the rate column at the widest rate,
+   which no later count or rate passes, as [Task_text.bytes] is never wider
+   than "1023.99 KiB". A count of items is as wide as its total needs. *)
 let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
 let widest_rate = String.length "1023.99 MiB/s"
 
 let set_metric r metric =
   let moved = not (same_metric r.metric metric) in
+  let w = r.work in
+  (match (r.metric, metric) with
+  | Count (_, n), Count (_, n') when n = n' -> ()
+  | Bytes _, Bytes _ -> ()
+  | _, Count (_, total) -> w.count_cell <- max w.count_cell (items_width total)
+  | _, Bytes _ ->
+      w.count_cell <- max w.count_cell widest_bytes;
+      w.rate_cell <- max w.rate_cell widest_rate
+  | _, Spin -> ());
   changed r;
   r.metric <- metric;
-  let w = r.work in
-  w.count_cell <- max w.count_cell (count_width metric);
-  (match metric with
-  | Bytes _ ->
-      w.count_cell <- max w.count_cell widest_bytes;
-      w.rate_cell <-
-        max w.rate_cell
-          (max widest_rate (String.length (rate_text metric r.rate)))
-  | Spin | Count _ -> ());
   if moved then notify w (Progressed r)
 
 let set_items r ~count ~total =

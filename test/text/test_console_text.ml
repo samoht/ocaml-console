@@ -101,12 +101,6 @@ let test_strip () =
    blank cells. [strip] keeps what is printed; [sanitize] keeps a cell for
    each. *)
 let test_strip_silent () =
-  let silent =
-    List.filter
-      (fun c -> not (List.mem c [ 0x09; 0x0a; 0x0b; 0x0c; 0x0d; 0x1b ]))
-      (List.init 0x20 Fun.id)
-    @ [ 0x7f ]
-  in
   List.iter
     (fun c ->
       let c = String.make 1 (Char.chr c) in
@@ -124,7 +118,7 @@ let test_strip_silent () =
       Alcotest.(check string)
         (what ^ ", sanitize") "a b"
         (Console_text.sanitize ("a" ^ c ^ "b")))
-    silent;
+    Text_harness.silent;
   Alcotest.(check string) "tab" "a b" (Console_text.strip "a\tb")
 
 (* Whatever the input, no ESC and no C1 control reaches the output, and it is
@@ -367,9 +361,17 @@ let test_variation_selectors () =
   check "after a line end" "a\nb" "a\n\u{E0100}b";
   check "after a joiner" "\u{1F468}\u{200D}b" "\u{1F468}\u{200D}\u{FE0F}b"
 
+(* Each maximal subpart is one U+FFFD: Unicode Core Spec, section 3.9. *)
+let test_maximal_subparts () =
+  List.iter
+    (fun (table, bytes, converted) ->
+      Alcotest.(check string) table converted (Console_text.sanitize bytes))
+    Text_harness.maximal_subparts
+
 let suite =
   ( "console_text",
     [
+      Alcotest.test_case "maximal subparts" `Quick test_maximal_subparts;
       Alcotest.test_case "boundary" `Quick test_boundary;
       Alcotest.test_case "reordering characters" `Quick test_reordering;
       Alcotest.test_case "truecolour is reset after text" `Quick

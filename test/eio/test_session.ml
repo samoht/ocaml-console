@@ -394,6 +394,35 @@ let test_handler_kept () =
     | Sys.Signal_handle f -> f == mine
     | _ -> false)
 
+(* console_eio.mli: "A signal the program handles or ignores is left to it", as
+   a program started under nohup or in the background finds SIGINT ignored. *)
+let test_disposition_left () =
+  let handled = function Sys.Signal_handle f -> f == mine | _ -> false in
+  let ignored = function Sys.Signal_ignore -> true | _ -> false in
+  List.iter
+    (fun (name, signo, chosen, kept) ->
+      let before = Sys.signal signo chosen in
+      Fun.protect ~finally:(fun () -> Sys.set_signal signo before) @@ fun () ->
+      let read msg =
+        Alcotest.(check bool)
+          (name ^ ", " ^ msg)
+          true
+          (kept (Sys.signal signo chosen))
+      in
+      Eio_main.run @@ fun _env ->
+      let ppf = Format.formatter_of_buffer (Buffer.create 64) in
+      Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf (fun _ ->
+          read "during the run");
+      read "after the run")
+    [
+      ("SIGINT handled", Sys.sigint, Sys.Signal_handle mine, handled);
+      ("SIGINT ignored", Sys.sigint, Sys.Signal_ignore, ignored);
+      ("SIGTERM handled", Sys.sigterm, Sys.Signal_handle mine, handled);
+      ("SIGTERM ignored", Sys.sigterm, Sys.Signal_ignore, ignored);
+      ("SIGTSTP handled", Sys.sigtstp, Sys.Signal_handle mine, handled);
+      ("SIGTSTP ignored", Sys.sigtstp, Sys.Signal_ignore, ignored);
+    ]
+
 let suite =
   ( "session",
     [
@@ -402,6 +431,8 @@ let suite =
         test_concurrent_order;
       Alcotest.test_case "a handler set during a run is kept" `Quick
         test_handler_kept;
+      Alcotest.test_case "a disposition set before a run is left" `Quick
+        test_disposition_left;
       Alcotest.test_case "split UTF-8 and buffered second line" `Quick
         test_utf8_split;
       Alcotest.test_case "partial line at EOF is refused" `Quick

@@ -277,7 +277,6 @@ let test_nested () =
       [ Table.column (View.text "a"); Table.column (View.text "panel") ]
       [ [ View.text "x"; inner ] ]
   in
-  let lines s = String.split_on_char '\n' s in
   let panel = lines (View.to_string inner) in
   let got = lines (View.to_string outer) in
   List.iter
@@ -330,16 +329,14 @@ let test_hcat_combining_suffix () =
 
 (* [pp] at a margin of [margin], in colour iff [styled], its lines. *)
 let lines ?(styled = false) margin pp =
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf margin;
-  if styled then begin
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Console.Color.set_depth ppf `True_color
-  end;
-  pp ppf ();
-  Format.pp_print_flush ppf ();
-  String.split_on_char '\n' (Buffer.contents buf)
+  String.split_on_char '\n'
+    ( View_harness.capture @@ fun ppf ->
+      Format.pp_set_margin ppf margin;
+      if styled then begin
+        Fmt.set_style_renderer ppf `Ansi_tty;
+        Console.Color.set_depth ppf `True_color
+      end;
+      pp ppf () )
 
 let check_fits name margin pp =
   List.iter

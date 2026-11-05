@@ -33,6 +33,52 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
+(* The names a terminal device may have: the controlling terminal, then the
+   pseudo-terminals of Linux and of BSD and macOS. *)
+let terminal_names () =
+  let entries dir keep =
+    match Sys.readdir dir with
+    | names ->
+        List.filter_map
+          (fun n -> if keep n then Some (Filename.concat dir n) else None)
+          (Array.to_list names)
+    | exception Sys_error _ -> []
+  in
+  ("/dev/tty" :: entries "/dev/pts" (Fun.const true))
+  @ entries "/dev" (String.starts_with ~prefix:"ttys")
+
+(* The display's terminal opened again, found by its device, to write the
+   last resort on without blocking and without changing the flags of a
+   descriptor the program shares with its shell. *)
+let reopened unix =
+  let rdev name =
+    match Unix.stat name with
+    | st when st.Unix.st_kind = Unix.S_CHR -> Some st.st_rdev
+    | _ | (exception Unix.Unix_error _) -> None
+  in
+  let opened d name =
+    match
+      Unix.openfile name
+        [ Unix.O_WRONLY; Unix.O_NONBLOCK; Unix.O_NOCTTY; Unix.O_CLOEXEC ]
+        0
+    with
+    | exception Unix.Unix_error _ -> None
+    | tty when (Unix.fstat tty).st_rdev = d -> Some tty
+    | tty ->
+        Unix.close tty;
+        None
+  in
+  match device unix with
+  | None -> None
+  | Some d ->
+      (* /dev/tty names the controlling terminal, whose device only an
+         opened descriptor tells. *)
+      List.find_map
+        (fun name ->
+          if name = "/dev/tty" || rdev name = Some d then opened d name
+          else None)
+        (terminal_names ())
+
 let file unix =
   match Unix.fstat unix with
   | st -> Some (st.Unix.st_dev, st.Unix.st_ino)
@@ -50,11 +96,18 @@ let sharing unix =
 (* The display writes on a formatter of its own, to the same output as
    [ppf] and with the same tag functions, which hold its colours, its theme
    and whether it is UTF-8, as [Fmt.with_buffer ~like] does, so that [ppf]
-   itself can be routed above the region. *)
+   itself can be routed above the region. Once the terminal was given up,
+   it writes nothing. *)
 let own ppf =
+  let out = Format.pp_get_formatter_out_functions ppf () in
+  let alive f = if not (Interrupt.is_dead ()) then f () in
   let own =
     Format.formatter_of_out_functions
-      (Format.pp_get_formatter_out_functions ppf ())
+      {
+        out with
+        out_string = (fun s o l -> alive (fun () -> out.out_string s o l));
+        out_flush = (fun () -> alive out.out_flush);
+      }
   in
   Format.pp_set_formatter_stag_functions own
     (Format.pp_get_formatter_stag_functions ppf ());
@@ -286,7 +339,8 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
     ppf root =
   let show ?size progress ppf =
     let view = Option.map (fun f -> f root) view in
-    Progress_driver.show ~write_error:Session.write_error ~progress ?layout
+    Progress_driver.show ~write_error:Session.write_error
+      ~cancelled:Session.cancelling ~atomic:Session.atomic ~progress ?layout
       ?view ?keep_ended ?commit ?plain ?delay ?size ppf root
   in
   let live ~size ~intercept ~cursor =
@@ -354,7 +408,14 @@ let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
     in
     ({ Session.display; root; json = progress = `Json }, intercept, cursor)
   with
-  | run, intercept, cursor -> Session.run ~cursor ~sleep ~intercept run f
+  | run, intercept, cursor ->
+      let flow = Option.is_none (descriptor ppf) in
+      let terminal =
+        if Option.is_some (Cast.file ()) then None
+        else Option.bind (terminal ppf) (fun (_, unix) -> reopened unix)
+      in
+      Fun.protect ~finally:(fun () -> Option.iter Unix.close terminal)
+      @@ fun () -> Session.run ~cursor ~flow ?terminal ~sleep ~intercept run f
   | exception e ->
       Session.release ();
       raise e

@@ -71,14 +71,11 @@ let test_hcat_margin n k =
   let count = 2 + (k mod 4) in
   let margin = (count * width) + ((count - 1) * gap) in
   let blocks = List.init count (fun _ -> View.sized ~width (Rule.view ())) in
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
-  Format.pp_set_margin ppf margin;
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  View.pp ppf (View.hcat ~gap blocks);
-  Format.pp_print_flush ppf ();
-  let raw = Buffer.contents buf in
+  let raw, _ =
+    Widget_harness.render
+      ~theme:(Widget_harness.nth_theme k)
+      View.pp margin (View.hcat ~gap blocks)
+  in
   let vte = Console_vte.v ~rows:32 ~cols:margin () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int 0 (fst (Console_vte.cursor_pos vte));
@@ -326,7 +323,7 @@ type look = {
 
 let look k m =
   {
-    theme = snd (List.nth Theme.all (k mod List.length Theme.all));
+    theme = Widget_harness.nth_theme k;
     utf_8 = k land 0x100 = 0;
     depth =
       [| None; Some `Ansi_16; Some `Ansi_256; Some `True_color |].(k / 512 mod 4);
@@ -372,8 +369,6 @@ let escapes_whole s =
        || osc (i + 1))
   in
   ground 0
-
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 
 let rec texts_span = function
   | Text (_, s) | Gradient s | Link s -> [ s ]
@@ -437,19 +432,14 @@ let test_printed block k m =
             ~pp:Fmt.(option Dump.string)
             (print { look with depth = None } block)
             (Some plain));
-      if (not look.utf_8) && List.for_all is_ascii (texts block) then
-        if not (is_ascii out) then failf "not ASCII: %S" out
+      if (not look.utf_8) && List.for_all Text_harness.is_ascii (texts block)
+      then if not (Text_harness.is_ascii out) then failf "not ASCII: %S" out
 
 (* The screen a display draws with [block] as its view, in [theme] at
    [time]. *)
 let view_screen theme ~width ~height ~time block =
   let term = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 1024 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed term (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = Display_harness.feeding term in
   Fmt.set_style_renderer ppf `Ansi_tty;
   Color.set_depth ppf `True_color;
   Theme.set ppf theme;
@@ -477,7 +467,7 @@ let is_text c = String.length c = 1 && Char.Ascii.is_alphanum c.[0]
    out as the still frame does, so motion changes no width, and keeps every
    letter and digit of it, so only the frame's lines move. *)
 let test_view block k w t =
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let width = 1 + (w mod 120) and height = 3 + (k / 64 mod 12) in
   let time = Float.of_int t /. 10. in
   let moving = view_screen theme ~width ~height ~time block
@@ -536,15 +526,15 @@ let outer_widget k inner =
   | _ -> Tree.view (Tree.v (View.text "root") [ Tree.v inner [] ])
 
 let render_nested ~theme ~utf_8 span =
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  Color.set_depth ppf `True_color;
-  Fmt.set_utf_8 ppf utf_8;
-  Theme.set ppf theme;
-  View.pp ppf span;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  View_harness.printed ~theme ~utf_8 ~depth:`True_color span
+
+(* What a cell of a grid shows. *)
+let grid_cell g i =
+  ( Grid.get_text g i,
+    Grid.get_attrs g i,
+    Ansi.Color.to_rgb (Console_vte.fg g i),
+    Ansi.Color.to_rgb (Console_vte.bg g i),
+    Grid.hyperlink_url g (Grid.get_link g i) )
 
 (* Wrapping changes where a widget's lines break, not the glyphs, colours
    or attributes of its non-space cells. Compare those cells on matrix.vte,
@@ -554,7 +544,7 @@ let test_nested_wrap s k n =
     View.styled Style.bold (View.gradient (View.text (nested_input s)))
   in
   let source = View.role `Warning (outer_widget k (inner_widget k content)) in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
+  let theme = Widget_harness.nth_theme k in
   let render = render_nested ~theme ~utf_8:(k land 128 = 0) in
   let width = 2 + (n mod 19) in
   let pieces = View.wrap width source in
@@ -566,24 +556,10 @@ let test_nested_wrap s k n =
   check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
   List.iter2
     (fun (g, i) (h, j) ->
-      let cell g i =
-        ( Grid.get_text g i,
-          Grid.get_attrs g i,
-          Ansi.Color.to_rgb (Console_vte.fg g i),
-          Ansi.Color.to_rgb (Console_vte.bg g i),
-          Grid.hyperlink_url g (Grid.get_link g i) )
-      in
-      if cell g i <> cell h j then
+      if grid_cell g i <> grid_cell h j then
         failf "wrapping at %d changed a cell in %s: %S became %S" width
           (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
     expected actual
-
-let hcat_cell g i =
-  ( Grid.get_text g i,
-    Grid.get_attrs g i,
-    Ansi.Color.to_rgb (Console_vte.fg g i),
-    Ansi.Color.to_rgb (Console_vte.bg g i),
-    Grid.hyperlink_url g (Grid.get_link g i) )
 
 (* Side-by-side widgets must keep their cells when a containing widget
    wraps them. A width check alone would miss lost text, styles or links. *)
@@ -610,18 +586,8 @@ let test_hcat_nested_wrap input k n =
       | 1 -> Table.view [ Table.column (View.text "h") ] [ [ joined ] ]
       | _ -> Tree.view (Tree.v joined []))
   in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
-  let render s =
-    let buf = Buffer.create 256 in
-    let ppf = Format.formatter_of_buffer buf in
-    Theme.set ppf theme;
-    Fmt.set_utf_8 ppf (k land 128 = 0);
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
-    View.pp ppf s;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let theme = Widget_harness.nth_theme k in
+  let render = render_nested ~theme ~utf_8:(k land 128 = 0) in
   let width = 4 + (n mod 29) in
   let pieces = View.wrap width source in
   List.iter
@@ -634,7 +600,7 @@ let test_hcat_nested_wrap input k n =
   check_eq ~pp:Fmt.int (List.length expected) (List.length actual);
   List.iter2
     (fun (g, i) (h, j) ->
-      if hcat_cell g i <> hcat_cell h j then
+      if grid_cell g i <> grid_cell h j then
         fail "wrapping nested hcat changed a cell")
     expected actual
 

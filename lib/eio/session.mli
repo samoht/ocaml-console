@@ -28,6 +28,15 @@ val scope : Task_driver.scope
     fibers it forked from. A fiber cancelled in a {!Console.Task.run} cancels
     its task. *)
 
+val cancelling : exn -> bool
+(** [cancelling e] is [true] iff [e] is the cancellation of the fiber that calls
+    it. A [Cancelled] elsewhere is an exception like another. *)
+
+val atomic : (unit -> unit) -> unit
+(** [atomic f] is [f ()], which writes an update: in a cancelled fiber too, in
+    full, and until a deadline at most that all such writes share, a second
+    after the first of them until one goes out. *)
+
 val write_error : exn -> bool
 (** [write_error e] is [true] iff [e] is a write error of an Eio flow, such as a
     closed pipe. *)
@@ -58,6 +67,8 @@ val with_terminal : (unit -> 'a) -> 'a
 
 val run :
   ?cursor:(bool -> unit) ->
+  ?flow:bool ->
+  ?terminal:Unix.file_descr ->
   sleep:(float -> unit) ->
   intercept:Format.formatter list ->
   run ->
@@ -73,5 +84,10 @@ val run :
     when [f] returns, raises, is cancelled, the program exits or a signal ends
     it ({!Interrupt}). While SIGTSTP stops the program, the region is off the
     screen and the cursor shown with [cursor true] (default does nothing); once
-    continued, [cursor false] hides it and the region is drawn again. A {!claim}
-    must be held; it is released. *)
+    continued, [cursor false] hides it and the region is drawn again. With
+    [flow] (defaults to [false]) its output is an Eio flow, which a signal
+    handler that runs out of any fiber leaves to a fiber of the run. A signal or
+    an exit that cannot wait for the display, from another domain or thread or
+    during a write that does not end, writes {!Interrupt.last_resort} on
+    [terminal], a non-blocking descriptor on the display's terminal, if given. A
+    {!claim} must be held; it is released. *)

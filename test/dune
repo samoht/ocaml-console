@@ -4,12 +4,15 @@
  (name test)
  (package console)
  (libraries
+  cast_harness
   console
   console.text
   console_width
   console_vte
   matrix.ansi
   display_harness
+  env_harness
+  text_harness
   view_harness
   matrix.grid
   matrix.vte

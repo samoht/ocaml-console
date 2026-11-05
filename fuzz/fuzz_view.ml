@@ -318,19 +318,7 @@ let test_linked_unicode_cuts s n =
 let check_is_text ~theme t span =
   check_eq ~pp:Fmt.int (View.width t) (View.width span);
   check_eq ~pp:Fmt.Dump.string (plain t) (plain span);
-  let printed depth =
-    let buf = Buffer.create 64 in
-    let ppf = Format.formatter_of_buffer buf in
-    Theme.set ppf theme;
-    Option.iter
-      (fun depth ->
-        Fmt.set_style_renderer ppf `Ansi_tty;
-        Color.set_depth ppf depth)
-      depth;
-    View.pp ppf span;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let printed depth = View_harness.printed ~theme ?depth span in
   check_eq ~pp:Fmt.Dump.string (plain t) (printed None);
   let sgr =
     Re.compile (Re.seq [ Re.str "\027["; Re.rep (Re.rg '0' ';'); Re.char 'm' ])
@@ -340,8 +328,6 @@ let check_is_text ~theme t span =
       check_eq ~pp:Fmt.Dump.string (plain t)
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
-
-let theme_of k = snd (List.nth Theme.all (k mod List.length Theme.all))
 
 let test_gradient s k =
   let s = if k land 1 = 0 then text s else s in
@@ -354,7 +340,9 @@ let test_gradient s k =
                if i = 0 then Color.ansi_256 k
                else Color.rgb (k * (i + 1) land 255) (k * 7 land 255) (255 - k)))
   in
-  check_is_text ~theme:(theme_of k) (View.text s)
+  check_is_text
+    ~theme:(Widget_harness.nth_theme k)
+    (View.text s)
     (View.gradient ?colors (View.text s))
 
 let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
@@ -362,7 +350,10 @@ let roles = [| `Accent; `Succeeded; `Warning; `Failed; `Muted; `Header |]
 let test_role s k =
   let s = if k land 1 = 0 then text s else s in
   let role = roles.(k / 2 mod Array.length roles) in
-  check_is_text ~theme:(theme_of k) (View.text s) (View.role role (View.text s))
+  check_is_text
+    ~theme:(Widget_harness.nth_theme k)
+    (View.text s)
+    (View.role role (View.text s))
 
 (* Fitting a gradient changes line breaks, not the colours of the text
    kept. Compare terminal cells after joining the wrapped pieces again. *)
@@ -377,17 +368,8 @@ let test_gradient_wrap s k =
          (fun i -> clusters.(Char.code s.[i] mod Array.length clusters)))
   in
   let gradient = View.styled Style.bold (View.gradient (View.text input)) in
-  let theme = snd (List.nth Theme.all (k mod List.length Theme.all)) in
-  let render span =
-    let buf = Buffer.create 64 in
-    let ppf = Format.formatter_of_buffer buf in
-    Theme.set ppf theme;
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color;
-    View.pp ppf span;
-    Format.pp_print_flush ppf ();
-    Buffer.contents buf
-  in
+  let theme = Widget_harness.nth_theme k in
+  let render span = View_harness.printed ~theme ~depth:`True_color span in
   let width = 2 + (k mod 11) in
   let pieces = View.wrap width gradient in
   List.iter (fun piece -> check (View.width piece <= width)) pieces;
@@ -450,11 +432,10 @@ let test_still_size frames time width =
 
 let test_weighted_room n a b =
   let width = 1 + (n mod 200) in
-  let part c grow =
-    View.fit ~grow (fun r ->
-        View.text (String.make (Option.value ~default:1 (Room.width r)) c))
+  let v =
+    View.hcat ~gap:0
+      [ View_harness.fill 'a' (1 + a); View_harness.fill 'b' (1 + b) ]
   in
-  let v = View.hcat ~gap:0 [ part 'a' (1 + a); part 'b' (1 + b) ] in
   check_eq ~pp:Fmt.int width (View.width (View.sized ~width v))
 
 let test_nested_room n h =
@@ -545,11 +526,6 @@ let restyles =
 let test_restyled_grow n a b =
   let width = 1 + (n mod 80) in
   let a = 1 + a and b = 1 + b in
-  let part glyph grow =
-    View.fit ~grow (fun room ->
-        View.text
-          (String.make (Option.value ~default:1 (Room.width room)) glyph))
-  in
   let ca = width * a / (a + b) and cb = width * b / (a + b) in
   let extra = width - ca - cb in
   let a_first = width * a mod (a + b) >= width * b mod (a + b) in
@@ -562,7 +538,10 @@ let test_restyled_grow n a b =
         (fun inner ->
           let v =
             View.hcat ~gap:0
-              [ outer (inner (part 'a' a)); outer (inner (part 'b' b)) ]
+              [
+                outer (inner (View_harness.fill 'a' a));
+                outer (inner (View_harness.fill 'b' b));
+              ]
             |> View.sized ~width
           in
           let raw = View.to_string v in

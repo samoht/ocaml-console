@@ -118,14 +118,7 @@ let test_fixed_width_truncates () =
     (contains "abcdefgh" (String.concat "\n" rendered))
 
 let lines s = String.split_on_char '\n' s
-
-let render_at margin panel =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf margin;
-  View.pp ppf panel;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+let render_at margin panel = View_harness.printed ~margin panel
 
 (* The formatter's margin is a ceiling on the box: a line wider than the room
    wraps at its words, each continuation hanging under the text after the
@@ -193,27 +186,7 @@ let test_styled_border () =
     (View.to_string ~styled:true panel)
 
 let test_wide_border () =
-  let border =
-    Border.v
-      Border.
-        {
-          top_left = "\u{754c}";
-          top = "\u{754c}";
-          top_right = "\u{754c}";
-          left = "\u{754c}";
-          right = "\u{754c}";
-          bottom_left = "\u{754c}";
-          bottom = "\u{754c}";
-          bottom_right = "\u{754c}";
-          vertical = "\u{754c}";
-          horizontal = "\u{754c}";
-          cross = "\u{754c}";
-          top_cross = "\u{754c}";
-          bottom_cross = "\u{754c}";
-          left_cross = "\u{754c}";
-          right_cross = "\u{754c}";
-        }
-  in
+  let border = View_harness.frame "\u{754c}" in
   let out =
     View.to_string
       (View.sized ~width:12 (Panel.view ~border ~expand:true (View.text "x")))

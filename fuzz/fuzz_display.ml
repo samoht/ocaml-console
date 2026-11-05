@@ -489,6 +489,11 @@ let test_output_exception s cancel =
   in
   check (colours grid index = colours plain first)
 
+(* What the terminal scrolled away and its screen. *)
+let all_rows vte =
+  String.concat "\n"
+    (Console_vte.scrollback_lines vte @ [ Console_vte.to_string vte ])
+
 let test_resize_erases_old_frame n =
   let t = terminal ~width:80 ~height:12 ~styled:true () in
   let d = display t in
@@ -502,18 +507,12 @@ let test_resize_erases_old_frame n =
   Task.set_label b "new-b";
   Display.redraw d;
   check_screen t;
-  let rows =
-    String.concat "\n"
-      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
-  in
+  let rows = all_rows t.vte in
   if has "OLD_SENTINEL" rows then failf "old frame survived shrink: %S" rows;
   t.size := (80, 12);
   Console_vte.resize t.vte ~rows:12 ~cols:80;
   Display.redraw d;
-  let rows =
-    String.concat "\n"
-      (Console_vte.scrollback_lines t.vte @ [ Console_vte.to_string t.vte ])
-  in
+  let rows = all_rows t.vte in
   if has "OLD_SENTINEL" rows then
     failf "old frame returned after growth: %S" rows;
   check (has "new-a" rows && has "new-b" rows);
@@ -771,8 +770,6 @@ type mtask = {
    whether that task still ran. *)
 type line = { token : string; owner : mtask option; output : bool; ran : bool }
 
-let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
-
 (* The model of [finish]: the children that run end first. *)
 let rec model_end o t =
   if Option.is_none t.outcome then begin
@@ -816,21 +813,22 @@ let end_task t o =
   | `Cancelled -> Task.cancel t.task);
   model_end o t
 
+let pick_task tasks i =
+  let n = Array.length !tasks in
+  if n = 0 then None else Some !tasks.(i mod n)
+
 (* Runs [steps] on the tasks of [root], whose scope reads its current task
    from [current], and closes [d], which shows them. *)
 let run_steps root d current steps =
   let tasks = ref [||] and lines = ref [] in
-  let pick i =
-    let n = Array.length !tasks in
-    if n = 0 then None else Some !tasks.(i mod n)
-  in
+  let pick = pick_task tasks in
   let add owner output =
     let token = Fmt.str "k%04d" (List.length !lines) in
     let ran =
       match owner with Some t -> Option.is_none t.outcome | None -> false
     in
     (match owner with
-    | Some t when ran -> t.window <- take t.window_size (token :: t.window)
+    | Some t when ran -> t.window <- List.take t.window_size (token :: t.window)
     | _ -> ());
     lines := { token; owner; output; ran } :: !lines;
     token
@@ -1088,7 +1086,7 @@ let test_view_exception_close n k styled =
       (fun s off len -> Console_vte.feed term (String.sub s off len))
       (fun () -> ())
   in
-  Theme.set ppf (snd (List.nth Theme.all (k mod List.length Theme.all)));
+  Theme.set ppf (Widget_harness.nth_theme k);
   if styled then Fmt.set_style_renderer ppf `Ansi_tty;
   let root = Task.root ~now:(fun () -> 0.) () in
   let d = Progress.show ~size:(fun () -> (width, height)) ppf root in
@@ -1190,9 +1188,7 @@ let theme_switch_display width theme =
 
 let test_theme_switch old_index next_index n =
   let width = 8 + (n mod 73) in
-  let theme i =
-    Theme.still (snd (List.nth Theme.all (i mod List.length Theme.all)))
-  in
+  let theme i = Theme.still (Widget_harness.nth_theme i) in
   let ppf, display, actual, writes =
     theme_switch_display width (theme old_index)
   in
@@ -1288,10 +1284,7 @@ let start_tree_task ~keep_ended ~moves root tparent tname =
    step. *)
 let run_tree ?(keep_ended = false) root ~frame steps =
   let tasks = ref [||] and moves = ref [] in
-  let pick i =
-    let n = Array.length !tasks in
-    if n = 0 then None else Some !tasks.(i mod n)
-  in
+  let pick = pick_task tasks in
   let move x =
     if not x.moved then begin
       x.moved <- true;
@@ -1358,11 +1351,14 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
+(* The rows of [r] above the summary. *)
+let above_summary r = Option.map (fun h -> h - 1) (Room.height r)
+
 (* The trees of the top tasks of [root] side by side, then the summary. *)
 let side_by_side ~width root =
   View.fit (fun r ->
       let width = Option.value (Room.width r) ~default:width in
-      let height = Option.map (fun h -> h - 1) (Room.height r) in
+      let height = above_summary r in
       let tops = Task.children root in
       let n = max 1 (List.length tops) in
       let column = (min width 100 - (2 * (n - 1))) / n in
@@ -1436,8 +1432,9 @@ let test_default_view steps h =
   let run view =
     let buf = Buffer.create 256 in
     let ppf = Format.formatter_of_buffer buf in
-    let root = Task.root ~label:header ~now:(fun () -> 0.) () in
-    let view = Option.map (fun f -> f root) view in
+    let root, view =
+      Display_harness.rooted ~label:header ?view (fun () -> 0.)
+    in
     let d = Progress.show ?view ~size:(fun () -> (60, height)) ppf root in
     ignore (run_tree root ~frame:(fun () -> Display.redraw d) steps);
     Display.close d;
@@ -1446,7 +1443,7 @@ let test_default_view steps h =
   in
   let explicit root =
     View.fit (fun r ->
-        let height = Option.map (fun h -> h - 1) (Room.height r) in
+        let height = above_summary r in
         View.vcat
           [ View.sized ?height (Progress.tree root); Progress.summary root ])
   in
@@ -1555,13 +1552,7 @@ let apply_pack ~root ~now ~tasks step =
 let run_packs steps w ~frame =
   let width = 40 + (w mod 81) and height = 24 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        let s = Buffer.contents buf in
-        Buffer.clear buf;
-        Console_vte.feed vte s)
-  in
+  let ppf = Display_harness.feeding vte in
   Theme.set ppf Theme.dos;
   let now = ref 0. in
   let root = Task.root ~label:header ~now:(fun () -> !now) () in
@@ -1723,7 +1714,7 @@ let test_tree_local_dimensions w h =
     View.to_string (View.sized ~width:80 ~height:11 (Progress.view t.root))
   in
   let before = frame () in
-  let writes = List.length !(t.chunks) in
+  let writes = Display_harness.writes t in
   let width = 1 + (w mod 200) and height = h mod 11 in
   List.iter
     (fun task ->
@@ -1736,7 +1727,7 @@ let test_tree_local_dimensions w h =
     [ t.root; parent; child ];
   let after = frame () in
   Display.redraw d;
-  let unchanged = List.length !(t.chunks) = writes in
+  let unchanged = Display_harness.writes t = writes in
   Display.close d;
   check_eq ~pp:Fmt.Dump.string before after;
   check unchanged
@@ -1776,12 +1767,7 @@ let test_static_view w h k times =
 let test_commit steps policy =
   let width = 80 and height = 8 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed vte (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = Display_harness.feeding vte in
   let root = Task.root ~label:header ~now:(fun () -> 0.) () in
   let commit t =
     if policy then Some (View.text ("DONE " ^ Task.label t)) else None

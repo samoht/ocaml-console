@@ -17,9 +17,12 @@
 
 type holder = {
   id : int;
+  owner : Domain.id option;
   idle : (unit -> unit) -> unit;
   restore : unit -> unit;
   suspend : (unit -> unit) -> unit;
+  resume : unit -> unit;
+  terminal : Unix.file_descr option;
 }
 
 let ends = [ Sys.sigint; Sys.sigterm ]
@@ -28,17 +31,70 @@ let caught = Atomic.make []
 let ending = Atomic.make false
 let next = Atomic.make 0
 
-(* How long an ending signal waits for an idle point. *)
+(* How long a signal waits for an idle point. *)
 let grace = 1.
 
 let rec update a f =
   let old = Atomic.get a in
   if not (Atomic.compare_and_set a old (f old)) then update a f
 
+(* A holder with an idle point is reached from its own domain only. *)
+let here h =
+  match h.owner with
+  | None -> true
+  | Some d -> Int.equal (d :> int) (Domain.self () :> int)
+
+(* Nothing a restoration raises keeps the signal from going on. *)
+let attempt f = try f () with e when not (Task_driver.is_async e) -> ()
+
+(* What gives a terminal back with no state of the display: CAN and ST end
+   an escape code cut in half, then the end of a link, of the colours, of a
+   synchronized update, and the cursor shown. *)
+let sequence = "\024\027\\\027]8;;\027\\\027[0m\027[?2026l\027[?25h"
+let dead = Atomic.make false
+let written = Atomic.make false
+let is_dead () = Atomic.get dead
+
+(* Once [dead] is set, the display writes nothing more, so that no frame
+   follows the sequence; a write already under way in the kernel cannot be
+   stopped. The terminal is non-blocking: the sequence is written at most
+   once, or not at all. *)
+let give_up hs =
+  Atomic.set dead true;
+  if not (Atomic.exchange written true) then
+    List.iter
+      (fun h ->
+        Option.iter
+          (fun fd ->
+            try
+              ignore
+                (Unix.single_write_substring fd sequence 0
+                   (String.length sequence))
+            with Unix.Unix_error _ -> ())
+          h.terminal)
+      hs
+
+let last_resort () = give_up (Atomic.get holders)
+
+let reopen () =
+  Atomic.set written false;
+  Atomic.set dead false
+
+let after_grace f =
+  ignore
+    (Thread.create
+       (fun () ->
+         Thread.delay grace;
+         f ())
+       ()
+      : Thread.t)
+
 (* The process stops as the default disposition stops it, inside every
    suspension, innermost outermost; [kill] returns once it is continued. The
    runtime blocks a signal while its handler runs, so it is unblocked for the
-   stop; in a process group that no shell controls, the system discards it. *)
+   stop; in a process group that no shell controls, the system discards it. A
+   suspension that does not start within [grace], or one in another domain,
+   gives way to {!give_up} around the stop, and to [resume] once continued. *)
 let rec stop signo =
   let stop () =
     Sys.set_signal signo Sys.Signal_default;
@@ -47,13 +103,41 @@ let rec stop signo =
     ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list);
     Sys.set_signal signo (Sys.Signal_handle stop)
   in
+  let hs = Atomic.get holders in
+  let state = Atomic.make `Waiting in
+  let taken h =
+    Option.is_none h.owner
+    || Atomic.compare_and_set state `Waiting `Taken
+    || Atomic.get state = `Taken
+  in
   let around =
     List.fold_left
-      (fun k h () -> h.idle (fun () -> h.suspend k))
-      stop
-      (List.rev (Atomic.get holders))
+      (fun k h () -> h.idle (fun () -> if taken h then h.suspend k))
+      stop (List.rev hs)
   in
-  try around () with Sys_error _ -> ()
+  let abandon () =
+    if Atomic.compare_and_set state `Waiting `Abandoned then begin
+      give_up hs;
+      Fun.protect stop ~finally:(fun () ->
+          reopen ();
+          List.iter (fun h -> attempt h.resume) hs)
+    end
+  in
+  if List.for_all here hs then begin
+    attempt around;
+    if Atomic.get state = `Waiting && List.exists (fun h -> h.owner <> None) hs
+    then after_grace (fun () -> attempt abandon)
+  end
+  else attempt abandon
+
+(* The signal sent again, let through in the sending thread: the runtime
+   blocks it in a handler, and every other thread may block it too, as the
+   display's does when another domain handles it. POSIX delivers it to the
+   sending thread before [kill] returns once no other thread takes it. *)
+let resend signo =
+  let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
+  Unix.kill (Unix.getpid ()) signo;
+  ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
 
 (* Our handler gives way to the default disposition, and one the program
    installed since stays. *)
@@ -66,8 +150,9 @@ let rec release () =
     (Atomic.exchange caught [])
 
 (* The signal is sent again once, after the last restoration or once
-   [grace] has passed, whichever comes first. An ending signal that comes
-   before then is the same ending. *)
+   [grace] has passed, whichever comes first, armed before any restoration
+   runs. A holder of another domain is given up at once. An ending signal
+   that comes before then is the same ending. *)
 and handle signo =
   if not (Atomic.exchange ending true) then begin
     let sent = Atomic.make false in
@@ -75,25 +160,26 @@ and handle signo =
       if not (Atomic.exchange sent true) then begin
         release ();
         Atomic.set ending false;
-        Unix.kill (Unix.getpid ()) signo
+        resend signo
       end
     in
+    let hs = Atomic.exchange holders [] in
+    after_grace (fun () ->
+        if not (Atomic.get sent) then begin
+          give_up hs;
+          send ()
+        end);
     let rec close = function
       | [] -> send ()
+      | h :: rest when not (here h) ->
+          give_up [ h ];
+          close rest
       | h :: rest ->
           h.idle (fun () ->
-              (try h.restore () with Sys_error _ -> ());
+              attempt h.restore;
               close rest)
     in
-    close (Atomic.exchange holders []);
-    if not (Atomic.get sent) then
-      ignore
-        (Thread.create
-           (fun () ->
-             Thread.delay grace;
-             send ())
-           ()
-          : Thread.t)
+    attempt (fun () -> close hs)
   end
 
 let catch () =
@@ -104,11 +190,14 @@ let catch () =
       | chosen -> Sys.set_signal s chosen)
     ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
 
-let protect ?(idle = fun k -> k ()) ?(suspend = fun stop -> stop ()) ~restore f
-    =
+let protect ?idle ?(suspend = fun stop -> stop ()) ?(resume = ignore) ?terminal
+    ~restore f =
   let id = Atomic.fetch_and_add next 1 in
+  let owner = Option.map (fun _ -> Domain.self ()) idle in
+  let idle = Option.value idle ~default:(fun k -> k ()) in
   if Atomic.get holders = [] then catch ();
-  update holders (List.cons { id; idle; restore; suspend });
+  update holders
+    (List.cons { id; owner; idle; restore; suspend; resume; terminal });
   Fun.protect f ~finally:(fun () ->
       update holders (List.filter (fun h -> h.id <> id));
       if Atomic.get holders = [] && not (Atomic.get ending) then release ())

@@ -32,13 +32,14 @@
     - its [Task.log] lines;
     - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes.
 
-    Of what [run] takes, bytes belong to the task current when they are written.
-    A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that another
-    fiber printed there without flushing them go to whichever task ends first.
-    Each task collects its own lines, so a line is what one task wrote up to a
-    line feed, and a task's unended last line is ended when the task ends. Bytes
-    written outside any task are the output of no task, ended when the display
-    closes.
+    Of what [run] takes, bytes belong to the task current when they are written,
+    in the fiber that writes them: none is current outside any fiber, as in a
+    thread. A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that
+    another fiber printed there without flushing them go to whichever task ends
+    first. Each task collects its own lines, so a line is what one task wrote up
+    to a line feed, and a task's unended last line is ended when the task ends.
+    Bytes written outside any task are the output of no task, ended when the
+    display closes.
 
     Text that [print_string], [Printf] or a child process writes on the terminal
     goes past the display and garbles the rows, so print it with {!with_output}.
@@ -107,10 +108,13 @@ val run :
       line of [ppf] is an event.
 
     The display closes once the work ended, and an exception from [f] is raised
-    again. A fiber cancelled inside a {!Console.Task.run} cancels its task. A
-    [view] that raises is dropped for the default one, and [run] raises its
-    exception: at once, cancelling [f], when a redraw meets it, and once the
-    display closed otherwise, unless [f] raised first.
+    again. A run whose fiber is cancelled still closes it and restores the
+    terminal, waiting a second at most for an output that takes nothing; one
+    that is not cancelled waits for its output as any write does. A fiber
+    cancelled inside a {!Console.Task.run} cancels its task. A [view] that
+    raises is dropped for the default one, and [run] raises its exception: at
+    once, cancelling [f], when a redraw meets it, and once the display closed
+    otherwise, unless [f] raised first.
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a
@@ -144,7 +148,9 @@ val run :
     - a message logged after the display closed, through a reporter kept from
       [f];
     - a message still waiting for the display when it closes;
-    - a message from a domain that Eio does not run.
+    - a message from a domain that Eio does not run;
+    - a message logged outside any fiber of the domain that runs [f], as from a
+      thread or a signal handler.
 
     That reporter is put back when [f] ends, and when the program exits during
     [f], so what an [at_exit] function logs after the display closed goes to it.
@@ -156,8 +162,7 @@ val run :
 
     - SIGINT or SIGTERM during [f]: the display closes once the frame it is
       writing, if any, is written, then the signal ends the program as it would
-      have. If that write does not end within a second, the signal ends the
-      program with the frame as it is.
+      have.
     - SIGTSTP (Ctrl-Z): the rows are taken off the terminal and the cursor is
       shown before the program stops, and the rows are drawn again once [fg]
       continues it. In a process group that no shell controls, where the stop
@@ -165,6 +170,23 @@ val run :
       goes on.
 
     A signal the program handles or ignores is left to it.
+
+    The display belongs to the domain that runs [f]. Where it cannot be reached
+    from there, the terminal is given up rather than restored: for a signal
+    handled in another domain, a write that does not end within a second, and an
+    [exit] from another thread or domain or while a write is under way. A fixed
+    sequence is then written once, without blocking, on the display's terminal,
+    opened again when [run] starts: it ends an escape code cut in half, a link
+    and the colours, and shows the cursor. The rows stay as they are and the
+    display writes nothing more. The signal then ends or stops the program, and
+    a program continued after such a stop draws the rows afresh. A write the
+    kernel already holds cannot be stopped and may still follow the sequence.
+
+    On {!Fmt.stdout} or {!Fmt.stderr}, a signal handler writes the last frame
+    itself. On a formatter that writes through an Eio flow, which takes a fiber,
+    a signal handler that runs outside any fiber leaves the last frame to a
+    fiber of the run: when none runs within a second, as while the program
+    computes, the frame is lost and the cursor may stay hidden.
 
     A closed pipe on [ppf] ends the display's output and nothing else, while one
     on standard output is met by the program's own writes, as without console

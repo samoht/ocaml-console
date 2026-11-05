@@ -20,7 +20,7 @@ type show =
   Display.t
 
 let driver ?(write_error = fun _ -> false) () : show =
-  Progress_driver.show ~write_error
+  Progress_driver.show ~write_error ?cancelled:None ?atomic:None
 
 let public : show = Progress.show
 
@@ -140,21 +140,23 @@ let test_size () =
     (fun ppf root ->
       driver () ~progress:`Plain ~size:(fun () -> (12, 10)) ppf root)
 
-let contains affix s = Astring.String.is_infix ~affix s
-
 (* The clock stays at 0 here, so that no row is drawn: what shows of a task is
    what it leaves. *)
 let test_commit () =
   let out commit =
     shown (fun ppf root -> driver () ~progress:`Tty ~size ?commit ppf root)
   in
-  Alcotest.(check bool) "its tree" true (contains "fine" (out None));
+  Alcotest.(check bool)
+    "its tree" true
+    (Display_harness.contains "fine" (out None));
   let left t = Some (View.text ("left " ^ Task.label t)) in
   Alcotest.(check bool)
     "what is given" true
-    (contains "left fine" (out (Some left)));
+    (Display_harness.contains "left fine" (out (Some left)));
   let none _ = None in
-  Alcotest.(check bool) "nothing" false (contains "fine" (out (Some none)))
+  Alcotest.(check bool)
+    "nothing" false
+    (Display_harness.contains "fine" (out (Some none)))
 
 (* The rows of a task that runs while the clock moves, and nothing it leaves. *)
 let rows ?layout ?delay () =
@@ -175,7 +177,7 @@ let rows ?layout ?delay () =
 
 let test_rows () =
   let check label expected out =
-    Alcotest.(check bool) label expected (contains "fine" out)
+    Alcotest.(check bool) label expected (Display_harness.contains "fine" out)
   in
   check "the rows show" true (rows ());
   check "not before the delay" false (rows ~delay:10. ());

@@ -22,7 +22,6 @@ let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
    each given back as it was found. *)
 let with_fds ~stdout ~stderr ~term f =
   let saved_out = Unix.dup Unix.stdout and saved_err = Unix.dup Unix.stderr in
-  let saved_term = Sys.getenv_opt "TERM" in
   let stds = [ Fmt.stdout; Fmt.stderr ] in
   let looks = List.map (fun p -> (Fmt.style_renderer p, Fmt.utf_8 p)) stds in
   Fun.protect ~finally:(fun () ->
@@ -32,7 +31,6 @@ let with_fds ~stdout ~stderr ~term f =
       Unix.dup2 saved_err Unix.stderr;
       Unix.close saved_out;
       Unix.close saved_err;
-      Unix.putenv "TERM" (Option.value saved_term ~default:"");
       List.iter2
         (fun p (r, u) ->
           Fmt.set_style_renderer p r;
@@ -41,7 +39,7 @@ let with_fds ~stdout ~stderr ~term f =
   @@ fun () ->
   Unix.dup2 stdout Unix.stdout;
   Unix.dup2 stderr Unix.stderr;
-  Unix.putenv "TERM" term;
+  Env_harness.with_env [ ("TERM", term) ] @@ fun () ->
   Console_tty.setup ~utf_8:true ();
   f ()
 
@@ -194,14 +192,6 @@ let has_sgr s =
   in
   go 0
 
-let with_no_color value f =
-  let saved = Sys.getenv_opt "NO_COLOR" in
-  Fun.protect ~finally:(fun () ->
-      Unix.putenv "NO_COLOR" (Option.value saved ~default:""))
-  @@ fun () ->
-  Unix.putenv "NO_COLOR" value;
-  f ()
-
 (* [run] on a terminal draws in colour as [setup] decides, and draws plain when
    [NO_COLOR] asks it to; the region is drawn in place either way. *)
 let test_run_styles_a_terminal () =
@@ -213,7 +203,9 @@ let test_run_styles_a_terminal () =
   with_null @@ fun null ->
   let draw no_color =
     let ppf = Fmt.stderr in
-    with_no_color no_color (fun () ->
+    Env_harness.with_env
+      [ ("NO_COLOR", no_color) ]
+      (fun () ->
         with_fds ~stdout:null ~stderr:tty ~term:"xterm-256color" (fun () ->
             Console_tty.setup ();
             let clock = Eio_mock.Clock.Mono.make () in
@@ -231,40 +223,20 @@ let test_run_styles_a_terminal () =
     (contains hide_cursor plain);
   Alcotest.(check bool) "no colour under NO_COLOR" false (has_sgr plain)
 
+let check_dimensions msg ~columns ~lines expected =
+  Env_harness.with_env [ ("COLUMNS", columns); ("LINES", lines) ] @@ fun () ->
+  Alcotest.(check (pair int int)) msg expected (Terminal.dimensions None)
+
 (* XBD 8.3: COLUMNS and LINES are decimal integers > 0. *)
 let test_small_dimensions () =
-  let columns = Sys.getenv_opt "COLUMNS" and lines = Sys.getenv_opt "LINES" in
-  Fun.protect
-    ~finally:(fun () ->
-      Unix.putenv "COLUMNS" (Option.value columns ~default:"");
-      Unix.putenv "LINES" (Option.value lines ~default:""))
-    (fun () ->
-      Unix.putenv "COLUMNS" "10";
-      Unix.putenv "LINES" "2";
-      Alcotest.(check (pair int int))
-        "valid small geometry" (10, 2) (Terminal.dimensions None))
+  check_dimensions "valid small geometry" ~columns:"10" ~lines:"2" (10, 2)
 
 (* No terminal is wider or taller than 4096 cells: a larger $COLUMNS or
    $LINES is ignored, as one that is not a number is. *)
 let test_absurd_dimensions () =
-  let columns = Sys.getenv_opt "COLUMNS" and lines = Sys.getenv_opt "LINES" in
-  Fun.protect
-    ~finally:(fun () ->
-      Unix.putenv "COLUMNS" (Option.value columns ~default:"");
-      Unix.putenv "LINES" (Option.value lines ~default:""))
-    (fun () ->
-      Unix.putenv "COLUMNS" "4096";
-      Unix.putenv "LINES" "4096";
-      Alcotest.(check (pair int int))
-        "the largest" (4096, 4096) (Terminal.dimensions None);
-      Unix.putenv "COLUMNS" "0x50";
-      Unix.putenv "LINES" "1_0";
-      Alcotest.(check (pair int int))
-        "only decimal digits" (80, 24) (Terminal.dimensions None);
-      Unix.putenv "COLUMNS" "99999999999";
-      Unix.putenv "LINES" "4097";
-      Alcotest.(check (pair int int))
-        "too large" (80, 24) (Terminal.dimensions None))
+  check_dimensions "the largest" ~columns:"4096" ~lines:"4096" (4096, 4096);
+  check_dimensions "only decimal digits" ~columns:"0x50" ~lines:"1_0" (80, 24);
+  check_dimensions "too large" ~columns:"99999999999" ~lines:"4097" (80, 24)
 
 let suite =
   ( "terminal",

@@ -3,11 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
+open Env_harness
 
 (* The rules of cmdliner and fmt, and the depth the environment announces. *)
 let test_colour_rules () =
@@ -18,7 +14,7 @@ let test_colour_rules () =
     | `None -> "none"
   in
   let term = ("TERM", "xterm-256color") in
-  let check label expected got = Alcotest.(check string) label expected got in
+  let check = Alcotest.(check string) in
   check "terminal" "ansi" (renderer ~is_tty:true [ term ]);
   check "pipe" "none" (renderer ~is_tty:false [ term ]);
   check "NO_COLOR" "none" (renderer ~is_tty:true [ term; ("NO_COLOR", "1") ]);

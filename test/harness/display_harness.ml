@@ -17,6 +17,17 @@ let glyphs s =
   in
   go 0 []
 
+let feeding vte =
+  let buf = Buffer.create 256 in
+  Format.make_formatter (Buffer.add_substring buf) (fun () ->
+      Console_vte.feed vte (Buffer.contents buf);
+      Buffer.clear buf)
+
+let check_cursor_restored msg written =
+  let hidden, shown = Console_vte.cursor_history written in
+  Alcotest.(check bool) (msg ^ ": hidden while it ran") true hidden;
+  Alcotest.(check bool) (msg ^ ": shown at the end") true shown
+
 let bar_span row =
   let bar u =
     Uchar.equal u (Uchar.of_int 0x2588) || Uchar.equal u (Uchar.of_int 0x2591)
@@ -40,13 +51,16 @@ let finish root d =
   Task.succeed root;
   Display.close d
 
+let rooted ?label ?view now =
+  let root = Task.root ?label ~now () in
+  (root, Option.map (fun f -> f root) view)
+
 let plain ?label ?layout ?theme ?(progress = `Plain) ?view ?keep_ended f =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   let d = Progress.show ~progress ?layout ?view ?keep_ended ppf root in
   let v = f root advance in
   finish root d;
@@ -86,8 +100,7 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   end;
   Option.iter (Theme.set ppf) theme;
   let now, advance = clock () in
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   let display =
     Progress.show ?layout ?view ?keep_ended ?commit ?plain ?delay
       ~size:(fun () -> !size)
@@ -95,6 +108,8 @@ let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
   in
   { vte; root; display; advance; size; chunks }
 
+let roomy () = terminal ~theme:Theme.dos ~width:30 ~height:10 ()
+let writes t = List.length !(t.chunks)
 let written t = String.concat "" (List.rev !(t.chunks))
 
 let resize t ~width ~height =
@@ -103,6 +118,12 @@ let resize t ~width ~height =
 
 let screen t = Console_vte.screen t.vte
 let lines t = Console_vte.screen ~scrollback:true t.vte
+
+let check_room ~rows ~cols msg row v =
+  let terminal = Console_vte.v ~rows ~cols () in
+  Console_vte.feed terminal (View.to_string v);
+  Alcotest.(check int) msg row (fst (Console_vte.cursor_pos terminal));
+  Alcotest.(check bool) "within its room" true (View.width v <= cols)
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f

@@ -5,65 +5,12 @@
 
 open Alcobar
 open Console
+open Widget_harness
 
-(* Cell text whose bytes, clusters and cells do not line up. *)
-let pool =
-  [|
-    "x";
-    "abc";
-    "\xe7\x95\x8c\xe7\x95\x8c";
-    "e\xcc\x81";
-    "\xf0\x9f\x8e\x89 ok";
-    "a b c d e f";
-    "src/lib/a.ml";
-    "\xff\xfe";
-    "\t\007bell";
-    "";
-    "a long cell that will not fit in a narrow column at all";
-  |]
-
-let pick s i =
-  let s = s ^ "\000" in
-  pool.((Char.code s.[i mod String.length s] + i) mod Array.length pool)
-
-(* What [pp] prints at [margin], in colour, as lines without their escapes. *)
-let render ?theme pp margin v =
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  Option.iter (Theme.set ppf) theme;
-  Format.pp_set_margin ppf margin;
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  pp ppf v;
-  Format.pp_print_flush ppf ();
-  let raw = Buffer.contents buf in
-  (raw, List.map Console_text.strip (String.split_on_char (Char.chr 10) raw))
-
-let cells s = Console_width.string_width s
-
-let check_fits margin lines =
-  List.iter
-    (fun l ->
-      if cells l > margin then
-        failf "%d cells at margin %d: %S" (cells l) margin l)
-    lines
-
-(* Every style a widget turns on, it turns off before the line ends. *)
-let check_closed raw =
-  List.iter
-    (fun l ->
-      match String.rindex_opt l (Char.chr 27) with
-      | None -> ()
-      | Some i ->
-          let rest = String.sub l i (String.length l - i) in
-          if
-            not
-              (String.starts_with ~prefix:"\027[0m" rest
-              || String.starts_with ~prefix:"\027]8;;\027" rest)
-          then failf "style left on: %S" l)
-    (String.split_on_char (Char.chr 10) raw)
+let columns_of s = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4)
 
 let table ?(border = Border.rounded) s =
-  let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
+  let ncol = columns_of s in
   let columns =
     List.init ncol (fun i ->
         Table.column
@@ -165,32 +112,8 @@ let test_huge_min_width n =
 
 let test_wide_border n =
   let glyph = String.make (2 + (n mod 3)) '#' in
-  let border =
-    Border.v
-      Border.
-        {
-          top_left = glyph;
-          top = glyph;
-          top_right = glyph;
-          left = glyph;
-          right = glyph;
-          bottom_left = glyph;
-          bottom = glyph;
-          bottom_right = glyph;
-          vertical = glyph;
-          horizontal = glyph;
-          cross = glyph;
-          top_cross = glyph;
-          bottom_cross = glyph;
-          left_cross = glyph;
-          right_cross = glyph;
-        }
-  in
-  let t =
-    Table.view ~border
-      [ Table.column (View.text "A"); Table.column (View.text "B") ]
-      [ [ View.text "x"; View.text "y" ] ]
-  in
+  let border = View_harness.frame glyph in
+  let t = View_harness.small_table ~border in
   let lines =
     String.split_on_char '\n' (View.to_string (View.sized ~width:40 t))
   in
@@ -263,7 +186,7 @@ let test_mixed_script_themes s n =
 (* [rules] draws a rule between each two rows, in the glyphs of the
    header's rule: with the header's, as many rules as rows. *)
 let test_rules s n =
-  let ncol = 1 + (Char.code (String.get (s ^ "\001") 0) mod 4) in
+  let ncol = columns_of s in
   let nrows = 1 + (abs n mod 6) in
   let columns = List.init ncol (fun _ -> Table.column (View.text "h")) in
   let rows =

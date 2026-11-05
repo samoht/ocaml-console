@@ -5,15 +5,7 @@
 
 open Alcobar
 
-let uchars s =
-  let rec go i acc =
-    if i >= String.length s then List.rev acc
-    else
-      let d = String.get_utf_8_uchar s i in
-      go (i + Uchar.utf_decode_length d) (Uchar.utf_decode_uchar d :: acc)
-  in
-  go 0 []
-
+let uchars s = Array.to_list (Display_harness.glyphs s)
 let cells u = max 0 (Uucp.Break.tty_width_hint u)
 
 let is_spacing_mark u =

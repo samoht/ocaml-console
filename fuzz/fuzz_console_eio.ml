@@ -498,17 +498,9 @@ let test_json_lifecycle k =
 (* Forced tty mode must keep the display's screen guarantees even when the
    destination has no terminal, using COLUMNS and LINES for its geometry. *)
 let with_dimensions width height f =
-  let bindings =
+  Env_harness.with_env
     [ ("COLUMNS", string_of_int width); ("LINES", string_of_int height) ]
-  in
-  let saved =
-    List.map (fun (name, _) -> (name, Sys.getenv_opt name)) bindings
-  in
-  List.iter (fun (name, value) -> Unix.putenv name value) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter
-        (fun (name, value) -> Unix.putenv name (Option.value value ~default:""))
-        saved)
+    f
 
 let tty_destination width height k =
   let screen = Console_vte.v ~raw:true ~rows:height ~cols:width () in
@@ -566,34 +558,12 @@ let test_forced_tty_screen k label =
            (fun line -> String.contains line 'Z')
            (Console_vte.screen ~scrollback:true screen)))
 
-(* What [run] writes on {!Fmt.stdout} as [ppf], which it also takes the
-   program's lines from under [progress]. *)
-let capture_stdout progress f =
-  Eio_mock.Backend.run @@ fun () ->
-  Format.pp_print_flush Fmt.stdout ();
-  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
-  let out = Buffer.create 256 in
-  Format.pp_set_formatter_out_functions Fmt.stdout
-    {
-      saved with
-      out_string = Buffer.add_substring out;
-      out_flush = (fun () -> ());
-    };
-  Fun.protect
-    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
-    (fun () ->
-      Console_eio.run
-        ~clock:(Eio_mock.Clock.Mono.make ())
-        ~ppf:Fmt.stdout ~progress f;
-      Format.pp_print_flush Fmt.stdout ());
-  Buffer.contents out
-
 (* Quiet stays silent when all tasks succeed, even if they flush or yield
    in the middle of a line. Replay the bytes on a terminal as well. *)
 let test_quiet_unended_success size flush =
   let text = String.make (1 + (size mod 64)) 'x' in
   let out =
-    capture_stdout `Quiet (fun d ->
+    Eio_harness.capture_stdout `Quiet (fun d ->
         Console.Task.run d "success" (fun _ ->
             Fmt.pr "%s" text;
             if flush then Format.pp_print_flush Fmt.stdout ();
@@ -610,7 +580,7 @@ let test_quiet_unended_success size flush =
 let test_json_partial_attribution size newline =
   let prefix i = string_of_int i ^ String.make (1 + (size mod 32)) 'x' in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         Eio.Fiber.List.iter
           (fun i ->
             Console.Task.run d (string_of_int i) (fun _ ->
@@ -657,7 +627,7 @@ let test_json_long_line size split =
   let text = String.make length 'x' in
   let cut = min length (split * 257) in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         Console.Task.run d "large" (fun _ ->
             Fmt.pr "%s%!" (String.sub text 0 cut);
             Fmt.pr "%s@." (String.sub text cut (length - cut))))
@@ -817,12 +787,7 @@ let concurrent_sleeps ~first ~second overshoot =
 (* How late the backing clock wakes two concurrent sleeps does not change
    the bytes of the run. *)
 let test_deterministic_concurrency a b =
-  let key = "CONSOLE_DETERMINISTIC_CLOCK" in
-  let saved = Sys.getenv_opt key in
-  Unix.putenv key "0";
-  Fun.protect ~finally:(fun () ->
-      Unix.putenv key (Option.value saved ~default:""))
-  @@ fun () ->
+  Env_harness.with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "0") ] @@ fun () ->
   let duration n = float_of_int (1 + (n mod 20)) /. 10. in
   let capture = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
   check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
@@ -838,14 +803,9 @@ let with_recording deterministic f =
       ("LINES", "8");
     ]
   in
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
   Fun.protect
-    ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved;
-      Sys.remove file)
-    (fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-      f file)
+    ~finally:(fun () -> Sys.remove file)
+    (fun () -> Env_harness.with_env bindings (fun () -> f file))
 
 (* The mock clock behind never moves, so a sleep that waited on it would
    leave the mock backend with nothing to run, which it raises. *)

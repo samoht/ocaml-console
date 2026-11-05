@@ -6,11 +6,30 @@
  (libraries console console_vte matrix.vte alcotest astring fmt))
 
 (library
+ (name widget_harness)
+ (modules widget_harness)
+ (libraries alcobar console console.text console_width fmt))
+
+(library
+ (name env_harness)
+ (modules env_harness)
+ (libraries unix))
+
+(library
+ (name eio_harness)
+ (modules eio_harness)
+ (libraries console console-eio eio.mock fmt))
+
+(library
+ (name text_harness)
+ (modules text_harness))
+
+(library
  (name view_harness)
  (modules view_harness)
  (flags
   (:standard -open Console__))
- (libraries console))
+ (libraries console fmt))
 
 (rule
  (with-stdout-to
@@ -21,3 +40,8 @@
  (name matrix_0_1)
  (modules matrix_0_1 matrix_version)
  (libraries alcobar console_width uucp))
+
+(library
+ (name cast_harness)
+ (modules cast_harness)
+ (libraries alcotest jsont jsont.bytesrw))

@@ -10,6 +10,8 @@
 
 val show :
   write_error:(exn -> bool) ->
+  ?cancelled:(exn -> bool) ->
+  ?atomic:((unit -> unit) -> unit) ->
   ?progress:Progress.t ->
   ?layout:Progress.Layout.t ->
   ?view:View.t ->
@@ -21,6 +23,8 @@ val show :
   Format.formatter ->
   Task.t ->
   Display.t
-(** [show ~write_error ppf root] is {!Progress.show}[ ppf root] whose display
-    takes as the end of its output an exception that [write_error] says is a
-    write error, such as a closed pipe. *)
+(** [show ~write_error ~cancelled ~atomic ppf root] is
+    {!Progress.show}[ ppf root] whose display takes as the end of its output an
+    exception that [write_error] says is a write error, such as a closed pipe,
+    holds back none that [cancelled] says is a cancellation, and writes each
+    update through [atomic], which may keep a cancellation from cutting it. *)

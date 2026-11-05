@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Display_harness
+open Env_harness
 
 let with_clock f = Eio_main.run @@ fun _env -> f (Eio_mock.Clock.Mono.make ())
 
@@ -39,12 +40,6 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 (* A display reads the time on its monotonic clock. *)
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
-
-let with_env bindings f =
-  let saved = List.map (fun (k, _) -> (k, Sys.getenv_opt k)) bindings in
-  List.iter (fun (k, v) -> Unix.putenv k v) bindings;
-  Fun.protect f ~finally:(fun () ->
-      List.iter (fun (k, v) -> Unix.putenv k (Option.value v ~default:"")) saved)
 
 (* [mock] at its next timer, if any: a sleep that waits for its turn on
    [Console_eio.clock] has none. *)
@@ -216,11 +211,6 @@ let recording f =
   Sys.remove file;
   lines
 
-let decode t line =
-  match Jsont_bytesrw.decode_string t line with
-  | Ok v -> v
-  | Error e -> Alcotest.fail e
-
 (* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
    never moves: a sleep that waited on it would never end, and the work
    fails if it does not end first. *)
@@ -245,39 +235,33 @@ let recorded_nap () =
       done;
       Alcotest.fail "a sleep waited for the real time")
 
-(* A header, then one array a write, which reads back as it was written:
+(* asciicast v2: a header, then an event a line, each newline-delimited JSON:
    the rows drawn, and nothing on the output itself. *)
 let test_cast_format () =
   match recorded_nap () with
   | [] -> Alcotest.fail "no header"
-  | header :: events ->
-      Alcotest.(check string)
-        "the header"
-        {|{"version":2,"width":30,"height":6,"env":{"TERM":"xterm"}}|} header;
+  | header :: lines ->
+      Alcotest.check Cast_harness.json "the header"
+        (Cast_harness.parse
+           {|{"version":2,"width":30,"height":6,"env":{"TERM":"xterm"}}|})
+        (Cast_harness.parse header);
+      let events = List.map Cast_harness.event lines in
       Alcotest.(check bool) "events" true (List.length events > 2);
       List.iter
-        (fun line ->
-          let e = decode Console__.Cast.event line in
-          Alcotest.(check bool)
-            "an output event" true
-            (contains {|,"o","|} line && String.starts_with ~prefix:"[" line);
-          Alcotest.(check string)
-            "read back" (line ^ "\n")
-            (Console__.Cast.to_line Console__.Cast.event e))
+        (fun (e : Cast_harness.event) ->
+          Alcotest.(check string) "an output event" "o" e.code)
         events;
-      let first = decode Console__.Cast.event (List.hd events) in
       Alcotest.(check bool)
         "the rows drawn" true
-        (contains "\027[?25l" first.data)
+        (fst
+           (Console_vte.cursor_history (Cast_harness.event (List.hd lines)).data))
 
 (* Each write is at its time on the virtual clock: the redraws a tenth of a
    second apart, the count when the first sleep ends, the last write when
    the second does. *)
 let test_cast_times () =
-  let events =
-    List.map (decode Console__.Cast.event) (List.tl (recorded_nap ()))
-  in
-  let times = List.map (fun (e : Console__.Cast.event) -> e.time) events in
+  let events = Cast_harness.events (recorded_nap ()) in
+  let times = List.map (fun (e : Cast_harness.event) -> e.time) events in
   Alcotest.(check bool) "in order" true (List.sort Float.compare times = times);
   Alcotest.(check bool)
     "at tenths of a second" true
@@ -287,7 +271,7 @@ let test_cast_times () =
   Alcotest.(check bool)
     "the count as the first sleep ends" true
     (List.exists
-       (fun (e : Console__.Cast.event) -> e.time = 1.5 && contains "1/2" e.data)
+       (fun (e : Cast_harness.event) -> e.time = 1.5 && contains "1/2" e.data)
        events);
   Alcotest.(check (float 0.))
     "the end" 2.
@@ -306,7 +290,9 @@ let recorded_text text =
     Fmt.pf ppf "%s@?" text
   in
   String.concat ""
-    (List.map (fun l -> (decode Console__.Cast.event l).data) (List.tl lines))
+    (List.map
+       (fun (e : Cast_harness.event) -> e.data)
+       (Cast_harness.events lines))
 
 (* A line feed is recorded after a carriage return, as a terminal's driver
    writes it, and one that has its carriage return already is left alone. *)
@@ -330,7 +316,10 @@ let test_cast_schedule () =
   in
   let calm = recorded 0 in
   Alcotest.(check bool)
-    "the builds take the longer time" true (contains "\n[2.86," calm);
+    "the builds take the longer time" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> e.time = 2.86)
+       (Cast_harness.events (String.split_on_char '\n' (String.trim calm))));
   for seed = 1 to 50 do
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
@@ -346,6 +335,355 @@ let test_run_raises () =
       Alcotest.(check bool)
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
+
+(* An output that a cancelled fiber cannot write to, as an Eio flow. *)
+let flow () =
+  let buf = Buffer.create 256 in
+  let out s o l =
+    Eio.Fiber.check ();
+    Buffer.add_substring buf s o l
+  in
+  (buf, Format.make_formatter out ignore)
+
+(* A run that is cancelled still gives the terminal back. *)
+let test_cancelled_run_restores () =
+  with_clock (fun clock ->
+      let buf, ppf = flow () in
+      let started, start = Eio.Promise.create () in
+      let result =
+        Eio.Fiber.first
+          (fun () ->
+            Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+                ignore (Console.Task.start root "t");
+                Eio.Promise.resolve start ();
+                Eio.Fiber.await_cancel ()))
+          (fun () ->
+            Eio.Promise.await started;
+            "cancelled")
+      in
+      Alcotest.(check string) "the winner" "cancelled" result;
+      check_cursor_restored "cursor" (Buffer.contents buf))
+
+(* A fiber cancelled in a view stops there: its [Cancelled] is no one else's. *)
+let test_view_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let armed = ref false in
+      let view _ =
+        Console.View.fit (fun _ ->
+            if !armed then begin
+              armed := false;
+              Eio.Fiber.yield ()
+            end;
+            Console.View.text "row")
+      in
+      let value =
+        Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+            let winner =
+              Eio.Fiber.first
+                (fun () ->
+                  armed := true;
+                  Console_eio.print (Console.View.text "line");
+                  Eio.Fiber.await_cancel ())
+                (fun () -> "winner")
+            in
+            Alcotest.(check string) "the winner" "winner" winner;
+            42)
+      in
+      Alcotest.(check int) "the run's value" 42 value)
+
+(* Cancelled around [with_output], it is still cancelled. *)
+let test_with_output_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let winner =
+            Eio.Fiber.first
+              (fun () ->
+                Console_eio.with_output (fun _ -> Eio.Fiber.await_cancel ()))
+              (fun () -> "winner")
+          in
+          Alcotest.(check string) "the winner" "winner" winner;
+          let task = ref None in
+          Eio.Fiber.first
+            (fun () ->
+              Console.Task.run root "inner" (fun t ->
+                  task := Some t;
+                  Console_eio.with_output (fun _ -> Eio.Fiber.await_cancel ())))
+            ignore;
+          Alcotest.(check bool)
+            "the task is cancelled" true
+            (Option.map Console.Task.state !task = Some `Cancelled)))
+
+(* A write that a cancellation cuts half way, on an output that took that half,
+   erases nothing above the region, and what it was to print still goes out. *)
+let test_write_cut () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
+      let slow = ref false in
+      let out s o l =
+        if !slow then begin
+          slow := false;
+          Buffer.add_substring buf s o (l / 2);
+          Eio.Promise.resolve enter ();
+          Eio.Fiber.await_cancel ()
+        end
+        else Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun _ ->
+          List.iter
+            (fun s -> Console_eio.print (Console.View.text s))
+            [ "keep-1"; "keep-2"; "keep-3" ];
+          slow := true;
+          Eio.Fiber.first
+            (fun () ->
+              Console_eio.print (Console.View.text "PRINTED");
+              Eio.Fiber.await_cancel ())
+            (fun () -> Eio.Promise.await entered));
+      let vte = Console_vte.v ~rows:20 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      List.iter
+        (fun line ->
+          Alcotest.(check bool)
+            line true
+            (List.exists (contains line) (Console_vte.screen vte)))
+        [ "keep-1"; "keep-2"; "keep-3"; "PRINTED" ];
+      let written = Buffer.contents buf in
+      Alcotest.(check bool)
+        "no update left open" false
+        (Console_vte.synchronized_open written);
+      check_cursor_restored "cursor" written)
+
+(* A task ended by the cancellation of its fiber, on an output that a cancelled
+   fiber cannot write to, leaves one row: the one it ends with. *)
+let test_cancelled_task_row () =
+  with_clock (fun clock ->
+      let buf, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let started, start = Eio.Promise.create () in
+          Eio.Fiber.first
+            (fun () ->
+              Console.Task.run root "INNER" (fun _ ->
+                  Console_eio.print (Console.View.text "above");
+                  Eio.Promise.resolve start ();
+                  Eio.Fiber.await_cancel ()))
+            (fun () -> Eio.Promise.await started);
+          Console_eio.print (Console.View.text "below"));
+      let vte = Console_vte.v ~rows:12 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      let screen = List.filter (( <> ) "") (Console_vte.screen vte) in
+      Alcotest.(check int)
+        "one row of the task" 1
+        (List.length (List.filter (contains "INNER") screen));
+      Alcotest.(check bool)
+        "the lines printed" true
+        (List.mem "above" screen && List.mem "below" screen))
+
+(* The redraw on the clock, under way as the run ends, goes out whole: the
+   region the run leaves holds the task once. *)
+let test_tick_as_the_run_ends () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
+      let slow = ref false in
+      let out s o l =
+        if !slow then begin
+          slow := false;
+          Buffer.add_substring buf s o (l / 2);
+          Eio.Promise.resolve enter ();
+          Eio_unix.sleep 0.03;
+          Buffer.add_substring buf s (o + (l / 2)) (l - (l / 2))
+        end
+        else Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          Console_eio.print (Console.View.text "above");
+          Console.Task.run root "WORK" (fun _ ->
+              slow := true;
+              Eio_mock.Clock.Mono.advance clock;
+              Eio.Promise.await entered));
+      let vte = Console_vte.v ~rows:12 ~cols:40 () in
+      Console_vte.feed vte (Buffer.contents buf);
+      let screen = List.filter (( <> ) "") (Console_vte.screen vte) in
+      Alcotest.(check (list string))
+        "the screen"
+        [ "above"; "\u{2713} WORK" ]
+        (List.map (fun l -> String.sub l 0 (min (String.length l) 8)) screen))
+
+(* A reader that pauses as a run ends loses nothing: a pager, say. *)
+let test_reader_pauses () =
+  with_clock (fun clock ->
+      let buf = Buffer.create 256 and paused = ref false in
+      let out s o l =
+        if !paused then Eio_unix.sleep 1.2;
+        Buffer.add_substring buf s o l
+      in
+      let ppf = Format.make_formatter out ignore in
+      Console_eio.run ~clock ~ppf ~progress:`Plain (fun root ->
+          ignore (Console.Task.start root "the last line");
+          paused := true);
+      Alcotest.(check bool)
+        "the last line" true
+        (contains "the last line" (Buffer.contents buf)))
+
+(* An output that takes nothing once [work root stall] calls [stall] holds up
+   the end of a cancelled run for a second at most, however many writes wait
+   for it, and the next run starts. *)
+let stalls work =
+  with_clock (fun clock ->
+      let stalled = ref false in
+      let out _ _ _ = if !stalled then Eio.Fiber.await_cancel () in
+      let ppf = Format.make_formatter out ignore in
+      let stall () =
+        stalled := true;
+        Eio.Fiber.await_cancel ()
+      in
+      let start = Unix.gettimeofday () in
+      let result =
+        Eio.Fiber.first
+          (fun () ->
+            Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+                work root stall))
+          (fun () ->
+            Eio.Fiber.yield ();
+            "cancelled")
+      in
+      let waited = Unix.gettimeofday () -. start in
+      Alcotest.(check string) "the winner" "cancelled" result;
+      if waited > 1.5 then Alcotest.failf "the run waited %.2fs" waited;
+      Console_eio.run ~clock ~progress:`Plain ignore)
+
+let test_output_stalls () =
+  stalls (fun root stall ->
+      ignore (Console.Task.start root "t");
+      stall ())
+
+let test_output_stalls_in_a_task () =
+  stalls (fun root stall -> Console.Task.run root "t" (fun _ -> stall ()))
+
+let test_output_stalls_in_nested_tasks () =
+  stalls (fun root stall ->
+      Console.Task.run root "a" (fun a ->
+          Console.Task.run a "b" (fun b ->
+              Console.Task.run b "c" (fun _ -> stall ()))))
+
+(* A [Cancelled] in a fiber that nothing cancelled is a view's own exception. *)
+let test_view_foreign_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      let foreign = Eio.Cancel.Cancelled Not_found in
+      let view _ = Console.View.fit (fun _ -> raise foreign) in
+      let printed = ref false in
+      Alcotest.check_raises "the run" foreign (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun _ ->
+              Console_eio.print (Console.View.text "line");
+              printed := true));
+      Alcotest.(check bool) "the print went on" true !printed)
+
+(* A report is no point of cancellation: cleanup that reports or logs in a
+   cancelled fiber runs to its end, and the fiber is still cancelled after. *)
+let test_report_cancelled () =
+  with_clock (fun clock ->
+      let _, ppf = flow () in
+      Console_eio.run ~clock ~ppf ~progress:`Tty (fun root ->
+          let task = Console.Task.start root "t" in
+          let cleaned = ref false in
+          let winner =
+            Eio.Fiber.first
+              (fun () ->
+                Fun.protect
+                  ~finally:(fun () ->
+                    Console.Task.set_items task ~count:1 ~total:2;
+                    Logs.app (fun m -> m "cleaning up");
+                    Console.Task.log task "cleaned";
+                    cleaned := true)
+                  Eio.Fiber.await_cancel)
+              (fun () -> "winner")
+          in
+          Alcotest.(check string) "the winner" "winner" winner;
+          Alcotest.(check bool) "the cleanup ended" true !cleaned))
+
+(* A run that ends well closes however its last task ends, and what the commit
+   raised goes on. *)
+let test_commit_raises_at_end () =
+  List.iter
+    (fun e ->
+      with_clock (fun clock ->
+          let buf, ppf = buffer () in
+          Alcotest.check_raises "the commit's" e (fun () ->
+              Console_eio.run ~clock ~ppf ~progress:`Tty
+                ~commit:(fun _ -> raise e)
+                (fun root -> ignore (Console.Task.start root "running")));
+          Format.pp_print_flush ppf ();
+          check_cursor_restored "cursor" (Buffer.contents buf)))
+    [ Failure "hook"; Sys.Break ]
+
+(* An output that breaks, or an interrupt on the way out, does not stop the next
+   run from starting. *)
+let test_restore_raises () =
+  let check_breaking e =
+    with_clock (fun clock ->
+        let saved = Format.pp_get_formatter_out_functions Fmt.stderr () in
+        let failing = ref false in
+        let out s o l = if !failing then raise e else saved.out_string s o l in
+        Format.pp_set_formatter_out_functions Fmt.stderr
+          { saved with out_string = out; out_flush = ignore };
+        Fun.protect ~finally:(fun () ->
+            Format.pp_set_formatter_out_functions Fmt.stderr saved)
+        @@ fun () ->
+        (try
+           Console_eio.run ~clock ~progress:`Tty (fun _ ->
+               Fmt.epr "an unended line";
+               failing := true)
+         with Sys.Break -> ());
+        failing := false;
+        let finished =
+          Eio.Fiber.first
+            (fun () ->
+              Console_eio.run ~clock ~progress:`Tty ignore;
+              true)
+            (fun () ->
+              for _ = 1 to 1000 do
+                Eio.Fiber.yield ()
+              done;
+              false)
+        in
+        Alcotest.(check bool) "the next run ended" true finished)
+  in
+  check_breaking
+    (Eio.Net.err
+       (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", ""))));
+  check_breaking Sys.Break
+
+(* The program's exception goes on, whatever the last frame raises, unless the
+   frame ran into what the program must see. *)
+let test_run_keeps_its_exception () =
+  let last e _ =
+    Console.View.fit (fun room ->
+        match Console.Room.height room with
+        | None -> raise e
+        | Some _ -> Console.View.text "rows")
+  in
+  with_clock (fun clock ->
+      let _, ppf = buffer () in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
+            ~view:(last Exit) (fun _ -> failwith "boom"));
+      Alcotest.check_raises "what the program must see" Out_of_memory (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
+            ~view:(last Out_of_memory) (fun _ -> failwith "boom")))
+
+(* So it does whatever the output raises on the way out. *)
+let test_run_keeps_its_exception_on_output () =
+  with_clock (fun clock ->
+      let failing = ref false in
+      let out _ _ _ = if !failing then raise Exit in
+      let ppf = Format.make_formatter out ignore in
+      Alcotest.check_raises "the program's" (Failure "boom") (fun () ->
+          Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work" (fun _ ->
+              failing := true;
+              failwith "boom")))
 
 (* A view that raises is dropped for the default one, and the run raises
    its exception: a view that raises at every frame, and one that raises
@@ -613,6 +951,17 @@ let test_task_output () =
         (List.exists (contains text) rows))
     [ "an output line"; "a result line"; "a note line"; "a forked note" ]
 
+(* What a thread prints on the display's terminal goes above the rows, as
+   output outside any task. *)
+let test_printed_elsewhere () =
+  let status, out = teardown "elsewhere" in
+  Alcotest.(check bool)
+    "the program succeeds" true
+    (match status with `Exited 0 -> true | _ -> false);
+  Alcotest.(check bool)
+    "the line shows" true
+    (List.mem "from a thread" (final_of out))
+
 (* A line written outside a task is not the output of the task in which
    the next line is written, even when it waited for a flush until then. *)
 let test_held_line () =
@@ -630,6 +979,29 @@ let test_held_line () =
   Alcotest.(check bool)
     "the held line above the rows" true
     (List.exists (String.starts_with ~prefix:"a held line") rows)
+
+(* The first domain the program starts during a run leaves what it prints
+   to the display, and once the run ends standard error writes as Format's
+   functions do once a domain started. *)
+let test_spawn () =
+  let rows = final "spawn" in
+  List.iter
+    (fun i ->
+      let line = Fmt.str "spawned line %d" i in
+      Alcotest.(check bool)
+        ("a row of its own: " ^ line)
+        true (List.mem line rows))
+    [ 1; 2; 3 ];
+  let rec under = function
+    | l :: next :: _ when contains "\u{2717} work" l -> next
+    | _ :: rest -> under rest
+    | [] -> Alcotest.fail "no failed line"
+  in
+  Alcotest.(check string)
+    "the task's output" "  \u{203a} a task line" (under rows);
+  Alcotest.(check bool)
+    "after the run, Format's functions" true
+    (List.mem "held until a flush: true" rows)
 
 let test_sigint_teardown () =
   let _, out = teardown "sigint" in
@@ -794,6 +1166,48 @@ let test_suspend () =
         "exit status" true
         (match !status with Some (`Exited 0) -> true | _ -> false)
 
+(* A stop during a write that does not end within a second gives the
+   terminal up, and the program goes on once continued. *)
+let test_suspend_blocked () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = Pty_harness.open_pty ~sw in
+  let tty = Eio_unix.Pty.tty pty in
+  let child =
+    Eio_unix.Process.spawn_unix ~sw ~pgid:0
+      (Eio.Stdenv.process_mgr env)
+      ~env:[| "TERM=xterm-256color"; "LANG=en_US.UTF-8" |]
+      ~fds:[ (0, tty, `Blocking); (1, tty, `Blocking); (2, tty, `Blocking) ]
+      ~executable:"./teardown.exe"
+      [ "teardown.exe"; "stop-blocked" ]
+  in
+  let pid = Eio.Process.pid child in
+  let stopped = ref false and status = ref None in
+  let out =
+    Pty_reader.read_all pty (fun () ->
+        (stopped :=
+           match
+             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
+                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
+           with
+           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
+           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        if !stopped then Unix.kill pid Sys.sigcont;
+        status := Some (Eio.Process.await child))
+  in
+  Alcotest.(check bool) "stopped by SIGTSTP" true !stopped;
+  Alcotest.(check bool)
+    "the escape code cut is ended" true
+    (contains "\027[?2\024\027\\" out);
+  Alcotest.(check bool)
+    "ends once continued" true
+    (match !status with Some (`Exited 0) -> true | _ -> false);
+  let vte = Console_vte.v ~rows:24 ~cols:80 () in
+  Console_vte.feed vte out;
+  Alcotest.(check bool)
+    "the cursor is shown" true
+    (Console_vte.cursor_visible vte)
+
 (* In a process group that no shell controls, a stop does not take effect:
    the terminal is given back and the region drawn again once, and the work
    goes on. A display that gave the terminal back again and again would
@@ -862,6 +1276,67 @@ let test_sigint_secret () =
     (match status with `Signaled s -> Int.equal s Sys.sigint | _ -> false);
   Alcotest.(check bool) "SIGINT during a password restores echo" true echo
 
+let exited n = function `Exited m -> Int.equal n m | _ -> false
+
+(* A signal handled in another domain, as when the display's domain sleeps
+   or its thread blocks the signal, still ends the program by that signal;
+   [exit] from another domain or thread while the display redraws ends it
+   with its status. Either way the cursor is shown. *)
+let test_elsewhere_ends () =
+  List.iter
+    (fun (how, ends) ->
+      let status, out = teardown how in
+      Alcotest.(check bool) (how ^ ": how the program ends") true (ends status);
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
+      Alcotest.(check bool)
+        (how ^ ": the cursor is shown")
+        true
+        (Console_vte.cursor_visible vte))
+    [
+      ("sigint-beside", signaled_by_sigint);
+      ("sigint-masked", signaled_by_sigint);
+      ("exit-domain-drawing", exited 3);
+      ("exit-thread-drawing", exited 4);
+    ]
+
+(* A restoration that fails still lets the signal end the program. *)
+let test_sigint_restore_fails () =
+  let status, _ = teardown "secret-lost" in
+  Alcotest.(check bool)
+    "SIGINT still ends the program" true
+    (signaled_by_sigint status)
+
+(* A write that never ends gives way to a sequence written once on the
+   terminal: whatever escape code it cut is ended, and what is written next
+   shows as on a fresh terminal, the cursor shown. *)
+let test_last_resort () =
+  List.iter
+    (fun (how, ends) ->
+      let status, out = teardown how in
+      Alcotest.(check bool) (how ^ ": how the program ends") true (ends status);
+      let vte = Console_vte.v ~rows:24 ~cols:80 () in
+      Console_vte.feed vte out;
+      Alcotest.(check bool)
+        (how ^ ": the cursor is shown")
+        true
+        (Console_vte.cursor_visible vte);
+      Alcotest.(check bool)
+        (how ^ ": no update left open")
+        false
+        (Console_vte.synchronized_open out);
+      Console_vte.feed vte "AFTER";
+      Alcotest.(check bool)
+        (how ^ ": what comes next shows")
+        true
+        (List.exists (contains "AFTER") (Console_vte.screen vte)))
+    [
+      ("cut-link", signaled_by_sigint);
+      ("cut-sequence", signaled_by_sigint);
+      ("exit-thread-blocked", exited 3);
+      ("exit-domain-blocked", exited 3);
+    ]
+
 let test_quiet_terminal_capture () =
   let status, out = teardown "quiet-ok" in
   Alcotest.(check bool)
@@ -905,14 +1380,51 @@ let recorded f =
       Console_eio.run ~clock ~ppf (fun _ -> Console_eio.with_output f));
   In_channel.with_open_bin file In_channel.input_lines
 
+(* asciicast v2, "o": data must be valid UTF-8. *)
 let test_cast_utf_8 () =
   let lines = recorded (fun ppf -> Fmt.pf ppf "bad \xff byte\n%!") in
+  Alcotest.(check bool)
+    "the bad byte replaced" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> contains "bad \u{FFFD} byte" e.data)
+       (Cast_harness.events lines))
+
+(* [piped.exe args] under [Unix.waitpid], with its output dropped. *)
+let piped_status args =
+  let null = Unix.openfile "/dev/null" [ Unix.O_RDWR ] 0 in
+  Fun.protect ~finally:(fun () -> Unix.close null) @@ fun () ->
+  let pid =
+    Unix.create_process "./piped.exe"
+      (Array.of_list ("piped.exe" :: args))
+      null null null
+  in
+  let rec wait () =
+    try snd (Unix.waitpid [] pid)
+    with Unix.Unix_error (Unix.EINTR, _, _) -> wait ()
+  in
+  wait ()
+
+(* The default action of SIGINT and SIGTERM is abnormal termination (XBD
+   signal.h): the process ends by the signal, not by an exit that a shell would
+   also show as 128 plus its number. *)
+let test_signal_terminates () =
+  let check msg signo args =
+    Alcotest.(check bool)
+      msg true
+      (match piped_status args with
+      | Unix.WSIGNALED s -> Int.equal s signo
+      | _ -> false)
+  in
+  check "SIGINT after a view raised" Sys.sigint [ "signal" ];
+  check "SIGTERM after a view raised" Sys.sigterm [ "sigterm" ];
+  let file = Filename.temp_file ~temp_dir:"." "console" ".out" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
   List.iter
-    (fun l ->
-      Alcotest.(check bool)
-        ("valid UTF-8: " ^ String.escaped l)
-        true (String.is_valid_utf_8 l))
-    lines
+    (fun (signo, mode) ->
+      check mode signo [ mode; file ];
+      check_cursor_restored mode
+        (In_channel.with_open_bin file In_channel.input_all))
+    [ (Sys.sigint, "idle-signal"); (Sys.sigterm, "idle-sigterm") ]
 
 let test_repeated_signal_mid_write () =
   let input =
@@ -940,9 +1452,41 @@ let suite =
         `Quick test_repeated_signal_mid_write;
       Alcotest.test_case "recording alone makes sleeps virtual" `Quick
         test_cast_without_deterministic;
+      Alcotest.test_case "a signal ends the process by that signal" `Quick
+        test_signal_terminates;
+      Alcotest.test_case "SIGTSTP during a write that does not end" `Quick
+        test_suspend_blocked;
       Alcotest.test_case "a recording is valid UTF-8" `Quick test_cast_utf_8;
       Alcotest.test_case "quiet hides successful terminal output" `Quick
         test_quiet_terminal_capture;
+      Alcotest.test_case "a cancelled run restores the terminal" `Quick
+        test_cancelled_run_restores;
+      Alcotest.test_case "cancelled in a view" `Quick test_view_cancelled;
+      Alcotest.test_case "cancelled around with_output" `Quick
+        test_with_output_cancelled;
+      Alcotest.test_case "a write that is cut" `Quick test_write_cut;
+      Alcotest.test_case "a task ended in a cancelled fiber" `Quick
+        test_cancelled_task_row;
+      Alcotest.test_case "a redraw under way as the run ends" `Quick
+        test_tick_as_the_run_ends;
+      Alcotest.test_case "a reader that pauses" `Quick test_reader_pauses;
+      Alcotest.test_case "an output that stalls" `Quick test_output_stalls;
+      Alcotest.test_case "an output that stalls in a task" `Quick
+        test_output_stalls_in_a_task;
+      Alcotest.test_case "an output that stalls in nested tasks" `Quick
+        test_output_stalls_in_nested_tasks;
+      Alcotest.test_case "a foreign Cancelled" `Quick
+        test_view_foreign_cancelled;
+      Alcotest.test_case "a report in a cancelled fiber" `Quick
+        test_report_cancelled;
+      Alcotest.test_case "a commit raises as the run ends" `Quick
+        test_commit_raises_at_end;
+      Alcotest.test_case "the output breaks as the run ends" `Quick
+        test_restore_raises;
+      Alcotest.test_case "the program's exception goes on" `Quick
+        test_run_keeps_its_exception;
+      Alcotest.test_case "the program's exception goes on past the output"
+        `Quick test_run_keeps_its_exception_on_output;
       Alcotest.test_case "the terminal is usable after every ending" `Quick
         test_usable_after;
       Alcotest.test_case "the program's colour choice is kept" `Quick
@@ -961,6 +1505,12 @@ let suite =
         test_sigint_mid_write;
       Alcotest.test_case "SIGINT ends a write that never ends" `Quick
         test_sigint_blocked;
+      Alcotest.test_case "a write that never ends, then the last resort" `Quick
+        test_last_resort;
+      Alcotest.test_case "SIGINT when a restoration fails" `Quick
+        test_sigint_restore_fails;
+      Alcotest.test_case "ended from another domain or thread" `Quick
+        test_elsewhere_ends;
       Alcotest.test_case "a stop that does not take effect resumes once" `Quick
         test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
@@ -970,6 +1520,8 @@ let suite =
       Alcotest.test_case "a task's output on a terminal" `Quick test_task_output;
       Alcotest.test_case "a held line stays outside the next task" `Quick
         test_held_line;
+      Alcotest.test_case "printed from a thread" `Quick test_printed_elsewhere;
+      Alcotest.test_case "a domain started during a run" `Quick test_spawn;
       Alcotest.test_case "run returns" `Quick test_run_returns;
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;

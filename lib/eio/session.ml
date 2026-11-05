@@ -85,24 +85,114 @@ let last_out s =
   end
 
 (* [exit] runs the [at_exit] functions but no [finally]: the run's ending
-   is run there. *)
-let at_exit =
-  lazy
-    (Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending)))
+   is run there. It is registered by the first run, so that the [at_exit]
+   functions registered before it run once the display is closed; an atomic
+   flag, not a lazy value, since two domains may start their first run at
+   once. *)
+let registered = Atomic.make false
 
-let cancelled = function Eio.Cancel.Cancelled _ -> true | _ -> false
+let at_exit () =
+  if not (Atomic.exchange registered true) then
+    Stdlib.at_exit (fun () -> Option.iter (fun f -> f ()) (Atomic.get ending))
 
-(* A task is current in the fibers its function forks, as a binding is. *)
+let rec cancelled = function
+  | Eio.Cancel.Cancelled _ -> true
+  | Fun.Finally_raised e -> cancelled e
+  | _ -> false
+
+(* A task is current in the fibers its function forks, as a binding is, and
+   none is outside any fiber, as in a thread or a signal handler. *)
 let scope =
   Task_driver.scope
-    ~current:(fun () -> Eio.Fiber.get task)
+    ~current:(fun () ->
+      try Eio.Fiber.get task with Effect.Unhandled _ -> None)
     ~within:(fun t f -> Eio.Fiber.with_binding task t f)
     ~cancelled
 
 let write_error = function Eio.Io _ -> true | _ -> false
 
+let in_fiber () =
+  match Eio.Fiber.is_cancelled () with
+  | _ -> true
+  | exception Effect.Unhandled _ -> false
+
+(* A [Cancelled] where nothing cancelled the fiber, or out of any fiber, is no
+   cancellation of it. *)
+let cancelling e = cancelled e && in_fiber () && Eio.Fiber.is_cancelled ()
+
+(* How long a write that a cancellation waits for gives its output, when the
+   run is cancelled or a cancellation cut a write: the output may be why. A
+   write that nothing cancels waits as any write does: a reader that pauses,
+   such as a pager, loses nothing. *)
+let grace = 1.
+
+(* When the writes that a cancellation waits for give up on the output: set by
+   the first of them, and cleared by the first that goes out, so that an output
+   that takes nothing holds up all of them, nested or not, for [grace] in all. *)
+let giving_up = Atomic.make None
+
+let deadline () =
+  match Atomic.get giving_up with
+  | Some d -> d
+  | None ->
+      let d = Unix.gettimeofday () +. grace in
+      Atomic.set giving_up (Some d);
+      d
+
+(* The program's clock may be one that does not move. *)
+let sleep_until deadline =
+  match Eio_unix.sleep (Float.max 0. (deadline -. Unix.gettimeofday ())) with
+  | () -> ()
+  | exception Effect.Unhandled _ -> Eio.Fiber.await_cancel ()
+
+(* [f ()] where no cancellation stops it, as an Eio flow requires to write,
+   until the {!deadline} that [armed] (defaults to returning) leads to at most:
+   then [f] is cancelled. It is [true] iff [f] finished before. *)
+let shielded ?(armed = ignore) f =
+  let finished = ref false and late = ref false in
+  Eio.Cancel.protect (fun () ->
+      Eio.Fiber.first
+        (fun () ->
+          f ();
+          finished := true)
+        (fun () ->
+          armed ();
+          sleep_until (deadline ());
+          late := true));
+  let in_time = !finished && not !late in
+  if in_time then Atomic.set giving_up None;
+  in_time
+
+(* An update written in a cancelled fiber goes out whole, as one that nothing
+   cancelled does, but waits for its output until the {!deadline} at most: cut
+   short, the cancellation goes on. Cut by the cancellation half way, it would
+   leave rows of the region on the screen. *)
+let atomic f =
+  if not (in_fiber () && Eio.Fiber.is_cancelled ()) then f ()
+  else if not (shielded f) then Eio.Fiber.check ()
+
+(* [f ()], which a cancellation that comes once it started does not cut: from
+   then on it waits for the output until the {!deadline} at most, and cut short
+   there, the cancellation goes on. *)
+let whole f =
+  let cancelled, cancel = Eio.Promise.create () in
+  let finished = ref false in
+  Eio.Fiber.first
+    (fun () ->
+      finished := shielded ~armed:(fun () -> Eio.Promise.await cancelled) f)
+    (fun () ->
+      Fun.protect Eio.Fiber.await_cancel ~finally:(fun () ->
+          Eio.Promise.resolve cancel ()));
+  if not !finished then Eio.Fiber.check ()
+
+(* Nothing a broken output raises stops the formatters being given back. *)
+let safely f =
+  match f () with
+  | () -> ()
+  | exception e when not (Task_driver.is_async e) -> ()
+
 let claim () =
-  Lazy.force at_exit;
+  at_exit ();
   if not (Atomic.compare_and_set busy false true) then
     invalid_arg "Console_eio.run: a display is already running"
 
@@ -131,9 +221,11 @@ type line = { pending : Buffer.t; mutable cut : bool }
 let line () = { pending = Buffer.create 256; cut = false }
 
 type intercepted = {
+  by : run; (* the run whose display takes [ppf] *)
   ppf : Format.formatter;
-  out : Format.formatter_out_functions; (* given back by {!restore} *)
-  pass : Format.formatter_out_functions; (* [out], watched by the display *)
+  mutable out : Format.formatter_out_functions; (* given back by {!restore} *)
+  mutable pass : Format.formatter_out_functions;
+      (* [out], watched by the display *)
   held : Buffer.t; (* whole lines for above the region *)
   root : line; (* the line under way outside any task *)
 }
@@ -215,13 +307,9 @@ let task_line task =
       Hashtbl.replace lines id l;
       l
 
-let intercept run ppf =
-  Format.pp_print_flush ppf ();
-  let out = Format.pp_get_formatter_out_functions ppf () in
-  let pass = Display_driver.watch run.display out in
-  let i = { ppf; out; pass; held = Buffer.create 256; root = line () } in
+let take_over ({ by = run; _ } as i) =
   let add s o len =
-    if is_direct () then pass.out_string s o len
+    if is_direct () then i.pass.out_string s o len
     else
       match Task_driver.current run.root with
       | Some task ->
@@ -232,26 +320,56 @@ let intercept run ppf =
       | None -> take i.root s o len (outside run i)
   in
   let flush () =
-    if is_direct () then pass.out_flush () else send_held run.display i
+    if is_direct () then i.pass.out_flush () else send_held run.display i
   in
-  Format.pp_set_formatter_out_functions ppf
+  Format.pp_set_formatter_out_functions i.ppf
     {
-      out with
+      i.out with
       out_string = add;
       out_flush = flush;
       out_newline = (fun () -> add "\n" 0 1);
       out_spaces = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
       out_indent = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
-    };
+    }
+
+let intercept run ppf =
+  Format.pp_print_flush ppf ();
+  let out = Format.pp_get_formatter_out_functions ppf () in
+  let pass = Display_driver.watch run.display out in
+  let i =
+    { by = run; ppf; out; pass; held = Buffer.create 256; root = line () }
+  in
+  take_over i;
   let rec remember () =
     let l = Atomic.get intercepted in
     if not (Atomic.compare_and_set intercepted l (i :: l)) then remember ()
   in
   remember ()
 
+(* Before the program's first domain starts, Format gives [Fmt.stdout] and
+   [Fmt.stderr] the [out_string] and [out_flush] of a buffer per domain, and
+   keeps the rest of the functions they have. This function, registered
+   after Format's, runs after it: a formatter taken is taken again over
+   those two, which {!restore} gives back. A domain started before this
+   module was loaded leaves nothing to register. *)
+let () =
+  let rebase i =
+    if i.ppf == Format.std_formatter || i.ppf == Format.err_formatter then begin
+      let now = Format.pp_get_formatter_out_functions i.ppf () in
+      i.out <-
+        { i.out with out_string = now.out_string; out_flush = now.out_flush };
+      i.pass <- Display_driver.watch i.by.display i.out;
+      take_over i
+    end
+  in
+  try
+    Domain.before_first_spawn (fun () ->
+        List.iter rebase (Atomic.get intercepted))
+  with Invalid_argument _ -> ()
+
 let flush_all () =
   List.iter
-    (fun i -> try Format.pp_print_flush i.ppf () with Sys_error _ -> ())
+    (fun i -> safely (fun () -> Format.pp_print_flush i.ppf ()))
     (Atomic.get intercepted)
 
 (* What a task wrote and its formatters still hold is its own, and its line
@@ -283,23 +401,41 @@ let settle run =
       (Atomic.get intercepted)
   end
 
-let close_display run =
-  settle run;
-  Display.close run.display
+(* [first ()] then what the program wrote, whatever either raises, and the
+   display closes. *)
+let close_display ?(first = ignore) run =
+  Task_driver.protect
+    (fun () ->
+      first ();
+      settle run)
+    ~finally:(fun () -> Display.close run.display)
 
-let restore () =
+(* Closing while the program ends for another reason: that reason goes on, and
+   what a view or a hook raised on the way out gives way to it, unless the
+   program must see it and the reason is not [urgent] already. *)
+let close_quietly ?first ?(urgent = false) run =
+  try close_display ?first run
+  with e when urgent || not (Task_driver.is_async e) -> ()
+
+(* From a signal handler or an [at_exit] function, nothing goes on after it. *)
+let close_last run =
+  try close_quietly run with Out_of_memory | Stack_overflow | Sys.Break -> ()
+
+(* Without [flush], as from another thread, the formatters only get their
+   functions back: what they hold is the display's, whose state is not
+   read there. *)
+let restore ?(flush = true) () =
   List.iter
     (fun i ->
-      (try Format.pp_print_flush i.ppf () with Sys_error _ -> ());
+      if flush then safely (fun () -> Format.pp_print_flush i.ppf ());
       Format.pp_set_formatter_out_functions i.ppf i.out;
       let rest = Buffer.contents i.held ^ Buffer.contents i.root.pending in
-      if rest <> "" then
-        try
-          i.out.out_string rest 0 (String.length rest);
-          i.out.out_flush ()
-        with Sys_error _ -> ())
+      if flush && rest <> "" then
+        safely (fun () ->
+            i.out.out_string rest 0 (String.length rest);
+            i.out.out_flush ()))
     (Atomic.exchange intercepted []);
-  Hashtbl.reset lines
+  if flush then Hashtbl.reset lines
 
 let with_terminal f =
   match (Eio.Fiber.get current, Atomic.get shared) with
@@ -325,15 +461,18 @@ type request = {
   reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
 }
 
-(* A message for the display, from the domain that runs it or handed to
-   that domain: [`Closed] if the display closes first. A domain that Eio
-   does not run cannot wait for the answer, so its message is not taken. *)
+(* A message for the display, from a fiber of the domain that runs it or
+   handed to that domain: [`Closed] if the display closes first. A thread of
+   that domain, a signal handler out of any fiber or a domain that Eio does
+   not run cannot wait for the answer, so its message is not taken. *)
 let deliver ~owner ~closed ~requests root level message =
   if Option.is_some (Eio.Promise.peek closed) then `Closed
-  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then begin
-    Task_driver.report root level message;
-    `Written
-  end
+  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
+    if in_fiber () then begin
+      Task_driver.report root level message;
+      `Written
+    end
+    else `Closed
   else
     try
       Eio.Fiber.first
@@ -414,12 +553,17 @@ let receive ~sw ~closed requests root =
   loop ()
 
 (* The display redraws on its clock, so that the spinners turn and the
-   timers run while no task reports. *)
-let animate ~sw ~sleep display =
+   timers run while no task reports, and draws afresh after [repaint] is
+   set. The end of the run, which stops the redraws, cuts none half way. *)
+let animate ~sw ~sleep ~repaint display =
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let rec loop () =
         sleep 0.1;
-        Display.redraw display;
+        if Atomic.get repaint && not (Display_driver.writing display) then begin
+          Atomic.set repaint false;
+          Display_driver.restart display
+        end;
+        whole (fun () -> Display.redraw display);
         loop ()
       in
       loop ())
@@ -469,61 +613,124 @@ let end_work root = function
   | Ok _ -> Task.succeed root
   | Error e -> if cancelled e then Task.cancel root else Task.fail root
 
-(* At [exit] the program is ending already: what the close raises gives way
-   to that, unless the program must see it, and the terminal is restored
-   whatever it raises. *)
-let close_at_exit run ~give_back =
-  Fun.protect ~finally:(fun () ->
-      give_back ();
-      restore ())
-  @@ fun () ->
-  try close_display run with e when not (Task_driver.is_async e) -> ()
+(* The end of a cancelled run, or of one whose output a cancellation cut,
+   waits for the output until the {!deadline} at most. *)
+let last_writes display f =
+  if Eio.Fiber.is_cancelled () || Display_driver.unwritten display then
+    ignore (shielded f : bool)
+  else f ()
 
-let run ?(cursor = ignore) ~sleep ~intercept:formatters run f =
+(* A signal handler that runs out of any fiber cannot write on an Eio flow: a
+   fiber of the run does what it asks, as long as there is one. *)
+type relay = {
+  pending : (unit -> unit) list Atomic.t;
+  wake : Eio.Condition.t;
+  listening : bool Atomic.t;
+}
+
+let relay () =
+  {
+    pending = Atomic.make [];
+    wake = Eio.Condition.create ();
+    listening = Atomic.make false;
+  }
+
+let start_relay ~sw relay =
+  let next () =
+    match Atomic.exchange relay.pending [] with [] -> None | l -> Some l
+  in
+  let rec loop () =
+    List.iter safely (List.rev (Eio.Condition.loop_no_mutex relay.wake next));
+    loop ()
+  in
+  Eio.Fiber.fork_daemon ~sw loop;
+  Atomic.set relay.listening true;
+  Eio.Switch.on_release sw (fun () -> Atomic.set relay.listening false)
+
+let rec relayed relay k =
+  let l = Atomic.get relay.pending in
+  if Atomic.compare_and_set relay.pending l (k :: l) then
+    Eio.Condition.broadcast relay.wake
+  else relayed relay k
+
+let idle relay ~flow display k =
+  let k () = Display_driver.when_idle display k in
+  if flow && Atomic.get relay.listening && not (in_fiber ()) then
+    relayed relay k
+  else k ()
+
+(* What a return, a raise or a cancellation does, [exit] does too, so that what
+   a later [at_exit] function logs or prints goes out as before. The cursor
+   comes first: the last frame runs a view, which may call [exit] again, and
+   that one ends the program at once. From another thread or domain, or while a
+   write is under way, the display's state is not touched: the terminal is
+   given up. *)
+let ends_at_exit (run : run) ~thread ~give_back =
+  let owner = Domain.self () in
+  Atomic.set ending
+    (Some
+       (fun () ->
+         if
+           Int.equal (Domain.self () :> int) (owner :> int)
+           && Int.equal (Thread.id (Thread.self ())) thread
+           && not (Display_driver.writing run.display)
+         then begin
+           safely (fun () -> Display_driver.reveal run.display);
+           close_last run;
+           give_back ();
+           restore ()
+         end
+         else begin
+           Interrupt.last_resort ();
+           give_back ();
+           restore ~flush:false ()
+         end))
+
+let run ?(cursor = ignore) ?(flow = false) ?terminal ~sleep
+    ~intercept:formatters run f =
   let display = run.display in
+  let repaint = Atomic.make false in
   let previous = Logs.reporter () in
   let closed, close = Eio.Promise.create () in
   let give_back () =
     Logs.set_reporter previous;
     ignore (Eio.Promise.try_resolve close ())
   in
-  (* What a return, a raise or a cancellation does, [exit] does too, so that
-     what a later [at_exit] function logs or prints goes out as before. *)
-  Atomic.set ending (Some (fun () -> close_at_exit run ~give_back));
+  ends_at_exit run ~thread:(Thread.id (Thread.self ())) ~give_back;
   let s = share run in
-  Fun.protect ~finally:(fun () ->
-      restore ();
-      release ())
+  Task_driver.protect ~finally:(fun () ->
+      Task_driver.protect
+        (fun () -> last_writes display restore)
+        ~finally:(fun () ->
+          Atomic.set giving_up None;
+          release ()))
   @@ fun () ->
   List.iter (intercept run) formatters;
   Task_driver.ending run.root task_ended;
-  Interrupt.protect ~idle:(Display_driver.when_idle display)
-    ~suspend:(suspend ~cursor display) ~restore:(fun () -> close_display run)
+  let relay = relay () in
+  Interrupt.protect ~idle:(idle relay ~flow display)
+    ~suspend:(suspend ~cursor display)
+    ~resume:(fun () -> Atomic.set repaint true)
+    ?terminal
+    ~restore:(fun () -> close_last run)
   @@ fun () ->
-  let value =
-    match
-      Eio.Switch.run @@ fun sw ->
-      let requests = Eio.Stream.create 1 in
-      Eio.Fiber.fork_daemon ~sw (fun () ->
-          receive ~sw ~closed requests run.root);
-      Logs.set_reporter
-        (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
-      animate ~sw ~sleep display;
-      Fun.protect ~finally:give_back @@ fun () -> first_run s f
-    with
-    | v ->
-        end_work run.root (Ok ());
-        v
-    | exception e ->
-        let bt = Printexc.get_raw_backtrace () in
-        end_work run.root (Error e);
-        (try close_display run
-         with
-         | later
-         when Task_driver.is_async e || not (Task_driver.is_async later)
-         ->
-           ());
-        Printexc.raise_with_backtrace e bt
-  in
-  close_display run;
-  value
+  match
+    Eio.Switch.run @@ fun sw ->
+    let requests = Eio.Stream.create 1 in
+    Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests run.root);
+    Logs.set_reporter
+      (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
+    animate ~sw ~sleep ~repaint display;
+    start_relay ~sw relay;
+    Fun.protect ~finally:give_back @@ fun () -> first_run s f
+  with
+  | value ->
+      last_writes display (fun () ->
+          close_display run ~first:(fun () -> end_work run.root (Ok ())));
+      value
+  | exception e ->
+      let bt = Printexc.get_raw_backtrace () in
+      last_writes display (fun () ->
+          close_quietly run ~urgent:(Task_driver.is_async e) ~first:(fun () ->
+              end_work run.root (Error e)));
+      Printexc.raise_with_backtrace e bt

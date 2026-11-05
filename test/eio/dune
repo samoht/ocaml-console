@@ -20,9 +20,11 @@
   console-eio
   eio
   eio.mock
+  eio.unix
   eio_main
   fmt
   logs
+  threads.posix
   unix))
 
 (library
@@ -34,6 +36,7 @@
  (name tty)
  (modules tty)
  (libraries
+  fmt
   pty_reader
   console
   console_vte
@@ -48,7 +51,17 @@
 (executable
  (name piped)
  (modules piped)
- (libraries console console-eio eio eio.mock eio_main fmt logs logs.fmt unix))
+ (libraries
+  console
+  console-eio
+  eio
+  eio.mock
+  eio_main
+  fmt
+  logs
+  logs.fmt
+  threads.posix
+  unix))
 
 (executable
  (name events)
@@ -74,14 +87,17 @@
  (name test)
  (modules :standard \ teardown tty piped events pty_reader terminal)
  (package console-eio)
- (deps teardown.exe)
+ (deps teardown.exe piped.exe)
  (libraries
+  cast_harness
   console
   console.tty
   console-eio
   pty_reader
   terminal
   display_harness
+  eio_harness
+  env_harness
   console_vte
   cstruct
   eio

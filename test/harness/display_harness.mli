@@ -18,6 +18,14 @@ val contains : string -> string -> bool
 val glyphs : string -> Uchar.t array
 (** [glyphs s] are the characters of [s], in order. *)
 
+val feeding : Console_vte.t -> Format.formatter
+(** [feeding vte] is a formatter that feeds [vte] what it holds at each flush.
+*)
+
+val check_cursor_restored : string -> string -> unit
+(** [check_cursor_restored msg written] checks that a terminal that read
+    [written] had its cursor hidden and ends with it shown (DECTCEM). *)
+
 val bar_span : string -> (int * int) option
 (** [bar_span row] is the cells of the first and the last block or shade glyph
     of [row], each glyph one cell: the ends of a bar in {!Console.Theme.dos}, if
@@ -25,6 +33,11 @@ val bar_span : string -> (int * int) option
 
 val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
+
+val rooted :
+  ?label:string -> ?view:(Task.t -> 'a) -> (unit -> float) -> Task.t * 'a option
+(** [rooted now] is a {{!Console.Task.root}root} timed by [now] and [view] of
+    that root, if given. *)
 
 val plain :
   ?label:string ->
@@ -75,9 +88,16 @@ val terminal :
     (defaults to [""]) is what the host wrote on the terminal before the display
     started. [theme], if given, is set on the display's formatter. *)
 
+val roomy : unit -> term
+(** [roomy ()] is a {!terminal} of 30 by 10 in {!Console.Theme.dos}, with room
+    for a task, its window and its logs. *)
+
 val close : term -> unit
 (** [close t] ends the work as a success, unless it ended, and closes the
     display, as [Console_eio.run] does once its function returns. *)
+
+val writes : term -> int
+(** [writes t] is the number of writes the display made. *)
 
 val written : term -> string
 (** [written t] is every byte the display wrote, in order. *)
@@ -92,6 +112,11 @@ val screen : term -> string list
 val lines : term -> string list
 (** [lines t] are the scrollback and screen rows, trailing blanks and blank rows
     at the bottom removed. *)
+
+val check_room : rows:int -> cols:int -> string -> int -> View.t -> unit
+(** [check_room ~rows ~cols msg row v] checks that printing [v] on a terminal of
+    [rows] by [cols] leaves the cursor on [row], and that [v] is at most [cols]
+    wide. *)
 
 val check_invalid : string -> (unit -> unit) -> unit
 (** [check_invalid msg f] checks that [f ()] raises [Invalid_argument msg]. *)

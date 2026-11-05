@@ -14,8 +14,18 @@
    [orphaned-suspend], in a session of its own where no stop takes effect; or, with [unflushed], it
    prints lines it never flushes; or, with [held], it prints a line outside a
    task that it does not flush, then one in a task that fails; or, with
+   [spawn], it starts its first domain during the display; or, with
    [sigint-mid-write] or [sigint-blocked], it is interrupted in the middle
-   of a frame's write. It also prints a line on standard
+   of a frame's write; or, with [secret-lost], as [secret] once its terminal
+   is gone; or, with [cut-link] or [cut-sequence], it is interrupted in a
+   write that never ends, cut inside a link or a control sequence; or, with
+   [exit-thread-blocked] or [exit-domain-blocked], a thread or a domain calls
+   [exit] during such a write; or, with [stop-blocked], it is stopped by
+   SIGTSTP during a write that ends after a while; or, with [elsewhere], a
+   thread prints on its terminal; or, with [sigint-beside], SIGINT comes while
+   another domain computes, and with [sigint-masked] while its thread blocks it
+   too; or, with [exit-domain-drawing] or [exit-thread-drawing], a domain or a
+   thread calls [exit] while it redraws. It also prints a line on standard
    output, which goes above the region, and its task a line of output. *)
 
 (* SIGINT comes once the password is masked. *)
@@ -28,6 +38,21 @@ let secret env =
         Eio.Fiber.yield ()
       done;
       Unix.kill (Unix.getpid ()) Sys.sigint)
+
+(* As [secret], with the terminal gone from standard input, so that
+   giving the echo back fails. *)
+let secret_lost env =
+  let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
+  Eio.Fiber.both
+    (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
+    (fun () ->
+      while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
+        Eio.Fiber.yield ()
+      done;
+      let null = Unix.openfile "/dev/null" [ Unix.O_RDONLY ] 0 in
+      Unix.dup2 null Unix.stdin;
+      Unix.kill (Unix.getpid ()) Sys.sigint);
+  Fmt.pr "still running@."
 
 (* The program chose no colour itself, as a [--color=never] does, before
    it runs a display. *)
@@ -120,6 +145,51 @@ let mid_write ~blocked _env =
       Console_eio.with_output (fun _ -> armed := true);
       Console.Task.succeed task)
 
+(* A frame's write that never ends, or that ends after [block ()], cut at
+   [cut s] bytes of the frame [s]; then [k ()]. *)
+let never () =
+  let r, _ = Unix.pipe () in
+  ignore (Unix.read r (Bytes.create 1) 0 1 : int)
+
+let blocked_at ?(block = never) ~cut k _env =
+  let armed = ref false in
+  let out = Format.pp_get_formatter_out_functions Fmt.stderr () in
+  let out_string s o n =
+    if !armed && n > 1 then begin
+      armed := false;
+      out.out_string s o (cut (String.sub s o n));
+      out.out_flush ();
+      k ();
+      block ();
+      out.out_string s (o + cut (String.sub s o n)) (n - cut (String.sub s o n))
+    end
+    else out.out_string s o n
+  in
+  Format.pp_set_formatter_out_functions Fmt.stderr { out with out_string };
+  let view _ =
+    Console.View.link ~uri:"https://example.org/" (Console.View.text "a link")
+  in
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~view (fun root ->
+      ignore (Console.Task.start root "pushing");
+      Console_eio.with_output (fun _ -> armed := true);
+      Console_eio.redraw ())
+
+(* Inside the link's address, or inside the first control sequence. *)
+let in_link s =
+  let rec find i =
+    if String.sub s i 6 = "\027]8;;h" then i + 6 else find (i + 1)
+  in
+  find 0
+
+let in_sequence _ = 4
+let interrupt () = Unix.kill (Unix.getpid ()) Sys.sigint
+
+let exit_from how () =
+  let leave () = exit 3 in
+  match how with
+  | `Thread -> ignore (Thread.create leave () : Thread.t)
+  | `Domain -> ignore (Domain.spawn leave : unit Domain.t)
+
 let repeated_signal ~first ~second ~cut ~closing _env =
   let armed = ref false in
   let out_string s offset length =
@@ -162,6 +232,13 @@ let unflushed _env =
       done;
       ignore (Unix.write_substring Unix.stdout "MARK\n" 0 5 : int))
 
+(* A line printed from a thread of the display's domain. *)
+let elsewhere _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
+      let task = Console.Task.start root "pushing" in
+      Eio_unix.run_in_systhread (fun () -> Fmt.pr "from a thread@.");
+      Console.Task.succeed task)
+
 (* A whole line outside a task, long enough that the formatter writes it,
    waits for a flush; the task's line that comes next must not take it
    along. *)
@@ -171,6 +248,27 @@ let held _env =
       Console.Task.run root "work" (fun task ->
           Fmt.pr "a task line@.";
           Console.Task.fail task))
+
+(* The program's first domain starts in the middle of the display, and
+   Format gives the standard formatters a buffer per domain; lines follow,
+   outside a task and in one that fails. Once the display is gone, whether a
+   write on standard error waits for a flush, as Format's own do once a
+   domain started, rather than going on the channel. *)
+let spawn _env =
+  Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
+      Domain.join (Domain.spawn ignore);
+      for i = 1 to 3 do
+        Fmt.epr "spawned line %d@." i
+      done;
+      Console.Task.run root "work" (fun task ->
+          Fmt.epr "a task line@.";
+          Console.Task.fail task));
+  let out = Format.pp_get_formatter_out_functions Fmt.stderr () in
+  let before = pos_out stderr in
+  out.out_string "after the run\n" 0 14;
+  let held = pos_out stderr = before in
+  out.out_flush ();
+  Fmt.epr "held until a flush: %b@." held
 
 (* Quiet mode keeps terminal output only for a failed or cancelled task. *)
 let quiet ending _env =
@@ -187,6 +285,58 @@ let quiet ending _env =
           | "cancel" -> Console.Task.cancel task
           | _ -> ());
       Console.Task.within root (fun () -> Fmt.pr "root line@."))
+
+(* SIGINT while another domain computes and the display's domain sleeps,
+   which then lets the other domain handle it; with [masked], the display's
+   thread blocks it, so that the other domain always does. *)
+let sigint_beside ~masked env =
+  let clock = Eio.Stdenv.mono_clock env in
+  let stop = Atomic.make false in
+  let worker =
+    Domain.spawn (fun () ->
+        while not (Atomic.get stop) do
+          ignore (Sys.opaque_identity (ref 0))
+        done)
+  in
+  if masked then
+    ignore (Thread.sigmask Unix.SIG_BLOCK [ Sys.sigint ] : int list);
+  at_exit (fun () -> Atomic.set stop true);
+  Console_eio.run ~clock (fun root ->
+      let task = Console.Task.start root "spinning" in
+      for i = 1 to 100 do
+        Console.Task.set_items task ~count:i ~total:100;
+        if i = 10 then Unix.kill (Unix.getpid ()) Sys.sigint;
+        Eio.Time.Mono.sleep clock 0.005
+      done;
+      Console.Task.succeed task);
+  Atomic.set stop true;
+  Domain.join worker
+
+(* [exit] from another domain, or from a thread, while the display redraws. *)
+let exit_drawing ~from env =
+  let clock = Eio.Stdenv.mono_clock env in
+  Console_eio.run ~clock (fun root ->
+      let task = Console.Task.start root "drawing" in
+      (match from with
+      | `Domain ->
+          ignore
+            (Domain.spawn (fun () ->
+                 Unix.sleepf 0.05;
+                 exit 3)
+              : unit Domain.t)
+      | `Thread ->
+          ignore
+            (Thread.create
+               (fun () ->
+                 Thread.delay 0.05;
+                 exit 4)
+               ()
+              : Thread.t));
+      for i = 1 to 1000 do
+        Console.Task.set_items task ~count:i ~total:1000;
+        Eio.Time.Mono.sleep clock 0.001
+      done;
+      Console.Task.succeed task)
 
 let display _env =
   let clock = Eio_mock.Clock.Mono.make () in
@@ -227,6 +377,25 @@ let () =
       suspend env
   | [| _; "unflushed" |] -> unflushed env
   | [| _; "held" |] -> held env
+  | [| _; "elsewhere" |] -> elsewhere env
+  | [| _; "spawn" |] -> spawn env
+  | [| _; "sigint-masked" |] -> sigint_beside ~masked:true env
+  | [| _; "sigint-beside" |] -> sigint_beside ~masked:false env
+  | [| _; "exit-domain-drawing" |] -> exit_drawing ~from:`Domain env
+  | [| _; "exit-thread-drawing" |] -> exit_drawing ~from:`Thread env
+  | [| _; "secret-lost" |] -> secret_lost env
+  | [| _; "cut-link" |] -> blocked_at ~cut:in_link interrupt env
+  | [| _; "cut-sequence" |] -> blocked_at ~cut:in_sequence interrupt env
+  | [| _; "stop-blocked" |] ->
+      blocked_at
+        ~block:(fun () -> Unix.sleepf 2.5)
+        ~cut:in_sequence
+        (fun () -> Unix.kill (Unix.getpid ()) Sys.sigtstp)
+        env
+  | [| _; "exit-thread-blocked" |] ->
+      blocked_at ~cut:in_sequence (exit_from `Thread) env
+  | [| _; "exit-domain-blocked" |] ->
+      blocked_at ~cut:in_sequence (exit_from `Domain) env
   | [| _; "sigint-mid-write" |] -> mid_write ~blocked:false env
   | [| _; "sigint-blocked" |] -> mid_write ~blocked:true env
   | _ -> display env

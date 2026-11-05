@@ -56,13 +56,24 @@ let props_of u =
 (* The bytes of [props_of] for the first two planes, where most text is,
    each computed once as it is first read: uucp's lookups of general
    category and East Asian width take tens of nanoseconds and allocate. A
-   byte read as 0 by a domain racing another's write is computed again. *)
-let cached = Bytes.make 0x20000 '\000'
+   byte read as 0 by a domain racing another's write is computed again. The
+   cache is made at the first lookup, not as the module loads, and published
+   through an Atomic rather than a Lazy, which raises when two domains force
+   it at once. *)
+let cache = Atomic.make Bytes.empty
+
+let cached () =
+  let b = Atomic.get cache in
+  if Bytes.length b > 0 then b
+  else
+    let b = Bytes.make 0x20000 '\000' in
+    if Atomic.compare_and_set cache Bytes.empty b then b else Atomic.get cache
 
 let props u =
   let c = Uchar.to_int u in
   if c >= 0x20000 then props_of u
   else
+    let cached = cached () in
     let p = Char.code (Bytes.unsafe_get cached c) in
     if p <> 0 then p
     else

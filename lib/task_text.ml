@@ -13,9 +13,11 @@ let scaled n =
   in
   pick 0 (Float.max 0. (Int64.to_float n))
 
+let two n = if n < 10 then "0" ^ string_of_int n else string_of_int n
+
 let bytes n =
   let v, i = scaled n in
-  if i = 0 then Fmt.str "%d B" (int_of_float (Float.round v))
+  if i = 0 then string_of_int (int_of_float (Float.round v)) ^ " B"
   else
     let hundredths v = int_of_float (Float.round (v *. 100.)) in
     (* A count that rounds to 1024.00 of a unit is 1.00 of the next. *)
@@ -24,7 +26,8 @@ let bytes n =
       if h < 102_400 || i = Array.length units - 1 then (h, i)
       else (hundredths (v /. 1024.), i + 1)
     in
-    Fmt.str "%d.%02d %s" (h / 100) (h mod 100) units.(i)
+    String.concat ""
+      [ string_of_int (h / 100); "."; two (h mod 100); " "; units.(i) ]
 
 let bytes_short n =
   let v, i = scaled n in
@@ -42,8 +45,6 @@ let bytes_short n =
 let tenths =
   Array.init 600 (fun t ->
       string_of_int (t / 10) ^ "." ^ string_of_int (t mod 10) ^ "s")
-
-let two n = if n < 10 then "0" ^ string_of_int n else string_of_int n
 
 let duration secs =
   let secs =

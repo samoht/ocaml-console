@@ -63,17 +63,26 @@ let shape ?size = function
 
 let print d vs = Display_core.print_lines d vs
 
-(* A top task that ends, unless the ended tasks are kept, leaves the region
-   for the scrollback as [commit] draws it, its tree by default: laid out
-   first, then forgotten, then printed, so it never shows twice. *)
-let moved d ~layout ~commit r =
+let laid_out d ~layout ~commit r =
   let look = Display_core.look d in
   let width = min (Display_core.width d) 100 in
   let committed =
     match commit with None -> Some (tree ~layout r) | Some f -> f r
   in
-  let committed = Option.map (V.resolve (Ctx.v ~width look)) committed in
-  forget r;
+  Option.map (V.resolve (Ctx.v ~width look)) committed
+
+(* A top task that ends, unless the ended tasks are kept, leaves the region
+   for the scrollback as [commit] draws it, its tree by default: laid out
+   first, then forgotten, then printed, so it never shows twice. What [commit]
+   raises leaves it forgotten and nothing printed. *)
+let moved d ~layout ~commit r =
+  let committed =
+    protect
+      (fun () ->
+        Display_core.caught d ~default:None (fun () ->
+            laid_out d ~layout ~commit r))
+      ~finally:(fun () -> forget r)
+  in
   match committed with
   | Some v when not (V.is_empty v) -> Display_core.print d v
   | _ -> Display_core.touch d
@@ -117,11 +126,16 @@ let on_plain d ~keep_ended = function
 let on_own d ~keep_ended root plain = function
   | (Line (r, _) | Ended r) as change when is_root r ->
       on_plain d ~keep_ended change
-  | change -> (
-      (match event change ~time:(since_start (work root)) with
-      | Some e -> Option.iter (Display_core.print d) (plain e)
-      | None -> ());
-      match change with Ended r when not keep_ended -> forget r | _ -> ())
+  | change ->
+      protect
+        (fun () ->
+          match event change ~time:(since_start (work root)) with
+          | Some e ->
+              Display_core.caught d ~default:() (fun () ->
+                  Option.iter (Display_core.print d) (plain e))
+          | None -> ())
+        ~finally:(fun () ->
+          match change with Ended r when not keep_ended -> forget r | _ -> ())
 
 (* The output a task kept, under its line. *)
 let kept look r =
@@ -160,8 +174,9 @@ let view_of_form ~layout root = function
   | Quiet -> verdict root
   | Json -> V.empty
 
-let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
-    ?(keep_ended = false) ?commit ?plain ?delay ?size ppf root =
+let show_with ?write_error ?cancelled ?atomic ?(progress = `Auto)
+    ?(layout = Layout.default) ?view ?(keep_ended = false) ?commit ?plain ?delay
+    ?size ppf root =
   let root = root_of root in
   let shown_size, form = shape ?size progress in
   let default = view_of_form ~layout root form in
@@ -176,21 +191,24 @@ let show_with ?write_error ?(progress = `Auto) ?(layout = Layout.default) ?view
     | _ -> None
   in
   let d =
-    Display_core.v ?size:shown_size ?once_width ?write_error ?delay
-      ~fallback:default
+    Display_core.v ?size:shown_size ?once_width ?write_error ?cancelled ?atomic
+      ?delay ~fallback:default
       ~now:(Work.now (work root))
       ppf shown
   in
   Display_core.told d;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
+  let watching on_change =
+    watch (work root) (fun change -> Display_core.reporting d on_change change)
+  in
   (match form with
-  | Live -> watch (work root) (on_live d ~layout ~keep_ended ~commit)
+  | Live -> watching (on_live d ~layout ~keep_ended ~commit)
   | Plain -> (
       match plain with
-      | None -> watch (work root) (on_plain d ~keep_ended)
-      | Some plain -> watch (work root) (on_own d ~keep_ended root plain))
-  | Quiet -> watch (work root) (on_quiet d)
+      | None -> watching (on_plain d ~keep_ended)
+      | Some plain -> watching (on_own d ~keep_ended root plain))
+  | Quiet -> watching (on_quiet d)
   | Json ->
       Display_core.on_output d (fun s -> log root (Console_text.strip s));
-      watch (work root) (on_json d root));
+      watching (on_json d root));
   d

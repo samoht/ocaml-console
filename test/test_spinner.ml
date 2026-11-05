@@ -75,13 +75,8 @@ let test_frames_print () =
     (at ~frames:[ "a\027b" ] 0.)
 
 let test_spinner_room () =
-  let v = View.sized ~width:2 (Spinner.view ~frames:[ "a"; "long" ] ()) in
-  let terminal = Console_vte.v ~rows:4 ~cols:2 () in
-  Console_vte.feed terminal (View.to_string v);
-  Alcotest.(check int)
-    "one terminal row" 0
-    (fst (Console_vte.cursor_pos terminal));
-  Alcotest.(check bool) "within its room" true (View.width v <= 2)
+  Display_harness.check_room ~rows:4 ~cols:2 "one terminal row" 0
+    (View.sized ~width:2 (Spinner.view ~frames:[ "a"; "long" ] ()))
 
 let suite =
   ( "spinner",

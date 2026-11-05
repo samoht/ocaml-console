@@ -261,39 +261,18 @@ let output_events out =
 
 let outputs out = List.map snd (output_events out)
 
-(* Capture the standard formatter itself: run only takes program output
-   from Fmt.stdout and Fmt.stderr in quiet and JSON modes. *)
-let capture_stdout progress f =
-  Eio_mock.Backend.run @@ fun () ->
-  Format.pp_print_flush Fmt.stdout ();
-  let saved = Format.pp_get_formatter_out_functions Fmt.stdout () in
-  let out = Buffer.create 256 in
-  Format.pp_set_formatter_out_functions Fmt.stdout
-    {
-      saved with
-      out_string = Buffer.add_substring out;
-      out_flush = (fun () -> ());
-    };
-  Fun.protect
-    ~finally:(fun () -> Format.pp_set_formatter_out_functions Fmt.stdout saved)
-    (fun () ->
-      Console_eio.run
-        ~clock:(Eio_mock.Clock.Mono.make ())
-        ~ppf:Fmt.stdout ~progress f;
-      Format.pp_print_flush Fmt.stdout ());
-  Buffer.contents out
-
 (* A successful task's last line is still its output without a newline. *)
 let test_quiet_unended_success () =
   let out =
-    capture_stdout `Quiet (fun d -> D.run d "ok" (fun _ -> Fmt.pr "secret%!"))
+    Eio_harness.capture_stdout `Quiet (fun d ->
+        D.run d "ok" (fun _ -> Fmt.pr "secret%!"))
   in
   Alcotest.(check string) "a successful run is silent" "" out
 
 (* A line begun in one task cannot become the next task's output. *)
 let test_json_unended_attribution () =
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         D.run d "ok" (fun _ -> Fmt.pr "secret%!");
         D.run d "fail" (fun task ->
             Fmt.pr "public@.";
@@ -312,7 +291,7 @@ let test_json_unended_attribution () =
 let test_json_long_line () =
   let text = String.make 65537 'x' in
   let out =
-    capture_stdout `Json (fun d ->
+    Eio_harness.capture_stdout `Json (fun d ->
         D.run d "large" (fun _ -> Fmt.pr "%s@." text))
   in
   let output = outputs out in
@@ -327,7 +306,7 @@ let test_long_line_cut () =
   let x = String.make 65535 'x' in
   let cut first rest =
     outputs
-      (capture_stdout `Json (fun d ->
+      (Eio_harness.capture_stdout `Json (fun d ->
            D.run d "large" (fun _ ->
                Fmt.pr "%s%s%!" x first;
                Fmt.pr "%s@." rest)))
@@ -412,6 +391,16 @@ module Report_domains = struct
     { ppf; buffer; foreign }
 
   let with_runtime f = Eio_main.run f
+
+  let refusing_once message =
+    let first = ref true in
+    sink
+      ~on_write:(fun () ->
+        if !first then begin
+          first := false;
+          failwith message
+        end)
+      ()
 
   let run _env sink f =
     Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) ~ppf:sink.ppf f
@@ -503,16 +492,7 @@ module Report_domains = struct
   let output_error () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
-    let first = ref true in
-    let sink =
-      sink
-        ~on_write:(fun () ->
-          if !first then begin
-            first := false;
-            failwith "owner sink refused"
-          end)
-        ()
-    in
+    let sink = refusing_once "owner sink refused" in
     let previous = Logs.reporter () in
     let over_count = Atomic.make 0 and continued = Atomic.make 0 in
     run env sink (fun _ ->
@@ -535,16 +515,7 @@ module Report_domains = struct
   let output_refusal_falls_back () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
-    let first = ref true in
-    let sink =
-      sink
-        ~on_write:(fun () ->
-          if !first then begin
-            first := false;
-            failwith "display formatter refused"
-          end)
-        ()
-    in
+    let sink = refusing_once "display formatter refused" in
     let previous = Logs.reporter () in
     let over_count = ref 0 and continued = ref 0 in
     run env sink (fun _ ->
@@ -582,6 +553,21 @@ module Report_domains = struct
         Domain.join (Domain.spawn (fun () -> send reporter "raw")));
     Alcotest.(check (list string))
       "the previous reporter has the message" [ "raw" ] (kept ());
+    Alcotest.(check string)
+      "the display writes nothing" ""
+      (Buffer.contents sink.buffer)
+
+  (* A message logged from a thread of the display's domain, where no fiber
+     runs, goes to the reporter installed before the run. *)
+  let systhread () =
+    with_runtime @@ fun env ->
+    recording @@ fun kept ->
+    let sink = sink () in
+    run env sink (fun _ ->
+        let reporter = Logs.reporter () in
+        Eio_unix.run_in_systhread (fun () -> send reporter "from a thread"));
+    Alcotest.(check (list string))
+      "the previous reporter has the message" [ "from a thread" ] (kept ());
     Alcotest.(check string)
       "the display writes nothing" ""
       (Buffer.contents sink.buffer)
@@ -650,6 +636,8 @@ module Report_domains = struct
           `Quick stale_reporter;
         Alcotest.test_case "a domain Eio does not run hands over" `Quick
           foreign_domain;
+        Alcotest.test_case "a thread of the display's domain hands over" `Quick
+          systhread;
         Alcotest.test_case "scope closure releases a waiting external worker"
           `Quick
           (close_waiting_worker ~fail:true);

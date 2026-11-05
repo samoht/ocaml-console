@@ -28,4 +28,5 @@ let () =
       Test_console.suite;
       Test_console_vte.suite;
       Test_recording.suite;
+      Test_cast.suite;
     ]

@@ -1,0 +1,22 @@
+; The cost of an update and of a frame. Numbers from a dev build are not
+; valid: dune build --profile release @bench/perf/perf
+
+(executables
+ (names hot render)
+ (libraries console console-eio eio eio_main fmt unix))
+
+(rule
+ (alias perf)
+ (action
+  (progn
+   (run %{exe:hot.exe} 1000000)
+   (run %{exe:render.exe}))))
+
+; The words allocated and the frames drawn, which are deterministic.
+
+(rule
+ (alias perf-check)
+ (action
+  (progn
+   (run %{exe:hot.exe} 20000 --check)
+   (run %{exe:render.exe} --check))))

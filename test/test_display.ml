@@ -10,6 +10,7 @@ open View_harness
 let strings = Alcotest.(list string)
 let check_lines msg expected actual = Alcotest.check strings msg expected actual
 let theme = Theme.dos
+let split s = String.split_on_char '\n' s
 
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
@@ -20,9 +21,13 @@ let above top root = View.vcat [ top; Progress.view root ]
 
 (* A root timed by [now] whose tasks show on [ppf], and the display. *)
 let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
-  let root = Task.root ?label ~now () in
-  let view = Option.map (fun f -> f root) view in
+  let root, view = rooted ?label ?view now in
   (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
+
+(* What [f] shows on a pipe, in lines. *)
+let check_plain msg f expected =
+  let (), out = plain ~theme f in
+  check_lines msg expected (split out)
 
 let test_plain_lines () =
   let (), out =
@@ -45,7 +50,7 @@ let test_plain_lines () =
       "[+] Building 1.5s (1/1)";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 (* A line the display prints starts at the first column, even after the
    program left a line unfinished on the same formatter. *)
@@ -74,15 +79,12 @@ let test_plain_unfinished () =
   in
   check_lines "cancelled"
     [ "[-] left"; "[~] left  0.0s  cancelled"; "" ]
-    (String.split_on_char '\n' out);
-  let (), out =
-    plain ~theme (fun d _ ->
-        ignore (Task.start d "left");
-        Task.succeed ~message:"done" d)
-  in
-  check_lines "succeeded with the work"
+    (split out);
+  check_plain "succeeded with the work"
+    (fun d _ ->
+      ignore (Task.start d "left");
+      Task.succeed ~message:"done" d)
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
-    (String.split_on_char '\n' out)
 
 (* Without a terminal no colour may tell a failure from a success: the
    closing line of a task that did not succeed says how it ended, in the
@@ -106,7 +108,7 @@ let test_plain_outcome_word () =
       "[~] b  0.0s  cancelled";
       "";
     ]
-    (String.split_on_char '\n' out);
+    (split out);
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
   Fmt.set_style_renderer ppf `Ansi_tty;
@@ -119,16 +121,14 @@ let test_plain_outcome_word () =
     (contains "0.0s  failed\027[" (Buffer.contents buffer))
 
 let test_plain_attribution () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" and b = Task.start d "b" in
-        Task.log a "one";
-        Task.log b "two";
-        Task.log a "three";
-        Task.fail a;
-        Task.cancel b)
-  in
-  check_lines "each line says its task, in order"
+  check_plain "each line says its task, in order"
+    (fun d _ ->
+      let a = Task.start d "a" and b = Task.start d "b" in
+      Task.log a "one";
+      Task.log b "two";
+      Task.log a "three";
+      Task.fail a;
+      Task.cancel b)
     [
       "[-] a";
       "[-] b";
@@ -139,18 +139,15 @@ let test_plain_attribution () =
       "[~] b  0.0s  cancelled";
       "";
     ]
-    (String.split_on_char '\n' out)
 
 (* A tab in a task's output goes to the next stop of eight columns from the
    start of its line, so tabbed columns stay aligned. *)
 let test_tabs () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" in
-        Task.log a "x\ty\n\u{754c}\tz\n12345678\tw";
-        Task.fail a)
-  in
-  check_lines "tab stops"
+  check_plain "tab stops"
+    (fun d _ ->
+      let a = Task.start d "a" in
+      Task.log a "x\ty\n\u{754c}\tz\n12345678\tw";
+      Task.fail a)
     [
       "[-] a";
       "  # a: x       y";
@@ -159,7 +156,6 @@ let test_tabs () =
       "[x] a  0.0s  failed";
       "";
     ]
-    (String.split_on_char '\n' out)
 
 let test_plain_sanitizes () =
   let (), out =
@@ -188,7 +184,7 @@ let test_plain_result () =
       "[x] it broke";
       "";
     ]
-    (String.split_on_char '\n' out)
+    (split out)
 
 let test_empty_header_pending () =
   let t = terminal ~label:"Building" () in
@@ -308,7 +304,7 @@ let test_after_a_partial_line () =
 (* While a task runs, its window shows its latest lines of both kinds, a line
    too wide cut there and only there. *)
 let test_window () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let wide = "wide " ^ String.make 40 'w' in
   Task.run ~log_lines:3 t.root "job" (fun job ->
       List.iter (Task.log job) [ "one"; "two" ];
@@ -490,25 +486,41 @@ let test_redraw_idle () =
   let t = terminal ~theme () in
   ignore (Task.start t.root "job");
   Display.redraw t.display;
-  let before = List.length !(t.chunks) in
+  let before = writes t in
   Display.redraw t.display;
   Display.redraw t.display;
-  Alcotest.(check int) "nothing written" before (List.length !(t.chunks));
+  Alcotest.(check int) "nothing written" before (writes t);
   close t
 
 (* A terminal that narrows reflows the old frame onto more rows; the redraw
    moves up over all of them. *)
 let test_narrowing () =
   let t = terminal ~theme ~width:40 ~height:8 ~label:"Header" () in
+  Display.print t.display (View.text "above");
   Task.set_items (Task.start t.root "job") ~count:1 ~total:4;
   Display.redraw t.display;
+  (* A terminal reflows what it holds when it narrows, and the cursor stays on
+     the last row: the task's row of 40 cells and the summary of 21 take four
+     rows at 20. *)
+  let wide = Console_vte.v ~rows:8 ~cols:40 () in
+  Console_vte.feed wide (written t);
+  let held = List.filter (( <> ) "") (Console_vte.screen wide) in
+  let vte = Console_vte.v ~rows:8 ~cols:20 () in
+  Console_vte.feed vte (String.concat "\r\n" held);
   t.chunks := [];
   resize t ~width:20 ~height:8;
   Display.redraw t.display;
-  (* Two lines of 40 cells take four rows at 20. *)
+  Console_vte.feed vte (written t);
+  let rows = Console_vte.screen vte in
   Alcotest.(check bool)
-    "moved up over the reflowed rows" true
-    (contains "\r\027[3A\027[J" (written t));
+    "the line above is kept" true
+    (List.exists (contains "above") rows);
+  Alcotest.(check int)
+    "the old summary is gone" 1
+    (List.length (List.filter (contains "Header") rows));
+  Alcotest.(check bool)
+    "the old bar is gone" false
+    (List.exists (contains "\u{2591}") rows);
   close t
 
 let test_height_changes () =
@@ -558,15 +570,13 @@ let test_nested () =
 
 (* A task that its parent ends still says how it ended, on a pipe too. *)
 let test_nested_plain () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let p = Task.start d "parent" in
-        let c1 = Task.start p "one" in
-        ignore (Task.start p "two");
-        Task.succeed c1;
-        Task.fail p)
-  in
-  check_lines "a start line and an end line each"
+  check_plain "a start line and an end line each"
+    (fun d _ ->
+      let p = Task.start d "parent" in
+      let c1 = Task.start p "one" in
+      ignore (Task.start p "two");
+      Task.succeed c1;
+      Task.fail p)
     [
       "[-] parent";
       "[-] parent \u{25B8} one";
@@ -576,39 +586,33 @@ let test_nested_plain () =
       "[x] parent  0.0s  failed";
       "";
     ]
-    (String.split_on_char '\n' out)
 
 let test_keys_and_transient () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start ~key:"k" d "first" in
-        let b = Task.start ~key:"k" d "second" in
-        Alcotest.(check bool) "same task" true (a == b);
-        Task.succeed a;
-        let c = Task.start ~key:"k" d "third" in
-        Alcotest.(check bool) "a new task once it ended" false (a == c);
-        Task.succeed c;
-        Task.succeed (Task.start ~transient:true d "gone"))
-  in
-  check_lines "no line for a transient task"
+  check_plain "no line for a transient task"
+    (fun d _ ->
+      let a = Task.start ~key:"k" d "first" in
+      let b = Task.start ~key:"k" d "second" in
+      Alcotest.(check bool) "same task" true (a == b);
+      Task.succeed a;
+      let c = Task.start ~key:"k" d "third" in
+      Alcotest.(check bool) "a new task once it ended" false (a == c);
+      Task.succeed c;
+      Task.succeed (Task.start ~transient:true d "gone"))
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
-    (String.split_on_char '\n' out)
 
 (* A with_task that finds its key running enters that task and ends
    nothing: the task ends as the call that started it says. *)
 let test_with_task_shared_key () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run ~key:"k" d "first" (fun a ->
-            Task.run ~key:"k" d "second" (fun b ->
-                Alcotest.(check bool) "same task" true (a == b);
-                Task.log b "inside");
-            Task.log a "after the second";
-            match Task.run ~key:"k" d "third" (fun _ -> raise Exit) with
-            | () -> Alcotest.fail "the exception was swallowed"
-            | exception Exit -> Task.log a "after the third"))
-  in
-  check_lines "one task, ended once by the first"
+  check_plain "one task, ended once by the first"
+    (fun d _ ->
+      Task.run ~key:"k" d "first" (fun a ->
+          Task.run ~key:"k" d "second" (fun b ->
+              Alcotest.(check bool) "same task" true (a == b);
+              Task.log b "inside");
+          Task.log a "after the second";
+          match Task.run ~key:"k" d "third" (fun _ -> raise Exit) with
+          | () -> Alcotest.fail "the exception was swallowed"
+          | exception Exit -> Task.log a "after the third"))
     [
       "[-] first";
       "  # first: inside";
@@ -617,23 +621,20 @@ let test_with_task_shared_key () =
       "[+] first  0.0s";
       "";
     ]
-    (String.split_on_char '\n' out)
 
 let test_counts () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let t = Task.start d "count" in
-        Task.set_items t ~count:5 ~total:10;
-        Task.set_items t ~count:3 ~total:8;
-        Task.set_items t ~count:12 ~total:10;
-        Task.succeed t;
-        let b = Task.start d "bytes" in
-        Task.set_bytes b ~count:1048576L ~total:2097152L;
-        check_invalid "Console.Task.set_items: the task counts bytes" (fun () ->
-            Task.set_items b ~count:1 ~total:1);
-        Task.succeed b)
-  in
-  check_lines "never back, total raised"
+  check_plain "never back, total raised"
+    (fun d _ ->
+      let t = Task.start d "count" in
+      Task.set_items t ~count:5 ~total:10;
+      Task.set_items t ~count:3 ~total:8;
+      Task.set_items t ~count:12 ~total:10;
+      Task.succeed t;
+      let b = Task.start d "bytes" in
+      Task.set_bytes b ~count:1048576L ~total:2097152L;
+      check_invalid "Console.Task.set_items: the task counts bytes" (fun () ->
+          Task.set_items b ~count:1 ~total:1);
+      Task.succeed b)
     [
       "[-] count";
       "[+] count  12/12  0.0s";
@@ -641,7 +642,6 @@ let test_counts () =
       "[+] bytes  1.00 MiB / 2.00 MiB  0.0s";
       "";
     ]
-    (String.split_on_char '\n' out)
 
 (* [label ~style] draws the label in [style], bold by default. *)
 let test_label_style () =
@@ -668,6 +668,25 @@ let test_pp_bytes () =
       (1048575L, "1.00 MiB");
       (-1L, "0 B");
     ]
+
+(* A count of bytes is never wider than "1023.99 KiB", which the count and
+   rate columns are opened at. *)
+let test_bytes_width () =
+  let widest = String.length "1023.99 KiB" in
+  let check n =
+    let s = Fmt.str "%a" Progress.pp_bytes n in
+    if String.length s > widest then Alcotest.failf "%Ld is %S" n s
+  in
+  List.iter check [ Int64.max_int; Int64.min_int; 0L ];
+  for unit = 0 to 6 do
+    let base = Int64.shift_left 1L (10 * unit) in
+    for k = 1 to 1024 do
+      let n = Int64.mul base (Int64.of_int k) in
+      List.iter
+        (fun d -> if Int64.compare n 0L > 0 then check (Int64.add n d))
+        [ -1L; 0L; 1L; Int64.neg (Int64.div n 2000L) ]
+    done
+  done
 
 (* [advance] adds to the count and keeps the total, as indicatif's inc,
    Rich's Progress.advance and tqdm's update do. *)
@@ -945,19 +964,15 @@ let test_synchronized () =
   let (), out = plain (fun d _ -> Task.succeed (Task.start d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
 
-let split out = String.split_on_char '\n' out
-
 (* On a pipe there is no window: a task says when it starts, each of its lines
    comes at once after its label, and it says when it ends. *)
 let test_pipe_lines () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "job" (fun job ->
-            Task.log job "one";
-            Driver.report d `Info "note";
-            Task.log job "two"))
-  in
-  check_lines "in turn, each after its task's label"
+  check_plain "in turn, each after its task's label"
+    (fun d _ ->
+      Task.run d "job" (fun job ->
+          Task.log job "one";
+          Driver.report d `Info "note";
+          Task.log job "two"))
     [
       "[-] job";
       "  # job: one";
@@ -966,7 +981,6 @@ let test_pipe_lines () =
       "[+] job  0.0s";
       "";
     ]
-    (split out)
 
 (* [plain] prints the program's own lines on a pipe, in place of those of
    the tasks; the output of no task and the last frame print as before, and
@@ -1056,7 +1070,7 @@ let test_root_line_wraps () =
 (* A task that succeeds drops its output, on a terminal, even the
    lines that left its window. *)
 let test_success_drops () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
   List.iter (Task.log job) [ "one"; "two"; "three" ];
   Display.redraw t.display;
@@ -1071,7 +1085,7 @@ let test_success_drops () =
    block, without its label and not cut: a line too wide goes on over the
    rows below. [with_task] fails its task when its function raises. *)
 let test_failure_block () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let wide = String.make 45 'w' in
   (match
      Task.run ~log_lines:2 t.root "job" (fun job ->
@@ -1157,7 +1171,7 @@ let test_failure_plain () =
    output under its line, as a failure does, the lines that left its window
    too. *)
 let test_cancelled_output () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
   let other = Task.start ~log_lines:1 t.root "other" in
   List.iter (Task.log job) [ "a"; "b"; "c" ];
@@ -1167,21 +1181,18 @@ let test_cancelled_output () =
   check_lines "all of it under each line"
     [ "[~] job"; "  # a"; "  # b"; "  # c"; "[~] other"; "  # z" ]
     (List.map untimed (lines t));
-  let (), out =
-    plain ~theme (fun d _ ->
-        let job = Task.start ~log_lines:2 d "job" in
-        Task.log job "a";
-        Task.cancel job)
-  in
-  check_lines "nothing repeated on a pipe"
+  check_plain "nothing repeated on a pipe"
+    (fun d _ ->
+      let job = Task.start ~log_lines:2 d "job" in
+      Task.log job "a";
+      Task.cancel job)
     [ "[-] job"; "  # job: a"; "[~] job  0.0s  cancelled"; "" ]
-    (split out)
 
 (* The root is the work's top task: within it, output goes above the rows
    at once and stays, while a task runs and when that task fails, and also
    once the work ended. Ending it ends the work, once. *)
 let test_root () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let d = t.root in
   let root = d in
   (match
@@ -1222,15 +1233,13 @@ let test_root () =
       "still there";
     ]
     (List.map untimed (lines t));
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "job" (fun _ ->
-            Task.within d (fun () ->
-                Driver.report d `Info "above";
-                Task.succeed (Task.start d "top"));
-            Driver.report d `Info "inside"))
-  in
-  check_lines "on a pipe, unlabelled"
+  check_plain "on a pipe, unlabelled"
+    (fun d _ ->
+      Task.run d "job" (fun _ ->
+          Task.within d (fun () ->
+              Driver.report d `Info "above";
+              Task.succeed (Task.start d "top"));
+          Driver.report d `Info "inside"))
     [
       "[-] job";
       "above";
@@ -1240,31 +1249,28 @@ let test_root () =
       "[+] job  0.0s";
       "";
     ]
-    (split out)
 
 (* [within task f] makes a task that runs current for [f], and ends nothing:
    what [f] prints and the tasks it starts are [task]'s, also when [f]
    raises. *)
 let test_within () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let a = Task.start d "a" in
-        Task.run d "b" (fun _ ->
-            let v =
-              Task.within a (fun () ->
-                  Driver.report d `Info "for a";
-                  ignore (Task.start a "under a");
-                  7)
-            in
-            Alcotest.(check int) "its value" 7 v;
-            Driver.report d `Info "for b");
-        (match Task.within a (fun () -> failwith "inside") with
-        | () -> Alcotest.fail "no exception"
-        | exception Failure _ -> ());
-        Task.log a "still runs";
-        Task.succeed a)
-  in
-  check_lines "the lines of the task given"
+  check_plain "the lines of the task given"
+    (fun d _ ->
+      let a = Task.start d "a" in
+      Task.run d "b" (fun _ ->
+          let v =
+            Task.within a (fun () ->
+                Driver.report d `Info "for a";
+                ignore (Task.start a "under a");
+                7)
+          in
+          Alcotest.(check int) "its value" 7 v;
+          Driver.report d `Info "for b");
+      (match Task.within a (fun () -> failwith "inside") with
+      | () -> Alcotest.fail "no exception"
+      | exception Failure _ -> ());
+      Task.log a "still runs";
+      Task.succeed a)
     [
       "[-] a";
       "[-] b";
@@ -1277,12 +1283,11 @@ let test_within () =
       "[+] a  0.0s";
       "";
     ]
-    (split out)
 
 (* Two tasks that run at once: on a terminal each block is printed under
    its own line, never interleaved with the other's. *)
 let test_two_tasks () =
-  let t = terminal ~theme ~width:30 ~height:10 () in
+  let t = roomy () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
   List.iter
     (fun (task, s) -> Task.log task s)
@@ -1325,14 +1330,12 @@ let test_with_task () =
       "";
     ]
     (split out);
-  let (), out =
-    plain ~theme (fun d _ ->
-        Task.run d "outer" (fun _ ->
-            let top = Task.start d "top" in
-            Driver.report d `Info "to outer";
-            Task.succeed top))
-  in
-  check_lines "a task goes under the task given, output to the current one"
+  check_plain "a task goes under the task given, output to the current one"
+    (fun d _ ->
+      Task.run d "outer" (fun _ ->
+          let top = Task.start d "top" in
+          Driver.report d `Info "to outer";
+          Task.succeed top))
     [
       "[-] outer";
       "[-] top";
@@ -1341,7 +1344,6 @@ let test_with_task () =
       "[+] outer  0.0s";
       "";
     ]
-    (split out)
 
 (* A task that [with_task] fails when its function raises says why, in its
    line and in its JSON end event. *)
@@ -1461,13 +1463,11 @@ let steps =
 
 (* [pp v] printed on a formatter in [theme], at [margin]. *)
 let printed ?(theme = theme) ~margin pp v =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf theme;
-  Format.pp_set_margin ppf margin;
-  pp ppf v;
-  Format.pp_print_flush ppf ();
-  String.split_on_char '\n' (Buffer.contents buf)
+  split
+    ( capture @@ fun ppf ->
+      Theme.set ppf theme;
+      Format.pp_set_margin ppf margin;
+      pp ppf v )
 
 let table ~width = View.sized ~width:(min width 100) steps
 
@@ -1673,10 +1673,10 @@ let test_view_moves () =
     Display.redraw t.display;
     let frames =
       List.init 12 (fun _ ->
-          let before = List.length !(t.chunks) in
+          let before = writes t in
           t.advance 0.25;
           Display.redraw t.display;
-          (List.length !(t.chunks) > before, screen t))
+          (writes t > before, screen t))
     in
     close t;
     frames
@@ -1766,6 +1766,483 @@ let test_view_exception_close () =
   Alcotest.(check bool)
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
+
+(* A task ends once, whatever its ending calls: Task.t's contract. *)
+let test_task_ends_once () =
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let display = Progress.show ~progress:`Json ppf root in
+  let task = Task.start root "t" in
+  Console__.Task_driver.ending root Task.fail;
+  Task.succeed task;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  let ended =
+    List.filter
+      (fun l -> contains {|"event":"end"|} l && contains {|["t"]|} l)
+      (String.split_on_char '\n' (Buffer.contents buf))
+  in
+  Alcotest.(check int) "one end" 1 (List.length ended);
+  Alcotest.(check bool) "the first outcome" true (Task.state task = `Succeeded)
+
+(* An interrupt as a task ends, in what its ending calls or in a watcher, leaves
+   no task half ended: its subtasks end, and every watcher sees each end. *)
+let test_end_interrupted () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let commit _ = raise Sys.Break in
+  let live =
+    Progress.show ~commit
+      ~size:(fun () -> (40, 10))
+      (Format.formatter_of_buffer (Buffer.create 64))
+      root
+  in
+  let buf = Buffer.create 64 in
+  let other = Format.formatter_of_buffer buf in
+  let watcher = Progress.show ~progress:`Plain other root in
+  let parent = Task.start root "parent" in
+  let first = Task.start parent "first" in
+  let second = Task.start parent "second" in
+  Console__.Task_driver.ending root (fun r ->
+      if r == first then raise Sys.Break);
+  Alcotest.check_raises "the interrupt goes on" Sys.Break (fun () ->
+      Task.succeed parent);
+  Alcotest.(check bool)
+    "the tasks ended" true
+    (List.for_all
+       (fun task -> Task.state task = `Succeeded)
+       [ parent; first; second ]);
+  Format.pp_print_flush other ();
+  List.iter
+    (fun label ->
+      Alcotest.(check bool)
+        ("the other display saw " ^ label ^ " end")
+        true
+        (contains ("\xe2\x9c\x93 " ^ label ^ "  0.0s") (Buffer.contents buf)))
+    [ "parent \xe2\x96\xb8 first"; "parent \xe2\x96\xb8 second"; "parent" ];
+  Console__.Task_driver.ending root ignore;
+  Display.close watcher;
+  Display.close live
+
+(* A terminal whose size raises once [broken] is set. *)
+let breaking_size () =
+  let buf = Buffer.create 256 in
+  let broken = ref false in
+  let size () = if !broken then raise Exit else (40, 10) in
+  (buf, Format.formatter_of_buffer buf, broken, size)
+
+(* What [ppf] wrote on [buf], whose cursor it hid, shows it again: DECTCEM. *)
+let check_buffer_restored ppf buf =
+  Format.pp_print_flush ppf ();
+  check_cursor_restored "cursor" (Buffer.contents buf)
+
+(* What only the program can answer is not held back: a view that cannot go on
+   for these reasons has not failed, and it stays. *)
+let urgent = [ Out_of_memory; Stack_overflow; Sys.Break ]
+
+let breaking e =
+  let broken = ref false in
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  let step = Task.start t.root "running" in
+  Display.set_view t.display
+    (View.fit (fun _ -> if !broken then raise e else View.text "fine"));
+  (t, step, broken)
+
+let test_view_urgent_print () =
+  List.iter
+    (fun e ->
+      let t, _, broken = breaking e in
+      broken := true;
+      Alcotest.check_raises "the print" e (fun () ->
+          Display.print t.display (View.text "kept"));
+      Alcotest.(check bool)
+        "the line printed went out" true
+        (List.exists (contains "kept") (screen t));
+      broken := false;
+      Display.redraw t.display;
+      Alcotest.(check bool)
+        "the view stays" true
+        (List.exists (contains "fine") (screen t));
+      close t;
+      Alcotest.(check bool)
+        "cursor restored" true
+        (Console_vte.cursor_visible t.vte))
+    urgent
+
+let test_view_urgent_report () =
+  List.iter
+    (fun e ->
+      let t, step, broken = breaking e in
+      broken := true;
+      t.advance 1.;
+      Alcotest.check_raises "the report" e (fun () ->
+          Task.set_items step ~count:1 ~total:2);
+      broken := false;
+      close t)
+    urgent
+
+let test_view_urgent_close () =
+  List.iter
+    (fun e ->
+      let t, _, broken = breaking e in
+      broken := true;
+      Alcotest.check_raises "the close" e (fun () -> Display.close t.display);
+      Alcotest.(check bool)
+        "cursor restored" true
+        (Console_vte.cursor_visible t.vte))
+    urgent
+
+(* At the close, what the program must see wins over what came first. *)
+let test_urgent_beats_kept () =
+  let buf, ppf, broken, size = breaking_size () in
+  let view =
+    View.fit (fun _ -> if !broken then raise Sys.Break else View.text "x")
+  in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf view in
+  Display.redraw display;
+  broken := true;
+  Alcotest.check_raises "closing" Sys.Break (fun () -> Display.close display);
+  check_buffer_restored ppf buf
+
+(* So may the size of the terminal. *)
+let test_size_raises_at_close () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let broken = ref false in
+  let size () = if !broken then raise Exit else (40, 10) in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
+  Display.redraw display;
+  broken := true;
+  Format.pp_print_flush ppf ();
+  let drawn = Buffer.length buf in
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close display);
+  check_buffer_restored ppf buf;
+  Alcotest.(check bool)
+    "the view stays for the last frame" true
+    (contains "x" (Buffer.sub buf drawn (Buffer.length buf - drawn)))
+
+(* Elsewhere it waits for a call that asks, and the view stays. *)
+let test_size_raises_in_print () =
+  let buf, ppf, broken, size = breaking_size () in
+  let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
+  broken := true;
+  Display.print display (View.text "kept");
+  Alcotest.check_raises "the redraw" Exit (fun () -> Display.redraw display);
+  broken := false;
+  Display.close display;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check bool)
+    "the view stays" true
+    (contains "x" (Buffer.contents buf))
+
+(* An output that raises what is no write error: that is the program's, and the
+   close still gives the formatter back. *)
+let test_output_raises () =
+  let failing = ref false in
+  let out _ _ _ = if !failing then failwith "output" in
+  let ppf = Format.make_formatter out ignore in
+  let before = (Format.pp_get_formatter_out_functions ppf ()).out_string in
+  let display = Display.v ~now:(fun () -> 0.) ppf (View.text "x") in
+  failing := true;
+  Alcotest.check_raises "the print" (Failure "output") (fun () ->
+      Display.print display (View.text "kept"));
+  Alcotest.check_raises "the close" (Failure "output") (fun () ->
+      Display.close display);
+  Alcotest.(check bool)
+    "the formatter given back" true
+    ((Format.pp_get_formatter_out_functions ppf ()).out_string == before);
+  Display.redraw display
+
+(* What [with_output] does after its function neither hides the function's
+   exception nor skips giving the formatter back. *)
+let test_with_output_finally () =
+  let check_ending ~label ~raises ~expect =
+    let failing = ref false in
+    let out_flush () = if !failing then raise raises in
+    let ppf = Format.make_formatter (fun _ _ _ -> ()) out_flush in
+    let margin = Format.pp_get_margin ppf () in
+    let display =
+      Display.v
+        ~size:(fun () -> (40, 10))
+        ~now:(fun () -> 0.)
+        ppf (View.text "x")
+    in
+    let before = (Format.pp_get_formatter_out_functions ppf ()).out_string in
+    Alcotest.check_raises label expect (fun () ->
+        Display.with_output display (fun _ ->
+            failing := true;
+            failwith "work"));
+    Alcotest.(check int) "the margin" margin (Format.pp_get_margin ppf ());
+    Alcotest.(check bool)
+      "the formatter" true
+      ((Format.pp_get_formatter_out_functions ppf ()).out_string == before);
+    failing := false;
+    try Display.close display with Exit -> ()
+  in
+  check_ending ~label:"the work's" ~raises:Exit ~expect:(Failure "work");
+  check_ending ~label:"an interrupt" ~raises:Sys.Break ~expect:Sys.Break
+
+(* What waits for an idle point all runs, whatever one of them raises, and an
+   exception under way stays the one that goes on. *)
+let test_idle_raises () =
+  let queue d ran =
+    Console__.Display_driver.when_idle d (fun () -> raise Exit);
+    Console__.Display_driver.when_idle d (fun () -> ran := true)
+  in
+  let ran = ref false and armed = ref false and failure = ref None in
+  let display = ref None in
+  let view =
+    View.fit (fun _ ->
+        if !armed then begin
+          armed := false;
+          queue (Option.get !display) ran;
+          Option.iter raise !failure
+        end;
+        View.text "x")
+  in
+  let d =
+    Display.v
+      ~size:(fun () -> (40, 10))
+      ~now:(fun () -> 0.)
+      Format.str_formatter view
+  in
+  display := Some d;
+  armed := true;
+  Alcotest.check_raises "the first raises" Exit (fun () -> Display.redraw d);
+  Alcotest.(check bool) "the next one ran" true !ran;
+  armed := true;
+  failure := Some Out_of_memory;
+  ran := false;
+  Alcotest.check_raises "the worse goes on" Out_of_memory (fun () ->
+      Display.redraw d);
+  Alcotest.(check bool) "the next one ran" true !ran;
+  armed := false;
+  Display.close d
+
+(* [Fun.protect] wraps what its [finally] raises: that is what it was. *)
+let test_view_wrapped () =
+  let wrapped = Fun.Finally_raised Sys.Break in
+  let t, _, broken = breaking wrapped in
+  broken := true;
+  Alcotest.check_raises "the print" wrapped (fun () ->
+      Display.print t.display (View.text "kept"));
+  broken := false;
+  close t
+
+(* A view may close its own display: nothing is drawn after that. *)
+let test_view_closes () =
+  let buf = Buffer.create 256 in
+  let ppf = Format.formatter_of_buffer buf in
+  let display = ref None and armed = ref false in
+  let view =
+    View.fit (fun _ ->
+        if !armed then begin
+          armed := false;
+          Display.close (Option.get !display)
+        end;
+        View.text "x")
+  in
+  let d = Display.v ~size:(fun () -> (40, 10)) ~now:(fun () -> 0.) ppf view in
+  display := Some d;
+  armed := true;
+  Display.redraw d;
+  Format.pp_print_flush ppf ();
+  let written = Buffer.contents buf in
+  check_cursor_restored "cursor" written;
+  Alcotest.(check bool)
+    "no update left open" false
+    (Console_vte.synchronized_open written);
+  let vte = Console_vte.v ~rows:10 ~cols:40 () in
+  Console_vte.feed vte written;
+  Alcotest.(check (list string))
+    "the last frame, once" [ "x" ]
+    (List.filter (contains "x") (Console_vte.screen vte));
+  Display.redraw d;
+  Format.pp_print_flush ppf ();
+  Alcotest.(check string) "nothing after it" written (Buffer.contents buf)
+
+(* What ends a task as the display closes may raise: the terminal comes first. *)
+let test_commit_raises_at_close () =
+  let commit _ = raise Exit in
+  let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
+  ignore (Task.start t.root "running");
+  Display.redraw t.display;
+  Alcotest.check_raises "closing" Exit (fun () -> Display.close t.display);
+  Alcotest.(check bool)
+    "cursor restored" true
+    (Console_vte.cursor_visible t.vte)
+
+(* A view that changes at every frame, on a terminal of twelve rows. *)
+let numbered ppf =
+  let n = ref 0 in
+  let view =
+    View.fit (fun _ ->
+        incr n;
+        Fmt.kstr View.text "frame %d" !n)
+  in
+  Display.v ~size:(fun () -> (40, 12)) ~now:(fun () -> 0.) ppf view
+
+let updates s = List.length (Astring.String.cuts ~sep:"\027[?2026h" s) - 1
+
+(* The last frame [numbered] drew in [s], and the rows [s] leaves on a screen. *)
+let last_frame s =
+  Re.Group.get
+    (List.hd (List.rev (Re.all (Re.Perl.compile_pat "frame [0-9]+") s)))
+    0
+
+let rows s =
+  let vte = Console_vte.v ~rows:12 ~cols:40 () in
+  Console_vte.feed vte s;
+  List.filter (( <> ) "") (Console_vte.screen vte)
+
+(* A write cut short goes out with the next one: the frame the display counts
+   is the one on the screen, and no line above it is erased. *)
+let test_write_cut_short () =
+  let buf = Buffer.create 256 and armed = ref false in
+  let out s o l =
+    if !armed then begin
+      armed := false;
+      raise Sys.Break
+    end;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let rows = ref 1 in
+  let view =
+    View.fit (fun _ ->
+        View.vcat (List.init !rows (fun i -> Fmt.kstr View.text "row%d" i)))
+  in
+  let d = Display.v ~size:(fun () -> (40, 12)) ~now:(fun () -> 0.) ppf view in
+  List.iter
+    (fun s -> Display.print d (View.text s))
+    [ "keep-1"; "keep-2"; "keep-3"; "keep-4" ];
+  rows := 4;
+  armed := true;
+  Alcotest.check_raises "the redraw" Sys.Break (fun () -> Display.redraw d);
+  rows := 1;
+  Display.print d (View.text "after");
+  Display.close d;
+  let vte = Console_vte.v ~rows:12 ~cols:40 () in
+  Console_vte.feed vte (Buffer.contents buf);
+  List.iter
+    (fun keep ->
+      Alcotest.(check bool)
+        keep true
+        (List.exists (contains keep) (Console_vte.screen vte)))
+    [ "keep-1"; "keep-2"; "keep-3"; "keep-4"; "after" ];
+  Alcotest.(check bool) "the cursor shown" true (Console_vte.cursor_visible vte)
+
+(* Mode 2026: a terminal holds back what it draws until the update ends, so an
+   update cut in the middle ends before anything else is written. *)
+let test_update_cut_in_the_middle () =
+  let buf = Buffer.create 256 and armed = ref false in
+  let out s o l =
+    if !armed then begin
+      armed := false;
+      Buffer.add_substring buf s o (l / 2);
+      raise Sys.Break
+    end;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d =
+    Display.v
+      ~size:(fun () -> (40, 12))
+      ~now:(fun () -> 0.)
+      ppf (View.text "row")
+  in
+  Display.redraw d;
+  Display.print d (View.text "kept");
+  armed := true;
+  Alcotest.check_raises "the print" Sys.Break (fun () ->
+      Display.print d (View.text "a line long enough to be cut"));
+  let torn = Buffer.contents buf in
+  Alcotest.(check bool)
+    "cut inside the update" true
+    (Console_vte.synchronized_open torn);
+  Display.print d (View.text "after");
+  let written = Buffer.contents buf in
+  let line_after = String.index_from written (String.length torn) '\n' in
+  Alcotest.(check bool)
+    "ended before the next line" false
+    (Console_vte.synchronized_open (String.sub written 0 line_after));
+  Display.close d
+
+(* A write cut short goes out first, and what would come behind it does not pile
+   up. What the cut update may have drawn stays above the region. *)
+let test_write_stays_cut () =
+  let buf = Buffer.create 256 and failing = ref false in
+  let out s o l =
+    if !failing then raise Sys.Break;
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d = numbered ppf in
+  Display.redraw d;
+  let before = Buffer.length buf in
+  failing := true;
+  for _ = 1 to 50 do
+    Alcotest.check_raises "the redraw" Sys.Break (fun () -> Display.redraw d)
+  done;
+  failing := false;
+  Display.redraw d;
+  let all = Buffer.contents buf in
+  let after = String.sub all before (String.length all - before) in
+  Alcotest.(check int) "one update after the cut" 1 (updates after);
+  check_lines "the rows"
+    [ last_frame (String.sub all 0 before); last_frame all ]
+    (rows all);
+  Display.close d
+
+(* Frames do not pile up behind a write that takes its time, which another fiber
+   would redraw during. *)
+let test_write_under_way () =
+  let buf = Buffer.create 256 and during = ref ignore in
+  let out s o l =
+    let f = !during in
+    during := ignore;
+    f ();
+    Buffer.add_substring buf s o l
+  in
+  let ppf = Format.make_formatter out ignore in
+  let d = numbered ppf in
+  Display.redraw d;
+  let before = Buffer.length buf in
+  (during :=
+     fun () ->
+       for _ = 1 to 50 do
+         Display.redraw d
+       done);
+  Display.redraw d;
+  let all = Buffer.contents buf in
+  let after = String.sub all before (String.length all - before) in
+  Alcotest.(check int) "one update" 1 (updates after);
+  check_lines "the rows" [ last_frame all ] (rows all);
+  Display.close d
+
+(* What a hook raises as a task ends waits for a call that asks: the task ends,
+   its function's value goes on, and its row leaves the region. *)
+let test_hook_raises () =
+  let commit _ = failwith "commit" in
+  let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
+  Alcotest.(check int)
+    "the run's value" 42
+    (Task.run t.root "the task" (fun _ -> 42));
+  Alcotest.check_raises "the close" (Failure "commit") (fun () ->
+      Display.close t.display);
+  Alcotest.(check bool)
+    "no row of the task" false
+    (List.exists (contains "the task") (screen t));
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let plain _ = failwith "plain" in
+  let display = Progress.show ~progress:`Plain ~plain ppf root in
+  Alcotest.(check int)
+    "the run's value" 42
+    (Task.run root "the task" (fun _ -> 42));
+  Alcotest.check_raises "the close" (Failure "plain") (fun () ->
+      Display.close display)
 
 (* A view that raises in a frame that no call to the display asked for, the
    first one or the last one, is dropped for the default view, the display
@@ -1906,15 +2383,13 @@ let test_last_frame_label_readable () =
    their paths, not by an indentation: a child's lines name its parent, and
    a line of output names its own task, two columns in. *)
 let test_plain_output_not_sibling () =
-  let (), out =
-    plain ~theme (fun d _ ->
-        let p = Task.start d "parent" in
-        let c = Task.start p "child" in
-        Task.log p "parent says";
-        Task.succeed c;
-        Task.succeed p)
-  in
-  check_lines "each line names its task"
+  check_plain "each line names its task"
+    (fun d _ ->
+      let p = Task.start d "parent" in
+      let c = Task.start p "child" in
+      Task.log p "parent says";
+      Task.succeed c;
+      Task.succeed p)
     [
       "[-] parent";
       "[-] parent \u{25B8} child";
@@ -1923,7 +2398,6 @@ let test_plain_output_not_sibling () =
       "[+] parent  0.0s";
       "";
     ]
-    (split out)
 
 (* On a pipe a failure's output is printed once: the lines streamed as they
    came are not printed again under the failure. *)
@@ -2058,7 +2532,7 @@ let test_pipe_output_mark_not_separator () =
         Task.succeed b;
         Task.succeed a)
   in
-  let line = List.find (contains ": x") (String.split_on_char '\n' out) in
+  let line = List.find (contains ": x") (split out) in
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
   Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
 
@@ -2661,9 +3135,9 @@ let test_print () =
   let t = terminal ~theme ~width:30 ~height:8 () in
   ignore (Task.start t.root "job");
   Display.redraw t.display;
-  let before = List.length !(t.chunks) in
+  let before = writes t in
   Display.print t.display (View.text "printed");
-  Alcotest.(check int) "one write" (before + 1) (List.length !(t.chunks));
+  Alcotest.(check int) "one write" (before + 1) (writes t);
   check_lines "above the region, at once" [ "printed"; " |  job" ]
     (List.map untimed (screen t));
   close t;
@@ -2707,12 +3181,7 @@ let test_kept_rows () =
   let root = Task.root ~label:"build" ~now () in
   let screen layout =
     let vte = Console_vte.v ~rows:16 ~cols:60 () in
-    let buf = Buffer.create 256 in
-    let ppf =
-      Format.make_formatter (Buffer.add_substring buf) (fun () ->
-          Console_vte.feed vte (Buffer.contents buf);
-          Buffer.clear buf)
-    in
+    let ppf = feeding vte in
     Fmt.set_utf_8 ppf true;
     ( vte,
       Display.v ~size:(fun () -> (60, 16)) ~now ppf (Progress.view ~layout root)
@@ -2762,12 +3231,7 @@ let test_redraw_reads_state () =
   let now () = 0. in
   let root = Task.root ~label:"build" ~now () in
   let vte = Console_vte.v ~rows:8 ~cols:40 () in
-  let buf = Buffer.create 256 in
-  let ppf =
-    Format.make_formatter (Buffer.add_substring buf) (fun () ->
-        Console_vte.feed vte (Buffer.contents buf);
-        Buffer.clear buf)
-  in
+  let ppf = feeding vte in
   let jobs = ref [] in
   let status = View.fit (fun _ -> View.text (String.concat "," !jobs)) in
   let still, calls = laid () in
@@ -2907,6 +3371,7 @@ let suite =
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
+      Alcotest.test_case "bytes fit their column" `Quick test_bytes_width;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
       Alcotest.test_case "advance" `Quick test_advance;
       Alcotest.test_case "a layout for each task" `Quick test_layout_choose;
@@ -2920,6 +3385,33 @@ let suite =
         test_with_task_reason;
       Alcotest.test_case "iter" `Quick test_iter;
       Alcotest.test_case "view" `Quick test_view;
+      Alcotest.test_case "a task ends once" `Quick test_task_ends_once;
+      Alcotest.test_case "a task's end interrupted" `Quick test_end_interrupted;
+      Alcotest.test_case "urgent in a view, a print" `Quick
+        test_view_urgent_print;
+      Alcotest.test_case "urgent in a view, a report" `Quick
+        test_view_urgent_report;
+      Alcotest.test_case "urgent in a view, the close" `Quick
+        test_view_urgent_close;
+      Alcotest.test_case "urgent beats what was kept" `Quick
+        test_urgent_beats_kept;
+      Alcotest.test_case "size raises at close" `Quick test_size_raises_at_close;
+      Alcotest.test_case "size raises in a print" `Quick
+        test_size_raises_in_print;
+      Alcotest.test_case "output raises" `Quick test_output_raises;
+      Alcotest.test_case "with_output's ending" `Quick test_with_output_finally;
+      Alcotest.test_case "what waits for idle raises" `Quick test_idle_raises;
+      Alcotest.test_case "an exception Fun.protect wrapped" `Quick
+        test_view_wrapped;
+      Alcotest.test_case "a view closes its display" `Quick test_view_closes;
+      Alcotest.test_case "commit raises at close" `Quick
+        test_commit_raises_at_close;
+      Alcotest.test_case "a hook raises as a task ends" `Quick test_hook_raises;
+      Alcotest.test_case "a write cut short" `Quick test_write_cut_short;
+      Alcotest.test_case "an update cut in the middle" `Quick
+        test_update_cut_in_the_middle;
+      Alcotest.test_case "writes that stay cut" `Quick test_write_stays_cut;
+      Alcotest.test_case "a write under way" `Quick test_write_under_way;
       Alcotest.test_case "view fits" `Quick test_view_fits;
       Alcotest.test_case "view width" `Quick test_view_width;
       Alcotest.test_case "a view on a short terminal" `Quick test_view_short;

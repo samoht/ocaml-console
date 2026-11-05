@@ -31,6 +31,11 @@ jobs:
         env:
           CONSOLE_TEST_REQUIRE_PTY: 1
 
+      # The words an update allocates, against a ratchet, and the frames
+      # drawn per simulated second. The words depend on the compiler, so the
+      # check runs here and not in dune test, which downstream builds run.
+      - run: opam exec -- dune build @bench/perf/perf-check
+
   release:
     name: Release build
     runs-on: ubuntu-latest

@@ -37,7 +37,6 @@ let test_theme s n =
     (t :: List.map snd Theme.all)
 
 let themes = List.map snd Theme.all
-let is_ascii s = String.for_all (fun c -> Char.code c < 0x80) s
 
 (* On a formatter that is not UTF-8, every widget and a live display print
    ASCII alone, in every theme, for any ASCII text at any margin. *)
@@ -81,7 +80,7 @@ let test_ascii s n =
   Display.close d;
   Format.pp_print_flush ppf ();
   let out = Buffer.contents buf in
-  if not (is_ascii out) then failf "not ASCII: %S" out
+  if not (Text_harness.is_ascii out) then failf "not ASCII: %S" out
 
 let suite =
   ( "theme",
