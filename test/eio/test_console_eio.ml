@@ -41,8 +41,8 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
 
-(* [mock] at its next timer, if any: a sleep that waits for its turn on
-   [Console_eio.clock] has none. *)
+(* [step mock] moves [mock] to its next timer, if it has one: a sleep that
+   waits for its turn on [Console_eio.clock] sets none. *)
 let step mock =
   try Eio_mock.Clock.Mono.advance mock with Invalid_argument _ -> ()
 
@@ -194,8 +194,8 @@ let test_deterministic_schedule () =
       done)
     [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 60 ' ' ^ "2.9s") ]
 
-(* A recording made of [f] under [CONSOLE_CAST], on a terminal of 30 columns
-   by 6 rows, its lines. *)
+(* [recording f] is the lines of the recording that [CONSOLE_CAST] makes of
+   [f], on a terminal of 30 columns by 6 rows. *)
 let recording f =
   let file = Filename.temp_file "console" ".cast" in
   with_env
@@ -277,8 +277,8 @@ let test_cast_times () =
     "the end" 2.
     (List.nth times (List.length times - 1))
 
-(* What a run writes on [ppf] and then [text], recorded, the bytes of its
-   events. *)
+(* [recorded_text text] is the data of the events recorded for a run on
+   [ppf], after which [text] is written on [ppf]. *)
 let recorded_text text =
   let lines =
     recording @@ fun () ->
@@ -364,7 +364,8 @@ let test_cancelled_run_restores () =
       Alcotest.(check string) "the winner" "cancelled" result;
       check_cursor_restored "cursor" (Buffer.contents buf))
 
-(* A fiber cancelled in a view stops there: its [Cancelled] is no one else's. *)
+(* A fiber cancelled while a view yields stops there, and its [Cancelled]
+   does not end the run. *)
 let test_view_cancelled () =
   with_clock (fun clock ->
       let _, ppf = buffer () in
@@ -392,7 +393,8 @@ let test_view_cancelled () =
       in
       Alcotest.(check int) "the run's value" 42 value)
 
-(* Cancelled around [with_output], it is still cancelled. *)
+(* A fiber cancelled inside [with_output] stays cancelled, and so does a task
+   around it. *)
 let test_with_output_cancelled () =
   with_clock (fun clock ->
       let _, ppf = flow () in
@@ -568,7 +570,8 @@ let test_output_stalls_in_nested_tasks () =
           Console.Task.run a "b" (fun b ->
               Console.Task.run b "c" (fun _ -> stall ()))))
 
-(* A [Cancelled] in a fiber that nothing cancelled is a view's own exception. *)
+(* A [Cancelled] raised by a view in a fiber that nothing cancelled is the
+   view's own exception: the run raises it, and the print goes on. *)
 let test_view_foreign_cancelled () =
   with_clock (fun clock ->
       let _, ppf = buffer () in
@@ -581,8 +584,9 @@ let test_view_foreign_cancelled () =
               printed := true));
       Alcotest.(check bool) "the print went on" true !printed)
 
-(* A report is no point of cancellation: cleanup that reports or logs in a
-   cancelled fiber runs to its end, and the fiber is still cancelled after. *)
+(* A report is not a cancellation point in the sense of [Eio.Cancel]: cleanup
+   that reports or logs in a cancelled fiber runs to its end, and the fiber is
+   still cancelled after. *)
 let test_report_cancelled () =
   with_clock (fun clock ->
       let _, ppf = flow () in
@@ -604,8 +608,8 @@ let test_report_cancelled () =
           Alcotest.(check string) "the winner" "winner" winner;
           Alcotest.(check bool) "the cleanup ended" true !cleaned))
 
-(* A run that ends well closes however its last task ends, and what the commit
-   raised goes on. *)
+(* A [commit] that raises as the run ends, an error or an interrupt, makes the
+   run raise it, once the cursor is shown again. *)
 let test_commit_raises_at_end () =
   List.iter
     (fun e ->
@@ -656,8 +660,9 @@ let test_restore_raises () =
        (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", ""))));
   check_breaking Sys.Break
 
-(* The program's exception goes on, whatever the last frame raises, unless the
-   frame ran into what the program must see. *)
+(* The run raises the program's exception whatever the last frame raises,
+   unless the frame raises one the program must see, such as
+   [Out_of_memory]. *)
 let test_run_keeps_its_exception () =
   let last e _ =
     Console.View.fit (fun room ->
@@ -674,7 +679,8 @@ let test_run_keeps_its_exception () =
           Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
             ~view:(last Out_of_memory) (fun _ -> failwith "boom")))
 
-(* So it does whatever the output raises on the way out. *)
+(* The run raises the program's exception whatever the output raises on the
+   way out. *)
 let test_run_keeps_its_exception_on_output () =
   with_clock (fun clock ->
       let failing = ref false in
@@ -709,7 +715,7 @@ let test_run_view_raises () =
             (contains "work" (Buffer.contents buf))))
     [ (`Plain, always); (`Plain, last); (`Tty, always); (`Tty, last) ]
 
-(* [commit] is what a top task leaves in the scrollback, as with
+(* [commit] draws what a top task leaves in the scrollback, as with
    [Progress.show]. *)
 let test_run_commit () =
   with_clock (fun clock ->
@@ -751,7 +757,8 @@ let test_run_print () =
     "an event" true
     (contains {|"event":"output","text":"warning: careful"|} (printed `Json))
 
-(* What [f] writes on the standard error, read back from a file. *)
+(* [on_stderr f] is what [f] writes on standard error, read back from a
+   file. *)
 let on_stderr f =
   let file = Filename.temp_file "console" ".err" in
   Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
@@ -817,8 +824,8 @@ let test_dimensions_read_the_environment () =
 
 let open_pty = Pty_harness.open_pty
 
-(* What [teardown.exe how] writes on a terminal, how it exits, and whether
-   the terminal echoes what is typed once it has. *)
+(* [session how] is what [teardown.exe how] writes on a terminal, how it
+   exits, and whether the terminal echoes typed input after it exits. *)
 let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1368,7 +1375,8 @@ let test_cast_without_deterministic () =
   Alcotest.(check bool)
     "recording sleeps without advancing the real clock" true !slept
 
-(* The lines of a recording of [f]'s run. *)
+(* [recorded f] is the lines of the recording of a run that calls [f] under
+   [with_output]. *)
 let recorded f =
   let file = Filename.temp_file "console" ".cast" in
   Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->

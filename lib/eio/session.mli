@@ -3,24 +3,25 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The display that runs, and what goes on around it: the program's output and
-    {!Logs} messages, the redraws, and its closing however the program ends. *)
+(** The running display and what surrounds it: the program's output and {!Logs}
+    messages, the redraws, and the closing of the display however the program
+    ends. *)
 
 type run = { display : Console.Display.t; root : Console.Task.t; json : bool }
 (** The type for what {!run} runs: a display, the root of the work it shows, and
     whether it shows it as JSON events. *)
 
 val find : unit -> Console.Task.t option
-(** [find ()] is the root of the run of the calling fiber, if any and its
-    display does not close yet. *)
+(** [find ()] is the root of the run of the calling fiber, if it has one whose
+    display is not closing. *)
 
 val display : unit -> Console.Display.t option
-(** [display ()] is the display of the run of the calling fiber, if any and it
-    does not close yet. It is [None] outside Eio. *)
+(** [display ()] is the display of the run of the calling fiber, if it has one
+    that is not closing. It is [None] outside Eio. *)
 
 val given : Console.Task.t -> Console.Task.t
-(** [given root] is the task a run inside another is given: the task of [root]'s
-    work current where it is called, or [root]. *)
+(** [given root] is the task that a run inside another is given: the task of
+    [root]'s work current where it is called, or [root]. *)
 
 val scope : Task_driver.scope
 (** [scope] is the scope in which the current task is that of the innermost
@@ -30,26 +31,27 @@ val scope : Task_driver.scope
 
 val cancelling : exn -> bool
 (** [cancelling e] is [true] iff [e] is the cancellation of the fiber that calls
-    it. A [Cancelled] elsewhere is an exception like another. *)
+    it. A [Cancelled] elsewhere is an exception like any other. *)
 
 val atomic : (unit -> unit) -> unit
-(** [atomic f] is [f ()], which writes an update: in a cancelled fiber too, in
-    full, and until a deadline at most that all such writes share, a second
-    after the first of them until one goes out. *)
+(** [atomic f] is [f ()], where [f] writes an update. In a cancelled fiber too,
+    the update is written in full, until a deadline at most. All such writes
+    share that deadline: a second after the first of them, until one goes out.
+*)
 
 val write_error : exn -> bool
 (** [write_error e] is [true] iff [e] is a write error of an Eio flow, such as a
     closed pipe. *)
 
 val join : (Console.Task.t -> 'a) -> 'a option
-(** [join f] is [Some (f task)] for the run in the calling domain, with [task]
-    {!given} by its root, as the calling fiber's, if one runs and its display
-    does not close yet: the display then closes once [f] returned too. It is
-    [None] otherwise. *)
+(** [join f] is [Some (f task)] if a run whose display is not closing runs in
+    the calling domain. [f] runs as part of that run, as the calling fiber's,
+    with [task] {!given} by its root, and the display closes only once [f] has
+    returned too. It is [None] otherwise. *)
 
 val await_release : unit -> unit
 (** [await_release ()] waits until the display that {!run} runs in the calling
-    domain is gone, if it closes. *)
+    domain is gone, if it is closing. *)
 
 val claim : unit -> unit
 (** [claim ()] makes the caller the one that opens a display, until {!release}.
@@ -74,20 +76,26 @@ val run :
   run ->
   (Console.Task.t -> 'a) ->
   'a
-(** [run ~sleep ~intercept r f] is [f r.root], with [r] the calling fiber's and
-    the program's run, its display redrawn ten times a second, waiting with
-    [sleep], {!Logs} messages and what is written on the formatters of
-    [intercept] given, a line at a time, to the task current where it is
-    written, a task's unended line ended when the task ends, or to the root
-    outside a task. The root succeeds when [f] returns, fails when it raises and
-    is cancelled when its fiber is, unless [f] ended it, and the display closes
-    when [f] returns, raises, is cancelled, the program exits or a signal ends
-    it ({!Interrupt}). While SIGTSTP stops the program, the region is off the
-    screen and the cursor shown with [cursor true] (default does nothing); once
-    continued, [cursor false] hides it and the region is drawn again. With
-    [flow] (defaults to [false]) its output is an Eio flow, which a signal
-    handler that runs out of any fiber leaves to a fiber of the run. A signal or
-    an exit that cannot wait for the display, from another domain or thread or
-    during a write that does not end, writes {!Interrupt.last_resort} on
-    [terminal], a non-blocking descriptor on the display's terminal, if given. A
-    {!claim} must be held; it is released. *)
+(** [run ~sleep ~intercept r f] is [f r.root], with [r] as the run of the
+    calling fiber and of the program:
+    - the display is redrawn ten times a second, waiting with [sleep];
+    - {!Logs} messages and what is written on the formatters of [intercept] go,
+      a line at a time, to the task current where they are written, or to the
+      root outside a task, and a task's unended line is ended when the task
+      ends;
+    - the root succeeds when [f] returns, fails when [f] raises and is cancelled
+      when its fiber is, unless [f] ended it;
+    - the display closes when [f] returns, raises or is cancelled, when the
+      program exits, and when a signal ends it ({!Interrupt});
+    - while SIGTSTP stops the program, the region is off the screen and the
+      cursor is shown with [cursor true] (defaults to doing nothing); once the
+      program continues, [cursor false] hides it and the region is drawn again;
+    - with [flow] (defaults to [false]) the output is an Eio flow, so a signal
+      handler that runs outside any fiber leaves its writes to a fiber of the
+      run;
+    - a signal or an exit that cannot wait for the display, from another domain
+      or thread or during a write that does not end, writes
+      {!Interrupt.last_resort} on [terminal], a non-blocking descriptor on the
+      display's terminal, if given.
+
+    A {!claim} must be held; [run] releases it. *)

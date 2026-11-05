@@ -84,7 +84,8 @@ let runs =
                     alphabet.(k mod Array.length alphabet))))
            l))
 
-(* Console's width is the policy's, on any bytes. *)
+(* [string_width] follows the policy above on any bytes, and [clusters]
+   gives its clusters on sanitized text. *)
 let test_policy s =
   check_eq ~pp:Fmt.int (policy_width s) (Console_width.string_width s);
   check_eq
@@ -92,7 +93,7 @@ let test_policy s =
     (policy_clusters (Console_text.sanitize s))
     (Console_width.clusters (Console_text.sanitize s))
 
-(* The width of a part is that of the part as a string. *)
+(* [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)
 let test_sub s a b =
   let n = String.length s in
   let pos = if n = 0 then 0 else a mod (n + 1) in

@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Where and when a view is laid out. {!Room} is its public face. *)
+(** Where and when a view is laid out. {!Room} exposes this type. *)
 
 type t
 (** The type for rooms: the look a view is drawn in, the width and the height it
@@ -24,12 +24,11 @@ val time : t -> float
     for a view printed once. *)
 
 val v : ?width:int -> ?height:int -> ?time:float -> Look.t -> t
-(** [v ~width ~height ~time look] is that room (defaults: unbounded, at time
-    [0.]). *)
+(** [v ~width ~height ~time look] is the room in [look] bounded by [width] and
+    [height] (defaults to unbounded) at [time] (defaults to [0.]). *)
 
 val default : t
-(** [default] is {!Look.default}, unbounded, at time [0.]: where a view is
-    measured. *)
+(** [default] is [v Look.default], the room a view is measured in. *)
 
 val natural : t -> t
 (** [natural c] is [c] unbounded. *)
@@ -38,7 +37,7 @@ val with_room : width:int option -> height:int option -> t -> t
 (** [with_room ~width ~height c] is [c] bounded by [width] and [height]. *)
 
 val with_width : int option -> t -> t
-(** [with_width w c] is [c] [w] wide, with no bound on its height. *)
+(** [with_width w c] is [c] bounded by the width [w] and not by a height. *)
 
 val still : t -> t
 (** [still c] is [c] at time [0.]. *)

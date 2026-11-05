@@ -48,9 +48,9 @@ let test_wrap () =
   Alcotest.(check bool) "contains wraps" true (contains "wraps" output);
   Alcotest.(check bool) "no ellipsis" false (contains "…" output)
 
-(* A URL is one selectable terminal token. When another column can wrap at
-   whitespace, fitting gives that slack up before cutting the URL. The hard
-   terminal-width bound still wins when no such slack remains. *)
+(* A URL is one token, which a terminal selects whole. A table too narrow for
+   its natural width wraps another column at its spaces before it cuts the
+   URL; the width is still a hard bound when no column can wrap. *)
 let test_wrap_preserves_unbroken_token () =
   let url = "https://rg.fr-par.scw.cloud/run-space" in
   let table =
@@ -66,8 +66,8 @@ let test_wrap_preserves_unbroken_token () =
   let output = View.to_string (View.sized ~width:(natural_width - 1) table) in
   Alcotest.(check bool) "URL remains contiguous" true (contains url output)
 
-(* String conversion is plain. The formatter passed to [pp], not terminal
-   detection, owns colour policy. *)
+(* [View.to_string] writes no escape code: colour comes from the formatter
+   given to [pp], never from detecting a terminal. *)
 let test_string_conversion_is_plain () =
   let t =
     of_string_rows
@@ -264,10 +264,11 @@ let test_formatter_margin_never_wraps_border () =
     (List.length logical_rows, 0)
     (Console_vte.cursor_pos vte)
 
-(* Every narrow width is a hard limit. Protected columns, preferred minima, wide glyphs, combining
-   marks, control bytes and malformed UTF-8 are all incapable of overriding the
-   terminal margin. This catches the whole right-border-wrap family, including
-   one-cell errors at column-selection boundaries. *)
+(* Every margin is a hard limit: columns that do not shrink, minimum widths,
+   wide glyphs, combining marks, control bytes and malformed UTF-8 never take a
+   row past it, so the terminal never wraps a right border onto the next row.
+   Each margin from 4 to 80 is checked, to catch one-cell errors where the set
+   of columns shown changes. *)
 let test_every_margin_is_a_hard_limit () =
   let hostile =
     [

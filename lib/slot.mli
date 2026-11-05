@@ -33,6 +33,6 @@ val generation : unit -> int
     when to read it again. *)
 
 val unset : Format.formatter -> bool
-(** [unset ppf] is [true] iff nothing but slots that are not settings changed
-    the tag functions of [ppf]: neither {!Fmt}, such as its style renderer, nor
-    a slot that is a setting. *)
+(** [unset ppf] is [true] iff only slots that are not settings changed the tag
+    functions of [ppf]: neither {!Fmt} (to set its style renderer, say) nor a
+    slot that is a setting did. *)

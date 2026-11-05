@@ -32,14 +32,14 @@
     - its [Task.log] lines;
     - the lines of {!Fmt.stdout} and {!Fmt.stderr} that {!run} takes.
 
-    Of what [run] takes, bytes belong to the task current when they are written,
-    in the fiber that writes them: none is current outside any fiber, as in a
-    thread. A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that
+    Each byte that [run] takes belongs to the task current when it is written,
+    in the fiber that writes it; outside any fiber, as in a thread, no task is
+    current. A task's end flushes {!Fmt.stdout} and {!Fmt.stderr}, so bytes that
     another fiber printed there without flushing them go to whichever task ends
     first. Each task collects its own lines, so a line is what one task wrote up
     to a line feed, and a task's unended last line is ended when the task ends.
-    Bytes written outside any task are the output of no task, ended when the
-    display closes.
+    Bytes written outside any task belong to no task, and their unended last
+    line is ended when the display closes.
 
     Text that [print_string], [Printf] or a child process writes on the terminal
     goes past the display and garbles the rows, so print it with {!with_output}.
@@ -61,11 +61,11 @@ val run :
   ?delay:float ->
   (Console.Task.t -> 'a) ->
   'a
-(** [run ~clock f] is [f root], for the root of the work, shown on [ppf] until
-    [f] ends. The root is what {!Console.Task.run} makes of a task: it succeeds
-    when [f] returns, fails when [f] raises and is cancelled when its fiber is,
-    unless [f] ended it ({!Console.Task.succeed}), and its ending ends the tasks
-    still running.
+(** [run ~clock f] is [f root], where [root] is the root task of the work, shown
+    on [ppf] until [f] ends. [root] behaves as a task of {!Console.Task.run}:
+    unless [f] ended it ({!Console.Task.succeed}), it succeeds when [f] returns,
+    fails when [f] raises and is cancelled when its fiber is. When [root] ends,
+    so do the tasks still running.
 
     - [clock] is a monotonic clock, such as [Eio.Stdenv.mono_clock env]. The
       elapsed times, the rates, the spinners and the motion of a view read it,
@@ -78,12 +78,12 @@ val run :
       {!Console.Progress.show}; [keep_ended], [commit], [plain], [delay] and
       [layout] are [show]'s too.
     - [progress] says how progress shows ({!Console.Progress}, defaults to
-      [`Auto]). With [`Tty] the rows take [$COLUMNS] and [$LINES], each when it
-      is between [1] and [4096], which override the terminal's size as POSIX
-      says, else the size of the terminal behind the output, else 80 by 24. When
-      the tasks print as lines on an output that is not a terminal, what is
-      printed above them and the last frame are laid out as wide as [$COLUMNS]
-      asks, when it is between [1] and [4096], and whole otherwise, as
+      [`Auto]). With [`Tty], the rows are as wide as [$COLUMNS] and as high as
+      [$LINES], each when it is between [1] and [4096], since POSIX lets them
+      override the size of the terminal; else the size of the terminal behind
+      the output; else 80 by 24. When the tasks print as lines on an output that
+      is not a terminal, the text above them and the last frame are as wide as
+      [$COLUMNS] when it is between [1] and [4096], and not cut otherwise, as
       {!Console.Progress.show} prints them with and without a size.
 
     [run] first calls {!Console_tty.ensure}, so that a standard output on which
@@ -107,14 +107,14 @@ val run :
       printed, and with [`Json] each line is an [output] event, so that every
       line of [ppf] is an event.
 
-    The display closes once the work ended, and an exception from [f] is raised
-    again. A run whose fiber is cancelled still closes it and restores the
-    terminal, waiting a second at most for an output that takes nothing; one
-    that is not cancelled waits for its output as any write does. A fiber
-    cancelled inside a {!Console.Task.run} cancels its task. A [view] that
-    raises is dropped for the default one, and [run] raises its exception: at
-    once, cancelling [f], when a redraw meets it, and once the display closed
-    otherwise, unless [f] raised first.
+    The display closes once the work has ended, and an exception from [f] is
+    raised again. A run whose fiber is cancelled still closes the display and
+    restores the terminal, waiting a second at most for an output that takes
+    nothing; a run that is not cancelled waits for its output as any write does.
+    A fiber cancelled inside a {!Console.Task.run} cancels its task. A [view]
+    that raises is replaced by the default one, and [run] raises its exception:
+    at once, cancelling [f], when a redraw raises it, and otherwise once the
+    display has closed, unless [f] raised first.
 
     The sections below say what [run] does with {{!logs}Logs messages},
     {{!signals}signals and exits}, {{!nested}nested runs} and a
@@ -167,30 +167,31 @@ val run :
       shown before the program stops, and the rows are drawn again once [fg]
       continues it. In a process group that no shell controls, where the stop
       does not take effect, the rows are drawn again at once and the program
-      goes on.
+      continues.
 
     A signal the program handles or ignores is left to it.
 
-    The display belongs to the domain that runs [f]. Where it cannot be reached
-    from there, the terminal is given up rather than restored: for a signal
-    handled in another domain, a write that does not end within a second, and an
-    [exit] from another thread or domain or while a write is under way. A fixed
-    sequence is then written once, without blocking, on the display's terminal,
-    opened again when [run] starts: it ends an escape code cut in half, a link
-    and the colours, and shows the cursor. The rows stay as they are and the
+    The display belongs to the domain that runs [f]. When it cannot be reached
+    from that domain, the terminal is given up rather than restored. That is the
+    case for a signal handled in another domain, a write that does not end
+    within a second, and an [exit] from another thread or domain or while a
+    write is under way. A fixed sequence is then written once, without blocking,
+    on the display's terminal, which [run] opens again when it starts. The
+    sequence ends an escape code cut in half, a link, the colours and a
+    synchronized update, and shows the cursor. The rows stay as they are and the
     display writes nothing more. The signal then ends or stops the program, and
     a program continued after such a stop draws the rows afresh. A write the
     kernel already holds cannot be stopped and may still follow the sequence.
 
     On {!Fmt.stdout} or {!Fmt.stderr}, a signal handler writes the last frame
-    itself. On a formatter that writes through an Eio flow, which takes a fiber,
-    a signal handler that runs outside any fiber leaves the last frame to a
-    fiber of the run: when none runs within a second, as while the program
-    computes, the frame is lost and the cursor may stay hidden.
+    itself. An Eio flow can be written only from a fiber, so on a formatter that
+    writes through one, a signal handler that runs outside any fiber leaves the
+    last frame to a fiber of the run. When none runs within a second, as while
+    the program computes, the frame is lost and the cursor may stay hidden.
 
-    A closed pipe on [ppf] ends the display's output and nothing else, while one
-    on standard output is met by the program's own writes, as without console
-    ({!Console.Display}).
+    A closed pipe on [ppf] ends the display's output and nothing else, while a
+    closed pipe on standard output fails the program's own writes, as without
+    console ({!Console.Display}).
 
     {2:nested Nested runs}
 
@@ -218,21 +219,20 @@ val run :
 
     On a clock that {!clock} made, the time is virtual, as on a mock clock, and
     never the real time. It starts at zero, and a sleep that starts at time [t]
-    for [d] wakes at [t + d]: sleeps at once overlap. Sleeps wake one at a time,
-    in the order of their wake-up times, those due at once in the order they
-    started, and the clock reads the wake-up time of the fiber that woke last,
-    while it and the fibers it makes runnable run. Each sleep also lasts at
-    least [d] on the clock behind it, so the rows move as the program runs, and
-    one whose real duration ended waits for those due before it. What the
-    program does between two sleeps, and how long that takes, then does not
-    change the times it shows or the [time] and [elapsed] of its
-    {{!Console.Task.json}JSON events}, unless that work itself waits, on input
-    or output for example: a sleep can then wake in the meantime and move the
-    time from which the next sleep starts.
+    for [d] wakes at [t + d], so sleeps in different fibers overlap. Sleeps wake
+    one at a time, by wake-up time and then in the order they started. While the
+    fiber that woke last and the fibers it makes runnable run, the clock reads
+    its wake-up time. Each sleep also lasts at least [d] on the clock behind it,
+    so the rows move as the program runs, and a sleep whose real duration has
+    ended waits for those due before it. What the program does between two
+    sleeps, and how long that takes, then does not change the times it shows or
+    the [time] and [elapsed] of its {{!Console.Task.json}JSON events}, unless
+    the program waits in between, on input or output for example: a sleep can
+    then wake meanwhile and move the time from which the next sleep starts.
 
-    The display redraws at the instants of the virtual time, every tenth of a
-    second while the program sleeps, and never moves it: on a terminal, the
-    frames it draws are the same on every run.
+    The display redraws at instants of the virtual time, every tenth of a second
+    while the program sleeps, and its redraws never move that time, so on a
+    terminal it draws the same frames on every run.
 
     [Eio.Time.with_timeout] on such a clock times out once its duration has
     passed on the clock behind it and the sleeps due before it have woken, and a
@@ -246,45 +246,47 @@ val run :
     - the spinners and the motion stand still;
     - the display redraws on that clock.
 
-    [CONSOLE_CAST], set to a file name, records the run there instead of on its
-    output, with the clock of [CONSOLE_DETERMINISTIC_CLOCK] whether that is set
-    or not: what it writes on [ppf], and on both standard outputs when [ppf] is
-    one, from then until the program exits, is an
+    [CONSOLE_CAST], set to a file name, records the run in that file instead of
+    on its output, with the clock of [CONSOLE_DETERMINISTIC_CLOCK] whether that
+    is set or not. The file is an
     {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2} recording
-    of a terminal of [$COLUMNS] by [$LINES] (80 by 24 without them), with the
-    rows drawn by [`Auto] too, each write at its time on the clock, and each
-    line feed after a carriage return, as a terminal's driver writes it. The
-    program's sleeps then take no real time, so that a recording takes none,
-    while [CONSOLE_DETERMINISTIC_CLOCK] alone keeps the real pace that a
-    recorder of the terminal, such as [k7 rec], films. A file that cannot be
-    opened ends the program with an error message and exit status [1], before it
-    runs. {!Console_tty.setup} starts the recording too, so that what a program
-    prints before a run, or without one, is recorded at time zero. *)
+    of a terminal of [$COLUMNS] by [$LINES] (80 by 24 without them). It holds
+    what the run writes on [ppf], and on both standard outputs when [ppf] is
+    one, from then until the program exits: the rows, which [`Auto] draws as on
+    a terminal, each write at its time on the clock, and each line feed preceded
+    by a carriage return, as the driver of a terminal writes it. The program's
+    sleeps then take no real time, so that a recording takes none;
+    [CONSOLE_DETERMINISTIC_CLOCK] alone keeps the real pace that a recorder of
+    the terminal, such as [k7 rec], films. A file that cannot be opened ends the
+    program before the run, with an error message and exit status [1].
+    {!Console_tty.setup} starts the recording too, so that what a program prints
+    before a run, or without one, is recorded at time zero. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
-(** [with_output f] prints what console does not see, such as the text of
-    [print_string] or of a child process, as {!Console.Display.with_output} does
-    for the display of the run of the calling fiber: [f] is called with the
-    display's formatter, the region off the screen. Outside a run, it is
+(** [with_output f] is {!Console.Display.with_output} on the display of the run
+    of the calling fiber, to print what console does not see, such as the text
+    of [print_string] or of a child process: [f] is called with the display's
+    formatter while the region is off the screen. Outside a run, it is
     [f Fmt.stderr]. *)
 
 val print : Console.View.t -> unit
-(** [print v] prints [v] above the rows, in their scrollback, as
-    {!Console.Display.print} does for the display of the run of the calling
-    fiber: styled and as wide as the terminal, or on a pipe as wide as
-    [$COLUMNS] asks, or whole without it ({!run}), where it comes in turn with
-    the lines of the tasks. With [`Json] each of its lines, without escape
-    codes, is an [output] event of no task. Outside a run, it is printed on
-    {!Fmt.stderr}, at its margin. *)
+(** [print v] is {!Console.Display.print} on the display of the run of the
+    calling fiber. It prints [v] above the rows, in their scrollback, styled and
+    as wide as the terminal; on a pipe, it prints [v] as wide as [$COLUMNS]
+    asks, or not cut without it ({!run}), in turn with the lines of the tasks.
+    With [`Json] each of its lines, without escape codes, is an [output] event
+    that belongs to no task. Outside a run, it is printed on {!Fmt.stderr}, at
+    its margin. *)
 
 val redraw : unit -> unit
 (** [redraw ()] draws the display of the run of the calling fiber again, at
     once, at the time of its clock, as {!Console.Display.redraw} does: when it
-    returns, the display has written the frame of its view as the program's
-    state is then. A program that must know a frame was drawn, such as the last
-    frame of a flash before it ends the run, calls it rather than sleeping until
-    the next of the redraws {!val-run} makes ten times a second. Outside a run,
-    and where the tasks print as lines and no frame is drawn, it does nothing.
+    returns, the display has written the frame of its view for the state of the
+    program at that time. A program that must know a frame was drawn, such as
+    the last frame of a flash before it ends the run, calls it rather than
+    sleeping until the next of the redraws {!val-run} makes ten times a second.
+    Outside a run, and where the tasks print as lines and no frame is drawn, it
+    does nothing.
 
     It raises the exception of a view that raised since the last redraw, as
     {!Console.Display.redraw} does. *)
@@ -294,7 +296,7 @@ val size : Format.formatter -> (unit -> int * int) option
     that output is a terminal whose [TERM] is set and not [dumb], as {!run}
     finds out, and [None] otherwise. [size ()] is the terminal's width and
     height, which [$COLUMNS] and [$LINES] override as in {!run}, read again at
-    each call, which is what {!Console.Display.v} takes:
+    each call, as {!Console.Display.v} takes it:
 
     {[
     let display ~now ppf view =
@@ -302,13 +304,13 @@ val size : Format.formatter -> (unit -> int * int) option
     ]} *)
 
 val width : Format.formatter -> int option
-(** [width ppf] is the width {!run} lays out the lines of [ppf] at: the recorded
-    terminal's under [CONSOLE_CAST], else [$COLUMNS] when it is between [1] and
-    [4096], else the terminal's width when [ppf] is a terminal ({!size}), at
-    most [4096], and [None] otherwise, where a line is printed whole. A program
-    that lays out its own lines, outside a run, fits them as a run would,
-    through the margin {!Console.View.pp} lays a view out in, and at its natural
-    size with {!Console.View.to_string} when there is no width:
+(** [width ppf] is the width at which {!run} lays out the lines of [ppf]: that
+    of the recorded terminal under [CONSOLE_CAST], else [$COLUMNS] when it is
+    between [1] and [4096], else the width of the terminal when [ppf] is a
+    terminal ({!size}), at most [4096], and [None] otherwise, when a line is not
+    cut. Outside a run, a program fits its own lines as a run would by setting
+    the margin that {!Console.View.pp} lays a view out in, and prints them at
+    their natural size with {!Console.View.to_string} when there is no width:
 
     {[
     let print v =
@@ -323,6 +325,6 @@ val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
     or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time
     each sleep on it wakes at ({!deterministic}). A sleep until [t] on it lasts
-    at least the time from its clock's time to [t] on [c], so the elapsed times,
-    the rates and the spinners of a display that {!run} draws on it follow the
-    program's sleeps. *)
+    at least, on [c], the time from the virtual time to [t], so the elapsed
+    times, the rates and the spinners of a display that {!run} draws on it
+    follow the program's sleeps. *)

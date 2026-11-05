@@ -25,10 +25,10 @@ let title =
   View.styled Style.bold
     (View.gradient (View.text "console, built step by step"))
 
-(* The details keep their column from the start, so that the table does not
-   widen as they come, but in a room too narrow for that they take what the
-   steps and their status leave: the frame and the padding take ten cells,
-   and the steps and their status seven each. *)
+(* The details column has its full width from the start, so the table does
+   not widen as details come. In a room too narrow for that, it takes what
+   is left after the frame and padding (ten cells) and the step and status
+   columns (seven each). *)
 let table room =
   let detail =
     match Room.width room with Some w -> max 1 (min 19 (w - 24)) | None -> 19
@@ -77,7 +77,8 @@ let compile clock root =
           Eio.Time.Mono.sleep clock 0.35)
         files;
       Task.set_items t ~count:(Array.length files) ~total:(Array.length files));
-  (* Logged outside the task, the warning outlives its success. *)
+  (* The warning is logged after the task ended, so it stays, while the
+     output of a task that succeeds goes. *)
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
   finished "5 files, 1 warning"
 

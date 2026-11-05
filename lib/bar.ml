@@ -27,9 +27,8 @@ let framed ~glyphs ~track ~brackets body =
       [ View_core.ink track left; body; View_core.ink track right ]
   else body
 
-(* The fill and the track. A heavy line goes to the half cell on a light
-   one, so that without colour the fill still shows; blocks and ASCII fill
-   whole cells. *)
+(* The fill and the track. A heavy line on a light one fills to the half
+   cell, and shows without colour; blocks and ASCII fill whole cells. *)
 let cells ~glyphs ~width frac =
   let whole fill track =
     let full = int_of_float (Float.round (frac *. float_of_int width)) in
@@ -47,8 +46,8 @@ let cells ~glyphs ~width frac =
 
 (* A palette of several colours is spread along the whole bar, each filled
    cell in the colour of its place: the fill uncovers the colours as it
-   grows rather than recolouring the cells it has. A palette is never
-   empty. *)
+   grows rather than recolouring the cells it has. A theme's palette is
+   never empty; the [[]] case only completes the match. *)
 let fill ~style ~width look glyphs =
   match (style, Theme.palette look.Look.theme) with
   | Some style, _ -> View_core.ink style glyphs
@@ -70,9 +69,9 @@ let draw t look =
   framed ~glyphs ~track ~brackets:t.brackets
     View_core.(fill ~style:t.style ~width:t.width look filled ++ ink track rest)
 
-(* A bar given no width grows to its room, ten cells at its natural size.
-   Its brackets come out of its cells, and go where the room has no cell
-   for the bar between them. *)
+(* A bar given no width grows to its room, and is ten cells at its natural
+   size. Its brackets take two of its cells, and are left out when the room
+   leaves no cell between them. *)
 let horizontal ?style ?track ?(brackets = false) ?width frac =
   let t =
     v ?style ?track ~brackets ~width:(Option.value width ~default:10) frac
@@ -95,8 +94,8 @@ let horizontal ?style ?track ?(brackets = false) ?width frac =
 
 let eighths = [| " "; "▁"; "▂"; "▃"; "▄"; "▅"; "▆"; "▇"; "█" |]
 
-(* Off UTF-8, a cell is a blank, a dot, a colon or a hash, as it is empty,
-   filled to less than half, less than seven eighths, or more. *)
+(* In ASCII, a cell is a blank when empty, a dot when filled to less than
+   half, a colon to less than seven eighths, and a hash above. *)
 let ascii_eighths = [| " "; "."; "."; "."; ":"; ":"; ":"; "#"; "#" |]
 
 (* The eighths of each cell, from the bottom up: whole cells, then the cell
@@ -166,8 +165,8 @@ let draw_vertical ~style ~track ~peak ~width ~height frac =
                 View_core.drawn (vertical_cell ~style ~track ~height ~width i e))
           cells))
 
-(* A vertical bar is as tall as its room, one row at its natural size, and
-   as wide as it is told, or as its room in a row that shares it, and never
+(* A vertical bar is as tall as its room, or one row at its natural size.
+   It is [width] wide, or as wide as its room without [width], and never
    wider than its room. *)
 let vertical ?style ?track ?(peak = 0.) ?width frac =
   (match width with
@@ -187,10 +186,10 @@ let vertical ?style ?track ?(peak = 0.) ?width frac =
       in
       draw_vertical ~style ~track ~peak ~width ~height frac)
 
-(* A sparkline spans its values: the lowest is the least a cell shows, an
-   eighth, unless [min] says lower, and the highest fills it. It is one row
-   in a room of any height, and the last values that fit in a room
-   narrower than it. *)
+(* The highest value fills its cell. Without [min], the lowest fills an
+   eighth, the least a cell shows; with [min], a value at [min] is empty. A
+   sparkline is one row in a room of any height, and shows the last values
+   that fit in a room narrower than it. *)
 let sparkline ?style ?min ?max values =
   let lo = List.fold_left Float.min Float.infinity values
   and hi = List.fold_left Float.max Float.neg_infinity values in
@@ -232,8 +231,9 @@ let digits x =
 
 let units = [| "k"; "M"; "G"; "T"; "P"; "E"; "Z"; "Y" |]
 
-(* A value as a plain number: whole below a million, to three digits
-   below ten thousand, and past those in thousands, millions and so on. *)
+(* A whole value below a million is written in full, another value below
+   ten thousand to three digits, and any other in thousands, millions and
+   so on. *)
 let value v =
   if not (Float.is_finite v) then Fmt.str "%g" v
   else
@@ -253,9 +253,9 @@ let value v =
     in
     if plain = "0" then plain else sign ^ plain
 
-(* A bar's column: the value above it, the bar and the label under it, and
-   their width. An empty bar on its baseline says zero, so it has no value
-   above it. *)
+(* A bar's column: the value above it, the bar, the label under it, and their
+   width. An empty bar on its baseline means zero, so no value is shown above
+   it. *)
 let chart_column look ?style ~top (name, v) =
   let frac = if top > 0. then v /. top else 0. in
   let label = Widget.one_line (View_core.text name) in
@@ -268,9 +268,10 @@ let chart_column look ?style ~top (name, v) =
   let style = Option.map (fun f -> f name v) style in
   (at shown, vertical ?style ~width:w frac, at label, w)
 
-(* The bars take the room's height but for the three lines around them;
-   in a room too short for those, the values above them go first, then
-   the baseline, then the labels. Lines wider than the room are cut. *)
+(* The bars take the room's height less the three lines around them, or
+   [height] if that is less, and 8 rows with neither. In a room too short for
+   the three lines, the values above the bars are left out first, then the
+   baseline, then the labels. Lines wider than the room are cut. *)
 let chart ?height ?scale ?style bars =
   let top =
     match scale with

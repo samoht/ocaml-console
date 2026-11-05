@@ -3,12 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** How a formatter prints, from the environment.
+(** Formatter setup from the environment.
 
-    The rules by which a formatter on an output gets colour, a colour depth and
-    UTF-8, from the environment and from whether the output is a terminal, which
-    the caller says. They need no Unix: a program that cannot link it asks the
-    terminal as it can, such as with [Out_channel.isatty], and the [console.tty]
+    [Env] gives a formatter its colour, colour depth and UTF-8 from the
+    environment and from whether its output is a terminal, which the caller
+    says. It needs no Unix: a program that cannot link Unix asks the terminal
+    some other way, such as with [Out_channel.isatty], and the [console.tty]
     library asks [Unix.isatty] for {!Fmt.stdout} and {!Fmt.stderr}
     ([Console_tty.setup]). *)
 

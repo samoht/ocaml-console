@@ -3,28 +3,28 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tasks, with what their views and drivers read. {!Task} is their public face
-    and documents the values both have. *)
+(** Tasks, with the accessors their views and drivers use. {!Task} is the public
+    interface and documents the values the two modules share. *)
 
-(** The type for how far a task is. *)
+(** The type for the progress of a task. *)
 type metric = Spin | Count of int * int | Bytes of int64 * int64
 
 type outcome = [ `Succeeded | `Failed | `Cancelled ]
 (** The type for task endings. *)
 
 val is_async : exn -> bool
-(** [is_async e] is [true] iff [e] is an interrupt or an exhausted heap or
-    stack, wrapped by [Fun.protect] or not: it can arise anywhere, and only the
-    program can answer it. *)
+(** [is_async e] is [true] iff [e] is [Sys.Break], [Out_of_memory] or
+    [Stack_overflow], possibly wrapped in [Fun.Finally_raised]: an exception
+    that can be raised anywhere, and that only the program can handle. *)
 
 val protect : finally:(unit -> unit) -> (unit -> 'a) -> 'a
 (** [protect ~finally f] is [f ()] then [finally ()], whatever [f] raises. If
-    both raise, the exception of [f] goes on, unless only that of [finally] is
-    {!is_async}; neither is wrapped in [Fun.Finally_raised]. *)
+    both raise, the exception of [f] propagates, unless only that of [finally]
+    is {!is_async}; neither is wrapped in [Fun.Finally_raised]. *)
 
 val run_all : (unit -> unit) list -> unit
-(** [run_all fs] calls each of [fs] in turn, whatever one raises, and raises
-    what {!protect} says goes on. *)
+(** [run_all fs] calls each of [fs] in turn, whatever one raises, and raises the
+    exception that {!protect} lets propagate. *)
 
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of Logs messages. *)
@@ -36,7 +36,9 @@ type line = {
   gap : float;  (** Seconds since the task's previous line. *)
   kind : kind;
   text : string;  (** One line, without control characters. *)
-  seq : int;  (** The order of the line among those of its work. *)
+  seq : int;
+      (** The position of the line among the lines of its work; [0] for a line
+          of the root. *)
 }
 (** The type for the lines of a task's output. *)
 
@@ -49,11 +51,11 @@ type scope = {
   cancelled : exn -> bool;
 }
 (** The type for what the tasks know of their scheduler: which task is current
-    where it is asked, how to make one current, and whether an exception says
-    that the fiber raising it was cancelled. *)
+    where [current] is called, how to make a task current, and whether an
+    exception means that the fiber raising it was cancelled. *)
 
 (** The type for the changes of a work, which its watchers see in order. A
-    {!Line} of the root is output of no task. *)
+    {!Line} of the root is a line that belongs to no task. *)
 and change =
   | Started of t
   | Progressed of t
@@ -62,7 +64,7 @@ and change =
   | Ended of t
 
 and work
-(** The type for what the tasks of one root share. *)
+(** The type for the state shared by the tasks of one root. *)
 
 and t
 (** The type for tasks. *)
@@ -70,10 +72,11 @@ and t
 (** {1:reading Reading} *)
 
 val id : t -> int
-(** [id r] is [r]'s number in its work, negative for the root alone. *)
+(** [id r] is the number of [r] in its work. Only the root has a negative
+    number. *)
 
 val work : t -> work
-(** [work r] is what [r] shares with the other tasks of its root. *)
+(** [work r] is the work of [r]'s root. *)
 
 val parent : t -> t option
 (** [parent r] is {!Task.parent}. *)
@@ -82,7 +85,7 @@ val label : t -> string
 (** [label r] is {!Task.label}. *)
 
 val metric : t -> metric
-(** [metric r] is how far [r] is. *)
+(** [metric r] is the progress of [r]. *)
 
 val transient : t -> bool
 (** [transient r] is [true] iff [r] is a root or was started transient
@@ -95,21 +98,23 @@ val outcome : t -> outcome option
 (** [outcome r] is how [r] ended, [None] while it runs. *)
 
 val window : t -> line Queue.t
-(** [window r] holds [r]'s latest lines, as many as it shows. *)
+(** [window r] holds the latest lines of [r], at most its [log_lines]. It is
+    emptied when [r] ends. *)
 
 val output : t -> line Queue.t
-(** [output r] holds [r]'s lines, kept for its failure, its {!dropped} oldest
-    left out. *)
+(** [output r] holds the lines of [r], kept to show if it fails, without its
+    {!dropped} oldest ones. It is emptied when [r] succeeds. *)
 
 val dropped : t -> int
 (** [dropped r] is {!Task.dropped}. *)
 
 val gone : t -> bool
-(** [gone r] is [true] once [r] is forgotten, and its parent then forgets it. *)
+(** [gone r] is [true] iff [r] was {!forget}ten. {!children} leaves out such a
+    task. *)
 
 val shed : t -> int
-(** [shed r] counts the tasks under [r] dropped to keep those that ended and
-    wait bounded. *)
+(** [shed r] is the number of tasks under [r] that were forgotten to bound the
+    memory held by its ended subtasks. *)
 
 val rate : t -> float
 (** [rate r] is the rate of {!Task.rate}, [0.] where that is [None]. *)
@@ -142,33 +147,38 @@ module Work : sig
       the root. *)
 
   val count_cell : work -> int
-  (** [count_cell w] is the cells of the widest count a total has allowed. *)
+  (** [count_cell w] is the width in cells of the count column: the widest count
+      that a total in [w] has allowed. *)
 
   val rate_cell : work -> int
-  (** [rate_cell w] is the cells of the widest rate seen. *)
+  (** [rate_cell w] is the width in cells of the rate column: [0] until a task
+      of [w] counts bytes, then at least the widest rate. *)
 
   val label_cell : work -> int -> int
-  (** [label_cell w d] is the cells of the widest label {!widen_label} gave at
-      {!depth} [d]. *)
+  (** [label_cell w d] is the width in cells of the widest label that
+      {!widen_label} was given at {!depth} [d]. *)
 
   val depths : work -> int
-  (** [depths w] is one more than the deepest {!depth} of [w]'s tasks. *)
+  (** [depths w] is one more than the deepest {!depth} at which {!widen_label}
+      was called, or [0] if it never was. *)
 end
 
 val widen_label : t -> unit
-(** [widen_label r] widens the label column of [r]'s depth to [r]'s label, if it
-    is narrower: a view does it for each row that draws a label. *)
+(** [widen_label r] widens the label column of [r]'s depth to the width of [r]'s
+    label, if it is narrower. A view calls it for each row that draws a label.
+*)
 
 val keep : t -> memo list -> unit
 (** [keep r m] makes [m] what views keep of [r]. *)
 
 val on_ending : t -> (t -> unit) -> unit
-(** [on_ending root f] has [f] called with each task of [root]'s work as it
-    ends, before it ends, so that a driver gives it the last of its output. *)
+(** [on_ending root f] makes [f] the function called with each task of [root]'s
+    work when it starts to end, before the tasks under it end, so that a driver
+    can give it the last of its output. *)
 
 val local : unit -> scope
-(** [local ()] is the scope in which the current task is that of the innermost
-    {!within} that runs. *)
+(** [local ()] is a scope without a scheduler: the current task is that of the
+    innermost running {!within}, and no exception is a cancellation. *)
 
 val root : ?label:string -> ?scope:scope -> now:(unit -> float) -> unit -> t
 (** See {!Task.root}. [scope] defaults to {!local}[ ()]. *)
@@ -215,27 +225,26 @@ val cancel : ?message:string -> t -> unit
 (** [cancel ~message r] is {!Task.cancel}. *)
 
 val report : t -> level -> string -> unit
-(** [report root level text] gives each line of [text], a message of [level], to
-    the task of [root]'s work current where it is called, or to [root] when
-    there is none. *)
+(** [report root level text] adds each line of [text], a message at [level], to
+    the output of {!scoped}[ (work root)], or to [root] if that is [None]. *)
 
 val scoped : work -> t option
-(** [scoped w] is the task of [w] current where it is called, if it is not the
-    root, running or not. *)
+(** [scoped w] is the task of [w] that is current where [scoped] is called,
+    running or not, unless it is the root. *)
 
 val current : work -> t option
-(** [current w] is {!scoped}[ w] if it runs. *)
+(** [current w] is {!scoped}[ w] if that task is running. *)
 
 val watch : work -> (change -> unit) -> unit
-(** [watch w f] calls [f] with each change of [w], after the watchers before it.
-*)
+(** [watch w f] calls [f] with each change of [w], after the watchers added
+    before [f]. *)
 
 val on_event : t -> (Event.t -> unit) -> unit
 (** See {!Task.on_event}. *)
 
 val event : change -> time:float -> Event.t option
-(** [event c ~time] is the event of [c] at [time], if it has one: a count never
-    goes back to a spinner. *)
+(** [event c ~time] is the event of [c] at [time]. It is [None] for a
+    {!Progressed} task whose metric is {!constructor-Spin}. *)
 
 val forget : t -> unit
 (** [forget r] drops [r] and every task under it: they are {!field-gone}. *)
@@ -284,7 +293,7 @@ val rate_text : metric -> float -> string
     {!constructor-Bytes} once it is above one, or [""]. *)
 
 val fraction : metric -> float option
-(** [fraction m] is the share of the work done, if [m] says. *)
+(** [fraction m] is the fraction of [m] done, [None] for {!constructor-Spin}. *)
 
 val eta : t -> float option
 (** [eta r] is the seconds [r] has left at its rate, if it runs and has one. *)

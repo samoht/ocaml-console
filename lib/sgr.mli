@@ -3,9 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Colours and styles as the escape codes that select them (ECMA-48 8.3.117,
-    SELECT GRAPHIC RENDITION). {!Color} and {!Style} keep these types abstract.
-*)
+(** Escape codes for colours and styles (ECMA-48 8.3.117, SELECT GRAPHIC
+    RENDITION). {!Color} and {!Style} wrap these types as abstract ones. *)
 
 type ansi =
   [ `Black
@@ -47,8 +46,8 @@ val attributes : _ style -> (string * string) list
     order of the fields. *)
 
 val start : color style -> string
-(** [start s] is the escape code that selects [s], its colours as given, or [""]
-    if [s] sets nothing. *)
+(** [start s] is the escape code that selects [s], with its colours as given
+    (not reduced to a colour depth), or [""] if [s] sets nothing. *)
 
 val reset : string
 (** [reset] is the escape code that turns every attribute off. *)

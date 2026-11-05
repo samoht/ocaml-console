@@ -11,7 +11,8 @@ let deterministic () =
 
 type header = { width : int; height : int; term : string option }
 
-(* [s] with each ill-formed UTF-8 sequence as one U+FFFD. *)
+(* [utf_8 s] is [s] with each maximal ill-formed UTF-8 subpart as one U+FFFD.
+   It keeps the C1 controls, which [to_line] escapes. *)
 let utf_8 = Event.replaced (fun _ -> true)
 
 let env =
@@ -55,9 +56,9 @@ let event =
   in
   Jsont.t3 ~kind:"asciicast event" ~dec ~enc Jsont.json
 
-(* asciicast v2 encodes the non-printable code points as \uXXXX, and JSON itself
-   lets the C1 controls through. In UTF-8 they are C2 80 to C2 9F, which no
-   other character contains. *)
+(* asciicast v2 writes non-printable code points as \uXXXX, but a JSON encoder
+   leaves the C1 controls as they are. In UTF-8 they are the byte pairs C2 80
+   to C2 9F, and no other character contains such a pair. *)
 let escape_c1 s =
   let b = Buffer.create (String.length s) in
   let n = String.length s in

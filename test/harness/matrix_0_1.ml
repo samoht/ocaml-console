@@ -14,7 +14,7 @@ let has_vs16 c =
   in
   from 0
 
-(* Whether a VS16 in [s] follows a character that is no emoji. *)
+(* Whether [s] holds a VS16 after a character that is not an emoji. *)
 let selects_nothing s =
   let rec from i prev =
     i < String.length s
@@ -65,8 +65,9 @@ let discard_newer_unicode s =
   in
   discard_if (from 0)
 
-(* The cells of the first character of [c] with any, and of its widest
-   one that is not a spacing mark after the first. *)
+(* [first_and_widest c] is the cells of the first character of [c] that has
+   a width, and those of its widest character, spacing marks after the first
+   character left out. *)
 let first_and_widest c =
   let rec go i first widest =
     if i >= String.length c then (first, widest)

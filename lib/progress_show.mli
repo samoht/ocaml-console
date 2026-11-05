@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Task views and how a display shows them. {!Progress} is their public face
-    and documents the values both have. *)
+(** Task views and their display. {!Progress} is the public interface and
+    documents the values the two modules share. *)
 
 val row : ?layout:Progress_layout.t -> Task_core.t -> View_core.t
 (** [row ~layout task] is {!Progress.row}. *)
@@ -34,6 +34,6 @@ val show_with :
   Task_core.t ->
   Display_core.t
 (** [show_with ~write_error ~cancelled ~atomic ppf root] is {!Progress.show},
-    whose display takes as the end of its output an exception that [write_error]
-    says is a write error, holds back none that [cancelled] says is a
-    cancellation, and writes each update through [atomic]. *)
+    whose display ends its output on an exception for which [write_error] is
+    [true], does not keep for later an exception for which [cancelled] is
+    [true], and writes each update through [atomic]. *)

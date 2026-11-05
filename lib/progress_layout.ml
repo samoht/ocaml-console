@@ -32,8 +32,8 @@ let rec reads_in look k = function
       reads_in look (View_core.join k (View_core.kind v look)) rest
   | _ :: rest -> reads_in look k rest
 
-(* A frame asks what its view reads: a layout whose pieces read nothing but
-   the tasks, the default one, answers at once. *)
+(* A frame asks each view what it reads. A layout whose pieces read only the
+   tasks, as the default one does, answers without walking its pieces. *)
 let reads t =
   let own p =
     match p.kind with
@@ -52,9 +52,9 @@ let one ?stage kind =
   in
   [ { kind; stage; blank } ]
 
-(* What gives way, and when: the rate and the time left first, then the
-   bar and the percentage; the count gets shorter at the third stage and
-   the elapsed time goes at the fourth. *)
+(* The stages at which pieces give way: 1 for the rate and the time left, 2
+   for the bar and the percentage, 4 for the elapsed time. The count has no
+   stage: it gets shorter at stage 3 ([Progress_row.apart]). *)
 let spinner = one Spinner
 let label ?(style = Style.bold) () = one (Label style)
 
@@ -83,8 +83,8 @@ let is_label p = match p.kind with Label _ -> true | _ -> false
 let has_label pieces = List.exists is_label pieces
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
-(* A row has one flexible piece of each kind: the label that gives way and
-   the spacer that takes the room left. *)
+(* A row has at most one label, the piece that is cut, and one spacer, the
+   piece that takes the room left. *)
 let checked t =
   let count is = List.length (List.filter is t) in
   if count is_label > 1 then
@@ -95,7 +95,7 @@ let checked t =
 
 let ( ++ ) a b = checked (a @ b)
 
-(* A chosen layout takes the stage at which the choice gives way. *)
+(* The pieces that a [Choose] gives take its stage, if it has one. *)
 let rec for_task t r =
   checked
     (List.concat_map

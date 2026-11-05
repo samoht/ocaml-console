@@ -41,9 +41,8 @@ let redraw_session =
 let frames = Alcotest.(list (pair (float 1e-9) (list string)))
 
 (* The screen after each write, with the seconds since the recording started.
-   The header record makes no frame, the redraw replaces the row it landed on,
-   and the space "third " left behind "second" is not part of what a reader
-   sees. *)
+   The header record makes no frame, the redraw replaces the row it lands on,
+   and the trailing space of "third " is trimmed from the screen. *)
 let test_frames_are_the_screen_after_each_write () =
   Alcotest.check frames "three writes, two rows"
     [
@@ -53,8 +52,8 @@ let test_frames_are_the_screen_after_each_write () =
     ]
     (Console_vte.frames ~rows:6 ~cols:20 redraw_session)
 
-(* Every screen carries the whole session, so the emulator is fed once rather
-   than rebuilt per record: a fresh emulator per write would lose "first". *)
+(* Each screen keeps what earlier writes left on it: one emulator reads the
+   whole session, where a fresh emulator per write would lose "first". *)
 let test_frames_keep_the_screen_between_writes () =
   match Console_vte.frames ~rows:6 ~cols:20 redraw_session with
   | [ _; _; (_, rows) ] ->
@@ -91,9 +90,9 @@ let test_a_huge_length_ends_the_stream () =
   in
   Alcotest.(check int) "no record" 0 (List.length (Console_vte.records huge))
 
-(* The timestamp is seconds from the first record, which is what makes two
-   captures of one command comparable; [records] carries the epoch seconds the
-   capture stamped, which is what makes it a faithful read of the file. *)
+(* [records] carries the epoch seconds the capture stamped, as the file holds
+   them; [frames] counts from the first record instead, so that two captures
+   of one command compare. *)
 let test_records_carry_the_wall_clock () =
   Alcotest.(check (list (pair (float 1e-9) string)))
     "three writes, stamped as recorded"

@@ -20,8 +20,9 @@
 
     The predefined themes suit different terminals:
     - {!default} is drawn in the terminal's own named colours and faint text,
-      which its user chose for its background, so it reads wherever the terminal
-      does and is the one to keep when nothing is known of it.
+      which the user chose for the terminal's background. It reads wherever the
+      terminal does, and is the one to keep when nothing is known of the
+      terminal.
     - A theme with a {!background}, such as {!dracula} or {!solarized_light}, is
       for a terminal whose own colour scheme is that one. Its colours are chosen
       for that background, which the widgets do not paint, so on another
@@ -56,7 +57,7 @@ type mark =
   | `Warning  (** A message that warns. *)
   | `Error  (** A message that reports an error. *)
   | `Debug  (** A message for debugging. *) ]
-(** The type for the states a mark says. Constructors may be added, so a
+(** The type for the states a mark shows. Constructors may be added, so a
     function that gives marks ends with a case for the others, as
     [function `Failed -> "x" | m -> mark default m] does. *)
 
@@ -91,10 +92,10 @@ type motion =
     glyphs change to glyphs as wide, so the frame keeps its width and its cells
     their place in every frame.
 
-    A frame stands still, in the glyphs of the theme without motion, when it is
-    printed on a formatter or drawn by a display without colour or with
-    [NO_COLOR] set. A sweep then keeps the colours a display starts with, while
-    rain and a shimmer keep those of the theme without motion.
+    A frame stands still when it is printed once, or drawn by a display without
+    colour or with [NO_COLOR] set. A sweep then keeps the colours it has at time
+    [0.]. Rain and a shimmer are not drawn, so the frame has the colours and
+    glyphs of the theme without motion.
 
     Constructors may be added, so a match on a motion has a case for the others.
 *)
@@ -128,7 +129,7 @@ val v :
       that a bar without a style spreads along its length when there are several
       (defaults to [[accent]], and [[]] is taken as the default);
     - [succeeded] colours the mark of a success, [warning] that of a warning or
-      a cancellation, and [failed] that of a failure or an error (default to
+      a cancellation, and [failed] that of a failure or an error (defaults to
       {!default}'s green, yellow and red);
     - [muted] colours frames, tree lines, rules, the track of a bar and the
       counts and timers of a display (defaults to none: they are faint, in the
@@ -140,7 +141,7 @@ val v :
     - [motion] is how frames move in a live display (defaults to none: they
       stand still);
     - [border], [guide] and [spinner] are the frame of tables and panels, the
-      lines of a tree and the spinner of a running task (default to
+      lines of a tree and the spinner of a running task (defaults to
       {!Border.rounded}, {!Guide.single} and {!Spinner.braille});
     - [bar] is the glyphs of bars and of a display's progress (defaults to
       [`Line]);
@@ -158,10 +159,9 @@ val accent : t -> Color.t
 (** [accent t] is the main colour of [t]. *)
 
 val palette : t -> Color.t list
-(** [palette t] are the colours that successive progress rows take in turn, and
-    it is never empty. A bar without a style ({!Bar.horizontal}) spreads them
-    along its length when there are several, and is in the one colour otherwise.
-*)
+(** [palette t] are the colours that successive progress rows take in turn. It
+    is never empty. A bar without a style ({!Bar.horizontal}) spreads them along
+    its length when there are several, and is in the one colour otherwise. *)
 
 val succeeded : t -> Color.t
 (** [succeeded t] is the colour of a success. *)
@@ -203,13 +203,12 @@ val bar : t -> bar
     a formatter that is not {!Fmt.utf_8}. *)
 
 val mark : t -> mark -> string
-(** [mark t m] is the mark of [m], on one line: a control character in it is a
-    space. *)
+(** [mark t m] is the mark of [m], on one line, with each control character in
+    it replaced by a space. *)
 
 val still : t -> t
-(** [still t] is [t] with nothing that moves: no {!val-motion} and the spinner
-    of one frame, which does not move, for the users who ask for no animation.
-*)
+(** [still t] is [t] without motion: no {!val-motion}, and a spinner of one
+    frame. It is for the users who ask for no animation. *)
 
 (** {1:predefined Predefined themes}
 
@@ -236,8 +235,8 @@ val default : t
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree
     lines, rules, spinner, bars and ellipses, and the marks of {!dos}. Every
-    theme is drawn so on a formatter that is not {!Fmt.utf_8}, and [ascii] on
-    any formatter. *)
+    theme is drawn this way on a formatter that is not {!Fmt.utf_8}, and [ascii]
+    is on any formatter. *)
 
 val dos : t
 (** [dos] is amber on black, with a darker amber muted and bold amber headers.
@@ -353,12 +352,12 @@ val pp : t Fmt.t
       colour and the colours of a success, a warning and a failure);
     - the colours of the progress rows are at 3:1 or more.
 
-    A theme without a background that gives colours of its own is read against
-    black and white alike, with its muted colour and header at 4.5:1 and its
-    other colours at 3:1. A frame that moves is drawn in these colours alone, so
-    each of its frames keeps the contrast of a glyph.
+    A theme with colours of its own but no background is measured against black
+    and white alike, with its muted colour and header at 4.5:1 and its other
+    colours at 3:1. A frame that moves is drawn in these colours alone, so every
+    step of its motion keeps the contrast of a still glyph.
 
-    {!default} gives none: its colours are the terminal's named ones and its
-    muted text is faint, so their contrast is that of the terminal's own scheme,
-    which console cannot know and which its user chose. At 16 colours every
-    theme is drawn so, in the named colours nearest its own. *)
+    {!default} promises no contrast: its colours are the terminal's named ones
+    and its muted text is faint, so their contrast is that of the terminal's own
+    scheme, which console cannot know and which the user chose. At 16 colours,
+    every theme is drawn this way, in the named colours nearest its own. *)

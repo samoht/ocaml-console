@@ -5,7 +5,8 @@
 
 open Env_harness
 
-(* The rules of cmdliner and fmt, and the depth the environment announces. *)
+(* [Colour] follows the colour rules of cmdliner and fmt, and reads the depth
+   the environment announces. *)
 let test_colour_rules () =
   let env pairs name = List.assoc_opt name pairs in
   let renderer ~is_tty pairs =
@@ -55,7 +56,8 @@ let test_colour_rules () =
   check_utf_8 "empty LC_ALL skipped" true
     [ ("LC_ALL", ""); ("LC_CTYPE", "C.UTF-8") ]
 
-(* [setup]'s arguments are the program's: they win over the environment. *)
+(* The arguments of [setup] are the program's choice, so they win over the
+   environment. *)
 let test_setup () =
   let restore () =
     Fmt.set_style_renderer Fmt.stdout `None;
@@ -85,10 +87,10 @@ let test_setup () =
             (Fmt.style_renderer Fmt.stdout = `None);
           Alcotest.(check bool) "the locale" true (Fmt.utf_8 Fmt.stderr)))
 
-(* [Env.setup] applies the rules of [Console_tty.setup] to any formatter,
-   from the terminal's answer it is given rather than one it asks Unix:
-   so a formatter on a buffer, which no descriptor backs, gets colour when
-   the caller says it is a terminal. *)
+(* [Env.setup] applies the rules of [Console_tty.setup] to any formatter, and
+   is told whether it is a terminal instead of asking Unix: a formatter on a
+   buffer, which no descriptor backs, gets colour when the caller says it is a
+   terminal. *)
 let test_env_setup () =
   let renderer ppf =
     match Fmt.style_renderer ppf with `Ansi_tty -> "ansi" | `None -> "none"
@@ -161,14 +163,14 @@ let probe mode =
   ignore (Unix.close_process_full p);
   out
 
-(* [ensure] decides for an output on which the program chose nothing, a
-   theme included, and keeps a choice the program made. *)
+(* [ensure] sets up an output on which the program chose nothing, and keeps a
+   choice the program made; giving the output a theme is not such a choice. *)
 let test_ensure () =
   Alcotest.(check string) "nothing chosen" "none 256" (probe "plain");
   Alcotest.(check string) "a theme is not a choice" "none 256" (probe "themed");
   Alcotest.(check string) "a choice is kept" "ansi 16" (probe "chosen")
 
-(* A pipe is not a terminal a program can redraw on. *)
+(* [is_terminal] is [false] on a pipe, even with [TERM] set. *)
 let test_is_terminal () =
   let r, w = Unix.pipe () in
   Fun.protect

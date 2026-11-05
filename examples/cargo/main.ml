@@ -146,9 +146,9 @@ let generated c =
           apply %d suggestion)"
          c.name c.name n c.name n)
 
-(* A transient task counts the units that ended, as the root counts
-   nothing, and each unit is a transient task under it while one of [jobs]
-   slots runs it. *)
+(* A transient [build] task counts the units that ended, since the root
+   shows no count, and each unit is a transient task under it while it holds
+   one of the [jobs] slots. *)
 let compile ~jobs clock root =
   let plan = plan () in
   let total = List.length plan in

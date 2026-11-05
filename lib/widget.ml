@@ -5,9 +5,9 @@
 
 type look = Look.t
 
-(* A formatter that is not UTF-8 shows ASCII alone: glyphs that are not are
-   replaced, all of a part at once so that its pieces still join; a piece a
-   border leaves out stays out. *)
+(* A formatter that is not UTF-8 shows ASCII alone. A border or a guide with
+   any glyph that is not ASCII is replaced whole by its ASCII counterpart, so
+   that its pieces still join; a glyph the border leaves empty stays empty. *)
 let shows look glyphs =
   look.Look.utf_8 || List.for_all Console_width.is_ascii glyphs
 

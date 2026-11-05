@@ -29,9 +29,8 @@ type chars = {
   left_cross : string;  (** The tee on the left edge, pointing right. *)
   right_cross : string;  (** The tee on the right edge, pointing left. *)
 }
-(** The type for the glyphs of a border, one per part of the box. It is plain
-    data the program supplies: every field is needed to draw a box, and none
-    constrains another.
+(** The type for the glyphs of a border, one per part of the box. Every field is
+    needed to draw a box, and no field constrains another.
 
     A glyph may take any number of cells. Each vertical line of the box is as
     wide as its widest glyph, and a narrower glyph is followed by spaces. A
@@ -50,7 +49,8 @@ val v : ?style:Style.t -> chars -> t
     formatter's theme ({!Theme.muted}). *)
 
 val chars : t -> chars
-(** [chars b] are the glyphs of [b], each control character in them a space. *)
+(** [chars b] are the glyphs of [b], with each control character in them
+    replaced by a space. *)
 
 val style : t -> Style.t
 (** [style b] is the style [b]'s glyphs are drawn in, {!Style.none} for the
@@ -64,12 +64,13 @@ val gradient : t -> Color.t list
 *)
 
 val with_gradient : Color.t list -> t -> t
-(** [with_gradient colors b] is [b] whose frame, the four edges of a table or a
-    panel, is graded once round it in [colors] over its style, still: from the
-    first colour at the top-left corner, clockwise, through the others and back
-    to the first, so that the frame has no seam ({!Color.gradient}). The lines
-    inside a table keep [b]'s style, and [[]] grades nothing. A theme's motion
-    ({!Theme.type-motion}) draws over the gradient in a live display. *)
+(** [with_gradient colors b] is [b] with its frame, the four edges of a table or
+    a panel, graded once round in [colors] over its style. The gradient does not
+    move. It runs clockwise from the first colour at the top-left corner,
+    through the others and back to the first, so that the colours meet without a
+    break ({!Color.gradient}). The lines inside a table keep [b]'s style, and
+    [[]] grades nothing. A theme's motion ({!Theme.type-motion}) draws over the
+    gradient in a live display. *)
 
 (** {1:predefined Predefined borders} *)
 

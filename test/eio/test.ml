@@ -3,9 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A case that hangs ends the run: an alarm whose default action kills
-   the process, set far beyond what any case that ends takes, so that it
-   never decides one. *)
+(* A case that hangs ends the run: each case sets an alarm, whose default
+   action kills the process, far beyond the time any case that ends takes, so
+   that the alarm never fails such a case. *)
 let guarded (name, cases) =
   ( name,
     List.map

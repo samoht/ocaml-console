@@ -46,9 +46,9 @@ type error = [ `End_of_input | `Msg of string ]
 val keys : t -> (Eio.Buf_read.t -> 'a) -> ('a, error) result
 (** [keys t f] is [Ok (f input)], with [input] the bytes of the keys typed on
     the terminal behind [t]'s input, each readable as soon as it is typed and
-    not shown, such as a game reads them. A key that sends an escape sequence,
-    an arrow for example, is its bytes, which [f] decodes. Ctrl-C and Ctrl-Z
-    still send their signals.
+    not echoed, as a game reads them. A key that sends an escape sequence, an
+    arrow for example, is its bytes, which [f] decodes. Ctrl-C and Ctrl-Z still
+    send their signals.
 
     The terminal is given back as it was found when [f] returns or raises, when
     its fiber is cancelled and on SIGINT or SIGTERM, and while SIGTSTP stops the
@@ -65,11 +65,11 @@ val pp_error : error Fmt.t
 val line : t -> string -> (string, error) result
 (** [line t question] is the next line of input, without its terminator (LF or
     CRLF), after writing [question]. The question is flushed, with no newline
-    added, and each control character in it but a line feed is a space. The
-    answer is returned as typed, spaces included. This is [Error `End_of_input]
-    when the input ends before a line feed, and [Error (`Msg _)] when [t] is not
-    interactive or when the line is longer than 4096 bytes, which is then
-    skipped up to its line feed. *)
+    added, and each control character in it other than a line feed is written as
+    a space. The answer is returned as typed, spaces included. This is
+    [Error `End_of_input] when the input ends before a line feed, and
+    [Error (`Msg _)] when [t] is not interactive or when the line is longer than
+    4096 bytes, which is then skipped up to its line feed. *)
 
 val confirm : t -> string -> (bool, error) result
 (** [confirm t question] asks [question ^ " [y/N] "] and is [true] for an answer
@@ -87,7 +87,7 @@ val secret : t -> string -> (string, error) result
 
     Since masking switches echo off on the terminal behind [t]'s input, this is
     also [Error (`Msg _)] when that input is not a terminal. [question] is
-    written first, and echo goes off after it: a key typed before then, which
-    the terminal has already shown, is discarded, as getpass(3) does. The
-    terminal is given back as it was found on return, on an exception and on
-    SIGINT or SIGTERM. *)
+    written first and echo goes off after it. Like getpass(3), [secret] then
+    discards the keys typed before echo went off, which the terminal has already
+    shown. The terminal is given back as it was found on return, on an exception
+    and on SIGINT or SIGTERM. *)

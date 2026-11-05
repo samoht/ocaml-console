@@ -78,7 +78,7 @@ let with_null f =
 
 (* Standard error is a terminal and standard output is not: the region is
    drawn, since the display draws on standard error. An implementation that
-   asks standard output draws history here. *)
+   asks standard output appends here. *)
 let test_auto_asks_the_formatters_own_descriptor () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->

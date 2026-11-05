@@ -3,13 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* Each atom's text is non-empty, valid UTF-8 and holds no control character
-   but the line feed: the constructors make it so, and every operation below
-   keeps it. An atom with [draw] is drawn when printed, in [style] and the
-   formatter's look; its [text] is its drawing in {!Look.default}, which has
-   the same cells in every look, and measures it. A line feed alone in an
-   atom with [block] joins two lines of one widget, which a region too short
-   for it drops together. *)
+(* An atom's [text] is non-empty, valid UTF-8 and holds no control character
+   except the line feed: the constructors ensure it and every operation below
+   preserves it. An atom with [draw] is drawn when printed, in [style] and the
+   formatter's look. Its [text] is its drawing in {!Look.default}, which takes
+   the same cells in every look, so [text] gives its width. An atom with
+   [block] holds a single line feed that joins two lines of one widget, so
+   that a region too short for both drops both. *)
 type align = [ `Left | `Center | `Right ]
 
 type atom = {
@@ -25,9 +25,9 @@ module F = struct
 
   let clean = Console_text.sanitize ~keep_newlines:true
 
-  (* The characters of a URI (RFC 3986, sections 2.2 and 2.3) and the percent
-     sign of an escape: none of them can end the OSC 8 sequence a target is
-     written in. *)
+  (* The reserved and unreserved characters of a URI (RFC 3986, sections 2.2
+     and 2.3) and [%]. None of them can end the OSC 8 sequence that carries
+     the target, so [target] percent-encodes every other byte. *)
   let uri_char = function
     | 'A' .. 'Z'
     | 'a' .. 'z'
@@ -166,7 +166,8 @@ module F = struct
         | None -> Style.faint)
     | `Header -> Theme.header theme
 
-  (* Each line is a part of its own: {!lines} splits text, not a drawing. *)
+  (* Each line gets its own drawn atom, because {!lines} can split the text
+     of an atom but not a drawing. *)
   let role r t =
     unlines
       (List.map
@@ -174,11 +175,11 @@ module F = struct
            drawn (fun look -> styled (role_style look.Look.theme r) line))
          (lines t))
 
-  (* A line is laid out as the grapheme clusters a terminal draws, each with its
-     width. Clusters are found over the line's whole text, so a mark that
-     combines with the letter before it joins that letter even across a change
-     of style; a cluster takes the style and link of the atom it starts in. A
-     layout keeps offsets into the joined text rather than a value per
+  (* A layout splits a line into the grapheme clusters a terminal draws, each
+     with its width. Clusters are found over the concatenated text of the
+     atoms, so a combining mark joins the letter before it even when the two
+     have different styles; a cluster takes the style and link of the atom it
+     starts in. A layout stores offsets into [joined] rather than a value per
      cluster. *)
 
   type layout = {
@@ -188,7 +189,7 @@ module F = struct
     n : int;  (** The number of clusters. *)
     starts : int array;  (** Where each cluster starts; [[||]] when ASCII. *)
     widths : int array;  (** Each cluster's width; [[||]] when ASCII. *)
-    drawn : bool;  (** Whether a part is drawn when printed. *)
+    drawn : bool;  (** Whether an atom of [parts] has a [draw]. *)
   }
 
   let ascii line = List.for_all (fun a -> Console_width.is_ascii a.text) line
@@ -244,10 +245,10 @@ module F = struct
     done;
     !k
 
-  (* The atom cluster [i] starts in. *)
+  (* The atom in which cluster [i] starts. *)
   let owner l i = l.parts.(part_at l (start l i))
 
-  (* Whether byte [off] falls strictly inside a part drawn when printed. *)
+  (* Whether byte [off] falls strictly inside an atom with a [draw]. *)
   let inside_drawn l off =
     l.drawn && off > 0
     &&
@@ -255,8 +256,8 @@ module F = struct
     is_drawn l.parts.(k)
     && off < l.part_starts.(k) + String.length l.parts.(k).text
 
-  (* A space of a part drawn when printed may be text in another look, as
-     the dots of an ASCII ellipsis are: it is not one a break stands on. *)
+  (* A space inside a drawn atom is not a break point: another look may draw
+     other glyphs in its cell, as the dots of an ASCII ellipsis are. *)
   let is_space l i =
     l.joined.[start l i] = ' '
     && start l (i + 1) = start l i + 1
@@ -274,15 +275,15 @@ module F = struct
 
   let fitting l room = fitting_from l 0 room
 
-  (* The cluster that starts [cells] cells into a line, or [l.n]. *)
+  (* The first cluster that starts at or after cell [cells], or [l.n]. *)
   let at_cell l cells =
     let rec go i c =
       if i >= l.n || c >= cells then i else go (i + 1) (c + cell_width l i)
     in
     go 0 0
 
-  (* The atoms of clusters [i] to [j - 1]. The part of an atom drawn when
-     printed is the same cells of its drawing. *)
+  (* The atoms of clusters [i] to [j - 1]. A drawn atom that the range cuts
+     keeps a [draw] that takes the same cells of its drawing. *)
   let rec sub l i j =
     if i >= j then []
     else
@@ -314,8 +315,9 @@ module F = struct
     let l = layout line in
     sub l (at_cell l first) (at_cell l last)
 
-  (* A cluster is replaced only by text as wide that holds no control: the
-     line keeps its cells. A cluster drawn when printed is kept. *)
+  (* [f] replaces a cluster only with text as wide and with no control
+     character, so the line keeps its cells; any other glyph leaves the
+     cluster as it is. A cluster of a drawn atom is never replaced. *)
   let recell f line =
     let l = layout line in
     let out = ref [] and run = ref 0 and cell = ref 0 in
@@ -341,8 +343,8 @@ module F = struct
     done;
     if !out = [] then line else List.concat (List.rev (sub l !run l.n :: !out))
 
-  (* Each line is graded from its first cluster to its last, each cluster in
-     the colour of its place over its own style. *)
+  (* The gradient runs from the first cluster of the line to the last: each
+     cluster takes the colour at its position, over its own style. *)
   let graded stops line =
     let at = Color.gradient stops and l = layout line in
     List.concat
@@ -363,7 +365,8 @@ module F = struct
     in
     unlines (List.map line (lines t))
 
-  (* A line whose atoms no cluster crosses is as wide as their widths. *)
+  (* Whether no grapheme cluster spans two neighbouring atoms. Such a line is
+     as wide as the sum of its atoms' widths. *)
   let rec apart prev = function
     | [] -> true
     | a :: rest -> (not (Console_width.joins prev a.text)) && apart a.text rest
@@ -383,9 +386,9 @@ module F = struct
   let width t = List.fold_left (fun n l -> max n (line_width l)) 0 (lines t)
   let spaces n = if n <= 0 then empty else text (String.make n ' ')
 
-  (* A line ends at its last span with text on it, a mark that takes no cell
-     included: the spans before it are padded to their widths and followed by
-     the gap, and nothing follows. *)
+  (* Each row ends at the last span with text on that row, even text that
+     takes no cell, such as a combining mark. The spans before it are padded
+     to their widths and followed by [gap]; nothing is added after it. *)
   let hcat ?(gap = 2) spans =
     if gap < 0 then invalid_arg "Console.View.hcat: negative gap";
     let blocks =
@@ -406,7 +409,7 @@ module F = struct
              let c = cell b in
              if j = !last then c else c @ spaces (w - line_width c + gap)))
     in
-    (* A row goes on the block above it if one of its spans' lines does. *)
+    (* Row [i] is joined to the row above when line [i] of any span is. *)
     let joined i =
       Array.exists (fun (b, _) -> i < Array.length b && fst b.(i)) blocks
     in
@@ -423,9 +426,9 @@ module F = struct
   let height t = if is_empty t then 0 else List.length (lines t)
   let ellipsis = "\xe2\x80\xa6"
 
-  (* An ellipsis wider than [w], such as ASCII dots, keeps its first clusters
-     that fit in [w]. It takes the style of the cluster it replaces, as that
-     cluster is drawn. *)
+  (* An ellipsis wider than [w], such as ASCII dots, is cut to its clusters
+     that fit in [w]. It takes the style of the first cluster it replaces; if
+     that cluster is drawn, the style it is drawn in. *)
   let truncate_line ~ellipsis w line =
     if line_width line <= w then line
     else
@@ -484,8 +487,8 @@ module F = struct
     if width <= 0 then empty
     else unlines (List.map (crop_line ~left ~width) (lines t))
 
-  (* The clusters that fit go; a wide one cut by the edge leaves its cell
-     blank. *)
+  (* [fit w line] is [line] cut or padded with spaces to [w] cells. A wide
+     cluster cut by the edge is dropped and its cell padded. *)
   let fit w line =
     let line =
       if line_width line <= w then line
@@ -497,9 +500,9 @@ module F = struct
     | n when n > 0 -> line @ text (String.make n ' ')
     | _ -> line
 
-  (* A line being broken into lines of at most [w] cells, those after the
-     first [hang] cells in: the lines done, newest first, and the ranges of
-     clusters of the line under way, newest first. *)
+  (* The state of breaking a line into lines of at most [w] cells, each line
+     after the first indented by [hang] cells. [out] holds the finished lines
+     and [cur] the cluster ranges of the current one, both newest first. *)
   type filler = {
     l : layout;
     w : int;
@@ -525,7 +528,7 @@ module F = struct
     | _ -> f.cur <- (i, j) :: f.cur);
     f.cur_w <- f.cur_w + range_width f.l i j
 
-  (* The spaces a break stands on are not drawn. *)
+  (* A line that ends at a break loses its trailing spaces. *)
   let rec trim l = function
     | (a, b) :: rest when b > a && is_space l (b - 1) ->
         trim l (if b - 1 > a then (a, b - 1) :: rest else rest)
@@ -562,9 +565,9 @@ module F = struct
         !r)
       f.cur
 
-  (* A word wider than the room goes on where the room ends; a cluster wider
-     than a whole line cannot be drawn and is left out, also when it is wider
-     than the room a hanging line leaves after the first. *)
+  (* A word wider than the room is broken between clusters wherever a line
+     fills up. A cluster wider than the room of a line, which on a hanging
+     line is [w - hang], cannot be drawn and is dropped. *)
   let split f i j =
     for k = i to j - 1 do
       let cw = cell_width f.l k in
@@ -587,9 +590,9 @@ module F = struct
     else if f.cur_w + range_width f.l i j <= room f then add f i j
     else if f.cur <> [] then finish f
 
-  (* A line is broken between its words, each given by the cluster it ends
-     before, in order. A word goes on its line, and the spaces that end it go
-     too unless the line breaks after it. *)
+  (* [fill f ends] breaks a line between words, [ends] giving in order the
+     cluster each word ends before. A word's trailing spaces stay on its line
+     unless the line breaks after it. *)
   let fill f ends =
     let l = f.l in
     ignore
@@ -616,8 +619,9 @@ module F = struct
     done;
     !ends
 
-  (* The words [words] cuts the line into, an end inside a cluster or inside
-     a part drawn when printed moved to the end of either. *)
+  (* The ends of the words [words] cuts the line into, as cluster indices. An
+     end that falls inside a cluster or a drawn atom moves to the end of
+     it. *)
   let word_ends words l =
     let ws = words l.joined in
     if not (String.equal (String.concat "" ws) l.joined) then
@@ -657,8 +661,8 @@ module F = struct
         !best)
       0 (lines t)
 
-  (* The cells a line's continuation hangs under: its leading spaces, its first
-     word and the spaces after it, when more text follows. *)
+  (* The indent of a line's continuation: the width of its leading spaces, its
+     first word and the spaces after it, or [0] when nothing follows them. *)
   let hanging line =
     let l = layout line in
     let i = ref 0 and w = ref 0 in
@@ -707,8 +711,8 @@ module F = struct
   let osc8_open uri = "\027]8;;" ^ uri ^ "\027\\"
   let osc8_close = "\027]8;;\027\\"
 
-  (* Neighbouring atoms of one style and link are written under one escape
-     code. *)
+  (* Neighbouring atoms with the same style and link are merged, so they are
+     written under one escape sequence. *)
   let runs t =
     let rec go acc = function
       | a :: b :: rest
@@ -773,11 +777,13 @@ module F = struct
     String.concat "\n" (List.map (to_string ~styled) lines)
 end
 
-(* A view is either flat, its atoms known, or deferred: laid out in the room
-   and at the time it is printed in. A deferred part says what it reads
-   besides its room: the time, the tasks, and other state outside the view.
-   One that reads none caches its layout for its room; one that reads the
-   time but no state caches its still size, which every frame of it takes. *)
+(* A view is either [Flat], its atoms known, or [Deferred], laid out when it
+   is printed, in the room and at the time of that frame. A deferred view's
+   [kind] says what else its layout reads: the time ([timed]), the tasks
+   ([tasks]) or other state outside the view ([live]). One that reads none
+   caches its layout per room in [memo]. A [still] one that reads the time but
+   no state caches in [size] the line widths of its frame at time 0, to which
+   every later frame is cut or padded. *)
 
 type kind = { live : bool; tasks : bool; timed : bool }
 
@@ -786,8 +792,9 @@ let timed = { static with timed = true }
 let tasks = { static with tasks = true; timed = true }
 let moving = { static with live = true; timed = true }
 
-(* One of the two when it reads all the other does, as most do, so that a
-   frame that asks what its view reads allocates nothing. *)
+(* [join a b] is the union of [a] and [b]. It is [a] or [b] itself when one
+   covers the other, the usual case, so that computing a view's kind on each
+   frame does not allocate. *)
 let join a b =
   let covers a b =
     (a.live || not b.live) && (a.tasks || not b.tasks)
@@ -824,8 +831,9 @@ let deferred ?(kind = fun _ -> static) ?(grow = 0) ?min_width ?(still = false)
   let min_width = Option.map Fun.const min_width in
   Deferred { kind; lay; grow; min_width; still; memo = None; size = None }
 
-(* Each line of [f] cut or padded to the cells of its line in a still frame,
-   blank lines where it has fewer and none past them. *)
+(* [to_size widths f] is [f] with its [i]th line cut or padded to the [i]th
+   of [widths], blank lines added when [f] has fewer lines, and lines beyond
+   [widths] dropped. *)
 let to_size widths f =
   let lines = Array.of_list (F.seamed f) in
   F.unseam
@@ -858,7 +866,7 @@ let rec flat_in c = function
           let widths = still_widths c d ~stateful f in
           if F.is_empty f && widths = [] then f else to_size widths f
 
-(* The widths of the lines of [d] in a still frame; [f] is [d] in [c]. *)
+(* The line widths of [d] at time 0; [f] is [d] laid out in [c]. *)
 and still_widths c d ~stateful f =
   match d.size with
   | Some (c', w) when (not stateful) && Ctx.same_room c c' -> w
@@ -872,8 +880,8 @@ and still_widths c d ~stateful f =
 
 let resolve c t = match t with Flat _ -> t | Deferred _ -> Flat (flat_in c t)
 
-(* Where nothing gives a room: the natural size, in the default look, at
-   time 0. *)
+(* With no room given, a view is laid out at its natural size, in the
+   default look, at time 0. *)
 let flat t = flat_in Ctx.default t
 
 let rec min_width c = function
@@ -881,8 +889,9 @@ let rec min_width c = function
   | Deferred { min_width = Some w; _ } -> w c
   | Deferred d -> min_width c (d.lay c)
 
-(* [f] of the atoms of [ts], at once if they are all known, and otherwise
-   where they are printed, each in the room [room] gives. *)
+(* [lift ~room ts f] is [f] applied to the atoms of [ts]: at once when every
+   view of [ts] is flat, otherwise when printed, each laid out in [room] of
+   the printing context. *)
 let lift ?(room = Fun.id) ts f =
   if List.for_all is_flat ts then Flat (f (List.map flat ts))
   else
@@ -919,8 +928,9 @@ let sized ?width ?height t =
                   c)
                t))
 
-(* [f] of the atoms of [t], [f] adding no cell, so that [t] keeps its weight
-   in an [hcat] and the width below which it should not be laid out. *)
+(* [restyle f t] is [f] applied to the atoms of [t], where [f] adds no cell.
+   Unlike {!map}, the result keeps the [grow] weight and the [min_width] of
+   [t]. *)
 let restyle f = function
   | Flat x -> Flat (f x)
   | t ->
@@ -958,10 +968,11 @@ let vcat ?(gap = 0) ts =
   if gap < 0 then invalid_arg "Console.View.vcat: negative gap";
   lift ts (F.vcat ~gap)
 
-(* [room] shared by [weights], each positive, exactly: each takes the
-   whole part of its quota, and the cells left go one each to the largest
-   remainders, the first on a tie. Weights too large for [room * weight]
-   are scaled down first. *)
+(* [apportion room weights] splits [room] cells among positive [weights] so
+   that the shares add up to [room]: each takes the integer part of its
+   quota, and the cells left go one each to the largest remainders, the
+   earliest on a tie. Weights large enough to overflow [room * weight] are
+   scaled down first. *)
 let apportion room weights =
   let n = List.length weights in
   if n = 0 then []
@@ -988,9 +999,10 @@ let apportion room weights =
     done;
     Array.to_list shares
 
-(* Under a room [w] wide, the parts that do not grow take, left to right,
-   the room still left; those that grow share what is left by their
-   weights ({!apportion}). Without a room, each takes its natural size. *)
+(* In a room [w] cells wide, the views that do not grow are laid out left to
+   right, each in the room the previous ones left; the views that grow then
+   share the rest by their weights ({!apportion}). Without a room, each takes
+   its natural size. *)
 let share c ~gap ts =
   match Ctx.width c with
   | None ->
@@ -1046,7 +1058,8 @@ let hcat ?(gap = 2) ts =
 let width t = F.width (flat t)
 let height t = F.height (flat t)
 
-(* A view cut where it is printed ends its lines with the look's ellipsis. *)
+(* Without [ellipsis], a view that needs cutting is deferred, so that its
+   lines end with the ellipsis of the look it is printed in. *)
 let truncate ?ellipsis w t =
   match (ellipsis, t) with
   | Some e, _ -> map ~room:Ctx.natural (F.truncate ~ellipsis:e w) t
@@ -1060,8 +1073,9 @@ let crop ?(left = 0) ?(width = max_int) t =
   if left < 0 then invalid_arg "Console.View.crop: negative left";
   map ~room:Ctx.natural (F.crop ~left ~width) t
 
-(* A line [w] cells wide at [align], cut with [ellipsis] if wider: a cut
-   inside a wide character leaves a cell to pad. *)
+(* [place_line ~ellipsis align w line] is [line] aligned in [w] cells, cut
+   with [ellipsis] when wider. A cut inside a wide character leaves a cell,
+   which is padded. *)
 let place_line ~ellipsis align w line =
   let line = if F.width line > w then F.truncate ~ellipsis w line else line in
   let pad = w - F.width line in
@@ -1105,10 +1119,10 @@ let place ?(align = `Left) ?width ?height t =
           in
           Flat (placed ellipsis (flat_in c t)))
 
-(* A deferred view kept as lines, as {!wrap} and {!lines} keep it, is laid
-   out at its natural size in the default look, each line a part drawn in the
-   look it is printed in, cut or padded to the cells it takes in the default
-   look. *)
+(* [keep t] is [t] as atoms that {!wrap} and {!lines} can split. A deferred
+   [t] is laid out at its natural size in the default look, and each of its
+   lines becomes a drawn atom: printed in another look, it is that look's
+   line, cut or padded to the width of the default one. *)
 let keep t =
   match t with
   | Flat f -> f

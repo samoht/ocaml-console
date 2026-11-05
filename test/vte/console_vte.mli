@@ -6,9 +6,8 @@
 (** An emulated terminal, and what a terminal recording put on its screen.
 
     The tests read console's output on the screen of an emulator, matrix's
-    [Vte], which reads its bytes as xterm does. One choice of console's widths
-    holds on it too: a spacing mark takes a cell of its own, as in xterm and
-    VTE.
+    [Vte], which reads its bytes as xterm does. On it, as in xterm and VTE and
+    as console counts it, a spacing mark takes a cell of its own.
 
     A recording of a program that redraws lines in place holds every redraw, so
     reading it as text does not say what the screen showed. {!frames} replays a
@@ -50,10 +49,11 @@ val cursor_visible : t -> bool
 (** [cursor_visible t] is [true] iff the cursor is shown. *)
 
 val cursor_history : string -> bool * bool
-(** [cursor_history s] reads [s] on a fresh terminal, a byte at a time: whether
-    the cursor was hidden at some point, and whether it is shown at the end. A
-    terminal starts with its cursor shown, so the first says the second means
-    something. *)
+(** [cursor_history s] is [(hidden, shown)] for a fresh terminal that reads [s]
+    a byte at a time: [hidden] is [true] iff the cursor was hidden at some
+    point, and [shown] iff it is shown at the end. A terminal starts with its
+    cursor shown, so [shown] tells that a hidden cursor was shown again only
+    when [hidden] is [true]. *)
 
 val synchronized_open : string -> bool
 (** [synchronized_open s] is [true] iff a terminal that read [s] is left in a

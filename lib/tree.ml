@@ -9,9 +9,9 @@ let v label children = { label; children }
 let label t = t.label
 let children t = t.children
 
-(* A label line wider than the room its guides leave it wraps, the rest
-   under its text: the first line in the room of the node's branch, the
-   others in that of its rails. *)
+(* The first line of a label is laid out in the room beside the node's
+   branch, its other lines in the room beside its rails. A line wider than
+   its room wraps, hanging under its text. *)
 let label_lines ~first ~rest label =
   List.concat
     (List.mapi
@@ -31,7 +31,7 @@ let lines c ~guide ~indent t =
   let margin = Option.value (Ctx.width c) ~default:max_int in
   let pad = String.make indent ' ' in
   let acc = ref [] in
-  (* The guides of a tree are few strings, each measured once. *)
+  (* A tree has few distinct guide strings, so each is measured once. *)
   let measured = Hashtbl.create 8 in
   let cells s =
     match Hashtbl.find_opt measured s with
@@ -41,7 +41,8 @@ let lines c ~guide ~indent t =
         Hashtbl.add measured s n;
         n
   in
-  (* A line fits its room, so only guides wider than the margin cut it. *)
+  (* A label line already fits its room, so a line is cut only when its
+     guides alone are wider than the margin. *)
   let emit (prefix, cells) line =
     let line = View_core.(ink style prefix ++ line) in
     let line =
@@ -49,8 +50,8 @@ let lines c ~guide ~indent t =
     in
     acc := line :: !acc
   in
-  (* [lasts] are the node's is-last-of-its-siblings flag and its ancestors'
-     below the root, innermost first. *)
+  (* [lasts] says, for the node and each of its ancestors below the root,
+     whether it is the last of its siblings, innermost first. *)
   let rec go lasts node =
     let lead = if lasts = [] then "" else pad in
     let first = lead ^ Widget.branch guide lasts

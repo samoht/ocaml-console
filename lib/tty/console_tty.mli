@@ -26,22 +26,23 @@ val setup :
   unit ->
   unit
 (** [setup ()] is {!Console.Env.setup} on {!Fmt.stdout} and on {!Fmt.stderr},
-    each a terminal iff [Unix.isatty] says its descriptor is one: it sets their
+    each a terminal iff [Unix.isatty] says its descriptor is one. It sets their
     style renderer, {!Fmt.utf_8}, {!Console.Color.val-depth} and
     {!Console.Theme} from [style_renderer], [utf_8], [theme] and the
-    environment, by the rules {!Console.Env.setup} states.
+    environment, by the rules of {!Console.Env.setup}.
 
     [CONSOLE_CAST], set to a file name, makes [setup] record both outputs there,
     as [Console_eio.run] does, so that a program that prints without a run is
-    recorded too: each write is at time zero, until a run gives the recording
-    its clock. *)
+    recorded too. Each write is recorded at time zero until a run gives the
+    recording its clock. *)
 
 val ensure : unit -> unit
 (** [ensure ()] is {!Console.Env.ensure} on {!Fmt.stdout} and on {!Fmt.stderr},
-    as {!setup} asks whether each is a terminal: like [setup ()], but it leaves
-    alone an output on which the program chose something already. Such a choice
-    is a style renderer or {!Fmt.utf_8}, set with [Fmt], [Fmt_tty] or {!setup},
-    or a {!Console.Color.val-depth}. A {!Console.Theme} is not one.
+    each a terminal iff [Unix.isatty] says so, as in {!setup}. It is like
+    [setup ()] but leaves alone an output on which the program already chose a
+    style renderer or {!Fmt.utf_8} (with [Fmt], [Fmt_tty] or {!setup}) or a
+    {!Console.Color.val-depth}. Setting a {!Console.Theme} does not count as a
+    choice.
 
     A library that prints in colour on the standard outputs calls [ensure], as
     [Console_eio.run] does. A program that did not call {!setup} still gets

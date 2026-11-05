@@ -6,12 +6,14 @@
 type t = {
   vte : Vte.t;
   raw : bool;
-  scan : Ansi.Parser.t;  (** Reads the bytes [vte] reads, for [split]. *)
+  scan : Ansi.Parser.t;
+      (** Parses the bytes [vte] reads, to find the spacing marks. *)
   mutable split : int option;
-      (** The length of a spacing mark just read, which xterm and VTE give a
-          cell of its own where matrix draws it in the cell of its letter, but
-          not at the start of a write. *)
-  pending : Buffer.t;  (** The first bytes of a character the next feed ends. *)
+      (** The length of a spacing mark just read. Matrix draws a spacing mark in
+          the cell of its letter unless it starts a write, so [feed] writes the
+          mark apart, and it takes a cell of its own as in xterm and VTE. *)
+  pending : Buffer.t;
+      (** The start of a character whose other bytes come in the next feed. *)
 }
 
 let v ?(raw = false) ~rows ~cols () =
@@ -50,8 +52,8 @@ let scan t = function
       if Console_width.is_spacing_mark c then t.split <- Some (String.length s)
   | _ -> ()
 
-(* [s], a part of a character, is the start of one that more bytes can
-   complete: some continuation byte makes the decoder read further. *)
+(* [continues s] is [true] iff more bytes can complete [s], the start of a
+   character: some continuation byte makes the decoder read further. *)
 let continues s =
   List.exists
     (fun next ->
@@ -59,8 +61,8 @@ let continues s =
       > String.length s)
     [ "\x80"; "\x90"; "\xa0" ]
 
-(* The length of [s] but for the first bytes of a character it leaves
-   unended. *)
+(* [complete s] is the length of [s] without the bytes of an unfinished
+   character at its end. *)
 let complete s =
   let n = String.length s in
   let rec last i =

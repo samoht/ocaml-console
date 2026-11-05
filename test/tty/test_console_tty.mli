@@ -6,4 +6,4 @@
 (** Tests of the colour rules and {!Console_tty}. *)
 
 val suite : string * unit Alcotest.test_case list
-(** [suite] tests the colour rules and {!Console_tty}. *)
+(** [suite] is the Alcotest test suite for {!Test_console_tty}. *)

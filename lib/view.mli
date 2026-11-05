@@ -57,12 +57,12 @@ val link : uri:string -> t -> t
     they are. An empty [uri] links nowhere: the view is [v]. *)
 
 val role : Theme.role -> t -> t
-(** [role r v] is [v] with the part [r] of the formatter's theme ({!Theme.get})
-    under each of its styles, taken when it is printed, as {!val-styled} lays a
-    style. [role `Succeeded (text "passed")] is green in {!Theme.default} and
-    Nord's green in {!Theme.nord}. A part of [v] in a colour of its own keeps
-    it, so [role `Succeeded (link ~uri (text "report"))] is a link in the
-    success colour.
+(** [role r v] is [v] styled, as by {!val-styled}, with the style of the role
+    [r] in the formatter's theme ({!Theme.get}), looked up when [v] is printed.
+    [role `Succeeded (text "passed")] is green in {!Theme.default} and Nord's
+    green in {!Theme.nord}. A part of [v] with a colour of its own keeps it, so
+    [role `Succeeded (link ~uri (text "report"))] is a link in the success
+    colour.
 
     It is as wide as [v]. It is printed in colours at the formatter's
     {!Color.val-depth}, and as the text of [v] without colour. {!to_string}
@@ -71,11 +71,11 @@ val role : Theme.role -> t -> t
 val gradient : ?colors:Color.t list -> t -> t
 (** [gradient ~colors v] is [v] in colours graded along each of its lines, over
     its own styles. The stops are [colors] (defaults to the {!Theme.palette} of
-    the formatter's theme, and [[]] is taken as the default).
+    the formatter's theme; [[]] also means the default).
 
     The stops spread evenly along a line, the first on its first grapheme
     cluster and the last on its last, and each cluster takes the {!Color.blend}
-    of the two stops around its place. The view is as wide as [v], printed in
+    of the two stops around its position. The view is as wide as [v], printed in
     colours at the formatter's {!Color.val-depth} and as the text of [v] without
     colour. *)
 
@@ -94,15 +94,16 @@ val hcat : ?gap:int -> t list -> t
       padded to its {!width}, and a view with fewer lines gives blank ones. A
       view with no text, such as {!empty}, takes no column and no gap, as it
       takes no line in {!vcat}.
-    - A line ends at its last view with text on it, so no line ends with spaces
-      that [hcat] adds.
+    - Each line ends with the last view that has text on it, so [hcat] adds no
+      trailing spaces.
 
     Without a room, as under {!width} or {!to_string}, each view in it is laid
     out at its natural size. In a room [w] wide ({!fit}), the views that do not
-    grow take, left to right, the room the views before them leave, and those
-    that grow, such as a {!Bar.horizontal} of no width, share what is left by
-    their weights. A view that should take less goes in it {!sized}. The result
-    goes in a table cell, a panel, a tree or a display's view, as any view does:
+    grow are laid out left to right, each in the room the views before it leave;
+    the views that grow, such as a {!Bar.horizontal} with no width, then share
+    the rest by their weights. To make a view take less, wrap it in {!sized}.
+    The result goes in a table cell, a panel, a tree or a display's view, as any
+    view does:
 
     {[
     let report tree panel =
@@ -115,11 +116,11 @@ val vcat : ?gap:int -> t list -> t
 (** [vcat ~gap views] is the lines of each of [views] in turn, [gap] blank lines
     apart (defaults to [0]). A view with no text, such as {!empty} or [text ""],
     takes no line and no gap, so a part left out leaves no blank line. A blank
-    line is a line feed: [text "\n" ++ v] is [v] after one, and
+    line is a line feed: [text "\n" ++ v] is [v] below a blank line, and
     [concat ~sep:(text "\n") lines] is [lines] one under the other, the blank
     ones kept.
 
-    Each view in it is given the room [vcat] is given:
+    Each of [views] is laid out in the room of the [vcat]:
 
     {[
     let report title table =
@@ -141,31 +142,32 @@ type align = [ `Left | `Center | `Right ]
     label, or what {!sized} gives. Its {e time} ({!Room.time}) is the seconds
     since the display that draws it started, and [0.] when it is printed once.
 
-    A view's size depends on its room alone, never on its time, and it is
-    measured at time [0.]: so its frames in a display keep their size. *)
+    A view's size depends on its room alone, never on its time: it is measured
+    at time [0.], so its frames in a display all have the same size. *)
 
 val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
-(** [fit f] is [f room] where it is laid out, in the {!Room} it is given: a
-    width and a height, each [None] where nothing bounds it, as in {!hcat}
-    without a room, {!width}, {!truncate} or {!to_string}, which take a view at
-    its natural size; the time it is drawn at; and the theme and character set
-    of the formatter. A view [f] returns is laid out in the same room.
+(** [fit f] is the view [f room], where [room] is the {!Room} it is laid out in.
+    A room holds a width and a height, each [None] where nothing bounds it (as
+    under {!hcat} without a room, {!width}, {!truncate} or {!to_string}, which
+    take a view at its natural size), the time it is drawn at, and the theme and
+    character set of the formatter. The view [f] returns is laid out in the same
+    room.
 
     - [grow] (defaults to [0]) is its weight in an {!hcat} laid out in a room: a
       part that grows shares what the others leave, in the ratio of the weights,
-      each part taking the whole cells of its share and the cells left going to
-      the largest remainders.
-    - [min_width] is the width below which it should not be laid out, which a
-      {!Table} keeps for its column while another column can narrow (defaults to
-      that of the view [f] gives at its natural size, and for text to the width
-      of its widest word).
+      each part taking the integer part of its share and the cells left going
+      one each to the largest remainders.
+    - [min_width] is the width below which it should not be laid out: a {!Table}
+      does not narrow its column below it while another column can narrow
+      (defaults to the [min_width] of the view [f] gives at its natural size,
+      which for text is the width of its widest word).
 
-    Its size must depend on its room alone, not on its time: each frame of it
-    takes the cells of its frame at time [0.], each line cut or padded to them.
-    [f] may be called several times a frame, and must be a function of its room
-    and of the program's state. A display draws a view with a [fit] part again
-    at every frame, so a view of the program's own state, such as a table it
-    updates, is a [fit]:
+    Its size must depend on its room alone, not on its time: every frame has the
+    lines of its frame at time [0.], each cut or padded to the width it has
+    there. [f] may be called several times a frame, and must be a function of
+    its room and of the program's state. A display lays out a [fit] again at
+    every frame, so a view of the program's own state, such as a table it
+    updates, is written as a [fit]:
 
     {[
     let status jobs =
@@ -185,10 +187,11 @@ val sized : ?width:int -> ?height:int -> t -> t
 
 val place : ?align:align -> ?width:int -> ?height:int -> t -> t
 (** [place ~align ~width ~height v] is [v] in a box [width] cells wide and
-    [height] lines tall (each defaults to [v]'s): each line at [align] in it
-    (defaults to [`Left]), padded with spaces, or cut as {!truncate} cuts if
-    wider, and blank lines below, or the lines past [height] left out. [v] is
-    laid out in that box. A right-aligned column of a fixed width is a [place]:
+    [height] lines tall (each defaults to that of [v]). Each line is placed at
+    [align] (defaults to [`Left]) and padded with spaces, or cut as by
+    {!truncate} if wider; blank lines are added below, or the lines past
+    [height] dropped. [v] is laid out in that box. A right-aligned column of a
+    fixed width is a [place]:
 
     {[
     let status verb what =
@@ -241,16 +244,16 @@ val wrap : ?words:(string -> string list) -> int -> t -> t list
 (** [wrap ~words w s] is the lines of [s], each broken into lines of at most [w]
     cells. The result is never empty.
 
-    - A line breaks only between two of its words, [words l] for its text [l]:
-      strings that make up [l] when put together, each ended by the spaces that
-      a break after it removes. [words] defaults to cutting [l] after each run
-      of spaces, so that a line breaks at a run of spaces and never after a
+    - A line breaks only between two of its words, given by [words l] for its
+      text [l]: strings whose concatenation is [l], each ending with the spaces
+      that a break after it removes. [words] defaults to cutting [l] after each
+      run of spaces, so that a line breaks at a run of spaces and never after a
       slash or a hyphen: a path, a URL or a [--flag] stays whole. A cut inside a
       grapheme cluster goes to the end of the cluster.
     - The other spaces of a line are kept, its leading ones too.
     - A part drawn in the theme it is printed in, such as a {!Bar.horizontal},
       breaks only where the room ends, and keeps its spaces.
-    - A word wider than [w] goes on over the next lines, broken where the room
+    - A word wider than [w] continues on the next lines, broken where the room
       ends.
     - A character wider than [w] cannot be drawn and is left out: a wide one
       when [w] is [1], or one with a spacing mark when [w] is its width less

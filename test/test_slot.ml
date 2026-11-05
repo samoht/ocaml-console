@@ -28,8 +28,9 @@ let test_like () =
   let like = Fmt.with_buffer ~like:ppf (Buffer.create 16) in
   check_find "carried over" (Some 1) (Slot.find s like)
 
-(* Only Fmt and the slots that are settings change what [unset] sees, in
-   whichever order they are set. *)
+(* [Slot.unset ppf] turns [false] once Fmt or a slot that is a setting sets
+   something on [ppf], in whichever order; a slot that is not a setting leaves
+   it [true]. *)
 let test_unset () =
   let unset what want ppf = Alcotest.(check bool) what want (Slot.unset ppf) in
   let setting = Slot.v () and other = Slot.v ~setting:false () in

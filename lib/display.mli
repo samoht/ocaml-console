@@ -34,9 +34,8 @@
     - No line the display draws in its region is wider than [w], so none wraps.
     - The region is never taller than [h - 1] lines, so a redraw never scrolls
       the terminal: a view taller than that loses its first lines. A table or a
-      panel that this would cut in its height loses all its lines, so that no
-      fragment of its frame shows, in a {!View.hcat} too; the lines of a tree go
-      one by one.
+      panel that this would cut loses all its lines, inside a {!View.hcat} too,
+      so that no fragment of its frame shows; a tree loses its lines one by one.
     - The region starts at the first column of a row of its own, below any line
       the program left unended before the display started.
     - Each change is written in one piece, as one synchronized update (mode
@@ -53,8 +52,8 @@
       of {!Progress.show} is told of each change to its tasks.
     - A line cut to fit is cut between two characters, never inside an escape
       code, and it ends with an ellipsis that turns its style off.
-    - After a resize the old frame is erased, counting the rows that a terminal
-      which reflows its lines gives it. On one that does not reflow, such as
+    - After a resize the old frame is erased, its rows counted as a terminal
+      that reflows its lines wraps them. On one that does not reflow, such as
       xterm or GNU screen, a narrowing below the width of the old lines also
       erases the lines above the region that a reflow would have filled.
     - The cursor is hidden while the display runs, and shown again when it
@@ -81,22 +80,23 @@
 
     A view that raises is dropped and nothing is drawn in its place. Its
     exception is raised again by the next call to {!redraw}, {!set_view} or
-    {!close}, so that a frame drawn as a task changes or as a line is printed
-    raises in none of the program's other calls. So is what the size function,
-    the output or a {!Progress.show} hook raises, and the view stays. {!close}
-    raises it once the display closed and the terminal is restored.
+    {!close}, so that drawing a frame when a task changes or a line is printed
+    never raises in the program's other calls. An exception from the size
+    function, the output or a {!Progress.show} hook is kept the same way, and
+    the view stays. {!close} raises it after closing the display and restoring
+    the terminal.
 
-    [Sys.Break], [Out_of_memory] and [Stack_overflow] do not wait: they go on
-    from the call that was drawing, whichever that is, a {!Task} report
-    included, and the view stays.
+    [Sys.Break], [Out_of_memory] and [Stack_overflow] are not kept: they
+    propagate from whichever call was drawing, a {!Task} report included, and
+    the view stays.
 
     An update that one of them or a cancellation cuts short, on an output that
     may have taken part of it, is not written again. The lines it was to print
-    go out whole with the next update, so that a part of them may show twice, on
-    a terminal too. On a terminal the region starts again on the row below the
-    one the cut left the cursor on, with what is below it erased: what the cut
-    update drew above that row stays on the screen, rows of the region included,
-    and nothing that was above the region is erased.
+    go out whole with the next update, so part of them may show twice, on a
+    terminal too. On a terminal the region starts again on the row below the one
+    where the cut left the cursor, and the screen is erased from that row down.
+    What the cut update drew above that row stays on the screen, rows of the
+    region included, and nothing that was above the region is erased.
 
     A display belongs to the domain that runs it, so call its functions from
     that domain alone. *)
@@ -116,13 +116,12 @@ val v :
 
     - With [size], [ppf] is a terminal of that width and height, which the
       display reads again before each redraw: [view] is redrawn in place, in a
-      room of at most [h - 1] lines of [w] cells. A width or a height is taken
-      in \[[1];[4096]\]: a larger one is [4096], and a smaller one [1]. The
-      region shows once [delay] seconds (defaults to [0.]) passed on [now], so
-      that work done sooner draws no region: what {!print} prints goes out at
-      once all the same, and {!close} prints the last frame. A negative [delay]
-      is [0.]; with [nan] or [infinity] the region never shows, and only
-      {!close} draws the view.
+      room of at most [h - 1] lines of [w] cells. A width or a height is clamped
+      to \[[1];[4096]\]. The region appears once [delay] seconds (defaults to
+      [0.]) have passed on [now], so that work that ends sooner draws no region;
+      {!print} still writes at once, and {!close} prints the last frame. A
+      negative [delay] is [0.]; with [nan] or [infinity] the region never shows,
+      and only {!close} draws the view.
     - Without [size], [view] is printed once, still and whole, when the display
       closes. *)
 
@@ -130,10 +129,11 @@ val set_view : t -> View.t -> unit
 (** [set_view d view] draws [view] from now on, at once. *)
 
 val print : t -> View.t -> unit
-(** [print d v] prints [v] once, above the region, in the scrollback: laid out
-    as wide as the terminal, as tall as it is and still, and written at once
-    with the region drawn again below it, in one update. Without a terminal it
-    is written at once, whole, in turn with the display's other lines. *)
+(** [print d v] prints [v] once, above the region, in the scrollback. [v] is
+    laid out still, as wide as the terminal and with no height bound, and
+    written at once with the region drawn again below it, in one update. Without
+    a terminal it is written at once, whole, in order with the display's other
+    lines. *)
 
 val with_output : t -> (Format.formatter -> 'a) -> 'a
 (** [with_output d f] prints what console does not see, such as the text of
@@ -158,10 +158,10 @@ val redraw : t -> unit
 
 val close : t -> unit
 (** [close d] takes the region off the screen, shows the cursor and prints the
-    view once more, its last frame, as the scrollback keeps it: still, as wide
-    as the terminal, or whole without one, and as tall as it is. A closed
-    display ignores what it is told: closing it again, {!redraw}, {!set_view}
-    and {!print} do nothing, and [with_output d f] is [f ppf], with [ppf] the
+    view once more as its last frame, which the scrollback keeps: still, as wide
+    as the terminal (whole without one), with no height bound. A closed display
+    ignores what it is told: closing it again, {!redraw}, {!set_view} and
+    {!print} do nothing, and [with_output d f] is [f ppf], with [ppf] the
     formatter of {!v}. *)
 
 val pp : t Fmt.t

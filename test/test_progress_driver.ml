@@ -140,8 +140,8 @@ let test_size () =
     (fun ppf root ->
       driver () ~progress:`Plain ~size:(fun () -> (12, 10)) ppf root)
 
-(* The clock stays at 0 here, so that no row is drawn: what shows of a task is
-   what it leaves. *)
+(* The clock stays at 0, so no row is drawn and the output holds only what
+   [commit] leaves of each task. *)
 let test_commit () =
   let out commit =
     shown (fun ppf root -> driver () ~progress:`Tty ~size ?commit ppf root)
@@ -158,7 +158,8 @@ let test_commit () =
     "nothing" false
     (Display_harness.contains "fine" (out (Some none)))
 
-(* The rows of a task that runs while the clock moves, and nothing it leaves. *)
+(* [rows ()] is what a display prints of a task that runs while the clock
+   moves, with a [commit] that leaves nothing of it. *)
 let rows ?layout ?delay () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -214,8 +215,8 @@ let succeeded =
 
 let is_closed = function Closed -> true | _ -> false
 
-(* What [write_error] takes for a write error ends the output and nothing
-   else, in each form, and it is given what the output raised. *)
+(* An exception that [write_error] accepts ends the output and nothing else,
+   in each form, and [write_error] is given the exception the output raised. *)
 let test_write_error_taken () =
   List.iter
     (fun (label, progress) ->
@@ -237,7 +238,8 @@ let test_write_error_taken () =
         (List.for_all is_closed !seen))
     forms
 
-(* What it does not take is the program's. *)
+(* An exception that [write_error] refuses reaches the program, and so does
+   every exception when there is no [write_error]. *)
 let test_write_error_not_taken () =
   List.iter
     (fun (label, progress) ->
@@ -273,8 +275,8 @@ let test_sys_error () =
       Alcotest.(check int) (label ^ ": not asked") 0 !asked)
     forms
 
-(* A flush fails as a write does, whether the output is gone before the
-   display is there or once it is. *)
+(* A flush that fails ends the output as a failing write does, whether the
+   output is gone before the display opens or after. *)
 let test_flush_fails () =
   List.iter
     (fun at_once ->
@@ -296,7 +298,7 @@ let test_flush_fails () =
         forms)
     [ false; true ]
 
-(* So may it be before a program prints through the display. *)
+(* [with_output] still calls its function once the output fails. *)
 let test_with_output_flush_fails () =
   let closed = ref false in
   let flush () = if !closed then raise (Sys_error "EPIPE") in
@@ -307,7 +309,8 @@ let test_with_output_flush_fails () =
   Display.with_output display (fun _ -> called := true);
   Alcotest.(check bool) "what it prints is asked for" true !called
 
-(* A view that raises is the program's, whatever [write_error] says. *)
+(* An exception that a view raises reaches the program, even when
+   [write_error] accepts every exception. *)
 let test_view_raises () =
   List.iter
     (fun (label, progress) ->

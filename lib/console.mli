@@ -14,11 +14,11 @@
     widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out views and
     print with {!Format}, and a {!Theme} gives them one look.
 
-    Every widget is a view, by its [view], laid out only when it is printed, in
-    the room it is given ({!View.fit}). So a table goes in a panel, the panel in
-    a cell of another table, beside a tree ({!View.hcat}) or in a display's
-    view, and each of them is drawn in the theme of the formatter that prints
-    it. [Console_eio.run] runs a {!Display}.
+    Each widget's [view] is a view, laid out only when it is printed, in the
+    room it is given ({!View.fit}). So a table goes in a panel, the panel in a
+    cell of another table, beside a tree ({!View.hcat}) or in a display's view,
+    and each of them is drawn in the theme of the formatter that prints it.
+    [Console_eio.run] runs a {!Display}.
 
     {b Guarantees.}
     - Widths are counted in terminal cells, as the terminal draws the text. A
@@ -42,8 +42,8 @@
     Text is in colour when its formatter is set to colour
     ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows.
     [Console_tty.setup], in the [console.tty] library, sets both for standard
-    output and standard error, from the terminal and the environment, by the
-    rules of {!Env}, which a program without Unix applies itself.
+    output and standard error, from the terminal and the environment, following
+    the rules of {!Env}; a program without Unix applies those rules itself.
 
     {1:quickstart Quick start}
 

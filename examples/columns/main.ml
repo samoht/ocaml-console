@@ -47,10 +47,10 @@ let table () =
          ])
        builds)
 
-(* The table, the trees side by side if each has 30 columns, and the
+(* The table, the two trees side by side when each gets 30 columns, and the
    summary, as they are at each frame. The display draws the last lines that
-   fit, so the table gives way first; the trees take the room the summary
-   leaves them, or are whole in the last frame. *)
+   fit, so the table gives way first; the trees take the height the summary
+   leaves them, and the last frame shows them whole. *)
 let view root =
   View.fit (fun r ->
       let room = min 100 (Option.value (Room.width r) ~default:100) in

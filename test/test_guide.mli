@@ -6,4 +6,4 @@
 (** Tests for nested-view guide glyphs. *)
 
 val suite : string * unit Alcotest.test_case list
-(** Alcotest cases for guide construction, equality and diagnostics. *)
+(** [suite] is the Alcotest test suite for {!Test_guide}. *)

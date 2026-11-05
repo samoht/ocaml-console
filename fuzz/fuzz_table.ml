@@ -124,7 +124,8 @@ let test_wide_border n =
 let themes = List.map snd Theme.all
 
 let check_marker_columns mixed s =
-  (* A marker in the next column gives an observable column boundary. *)
+  (* A [|] in the second column marks where the right-aligned first column
+     ends, which must be the same cell on every row. *)
   let t =
     Table.view ~border:Border.none
       [
@@ -183,8 +184,8 @@ let test_mixed_script_themes s n =
     themes;
   check_marker_columns mixed s
 
-(* [rules] draws a rule between each two rows, in the glyphs of the
-   header's rule: with the header's, as many rules as rows. *)
+(* With [~rules:true], a rule follows the header and each row but the last,
+   all in the glyphs of the header's rule: as many rules as rows. *)
 let test_rules s n =
   let ncol = columns_of s in
   let nrows = 1 + (abs n mod 6) in
@@ -199,8 +200,9 @@ let test_rules s n =
   check_eq ~pp:Fmt.int nrows (List.length rules);
   List.iter (fun r -> check_eq ~pp:Fmt.Dump.string (List.hd rules) r) rules
 
-(* Border fields are independent: even an empty body edge occupies the
-   column of its nonempty corners and crossings. *)
+(* Each field of a border is drawn on its own: an empty left or right edge
+   still takes the column of its corners and crossings, so every line is as
+   wide. *)
 let test_independent_edges a b empty_right =
   let a = 1 + (a mod 8) and b = 1 + (b mod 8) in
   let border =

@@ -177,7 +177,7 @@ let code_words text =
     text;
   cut_after (fun t i -> (not quoted.(i)) && last_space t i) text
 
-(* The rule [View.wrap] followed before: a word also ends after a slash. *)
+(* A word rule under which a word also ends after a slash. *)
 let slash_words = cut_after (fun t i -> t.[i] = '/' || last_space t i)
 let byte_words = cut_after (fun _ _ -> true)
 
@@ -291,8 +291,8 @@ let test_link () =
   Alcotest.(check string)
     "an empty URI links nowhere" "x"
     (View.to_string ~styled:true (View.link ~uri:"" (View.text "x")));
-  (* A form feed ends a line, as a line feed does: such a label has no text
-     to click, and the link is written over the lines that have some. *)
+  (* A form feed ends a line, as a line feed does, so this label has no text
+     to link: a link is written only over the lines that have text. *)
   Alcotest.(check string)
     "a label of line ends links nothing" "\n\n"
     (View.to_string ~styled:true
@@ -472,8 +472,8 @@ let test_role () =
     "sanitized" "a b"
     (View.to_string (View.role `Failed (View.text "a\027b")))
 
-(* A role laid under a span: its own styles and links win, a line of it at
-   a time. *)
+(* [View.role] colours a span from under it: the span's own styles and links
+   win, and each line of the span takes the role's colour. *)
 let test_with_role () =
   let check what want got =
     Alcotest.(check string)
@@ -503,8 +503,9 @@ let test_with_role () =
 
 let pp_at margin v = printed ~margin v
 
-(* A [fit] part is laid out in the room it is printed in: the margin under
-   [pp], none where it is measured or printed whole. *)
+(* A [fit] part is laid out in the room it is printed in: the formatter's
+   margin under [pp], the width given to [sized], and no width where it is
+   measured or printed whole. *)
 let test_fit_room () =
   let room =
     View.fit (fun r ->

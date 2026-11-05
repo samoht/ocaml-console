@@ -10,7 +10,7 @@ type level = Task_core.level
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
 
-(* A transient task that succeeded leaves its place to the tasks under it. *)
+(* A transient task that succeeded is replaced by the tasks under it. *)
 let rec children t =
   List.concat_map
     (fun c ->

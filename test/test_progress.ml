@@ -90,7 +90,7 @@ let test_json () =
     [ None; Some (fun () -> (80, 24)) ]
 
 (* As JSON, each change of a count is one event, unthrottled, and a call
-   that changes nothing is none. *)
+   that changes nothing writes no event. *)
 let test_json_counts () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in

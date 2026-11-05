@@ -8,7 +8,7 @@ module Event = Console.Task.Event
 
 let known_events = [ "start"; "progress"; "label"; "output"; "end" ]
 
-(* Strings that are, often, a listed value of a member. *)
+(* Strings that are often one of the listed values of a member. *)
 let value listed = choose (bytes :: List.map const listed)
 
 let open_value listed =
@@ -36,8 +36,8 @@ let nat = map [ int ] (fun n -> n land max_int)
 let task = map [ nat; list bytes ] (fun id path -> (id, path))
 let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
 
-(* Any event, but for its time: [other] names an event that is not
-   listed. *)
+(* Any event, as a function of its time. [Event.other] is given only a name
+   that is not a listed event. *)
 let kind =
   choose
     [
@@ -55,8 +55,8 @@ let kind =
           if List.mem s known_events then bad_test () else Event.other s);
     ]
 
-(* No byte of a line is a control character, nor is a character of it
-   C1. *)
+(* [no_control s] holds when [s] has no control byte and no C1 control
+   character. *)
 let no_control s =
   String.for_all (fun c -> Char.code c >= 0x20 && c <> '\127') s
   &&
@@ -74,12 +74,12 @@ let decode line =
   | Ok e -> e
   | Error (`Msg e) -> failf "%S does not decode: %s" line e
 
-(* Two events are the same if they write the same line: [Event.t] is
-   abstract, and its line holds each of its members. *)
+(* [same_event a b] is [true] iff [a] and [b] write the same line: [Event.t]
+   is abstract, and its line holds each of its members. *)
 let same_event a b = String.equal (Event.to_string a) (Event.to_string b)
 
-(* An event's line decodes, and its event is written as the line is: valid
-   UTF-8 on one line, without a control character. *)
+(* An event's line is valid UTF-8 on one line, without a control character,
+   and decodes to an event that writes the same line. *)
 let test_round_trip time kind =
   let e = kind ~time in
   let line = Event.to_string e in
@@ -89,8 +89,9 @@ let test_round_trip time kind =
   check_eq ~pp:Fmt.Dump.string line (Event.to_string back);
   check (same_event back e)
 
-(* [other] refuses a listed event name; [`Other s] with [s] a listed value
-   is that value. Either reads back as it is. *)
+(* [Event.other] refuses a listed event name, and an event with an
+   [`Other s] unit, level or status reads back equal to itself, also when
+   [s] is a listed value. *)
 let test_other s =
   (match Event.other ~time:0. s with
   | e ->
@@ -109,8 +110,8 @@ let test_other s =
   | Ok e -> check (same_event (decode (Event.to_string e)) e)
   | Error _ -> ()
 
-(* [s] as an event holds it: each maximal subpart of an ill-formed
-   sequence and each C1 control is U+FFFD. *)
+(* [s] as an event holds it: each maximal subpart of an ill-formed sequence
+   and each C1 control replaced by U+FFFD. *)
 let cleaned s =
   let buf = Buffer.create (String.length s) in
   let rec go i =
@@ -127,8 +128,8 @@ let cleaned s =
   go 0;
   Buffer.contents buf
 
-(* Any bytes read back as valid UTF-8 without a C1 control, the bytes of
-   each other character kept. *)
+(* Any bytes in a label read back as [cleaned] gives them: valid UTF-8
+   without a C1 control, every other character kept. *)
 let test_string s =
   let e = decode (Event.to_string (Event.label ~time:0. (0, [ s ]) s)) in
   match (Event.task e, Event.text e) with
@@ -163,10 +164,10 @@ let test_count c n =
   check (Event.count e = Some c);
   check (Event.total e = Some n)
 
-(* Check every documented event field through the public Display API,
-   including arbitrary bytes in labels, end messages and result text: each
-   line decodes with Progress.Event.jsont, is written back as it was, and
-   is the event expected. *)
+(* Every event field, through the public display API, with any bytes in
+   labels, end messages and the result's message: each line decodes with
+   [Event.of_string], encodes back to the same line, and is the event
+   expected. *)
 let public_schema_events k raw =
   let open Console in
   let clean s = Console_text.sanitize ~keep_newlines:false s in
@@ -219,8 +220,9 @@ let public_schema_events k raw =
   in
   (events, (count, status, detail))
 
-(* A display keeps the first 4 KiB of a label or a message, cut between
-   two characters and ended with three dots. *)
+(* What a display keeps of a label or a message: all of it within 4 KiB,
+   and otherwise its start cut between two characters and ended with three
+   dots, 4 KiB in all. *)
 let kept s =
   if String.length s <= 4096 then s
   else
@@ -261,8 +263,8 @@ let test_public_schema k text =
         failf "event %d is %a, not %a" i Event.pp actual Event.pp expected)
     (List.combine expected events)
 
-(* Include the finite limits and all IEEE-754 bit patterns, rather than
-   only the ordinary magnitudes produced by the float generator. *)
+(* Extreme times: the finite limits and any IEEE-754 bit pattern, which the
+   float generator rarely produces. *)
 let extreme_seconds =
   choose
     [
@@ -275,8 +277,9 @@ let test_extreme_seconds time =
   test_round_trip time (fun ~time:t ->
       Event.succeeded ~task:(0, [ "work" ]) ~time:t ~elapsed:time ())
 
-(* A future event may reuse a current member's name for another JSON type.
-   None of those members belongs to the unknown event's schema here. *)
+(* An unknown event may carry a member with a known name and another JSON
+   type, as a future event might: it decodes as [Event.other], the member
+   ignored. *)
 let test_unknown_schema k =
   let members =
     [|
@@ -297,7 +300,7 @@ let test_unknown_schema k =
   let line = Fmt.str {|{"time":1.25,"event":"pause","%s":%s}|} name json in
   check (same_event (decode line) (Event.other ~time:1.25 "pause"))
 
-(* Deliberately malformed inputs, not prefixes cut out of UTF-8 text. *)
+(* Truncated multi-byte sequences, each a whole input. *)
 let invalid_prefix =
   choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
 
@@ -307,8 +310,9 @@ let test_invalid_bytes raw =
   check (Event.text (Event.output ~time:0. raw) = Some expected);
   check_eq ~pp:Fmt.Dump.string expected (Console_text.sanitize raw)
 
-(* Accessors expose just the members of their event, including optional
-   members; the constructor and the codec must agree on their absence. *)
+(* Each accessor gives the member of its event, and [None] for a member the
+   event does not have, on the event built and on the event decoded from its
+   line. *)
 let test_accessors raw id n =
   let text = cleaned raw and task = (id, [ cleaned raw ]) in
   let verify ?task ?parent ?count ?total ?unit ?status ?elapsed ?text ?message

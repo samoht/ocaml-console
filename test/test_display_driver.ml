@@ -110,10 +110,10 @@ let test_scope () =
     ]
     (split (Buffer.contents buffer))
 
-(* A signal handler runs at any safe point, such as in the middle of a
-   write of the display. What it asks of the display through [when_idle]
-   waits until that write is done: a suspension called from a write
-   erases the region the screen shows, not one still to be written. *)
+(* A signal handler runs at any safe point, such as in the middle of a write
+   of the display. What it asks of the display through [when_idle] waits until
+   that write is done, so that a suspension asked for during a write erases the
+   region on the screen rather than a region half written. *)
 let test_when_idle () =
   let vte = Console_vte.v ~rows:8 ~cols:40 () in
   let buffer = Buffer.create 256 in

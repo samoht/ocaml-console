@@ -3,30 +3,44 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A command that ends inside a live display the way its argument says: it
-   returns, calls [exit] (a CLI's error path), raises to the toplevel, or has
-   its fiber cancelled; or, with [secret], it is interrupted while it reads
-   a password; or, with [colourless], it chose no colour before the display;
-   or, with [widgets], it prints every widget before it; or, with [themed],
-   it gave standard error a theme and chose nothing else; or, with [logs] or [logs-failed], its
-   task prints and logs, then succeeds or fails; or, with [suspend], it is stopped by
-   SIGTSTP, as Ctrl-Z does, and goes on once continued, or, with
-   [orphaned-suspend], in a session of its own where no stop takes effect; or, with [unflushed], it
-   prints lines it never flushes; or, with [held], it prints a line outside a
-   task that it does not flush, then one in a task that fails; or, with
-   [spawn], it starts its first domain during the display; or, with
-   [sigint-mid-write] or [sigint-blocked], it is interrupted in the middle
-   of a frame's write; or, with [secret-lost], as [secret] once its terminal
-   is gone; or, with [cut-link] or [cut-sequence], it is interrupted in a
-   write that never ends, cut inside a link or a control sequence; or, with
-   [exit-thread-blocked] or [exit-domain-blocked], a thread or a domain calls
-   [exit] during such a write; or, with [stop-blocked], it is stopped by
-   SIGTSTP during a write that ends after a while; or, with [elsewhere], a
-   thread prints on its terminal; or, with [sigint-beside], SIGINT comes while
-   another domain computes, and with [sigint-masked] while its thread blocks it
-   too; or, with [exit-domain-drawing] or [exit-thread-drawing], a domain or a
-   thread calls [exit] while it redraws. It also prints a line on standard
-   output, which goes above the region, and its task a line of output. *)
+(* [teardown.exe how] ends inside a live display as [how] says. Without an
+   argument its task succeeds; with [sigint], [exit], [raise] or [cancel], it
+   is interrupted, calls [exit] (a CLI's error path), raises to the toplevel
+   or has its fiber cancelled. In these cases it also prints a line on
+   standard output, which goes above the region, and its task a line of
+   output. The other arguments are:
+   - [secret]: SIGINT comes while it reads a password; with [secret-lost],
+     once its terminal is gone from standard input too;
+   - [colourless]: it chose no colour before the display;
+   - [widgets]: it prints every widget before the display;
+   - [themed]: it gave standard error a theme and chose nothing else;
+   - [logs] or [logs-failed]: its task prints and logs, then succeeds or
+     fails;
+   - [quiet-ok], [quiet-fail] or [quiet-cancel]: in quiet mode, its task
+     prints and logs, then succeeds, fails or is cancelled;
+   - [suspend]: SIGTSTP stops it, as Ctrl-Z does, and it goes on once
+     continued; with [orphaned-suspend], in a session of its own, where no
+     stop takes effect;
+   - [unflushed]: it prints lines that it never flushes;
+   - [held]: it prints a line outside a task that it does not flush, then
+     one in a task that fails;
+   - [spawn]: it starts its first domain during the display;
+   - [elsewhere]: a thread prints on its terminal;
+   - [sigint-mid-write]: SIGINT comes in the middle of the write of a frame;
+     with [sigint-blocked], that write then never ends;
+   - [cut-link] or [cut-sequence]: SIGINT comes in a write that never ends,
+     cut inside a link or a control sequence;
+   - [exit-thread-blocked] or [exit-domain-blocked]: a thread or a domain
+     calls [exit] during such a write;
+   - [stop-blocked]: SIGTSTP stops it during a write that ends after a
+     while;
+   - [sigint-beside]: SIGINT comes while another domain computes; with
+     [sigint-masked], while the thread of the display blocks it too;
+   - [exit-domain-drawing] or [exit-thread-drawing]: a domain or a thread
+     calls [exit] while the display redraws;
+   - [repeated-signal first second cut closing]: two signals, each [int] or
+     [term], come in a row in the middle of a write, cut after [cut]
+     bytes. *)
 
 (* SIGINT comes once the password is masked. *)
 let secret env =
@@ -251,9 +265,10 @@ let held _env =
 
 (* The program's first domain starts in the middle of the display, and
    Format gives the standard formatters a buffer per domain; lines follow,
-   outside a task and in one that fails. Once the display is gone, whether a
-   write on standard error waits for a flush, as Format's own do once a
-   domain started, rather than going on the channel. *)
+   outside a task and in one that fails. Once the display is gone, it prints
+   whether a write on standard error waits for a flush, as Format's own
+   writes do once a domain has started, rather than going straight to the
+   channel. *)
 let spawn _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Domain.join (Domain.spawn ignore);

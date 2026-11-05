@@ -36,8 +36,8 @@ val clock : unit -> (unit -> float) * (float -> unit)
 
 val rooted :
   ?label:string -> ?view:(Task.t -> 'a) -> (unit -> float) -> Task.t * 'a option
-(** [rooted now] is a {{!Console.Task.root}root} timed by [now] and [view] of
-    that root, if given. *)
+(** [rooted ?view now] is a {{!Console.Task.root}root} timed by [now], and
+    [view] applied to that root, if given. *)
 
 val plain :
   ?label:string ->
@@ -48,11 +48,11 @@ val plain :
   ?keep_ended:bool ->
   (Task.t -> (float -> unit) -> 'a) ->
   'a * string
-(** [plain f] is the value of [f root advance] for a {{!Console.Task.root}root}
-    whose tasks show on a formatter that is not a terminal, in [progress]
-    (defaults to [`Plain]), and what it wrote once the work succeeded, unless
-    [f] ended it, and the display closed, as under [Console_eio.run]. [theme],
-    if given, is set on the formatter. *)
+(** [plain f] runs [f root advance] for a {{!Console.Task.root}root} whose tasks
+    show on a formatter that is not a terminal, in [progress] (defaults to
+    [`Plain]). Then, as under [Console_eio.run], the root succeeds unless [f]
+    ended it, and the display closes. The result is the value of [f] and what
+    the display wrote. [theme], if given, is set on the formatter. *)
 
 type term = private {
   vte : Console_vte.t;
@@ -85,16 +85,16 @@ val terminal :
     [width] by [height] (defaults to 40 by 8), in colour iff [styled] (defaults
     to [false]). If [raw] (defaults to [false]) the terminal's line discipline
     is in raw mode: a line feed moves down and keeps the column. [before]
-    (defaults to [""]) is what the host wrote on the terminal before the display
-    started. [theme], if given, is set on the display's formatter. *)
+    (defaults to [""]) is written on the terminal before the display starts.
+    [theme], if given, is set on the display's formatter. *)
 
 val roomy : unit -> term
 (** [roomy ()] is a {!terminal} of 30 by 10 in {!Console.Theme.dos}, with room
     for a task, its window and its logs. *)
 
 val close : term -> unit
-(** [close t] ends the work as a success, unless it ended, and closes the
-    display, as [Console_eio.run] does once its function returns. *)
+(** [close t] makes the root succeed, unless it ended, and closes the display,
+    as [Console_eio.run] does once its function returns. *)
 
 val writes : term -> int
 (** [writes t] is the number of writes the display made. *)

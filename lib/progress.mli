@@ -37,9 +37,9 @@ type t =
   | `Json
     (** Each event ({!Task.Event}) is one JSON object on a line of its own, and
         nothing else is printed: what the program prints on the display's
-        formatter is the output of no task, as events too. *) ]
+        formatter becomes [output] events with no task. *) ]
 (** The type for progress modes, how the tasks of a root show. Constructors may
-    be added, so a match on a progress mode has a case for the others. *)
+    be added, so a match on a progress mode needs a case for the others. *)
 
 val all : (string * t) list
 (** [all] is every progress mode under its name, [`Auto] first, which are the
@@ -86,11 +86,11 @@ val pp : t Fmt.t
       bytes, gets shorter, such as [256M/2.0G];
     + the elapsed time.
 
-    Only once all of them have is the label cut, with an ellipsis. A piece that
-    gives way, or that shows nothing, takes with it the blank {!Layout.const}
-    before it, or after it. Every row's label fits its column, so the rows of a
-    region give way together, and once the count leaves its column, the label,
-    the spinner and the mark leave theirs too.
+    The label is cut, with an ellipsis, only once all of them have given way. A
+    piece that gives way, or that shows nothing, takes with it the blank
+    {!Layout.const} before it, or after it. Every row's label fits its column,
+    so the rows of a region give way together, and once the count leaves its
+    column, the label, the spinner and the mark leave theirs too.
 
     {b Columns.} The label, the bar, the count and the rate each take a column
     that the rows of a root share, and the elapsed time a column of six cells; a
@@ -114,9 +114,9 @@ val pp : t Fmt.t
     So a column widens at most once for each new kind of progress, for a count
     of items with more digits, or for a wider label: a display of bytes alone,
     or one whose tasks of bytes count from their start, never widens after its
-    first frame of bytes but for a label, and one where a task of bytes comes
+    first frame of bytes except for a label, and one where a task of bytes comes
     among rows of items widens once. While no piece gives way and no column
-    widens each piece sits in the same columns on every row and in every frame.
+    widens, each piece sits in the same columns on every row and in every frame.
 
     A program that wants the count, the rate and the time against the right edge
     puts a {!Layout.spacer} before them, which takes the room the bar leaves:
@@ -154,9 +154,9 @@ module Layout : sig
       cut to it with an ellipsis. *)
 
   val bar : ?width:int -> unit -> t
-  (** [bar ()] is a progress bar ({!Bar.horizontal}), [width] cells wide, or
-      without [width] growing to fill the room, up to 40 cells, before a
-      {!spacer} takes the rest. No bar shows before the task counts something.
+  (** [bar ()] is a progress bar ({!Bar.horizontal}) [width] cells wide or,
+      without [width], growing to fill the room up to 40 cells and leaving the
+      rest to a {!spacer}. No bar shows before the task has a count.
 
       @raise Invalid_argument if [width] is negative. *)
 
@@ -170,7 +170,7 @@ module Layout : sig
   val rate : t
   (** [rate] is the bytes per second of a task that counts bytes, right-aligned
       in the column of the rates. The rate weighs the past by the time since it
-      was measured, not by how often the count is said, so a program that
+      was measured, not by how often the count is given, so a program that
       reports often and one that reports seldom show the same rate for the same
       work. *)
 
@@ -256,14 +256,14 @@ val tree : ?layout:Layout.t -> Task.t -> View.t
       cancellation followed by its output, and a label never cut: one too wide
       goes on over the next lines, never in fewer than 12 cells, its count and
       time at the end of its last line, or giving way as {!Layout} says.
-    - A transient task that succeeded leaves its place to the tasks under it,
-      and a task forgotten, once in the scrollback, is {!View.empty}. *)
+    - A transient task that succeeded is replaced by the tasks under it, and a
+      task forgotten once it moved to the scrollback is {!View.empty}. *)
 
 val summary : Task.t -> View.t
 (** [summary root] is the summary line of the work of [root], if its root has a
-    label ({!Task.root}), and {!View.empty} otherwise: the mark of how the work
-    is, its label, the time since it started and the count of the tasks that
-    ended out of those started. In a room, the time and the count give way
+    label ({!Task.root}), and {!View.empty} otherwise: the mark of the state of
+    the work, its label, the time since it started and the count of the tasks
+    that ended out of those started. In a room, the time and the count give way
     before the label. The mark is the running mark until the root ends, then the
     worst of how the root and its tasks ended. *)
 
@@ -298,7 +298,7 @@ val show :
       and whole without [size].
     - [view] (defaults to {!val-view}[ root]) is the region, redrawn in place,
       and the last frame printed when the display closes, with [`Plain] too. A
-      view that raises is dropped for the default one, and the display raises
+      view that raises is replaced by the default one, and the display raises
       its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
       ends leaves in the scrollback, given the task as it ended, with the output
@@ -306,27 +306,28 @@ val show :
     - [plain], if given, prints the program's own lines in place of those of the
       tasks when they print as lines, with [`Plain] or with [`Auto] off a
       terminal: [plain e] for each event [e] of a task, as wide as [size] says
-      or whole, and nothing for [None]. The output of no task and the view's
-      last frame print as without it. A program learns so whether the rows show:
-      [plain] is called only when they do not.
+      or whole, and nothing for [None]. The lines that belong to no task and the
+      view's last frame print as they do without [plain]. [plain] is called only
+      when the rows do not show, so a program learns from it whether they do.
     - [delay] (defaults to [0.]) is the seconds before the rows first show, as
-      {!Display.v} takes it: a work that ends sooner shows no rows, only its top
+      {!Display.v} takes it: work that ends sooner shows no rows, only its top
       tasks in the scrollback and the last frame.
     - [keep_ended] (defaults to [false]) keeps the tasks that ended in the
-      region until the display closes, where they otherwise move to the
-      scrollback with their top task ({!design}). With [`Plain] it keeps them
-      too, for the view's last frame and {!Task.children}, so the default view
-      then ends with their whole tree.
+      region until the display closes, instead of moving them to the scrollback
+      with their top task ({!design}). With [`Plain] it keeps them too, for the
+      view's last frame and {!Task.children}, so the default view then ends with
+      their whole tree.
     - [layout] (defaults to {!Layout.default}) draws the rows of the default
       [view] and of the default [commit]; a [view] or a [commit] given draws its
       own.
 
-    The display takes none of what the program prints on [ppf] but what
-    {!Display.with_output} prints: with [`Quiet] it shows, and with [`Json] it
-    breaks the lines of events. [Console_eio.run] takes the standard outputs.
-    What {!Display.print} and {!Display.with_output} print is output of no task:
-    above the rows, in turn with the lines, and with [`Json] an [output] event
-    for each of its lines, without escape codes. *)
+    The display captures only what the program prints on [ppf] through
+    {!Display.with_output}. Other text printed on [ppf] shows as it is with
+    [`Quiet], and breaks the lines of events with [`Json]. [Console_eio.run]
+    captures the standard outputs. What {!Display.print} and
+    {!Display.with_output} print belongs to no task: it goes above the rows, in
+    turn with the lines, and with [`Json] it is an [output] event for each of
+    its lines, without escape codes. *)
 
 (** {1:design Design}
 
@@ -339,20 +340,20 @@ val show :
       parent, while its top task runs.
     - When a top task ends, it moves to the scrollback with every task under it,
       as its tree: each task once, under its parent, in the order they started,
-      and a task that failed or was cancelled followed by its output. Work moves
+      and a task that failed or was cancelled followed by its output. Tasks move
       by top task so that a task never lands above its parent and the tasks of
-      one top task stay together, however their endings interleave. The tree is
+      one top task stay together, however their ends interleave. The tree is
       laid out, then the task forgotten, then the tree printed with the region
       drawn again below it, so it never shows twice.
     - With [keep_ended] ({!show}), no task moves: the tasks that ended stay in
       the region until the display closes, as in a view of trees side by side,
       where a column should not empty while the others run.
     - The output of the root, and a [Logs] message or a printed line from a
-      fiber whose task ended, go to the scrollback at once. A line given to a
-      task that ended with {!Task.log} is dropped. A line wider than the
-      terminal goes on over the next rows as the terminal wraps it, mid-word, as
-      it would without the display, while a line after a mark, such as a
-      warning, goes on under its text, broken between words.
+      fiber whose task ended, go to the scrollback at once. {!Task.log} drops a
+      line given to a task that ended. A line wider than the terminal goes on
+      over the next rows as the terminal wraps it, mid-word, as it would without
+      the display, while a line after a mark, such as a warning, goes on under
+      its text, broken between words.
     - Only running rows, their windows and the summary change: a task that ended
       keeps its line as it ended until it leaves the region, or folds to fit.
     - A change to the tasks is drawn at once if the last frame is a tenth of a
@@ -373,8 +374,8 @@ val show :
     - At close, the root ends cancelled if it runs, its tasks move as above,
       then the view's last frame is printed once, still, and stays: the summary
       alone in the default view, unless [keep_ended] kept the tasks.
-    - The tasks that wait in the region under a task are bounded: past 1 MiB,
-      the oldest are dropped, and a line counts them.
+    - The ended tasks kept in the region under a task are bounded: past about 1
+      MiB, the oldest are dropped, and a line counts them.
 
     Without a terminal there is no region. The tasks print the lines of
     [`Plain]: one line when a task starts and one when it ends, in the order
@@ -390,12 +391,13 @@ val show :
     glyph that no mark takes and that a label seldom holds; on another it is
     [>]. The lines of tasks start at the first column, and a line of output two
     columns in. A task's line when it ends says [failed] or [cancelled] when it
-    did not succeed, as no colour may. With [`Quiet], the line of a failure
-    names its path too, and its output follows it, two columns in.
+    did not succeed, since the output may have no colour. With [`Quiet], the
+    line of a failure names its path too, and its output follows it, two columns
+    in.
 
-    A line of output that comes a second or more after the task's line before
-    it, or after the task started, ends with that wait, muted, such as [+3.0s],
-    so that a pause in the work shows where it happened.
+    A line of output that comes a second or more after the task's previous line,
+    or after the task started, ends with that delay, muted, such as [+3.0s], so
+    that a pause in the work shows where it happened.
 
     {1:guarantees Guarantees}
 

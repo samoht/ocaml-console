@@ -37,14 +37,14 @@ val column :
     - [width] is its width, in cells, at its natural size (defaults to the width
       of its widest cell), within [min_width] and [max_width]. It narrows to fit
       as any column does, and a cell wider than it overflows;
-    - [min_width] and [max_width] bound its width, in cells (default to none: it
-      narrows to one cell to fit). The table goes below [min_width] only when
+    - [min_width] and [max_width] bound its width, in cells (defaults to none:
+      it narrows to one cell to fit). The table goes below [min_width] only when
       nothing else fits;
     - [overflow] is what a cell wider than the column does (defaults to
-      [`Wrap]). Under [`Wrap], the column keeps the width of its widest word
-      while another column can narrow, so that a word stays whole, and a cell
-      laid out in its room keeps its {!View.fit} [min_width] instead: a
-      {!Bar.sparkline} narrows to one cell;
+      [`Wrap]). Under [`Wrap], the column does not narrow below its widest word
+      while another column can, so that words stay whole. For a cell laid out in
+      its room, its {!View.fit} [min_width] counts instead of a word, so a
+      column of {!Bar.sparkline}s narrows to one cell;
     - [shrinkable] is [false] for a column that is the last to narrow (defaults
       to [true]);
     - [style] is the style of its cells (defaults to {!Style.none}).

@@ -5,22 +5,22 @@
 
 (** Terminal geometry and tty detection.
 
-    Eio has no [isatty], so that is the smallest wrapper over Unix; the window
-    size is Eio's. *)
+    Eio has no [isatty], so {!is_tty} wraps [Unix.isatty]; the window size comes
+    from [Eio_unix.Pty]. *)
 
 val width : Eio_unix.Fd.t option -> int
-(** [width fd] is the width in columns of the terminal behind [fd]: [$COLUMNS]
-    if it is in \[[1];[4096]\], which overrides the terminal's as POSIX XBD 8.3
-    says, else the [TIOCGWINSZ] ioctl on [fd] if positive, else [80]. [None]
-    asks no ioctl. *)
+(** [width fd] is the width in columns of the terminal behind [fd]. It is
+    [$COLUMNS] if that is in \[[1];[4096]\], since POSIX XBD 8.3 lets it
+    override the terminal; else the [TIOCGWINSZ] ioctl on [fd] if positive; else
+    [80]. With [None], no ioctl is made. *)
 
 val height : Eio_unix.Fd.t option -> int
 (** [height fd] is like {!width} for the height in rows, from [$LINES], else
     [24]. *)
 
 val asked : unit -> (unit -> int * int) option
-(** [asked ()] is the size an output that is not a terminal is asked to lay out
-    at: [Some size] if [$COLUMNS] is in \[[1];[4096]\], [size ()] being that
+(** [asked ()] is the size at which to lay out an output that is not a terminal:
+    [Some size] if [$COLUMNS] is in \[[1];[4096]\], where [size ()] is that
     width and {!height}[ None], and [None] otherwise. *)
 
 val is_tty : Eio_unix.Fd.t -> bool

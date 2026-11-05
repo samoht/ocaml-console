@@ -128,9 +128,9 @@ let test_downsample_16 () =
   check "high palette entry" Color.bright_red (Color.ansi_256 196);
   check "named stays" Color.cyan Color.cyan
 
-(* The stops of a gradient spread evenly: each at its place, as given, and
-   between two the blend of the pair around it. Rounding each component of
-   a + f (b - a), as Color.blend says. *)
+(* The stops of a gradient are spread evenly: each stop is the colour at its
+   place, and between two stops the colour is their blend, each component
+   rounded from a + f (b - a), as [Color.blend] says. *)
 let test_gradient () =
   let rgb = Alcotest.(triple int int int) in
   let stops = [ Color.rgb 0 0 0; Color.red; Color.rgb 255 255 255 ] in

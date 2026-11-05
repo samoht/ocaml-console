@@ -41,7 +41,8 @@ let test_event_example () =
       Alcotest.(check (float 0.)) "time" 1.001376 time;
       Alcotest.(check string) "data" "Hello world" data
 
-(* The stream's other code is "i", the input, which is not output. *)
+(* [Cast.event] reads output events alone: it refuses an "i" (input) event,
+   an event without data and one whose time is not a number. *)
 let test_event_refused () =
   refused "input" Cast.event {|[1.0, "i", "x"]|};
   refused "no data" Cast.event {|[1.0, "o"]|};

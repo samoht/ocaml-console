@@ -25,11 +25,11 @@ type t = {
   level : level option;
 }
 
-(* Every number is written with 15 significant digits, the most that a
-   float holds exactly: then a time rounded to the millisecond is written
-   as short as it can be, 1.5 or 0, and an integer exactly below 10^15.
-   An integer from 10^15 is a string of decimal digits, as jsont writes an
-   integer beyond 2^53-1; both forms decode. *)
+(* Numbers are written with 15 significant digits, the most that survive a
+   round trip through a float. A time rounded to the millisecond is then
+   written as short as it can be (1.5, 0), and an integer below 10^15
+   exactly. An integer from 10^15 up is written as a string of decimal
+   digits, as jsont writes one beyond 2^53-1; [natural] decodes both. *)
 let number_format : Jsont.number_format = "%.15g"
 
 let natural_error s =
@@ -67,8 +67,9 @@ let int =
 
 let int64 = natural ~to_int64:Fun.id ~of_int64:Option.some
 
-(* Seconds rounded to the millisecond in [-10^12, 10^12]: at most 15
-   significant digits, so that the number written reads back as it was. *)
+(* Seconds are clamped to [-10^12, 10^12] and rounded to the millisecond:
+   at most 15 significant digits, so that the number written reads back as
+   it was. *)
 let max_seconds = 1e12
 
 let rounded_seconds x =
@@ -80,13 +81,11 @@ let rounded_seconds x =
 let seconds = Jsont.map Jsont.number ~dec:rounded_seconds ~enc:rounded_seconds
 
 (* A C1 control, U+0080 to U+009F, acts as an escape code on a terminal
-   that reads 8-bit controls; jsont escapes C0 controls and DEL. *)
+   that reads 8-bit controls. jsont already escapes C0 controls and DEL. *)
 let is_c1 u =
   let c = Uchar.to_int u in
   c >= 0x80 && c <= 0x9f
 
-(* [s] as valid UTF-8 of characters that [keep]: each ill-formed sequence and
-   each character [keep] refuses is one U+FFFD. *)
 let replaced keep s =
   let rec is_clean i =
     i >= String.length s
@@ -252,8 +251,9 @@ let text e = e.text
 let message e = e.message
 let level e = e.level
 
-(* A member of an event of another name may have another type: it reads
-   as [Mistyped], which an event of a listed name refuses. *)
+(* A member of an event with an unlisted name may have any type. Such a
+   member decodes as [Mistyped], which [of_members] refuses for an event
+   with a listed name. *)
 type 'a member = Typed of 'a | Mistyped
 
 let member c =
@@ -270,8 +270,8 @@ let member c =
     ~enc:(fun _ -> enc)
     ()
 
-(* The object as it is written: every member, in the order of the line,
-   each absent when the event has none. *)
+(* The members of an event's JSON object, in the order they are written;
+   [None] for a member the event does not have. *)
 type members = {
   time : float;
   event : string;
