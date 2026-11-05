@@ -1,0 +1,7 @@
+; Starting a domain rules out Unix.fork for the rest of the program, which the
+; other tests need, so these run in a program of their own.
+
+(test
+ (name test)
+ (package console)
+ (libraries alcotest astring console fmt))
