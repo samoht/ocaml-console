@@ -99,6 +99,9 @@
 - `CONSOLE_CAST` recordings are now valid asciicast v2: the header is UTF-8
   whatever `$TERM` holds, and C1 control characters are escaped (#50).
 
+- `Bar.horizontal ~brackets:true` given a width near `max_int` now fills its
+  room, instead of drawing one cell or none (#60).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
