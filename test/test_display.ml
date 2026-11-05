@@ -2324,8 +2324,8 @@ let test_view_urgent () =
         (Console_vte.cursor_visible t.vte))
     [ Sys.Break; Out_of_memory; Stack_overflow; Fun.Finally_raised Sys.Break ]
 
-(* On a narrow terminal the label is what tells two rows apart: it gives
-   way last, after the bar, and the row still ends with its timer. *)
+(* On a narrow terminal the label is what tells two rows apart: it is cut
+   only once the bar has given way, and the row still ends with its timer. *)
 let test_label_before_bar () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let step = Task.start t.root "RUN make" in
@@ -2605,25 +2605,42 @@ let test_tty_transient_failure () =
     (List.exists (contains "[x] probe") all
     && List.exists (contains "disk full") all)
 
-let test_label_gives_way_last () =
-  let label = "a-label-of-thirty-cells-long-x" in
-  let given = Re.Perl.compile_pat "MiB|GiB|[0-9]s|\u{2588}|\u{2591}" in
-  List.iter
-    (fun width ->
-      let t = terminal ~theme ~width ~height:4 () in
-      let r = Task.start t.root label in
-      t.advance 1.;
-      Task.set_bytes r ~count:268435456L ~total:2147483648L;
-      t.advance 4.;
-      Display.redraw t.display;
-      let row = List.find (contains "a-label") (screen t) in
-      if not (contains label row) then
-        Alcotest.(check bool)
-          (Fmt.str "at %d nothing but the label is left in %S" width row)
-          false (Re.execp given row);
+(* The row of a task of bytes with a label of 30 cells, 5 seconds in, on a
+   terminal [width] wide. *)
+let bytes_row_at width =
+  let t = terminal ~theme ~width ~height:4 () in
+  let r = Task.start t.root "a-label-of-thirty-cells-long-x" in
+  t.advance 1.;
+  Task.set_bytes r ~count:268435456L ~total:2147483648L;
+  t.advance 4.;
+  Display.redraw t.display;
+  let row = List.hd (screen t) in
+  close t;
+  row
 
-      close t)
-    [ 80; 70; 60; 55; 45; 42; 36; 33; 30; 20 ]
+(* At each width from 80 cells down to 20, the row of bytes keeps its whole
+   label down to 67 cells (3 + 1 + 30 + 1 + 25 + 1 + 6), its bar down to 78,
+   with the 10 cells of the narrowest bar and one blank, and never its rate,
+   which needs 92. Its full count stays down to 49, where its label is cut
+   to 12 cells, and its time down to 33, where the short count of 9 cells
+   and a label of 12 still fit. *)
+let test_count_and_time_after_label () =
+  let bar = Re.Perl.compile_pat "\u{2588}|\u{2591}" in
+  for width = 80 downto 20 do
+    let row = bytes_row_at width in
+    let shows what expected actual =
+      Alcotest.(check bool)
+        (Fmt.str "at %d, %s in %S" width what row)
+        expected actual
+    in
+    shows "the whole label" (width >= 67)
+      (contains "a-label-of-thirty-cells-long-x" row);
+    shows "the bar" (width >= 78) (Re.execp bar row);
+    shows "the rate" false (contains "/s" row);
+    shows "the full count" (width >= 49) (contains "256.00 MiB / 2.00 GiB" row);
+    shows "the short count" (width < 49) (contains "256M/2.0G" row);
+    shows "the time" (width >= 33) (contains "5.0s" row)
+  done
 
 (* The cell of the last of [row]'s block or shade glyphs. *)
 let bar_end row = Option.map snd (bar_span row)
@@ -2878,23 +2895,53 @@ let test_replaced_label_widens_nothing () =
     ]
     (lines t)
 
+(* A running task keeps the widest label it has drawn in the label column,
+   so that a task renamed at each step moves no row sideways; once it ends,
+   its message alone counts. *)
+let test_running_label_kept () =
+  let t = terminal ~theme ~width:40 ~height:8 ~keep_ended:true () in
+  let a = Task.start t.root "a" and b = Task.start t.root "b" in
+  Task.set_items b ~count:1 ~total:9;
+  Task.set_label a "a-longer-label";
+  Display.redraw t.display;
+  Task.set_label a "a";
+  Display.redraw t.display;
+  check_lines "the column of the widest label a drew"
+    [ " |  a                        0.0s"; " |  b                  1/9   0.0s" ]
+    (screen t);
+  Task.succeed ~message:"done" a;
+  Display.redraw t.display;
+  let track = String.concat "" (List.init 14 (fun _ -> "\u{2591}")) in
+  check_lines "the column of the labels shown, room for a bar of 16 cells"
+    [
+      "[+] done                            0.0s";
+      " |  b    \u{2588}\u{2588}" ^ track ^ "     1/9   0.0s";
+    ]
+    (screen t);
+  Task.succeed b;
+  close t
+
+(* A row printed while a wider label runs keeps that width: the rows
+   printed after it line up with it, though the wider label then ends with
+   a shorter message. *)
+let test_printed_width_kept () =
+  let t = terminal ~theme ~width:40 ~height:8 () in
+  let fetch = Task.start t.root "fetch dependencies" in
+  let build = Task.start t.root "build" in
+  Display.redraw t.display;
+  Task.succeed build;
+  Task.succeed ~message:"fetched" fetch;
+  close t;
+  check_lines "one label column"
+    [ "[+] build                0.0s"; "[+] fetched              0.0s" ]
+    (lines t)
+
 (* A row of bytes with a label of 30 cells, as its terminal narrows: the
    rate gives way, then the bar; then the label is cut, down to 12 cells,
    while the count and the time keep their columns; then the count gets
    shorter, in a column of its own; then the time goes; and only then is
    the label cut further. *)
 let test_label_cut_before_count () =
-  let row_at width =
-    let t = terminal ~theme ~width ~height:4 () in
-    let r = Task.start t.root "a-label-of-thirty-cells-long-x" in
-    t.advance 1.;
-    Task.set_bytes r ~count:268435456L ~total:2147483648L;
-    t.advance 4.;
-    Display.redraw t.display;
-    let row = List.hd (screen t) in
-    close t;
-    row
-  in
   check_lines "each width"
     [
       " -  a-label-of-thirty-cells-long-x     256.00 MiB / 2.00 GiB   5.0s";
@@ -2903,7 +2950,7 @@ let test_label_cut_before_count () =
       " -  a-label-of-thirty\u{2026} 256M/2.0G";
       " -  a-lab\u{2026} 256M/2.0G";
     ]
-    (List.map row_at [ 70; 60; 48; 32; 20 ])
+    (List.map bytes_row_at [ 70; 60; 48; 32; 20 ])
 
 (* The line of a task that ended at its total runs from its label to its
    count with no gap: its bar is full. One that failed before its total
@@ -3565,8 +3612,8 @@ let suite =
         test_plain_transient_failure;
       Alcotest.test_case "a terminal shows a transient failure" `Quick
         test_tty_transient_failure;
-      Alcotest.test_case "the label gives way last" `Quick
-        test_label_gives_way_last;
+      Alcotest.test_case "the count and the time give way after the label"
+        `Quick test_count_and_time_after_label;
       Alcotest.test_case "the bars line up" `Quick test_bars_line_up;
       Alcotest.test_case "rows pack from the left" `Quick test_rows_pack_left;
       Alcotest.test_case "the bar shrinks before anything gives way" `Quick
@@ -3581,6 +3628,10 @@ let suite =
         test_replaced_label_widens_nothing;
       Alcotest.test_case "the label is cut before the count and the time" `Quick
         test_label_cut_before_count;
+      Alcotest.test_case "a running task keeps the widest label it drew" `Quick
+        test_running_label_kept;
+      Alcotest.test_case "a printed row keeps its width" `Quick
+        test_printed_width_kept;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;

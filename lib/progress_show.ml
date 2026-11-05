@@ -65,6 +65,7 @@ let print d vs = Display_core.print_lines d vs
 
 let laid_out d ~layout ~commit r =
   let look = Display_core.look d in
+  Work.hold_labels (work r);
   let width = min (Display_core.width d) 100 in
   let committed =
     match commit with None -> Some (tree ~layout r) | Some f -> f r
@@ -73,7 +74,8 @@ let laid_out d ~layout ~commit r =
 
 (* [moved d ~layout ~commit r] moves the ended task [r] from the region to the
    scrollback, drawn by [commit], as its tree by default. It is laid out
-   first, then forgotten, then printed, so that it never shows twice. If
+   first, then forgotten, then printed, so that it never shows twice. Its
+   label column is kept, so that the rows printed after it line up with it. If
    [commit] raises, [r] is still forgotten and nothing is printed. *)
 let moved d ~layout ~commit r =
   let committed =

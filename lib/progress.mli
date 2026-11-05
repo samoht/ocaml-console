@@ -76,31 +76,46 @@ val pp : t Fmt.t
     spinners and the marks take as many cells as the widest of them, so the
     labels start in one column too.
 
-    {b What gives way.} The label is what tells two rows apart, so it gives way
-    last. When a row does not fit its room, its bar first shrinks, down to 10
-    cells; then its pieces give way stage by stage, each piece at the stage
-    {!Layout.give_way} sets, by default:
+    {b What gives way.} The count and the elapsed time say how far a task is, so
+    they keep their columns until the label is cut as far as it can be. When a
+    row does not fit its room, its bar first shrinks, down to 10 cells; then its
+    pieces give way stage by stage, each piece at the stage {!Layout.give_way}
+    sets, by default:
     + the rate and the time left;
     + the bar and the percentage;
-    + the count, which leaves the column it shares with the other rows and, for
-      bytes, gets shorter, such as [256M/2.0G];
+    + the label, cut with an ellipsis to the room the others leave, down to 12
+      cells;
+    + the count of bytes, which gets shorter, such as [256M/2.0G], in a column
+      of its own;
     + the elapsed time.
 
-    The label is cut, with an ellipsis, only once all of them have given way. A
+    Only once all of them have given way is the label cut further, with an
+    ellipsis. From the third stage the label column takes the room the other
+    pieces leave, so the count and the time stay right-aligned at the end of the
+    row. A label wider than its column first takes the cells of the pieces after
+    it that show nothing, such as the count of a task that counts nothing. A
     piece that gives way, or that shows nothing, takes with it the blank
-    {!Layout.const} before it, or after it. Every row's label fits its column,
-    so the rows of a region give way together, and once the count leaves its
-    column, the label, the spinner and the mark leave theirs too.
+    {!Layout.const} before it, or after it. The rows of a region share their
+    columns, so they give way together; a task under another, whose label column
+    is narrower by the guides of its tree, keeps as many fewer cells of label.
 
     {b Columns.} The label, the bar, the count and the rate each take a column
     that the rows of a root share, and the elapsed time a column of six cells; a
-    row without a bar, a count or a rate leaves its column blank. The columns
-    are as wide as the labels and the kinds of progress seen so far need, and
-    they only widen:
-    - The label column is as wide as the widest label a row of the root has
-      drawn, behind the guides of its depth: a running row whose layout holds no
-      label ({!Layout.choose}) does not count. A task with a wider label widens
-      it in the first frame after it starts, or after it is renamed.
+    row without a bar, a count or a rate leaves its column blank. The bar, the
+    count and the rate columns are as wide as the kinds of progress seen so far
+    need, and only widen; the label column is as wide as the labels the rows
+    show:
+    - The label column is as wide as the widest label drawn, behind the guides
+      of its depth: that of each task that ended, its message if it has one, and
+      the widest label each running task has drawn, which a task renamed at each
+      step keeps while it runs, so that its row moves nothing sideways. A
+      running row whose layout holds no label ({!Layout.choose}) does not count.
+      A wider label widens the column in the first frame after its task starts,
+      is renamed or ends. Once a running task ends, its labels count no more, so
+      a label it was renamed from widens no row after it: the column narrows if
+      that label was the widest. A top task that leaves for the scrollback keeps
+      the label column as wide as it was printed, so that the rows printed after
+      it line up with it.
     - The bar column opens with the first task that counts.
     - A count of items takes the cells its total needs, at least [999/999], so a
       display of items is as dense as its counts allow. A task of items with a
@@ -109,14 +124,15 @@ val pp : t Fmt.t
       widest count of bytes, [1023.99 KiB / 1023.99 TiB], and opens the rate
       column at the widest rate, [1023.99 MiB/s]. Later tasks of bytes, larger
       totals and first rates widen nothing.
-    - No column narrows while the display is open.
+    - No column but the label column narrows while the display is open.
 
     So a column widens at most once for each new kind of progress, for a count
     of items with more digits, or for a wider label: a display of bytes alone,
     or one whose tasks of bytes count from their start, never widens after its
     first frame of bytes except for a label, and one where a task of bytes comes
-    among rows of items widens once. While no piece gives way and no column
-    widens, each piece sits in the same columns on every row and in every frame.
+    among rows of items widens once. While no piece gives way and the label
+    column keeps its width, each piece sits in the same columns on every row and
+    in every frame.
 
     A program that wants the count, the rate and the time against the right edge
     puts a {!Layout.spacer} before them, which takes the room the bar leaves:
@@ -149,9 +165,9 @@ module Layout : sig
       row's colour: the colour of the {!Theme.palette} the row takes. *)
 
   val label : ?style:Style.t -> unit -> t
-  (** [label ()] is the task's label, in [style] (defaults to {!Style.bold}). It
-      takes the room the other pieces leave, once they have given way, and is
-      cut to it with an ellipsis. *)
+  (** [label ()] is the task's label, in [style] (defaults to {!Style.bold}),
+      padded to the label column. Short of room, it is cut with an ellipsis at
+      the third stage, once the pieces of the first two have given way. *)
 
   val bar : ?width:int -> unit -> t
   (** [bar ()] is a progress bar ({!Bar.horizontal}) [width] cells wide or,
@@ -202,7 +218,9 @@ module Layout : sig
 
   val give_way : int -> t -> t
   (** [give_way n l] is [l] whose pieces give way at stage [n] when the row is
-      short of room ({!Layout}).
+      short of room ({!Layout}). The label is cut at stage 3: a piece of stage 1
+      or 2 gives way before it is, one of stage 3 as it is, and one of a later
+      stage once it is cut to 12 cells.
 
       @raise Invalid_argument if [n] is less than [1]. *)
 
@@ -406,8 +424,16 @@ val show :
       of all rows sit in the same columns, packed from the left: the bars start
       one cell after the widest label, are as wide, at most 40 cells, and the
       rest of the line stays empty, within the first [min w 100] columns.
-      Nothing in the region moves sideways unless the terminal width changes or
-      a column widens, at most once for each new kind of progress or for a wider
-      label ({!Layout}).
+      Nothing in the region moves sideways unless the terminal width changes, a
+      column widens, at most once for each new kind of progress or for a wider
+      label, or the label column narrows as the task with the widest label ends
+      ({!Layout}).
+    - Short of room, the counts and the timers stay right-aligned in their
+      columns: the rate, the bar and the percentage give way first, then the
+      label is cut, down to 12 cells, and only then does the count of bytes get
+      shorter and the timer go.
+    - The rows of the top tasks printed one after another in the scrollback line
+      up as far as the labels known when each was printed allow: a label column,
+      once printed, never narrows.
     - A label cut to fit is cut between two characters and ends with an ellipsis
       that turns its style off. *)

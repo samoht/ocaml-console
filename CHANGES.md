@@ -67,6 +67,10 @@
   and ends an escape code cut in half. This covers another domain or thread,
   and a write that does not end within a second (#37).
 
+- Progress rows short of room keep their count and time in their columns, and
+  a label a task was renamed from no longer widens its column once the task
+  ends (#58).
+
 - A SIGINT or SIGTERM now ends the program when it is handled in another
   domain, and when giving the terminal back fails (#37).
 

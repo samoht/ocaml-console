@@ -36,8 +36,10 @@ and work = {
   mutable failed : int;
   mutable cancelled : int;
   mutable count_cell : int;
+  mutable short_cell : int;
   mutable rate_cell : int;
-  mutable label_cells : int array;
+  mutable kept_cells : int array;
+  mutable running_cells : (int, int) Hashtbl.t array;
   mutable watchers : (change -> unit) list;
   mutable ending : t -> unit;
   mutable changes : int;
@@ -55,6 +57,7 @@ and t = {
   mutable dropped : int;
   mutable log_prev : float;
   mutable label : string;
+  mutable label_cells : int;
   mutable metric : metric;
   transient : bool;
   started_at : float;
@@ -170,6 +173,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     dropped = 0;
     log_prev = now;
     label = Task_text.label label;
+    label_cells = -1;
     metric = Spin;
     transient;
     started_at = now;
@@ -206,8 +210,10 @@ let root ?label ?scope ~now () =
       failed = 0;
       cancelled = 0;
       count_cell = 0;
+      short_cell = 0;
       rate_cell = 0;
-      label_cells = [||];
+      kept_cells = [||];
+      running_cells = [||];
       watchers = [];
       ending = ignore;
       changes = 0;
@@ -234,8 +240,53 @@ let adopt p r =
     p.child_limit <- max 16 (List.length p.children)
   end
 
+(* The label column of a depth is as wide as the labels it keeps, which
+   only widen it, and the widest label each running task has drawn there,
+   which leaves it once the task ends: a label that [set_label] replaced
+   on a task that ended widens nothing. It keeps the label of each task
+   that ended, its message if it has one, and the width it had when a row
+   that cannot move was printed. *)
+let grow_depths w d =
+  let n = Array.length w.kept_cells in
+  if d >= n then begin
+    let kept = Array.make (d + 1) 0 in
+    Array.blit w.kept_cells 0 kept 0 n;
+    w.kept_cells <- kept;
+    w.running_cells <-
+      Array.init (d + 1) (fun i ->
+          if i < n then w.running_cells.(i) else Hashtbl.create 4)
+  end
+
+let leave_column r =
+  if r.label_cells >= 0 then begin
+    let cells = r.work.running_cells.(depth r) in
+    (match Hashtbl.find_opt cells r.label_cells with
+    | Some n when n > 1 -> Hashtbl.replace cells r.label_cells (n - 1)
+    | _ -> Hashtbl.remove cells r.label_cells);
+    r.label_cells <- -1
+  end
+
+let widen_label r =
+  let w = r.work and d = depth r in
+  grow_depths w d;
+  if is_running r then begin
+    let c = max r.label_cells (Console_width.string_width r.label) in
+    if c <> r.label_cells then begin
+      leave_column r;
+      let cells = w.running_cells.(d) in
+      Hashtbl.replace cells c
+        (1 + Option.value (Hashtbl.find_opt cells c) ~default:0);
+      r.label_cells <- c
+    end
+  end
+  else
+    w.kept_cells.(d) <-
+      max w.kept_cells.(d)
+        (Console_width.string_width (Option.value r.message ~default:r.label))
+
 let rec forget r =
   changed r;
+  leave_column r;
   r.memo <- [];
   r.gone <- true;
   List.iter forget r.children;
@@ -288,6 +339,7 @@ let child_outcome = function
 
 let ended outcome ?message r =
   let w = r.work in
+  leave_column r;
   Queue.clear r.window;
   r.ended_at <- Some (w.now ());
   r.message <- Option.map Task_text.label message;
@@ -327,17 +379,6 @@ let rec finish outcome ?message r =
 let succeed ?message r = finish `Succeeded ?message r
 let fail ?message r = finish `Failed ?message r
 let cancel ?message r = finish `Cancelled ?message r
-
-(* The label column only widens: it keeps the widest label of each depth. *)
-let widen_label r =
-  let w = r.work and d = depth r in
-  if d >= Array.length w.label_cells then begin
-    let cells = Array.make (d + 1) 0 in
-    Array.blit w.label_cells 0 cells 0 (Array.length w.label_cells);
-    w.label_cells <- cells
-  end;
-  w.label_cells.(d) <-
-    max w.label_cells.(d) (Console_width.string_width r.label)
 
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
@@ -388,6 +429,7 @@ let run ?key ?log_lines ?transient parent label f =
 let set_label r label =
   if is_running r && not (is_root r) then begin
     r.label <- Task_text.label label;
+    if r.label_cells >= 0 then widen_label r;
     notify r.work (Renamed r)
   end
 
@@ -433,12 +475,13 @@ let measure r cur =
     r.last_t <- now
   end
 
-(* The first task that counts bytes sets the count and rate columns to the
-   widest count and rate of bytes, which no later count or rate passes, as
-   [Task_text.bytes] is never wider than "1023.99 KiB". A count of items
-   widens the count column to what its total needs, when the total
-   changes. *)
+(* The first task that counts bytes sets the count, short count and rate
+   columns to the widest ones of bytes, which no later count or rate passes,
+   as [Task_text.bytes] is never wider than "1023.99 KiB". A count of items
+   widens the count column, short or not, to what its total needs, when the
+   total changes. *)
 let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
+let widest_short = String.length "999M/999M"
 let widest_rate = String.length "1023.99 MiB/s"
 
 let set_metric r metric =
@@ -447,9 +490,13 @@ let set_metric r metric =
   (match (r.metric, metric) with
   | Count (_, n), Count (_, n') when n = n' -> ()
   | Bytes _, Bytes _ -> ()
-  | _, Count (_, total) -> w.count_cell <- max w.count_cell (items_width total)
+  | _, Count (_, total) ->
+      let cells = items_width total in
+      w.count_cell <- max w.count_cell cells;
+      w.short_cell <- max w.short_cell cells
   | _, Bytes _ ->
       w.count_cell <- max w.count_cell widest_bytes;
+      w.short_cell <- max w.short_cell widest_short;
       w.rate_cell <- max w.rate_cell widest_rate
   | _, Spin -> ());
   changed r;
@@ -657,10 +704,18 @@ module Work = struct
   let failed (w : work) = w.failed
   let cancelled (w : work) = w.cancelled
   let count_cell (w : work) = w.count_cell
+  let short_cell (w : work) = w.short_cell
   let rate_cell (w : work) = w.rate_cell
 
   let label_cell (w : work) depth =
-    if depth < Array.length w.label_cells then w.label_cells.(depth) else 0
+    if depth < Array.length w.kept_cells then
+      Hashtbl.fold
+        (fun c _ n -> max c n)
+        w.running_cells.(depth) w.kept_cells.(depth)
+    else 0
 
-  let depths (w : work) = Array.length w.label_cells
+  let depths (w : work) = Array.length w.kept_cells
+
+  let hold_labels (w : work) =
+    Array.iteri (fun d _ -> w.kept_cells.(d) <- label_cell w d) w.kept_cells
 end
