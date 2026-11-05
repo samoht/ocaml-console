@@ -467,41 +467,18 @@ let level : Logs.level -> Task_driver.level = function
   | Logs.Info -> `Info
   | Logs.Debug -> `Debug
 
-(* A message for the display, answered once the display wrote it or closed
-   without writing it. [within] is the task current where it was logged,
-   since that task is not current in the fiber that writes it. *)
-type request = {
-  within : Task.t option;
-  level : Task_driver.level;
-  message : string;
-  reply : ([ `Written | `Closed ], exn) result Eio.Promise.t Eio.Promise.u;
-}
-
-(* [deliver] gives a message to the display, at once from a fiber of the
-   domain that runs it, or through [requests] from another domain. It is
-   [`Closed] if the display closes first. A thread of that domain, a signal
-   handler outside any fiber or a domain that Eio does not run cannot wait
-   for the answer, so the display does not take its message. *)
-let deliver ~owner ~closed ~requests root level message =
-  if Option.is_some (Eio.Promise.peek closed) then `Closed
-  else if Int.equal (Domain.self () :> int) (owner : Domain.id :> int) then
-    if in_fiber () then begin
-      Task_driver.report root level message;
-      `Written
-    end
-    else `Closed
-  else
-    try
-      Eio.Fiber.first
-        (fun () ->
-          let answer, reply = Eio.Promise.create () in
-          let within = Eio.Fiber.get task in
-          Eio.Stream.add requests { within; level; message; reply };
-          Eio.Promise.await_exn (Eio.Promise.await answer))
-        (fun () ->
-          Eio.Promise.await closed;
-          `Closed)
-    with Effect.Unhandled _ -> `Closed
+(* A message from a fiber of the domain that runs the display, or from another
+   domain, which leaves it there. A thread of that domain or a signal handler
+   outside any fiber must not touch the display. *)
+let deliver ~owner ~refused root level message =
+  if
+    (not (Int.equal (Domain.self () :> int) (owner : Domain.id :> int)))
+    || in_fiber ()
+  then begin
+    Task_driver.report ~refused root level message;
+    `Written
+  end
+  else `Closed
 
 (* A message that the display cannot take, because it is closed or its
    output fails, goes to the reporter it replaced, so that a log call never
@@ -509,10 +486,9 @@ let deliver ~owner ~closed ~requests root level message =
    the source's name, which tells apart the libraries whose messages
    interleave. An [App] message is the program's own output and has no
    header, as with [Logs_fmt.reporter]. *)
-let reporter ~previous ~owner ~closed ~requests root =
+let reporter ~previous ~owner ~closed root =
   let report src l ~over k msgf =
-    if Option.is_some (Eio.Promise.peek closed) then
-      previous.Logs.report src l ~over k msgf
+    if Atomic.get closed then previous.Logs.report src l ~over k msgf
     else
       msgf (fun ?header ?tags fmt ->
           Fmt.kstr
@@ -522,12 +498,15 @@ let reporter ~previous ~owner ~closed ~requests root =
                   message
                 else "[" ^ Logs.Src.name src ^ "] " ^ message
               in
+              let to_previous ~over k =
+                previous.Logs.report src l ~over k (fun m ->
+                    m ?header ?tags "%s" message)
+              in
+              let refused _ = to_previous ~over:ignore ignore in
               let delivered =
                 if shown = "" then `Written
                 else
-                  match
-                    deliver ~owner ~closed ~requests root (level l) shown
-                  with
+                  match deliver ~owner ~refused root (level l) shown with
                   | d -> d
                   | exception
                       ( Failure _ | Invalid_argument _ | End_of_file
@@ -538,37 +517,10 @@ let reporter ~previous ~owner ~closed ~requests root =
               | `Written ->
                   over ();
                   k ()
-              | `Closed ->
-                  previous.Logs.report src l ~over k (fun m ->
-                      m ?header ?tags "%s" message))
+              | `Closed -> to_previous ~over k)
             fmt)
   in
   { Logs.report }
-
-let receive ~sw ~closed requests root =
-  let rec loop () =
-    let { within; level; message; reply } = Eio.Stream.take requests in
-    let report () = Task_driver.report root level message in
-    let output =
-      Eio.Fiber.fork_promise ~sw (fun () ->
-          Eio.Fiber.first
-            (fun () ->
-              if Option.is_some (Eio.Promise.peek closed) then `Closed
-              else begin
-                (match within with
-                | Some task -> Task.within task report
-                | None -> report ());
-                `Written
-              end)
-            (fun () ->
-              Eio.Promise.await closed;
-              `Closed))
-    in
-    Eio.Promise.resolve reply output;
-    ignore (Eio.Promise.await output : ([ `Written | `Closed ], exn) result);
-    loop ()
-  in
-  loop ()
 
 (* The display redraws every tenth of a second on its clock, so that the
    spinners turn and the timers run while no task reports, and it draws
@@ -712,10 +664,10 @@ let run ?(cursor = ignore) ?(flow = false) ?terminal ~sleep
   let display = run.display in
   let repaint = Atomic.make false in
   let previous = Logs.reporter () in
-  let closed, close = Eio.Promise.create () in
+  let closed = Atomic.make false in
   let give_back () =
     Logs.set_reporter previous;
-    ignore (Eio.Promise.try_resolve close ())
+    Atomic.set closed true
   in
   ends_at_exit run ~thread:(Thread.id (Thread.self ())) ~give_back;
   let s = share run in
@@ -737,10 +689,8 @@ let run ?(cursor = ignore) ?(flow = false) ?terminal ~sleep
   @@ fun () ->
   match
     Eio.Switch.run @@ fun sw ->
-    let requests = Eio.Stream.create 1 in
-    Eio.Fiber.fork_daemon ~sw (fun () -> receive ~sw ~closed requests run.root);
     Logs.set_reporter
-      (reporter ~previous ~owner:(Domain.self ()) ~closed ~requests run.root);
+      (reporter ~previous ~owner:(Domain.self ()) ~closed run.root);
     animate ~sw ~sleep ~repaint display;
     start_relay ~sw relay;
     Fun.protect ~finally:give_back @@ fun () -> first_run s f

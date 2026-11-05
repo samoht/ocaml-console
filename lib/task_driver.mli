@@ -36,10 +36,12 @@ val root : ?label:string -> scope:scope -> now:(unit -> float) -> unit -> Task.t
 type level = [ `App | `Error | `Warning | `Info | `Debug ]
 (** The type for the levels of messages, those of [Logs]. *)
 
-val report : Task.t -> level -> string -> unit
+val report : ?refused:(exn -> unit) -> Task.t -> level -> string -> unit
 (** [report root level text] adds each line of [text], a message at [level], to
     the output of the task under [root] that is current where [report] is
-    called, or to [root] if none is. *)
+    called, or to [root] if none is. Called from another domain, it returns at
+    once, and the domain that owns [root] calls [refused e] (defaults to doing
+    nothing) if adding the message raises [e], unless [e] is {!is_async}. *)
 
 val current : Task.t -> Task.t option
 (** [current root] is the task under [root] that is current where [current] is

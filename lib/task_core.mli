@@ -239,9 +239,11 @@ val fail : ?message:string -> t -> unit
 val cancel : ?message:string -> t -> unit
 (** [cancel ~message r] is {!Task.cancel}. *)
 
-val report : t -> level -> string -> unit
+val report : ?refused:(exn -> unit) -> t -> level -> string -> unit
 (** [report root level text] adds each line of [text], a message at [level], to
-    the output of {!scoped}[ (work root)], or to [root] if that is [None]. *)
+    the output of {!scoped}[ (work root)], or to [root] if that is [None]. From
+    another domain, the owner calls [refused e] if that raises [e], unless [e]
+    is {!is_async}. *)
 
 val scoped : work -> t option
 (** [scoped w] is the task of [w] that is current where [scoped] is called,

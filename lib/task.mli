@@ -26,8 +26,8 @@
     redraw, in the order the calls were made, so {!Task.advance} loses no step.
     Until then, what another domain reads may be behind. An error that only the
     owner can see, such as {!advance} on a task that counts nothing, is dropped.
-    Lines that wait past 4 MiB are dropped too, and the next line says how many.
-    The [now] of {!root} must be callable from any domain.
+    Past 4 MiB of lines waiting, the oldest are dropped, and a line says how
+    many. The [now] of {!root} must be callable from any domain.
 
     A task that ended ignores every change and drops a line given to it with
     {!log}. Only the root still takes {!log} after it ended, as lines that

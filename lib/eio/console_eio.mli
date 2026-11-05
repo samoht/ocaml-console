@@ -134,20 +134,21 @@ val run :
       as [Logs_fmt.reporter] prints it: it is the program's own output. A
       message at another level from a source other than {!Logs.default} comes
       after the source's name in brackets, as in [[http] connected].
-    - A message logged in another domain that Eio runs, such as one of an
-      [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
-      not inherit the task of the fiber that submitted its work, so the message
-      goes above the rows unless the worker made a task current with
-      {!Console.Task.within}.
+    - A message logged in another domain, such as one of an [Eio.Executor_pool],
+      is passed to the domain that runs [f] and never waits for it. A worker
+      does not inherit the task of the fiber that submitted its work, so the
+      message goes above the rows unless the worker made a task current with
+      {!Console.Task.within}. Past 4 MiB of lines waiting, the oldest are
+      dropped, and a line says how many.
 
     A message the display cannot take goes to the reporter installed before
     [run], so that a log call never fails. Such a message is one of:
     - a message logged after the display closed, through a reporter kept from
       [f];
-    - a message still waiting for the display when it closes;
-    - a message from a domain that Eio does not run;
     - a message logged outside any fiber of the domain that runs [f], as from a
       thread or a signal handler.
+
+    A message that another domain logs at the very moment [f] ends may be lost.
 
     That reporter is put back when [f] ends, and when the program exits during
     [f], so what an [at_exit] function logs after the display closed goes to it.

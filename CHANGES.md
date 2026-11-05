@@ -62,6 +62,10 @@
 - `Console_eio.run` from another domain now joins the run under way instead of
   raising `Invalid_argument` (#57).
 
+- A `Logs` message from a worker domain no longer waits for the display, so a
+  program that waits for its workers no longer hangs. Past 4 MiB of waiting
+  lines, the oldest are dropped and a line says how many (#59).
+
 - `Console_eio.run` now restores the terminal and shows the cursor when a view,
   a hook or the output raises (#26), when a signal comes after a view raised,
   and when a view calls `exit` (#43). An output that breaks as a run ends no

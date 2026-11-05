@@ -179,7 +179,8 @@ let test_a_flood_loses_only_lines () =
   Alcotest.(check bool)
     "no line after it" false
     (List.mem "after the end" (Task.output t));
-  Alcotest.(check (list string)) "the child" [ "on the child" ] (Task.output child)
+  Alcotest.(check (list string))
+    "the child" [ "on the child" ] (Task.output child)
 
 let test_steps_after_the_end_are_ignored () =
   let root = Task.root ~now () in
