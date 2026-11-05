@@ -52,3 +52,25 @@ val is_terminal : Unix.file_descr -> bool
 (** [is_terminal fd] is [true] iff [fd] is a terminal and [TERM] is set, not
     empty and not [dumb]. On such an output a program can move the cursor to
     redraw what it printed. *)
+
+val size : Format.formatter -> (unit -> int * int) option
+(** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} on a
+    terminal ({!is_terminal}), and [None] otherwise. [size ()] is the terminal's
+    width and height, read again at each call: [$COLUMNS] and [$LINES] when
+    between [1] and [4096], since POSIX lets them override it; else what the
+    terminal says; else 80 by 24. *)
+
+val width : Format.formatter -> int option
+(** [width ppf] is the width to fit output on [ppf] to: that of the recorded
+    terminal under [CONSOLE_CAST], else {!size}'s, at most [4096], else
+    [$COLUMNS] when it is between [1] and [4096], and [None] when a line is not
+    cut. To fit lines printed outside a run:
+
+    {[
+    let print v =
+      match Console_tty.width Fmt.stdout with
+      | None -> Fmt.pr "%s@." (Console.View.to_string v)
+      | Some w ->
+          Format.pp_set_margin Fmt.stdout w;
+          Fmt.pr "%a@." Console.View.pp v
+    ]} *)

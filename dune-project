@@ -23,8 +23,9 @@
    rows under that text and redraws only those rows. It never takes over
    the whole screen. The console.tty library decides colour and UTF-8 for
    the standard outputs from the terminal and the environment, with Unix
-   alone. The console.text library makes untrusted text safe to print, and
-   console.input is a line editor that does no I/O.")
+   alone. The console.text library makes untrusted text safe to print,
+   console.input is a line editor that does no I/O, and console.driver runs
+   console on a scheduler.")
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
@@ -32,6 +33,7 @@
   (uuseg (>= 18.0.0))
   (jsont (>= 0.3.0))
   (bytesrw (>= 0.1.0))
+  logs
   ; The tests' terminal emulator, from the released matrix. It lacks fixes
   ; some tests need, which are skipped until console moves to matrix 0.2.0.
   (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
@@ -61,7 +63,6 @@
   (eio (>= 1.4))
   (mtime (>= 2.0.0))
   fmt
-  logs
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)

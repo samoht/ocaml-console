@@ -238,9 +238,22 @@ let test_absurd_dimensions () =
   check_dimensions "only decimal digits" ~columns:"0x50" ~lines:"1_0" (80, 24);
   check_dimensions "too large" ~columns:"99999999999" ~lines:"4097" (80, 24)
 
+let test_window_size_of_a_terminal () =
+  Eio_main.run @@ fun _ ->
+  Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
+  Eio_unix.Pty.set_window_size (Eio_unix.Pty.pty pty)
+    { rows = 45; cols = 123; xpixel = 0; ypixel = 0 };
+  Alcotest.(check (option (pair int int)))
+    "columns and rows"
+    (Some (123, 45))
+    (Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Terminal.window_size)
+
 let suite =
   ( "terminal",
     [
+      Alcotest.test_case "the size of a terminal" `Quick
+        test_window_size_of_a_terminal;
       Alcotest.test_case "small positive terminal dimensions are preserved"
         `Quick test_small_dimensions;
       Alcotest.test_case "absurd terminal dimensions are ignored" `Quick

@@ -6,7 +6,7 @@
 (** Running a display for a scheduler.
 
     This module is internal to console: [Console] does not expose it, and
-    [console-eio] reads it through [Console__]. *)
+    [console.driver] reads it through [Console__]. *)
 
 val when_idle : Display.t -> (unit -> unit) -> unit
 (** [when_idle display f] calls [f] at once if [display] is neither drawing nor

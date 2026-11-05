@@ -426,7 +426,7 @@ let test_disposition_left () =
     ]
 
 let suite =
-  ( "session",
+  ( "backend",
     [
       Alcotest.test_case "bytewise CRLF and buffer reuse" `Quick test_bytewise;
       Alcotest.test_case "nested fibers and domains keep their order" `Quick

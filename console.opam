@@ -8,8 +8,9 @@ Colours, tables, trees, panels, bars and progress rows for OCaml
    rows under that text and redraws only those rows. It never takes over
    the whole screen. The console.tty library decides colour and UTF-8 for
    the standard outputs from the terminal and the environment, with Unix
-   alone. The console.text library makes untrusted text safe to print, and
-   console.input is a line editor that does no I/O."""
+   alone. The console.text library makes untrusted text safe to print,
+   console.input is a line editor that does no I/O, and console.driver runs
+   console on a scheduler."""
 maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"
@@ -24,6 +25,7 @@ depends: [
   "uuseg" {>= "18.0.0"}
   "jsont" {>= "0.3.0"}
   "bytesrw" {>= "0.1.0"}
+  "logs"
   "matrix" {with-test & >= "0.1.0" & < "0.2.0"}
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}

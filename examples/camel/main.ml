@@ -434,7 +434,7 @@ let () =
   | [] ->
       let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
       let played =
-        match Console_eio.size Fmt.stderr with
+        match Console_tty.size Fmt.stderr with
         | None -> Error (`Msg "no terminal")
         | Some size ->
             Console_eio.Prompt.keys prompt @@ fun input ->

@@ -793,13 +793,15 @@ let outcome o =
   match o mod 3 with 0 -> `Succeeded | 1 -> `Failed | _ -> `Cancelled
 
 let scope current =
-  Driver.scope
-    ~current:(fun () -> !current)
-    ~within:(fun task f ->
-      let saved = !current in
-      current := Some task;
-      Fun.protect f ~finally:(fun () -> current := saved))
-    ~cancelled:(fun _ -> false)
+  {
+    Driver.current = (fun () -> !current);
+    within =
+      (fun task f ->
+        let saved = !current in
+        current := Some task;
+        Fun.protect f ~finally:(fun () -> current := saved));
+    cancelled = (fun _ -> false);
+  }
 
 (* A task of the model, started under [parent], or [root]. *)
 let new_task root parent name window_size =

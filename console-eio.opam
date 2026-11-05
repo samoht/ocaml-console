@@ -22,7 +22,6 @@ depends: [
   "eio" {>= "1.4"}
   "mtime" {>= "2.0.0"}
   "fmt"
-  "logs"
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}

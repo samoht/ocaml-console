@@ -6,28 +6,25 @@
 (** Running tasks for a scheduler.
 
     This module is internal to console: [Console] does not expose it, and
-    [console-eio] reads it through [Console__].
+    [console.driver] reads it through [Console__].
 
-    A driver runs the tasks of a root for a scheduler, as [Console_eio.run] does
-    for Eio. Its {!type-scope} says which task is current in a fiber. It passes
-    the program's [Logs] messages to {!report}, and gives what the program
-    prints to the task that {!current} returns. *)
+    A driver runs the tasks of a root for a scheduler, as [Console_driver] does.
+    Its {!type-scope} says which task is current in a fiber. It passes the
+    program's [Logs] messages to {!report}, and gives what the program prints to
+    the task that {!current} returns. *)
 
-type scope = Task_core.scope
+type scope = Task_core.scope = {
+  current : unit -> Task.t option;
+      (** [current ()] is the task current where it is called. *)
+  within : 'a. Task.t -> (unit -> 'a) -> 'a;
+      (** [within task f] is [f ()] with [task] current in [f] and in the fibers
+          that [f] starts. *)
+  cancelled : exn -> bool;
+      (** [cancelled e] is [true] iff [e] means that the fiber raising it was
+          cancelled. A {!Task.run} whose function raises such an [e] cancels its
+          task instead of failing it. *)
+}
 (** The type for what the tasks know of their scheduler. *)
-
-val scope :
-  current:(unit -> Task.t option) ->
-  within:(Task.t -> (unit -> unit) -> unit) ->
-  cancelled:(exn -> bool) ->
-  scope
-(** [scope ~current ~within ~cancelled] is the scope in which:
-    - [current ()] is the task current where [current] is called;
-    - [within task f] calls [f] with [task] current in [f] and in the fibers
-      that [f] starts;
-    - [cancelled e] is [true] iff [e] means that the fiber raising it was
-      cancelled. A {!Task.run} whose function raises such an [e] cancels its
-      task instead of failing it. *)
 
 val root : ?label:string -> scope:scope -> now:(unit -> float) -> unit -> Task.t
 (** [root ~scope ~now ()] is {!Task.root}[ ~now ()] in which [scope] says which

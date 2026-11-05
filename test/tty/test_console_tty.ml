@@ -183,6 +183,11 @@ let test_is_terminal () =
         (fun () ->
           Alcotest.(check bool) "a pipe" false (Console_tty.is_terminal w)))
 
+(* Only the standard outputs have a terminal behind them. *)
+let test_size_of_a_pipe () =
+  let ppf = Format.formatter_of_buffer (Buffer.create 16) in
+  Alcotest.(check bool) "none" true (Option.is_none (Console_tty.size ppf))
+
 let suite =
   ( "console_tty",
     [
@@ -193,4 +198,5 @@ let suite =
       Alcotest.test_case "setup with a theme" `Quick test_setup_theme;
       Alcotest.test_case "ensure" `Quick test_ensure;
       Alcotest.test_case "is_terminal" `Quick test_is_terminal;
+      Alcotest.test_case "size of another formatter" `Quick test_size_of_a_pipe;
     ] )

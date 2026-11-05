@@ -26,7 +26,7 @@ let no_mail = { young = []; bytes = 0; old = []; lost = 0 }
 
 type scope = {
   current : unit -> t option;
-  within : t -> (unit -> unit) -> unit;
+  within : 'a. t -> (unit -> 'a) -> 'a;
   cancelled : exn -> bool;
 }
 
@@ -801,11 +801,7 @@ let start ?key ?(log_lines = 8) ?(transient = false) parent label =
     if elsewhere then post w (fun () -> link parent r) else link parent r;
   (r, fresh)
 
-let within r f =
-  let value = ref None in
-  r.work.scope.within r (fun () -> value := Some (f ()));
-  Option.get !value
-
+let within r f = r.work.scope.within r f
 let end_task outcome ?message r = owned r (fun () -> finish outcome ?message r)
 let succeed ?message r = end_task `Succeeded ?message r
 let fail ?message r = end_task `Failed ?message r
@@ -822,11 +818,10 @@ let run ?key ?log_lines ?transient parent label f =
   match start ?key ?log_lines ?transient parent label with
   | r, false -> within r (fun () -> f r)
   | r, true -> (
-      let value = ref None in
-      match r.work.scope.within r (fun () -> value := Some (f r)) with
-      | () ->
+      match within r (fun () -> f r) with
+      | v ->
           succeed r;
-          Option.get !value
+          v
       | exception e ->
           let bt = Printexc.get_raw_backtrace () in
           if r.work.scope.cancelled e then cancel r else failed_with r e;

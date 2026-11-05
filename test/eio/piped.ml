@@ -148,13 +148,13 @@ let () =
           armed := true;
           Console_eio.print (Console.View.text "line"))
   | [| _; "size" |] -> (
-      match Console_eio.size Fmt.stderr with
+      match Console_tty.size Fmt.stderr with
       | Some size ->
           let w, h = size () in
           Fmt.pr "%dx%d@." w h
       | None -> Fmt.pr "no terminal@.")
   | [| _; "width" |] -> (
-      match Console_eio.width Fmt.stdout with
+      match Console_tty.width Fmt.stdout with
       | Some w -> Fmt.pr "%d@." w
       | None -> Fmt.pr "whole@.")
   | [| _; "print" |] ->

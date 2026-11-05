@@ -47,7 +47,7 @@ type memo = ..
 
 type scope = {
   current : unit -> t option;
-  within : t -> (unit -> unit) -> unit;
+  within : 'a. t -> (unit -> 'a) -> 'a;
   cancelled : exn -> bool;
 }
 (** The type for what the tasks know of their scheduler: which task is current

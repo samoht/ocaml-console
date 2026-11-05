@@ -19,8 +19,8 @@
 - `Console_eio.redraw`, to draw the display now instead of at the next refresh
   (#10).
 
-- `Console_eio.width`, to fit output printed outside `Console_eio.run` to the
-  terminal, or to `$COLUMNS` on a pipe (#13).
+- `Console_tty.width`, to fit output printed outside `Console_eio.run` to the
+  terminal, or to `$COLUMNS` on a pipe (#13, #61).
 
 - `Env.setup` and `Env.ensure`, to apply console's colour and UTF-8 rules in a
   program that can't link Unix (#11).
@@ -28,7 +28,12 @@
 - `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#34).
 
+- `console.driver`, to run console on a scheduler other than Eio (#61).
+
 ### Changed
+
+- `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
+  needs no scheduler (#61).
 
 - `Console_input` limits a line to 4095 bytes (`?max_line`) and its history to
   500 lines (`?history_size`). Typing past the limit rings the bell (#1).
