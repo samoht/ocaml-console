@@ -2809,6 +2809,102 @@ let test_ended_keeps_columns () =
   Alcotest.(check bool) ("its bar full " ^ msg) true (full (row "ends" after));
   close t
 
+(* Where the bar gives way, the count and the time keep their columns,
+   right-aligned and padded: on 40 columns a row of a 16-cell label, a
+   count and a time takes 35 cells, and 46 with the narrowest bar. *)
+let test_count_and_time_padded () =
+  let t = terminal ~theme ~width:40 ~height:8 () in
+  let rows =
+    [
+      ("pins synced", 24, 275);
+      ("opam synced", 515, 515);
+      ("packages checked", 515, 515);
+    ]
+  in
+  List.iter
+    (fun (l, count, total) ->
+      Task.set_items (Task.start t.root l) ~count ~total)
+    rows;
+  t.advance 1.6;
+  Display.redraw t.display;
+  check_lines "the count and the time in their columns"
+    [
+      " |  pins synced       24/275   1.6s";
+      " |  opam synced      515/515   1.6s";
+      " |  packages checked 515/515   1.6s";
+    ]
+    (screen t);
+  close t
+
+(* monopam's sync: each step is a top task that moves to the scrollback as
+   it ends, with its message as its label. The first step is renamed, for a
+   moment, to a label of 66 cells: while it shows, it is cut to the room the
+   count and the time leave; once replaced, it widens no column. A row in
+   the scrollback cannot move, so a step's label column is the widest label
+   of the steps that ended before it, its own included. *)
+let test_replaced_label_widens_nothing () =
+  let t = terminal ~theme ~width:40 ~height:8 () in
+  let long =
+    "asn1-combinators.72f5a97d25b0dce59820f089b61908d2fd742072 complete"
+  in
+  let step ?relabel label ~message ~count ~total =
+    let r = Task.start t.root label in
+    Option.iter (Task.set_label r) relabel;
+    Task.set_items r ~count ~total;
+    t.advance 0.3;
+    Display.redraw t.display;
+    let live = screen t in
+    Task.succeed ~message r;
+    live
+  in
+  let live =
+    step ~relabel:long "syncing pins" ~message:"pins synced" ~count:24
+      ~total:275
+  in
+  check_lines "the long label cut, the count and the time in their columns"
+    [ " \\  asn1-combinators.72f\u{2026}  24/275   0.3s" ]
+    live;
+  let live = step "syncing opam" ~message:"opam synced" ~count:515 ~total:515 in
+  check_lines "the column of the labels shown"
+    [ "[+] pins synced  24/275   0.3s"; " -  syncing opam 515/515   0.3s" ]
+    live;
+  ignore (step "checking" ~message:"packages checked" ~count:515 ~total:515);
+  close t;
+  check_lines "the steps in the columns their labels need"
+    [
+      "[+] pins synced  24/275   0.3s";
+      "[+] opam synced 515/515   0.3s";
+      "[+] packages checked 515/515   0.3s";
+    ]
+    (lines t)
+
+(* A row of bytes with a label of 30 cells, as its terminal narrows: the
+   rate gives way, then the bar; then the label is cut, down to 12 cells,
+   while the count and the time keep their columns; then the count gets
+   shorter, in a column of its own; then the time goes; and only then is
+   the label cut further. *)
+let test_label_cut_before_count () =
+  let row_at width =
+    let t = terminal ~theme ~width ~height:4 () in
+    let r = Task.start t.root "a-label-of-thirty-cells-long-x" in
+    t.advance 1.;
+    Task.set_bytes r ~count:268435456L ~total:2147483648L;
+    t.advance 4.;
+    Display.redraw t.display;
+    let row = List.hd (screen t) in
+    close t;
+    row
+  in
+  check_lines "each width"
+    [
+      " -  a-label-of-thirty-cells-long-x     256.00 MiB / 2.00 GiB   5.0s";
+      " -  a-label-of-thirty-cell\u{2026}     256.00 MiB / 2.00 GiB   5.0s";
+      " -  a-label-of-thirty-cells-lo\u{2026} 256M/2.0G   5.0s";
+      " -  a-label-of-thirty\u{2026} 256M/2.0G";
+      " -  a-lab\u{2026} 256M/2.0G";
+    ]
+    (List.map row_at [ 70; 60; 48; 32; 20 ])
+
 (* The line of a task that ended at its total runs from its label to its
    count with no gap: its bar is full. One that failed before its total
    draws its bar as far as it went. *)
@@ -3479,6 +3575,12 @@ let suite =
         test_short_bytes;
       Alcotest.test_case "a task that ends keeps its columns" `Quick
         test_ended_keeps_columns;
+      Alcotest.test_case "the count and the time keep their columns" `Quick
+        test_count_and_time_padded;
+      Alcotest.test_case "a replaced label widens no column" `Quick
+        test_replaced_label_widens_nothing;
+      Alcotest.test_case "the label is cut before the count and the time" `Quick
+        test_label_cut_before_count;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
