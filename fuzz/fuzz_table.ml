@@ -27,7 +27,7 @@ let table ?(border = Border.rounded) s =
 (* No line is wider than the margin, every style is turned off, and a framed
    table that fits has all its lines as wide as one another. *)
 let test_fits s n =
-  let margin = 4 + (abs n mod 80) in
+  let margin = 4 + abs (n mod 80) in
   let ncol, t = table s in
   let raw, lines = render View.pp margin t in
   check_fits margin lines;
@@ -41,7 +41,7 @@ let test_fits s n =
 (* A table in [Border.simple] fits the margin, and once its columns fit,
    the rule under a header runs across it: no line is wider. *)
 let test_simple s n =
-  let margin = 4 + (abs n mod 80) in
+  let margin = 4 + abs (n mod 80) in
   let ncol, t = table ~border:Border.simple s in
   let raw, lines = render View.pp margin t in
   check_fits margin lines;
@@ -87,7 +87,7 @@ let test_right_aligned s =
 
 (* A row with more cells than columns, or none, is refused. *)
 let test_shape s n =
-  let k = abs n mod 4 in
+  let k = abs (n mod 4) in
   let rows = [ List.init k (fun i -> View.text (pick s i)) ] in
   match
     Table.view
@@ -188,7 +188,7 @@ let test_mixed_script_themes s n =
    all in the glyphs of the header's rule: as many rules as rows. *)
 let test_rules s n =
   let ncol = columns_of s in
-  let nrows = 1 + (abs n mod 6) in
+  let nrows = 1 + abs (n mod 6) in
   let columns = List.init ncol (fun _ -> Table.column (View.text "h")) in
   let rows =
     List.init nrows (fun r ->

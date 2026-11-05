@@ -21,7 +21,7 @@ let test_width n f b =
 (* A vertical bar is one cell wide and exactly as tall as its room, at any
    fraction. *)
 let test_vertical_height h frac utf_8 =
-  let height = 1 + (abs h mod 40) in
+  let height = 1 + abs (h mod 40) in
   let s =
     View_harness.at ~utf_8 ~time:0. (View.sized ~height (Bar.vertical frac))
   in
