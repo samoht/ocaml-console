@@ -98,8 +98,11 @@
     What the cut update drew above that row stays on the screen, rows of the
     region included, and nothing that was above the region is erased.
 
-    A display belongs to the domain that runs it, so call its functions from
-    that domain alone. *)
+    Any domain can call the functions of a display. The domain that made it runs
+    it: a call from another domain returns at once, and that domain does what it
+    asks at its next call or redraw, so nothing shows while it does neither. In
+    another domain, {!with_output} gives its function a buffer, whose text goes
+    out when the display next runs, and {!close} does not wait for the close. *)
 
 type t = Display_core.t
 (** The type for displays. *)

@@ -113,6 +113,13 @@ val look : ?live:bool -> t -> Look.t
 (** [look d] is the look [d] draws in, live iff [live] (defaults to [false]) and
     [d] draws in colour. *)
 
+val drawing : t -> bool
+(** [drawing d] is [true] while [d] draws or writes. *)
+
+val on_settle : t -> (unit -> unit) -> unit
+(** [on_settle d f] has [d] call [f] at each redraw and as it closes, before it
+    draws, so that it shows what other domains sent. *)
+
 val on_close : t -> (unit -> unit) -> unit
 (** [on_close d f] has [d] call [f] as it closes, before its last frame. *)
 

@@ -10,6 +10,12 @@ type kind = Output | Logs of level
 type line = { gap : float; kind : kind; text : string; seq : int }
 type memo = ..
 
+module Keys = Map.Make (String)
+
+(* What other domains asked of a task since the domain that owns it last
+   looked: the last label and absolute count, and the count added since. *)
+type 'metric update = { name : string option; set : 'metric option; by : int }
+
 type scope = {
   current : unit -> t option;
   within : t -> (unit -> unit) -> unit;
@@ -28,8 +34,13 @@ and work = {
   start : float;
   summary : string option;
   scope : scope;
-  by_key : (string, t) Hashtbl.t;
-  mutable next_id : int;
+  owner : Domain.id;
+  inbox : (unit -> unit) list Atomic.t;
+  backlog : int Atomic.t;
+  lost : int Atomic.t;
+  mutable holding : unit -> bool;
+  by_key : t Keys.t Atomic.t;
+  next_id : int Atomic.t;
   mutable next_line : int;
   mutable started : int;
   mutable finished : int;
@@ -76,6 +87,7 @@ and t = {
   mutable rate : float;
   mutable version : int;
   mutable memo : memo list;
+  update : metric update Atomic.t;
 }
 
 let is_root r = r.id < 0
@@ -147,17 +159,64 @@ let notify w change =
 let watch w f = w.watchers <- w.watchers @ [ f ]
 let on_ending r f = r.work.ending <- f
 
+(* The domain that made a work owns it, and alone changes it. Another domain
+   leaves what it asks in [inbox], which the owner empties at its next call or
+   redraw, so that a call from the owner costs one comparison and one load. *)
+let foreign w = not (Int.equal (Domain.self () :> int) (w.owner :> int))
+
+let rec post w f =
+  let l = Atomic.get w.inbox in
+  if not (Atomic.compare_and_set w.inbox l (f :: l)) then post w f
+
+(* What a domain asks of a task that it cannot check is dropped when it is
+   wrong: the owner did not make the call. Only an interrupt or an exhausted
+   heap or stack goes on. *)
+let attempt f () = try f () with e when not (is_async e) -> ()
+
+let rec deliver w =
+  match Atomic.exchange w.inbox [] with
+  | [] -> ()
+  | fs ->
+      protect
+        (fun () -> run_all (List.rev_map attempt fs))
+        ~finally:(fun () -> deliver w)
+
+(* A display that is drawing takes no change, so what waits stays there. *)
+let settle_work w =
+  match Atomic.get w.inbox with
+  | [] -> ()
+  | _ -> if not (w.holding ()) then deliver w
+
+let settle r =
+  let w = r.work in
+  if not (foreign w) then settle_work w
+
+let holding w f =
+  let before = w.holding in
+  w.holding <- (fun () -> before () || f ())
+
+(* Each domain has one stack of current tasks: the tasks of a [local] scope are
+   those it marked with its token. *)
+let stacks = Domain.DLS.new_key (fun () -> ref [])
+
 let local () =
-  let stack = ref [] in
+  let token = ref () in
   {
-    current = (fun () -> match !stack with r :: _ -> Some r | [] -> None);
+    current =
+      (fun () ->
+        List.find_map
+          (fun (t, r) -> if t == token then Some r else None)
+          !(Domain.DLS.get stacks));
     within =
       (fun r f ->
+        let stack = Domain.DLS.get stacks in
         let saved = !stack in
-        stack := r :: saved;
+        stack := (token, r) :: saved;
         Fun.protect f ~finally:(fun () -> stack := saved));
     cancelled = (fun _ -> false);
   }
+
+let no_update = { name = None; set = None; by = 0 }
 
 let row w ~id ?key ?parent ~log_lines ~transient label =
   let now = w.now () in
@@ -192,6 +251,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     rate = 0.;
     version = 0;
     memo = [];
+    update = Atomic.make no_update;
   }
 
 let root ?label ?scope ~now () =
@@ -202,8 +262,13 @@ let root ?label ?scope ~now () =
       start;
       summary = Option.map Task_text.label label;
       scope = Option.value scope ~default:(local ());
-      by_key = Hashtbl.create 16;
-      next_id = 0;
+      owner = Domain.self ();
+      inbox = Atomic.make [];
+      backlog = Atomic.make 0;
+      lost = Atomic.make 0;
+      holding = (fun () -> false);
+      by_key = Atomic.make Keys.empty;
+      next_id = Atomic.make 0;
       next_line = 0;
       started = 0;
       finished = 0;
@@ -337,6 +402,11 @@ let child_outcome = function
   | `Succeeded -> `Succeeded
   | `Failed | `Cancelled -> `Cancelled
 
+let rec forget_key w k =
+  let m = Atomic.get w.by_key in
+  if not (Atomic.compare_and_set w.by_key m (Keys.remove k m)) then
+    forget_key w k
+
 let ended outcome ?message r =
   let w = r.work in
   leave_column r;
@@ -351,7 +421,7 @@ let ended outcome ?message r =
     | `Cancelled -> w.cancelled <- w.cancelled + 1
     | `Succeeded -> ()
   end;
-  Option.iter (fun k -> Hashtbl.remove w.by_key k) r.key;
+  Option.iter (forget_key w) r.key;
   hold r;
   (* A success clears its output after the watchers saw its end. *)
   Fun.protect
@@ -376,57 +446,7 @@ let rec finish outcome ?message r =
       @ [ (fun () -> ended outcome ?message r) ])
   end
 
-let succeed ?message r = finish `Succeeded ?message r
-let fail ?message r = finish `Failed ?message r
-let cancel ?message r = finish `Cancelled ?message r
-
-let start ?key ?(log_lines = 8) ?(transient = false) parent label =
-  if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
-  (match key with
-  | Some "" -> invalid_arg "Console.Task.start: empty key"
-  | _ -> ());
-  let w = parent.work in
-  match Option.bind key (Hashtbl.find_opt w.by_key) with
-  | Some r -> (r, false)
-  | None ->
-      let id = w.next_id in
-      w.next_id <- id + 1;
-      let r = row w ~id ?key ~parent ~log_lines ~transient label in
-      w.started <- w.started + 1;
-      Option.iter (fun k -> Hashtbl.replace w.by_key k r) key;
-      if not parent.gone then adopt parent r;
-      notify w (Started r);
-      (* A task started under an ended task ends at once: it succeeds if its
-         parent succeeded, and is cancelled otherwise. *)
-      (match parent.outcome with
-      | None -> ()
-      | Some `Succeeded -> succeed r
-      | Some (`Failed | `Cancelled) -> cancel r);
-      (r, true)
-
-let within r f =
-  let value = ref None in
-  r.work.scope.within r (fun () -> value := Some (f ()));
-  Option.get !value
-
-(* A task found by its key is ended by the call that started it, not by this
-   one. *)
-let run ?key ?log_lines ?transient parent label f =
-  match start ?key ?log_lines ?transient parent label with
-  | r, false -> within r (fun () -> f r)
-  | r, true -> (
-      let value = ref None in
-      match r.work.scope.within r (fun () -> value := Some (f r)) with
-      | () ->
-          succeed r;
-          Option.get !value
-      | exception e ->
-          let bt = Printexc.get_raw_backtrace () in
-          if r.work.scope.cancelled e then cancel r
-          else fail ~message:(r.label ^ ": " ^ Printexc.to_string e) r;
-          Printexc.raise_with_backtrace e bt)
-
-let set_label r label =
+let rename r label =
   if is_running r && not (is_root r) then begin
     r.label <- Task_text.label label;
     if r.label_cells >= 0 then widen_label r;
@@ -503,9 +523,7 @@ let set_metric r metric =
   r.metric <- metric;
   if moved then notify w (Progressed r)
 
-let set_items r ~count ~total =
-  if count < 0 || total < 0 then
-    invalid_arg "Console.Task.set_items: negative progress";
+let items r ~count ~total =
   if is_running r && not (is_root r) then
     match r.metric with
     | Bytes _ -> invalid_arg "Console.Task.set_items: the task counts bytes"
@@ -517,9 +535,7 @@ let set_items r ~count ~total =
         measure r (float_of_int count);
         set_metric r (Count (count, max count (max n total)))
 
-let set_bytes r ~count ~total =
-  if count < 0L || total < 0L then
-    invalid_arg "Console.Task.set_bytes: negative progress";
+let bytes r ~count ~total =
   if is_running r && not (is_root r) then begin
     let count, total =
       match r.metric with
@@ -534,22 +550,77 @@ let set_bytes r ~count ~total =
   end
 
 (* The count saturates at the largest integer instead of overflowing. *)
-let advance ?(by = 1) r =
-  if by < 0 then invalid_arg "Console.Task.advance: negative progress";
+let add_count r by =
   if is_running r && not (is_root r) then
     match r.metric with
     | Spin -> invalid_arg "Console.Task.advance: the task counts nothing"
     | Count (c, n) ->
-        set_items r
-          ~count:(if by > max_int - c then max_int else c + by)
-          ~total:n
+        items r ~count:(if by > max_int - c then max_int else c + by) ~total:n
     | Bytes (c, n) ->
         let by = Int64.of_int by in
         let count =
           if Int64.compare by (Int64.sub Int64.max_int c) > 0 then Int64.max_int
           else Int64.add c by
         in
-        set_bytes r ~count ~total:n
+        bytes r ~count ~total:n
+
+let apply r =
+  let u = Atomic.exchange r.update no_update in
+  if u != no_update then begin
+    Option.iter (rename r) u.name;
+    (match u.set with
+    | Some (Count (count, total)) -> items r ~count ~total
+    | Some (Bytes (count, total)) -> bytes r ~count ~total
+    | Some Spin | None -> ());
+    if u.by > 0 then add_count r u.by
+  end
+
+let rec merge r f =
+  let old = Atomic.get r.update in
+  if not (Atomic.compare_and_set r.update old (f old)) then merge r f
+  else if old == no_update then post r.work (fun () -> apply r)
+
+(* [mine r] is [true] iff the caller owns [r], once what other domains asked of
+   it is done. The setters test it rather than take closures, which would
+   allocate on every call. *)
+let mine r =
+  (not (foreign r.work))
+  && begin
+    settle_work r.work;
+    true
+  end
+
+(* [owned r f] is [f ()] in the domain that owns [r], and there, after what was
+   asked of [r] before, when called from another. *)
+let owned r f =
+  if mine r then f ()
+  else
+    post r.work (fun () ->
+        apply r;
+        f ())
+
+let set_label r label =
+  if mine r then rename r label
+  else merge r (fun u -> { u with name = Some label })
+
+let set_items r ~count ~total =
+  if count < 0 || total < 0 then
+    invalid_arg "Console.Task.set_items: negative progress";
+  if mine r then items r ~count ~total
+  else merge r (fun u -> { u with set = Some (Count (count, total)); by = 0 })
+
+let set_bytes r ~count ~total =
+  if count < 0L || total < 0L then
+    invalid_arg "Console.Task.set_bytes: negative progress";
+  if mine r then bytes r ~count ~total
+  else merge r (fun u -> { u with set = Some (Bytes (count, total)); by = 0 })
+
+let advance ?(by = 1) r =
+  if by < 0 then invalid_arg "Console.Task.advance: negative progress";
+  if mine r then add_count r by
+  else
+    merge r (fun u ->
+        { u with by = (if by > max_int - u.by then max_int else u.by + by) })
 
 let fraction = function
   | Spin -> None
@@ -618,14 +689,130 @@ let above root kind text =
 
 let kind_of = function None -> Output | Some l -> Logs l
 
-let log ?level r text =
+let log_here ?level r text =
   if is_root r then above r (kind_of level) text
   else if is_running r then add r (kind_of level) text
 
-let report root level text =
-  match scoped root.work with
+(* Lines that other domains wait to have shown, in bytes. Past this, they are
+   counted and the next line that goes out says so: the owner may be computing
+   or waiting for those domains, so they cannot wait for it. *)
+let max_backlog = 4 * 1_048_576
+
+let tell_lost r =
+  match Atomic.exchange r.work.lost 0 with
+  | 0 -> ()
+  | n ->
+      above (root_of r) (Logs `Warning)
+        ("[console: " ^ string_of_int n ^ " lines from other domains dropped]")
+
+let post_line r text f =
+  let w = r.work in
+  let n = String.length text + 64 in
+  if Atomic.fetch_and_add w.backlog n > max_backlog then begin
+    ignore (Atomic.fetch_and_add w.backlog (-n) : int);
+    Atomic.incr w.lost
+  end
+  else
+    post w (fun () ->
+        ignore (Atomic.fetch_and_add w.backlog (-n) : int);
+        apply r;
+        tell_lost r;
+        f ())
+
+let log ?level r text =
+  let w = r.work in
+  if foreign w then post_line r text (fun () -> log_here ?level r text)
+  else begin
+    settle_work w;
+    log_here ?level r text
+  end
+
+let report_here root within level text =
+  match within with
   | Some r -> add r (Logs level) text
   | None -> above root (Logs level) text
+
+let report root level text =
+  let w = root.work in
+  let within = scoped w in
+  if foreign w then
+    post_line root text (fun () -> report_here root within level text)
+  else begin
+    settle_work w;
+    report_here root within level text
+  end
+
+let rec keyed w key make =
+  let m = Atomic.get w.by_key in
+  match Keys.find_opt key m with
+  | Some r -> (r, false)
+  | None ->
+      let r = make () in
+      if Atomic.compare_and_set w.by_key m (Keys.add key r m) then (r, true)
+      else keyed w key make
+
+(* The task joins its parent where the owner of the work is. *)
+let link parent r =
+  let w = parent.work in
+  w.started <- w.started + 1;
+  if not parent.gone then adopt parent r;
+  notify w (Started r);
+  (* A task started under an ended task ends at once: it succeeds if its
+     parent succeeded, and is cancelled otherwise. *)
+  match parent.outcome with
+  | None -> ()
+  | Some `Succeeded -> finish `Succeeded r
+  | Some (`Failed | `Cancelled) -> finish `Cancelled r
+
+let start ?key ?(log_lines = 8) ?(transient = false) parent label =
+  if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
+  (match key with
+  | Some "" -> invalid_arg "Console.Task.start: empty key"
+  | _ -> ());
+  let w = parent.work in
+  let elsewhere = foreign w in
+  if not elsewhere then settle_work w;
+  let make () =
+    let id = Atomic.fetch_and_add w.next_id 1 in
+    row w ~id ?key ~parent ~log_lines ~transient label
+  in
+  let r, fresh =
+    match key with Some k -> keyed w k make | None -> (make (), true)
+  in
+  if fresh then
+    if elsewhere then post w (fun () -> link parent r) else link parent r;
+  (r, fresh)
+
+let within r f =
+  let value = ref None in
+  r.work.scope.within r (fun () -> value := Some (f ()));
+  Option.get !value
+
+let end_task outcome ?message r = owned r (fun () -> finish outcome ?message r)
+let succeed ?message r = end_task `Succeeded ?message r
+let fail ?message r = end_task `Failed ?message r
+let cancel ?message r = end_task `Cancelled ?message r
+
+(* The message reads the label where the owner changes it. *)
+let failed_with r e =
+  owned r (fun () ->
+      finish `Failed ~message:(r.label ^ ": " ^ Printexc.to_string e) r)
+
+(* A task found by its key is ended by the call that started it, not by this
+   one. *)
+let run ?key ?log_lines ?transient parent label f =
+  match start ?key ?log_lines ?transient parent label with
+  | r, false -> within r (fun () -> f r)
+  | r, true -> (
+      let value = ref None in
+      match r.work.scope.within r (fun () -> value := Some (f r)) with
+      | () ->
+          succeed r;
+          Option.get !value
+      | exception e ->
+          let bt = Printexc.get_raw_backtrace () in
+          if r.work.scope.cancelled e then cancel r else failed_with r e;
+          Printexc.raise_with_backtrace e bt)
 
 let event (ch : change) =
   let task r = if is_root r then None else Some (r.id, path r) in
@@ -663,8 +850,11 @@ let event (ch : change) =
 
 let on_event r f =
   let w = r.work in
-  watch w (fun ch ->
-      match event ch ~time:(since_start w) with Some e -> f e | None -> ())
+  let add () =
+    watch w (fun ch ->
+        match event ch ~time:(since_start w) with Some e -> f e | None -> ())
+  in
+  if foreign w then post w add else add ()
 
 let state r : [ `Running | outcome ] =
   match r.outcome with

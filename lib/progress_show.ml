@@ -202,6 +202,8 @@ let show_with ?write_error ?cancelled ?atomic ?(progress = `Auto)
   in
   Display_core.told d;
   Display_core.on_close d (fun () -> if is_running root then cancel root);
+  holding (work root) (fun () -> Display_core.drawing d);
+  Display_core.on_settle d (fun () -> settle root);
   let watching on_change =
     watch (work root) (fun change -> Display_core.reporting d on_change change)
   in

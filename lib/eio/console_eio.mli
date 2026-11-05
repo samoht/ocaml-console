@@ -117,10 +117,8 @@ val run :
     display has closed, unless [f] raised first.
 
     The sections below say what [run] does with {{!logs}Logs messages},
-    {{!signals}signals and exits}, {{!nested}nested runs} and a
-    {{!deterministic}deterministic clock}.
-
-    @raise Invalid_argument if a run starts in another domain while one runs. *)
+    {{!domains}other domains}, {{!signals}signals and exits},
+    {{!nested}nested runs} and a {{!deterministic}deterministic clock}. *)
 
 (** {1:running Running a display}
 
@@ -140,8 +138,7 @@ val run :
       [Eio.Executor_pool], is passed to the domain that runs [f]. A worker does
       not inherit the task of the fiber that submitted its work, so the message
       goes above the rows unless the worker made a task current with
-      {!Console.Task.within}. The tasks and the display belong to that domain
-      alone.
+      {!Console.Task.within}.
 
     A message the display cannot take goes to the reporter installed before
     [run], so that a log call never fails. Such a message is one of:
@@ -154,6 +151,20 @@ val run :
 
     That reporter is put back when [f] ends, and when the program exits during
     [f], so what an [at_exit] function logs after the display closed goes to it.
+
+    {2:domains Other domains}
+
+    A worker, such as one of an [Eio.Executor_pool], reports as a fiber of [f]
+    does: {!Console.Task} functions, {!print}, {!with_output}, {!redraw} and
+    {!run} reach the domain that runs [f], which draws within a tenth of a
+    second unless it is computing without yielding.
+
+    [Fmt.pr] and [Fmt.epr] are the exception. In another domain they write on
+    that domain's own formatter, which [run] does not take, so their lines land
+    among the rows and can leave a stale row on the screen. A worker prints with
+    {!print}, {!with_output} or [Logs] instead. Writing on {!Fmt.stdout} or
+    {!Fmt.stderr} themselves from another domain is not safe with or without
+    console: [Format] may raise [Invalid_argument].
 
     {2:signals Signals and exits}
 
@@ -195,7 +206,7 @@ val run :
 
     {2:nested Nested runs}
 
-    A [run] called while another runs in the same domain passes its own function
+    A [run] called while another runs, in any domain, passes its own function
     the task current where it is called, or the root of the run: so a library
     that calls [run] adds its tasks under the task of its caller. This holds
     inside [f], in a fiber that [f] started and in a fiber beside it, so a

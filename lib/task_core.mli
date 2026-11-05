@@ -250,6 +250,15 @@ val scoped : work -> t option
 val current : work -> t option
 (** [current w] is {!scoped}[ w] if that task is running. *)
 
+val settle : t -> unit
+(** [settle r] does what other domains asked of the work of [r], when called in
+    the domain that owns it, unless a display that watches it is drawing. It
+    does nothing in another domain. *)
+
+val holding : work -> (unit -> bool) -> unit
+(** [holding w f] keeps what other domains asked of [w] waiting while [f ()] is
+    [true]. *)
+
 val watch : work -> (change -> unit) -> unit
 (** [watch w f] calls [f] with each change of [w], after the watchers added
     before [f]. *)

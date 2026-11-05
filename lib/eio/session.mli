@@ -45,18 +45,17 @@ val write_error : exn -> bool
 
 val join : (Console.Task.t -> 'a) -> 'a option
 (** [join f] is [Some (f task)] if a run whose display is not closing runs in
-    the calling domain. [f] runs as part of that run, as the calling fiber's,
-    with [task] {!given} by its root, and the display closes only once [f] has
+    the program. [f] runs as part of that run, as the calling fiber's, with
+    [task] {!given} by its root, and the display closes only once [f] has
     returned too. It is [None] otherwise. *)
 
 val await_release : unit -> unit
-(** [await_release ()] waits until the display that {!run} runs in the calling
-    domain is gone, if it is closing. *)
+(** [await_release ()] waits until the display that {!run} runs is gone, if it
+    is closing. *)
 
-val claim : unit -> unit
+val claim : unit -> bool
 (** [claim ()] makes the caller the one that opens a display, until {!release}.
-
-    @raise Invalid_argument if a display already runs. *)
+    It is [false] if another caller holds that claim. *)
 
 val release : unit -> unit
 (** [release ()] ends a {!claim}. *)

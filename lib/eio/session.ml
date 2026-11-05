@@ -25,9 +25,9 @@ let ending : (unit -> unit) option Atomic.t = Atomic.make None
 type shared = {
   run : run;
   owner : Domain.id;
-  mutable users : int;
-  mutable closing : bool;
-  mutable idle : unit Eio.Promise.u option;
+  users : int Atomic.t;
+  closing : bool Atomic.t;
+  idle : unit Eio.Promise.t * unit Eio.Promise.u;
   released : unit Eio.Promise.t * unit Eio.Promise.u;
 }
 
@@ -38,12 +38,19 @@ let shared : shared option Atomic.t = Atomic.make None
    display is not closing. *)
 let find () =
   match (Eio.Fiber.get current, Atomic.get shared) with
-  | Some r, Some s when r == s.run && not s.closing -> Some r.root
+  | Some r, Some s when r == s.run && not (Atomic.get s.closing) -> Some r.root
   | _ -> None
 
+let elsewhere s = not (Int.equal (Domain.self () :> int) (s.owner :> int))
+
+(* A fiber of another domain has no binding: a worker reaches the display of
+   the program's run, which does what it asks in its own domain. *)
 let display () =
   match (Eio.Fiber.get current, Atomic.get shared) with
-  | Some r, Some s when r == s.run && not s.closing -> Some r.display
+  | Some r, Some s when r == s.run && not (Atomic.get s.closing) ->
+      Some r.display
+  | None, Some s when elsewhere s && not (Atomic.get s.closing) ->
+      Some s.run.display
   | _ -> None
   | exception Effect.Unhandled _ -> None
 
@@ -51,13 +58,11 @@ let given root = Option.value (Task_driver.current root) ~default:root
 
 let join f =
   match Atomic.get shared with
-  | Some s
-    when Int.equal (Domain.self () :> int) (s.owner :> int) && not s.closing ->
-      s.users <- s.users + 1;
+  | Some s when not (Atomic.get s.closing) ->
+      Atomic.incr s.users;
       let leave () =
-        s.users <- s.users - 1;
-        if s.users = 0 then
-          Option.iter (fun u -> ignore (Eio.Promise.try_resolve u ())) s.idle
+        if Atomic.fetch_and_add s.users (-1) = 1 then
+          ignore (Eio.Promise.try_resolve (snd s.idle) ())
       in
       Some
         (Fun.protect ~finally:leave (fun () ->
@@ -69,20 +74,13 @@ let join f =
    once that one is gone. *)
 let await_release () =
   match Atomic.get shared with
-  | Some s when Int.equal (Domain.self () :> int) (s.owner :> int) && s.closing
-    ->
-      Eio.Promise.await (fst s.released)
+  | Some s when Atomic.get s.closing -> Eio.Promise.await (fst s.released)
   | _ -> ()
 
 (* The run that opened the display waits for those that joined it. *)
 let last_out s =
-  s.users <- s.users - 1;
-  Fun.protect ~finally:(fun () -> s.closing <- true) @@ fun () ->
-  if s.users > 0 then begin
-    let idle, resolver = Eio.Promise.create () in
-    s.idle <- Some resolver;
-    Eio.Promise.await idle
-  end
+  Fun.protect ~finally:(fun () -> Atomic.set s.closing true) @@ fun () ->
+  if Atomic.fetch_and_add s.users (-1) > 1 then Eio.Promise.await (fst s.idle)
 
 (* [exit] runs the [at_exit] functions but no [finally], so the end of a run
    ([ending]) is registered there. The first run registers it, so that the
@@ -201,8 +199,7 @@ let safely f =
 
 let claim () =
   at_exit ();
-  if not (Atomic.compare_and_set busy false true) then
-    invalid_arg "Console_eio.run: a display is already running"
+  Atomic.compare_and_set busy false true
 
 let release () =
   Option.iter
@@ -458,7 +455,7 @@ let restore ?(flush = true) () =
 
 let with_terminal f =
   match (Eio.Fiber.get current, Atomic.get shared) with
-  | Some r, Some s when r == s.run && not s.closing ->
+  | Some r, Some s when r == s.run && not (Atomic.get s.closing) ->
       Display.with_output r.display (fun _ ->
           Eio.Fiber.with_binding direct () f)
   | _ -> f ()
@@ -620,9 +617,9 @@ let share run =
     {
       run;
       owner = Domain.self ();
-      users = 1;
-      closing = false;
-      idle = None;
+      users = Atomic.make 1;
+      closing = Atomic.make false;
+      idle = Eio.Promise.create ();
       released = Eio.Promise.create ();
     }
   in

@@ -406,9 +406,6 @@ let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain ?delay
 (* Open a new display and run [f] on its root task. *)
 let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
     ?delay ~progress f =
-  Console_tty.ensure ();
-  Session.await_release ();
-  Session.claim ();
   let now, sleep = reading clock in
   match
     let recorded = Recording.start ~time:(virtual_time clock) ppf in
@@ -436,12 +433,25 @@ let run ~clock ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended
   let progress = Option.value progress ~default:`Auto in
   match Session.find () with
   | Some root -> f (Session.given root)
-  | None -> (
-      match Session.join f with
-      | Some v -> v
-      | None ->
-          open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit
-            ?plain ?delay ~progress f)
+  | None ->
+      (* Another fiber or domain may be opening or closing the display: this
+         run then joins the next, or opens it. *)
+      let rec first () =
+        match Session.join f with
+        | Some v -> v
+        | None ->
+            Session.await_release ();
+            if Session.claim () then begin
+              Console_tty.ensure ();
+              open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit
+                ?plain ?delay ~progress f
+            end
+            else begin
+              Eio.Fiber.yield ();
+              first ()
+            end
+      in
+      first ()
 
 let with_output f =
   match Session.display () with
