@@ -924,6 +924,61 @@ let test_colours () =
   Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
+(* Under a running task's row, a printed line and a Logs message below the
+   warning level are muted: faint in the default theme. A warning or an error
+   keeps its mark's colour and its text is not muted. *)
+let test_log_muted () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  Task.run ~log_lines:4 t.root "job" (fun job ->
+      Task.log job "split pkg/";
+      Task.log ~level:`Info job "push main";
+      Task.log ~level:`Warning job "disk low";
+      Task.log ~level:`Error job "push failed";
+      Display.redraw t.display;
+      let out = written t in
+      Alcotest.(check bool)
+        "the printed line, faint" true
+        (contains "\027[2msplit pkg/\027[0m" out);
+      Alcotest.(check bool)
+        "the Logs message, faint" true
+        (contains "\027[2m  push main\027[0m" out);
+      Alcotest.(check bool)
+        "the warning, its mark yellow and its text plain" true
+        (contains "\027[1;33m!\027[0m disk low\r" out);
+      Alcotest.(check bool)
+        "the error, its mark red and its text plain" true
+        (contains "\027[1;31m\u{2717}\027[0m push failed" out));
+  close t
+
+(* The output of a failed task goes to the scrollback, where it is read:
+   it is not muted. *)
+let test_failure_not_muted () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  let job = Task.start t.root "job" in
+  Task.log job "Error: unbound value x";
+  Display.redraw t.display;
+  t.chunks := [];
+  Task.fail job;
+  let out = written t in
+  Alcotest.(check bool)
+    "the line, plain" true
+    (contains "\027[0m Error: unbound value x\r\n" out);
+  Alcotest.(check bool) "not faint" false (contains "\027[2mError" out)
+
+(* A theme with a muted colour draws the lines under a running task's row
+   in that colour, not faint. *)
+let test_log_muted_colour () =
+  let t = terminal ~theme:Theme.nord ~styled:true ~width:40 ~height:10 () in
+  Task.run t.root "job" (fun job ->
+      Task.log job "split pkg/";
+      Display.redraw t.display;
+      let out = written t in
+      Alcotest.(check bool)
+        "nord's muted colour" true
+        (contains "\027[38;2;150;158;173msplit pkg/\027[0m" out);
+      Alcotest.(check bool) "not faint" false (contains "\027[2m" out));
+  close t
+
 (* On a terminal wider than 100 columns, the rows and the lines of ended
    tasks keep to 100, so that a count and a timer stay near their label. *)
 let test_wide () =
@@ -3532,6 +3587,11 @@ let suite =
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
+      Alcotest.test_case "a task's lines, muted" `Quick test_log_muted;
+      Alcotest.test_case "a failed task's output, not muted" `Quick
+        test_failure_not_muted;
+      Alcotest.test_case "a task's lines, in the muted colour" `Quick
+        test_log_muted_colour;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "bytes fit their column" `Quick test_bytes_width;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
