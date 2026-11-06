@@ -3,10 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A top of four cores: a box for each, side by side, above a gauge of all
-   their jobs. A pool of four domains runs the jobs, and each job reports to
-   its core's task and to the gauge's straight from its domain. The display
-   does the rest: there is no lock, no atomic and no redraw here. *)
+(* A top of four cores. Their boxes stand side by side above a gauge of all
+   their jobs. Each core is a domain of its own, which at every tick runs
+   its jobs and counts them on its box and on the gauge. The display does
+   the rest, so the program has no synchronisation of its own. *)
 
 open Console
 
@@ -21,7 +21,7 @@ let jobs core tick = Hashtbl.hash (core, tick / 15) mod 5
 (* The most jobs a core runs in a second, which is a load of 100%. *)
 let capacity = 4. /. tick
 
-(* A job is real work for its domain: a chain of digests. *)
+(* Each job is real work for its domain, a chain of digests. *)
 let run_job core tick j =
   let rec chain n d = if n = 0 then d else chain (n - 1) (Digest.string d) in
   let d = chain 5_000 (Fmt.str "%d.%d.%d" core tick j) in
@@ -29,13 +29,16 @@ let run_job core tick j =
 
 let sum f n = List.fold_left ( + ) 0 (List.init n f)
 
-(* What a core does at a tick, in a domain of the pool. *)
-let step ~total core task tick =
-  for j = 1 to jobs core tick do
-    let digest = run_job core tick j in
-    Fmt.kstr (Task.log task) "job %d.%d %s" tick j digest;
-    Task.advance task;
-    Task.advance total
+(* A core runs its jobs at each tick, in a domain of its own. *)
+let core ~clock ~total c task =
+  for t = 0 to ticks - 1 do
+    Eio.Time.Mono.sleep clock tick;
+    for j = 1 to jobs c t do
+      let digest = run_job c t j in
+      Fmt.kstr (Task.log task) "job %d.%d %s" t j digest;
+      Task.advance task;
+      Task.advance total
+    done
   done
 
 (* A core's box: its load, its jobs and the last jobs it ran. *)
@@ -77,27 +80,18 @@ let view root =
 
 let () =
   Eio_main.run @@ fun env ->
-  Eio.Switch.run @@ fun sw ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
-  let pool =
-    Eio.Executor_pool.create ~sw ~domain_count:cores (Eio.Stdenv.domain_mgr env)
-  in
+  let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
   Console_eio.run ~clock ~keep_ended:true ~view @@ fun root ->
   let total = Task.start root "all cores" in
   Task.set_items total ~count:0 ~total:(sum (fun c -> sum (jobs c) ticks) cores);
-  let tasks =
+  let cpus =
     List.init cores (fun c ->
         let task = Task.start root (Fmt.str "cpu%d" c) in
         Task.set_items task ~count:0 ~total:(sum (jobs c) ticks);
         (c, task))
   in
-  (* At each tick the cores run their jobs side by side, and the tick ends
-     once they all have. *)
-  for t = 0 to ticks - 1 do
-    Eio.Fiber.List.iter
-      (fun (c, task) ->
-        Eio.Executor_pool.submit_exn pool ~weight:1. (fun () ->
-            step ~total c task t))
-      tasks;
-    Eio.Time.Mono.sleep clock tick
-  done
+  Eio.Fiber.List.iter
+    (fun (c, task) ->
+      Eio.Domain_manager.run domains (fun () -> core ~clock ~total c task))
+    cpus
