@@ -119,6 +119,64 @@ let test_deterministic_clock () =
   in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
+(* What a task prints that sleeps 1.5 then 0.5 seconds on [Console_eio.clock]
+   of a mock clock that never moves. It fails if a sleep waits on that
+   clock. *)
+let still_nap () =
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let buf, ppf = buffer () in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun root ->
+          Console.Task.run root "nap" (fun t ->
+              Eio.Time.Mono.sleep clock 1.5;
+              Console.Task.set_items t ~count:1 ~total:2;
+              Eio.Time.Mono.sleep clock 0.5;
+              Console.Task.set_items t ~count:2 ~total:2)))
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "a sleep waited on the clock behind");
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* Under CONSOLE_DETERMINISTIC_CLOCK alone, a sleep takes no real time. *)
+let test_sleeps_take_no_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Alcotest.(check bool)
+    "the time of the sleeps" true
+    (contains "\u{2713} nap  2/2  2.0s" (still_nap ()))
+
+(* A redraw's sleep moves the time as any other: a program that waits for
+   the display to read 0.3 seconds ends then. *)
+let test_redraws_move_the_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let _, ppf = buffer () in
+  let read, seen = Eio.Promise.create () in
+  let view root =
+    Console.View.fit @@ fun _ ->
+    if Console.Task.elapsed root >= 0.3 then
+      ignore (Eio.Promise.try_resolve seen ());
+    Console.View.text "row"
+  in
+  Eio.Fiber.first
+    (fun () ->
+      let elapsed =
+        Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun root ->
+            Eio.Promise.await read;
+            Console.Task.elapsed root)
+      in
+      Alcotest.(check (float 1e-6)) "three redraws" 0.3 elapsed)
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "the time stopped")
+
 (* The two builds of examples/columns, with sleeps on [Console_eio.clock] of
    a mock clock whose real time a seeded random schedule moves: each build
    works a random real time before each sleep, which wakes the sleeps then
@@ -211,29 +269,7 @@ let recording f =
   Sys.remove file;
   lines
 
-(* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
-   never moves: a sleep that waited on it would never end, and the work
-   fails if it does not end first. *)
-let recorded_nap () =
-  recording @@ fun () ->
-  Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
-  let _, ppf = buffer () in
-  Eio.Fiber.first
-    (fun () ->
-      Console_eio.run ~clock ~ppf (fun root ->
-          Console.Task.run root "nap" (fun t ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Console.Task.set_items t ~count:1 ~total:2;
-              Eio.Time.Mono.sleep clock 0.5;
-              Console.Task.set_items t ~count:2 ~total:2));
-      Format.pp_print_flush ppf ())
-    (fun () ->
-      for _ = 1 to 100_000 do
-        Eio.Fiber.yield ()
-      done;
-      Alcotest.fail "a sleep waited for the real time")
+let recorded_nap () = recording @@ fun () -> ignore (still_nap ())
 
 (* asciicast v2: a header, then an event a line, each newline-delimited JSON:
    the rows drawn, and nothing on the output itself. *)
@@ -1679,6 +1715,10 @@ let suite =
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
       Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
+      Alcotest.test_case "sleeps take no real time" `Quick
+        test_sleeps_take_no_time;
+      Alcotest.test_case "redraws move the time" `Quick
+        test_redraws_move_the_time;
       Alcotest.test_case "a deterministic clock ignores the schedule" `Quick
         test_deterministic_schedule;
       Alcotest.test_case "a recording's header and events" `Quick
