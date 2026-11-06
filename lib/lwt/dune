@@ -1,0 +1,20 @@
+(library
+ (name console_lwt)
+ (public_name console-lwt)
+ (private_modules backend fiber virtual_clock)
+ (flags
+  (:standard -open Console__))
+ (libraries
+  console
+  console.driver
+  lwt
+  lwt.unix
+  mtime
+  mtime.clock
+  threads.posix
+  unix))
+
+(mdx
+ (package console-lwt)
+ (files console_lwt.mli)
+ (libraries console console-lwt lwt lwt.unix))

@@ -59,6 +59,8 @@ console comes as two opam packages, which hold five libraries:
   style. Its interface may change until a second backend has settled it.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
+- `console-lwt`: shows the progress rows of a program that runs with
+  [Lwt](https://github.com/ocsigen/lwt).
 
 console needs OCaml 5.4 or later, and prints through
 [fmt](https://erratique.ch/software/fmt). Its JSON events use
@@ -103,7 +105,7 @@ program's. When standard error is a pipe or a CI log, nothing is redrawn
 and the program prints plain lines instead.
 
 The recording at the top of this page is
-[examples/quickstart/main.ml](examples/quickstart/main.ml). It runs three
+[examples/quickstart/eio/main.ml](examples/quickstart/eio/main.ml). It runs three
 test suites side by side as rows, then prints a table of their results. Its
 `--theme` option picks one of eighteen themes, and its
 `--color=auto|always|never` option says when to use colour.
@@ -647,9 +649,11 @@ A program that sleeps can keep its times moving under the variable.
 and jumps to the next sleep once nothing in the program can run, without
 waiting on real time. A program that sleeps on that clock, and passes it to
 `Console_eio.run`, therefore shows the same times on every machine while
-its rows still move. The examples wait on that clock, so the times in their
-recordings are the ones a test checks. The rules of this recording mode are
-in the section "Deterministic runs" of `Console_eio`.
+its rows still move. With Lwt, `Console_lwt.run` makes the timers of
+`Lwt_unix.sleep` virtual in the same way. The examples wait on such a clock,
+so the times in their recordings are the ones a test checks. The rules of
+this recording mode are in the section "Deterministic runs" of
+`Console_eio`.
 
 `CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as an
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording
@@ -703,8 +707,11 @@ Each example is a program under [examples/](examples/). From a checkout of
 this repository, `dune exec` runs one, as in
 `dune exec -- examples/columns/main.exe`.
 
-- [quickstart](examples/quickstart/main.ml) runs three test suites as rows,
-  then prints a table of their results.
+- [quickstart](examples/quickstart/) runs three test suites as rows, then
+  prints a table of their results. The same program runs on
+  [Eio](examples/quickstart/eio/main.ml) and on
+  [Lwt](examples/quickstart/lwt/main.ml), sharing the code that does not
+  depend on the scheduler. Both record the same bytes.
 - [progress](examples/progress/main.ml) shows a step that counts files, with
   a layer under it that counts bytes, in each `--progress` mode.
 - [display](examples/display/main.ml) runs a build under a title and a
@@ -780,6 +787,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console_driver` | Runs console on a scheduler (`console.driver`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
+| `Console_lwt` | Shows the tasks of a program with Lwt (`console-lwt`) |
 
 ## Known limitations
 

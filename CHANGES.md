@@ -33,6 +33,13 @@
 
 - `console.driver`, to run console on a scheduler other than Eio (#61).
 
+- `console-lwt`, to show the progress rows of a program that runs with Lwt
+  (#67).
+
+- Under `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST`, `Console_lwt.run`
+  makes the timers of Lwt virtual, so that a program that sleeps with
+  `Lwt_unix.sleep` shows the same times on every machine (#67).
+
 ### Changed
 
 - `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on

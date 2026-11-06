@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (optional)
+ (libraries quickstart console console-lwt lwt lwt.unix))
