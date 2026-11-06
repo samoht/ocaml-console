@@ -59,6 +59,8 @@ console comes as two opam packages, which hold five libraries:
   style. Its interface may change until a second backend has settled it.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
+- `console-lwt`: shows the progress rows of a program that runs with
+  [Lwt](https://github.com/ocsigen/lwt).
 
 console needs OCaml 5.4 or later, and prints through
 [fmt](https://erratique.ch/software/fmt). Its JSON events use
@@ -780,6 +782,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console_driver` | Runs console on a scheduler (`console.driver`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
+| `Console_lwt` | Shows the tasks of a program with Lwt (`console-lwt`) |
 
 ## Known limitations
 

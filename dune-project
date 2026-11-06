@@ -74,3 +74,26 @@
   (jsont :with-test)
   (bytesrw :with-test)
   (k7 :with-test)))
+
+(package
+ (name console-lwt)
+ (synopsis "Lwt backend for console")
+ (tags (command-line-utilities format lwt))
+ (description
+  "Runs console's progress rows with Lwt. It finds whether the output is a
+   terminal and its size, redraws the rows, shows the program's output and
+   its Logs messages under the task that printed them, and gives the
+   terminal back when the run's promise resolves, when the program exits
+   and on SIGINT or SIGTERM. On a pipe or in CI each task prints lines
+   instead, or JSON events on request.")
+ (depends
+  (ocaml (>= 5.4))
+  (console (= :version))
+  (lwt (>= 5.9.0))
+  base-unix
+  (mtime (>= 2.0.0))
+  (alcotest (and :with-test (>= 1.7.0)))
+  (astring :with-test)
+  (mdx :with-test)
+  (fmt :with-test)
+  (logs :with-test)))
