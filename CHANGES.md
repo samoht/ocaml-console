@@ -74,6 +74,10 @@
 - `Console_eio.run` from another domain now joins the run under way instead of
   raising `Invalid_argument` (#57).
 
+- A `CONSOLE_CAST` recording now keeps what a program writes after it starts
+  its first domain, as an `Eio.Executor_pool` does. It used to go to the
+  terminal instead (#66).
+
 - A `Logs` message from a worker domain no longer waits for the display, so a
   program that waits for its workers no longer hangs. Past 4 MiB of waiting
   lines, the oldest are dropped and a line says how many (#59).
