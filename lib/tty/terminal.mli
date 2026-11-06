@@ -43,6 +43,11 @@ val routed : Unix.file_descr -> Format.formatter list
 val sharing : Unix.file_descr -> Format.formatter list
 (** [sharing fd] is the standard formatters that write where [fd] does. *)
 
+val device_names : dev:string list -> pts:string list -> string list
+(** [device_names ~dev ~pts] is the paths where {!reopened} looks for a
+    terminal, given the names in [/dev] and in [/dev/pts]: [/dev/tty], each of
+    [/dev/pts], then the [/dev/tty*], macOS's [/dev/ttys*] first. *)
+
 val reopened : Unix.file_descr -> Unix.file_descr option
 (** [reopened fd] is the terminal of [fd] opened again, non-blocking, so that
     the last resort does not change the flags of a descriptor shared with a

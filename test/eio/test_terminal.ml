@@ -249,9 +249,27 @@ let test_window_size_of_a_terminal () =
     (Some (123, 45))
     (Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Terminal.window_size)
 
+(* The last resort looks for the terminal under the names of /dev and
+   /dev/pts. *)
+let test_device_names () =
+  let check msg expected (dev, pts) =
+    Alcotest.(check (list string))
+      msg expected
+      (Terminal.device_names ~dev ~pts)
+  in
+  check "OpenBSD"
+    [ "/dev/tty"; "/dev/ttyp0"; "/dev/ttyp1" ]
+    ([ "null"; "tty"; "ptyp0"; "ttyp0"; "ttyp1" ], []);
+  check "macOS"
+    [ "/dev/tty"; "/dev/ttys000"; "/dev/ttys001"; "/dev/ttyp0" ]
+    ([ "ttyp0"; "ttys000"; "tty"; "ttys001" ], []);
+  check "Linux" [ "/dev/tty"; "/dev/pts/0" ] ([ "tty"; "null" ], [ "0" ])
+
 let suite =
   ( "terminal",
     [
+      Alcotest.test_case "where the last resort looks for the terminal" `Quick
+        test_device_names;
       Alcotest.test_case "the size of a terminal" `Quick
         test_window_size_of_a_terminal;
       Alcotest.test_case "small positive terminal dimensions are preserved"

@@ -83,6 +83,9 @@
   and ends an escape code cut in half. This covers another domain or thread,
   and a write that does not end within a second (#37).
 
+- On OpenBSD too, a signal or an `exit` that cannot reach the display shows
+  the cursor (#70).
+
 - Progress rows short of room keep their count and time in their columns, and
   a label a task was renamed from no longer widens its column once the task
   ends (#58).

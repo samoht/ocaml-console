@@ -79,19 +79,15 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
-(* The paths a terminal device may have: the controlling terminal, then the
-   pseudo-terminals of Linux and of BSD and macOS. *)
-let device_names () =
-  let entries dir keep =
-    match Sys.readdir dir with
-    | names ->
-        List.filter_map
-          (fun n -> if keep n then Some (Filename.concat dir n) else None)
-          (Array.to_list names)
-    | exception Sys_error _ -> []
+(* macOS keeps hundreds of unused ttyp* to ttyw*, so its own ttys* come
+   before the other tty*, such as OpenBSD's pseudo-terminals. *)
+let device_names ~dev ~pts =
+  let tty n = n <> "tty" && String.starts_with ~prefix:"tty" n in
+  let macos, others =
+    List.partition (String.starts_with ~prefix:"ttys") (List.filter tty dev)
   in
-  ("/dev/tty" :: entries "/dev/pts" (Fun.const true))
-  @ entries "/dev" (String.starts_with ~prefix:"ttys")
+  let in_dir dir = List.map (Filename.concat dir) in
+  ("/dev/tty" :: in_dir "/dev/pts" pts) @ in_dir "/dev" (macos @ others)
 
 (* [reopened unix] is the terminal of [unix] opened again, found by its
    device, so that the last resort is written on it without blocking and
@@ -115,6 +111,11 @@ let reopened unix =
         Unix.close tty;
         None
   in
+  let entries dir =
+    match Sys.readdir dir with
+    | names -> Array.to_list names
+    | exception Sys_error _ -> []
+  in
   match device unix with
   | None -> None
   | Some d ->
@@ -124,7 +125,7 @@ let reopened unix =
         (fun name ->
           if name = "/dev/tty" || rdev name = Some d then opened d name
           else None)
-        (device_names ())
+        (device_names ~dev:(entries "/dev") ~pts:(entries "/dev/pts"))
 
 let file unix =
   match Unix.fstat unix with
