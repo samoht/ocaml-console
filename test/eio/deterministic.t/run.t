@@ -2,8 +2,8 @@ CONSOLE_DETERMINISTIC_CLOCK, set to any value but the empty string, makes
 the time of every Console_eio.run depend on the program alone, so a
 transcript of a program's progress holds nothing of how fast the machine
 ran it. The examples/progress program sleeps on Console_eio.clock, fifteen
-times 0.2 seconds one after the other, so its time reads 3.0s. The example
-takes three seconds.
+times 0.2 seconds one after the other, so its time reads 3.0s. The sleeps
+take no real time.
 
   $ export CONSOLE_DETERMINISTIC_CLOCK=1
 

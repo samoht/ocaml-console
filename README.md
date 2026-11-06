@@ -643,20 +643,19 @@ the [Quick start](#quick-start), compiled as an executable:
 ```
 
 A program that sleeps can keep its times moving under the variable.
-`Console_eio.clock` then makes a virtual clock, whose time starts at zero.
-A sleep on it wakes at the time it started plus its duration, whatever the
-program computes in between, and still lasts that duration in real time. A
-program that sleeps on that clock, and passes it to `Console_eio.run`,
-therefore shows the same times on every machine while its rows still move.
-The examples wait on that clock, so the times in their recordings are the
-ones a test checks.
+`Console_eio.clock` then makes a virtual clock, whose time starts at zero
+and jumps to the next sleep once nothing in the program can run, without
+waiting on real time. A program that sleeps on that clock, and passes it to
+`Console_eio.run`, therefore shows the same times on every machine while
+its rows still move. The examples wait on that clock, so the times in their
+recordings are the ones a test checks. The rules of this deterministic mode
+are in the section "Deterministic mode" of `Console_eio`.
 
 `CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as an
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording
 of a terminal of `$COLUMNS` by `$LINES`. It implies
-`CONSOLE_DETERMINISTIC_CLOCK`, and the sleeps on a clock made by
-`Console_eio.clock` take no real time. The recording is then the same bytes
-on every run, made in a fraction of the program's time.
+`CONSOLE_DETERMINISTIC_CLOCK`. The recording is then the same bytes on every
+run, made in a fraction of the program's time.
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes

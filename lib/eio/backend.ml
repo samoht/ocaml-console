@@ -6,9 +6,9 @@
 include Console_driver.Make (struct
   type clock = Eio.Time.Mono.ty Eio.Resource.t
 
-  let elapsed = Virtual_clock.reading_now
-  let tick = Virtual_clock.reading_sleep
-  let recording_time = Virtual_clock.virtual_time
+  let elapsed = Virtual_clock.elapsed
+  let tick = Virtual_clock.tick
+  let recording_time = Virtual_clock.recording_time
 
   type 'a key = 'a Eio.Fiber.key
 
