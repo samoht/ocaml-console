@@ -324,6 +324,92 @@ let test_cast_schedule () =
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
 
+(* A recording of four domains, each a loop over a sleep on
+   [Console_eio.clock] and a tick of work. A domain counts its ticks on a
+   task of its own and on a shared one. With a seed other than zero, each
+   tick works a random real time, and another fiber yields a random number
+   of times in a loop. *)
+let recorded_domains seed =
+  let rand = Random.State.make [| seed |] in
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env
+    [
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", "40");
+      ("LINES", "8");
+      ("TERM", "xterm");
+    ]
+    (fun () ->
+      Eio_main.run @@ fun env ->
+      let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
+      let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+      let _, ppf = buffer () in
+      let ticks = 8 in
+      let finished = ref false in
+      Console_eio.run ~clock ~ppf ~progress:`Tty ~keep_ended:true (fun root ->
+          let all = Console.Task.start root "all" in
+          Console.Task.set_items all ~count:0 ~total:(4 * ticks);
+          Eio.Fiber.both
+            (fun () ->
+              Eio.Fiber.List.iter
+                (fun d ->
+                  let task = Console.Task.start root (Fmt.str "domain %d" d) in
+                  Console.Task.set_items task ~count:0 ~total:ticks;
+                  Eio.Domain_manager.run domains (fun () ->
+                      for i = 1 to ticks do
+                        Eio.Time.Mono.sleep clock 0.1;
+                        let rec work n s =
+                          if n = 0 then s else work (n - 1) (Digest.string s)
+                        in
+                        let n =
+                          if seed = 0 then 0 else Random.State.int rand 5
+                        in
+                        let s = work (1 + (n * 2_000)) "" in
+                        Console.Task.log task
+                          (Fmt.str "tick %d %d" i (String.length s));
+                        Console.Task.advance task;
+                        Console.Task.advance all
+                      done;
+                      Console.Task.succeed task))
+                [ 0; 1; 2; 3 ];
+              finished := true)
+            (fun () ->
+              while seed > 0 && not !finished do
+                for _ = 0 to Random.State.int rand 4 do
+                  Eio.Fiber.yield ()
+                done
+              done);
+          Console.Task.succeed all));
+  In_channel.with_open_bin file In_channel.input_all
+
+(* Whatever the domains' real schedule, a recording is the same bytes. *)
+let test_cast_domains () =
+  let calm = recorded_domains 0 in
+  Alcotest.(check bool) "every tick counted" true (contains "32/32" calm);
+  for seed = 1 to 10 do
+    Alcotest.(check string)
+      (Fmt.str "schedule %d" seed)
+      calm (recorded_domains seed)
+  done
+
+(* [Console_eio.domain_mgr] starts a domain, but in deterministic mode its
+   new domain is the caller's. *)
+let test_domain_mgr () =
+  let elsewhere () =
+    Eio_main.run @@ fun env ->
+    let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+    let self = Domain.self () in
+    Eio.Domain_manager.run domains (fun () -> Domain.self () <> self)
+  in
+  let mode value =
+    with_env
+      [ ("CONSOLE_CAST", ""); ("CONSOLE_DETERMINISTIC_CLOCK", value) ]
+      elsewhere
+  in
+  Alcotest.(check bool) "another domain" true (mode "");
+  Alcotest.(check bool) "the same domain" false (mode "1")
+
 let test_run_raises () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -1636,6 +1722,9 @@ let suite =
       Alcotest.test_case "a recording ignores the schedule" `Quick
         test_cast_schedule;
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
+      Alcotest.test_case "a recording of domains ignores the schedule" `Quick
+        test_cast_domains;
+      Alcotest.test_case "domain_mgr" `Quick test_domain_mgr;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;

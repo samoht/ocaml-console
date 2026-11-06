@@ -4,6 +4,10 @@
 
 - `View.wrap ~words`, to choose where a line may break (#2).
 
+- `Console_eio.domain_mgr`, so that a program that runs domains shows the
+  same frames on every run under `CONSOLE_CAST` or
+  `CONSOLE_DETERMINISTIC_CLOCK` (#66).
+
 - `Console_input.crlf`, so that output sent to a raw-mode terminal starts each
   line in the first column (#3).
 

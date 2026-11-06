@@ -7,6 +7,20 @@ module Prompt = Prompt
 
 let clock = Virtual_clock.clock
 
+(* The domain manager of deterministic mode: a new domain is a call. *)
+module Fibers = struct
+  type t = unit
+
+  let run () fn = fn ~cancelled:(fst (Eio.Promise.create ()))
+  let run_raw () fn = fn ()
+end
+
+let fibers = Eio.Resource.T ((), Eio.Domain_manager.Pi.mgr (module Fibers))
+
+let domain_mgr d =
+  if Cast.deterministic () then fibers
+  else (d :> Eio.Domain_manager.ty Eio.Resource.t)
+
 let run ~clock ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain
     ?delay f =
   Backend.run
