@@ -96,7 +96,8 @@ let after_grace f =
    the [suspend] of every holder, that of the innermost holder outermost;
    [kill] returns once the process is continued. The runtime blocks a signal
    while its handler runs, so the signal is unblocked for the stop; in a
-   process group that no shell controls, the system discards it. If the
+   process group that no shell controls, Linux and macOS discard it, and
+   FreeBSD stops the process all the same. If the
    suspensions do not start within [grace], or a holder belongs to another
    domain, the terminal is given up ({!give_up}) around the stop instead, and
    each holder's [resume] runs once the process is continued. *)

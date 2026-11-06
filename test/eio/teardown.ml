@@ -19,8 +19,8 @@
    - [quiet-ok], [quiet-fail] or [quiet-cancel]: in quiet mode, its task
      prints and logs, then succeeds, fails or is cancelled;
    - [suspend]: SIGTSTP stops it, as Ctrl-Z does, and it goes on once
-     continued; with [orphaned-suspend], in a session of its own, where no
-     stop takes effect;
+     continued; with [orphaned-suspend], in a session of its own, where
+     Linux and macOS discard the stop;
    - [unflushed]: it prints lines that it never flushes;
    - [held]: it prints a line outside a task that it does not flush, then
      one in a task that fails;

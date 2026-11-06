@@ -1302,10 +1302,12 @@ let test_suspend_blocked () =
     "the cursor is shown" true
     (Console_vte.cursor_visible vte)
 
-(* In a process group that no shell controls, a stop does not take effect:
-   the terminal is given back and the region drawn again once, and the work
-   goes on. A display that gave the terminal back again and again would
-   show the cursor without end; the reader stops it then. *)
+(* In a process group that no shell controls, Linux and macOS discard a
+   stop, and FreeBSD stops the process all the same, so the child is
+   continued as it runs. Either way the terminal is given back and the region
+   drawn again once, and the work goes on. A display that gave the terminal
+   back again and again would show the cursor without end; the reader stops
+   it then. *)
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1332,11 +1334,19 @@ let test_suspend_without_stop () =
     end;
     read ()
   in
+  let rec continue () =
+    Eio.Time.sleep (Eio.Stdenv.clock env) 0.1;
+    (try Unix.kill (Eio.Process.pid child) Sys.sigcont
+     with Unix.Unix_error (Unix.ESRCH, _, _) -> ());
+    continue ()
+  in
   let status =
     Eio.Fiber.first
       (fun () -> Eio.Process.await child)
       (fun () ->
-        try read () with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ())
+        Eio.Fiber.first continue (fun () ->
+            try read ()
+            with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ()))
   in
   Alcotest.(check bool)
     (Fmt.str "the region is given back a bounded number of times (%d)" !shown)
@@ -1602,8 +1612,8 @@ let suite =
         test_sigint_restore_fails;
       Alcotest.test_case "ended from another domain or thread" `Quick
         test_elsewhere_ends;
-      Alcotest.test_case "a stop that does not take effect resumes once" `Quick
-        test_suspend_without_stop;
+      Alcotest.test_case "a stop in a group no shell controls resumes once"
+        `Quick test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
