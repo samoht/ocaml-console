@@ -5,7 +5,7 @@
 
 type output = {
   ppf : Format.formatter;
-  out : Format.formatter_out_functions;
+  mutable out : Format.formatter_out_functions;
   pending : Buffer.t;
 }
 
@@ -65,6 +65,18 @@ let written t o =
       Buffer.add_substring o.pending all k (String.length all - k);
       emit t (String.sub all 0 k)
 
+let redirect t o =
+  let blank n = if n > 0 then Buffer.add_string o.pending (String.make n ' ') in
+  Format.pp_set_formatter_out_functions o.ppf
+    {
+      o.out with
+      out_string = Buffer.add_substring o.pending;
+      out_flush = (fun () -> written t o);
+      out_newline = (fun () -> Buffer.add_char o.pending '\n');
+      out_spaces = blank;
+      out_indent = blank;
+    }
+
 let record t ppf =
   if not (List.exists (fun o -> o.ppf == ppf) t.outputs) then begin
     Format.pp_print_flush ppf ();
@@ -75,18 +87,7 @@ let record t ppf =
         pending = Buffer.create 256;
       }
     in
-    let blank n =
-      if n > 0 then Buffer.add_string o.pending (String.make n ' ')
-    in
-    Format.pp_set_formatter_out_functions ppf
-      {
-        o.out with
-        out_string = Buffer.add_substring o.pending;
-        out_flush = (fun () -> written t o);
-        out_newline = (fun () -> Buffer.add_char o.pending '\n');
-        out_spaces = blank;
-        out_indent = blank;
-      };
+    redirect t o;
     t.outputs <- o :: t.outputs
   end
 
@@ -98,6 +99,23 @@ let stop t =
       Format.pp_set_formatter_out_functions o.ppf o.out)
     t.outputs;
   close_out t.oc
+
+(* Before the first domain starts, Format gives [Fmt.stdout] and [Fmt.stderr]
+   the [out_string] and [out_flush] of a buffer per domain. This runs after
+   that, so a recorded formatter is recorded again over the new pair. *)
+let () =
+  let rebase t o =
+    if o.ppf == Format.std_formatter || o.ppf == Format.err_formatter then begin
+      let now = Format.pp_get_formatter_out_functions o.ppf () in
+      o.out <-
+        { o.out with out_string = now.out_string; out_flush = now.out_flush };
+      redirect t o
+    end
+  in
+  try
+    Domain.before_first_spawn (fun () ->
+        Option.iter (fun t -> List.iter (rebase t) t.outputs) !current)
+  with Invalid_argument _ -> ()
 
 (* A recording that cannot be opened ends the program, as a bad option
    would. *)

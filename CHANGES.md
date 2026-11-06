@@ -4,6 +4,9 @@
 
 - `View.wrap ~words`, to choose where a line may break (#2).
 
+- `Console_eio.domain_mgr`, so that a recording of a program that runs
+  domains is the same on every run (#66).
+
 - `Console_input.crlf`, so that output sent to a raw-mode terminal starts each
   line in the first column (#3).
 
@@ -31,6 +34,11 @@
 - `console.driver`, to run console on a scheduler other than Eio (#61).
 
 ### Changed
+
+- `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
+  `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
+  time jumps to the next sleep once nothing in the program can run, and the
+  sleeps between two redraws move it too (#66).
 
 - `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
   needs no scheduler (#61).
@@ -73,6 +81,10 @@
 
 - `Console_eio.run` from another domain now joins the run under way instead of
   raising `Invalid_argument` (#57).
+
+- A `CONSOLE_CAST` recording now keeps what a program writes after it starts
+  its first domain, as an `Eio.Executor_pool` does. It used to go to the
+  terminal instead (#66).
 
 - A `Logs` message from a worker domain no longer waits for the display, so a
   program that waits for its workers no longer hangs. Past 4 MiB of waiting

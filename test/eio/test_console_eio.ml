@@ -41,32 +41,16 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
 
-(* [step mock] moves [mock] to its next timer, if it has one: a sleep that
-   waits for its turn on [Console_eio.clock] sets none. *)
-let step mock =
-  try Eio_mock.Clock.Mono.advance mock with Invalid_argument _ -> ()
-
 (* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
-   of a mock clock, which moves to the end of each sleep in turn. *)
+   of a mock clock. *)
 let sleeps () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref false in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.both
-            (fun () ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Eio.Time.Mono.sleep clock 0.5;
-              slept := true)
-            (fun () ->
-              while not !slept do
-                Eio.Fiber.yield ();
-                step mock
-              done)));
-
+          Eio.Time.Mono.sleep clock 1.5;
+          Eio.Time.Mono.sleep clock 0.5));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -74,32 +58,19 @@ let sleeps () =
    [Console_eio.clock] of a mock clock. *)
 let overlapping () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref 0 in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.all
-            [
-              (fun () ->
-                Eio.Time.Mono.sleep clock 1.;
-                incr slept);
-              (fun () ->
-                Eio.Time.Mono.sleep clock 2.;
-                incr slept);
-              (fun () ->
-                while !slept < 2 do
-                  Eio.Fiber.yield ();
-                  step mock
-                done);
-            ]));
+          Eio.Fiber.both
+            (fun () -> Eio.Time.Mono.sleep clock 1.)
+            (fun () -> Eio.Time.Mono.sleep clock 2.)));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 (* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
    the time of the sleeps on a clock of [Console_eio.clock], and zero on
-   another clock; the waits still run on the clock behind it. *)
+   another clock. *)
 let test_deterministic_clock () =
   let deterministic f =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] (fun () -> f ())
@@ -119,32 +90,86 @@ let test_deterministic_clock () =
   in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
-(* The two builds of examples/columns, with sleeps on [Console_eio.clock] of
-   a mock clock whose real time a seeded random schedule moves: each build
-   works a random real time before each sleep, which wakes the sleeps then
-   due at once, and a driver moves the clock by random steps after random
-   numbers of yields. *)
+(* What a task prints that sleeps 1.5 then 0.5 seconds on [Console_eio.clock]
+   of a mock clock that never moves. It fails if a sleep waits on that
+   clock. *)
+let still_nap () =
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let buf, ppf = buffer () in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun root ->
+          Console.Task.run root "nap" (fun t ->
+              Eio.Time.Mono.sleep clock 1.5;
+              Console.Task.set_items t ~count:1 ~total:2;
+              Eio.Time.Mono.sleep clock 0.5;
+              Console.Task.set_items t ~count:2 ~total:2)))
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "a sleep waited on the clock behind");
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* Under CONSOLE_DETERMINISTIC_CLOCK alone, a sleep takes no real time. *)
+let test_sleeps_take_no_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Alcotest.(check bool)
+    "the time of the sleeps" true
+    (contains "\u{2713} nap  2/2  2.0s" (still_nap ()))
+
+(* A redraw's sleep moves the time as any other: a program that waits for
+   the display to read 0.3 seconds ends then. *)
+let test_redraws_move_the_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let _, ppf = buffer () in
+  let read, seen = Eio.Promise.create () in
+  let view root =
+    Console.View.fit @@ fun _ ->
+    if Console.Task.elapsed root >= 0.3 then
+      ignore (Eio.Promise.try_resolve seen ());
+    Console.View.text "row"
+  in
+  Eio.Fiber.first
+    (fun () ->
+      let elapsed =
+        Console_eio.run ~clock ~ppf ~progress:`Tty ~view (fun root ->
+            Eio.Promise.await read;
+            Console.Task.elapsed root)
+      in
+      Alcotest.(check (float 1e-6)) "three redraws" 0.3 elapsed)
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "the time stopped")
+
+(* The two builds of examples/columns, with sleeps on [Console_eio.clock].
+   With a seed other than zero, each build works a random real time before
+   each sleep, and another fiber yields a random number of times in a
+   loop. *)
 let perturbed ?cast ~progress seed =
   let env = match cast with Some f -> [ ("CONSOLE_CAST", f) ] | None -> [] in
   with_env env @@ fun () ->
   let rand = Random.State.make [| seed |] in
-  let mock = Eio_mock.Clock.Mono.make () in
-  let real = ref 0 in
-  let pass () =
-    if seed > 0 then begin
-      real := !real + Random.State.int rand 300_000_000;
-      Eio_mock.Clock.Mono.set_time mock
-        (Mtime.of_uint64_ns (Int64.of_int !real))
-    end
+  let work () =
+    if seed > 0 then
+      for i = 1 to Random.State.int rand 100_000 do
+        ignore (Sys.opaque_identity (i * i))
+      done
   in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let build root (name, pace, steps) =
     Console.Task.run root name (fun b ->
         List.iter
           (fun (step, total) ->
             Console.Task.run b step (fun task ->
                 for count = 1 to total do
-                  pass ();
+                  work ();
                   Eio.Time.Mono.sleep clock pace;
                   Console.Task.set_items task ~count ~total
                 done))
@@ -170,8 +195,7 @@ let perturbed ?cast ~progress seed =
           while not !finished do
             for _ = 0 to Random.State.int rand 4 do
               Eio.Fiber.yield ()
-            done;
-            if seed > 0 then pass () else step mock
+            done
           done));
   Format.pp_print_flush ppf ();
   match cast with
@@ -211,29 +235,7 @@ let recording f =
   Sys.remove file;
   lines
 
-(* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
-   never moves: a sleep that waited on it would never end, and the work
-   fails if it does not end first. *)
-let recorded_nap () =
-  recording @@ fun () ->
-  Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
-  let _, ppf = buffer () in
-  Eio.Fiber.first
-    (fun () ->
-      Console_eio.run ~clock ~ppf (fun root ->
-          Console.Task.run root "nap" (fun t ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Console.Task.set_items t ~count:1 ~total:2;
-              Eio.Time.Mono.sleep clock 0.5;
-              Console.Task.set_items t ~count:2 ~total:2));
-      Format.pp_print_flush ppf ())
-    (fun () ->
-      for _ = 1 to 100_000 do
-        Eio.Fiber.yield ()
-      done;
-      Alcotest.fail "a sleep waited for the real time")
+let recorded_nap () = recording @@ fun () -> ignore (still_nap ())
 
 (* asciicast v2: a header, then an event a line, each newline-delimited JSON:
    the rows drawn, and nothing on the output itself. *)
@@ -322,6 +324,58 @@ let test_cast_schedule () =
        (Cast_harness.events (String.split_on_char '\n' (String.trim calm))));
   for seed = 1 to 50 do
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
+  done
+
+(* A recording of four domains, each a loop over a sleep on
+   [Console_eio.clock] and a tick of work. A domain counts its ticks on a
+   task of its own and on a shared one, and its work takes a real time of
+   its own. *)
+let recorded_domains () =
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env
+    [
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", "40");
+      ("LINES", "8");
+      ("TERM", "xterm");
+    ]
+    (fun () ->
+      Eio_main.run @@ fun env ->
+      let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
+      let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+      let _, ppf = buffer () in
+      let ticks = 8 in
+      Console_eio.run ~clock ~ppf ~progress:`Tty ~keep_ended:true (fun root ->
+          let all = Console.Task.start root "all" in
+          Console.Task.set_items all ~count:0 ~total:(4 * ticks);
+          Eio.Fiber.List.iter
+            (fun d ->
+              let task = Console.Task.start root (Fmt.str "domain %d" d) in
+              Console.Task.set_items task ~count:0 ~total:ticks;
+              Eio.Domain_manager.run domains (fun () ->
+                  for i = 1 to ticks do
+                    Eio.Time.Mono.sleep clock 0.1;
+                    let rec work n s =
+                      if n = 0 then s else work (n - 1) (Digest.string s)
+                    in
+                    let s = work (((d * 7) + i) mod 5 * 2_000) "" in
+                    Console.Task.log task
+                      (Fmt.str "tick %d %d" i (String.length s));
+                    Console.Task.advance task;
+                    Console.Task.advance all
+                  done;
+                  Console.Task.succeed task))
+            [ 0; 1; 2; 3 ];
+          Console.Task.succeed all));
+  In_channel.with_open_bin file In_channel.input_all
+
+(* Whatever the domains' real schedule, a recording is the same bytes. *)
+let test_cast_domains () =
+  let first = recorded_domains () in
+  Alcotest.(check bool) "every tick counted" true (contains "32/32" first);
+  for run = 1 to 10 do
+    Alcotest.(check string) (Fmt.str "run %d" run) first (recorded_domains ())
   done
 
 let test_run_raises () =
@@ -1627,6 +1681,10 @@ let suite =
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
       Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
+      Alcotest.test_case "sleeps take no real time" `Quick
+        test_sleeps_take_no_time;
+      Alcotest.test_case "redraws move the time" `Quick
+        test_redraws_move_the_time;
       Alcotest.test_case "a deterministic clock ignores the schedule" `Quick
         test_deterministic_schedule;
       Alcotest.test_case "a recording's header and events" `Quick
@@ -1636,6 +1694,8 @@ let suite =
       Alcotest.test_case "a recording ignores the schedule" `Quick
         test_cast_schedule;
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
+      Alcotest.test_case "a recording of domains ignores the schedule" `Quick
+        test_cast_domains;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;
