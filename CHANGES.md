@@ -59,6 +59,12 @@
   as it starts: no table of widths or durations is built until it is used,
   also when the program builds a progress layout at load (#30, #40, #64).
 
+- The live lines under a running task's row, printed, logged with `Logs` or
+  given with `Task.log`, are now drawn in the theme's muted colour (faint in
+  the default theme), so they read as a log under the row. A warning or an
+  error is drawn as before, and so is every line printed to the scrollback,
+  such as the output of a failed task (#65).
+
 ### Fixed
 
 - `Task` and `Display` now work from any domain, so a worker of an

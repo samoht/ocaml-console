@@ -67,7 +67,7 @@ val live :
 
 val tail : Look.t -> t -> (int * View_core.t) list
 (** [tail look r] are the lines of [r]'s window, oldest first, each after its
-    {!field-seq}. *)
+    {!field-seq}. Their text is muted, except for a warning or an error. *)
 
 val ended :
   Look.t ->

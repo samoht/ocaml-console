@@ -433,10 +433,18 @@ let lead_mark look = function
 
 let body look (line : line) = V.(text line.text ++ gap_suffix look line.gap)
 
+(* Under a running task's row, a plain line is muted; a warning or an error
+   is not. *)
+let live_body look (line : line) =
+  match line.kind with
+  | Output | Logs (`App | `Info | `Debug) ->
+      V.(muted look line.text ++ gap_suffix look line.gap)
+  | Logs (`Warning | `Error) -> body look line
+
 let tail look r =
   Queue.fold
     (fun acc line ->
-      (line.seq, V.(lead_mark look line.kind ++ body look line)) :: acc)
+      (line.seq, V.(lead_mark look line.kind ++ live_body look line)) :: acc)
     [] (window r)
   |> List.rev
 
