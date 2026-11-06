@@ -1,0 +1,14 @@
+(test
+ (name test)
+ (package console-lwt)
+ (libraries
+  alcotest
+  astring
+  console
+  console-lwt
+  display_harness
+  fmt
+  logs
+  lwt
+  lwt.unix
+  threads.posix))
