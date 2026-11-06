@@ -1302,13 +1302,20 @@ let test_suspend_blocked () =
     "the cursor is shown" true
     (Console_vte.cursor_visible vte)
 
-(* In a process group that no shell controls, a stop does not take effect:
-   the terminal is given back and the region drawn again once, and the work
-   goes on. A display that gave the terminal back again and again would
+(* In a process group that no shell controls, Linux and macOS discard a
+   stop: the terminal is given back and the region drawn again once, and the
+   work goes on. FreeBSD stops the process all the same, so there the test
+   continues it. A display that gave the terminal back again and again would
    show the cursor without end; the reader stops it then. *)
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let freebsd =
+    Eio.Process.parse_out
+      (Eio.Stdenv.process_mgr env)
+      Eio.Buf_read.line [ "uname"; "-s" ]
+    = "FreeBSD"
+  in
   let pty = open_pty ~sw in
   let child =
     Eio_unix.Process.spawn_unix ~sw
@@ -1334,7 +1341,10 @@ let test_suspend_without_stop () =
   in
   let status =
     Eio.Fiber.first
-      (fun () -> Eio.Process.await child)
+      (fun () ->
+        let pid = Eio.Process.pid child in
+        if freebsd && stopped_by_sigtstp pid then Unix.kill pid Sys.sigcont;
+        Eio.Process.await child)
       (fun () ->
         try read () with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ())
   in
@@ -1602,8 +1612,8 @@ let suite =
         test_sigint_restore_fails;
       Alcotest.test_case "ended from another domain or thread" `Quick
         test_elsewhere_ends;
-      Alcotest.test_case "a stop that does not take effect resumes once" `Quick
-        test_suspend_without_stop;
+      Alcotest.test_case "a stop in a group no shell controls resumes once"
+        `Quick test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
