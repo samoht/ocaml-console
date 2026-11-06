@@ -924,6 +924,25 @@ let test_colours () =
   Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
+(* A task's lines, printed or logged, are a log under its row. The theme's
+   muted style draws them, as it draws the counts and the timers, and it is
+   faint in the default theme. A line drawn in the row's style would read as
+   loud as the row. *)
+let test_log_muted () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  Task.run ~log_lines:2 t.root "job" (fun job ->
+      Task.log job "split pkg/";
+      Task.log ~level:`Info job "push main";
+      Display.redraw t.display;
+      let out = written t in
+      Alcotest.(check bool)
+        "the printed line, faint" true
+        (contains "\027[2msplit pkg/\027[0m" out);
+      Alcotest.(check bool)
+        "the Logs message, faint" true
+        (contains "\027[2m  push main\027[0m" out));
+  close t
+
 (* On a terminal wider than 100 columns, the rows and the lines of ended
    tasks keep to 100, so that a count and a timer stay near their label. *)
 let test_wide () =
@@ -3532,6 +3551,7 @@ let suite =
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
+      Alcotest.test_case "a task's lines, muted" `Quick test_log_muted;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "bytes fit their column" `Quick test_bytes_width;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;

@@ -425,7 +425,10 @@ let lead_mark look = function
   | Logs ((`Warning | `Error | `Debug) as l) ->
       V.(mark look (l :> Theme.mark) ++ text " ")
 
-let body look (line : line) = V.(text line.text ++ gap_suffix look line.gap)
+(* A task's lines, printed or logged, are a log under its row, so they are
+   muted. *)
+let body look (line : line) =
+  V.(muted look line.text ++ gap_suffix look line.gap)
 
 let tail look r =
   Queue.fold

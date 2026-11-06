@@ -60,6 +60,11 @@
   `Progress.Layout.const` no longer measures its view until a row is drawn
   (#30, #40, #64).
 
+- A task's lines, printed, logged with `Logs` or given with `Task.log`, are
+  now drawn in the theme's muted style (faint in the default theme), so they
+  read as a log under the task's row. A warning or an error keeps its
+  coloured mark (#65).
+
 ### Fixed
 
 - `Task` and `Display` now work from any domain, so a worker of an

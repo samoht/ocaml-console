@@ -144,10 +144,11 @@ val log : ?level:level -> t -> string -> unit
     shorter form of {!within}, for code where [t] is not current.
 
     - A tab goes to the next stop of eight columns from the start of its line.
-    - A running task keeps its latest lines, which its row shows, and up to 1
-      MiB of all of them for its failure: past that, the oldest go first and a
-      line counts them. A line, a label and a message are each kept up to 4 KiB,
-      cut between two characters and ended with three dots.
+    - A running task keeps its latest lines, which its row shows in the theme's
+      muted style ({!Theme.muted}), and up to 1 MiB of all of them for its
+      failure: past that, the oldest go first and a line counts them. A line, a
+      label and a message are each kept up to 4 KiB, cut between two characters
+      and ended with three dots.
     - The lines of the root belong to no task.
     - [log] drops a line given to a task that ended. A [Logs] message or a
       printed line from a fiber whose task ended is not dropped: it goes to the
