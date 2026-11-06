@@ -1,0 +1,34 @@
+(executable
+ (name main)
+ (libraries console console-eio eio eio_main fmt))
+
+(rule
+ (enabled_if %{lib-available:console-eio})
+ (target top.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    12
+    (run ./main.exe)))))
+
+(rule
+ (enabled_if %{lib-available:console-eio})
+ (target top.generated.svg)
+ (action
+  (run
+   %{bin:k7}
+   play
+   --show
+   "dune exec -- examples/top/main.exe"
+   -o
+   %{target}
+   %{dep:top.cast})))
+
+(rule
+ (alias runtest)
+ (enabled_if %{lib-available:console-eio})
+ (action
+  (diff top.svg top.generated.svg)))
