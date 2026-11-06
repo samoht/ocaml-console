@@ -5,4 +5,4 @@
 
 (** {!Console_driver.Make} on Lwt, through {!Fiber}. *)
 
-include Console_driver.T with type clock = Clock.t
+include Console_driver.T with type clock = unit

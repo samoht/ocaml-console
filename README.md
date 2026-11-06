@@ -649,9 +649,11 @@ A program that sleeps can keep its times moving under the variable.
 and jumps to the next sleep once nothing in the program can run, without
 waiting on real time. A program that sleeps on that clock, and passes it to
 `Console_eio.run`, therefore shows the same times on every machine while
-its rows still move. The examples wait on that clock, so the times in their
-recordings are the ones a test checks. The rules of this recording mode are
-in the section "Deterministic runs" of `Console_eio`.
+its rows still move. With Lwt, `Console_lwt.run` makes the timers of
+`Lwt_unix.sleep` virtual in the same way. The examples wait on such a clock,
+so the times in their recordings are the ones a test checks. The rules of
+this recording mode are in the section "Deterministic runs" of
+`Console_eio`.
 
 `CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as an
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording
@@ -709,7 +711,7 @@ this repository, `dune exec` runs one, as in
   prints a table of their results. The same program runs on
   [Eio](examples/quickstart/eio/main.ml) and on
   [Lwt](examples/quickstart/lwt/main.ml), sharing the code that does not
-  depend on the scheduler.
+  depend on the scheduler. Both record the same bytes.
 - [progress](examples/progress/main.ml) shows a step that counts files, with
   a layer under it that counts bytes, in each `--progress` mode.
 - [display](examples/display/main.ml) runs a build under a title and a

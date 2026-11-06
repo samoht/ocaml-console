@@ -21,26 +21,7 @@
     let () = Lwt_main.run (Console_lwt.run ~progress:`Plain build)
     ]} *)
 
-(** Where a run reads the time. *)
-module Clock : sig
-  type t
-  (** The type for clocks. *)
-
-  val v : now:(unit -> float) -> sleep:(float -> unit Lwt.t) -> t
-  (** [v ~now ~sleep] is a clock that reads the time, in seconds, on [now], and
-      waits between two redraws with [sleep]. A test passes a [now] it moves by
-      hand, and a [sleep] that never resolves to redraw only when it asks. [now]
-      is called from any domain. *)
-
-  val system : t
-  (** [system] reads the monotonic clock of the system and waits with
-      [Lwt_unix.sleep]. Under [CONSOLE_DETERMINISTIC_CLOCK] or [CONSOLE_CAST],
-      its time stays at zero, since Lwt has no virtual clock that the program's
-      sleeps would share. *)
-end
-
 val run :
-  ?clock:Clock.t ->
   ?ppf:Format.formatter ->
   ?progress:Console.Progress.t ->
   ?layout:Console.Progress.Layout.t ->
@@ -58,8 +39,7 @@ val run :
     rejection is [Lwt.Canceled]. [run] does not raise. Its promise is rejected
     with the exception of [f] once the display has closed.
 
-    [clock] defaults to {!Clock.system}; the other arguments are those of
-    [Console_eio.run].
+    The arguments are those of [Console_eio.run].
 
     [Lwt.cancel] on [run]'s promise cancels the promise it waits on, that of [f]
     or of the display's last writes, then the display closes as for any
@@ -112,4 +92,18 @@ end
     A signal handler that the program installs with [Sys.signal] runs in the
     thread of Lwt, so a message it logs reaches the display, unlike under
     [Console_eio]. Handlers installed with [Lwt_unix.on_signal] run as any
-    callback does. *)
+    callback does.
+
+    {1:deterministic Deterministic runs}
+
+    Recording mode follows the rules of [Console_eio]'s section of the same
+    name, with Lwt's own sleeps. [run] installs an engine ([Lwt_engine.set])
+    whose timers are virtual, so [Lwt_unix.sleep], [Lwt_unix.timeout] and
+    [Lwt_unix.with_timeout] take no real time. When [Lwt_main.run] would block,
+    with no file descriptor ready, the time jumps to the earliest timer. The
+    engine passes file descriptors to the engine it wraps, so they stay real.
+    Lwt runs in one domain already.
+
+    A program that installs its own engine during a run ends recording mode: its
+    sleeps take real time again, and the run's times stop. The next [run] wraps
+    that engine in turn. *)

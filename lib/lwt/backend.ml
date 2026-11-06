@@ -10,39 +10,42 @@ let woken = Lwt_condition.create ()
 let notification = Lwt_unix.make_notification (Lwt_condition.broadcast woken)
 
 (* [background daemons f] runs [f] in a fiber of its own, so that a daemon
-   that raises can cancel it. Once [f] ends, a daemon that resumes raises
-   [Fiber.Stopped] at once, so none redraws a display that [f]'s caller
-   closes, even one whose wait does not take [Lwt.cancel]. *)
+   that raises can cancel it: the daemon's fiber ends with what it raised,
+   then [f] is cancelled. Once [f] ends, the daemons are cancelled, and the
+   [Lwt.Canceled] they raise then is not a failure. *)
 let background daemons f =
-  let stop = Atomic.make false in
-  let failure = ref None in
+  let stop = ref false in
   let p = Fiber.spawn f in
   let watch daemon () =
-    try daemon () with
-    | _ when Atomic.get stop -> ()
-    | e ->
-        let bt = Printexc.get_raw_backtrace () in
-        if Option.is_none !failure then failure := Some (e, bt);
-        Lwt.cancel p
+    match daemon () with
+    | () -> None
+    | exception Lwt.Canceled when !stop -> None
+    | exception e -> Some (e, Printexc.get_raw_backtrace ())
   in
-  let daemons = List.map (fun d -> Fiber.spawn ~stop (watch d)) daemons in
+  let spawn daemon =
+    let d = Fiber.spawn (watch daemon) in
+    Lwt.on_success d (fun r -> if Option.is_some r then Lwt.cancel p);
+    d
+  in
+  let daemons = List.map spawn daemons in
   let result =
     match Fiber.await p with
     | v -> Ok v
     | exception e -> Error (e, Printexc.get_raw_backtrace ())
   in
-  Atomic.set stop true;
+  stop := true;
   List.iter Lwt.cancel daemons;
-  match (!failure, result) with
+  let failed d = match Lwt.state d with Lwt.Return r -> r | _ -> None in
+  match (List.find_map failed daemons, result) with
   | Some (e, bt), _ | None, Error (e, bt) -> Printexc.raise_with_backtrace e bt
   | None, Ok v -> v
 
 include Console_driver.Make (struct
-  type clock = Clock.t
+  type clock = unit
 
-  let elapsed = Clock.elapsed
-  let tick c d = Fiber.await (Clock.sleep c d)
-  let recording_time = Clock.elapsed
+  let elapsed = Virtual_clock.elapsed
+  let tick () d = Fiber.await (Lwt_unix.sleep d)
+  let recording_time = Virtual_clock.elapsed
   let sleep d = Fiber.await (Lwt_unix.sleep d)
 
   type 'a key = 'a Lwt.key

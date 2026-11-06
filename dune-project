@@ -89,7 +89,7 @@
  (depends
   (ocaml (>= 5.4))
   (console (= :version))
-  (lwt (>= 5.9.0))
+  (lwt (>= 6.1.0))
   base-unix
   (mtime (>= 2.0.0))
   (alcotest (and :with-test (>= 1.7.0)))

@@ -23,5 +23,5 @@ let test root (name, total) =
 let () =
   Quickstart.main @@ fun () ->
   Lwt_main.run
-    (Console_lwt.run ~label:Quickstart.label (fun root ->
-         Lwt_list.iter_p (test root) Quickstart.suites))
+  @@ Console_lwt.run ~label:Quickstart.label (fun root ->
+      Lwt_list.iter_p (test root) Quickstart.suites)

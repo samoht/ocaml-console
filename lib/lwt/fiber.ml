@@ -7,8 +7,6 @@ open Effect.Deep
 
 type _ Effect.t += Await : 'a Lwt.t -> 'a Effect.t
 
-exception Stopped
-
 (* Lwt keeps one storage for the whole program, and [Lwt.with_value] gives it
    back only when its function returns. A fiber that waits inside
    [Lwt.with_value] would leave its bindings in place for whatever runs next.
@@ -19,11 +17,8 @@ exception Stopped
 let isolation : unit Lwt.key = Lwt.new_key ()
 let isolated f = Lwt.with_value isolation None f
 
-let handler stop =
-  let resume k v =
-    isolated (fun () ->
-        if Atomic.get stop then discontinue k Stopped else continue k v)
-  in
+let handler =
+  let resume k v = isolated (fun () -> continue k v) in
   let fail k e = isolated (fun () -> discontinue k e) in
   {
     retc = Lwt.return;
@@ -38,8 +33,7 @@ let handler stop =
         | _ -> None);
   }
 
-let spawn ?(stop = Atomic.make false) f =
-  isolated (fun () -> match_with f () (handler stop))
+let spawn f = isolated (fun () -> match_with f () handler)
 
 let await p =
   match Lwt.state p with

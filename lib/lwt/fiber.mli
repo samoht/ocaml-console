@@ -12,12 +12,11 @@
     [Lwt.cancel] on it cancels the promise the fiber waits on, and {!await}
     raises [Lwt.Canceled] in the fiber. *)
 
-val spawn : ?stop:bool Atomic.t -> (unit -> 'a) -> 'a Lwt.t
+val spawn : (unit -> 'a) -> 'a Lwt.t
 (** [spawn f] is the promise of [f ()], run as a fiber. It resolves with what
-    [f] returns, and is rejected with what [f] raises. Once [stop] (defaults to
-    a flag that is never set) is set, a wait of the fiber that ends raises
-    {!Stopped} instead of returning. When [spawn] returns, the storage of Lwt
-    holds what it held before, whatever [f] bound before its first wait. *)
+    [f] returns, and is rejected with what [f] raises. When [spawn] returns, the
+    storage of Lwt holds what it held before, whatever [f] bound before its
+    first wait. *)
 
 val await : 'a Lwt.t -> 'a
 (** [await p] is the value of [p], once it resolves, or raises what rejects it.
@@ -26,9 +25,6 @@ val await : 'a Lwt.t -> 'a
 
     @raise Invalid_argument if [p] is pending and the caller is not in a fiber.
 *)
-
-exception Stopped
-(** The exception of a wait that ends after the [stop] of its fiber is set. *)
 
 val enter : unit -> unit
 (** [enter ()] makes the calling domain and thread the ones that run Lwt. *)

@@ -1,7 +1,7 @@
 (library
  (name console_lwt)
  (public_name console-lwt)
- (private_modules backend clock fiber)
+ (private_modules backend fiber virtual_clock)
  (flags
   (:standard -open Console__))
  (libraries

@@ -3,14 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-module Clock = Clock
-
-let run ?(clock = Clock.system) ?ppf ?progress ?layout ?label ?view ?keep_ended
-    ?commit ?plain ?delay f =
+let run ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain ?delay f
+    =
   Fiber.enter ();
+  Virtual_clock.use (Cast.deterministic ());
   Fiber.spawn (fun () ->
-      Backend.run ~clock ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit
-        ?plain ?delay (fun root -> Fiber.await (f root)))
+      Backend.run ~clock:() ?ppf ?progress ?layout ?label ?view ?keep_ended
+        ?commit ?plain ?delay (fun root -> Fiber.await (f root)))
 
 let with_output = Backend.with_output
 let print = Backend.print
