@@ -714,6 +714,9 @@ this repository, `dune exec` runs one, as in
   trees side by side.
 - [charts](examples/charts/main.ml) draws a week's load as a bar chart and
   a few metrics as sparklines.
+- [top](examples/top/main.ml) shows four cores as boxes side by side, above
+  a gauge of all their jobs. A pool of domains runs the jobs, which report
+  to the display with no lock.
 - [themes](examples/themes/main.ml) draws a tree, a table and progress rows
   in the theme it is given, as the gallery shows.
 
