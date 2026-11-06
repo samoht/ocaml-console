@@ -35,6 +35,11 @@
 
 ### Changed
 
+- `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
+  `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
+  time jumps to the next sleep once nothing in the program can run, and the
+  sleeps between two redraws move it too (#66).
+
 - `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
   needs no scheduler (#61).
 

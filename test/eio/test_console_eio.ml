@@ -41,32 +41,16 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
 
-(* [step mock] moves [mock] to its next timer, if it has one: a sleep that
-   waits for its turn on [Console_eio.clock] sets none. *)
-let step mock =
-  try Eio_mock.Clock.Mono.advance mock with Invalid_argument _ -> ()
-
 (* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
-   of a mock clock, which moves to the end of each sleep in turn. *)
+   of a mock clock. *)
 let sleeps () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref false in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.both
-            (fun () ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Eio.Time.Mono.sleep clock 0.5;
-              slept := true)
-            (fun () ->
-              while not !slept do
-                Eio.Fiber.yield ();
-                step mock
-              done)));
-
+          Eio.Time.Mono.sleep clock 1.5;
+          Eio.Time.Mono.sleep clock 0.5));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -74,32 +58,19 @@ let sleeps () =
    [Console_eio.clock] of a mock clock. *)
 let overlapping () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref 0 in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.all
-            [
-              (fun () ->
-                Eio.Time.Mono.sleep clock 1.;
-                incr slept);
-              (fun () ->
-                Eio.Time.Mono.sleep clock 2.;
-                incr slept);
-              (fun () ->
-                while !slept < 2 do
-                  Eio.Fiber.yield ();
-                  step mock
-                done);
-            ]));
+          Eio.Fiber.both
+            (fun () -> Eio.Time.Mono.sleep clock 1.)
+            (fun () -> Eio.Time.Mono.sleep clock 2.)));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 (* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
    the time of the sleeps on a clock of [Console_eio.clock], and zero on
-   another clock; the waits still run on the clock behind it. *)
+   another clock. *)
 let test_deterministic_clock () =
   let deterministic f =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] (fun () -> f ())
@@ -177,32 +148,28 @@ let test_redraws_move_the_time () =
       done;
       Alcotest.fail "the time stopped")
 
-(* The two builds of examples/columns, with sleeps on [Console_eio.clock] of
-   a mock clock whose real time a seeded random schedule moves: each build
-   works a random real time before each sleep, which wakes the sleeps then
-   due at once, and a driver moves the clock by random steps after random
-   numbers of yields. *)
+(* The two builds of examples/columns, with sleeps on [Console_eio.clock].
+   With a seed other than zero, each build works a random real time before
+   each sleep, and another fiber yields a random number of times in a
+   loop. *)
 let perturbed ?cast ~progress seed =
   let env = match cast with Some f -> [ ("CONSOLE_CAST", f) ] | None -> [] in
   with_env env @@ fun () ->
   let rand = Random.State.make [| seed |] in
-  let mock = Eio_mock.Clock.Mono.make () in
-  let real = ref 0 in
-  let pass () =
-    if seed > 0 then begin
-      real := !real + Random.State.int rand 300_000_000;
-      Eio_mock.Clock.Mono.set_time mock
-        (Mtime.of_uint64_ns (Int64.of_int !real))
-    end
+  let work () =
+    if seed > 0 then
+      for i = 1 to Random.State.int rand 100_000 do
+        ignore (Sys.opaque_identity (i * i))
+      done
   in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let build root (name, pace, steps) =
     Console.Task.run root name (fun b ->
         List.iter
           (fun (step, total) ->
             Console.Task.run b step (fun task ->
                 for count = 1 to total do
-                  pass ();
+                  work ();
                   Eio.Time.Mono.sleep clock pace;
                   Console.Task.set_items task ~count ~total
                 done))
@@ -228,8 +195,7 @@ let perturbed ?cast ~progress seed =
           while not !finished do
             for _ = 0 to Random.State.int rand 4 do
               Eio.Fiber.yield ()
-            done;
-            if seed > 0 then pass () else step mock
+            done
           done));
   Format.pp_print_flush ppf ();
   match cast with

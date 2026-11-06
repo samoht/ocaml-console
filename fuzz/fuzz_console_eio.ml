@@ -764,31 +764,19 @@ let ended_tasks output =
       | Error (`Msg m) -> fail m)
 
 (* The JSON of two tasks that sleep [first] and [second] seconds side by
-   side, the backing clock then set to [overshoot] nanoseconds. Each task's
-   elapsed time is its own sleep. *)
-let concurrent_sleeps ~first ~second overshoot =
+   side. Each task's elapsed time is its own sleep. *)
+let concurrent_sleeps ~first ~second =
   Eio_mock.Backend.run @@ fun () ->
-  let backing = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock backing in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let out = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer out in
-  let ready, wake = Eio.Promise.create () in
-  let entered = ref 0 in
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
       let work label delay =
-        Console.Task.run d label (fun _ ->
-            incr entered;
-            if !entered = 2 then Eio.Promise.resolve wake ();
-            Eio.Time.Mono.sleep clock delay)
+        Console.Task.run d label (fun _ -> Eio.Time.Mono.sleep clock delay)
       in
       Eio.Fiber.both
-        (fun () ->
-          Eio.Fiber.both
-            (fun () -> work "first" first)
-            (fun () -> work "second" second))
-        (fun () ->
-          Eio.Promise.await ready;
-          Eio_mock.Clock.Mono.set_time backing (Mtime.of_uint64_ns overshoot)));
+        (fun () -> work "first" first)
+        (fun () -> work "second" second));
   Format.pp_print_flush ppf ();
   let output = Buffer.contents out in
   check
@@ -797,14 +785,12 @@ let concurrent_sleeps ~first ~second overshoot =
         [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
   output
 
-(* How late the backing clock wakes two concurrent sleeps does not change
-   the bytes of the run. *)
+(* Two runs of the same concurrent sleeps write the same bytes. *)
 let test_deterministic_concurrency a b =
   Env_harness.with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "0") ] @@ fun () ->
   let duration n = float_of_int (1 + (n mod 20)) /. 10. in
-  let capture = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
-  check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
-    (capture 20_000_000_000L)
+  let capture () = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
+  check_eq ~pp:Fmt.Dump.string (capture ()) (capture ())
 
 let with_recording deterministic f =
   let file = Filename.temp_file "console-fuzz" ".cast" in

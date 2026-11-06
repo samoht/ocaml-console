@@ -65,15 +65,13 @@ val redraw : unit -> unit
     It raises the exception of a view that raised since the last redraw. *)
 
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
-(** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
-    or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time
-    each sleep on it wakes at ({!deterministic}). *)
+(** [clock c] is [c], or, in {{!deterministic}recording mode}, a virtual clock
+    that starts at zero. *)
 
 val domain_mgr : _ Eio.Domain_manager.t -> Eio.Domain_manager.ty Eio.Resource.t
-(** [domain_mgr d] is [d], or, under
-    {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]} or [CONSOLE_CAST], a domain
-    manager that runs each new domain as a fiber of the domain that asks for it
-    ({!deterministic}). *)
+(** [domain_mgr d] is [d], or, in {{!deterministic}recording mode}, a domain
+    manager that runs each new domain as a fiber of the domain that asks for it.
+*)
 
 (** {1:output Where output goes}
 
@@ -132,24 +130,24 @@ val domain_mgr : _ Eio.Domain_manager.t -> Eio.Domain_manager.ty Eio.Resource.t
 
     {1:deterministic Deterministic runs}
 
-    [CONSOLE_DETERMINISTIC_CLOCK], set to a non-empty value, makes a run show
-    the same frames on every machine and every run, so that a test can compare
-    them. [CONSOLE_CAST] does too. Two functions change in this mode, and return
-    what they are given otherwise.
+    Recording mode makes a run show the same frames on every machine and every
+    run, so that a test can compare them. [CONSOLE_DETERMINISTIC_CLOCK], set to
+    a non-empty value, turns it on, and so does [CONSOLE_CAST]. In this mode:
 
-    {!clock} gives a virtual clock. The time starts at zero, and a sleep started
-    at [t] for [d] wakes at [t + d]. Sleeps wake one at a time, and still last
-    [d] on the real clock. On any other clock the time stays at zero.
+    + Time is virtual. It starts at zero and moves only when nothing in the
+      program can run; it then jumps to the earliest pending sleep on {!clock}.
+      Nothing else moves it, and it never waits on real time.
+    + Domains run as fibers of the domain that starts them ({!domain_mgr}), so
+      the whole program is one domain.
+    + Files, processes, the network and the terminal stay real.
 
-    {!domain_mgr} runs each new domain as a fiber of the domain that asks for
-    it, so domains take turns like fibers. A program that gets its clock and its
-    domain manager from these two functions runs the same way every time in this
-    mode, and as usual outside it. Races between domains are tested outside this
-    mode.
+    A program that waits on something real, such as a child process, sees the
+    time jump to its next sleep or redraw meanwhile. On a clock that {!clock}
+    did not make, the time stays at zero. Outside this mode, {!clock} and
+    {!domain_mgr} return what they are given.
 
     [CONSOLE_CAST], set to a file name, records the run there as
     {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2}, on a
-    terminal of [$COLUMNS] by [$LINES] (80 by 24 without them), with that clock,
-    and the program's sleeps take no real time. A file that cannot be opened
-    ends the program with status [1]. {!Console_tty.setup} starts the recording
-    too. *)
+    terminal of [$COLUMNS] by [$LINES] (80 by 24 without them). A file that
+    cannot be opened ends the program with status [1]. {!Console_tty.setup}
+    starts the recording too. *)

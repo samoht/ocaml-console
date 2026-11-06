@@ -148,7 +148,7 @@ let bare () =
   if not check then show ~ctx:"show `Tty, real clock" ~now:(real_clock ()) `Tty
 
 (* The same calls under [Console_eio.run], on the machine's clock or on the
-   deterministic clock, which stays at zero since no fiber sleeps. *)
+   deterministic clock, which stays at zero while the program runs. *)
 let eio env =
   let mono = Eio.Stdenv.mono_clock env in
   let run ~ctx ?(still = false) progress =
