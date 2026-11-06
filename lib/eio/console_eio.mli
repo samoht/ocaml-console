@@ -67,7 +67,13 @@ val redraw : unit -> unit
 val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
 (** [clock c] is [c], or, under {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]}
     or [CONSOLE_CAST], a virtual clock that starts at zero and moves to the time
-    each sleep on it wakes at. *)
+    each sleep on it wakes at ({!deterministic}). *)
+
+val domain_mgr : _ Eio.Domain_manager.t -> Eio.Domain_manager.ty Eio.Resource.t
+(** [domain_mgr d] is [d], or, under
+    {{!deterministic}[CONSOLE_DETERMINISTIC_CLOCK]} or [CONSOLE_CAST], a domain
+    manager that runs each new domain as a fiber of the domain that asks for it
+    ({!deterministic}). *)
 
 (** {1:output Where output goes}
 
@@ -124,14 +130,22 @@ val clock : _ Eio.Time.Mono.t -> Eio.Time.Mono.ty Eio.Resource.t
     did. The display closes once the last of their functions ends. A [run] that
     starts while the display closes opens its own once it is gone.
 
-    {1:deterministic Deterministic time}
+    {1:deterministic Deterministic runs}
 
-    [CONSOLE_DETERMINISTIC_CLOCK], set to a non-empty value, makes the time
-    depend on the program's sleeps alone, so that the progress a test captures
-    reads the same on every machine. On a clock from {!clock}, the time starts
-    at zero, and a sleep started at [t] for [d] wakes at [t + d]; sleeps wake
-    one at a time, and still last [d] on the real clock. On any other clock the
-    time stays at zero.
+    [CONSOLE_DETERMINISTIC_CLOCK], set to a non-empty value, makes a run show
+    the same frames on every machine and every run, so that a test can compare
+    them. [CONSOLE_CAST] does too. Two functions change in this mode, and return
+    what they are given otherwise.
+
+    {!clock} gives a virtual clock. The time starts at zero, and a sleep started
+    at [t] for [d] wakes at [t + d]. Sleeps wake one at a time, and still last
+    [d] on the real clock. On any other clock the time stays at zero.
+
+    {!domain_mgr} runs each new domain as a fiber of the domain that asks for
+    it, so domains take turns like fibers. A program that gets its clock and its
+    domain manager from these two functions runs the same way every time in this
+    mode, and as usual outside it. Races between domains are tested outside this
+    mode.
 
     [CONSOLE_CAST], set to a file name, records the run there as
     {{:https://docs.asciinema.org/manual/asciicast/v2/}asciicast v2}, on a

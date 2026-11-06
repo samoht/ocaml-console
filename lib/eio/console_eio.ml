@@ -7,6 +7,10 @@ module Prompt = Prompt
 
 let clock = Virtual_clock.clock
 
+let domain_mgr d =
+  if Cast.deterministic () then Eio_mock.Domain_manager.create ()
+  else (d :> Eio.Domain_manager.ty Eio.Resource.t)
+
 let run ~clock ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain
     ?delay f =
   Backend.run

@@ -324,6 +324,58 @@ let test_cast_schedule () =
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
 
+(* A recording of four domains, each a loop over a sleep on
+   [Console_eio.clock] and a tick of work. A domain counts its ticks on a
+   task of its own and on a shared one, and its work takes a real time of
+   its own. *)
+let recorded_domains () =
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env
+    [
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", "40");
+      ("LINES", "8");
+      ("TERM", "xterm");
+    ]
+    (fun () ->
+      Eio_main.run @@ fun env ->
+      let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
+      let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+      let _, ppf = buffer () in
+      let ticks = 8 in
+      Console_eio.run ~clock ~ppf ~progress:`Tty ~keep_ended:true (fun root ->
+          let all = Console.Task.start root "all" in
+          Console.Task.set_items all ~count:0 ~total:(4 * ticks);
+          Eio.Fiber.List.iter
+            (fun d ->
+              let task = Console.Task.start root (Fmt.str "domain %d" d) in
+              Console.Task.set_items task ~count:0 ~total:ticks;
+              Eio.Domain_manager.run domains (fun () ->
+                  for i = 1 to ticks do
+                    Eio.Time.Mono.sleep clock 0.1;
+                    let rec work n s =
+                      if n = 0 then s else work (n - 1) (Digest.string s)
+                    in
+                    let s = work (((d * 7) + i) mod 5 * 2_000) "" in
+                    Console.Task.log task
+                      (Fmt.str "tick %d %d" i (String.length s));
+                    Console.Task.advance task;
+                    Console.Task.advance all
+                  done;
+                  Console.Task.succeed task))
+            [ 0; 1; 2; 3 ];
+          Console.Task.succeed all));
+  In_channel.with_open_bin file In_channel.input_all
+
+(* Whatever the domains' real schedule, a recording is the same bytes. *)
+let test_cast_domains () =
+  let first = recorded_domains () in
+  Alcotest.(check bool) "every tick counted" true (contains "32/32" first);
+  for run = 1 to 10 do
+    Alcotest.(check string) (Fmt.str "run %d" run) first (recorded_domains ())
+  done
+
 let test_run_raises () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -1636,6 +1688,8 @@ let suite =
       Alcotest.test_case "a recording ignores the schedule" `Quick
         test_cast_schedule;
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
+      Alcotest.test_case "a recording of domains ignores the schedule" `Quick
+        test_cast_domains;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;

@@ -10,6 +10,7 @@
   console.input
   console.text
   eio
+  eio.mock
   eio.unix
   fmt
   mtime

@@ -4,6 +4,9 @@
 
 - `View.wrap ~words`, to choose where a line may break (#2).
 
+- `Console_eio.domain_mgr`, so that a recording of a program that runs
+  domains is the same on every run (#66).
+
 - `Console_input.crlf`, so that output sent to a raw-mode terminal starts each
   line in the first column (#3).
 
