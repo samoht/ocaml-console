@@ -1198,6 +1198,22 @@ let test_theme_not_a_choice () =
   in
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
+(* [waitpid flags pid] is the status of [pid], waited for again when a
+   signal interrupts the wait. *)
+let rec waitpid flags pid =
+  try snd (Unix.waitpid flags pid)
+  with Unix.Unix_error (Unix.EINTR, _, _) -> waitpid flags pid
+
+(* [stopped_by_sigtstp pid] is [true] iff [pid] stops on SIGTSTP. A process
+   that never stopped is gone by the time waitpid looks. *)
+let stopped_by_sigtstp pid =
+  match
+    Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
+        waitpid [ Unix.WUNTRACED ] pid)
+  with
+  | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
+  | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false
+
 (* Ctrl-Z gives the terminal back before the program stops: the region is
    erased and the cursor shown. SIGTSTP's default action is to stop the
    process: in a group of its own, under a parent in the same session, the
@@ -1221,14 +1237,7 @@ let test_suspend () =
   let stopped = ref false and status = ref None in
   let out =
     Pty_reader.read_all pty (fun () ->
-        (* It is gone by the time waitpid looks if it never stopped. *)
-        (stopped :=
-           match
-             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
-                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
-           with
-           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
-           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        stopped := stopped_by_sigtstp pid;
         if !stopped then Unix.kill pid Sys.sigcont;
         status := Some (Eio.Process.await child))
   in
@@ -1276,13 +1285,7 @@ let test_suspend_blocked () =
   let stopped = ref false and status = ref None in
   let out =
     Pty_reader.read_all pty (fun () ->
-        (stopped :=
-           match
-             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
-                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
-           with
-           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
-           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        stopped := stopped_by_sigtstp pid;
         if !stopped then Unix.kill pid Sys.sigcont;
         status := Some (Eio.Process.await child))
   in
@@ -1299,10 +1302,12 @@ let test_suspend_blocked () =
     "the cursor is shown" true
     (Console_vte.cursor_visible vte)
 
-(* In a process group that no shell controls, a stop does not take effect:
-   the terminal is given back and the region drawn again once, and the work
-   goes on. A display that gave the terminal back again and again would
-   show the cursor without end; the reader stops it then. *)
+(* In a process group that no shell controls, Linux and macOS discard a
+   stop, and FreeBSD stops the process all the same, so the child is
+   continued as it runs. Either way the terminal is given back and the region
+   drawn again once, and the work goes on. A display that gave the terminal
+   back again and again would show the cursor without end; the reader stops
+   it then. *)
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1329,11 +1334,19 @@ let test_suspend_without_stop () =
     end;
     read ()
   in
+  let rec continue () =
+    Eio.Time.sleep (Eio.Stdenv.clock env) 0.1;
+    (try Unix.kill (Eio.Process.pid child) Sys.sigcont
+     with Unix.Unix_error (Unix.ESRCH, _, _) -> ());
+    continue ()
+  in
   let status =
     Eio.Fiber.first
       (fun () -> Eio.Process.await child)
       (fun () ->
-        try read () with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ())
+        Eio.Fiber.first continue (fun () ->
+            try read ()
+            with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ()))
   in
   Alcotest.(check bool)
     (Fmt.str "the region is given back a bounded number of times (%d)" !shown)
@@ -1490,11 +1503,7 @@ let piped_status args =
       (Array.of_list ("piped.exe" :: args))
       null null null
   in
-  let rec wait () =
-    try snd (Unix.waitpid [] pid)
-    with Unix.Unix_error (Unix.EINTR, _, _) -> wait ()
-  in
-  wait ()
+  waitpid [] pid
 
 (* The default action of SIGINT and SIGTERM is abnormal termination (XBD
    signal.h): the process ends by the signal, not by an exit that a shell would
@@ -1603,8 +1612,8 @@ let suite =
         test_sigint_restore_fails;
       Alcotest.test_case "ended from another domain or thread" `Quick
         test_elsewhere_ends;
-      Alcotest.test_case "a stop that does not take effect resumes once" `Quick
-        test_suspend_without_stop;
+      Alcotest.test_case "a stop in a group no shell controls resumes once"
+        `Quick test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick

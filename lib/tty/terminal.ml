@@ -79,8 +79,10 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
-(* The paths a terminal device may have: the controlling terminal, then the
-   pseudo-terminals of Linux and of BSD and macOS. *)
+(* The paths a terminal device may have: the controlling terminal, the
+   pseudo-terminals of Linux and FreeBSD, those of macOS, then any other
+   /dev/tty*, such as the pseudo-terminals of OpenBSD. macOS keeps hundreds
+   of unused ttyp* to ttyw*, so its own come first. *)
 let device_names () =
   let entries dir keep =
     match Sys.readdir dir with
@@ -90,8 +92,13 @@ let device_names () =
           (Array.to_list names)
     | exception Sys_error _ -> []
   in
-  ("/dev/tty" :: entries "/dev/pts" (Fun.const true))
-  @ entries "/dev" (String.starts_with ~prefix:"ttys")
+  let macos, others =
+    List.partition
+      (String.starts_with ~prefix:"/dev/ttys")
+      (entries "/dev" (fun n ->
+           n <> "tty" && String.starts_with ~prefix:"tty" n))
+  in
+  ("/dev/tty" :: entries "/dev/pts" (Fun.const true)) @ macos @ others
 
 (* [reopened unix] is the terminal of [unix] opened again, found by its
    device, so that the last resort is written on it without blocking and
