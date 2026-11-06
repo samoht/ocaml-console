@@ -52,3 +52,8 @@ build: [
 ]
 dev-repo: "git+https://github.com/samoht/ocaml-console.git"
 x-maintenance-intent: ["(latest)"]
+# k7 0.9.0 is not available on Windows. Drop the pin once k7 has a release
+# with samoht/ocaml-k7#4.
+pin-depends: [
+  ["k7.dev" "git+https://github.com/samoht/ocaml-k7.git#025e4822ae029bf5adc6bbd06ab84627cd1b2f64"]
+]
