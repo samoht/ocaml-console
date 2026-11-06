@@ -6,9 +6,12 @@
   astring
   console
   console-lwt
+  cast_harness
   display_harness
+  env_harness
   fmt
   logs
   lwt
   lwt.unix
-  threads.posix))
+  threads.posix
+  unix))

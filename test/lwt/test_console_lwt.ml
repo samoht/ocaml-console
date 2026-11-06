@@ -5,12 +5,12 @@
 
 open Lwt.Syntax
 open Display_harness
+open Env_harness
 module Task = Console.Task
 
-(* A clock that reads zero and never ticks on its own. The display redraws
-   only when the program asks, so what it writes is the same on each run. *)
-let frozen =
-  Console_lwt.Clock.v ~now:(fun () -> 0.) ~sleep:(fun _ -> fst (Lwt.task ()))
+(* [deterministic f] is [f ()] in recording mode, where the time is virtual
+   and stays at zero while the program runs. *)
+let deterministic f = with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] f
 
 let buffer () =
   let b = Buffer.create 256 in
@@ -116,7 +116,7 @@ let run_jobs () =
   let root = ref None in
   let rejections =
     Lwt_main.run
-      (Console_lwt.run ~clock:frozen ~ppf ~progress:`Plain (fun r ->
+      (Console_lwt.run ~ppf ~progress:`Plain (fun r ->
            root := Some r;
            let all = List.init jobs (fun i -> outcome (job r i)) in
            let* () = Lwt.pause () in
@@ -127,6 +127,7 @@ let run_jobs () =
   (shown b ppf, rejections, Option.get !root, task)
 
 let test_many_jobs () =
+  deterministic @@ fun () ->
   with_reporter @@ fun seen ->
   let out, rejections, root, task = run_jobs () in
   Alcotest.(check (list string))
@@ -174,7 +175,7 @@ let test_many_jobs () =
     List.filter_map
       (fun i ->
         if i mod 2 = parity && ran i r && r < steps i then
-          Some (index (Fmt.str "%sjob %02d step %d" (where i r) i r))
+          Some (Fmt.kstr index "%sjob %02d step %d" (where i r) i r)
         else None)
       (List.init jobs Fun.id)
   in
@@ -195,13 +196,14 @@ let test_many_jobs () =
    exception once the display has closed, and the tasks that still wait end
    cancelled. Waking them later changes nothing. *)
 let test_raise_while_others_wait () =
+  deterministic @@ fun () ->
   with_reporter @@ fun _ ->
   let b, ppf = buffer () in
   let waits = List.init 3 (fun _ -> Lwt.wait ()) in
   let sleepers = ref [] in
   let root = ref None in
   let run =
-    Console_lwt.run ~clock:frozen ~ppf ~progress:`Tty (fun r ->
+    Console_lwt.run ~ppf ~progress:`Tty (fun r ->
         root := Some r;
         let sleeper i (p, _) =
           Console_lwt.Task.run r (Fmt.str "sleeper %d" i) (fun t ->
@@ -231,20 +233,12 @@ let test_raise_while_others_wait () =
   Alcotest.(check string)
     "nothing written after the rejection" at_rejection (shown b ppf)
 
-(* A redraw on the clock whose view raises cancels the program's promise, and
-   the run is rejected with the view's exception. The clock's sleep does not
-   take [Lwt.cancel], so the redraws must stop by themselves once the run
-   ends. *)
+(* A redraw whose view raises cancels the program's promise, and the run is
+   rejected with the view's exception. *)
 let test_view_raises_in_a_redraw () =
+  deterministic @@ fun () ->
   with_reporter @@ fun _ ->
   let b, ppf = buffer () in
-  let ticks = Queue.create () in
-  let sleep _ =
-    let p, u = Lwt.wait () in
-    Queue.push u ticks;
-    p
-  in
-  let clock = Console_lwt.Clock.v ~now:(fun () -> 0.) ~sleep in
   let armed = ref false in
   let view _ =
     Console.View.fit (fun _ ->
@@ -253,41 +247,26 @@ let test_view_raises_in_a_redraw () =
   let forever = fst (Lwt.task ()) in
   let work = ref None in
   let run =
-    Console_lwt.run ~clock ~ppf ~progress:`Tty ~view (fun root ->
+    Console_lwt.run ~ppf ~progress:`Tty ~view (fun root ->
         Console_lwt.Task.run root "work" (fun t ->
             work := Some t;
+            armed := true;
             forever))
   in
-  let drive =
-    let* () = Lwt.pause () in
-    armed := true;
-    Lwt.wakeup (Queue.pop ticks) ();
-    outcome run
-  in
   Alcotest.(check string)
-    "the view's exception" "Failure(\"view\")" (Lwt_main.run drive);
+    "the view's exception" "Failure(\"view\")"
+    (Lwt_main.run (outcome run));
   Alcotest.(check (option string))
     "the program's promise" (Some "Canceled")
     (match Lwt.state forever with Lwt.Fail e -> Some (name e) | _ -> None);
   check_state "the task" `Cancelled (Option.get !work);
-  let written = shown b ppf in
-  check_cursor_restored "the terminal" written;
-  armed := false;
-  Queue.iter (fun u -> Lwt.wakeup u ()) ticks;
-  Alcotest.(check string) "no redraw after the end" written (shown b ppf)
+  check_cursor_restored "the terminal" (shown b ppf)
 
-(* The redraws stop with the run, even on a clock whose sleep does not take
-   [Lwt.cancel]. A tick that ends after the run draws nothing and waits for
-   no other. *)
+(* The redraws stop with the run: the time that passes after it draws
+   nothing. *)
 let test_redraws_stop_with_the_run () =
+  deterministic @@ fun () ->
   let b, ppf = buffer () in
-  let ticks = Queue.create () in
-  let sleep _ =
-    let p, u = Lwt.wait () in
-    Queue.push u ticks;
-    p
-  in
-  let clock = Console_lwt.Clock.v ~now:(fun () -> 0.) ~sleep in
   let frames = ref 0 in
   let view _ =
     Console.View.fit (fun _ ->
@@ -295,28 +274,25 @@ let test_redraws_stop_with_the_run () =
         Console.View.text "rows")
   in
   Lwt_main.run
-    (Console_lwt.run ~clock ~ppf ~progress:`Tty ~view (fun root ->
-         Console_lwt.Task.run root "work" (fun _ ->
-             let* () = Lwt.pause () in
-             Lwt.wakeup (Queue.pop ticks) ();
-             Lwt.pause ())));
+    (Console_lwt.run ~ppf ~progress:`Tty ~view (fun root ->
+         Console_lwt.Task.run root "work" (fun _ -> Lwt_unix.sleep 0.25)));
   let written = shown b ppf and drawn = !frames in
-  Alcotest.(check int) "one wait on the clock" 1 (Queue.length ticks);
-  Lwt.wakeup (Queue.pop ticks) ();
+  Alcotest.(check bool) "frames during the run" true (drawn > 1);
+  Lwt_main.run (Lwt_unix.sleep 1.);
   Alcotest.(check int) "no frame after the end" drawn !frames;
-  Alcotest.(check string) "no write after the end" written (shown b ppf);
-  Alcotest.(check int) "no wait after the end" 0 (Queue.length ticks)
+  Alcotest.(check string) "no write after the end" written (shown b ppf)
 
 (* [Lwt.cancel] on a running run reaches the promise the program waits on,
    inside two tasks, and the run is rejected only once the terminal is given
    back. *)
 let test_cancel_a_run () =
+  deterministic @@ fun () ->
   with_reporter @@ fun seen ->
   let b, ppf = buffer () in
   let tasks = ref [] in
   let root = ref None in
   let run =
-    Console_lwt.run ~clock:frozen ~ppf ~progress:`Tty (fun r ->
+    Console_lwt.run ~ppf ~progress:`Tty (fun r ->
         root := Some r;
         Console_lwt.Task.run r "outer" (fun outer ->
             tasks := outer :: !tasks;
@@ -343,6 +319,7 @@ let test_cancel_a_run () =
    any number of waits. A run started outside it joins it with the root. The
    first run's promise resolves only once the run that joined it ends. *)
 let test_nested_and_joined_runs () =
+  deterministic @@ fun () ->
   with_reporter @@ fun _ ->
   let b, ppf = buffer () in
   let events = ref [] in
@@ -351,7 +328,7 @@ let test_nested_and_joined_runs () =
   let root_a = ref None and root_b = ref None in
   let program =
     let a =
-      Console_lwt.run ~clock:frozen ~ppf ~progress:`Plain (fun root ->
+      Console_lwt.run ~ppf ~progress:`Plain (fun root ->
           root_a := Some root;
           Console_lwt.Task.run root "a" (fun t ->
               let* () = Lwt.pause () in
@@ -377,7 +354,7 @@ let test_nested_and_joined_runs () =
     (* Started where no run is bound, it joins the run with its root. The
        task that [a] holds while it waits stays [a]'s. *)
     let b' =
-      Console_lwt.run ~clock:frozen (fun root ->
+      Console_lwt.run (fun root ->
           root_b := Some root;
           let* () = gate_b in
           Console_lwt.Task.run root "b" (fun _ ->
@@ -411,11 +388,12 @@ let test_nested_and_joined_runs () =
    run replaced. One from another domain reaches the run outside any task.
    Neither sees the task bound in Lwt's storage. *)
 let test_threads_and_domains () =
+  deterministic @@ fun () ->
   with_reporter @@ fun seen ->
   let b, ppf = buffer () in
   let busy = ref None in
   Lwt_main.run
-    (Console_lwt.run ~clock:frozen ~ppf ~progress:`Plain (fun root ->
+    (Console_lwt.run ~ppf ~progress:`Plain (fun root ->
          Console_lwt.Task.run root "busy" (fun t ->
              busy := Some t;
              let finished = Atomic.make false in
@@ -463,6 +441,7 @@ let test_threads_and_domains () =
    Woken after every run, it logs to the reporter. A run whose [Lwt_main.run] returns
    while it left a promise sleeping lets the next one start. *)
 let test_promises_outlive_their_run () =
+  deterministic @@ fun () ->
   with_reporter @@ fun seen ->
   let b1, ppf1 = buffer () and b2, ppf2 = buffer () in
   let gate1, wake1 = Lwt.wait () and gate2, wake2 = Lwt.wait () in
@@ -473,14 +452,14 @@ let test_promises_outlive_their_run () =
         Lwt.return_unit)
   in
   Lwt_main.run
-    (Console_lwt.run ~clock:frozen ~ppf:ppf1 ~progress:`Plain (fun root ->
+    (Console_lwt.run ~ppf:ppf1 ~progress:`Plain (fun root ->
          Console_lwt.Task.run root "first" (fun _ ->
              late gate1 "late, in the second run";
              late gate2 "late, after every run";
              Lwt.async (fun () -> Lwt_unix.sleep 3600.);
              Lwt.return_unit)));
   Lwt_main.run
-    (Console_lwt.run ~clock:frozen ~ppf:ppf2 ~progress:`Plain (fun root ->
+    (Console_lwt.run ~ppf:ppf2 ~progress:`Plain (fun root ->
          Console_lwt.Task.run root "second" (fun _ ->
              Lwt.wakeup wake1 ();
              Lwt.return_unit)));
@@ -497,8 +476,204 @@ let test_promises_outlive_their_run () =
     [ "late, after every run" ]
     (seen ())
 
+(* [compute d] keeps the thread busy for [d] real seconds. *)
+let compute d =
+  let until = Unix.gettimeofday () +. d in
+  while Unix.gettimeofday () < until do
+    ()
+  done
+
+(* What a task prints whose sleeps are [sleeps ()]. *)
+let nap sleeps =
+  let b, ppf = buffer () in
+  Lwt_main.run
+    (Console_lwt.run ~ppf (fun root ->
+         Console_lwt.Task.run root "nap" (fun _ -> sleeps ())));
+  shown b ppf
+
+let took s out = contains ("\u{2713} nap  " ^ s) out
+
+(* In recording mode, the display reads the time of the sleeps. The time
+   the program computes between them does not count. *)
+let test_deterministic_clock () =
+  deterministic @@ fun () ->
+  let one_after_the_other () =
+    let* () = Lwt_unix.sleep 0.15 in
+    Lwt_unix.sleep 0.05
+  in
+  let first = nap one_after_the_other in
+  Alcotest.(check bool) "one sleep after the other" true (took "0.2s" first);
+  Alcotest.(check string) "the same twice" first (nap one_after_the_other);
+  Alcotest.(check bool)
+    "sleeps at once overlap" true
+    (took "0.2s"
+       (nap (fun () -> Lwt.join [ Lwt_unix.sleep 0.1; Lwt_unix.sleep 0.2 ])));
+  let busy pace n =
+    let rec go i =
+      if i = 0 then Lwt.return_unit
+      else begin
+        compute 0.03;
+        let* () = Lwt_unix.sleep pace in
+        go (i - 1)
+      end
+    in
+    go n
+  in
+  Alcotest.(check bool)
+    "the time of the sleeps alone" true
+    (took "0.2s" (nap (fun () -> Lwt.join [ busy 0.1 2; busy 0.13 1 ])))
+
+(* In recording mode, [Lwt_unix.sleep] takes no real time, and the display
+   reads the time of the sleeps. *)
+let test_lwt_unix_sleep_is_virtual () =
+  deterministic @@ fun () ->
+  let start = Unix.gettimeofday () in
+  let shown = nap (fun () -> Lwt_unix.sleep 2.) in
+  Alcotest.(check bool) "the time of the sleep" true (took "2.0s" shown);
+  Alcotest.(check bool) "no real time" true (Unix.gettimeofday () -. start < 1.)
+
+(* A redraw's sleep moves the time as any other: a program that waits for
+   the display to read 0.3 seconds ends then, before its own sleep. *)
+let test_redraws_move_the_time () =
+  deterministic @@ fun () ->
+  let _, ppf = buffer () in
+  let read, seen = Lwt.wait () in
+  let view root =
+    Console.View.fit @@ fun _ ->
+    if Task.elapsed root >= 0.3 && Lwt.is_sleeping read then
+      Lwt.wakeup_later seen ();
+    Console.View.text "row"
+  in
+  let elapsed =
+    Lwt_main.run
+      (Console_lwt.run ~ppf ~progress:`Tty ~view (fun root ->
+           let+ () = Lwt.pick [ read; Lwt_unix.sleep 1. ] in
+           Task.elapsed root))
+  in
+  Alcotest.(check (float 1e-6)) "three redraws" 0.3 elapsed
+
+(* [recording f] is the lines of the recording that [CONSOLE_CAST] makes of
+   [f], on a terminal of [columns] by [rows]. *)
+let recording ?(columns = 30) ?(rows = 6) f =
+  let file = Filename.temp_file "console" ".cast" in
+  with_env
+    [
+      ("CONSOLE_DETERMINISTIC_CLOCK", "1");
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", Int.to_string columns);
+      ("LINES", Int.to_string rows);
+      ("TERM", "xterm");
+    ]
+    f;
+  let lines = In_channel.with_open_bin file In_channel.input_lines in
+  Sys.remove file;
+  lines
+
+(* A task that sleeps 1.5 then 0.5 seconds, recorded. The work fails if it
+   takes a real second. *)
+let recorded_nap () =
+  let start = Unix.gettimeofday () in
+  let lines =
+    recording @@ fun () ->
+    let _, ppf = buffer () in
+    Lwt_main.run
+      (Console_lwt.run ~ppf (fun root ->
+           Console_lwt.Task.run root "nap" (fun t ->
+               let* () = Lwt_unix.sleep 1.5 in
+               Task.set_items t ~count:1 ~total:2;
+               let+ () = Lwt_unix.sleep 0.5 in
+               Task.set_items t ~count:2 ~total:2)))
+  in
+  if Unix.gettimeofday () -. start > 1. then
+    Alcotest.fail "a sleep waited for the real time";
+  lines
+
+(* Each write is stamped with the virtual time, and the redraws come a tenth
+   of a second apart. The count shows as the first sleep ends, and the last
+   write comes as the second ends. *)
+let test_cast_times () =
+  let events = Cast_harness.events (recorded_nap ()) in
+  let times = List.map (fun (e : Cast_harness.event) -> e.time) events in
+  Alcotest.(check bool) "in order" true (List.sort Float.compare times = times);
+  Alcotest.(check bool)
+    "at tenths of a second" true
+    (List.for_all
+       (fun t -> Float.abs ((t *. 10.) -. Float.round (t *. 10.)) < 1e-6)
+       times);
+  Alcotest.(check bool)
+    "the count as the first sleep ends" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> e.time = 1.5 && contains "1/2" e.data)
+       events);
+  Alcotest.(check (float 0.))
+    "the end" 2.
+    (List.nth times (List.length times - 1))
+
+(* The two builds of examples/columns, recorded. With a seed other than
+   zero, each build computes for a random real time before each sleep, and
+   the event loop turns a random number of times between random sleeps. *)
+let builds seed =
+  let rand = Random.State.make [| seed |] in
+  let rec noise () =
+    let* () = Lwt_unix.sleep (Random.State.float rand 0.001) in
+    let rec turns n =
+      if n = 0 then noise ()
+      else
+        let* () = Lwt.pause () in
+        turns (n - 1)
+    in
+    turns (Random.State.int rand 4)
+  in
+  let step b pace (name, total) =
+    Console_lwt.Task.run b name (fun task ->
+        let rec go count =
+          if count > total then Lwt.return_unit
+          else begin
+            if seed > 0 then compute (Random.State.float rand 0.001);
+            let* () = Lwt_unix.sleep pace in
+            Task.set_items task ~count ~total;
+            go (count + 1)
+          end
+        in
+        go 1)
+  in
+  let build root (name, pace, steps) =
+    Console_lwt.Task.run root name (fun b ->
+        Lwt_list.iter_s (step b pace) steps)
+  in
+  let builds =
+    [
+      ("linux", 0.08, [ ("fetch", 4); ("compile", 12); ("test", 8) ]);
+      ( "macos",
+        0.11,
+        [ ("fetch", 4); ("compile", 12); ("test", 8); ("sign", 2) ] );
+    ]
+  in
+  recording ~columns:80 ~rows:24 @@ fun () ->
+  let _, ppf = buffer () in
+  let run =
+    Console_lwt.run ~ppf ~progress:`Tty ~keep_ended:true (fun root ->
+        Lwt_list.iter_p (build root) builds)
+  in
+  Lwt_main.run (if seed > 0 then Lwt.pick [ run; noise () ] else run)
+
+(* Whatever the real schedule, a recording is the same bytes, and the builds
+   take the time of the longer, 26 sleeps of 0.11 seconds. *)
+let test_cast_schedule () =
+  let calm = builds 0 in
+  Alcotest.(check bool)
+    "the builds take the longer time" true
+    (List.exists
+       (fun (e : Cast_harness.event) -> e.time = 2.86)
+       (Cast_harness.events calm));
+  for seed = 1 to 20 do
+    Alcotest.(check (list string))
+      (Fmt.str "schedule %d" seed)
+      calm (builds seed)
+  done
+
 let suite =
-  ( "console-lwt",
+  ( "console_lwt",
     [
       Alcotest.test_case "many jobs" `Quick test_many_jobs;
       Alcotest.test_case "a raise while others wait" `Quick
@@ -513,4 +688,13 @@ let suite =
       Alcotest.test_case "threads and domains" `Quick test_threads_and_domains;
       Alcotest.test_case "promises outlive their run" `Quick
         test_promises_outlive_their_run;
+      Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
+      Alcotest.test_case "Lwt_unix.sleep is virtual" `Quick
+        test_lwt_unix_sleep_is_virtual;
+      Alcotest.test_case "redraws move the time" `Quick
+        test_redraws_move_the_time;
+      Alcotest.test_case "a recording's times are virtual" `Quick
+        test_cast_times;
+      Alcotest.test_case "a recording ignores the schedule" `Quick
+        test_cast_schedule;
     ] )
