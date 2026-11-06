@@ -18,7 +18,7 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; mutable separator : bool option }
 
 type t = piece list
 
@@ -44,13 +44,21 @@ let reads t =
   if List.exists own t then fun look -> reads_in look View_core.tasks t
   else fun _ -> View_core.tasks
 
-let one ?stage kind =
-  let blank =
-    match kind with
-    | Const v -> String.trim (View_core.to_string v) = ""
-    | _ -> false
-  in
-  [ { kind; stage; blank } ]
+(* Finding whether a constant is a separator draws its view, which measures
+   its cells. Programs build their layouts as they load, before they show
+   anything, so a piece finds it out the first time a row needs it. Two
+   domains that find it at once find the same answer, and a copy of the piece
+   finds it again. *)
+let is_separator p =
+  match (p.separator, p.kind) with
+  | Some b, _ -> b
+  | None, Const v ->
+      let b = String.trim (View_core.to_string v) = "" in
+      p.separator <- Some b;
+      b
+  | None, _ -> false
+
+let one ?stage kind = [ { kind; stage; separator = None } ]
 
 (* The stages at which pieces give way: 1 for the rate and the time left, 2
    for the bar and the percentage, 5 for the elapsed time. The label is cut at

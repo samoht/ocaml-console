@@ -94,10 +94,11 @@ val pp : t Fmt.t
     pieces leave, so the count and the time stay right-aligned at the end of the
     row. A label wider than its column first takes the cells of the pieces after
     it that show nothing, such as the count of a task that counts nothing. A
-    piece that gives way, or that shows nothing, takes with it the blank
-    {!Layout.const} before it, or after it. The rows of a region share their
-    columns, so they give way together; a task under another, whose label column
-    is narrower by the guides of its tree, keeps as many fewer cells of label.
+    piece that gives way, or that shows nothing, takes with it the separator
+    before it, or the one after it. A separator is a {!Layout.const} whose text
+    is only spaces. The rows of a region share their columns, so they give way
+    together; a task under another, whose label column is narrower by the guides
+    of its tree, keeps as many fewer cells of label.
 
     {b Columns.} The label, the bar, the count and the rate each take a column
     that the rows of a root share, and the elapsed time a column of six cells; a
@@ -203,7 +204,10 @@ module Layout : sig
       after it sit against the right edge. *)
 
   val const : View.t -> t
-  (** [const v] is [v] on every row, on one line. *)
+  (** [const v] is [v] on every row, on one line. A [v] whose text is only
+      spaces is a separator. It goes with the piece before or after it when that
+      piece gives way or shows nothing, so a row never shows two gaps side by
+      side. *)
 
   val custom : (Task.t -> View.t) -> t
   (** [custom f] is [f task] on the row of [task], on one line, drawn again at

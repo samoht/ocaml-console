@@ -8,8 +8,13 @@ let braille = [ "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "
 let ascii = [ "|"; "/"; "-"; "\\" ]
 let still = [ "*" ]
 
+(* Frames with nothing to replace are kept as given. The themes console defines
+   check theirs as console loads. *)
+let clean frame = Console_text.sanitize ~keep_newlines:false frame == frame
+
 let v fn = function
   | [] -> Fmt.invalid_arg "Console.%s: no frames" fn
+  | frames when List.for_all clean frames -> frames
   | frames -> List.map (Console_text.sanitize ~keep_newlines:false) frames
 
 let at frames ~time =

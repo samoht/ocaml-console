@@ -21,9 +21,14 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option; mutable separator : bool option }
 (** The type for the pieces of a row: what each shows, the stage at which it
-    gives way, if it does, and whether it is blank text. *)
+    gives way, if it does, and whether it is a separator, once {!is_separator}
+    has found it. *)
+
+val is_separator : piece -> bool
+(** [is_separator p] is [true] iff [p] is a constant whose text is only spaces.
+*)
 
 type t
 (** The type for layouts: at most one {!constructor-Label} and one
