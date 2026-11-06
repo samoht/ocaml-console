@@ -43,3 +43,38 @@
  (enabled_if %{lib-available:console-eio})
  (action
   (diff quickstart.svg quickstart.generated.svg)))
+
+(rule
+ (enabled_if %{lib-available:console-lwt})
+ (target quickstart-lwt.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    25
+    (run ./lwt/main.exe)))))
+
+(rule
+ (enabled_if %{lib-available:console-lwt})
+ (target rainbow-lwt.cast)
+ (action
+  (setenv
+   CONSOLE_CAST
+   %{target}
+   (setenv
+    LINES
+    25
+    (run ./lwt/main.exe --theme=rainbow)))))
+
+; The two programs record the same bytes.
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (and %{lib-available:console-eio} %{lib-available:console-lwt}))
+ (action
+  (progn
+   (diff quickstart.cast quickstart-lwt.cast)
+   (diff rainbow.cast rainbow-lwt.cast))))
