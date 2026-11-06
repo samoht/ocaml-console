@@ -42,7 +42,6 @@
   (mdx :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (re :with-test)
-  (cmdliner :with-test)
   (k7 :with-test)))
 
 (package
@@ -68,6 +67,8 @@
   (mdx :with-test)
   (cmdliner :with-test)
   (cstruct :with-test)
+  (logs :with-test)
+  (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
   (eio_main :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (jsont :with-test)
