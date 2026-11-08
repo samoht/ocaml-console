@@ -323,8 +323,9 @@ val show :
       view that raises is replaced by the default one, and the display raises
       its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
-      ends leaves in the scrollback, given the task as it ended, with the output
-      it kept ({!Task.output}) even when it succeeded; [None] leaves nothing.
+      ended leaves in the scrollback, given the task as it ended, with the
+      output it kept ({!Task.output}) even when it succeeded, and laid out when
+      it moves there ({!design}); [None] leaves nothing.
     - [plain], if given, prints the program's own lines in place of those of the
       tasks when they print as lines, with [`Plain] or with [`Auto] off a
       terminal: [plain e] for each event [e] of a task, as wide as [size] says
@@ -360,13 +361,19 @@ val show :
       how far the work is stays where the eye left it, below the rows.
     - A task that ends stays in the region, marked as it ended, under its
       parent, while its top task runs.
-    - When a top task ends, it moves to the scrollback with every task under it,
-      as its tree: each task once, under its parent, in the order they started,
-      and a task that failed or was cancelled followed by its output. Tasks move
-      by top task so that a task never lands above its parent and the tasks of
-      one top task stay together, however their ends interleave. The tree is
-      laid out, then the task forgotten, then the tree printed with the region
-      drawn again below it, so it never shows twice.
+    - A top task that ended moves to the scrollback with every task under it, as
+      its tree: each task once, under its parent, in the order they started, and
+      a task that failed or was cancelled followed by its output. Tasks move by
+      top task so that a task never lands above its parent and the tasks of one
+      top task stay together, however their ends interleave. The tree is laid
+      out, then the task forgotten, then the tree printed with the region drawn
+      again below it, so it never shows twice.
+    - A top task that succeeded waits in the region, marked, until anything else
+      is printed to the scrollback, the region has no room left for it, or the
+      display closes. The tasks that wait then move together, in the order they
+      started, so that steps run one after another share their columns. A tree
+      that holds a failure or a cancellation moves as its top task ends, after
+      the tasks that wait.
     - With [keep_ended] ({!show}), no task moves: the tasks that ended stay in
       the region until the display closes, as in a view of trees side by side,
       where a column should not empty while the others run.
@@ -436,8 +443,8 @@ val show :
       columns: the rate, the bar and the percentage give way first, then the
       label is cut, down to 12 cells, and only then does the count of bytes get
       shorter and the timer go.
-    - The rows of the top tasks printed one after another in the scrollback line
-      up as far as the labels known when each was printed allow: a label column,
-      once printed, never narrows.
+    - The rows of the top tasks that move to the scrollback together line up.
+      Rows printed after them line up with them as far as the labels known then
+      allow: a label column, once printed, never narrows.
     - A label cut to fit is cut between two characters and ends with an ellipsis
       that turns its style off. *)

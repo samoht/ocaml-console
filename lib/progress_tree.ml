@@ -444,6 +444,9 @@ let whole ~layout c r =
          ~cols:(columns ~layout (Ctx.look c) r nodes)
          r nodes)
 
+let measure ~layout r = widen layout (tops shows r)
+let lines r = if gone r then 0 else fst (count ~form:Full r (tops shows r))
+
 let view ~layout r =
   V.deferred ~kind:(Progress_layout.reads layout) (fun c ->
       match Ctx.height c with

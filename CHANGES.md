@@ -50,6 +50,11 @@
   process. Under either variable, such a clock used from another domain
   raises `Invalid_argument` (#66).
 
+- A top task that succeeds stays in the region until something else is printed
+  to the scrollback, the region runs out of room, or the display closes, and
+  then moves with the others that wait, so that steps run one after another
+  line up in the scrollback. A task that fails still moves as it ends.
+
 - `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
   needs no scheduler (#61).
 

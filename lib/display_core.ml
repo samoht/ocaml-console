@@ -54,6 +54,7 @@ type t = {
   mutable writing : bool;
   mutable release : unit -> unit;
   mutable on_close : unit -> unit;
+  mutable on_print : unit -> unit;
   mutable on_output : (string -> unit) option;
   mutable looks : (Look.t * Look.t) option;
   mutable looked : int;
@@ -684,6 +685,7 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
       writing = false;
       release = ignore;
       on_close = ignore;
+      on_print = ignore;
       on_output = None;
       looks = None;
       looked = -1;
@@ -715,6 +717,7 @@ let set_view t view =
 let print t view =
   owned t @@ fun () ->
   if (not t.closed) || t.closing then begin
+    t.on_print ();
     ignore (refresh_size t);
     let look, c = once t in
     match (lines t ~look c view, t.on_output) with
@@ -766,7 +769,8 @@ let with_output_here t f =
             Format.pp_set_margin t.ppf margin))
   in
   if t.closed then f t.ppf
-  else
+  else begin
+    t.on_print ();
     match t.on_output with
     | Some on_output -> taken t on_output f
     | None ->
@@ -779,6 +783,7 @@ let with_output_here t f =
               t.suspended <- t.suspended - 1;
               paint t)
         end
+  end
 
 let with_output t f =
   if foreign t then
@@ -816,6 +821,7 @@ let shut t =
   Task_core.run_all
     [
       t.on_close;
+      (fun () -> t.on_print ());
       (fun () ->
         t.closing <- false;
         ignore (refresh_size t));
@@ -849,12 +855,17 @@ let restart t =
   end
 
 let print_lines t lines =
-  if ((not t.closed) || t.closing) && lines <> [] then commit t lines
+  if ((not t.closed) || t.closing) && lines <> [] then begin
+    t.on_print ();
+    commit t lines
+  end
 
 let told t = t.told <- true
 let closed t = t.closed
 let width t = t.width
+let height t = t.height
 let on_close t f = t.on_close <- f
+let on_print t f = t.on_print <- f
 let drawing t = t.busy > 0 || t.writing
 let on_settle t f = t.settle <- f
 let on_output t f = t.on_output <- Some f

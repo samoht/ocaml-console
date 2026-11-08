@@ -173,6 +173,12 @@ let check_screen t =
    fresh draw, since only a fresh draw erases the rows below the region that
    the program's cursor moves left behind. *)
 let check_in_place t =
+  (* Output moves the tasks that wait to the scrollback first. *)
+  Option.iter
+    (fun d ->
+      Display.with_output d ignore;
+      Display.redraw d)
+    t.display;
   let before = screen t.vte in
   Option.iter (fun d -> Display.with_output d ignore) t.display;
   let after = screen t.vte in
@@ -1278,10 +1284,19 @@ let pp_tree_step ppf = function
 
 let tree_step = with_printer pp_tree_step tree_step
 
+(* [gone x] is [true] iff the display moved [x]'s tree to the scrollback. *)
+let gone x = View.to_string (View.sized ~width:80 (Progress.tree x.tk)) = ""
+
+(* [wait held x] adds [x] to the trees that wait, in the order they
+   started. *)
+let wait held x =
+  let index y = int_of_string (String.sub y.tname 1 2) in
+  held := List.stable_sort (fun a b -> compare (index a) (index b)) (x :: !held)
+
 (* A new task named [tname] under [tparent], or [root]. Started under a tree
-   already moved to the scrollback, and without [keep_ended], it moves there
-   alone. *)
-let start_tree_task ~keep_ended ~moves root tparent tname =
+   already moved to the scrollback, and without [keep_ended], it waits to
+   move there alone. *)
+let start_tree_task ~keep_ended ~held root tparent tname =
   let tk =
     Task.start (match tparent with Some p -> p.tk | None -> root) tname
   in
@@ -1290,46 +1305,84 @@ let start_tree_task ~keep_ended ~moves root tparent tname =
   | Some p when keep_ended || not (top p).moved -> p.tkids <- x :: p.tkids
   | Some _ ->
       x.ended <- true;
-      moves := [ tname ] :: !moves;
-      x.moved <- true
+      wait held x
   | None -> ());
   (match tparent with
   | Some p when p.ended && not x.moved -> x.ended <- true
   | _ -> ());
   x
 
-(* Runs [steps] under [root], calling [frame] after each, and gives the tasks
-   and the groups of names in the order they move to the scrollback (none
-   with [keep_ended]). *)
-let run_tree ?(keep_ended = false) root ~frame steps =
-  let tasks = ref [||] and moves = ref [] in
-  let pick = pick_task tasks in
-  let move x =
-    if not x.moved then begin
-      x.moved <- true;
-      moves := preorder x :: !moves
-    end
+(* [move moves x] records that [x]'s tree moved to the scrollback, as it is
+   now. *)
+let move moves x =
+  if not x.moved then begin
+    x.moved <- true;
+    moves := preorder x :: !moves
+  end
+
+(* A top task that ended waits in the region with the others, and they move
+   in the order they started: [held] are the trees that wait, in that order,
+   and those the display moved are recorded. *)
+let settle_moves moves held =
+  held :=
+    List.filter
+      (fun x ->
+        if gone x then begin
+          move moves x;
+          false
+        end
+        else true)
+      !held
+
+(* Closing ends the tasks still running in the order they started, and moves
+   them with those that wait: with [cancelled], the first one cancelled moves
+   them all, then each other one moves as it is cancelled. *)
+let close_moves ?(cancelled = true) tasks moves held =
+  let running =
+    List.filter
+      (fun x -> x.tparent = None && (not x.moved) && not (List.memq x !held))
+      (Array.to_list tasks)
   in
+  match running with
+  | first :: rest when cancelled ->
+      wait held first;
+      List.iter (move moves) !held;
+      held := [];
+      List.iter (move moves) rest
+  | _ ->
+      List.iter (wait held) running;
+      List.iter (move moves) !held;
+      held := []
+
+(* Runs [steps] under [root], calling [frame] after each, and gives the tasks,
+   the groups of names in the order they move to the scrollback (none with
+   [keep_ended]) and the trees that wait to move. *)
+let run_tree ?(keep_ended = false) root ~frame steps =
+  let tasks = ref [||] and moves = ref [] and held = ref [] in
+  let pick = pick_task tasks in
   List.iter
     (fun step ->
       (match step with
       | Start p when Array.length !tasks < 16 ->
           let tparent = Option.bind p pick in
           let tname = Fmt.str "n%02d" (Array.length !tasks) in
-          let x = start_tree_task ~keep_ended ~moves root tparent tname in
+          let x = start_tree_task ~keep_ended ~held root tparent tname in
           tasks := Array.append !tasks [| x |]
       | Start _ | Wait -> ()
       | Stop (i, o) ->
           Option.iter
             (fun x ->
+              let was_ended = x.ended in
               finish x.tk o;
               end_model x;
-              if x.tparent = None && not keep_ended then move x)
+              if x.tparent = None && (not keep_ended) && not was_ended then
+                wait held x)
             (pick i)
       | Note i -> Option.iter (fun x -> Task.log x.tk "note") (pick i));
+      if not keep_ended then settle_moves moves held;
       frame ())
     steps;
-  (!tasks, moves)
+  (!tasks, moves, held)
 
 let names_in line tasks =
   List.filter (fun x -> has x.tname line) (Array.to_list tasks)
@@ -1351,16 +1404,9 @@ let test_scrollback_tree steps h =
     | last :: _ when has header last -> ()
     | _ -> failf "the summary is not last:@.%a" Fmt.(list ~sep:cut string) rows
   in
-  let tasks, moves = run_tree (root t) ~frame steps in
+  let tasks, moves, held = run_tree (root t) ~frame steps in
   Display.close d;
-  (* Closing moves the trees still running, in the order they started. *)
-  Array.iter
-    (fun x ->
-      if x.tparent = None && not x.moved then begin
-        x.moved <- true;
-        moves := preorder x :: !moves
-      end)
-    tasks;
+  close_moves tasks moves held;
   let lines = Console_vte.scrollback_lines t.vte @ screen t.vte in
   let seen =
     List.concat_map
@@ -1429,7 +1475,7 @@ let test_columns steps h =
     | last :: _ when has header last -> ()
     | _ -> fail "the summary is not last"
   in
-  let tasks, _ =
+  let tasks, _, _ =
     run_tree ~keep_ended:true root ~frame (at_most_three_tops steps)
   in
   Display.close d;
@@ -1793,14 +1839,12 @@ let test_commit steps policy =
     if policy then Some (View.text ("DONE " ^ Task.label t)) else None
   in
   let d = Progress.show ~commit ~size:(fun () -> (width, height)) ppf root in
-  let tasks, moves = run_tree root ~frame:(fun () -> Display.redraw d) steps in
+  let tasks, moves, held =
+    run_tree root ~frame:(fun () -> Display.redraw d) steps
+  in
   Task.succeed root;
   Display.close d;
-  (* Ending the root moves the trees still running. *)
-  Array.iter
-    (fun x ->
-      if x.tparent = None && not x.moved then moves := preorder x :: !moves)
-    tasks;
+  close_moves ~cancelled:false tasks moves held;
   let heads =
     List.filter_map (function h :: _ -> Some h | [] -> None) !moves
   in

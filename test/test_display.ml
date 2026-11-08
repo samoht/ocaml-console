@@ -2908,12 +2908,11 @@ let test_count_and_time_padded () =
     (screen t);
   close t
 
-(* monopam's sync: each step is a top task that moves to the scrollback as
-   it ends, with its message as its label. The first step is renamed, for a
+(* monopam's sync: each step is a top task that waits in the region once it
+   ended, with its message as its label. The first step is renamed, for a
    moment, to a label of 66 cells: while it shows, it is cut to the room the
-   count and the time leave; once replaced, it widens no column. A row in
-   the scrollback cannot move, so a step's label column is the widest label
-   of the steps that ended before it, its own included. *)
+   count and the time leave; once replaced, it widens no column. The steps
+   move to the scrollback together, in the columns their labels need. *)
 let test_replaced_label_widens_nothing () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let long =
@@ -2938,14 +2937,14 @@ let test_replaced_label_widens_nothing () =
     live;
   let live = step "syncing opam" ~message:"opam synced" ~count:515 ~total:515 in
   check_lines "the column of the labels shown"
-    [ "[+] pins synced  24/275   0.3s"; " -  syncing opam 515/515   0.3s" ]
+    [ "[+] pins synced   24/275   0.3s"; " -  syncing opam 515/515   0.3s" ]
     live;
   ignore (step "checking" ~message:"packages checked" ~count:515 ~total:515);
   close t;
   check_lines "the steps in the columns their labels need"
     [
-      "[+] pins synced  24/275   0.3s";
-      "[+] opam synced 515/515   0.3s";
+      "[+] pins synced       24/275   0.3s";
+      "[+] opam synced      515/515   0.3s";
       "[+] packages checked 515/515   0.3s";
     ]
     (lines t)
@@ -2976,19 +2975,74 @@ let test_running_label_kept () =
   Task.succeed b;
   close t
 
-(* A row printed while a wider label runs keeps that width: the rows
-   printed after it line up with it, though the wider label then ends with
-   a shorter message. *)
+(* A line printed while a wider label runs moves the tasks that wait
+   first, in that label's column, and the rows printed after them keep that
+   width, though the wider label then ends with a shorter message. *)
 let test_printed_width_kept () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let fetch = Task.start t.root "fetch dependencies" in
   let build = Task.start t.root "build" in
   Display.redraw t.display;
   Task.succeed build;
+  Display.print t.display (View.text "note");
   Task.succeed ~message:"fetched" fetch;
   close t;
   check_lines "one label column"
-    [ "[+] build                0.0s"; "[+] fetched              0.0s" ]
+    [ "[+] build                0.0s"; "note"; "[+] fetched              0.0s" ]
+    (lines t)
+
+(* Steps that end one after another wait in the region and move to the
+   scrollback together, in one label column and one count column, though
+   the first label is the shortest and a later count the widest. *)
+let test_steps_share_columns () =
+  let t = terminal ~theme ~width:60 ~height:12 () in
+  let bar n = String.concat "" (List.init n (fun _ -> "\u{2588}")) in
+  let step label ~message total =
+    let r = Task.start t.root label in
+    Task.set_items r ~count:total ~total;
+    Display.redraw t.display;
+    Task.succeed ~message r
+  in
+  step "indexing" ~message:"indexed" 518;
+  step "discovering packages" ~message:"packages discovered" 517;
+  step "splitting" ~message:"split" 42331;
+  step "exporting" ~message:"exported" 98;
+  Alcotest.(check int)
+    "nothing in the scrollback yet" 0
+    (Console_vte.scrollback_size t.vte);
+  Display.print t.display (View.text "done");
+  close t;
+  check_lines "one column each"
+    [
+      "[+] indexed             " ^ bar 17 ^ "     518/518   0.0s";
+      "[+] packages discovered " ^ bar 17 ^ "     517/517   0.0s";
+      "[+] split               " ^ bar 17 ^ " 42331/42331   0.0s";
+      "[+] exported            " ^ bar 17 ^ "       98/98   0.0s";
+      "done";
+    ]
+    (lines t)
+
+(* A region too short for the tasks that wait moves the oldest of them, in
+   the order they ended. *)
+let test_held_tasks_fit () =
+  let t = terminal ~theme ~width:30 ~height:4 () in
+  List.iter
+    (fun l ->
+      Task.succeed (Task.start t.root l);
+      Display.redraw t.display)
+    [ "a"; "b"; "c"; "d"; "e" ];
+  check_lines "the oldest moved, none folded"
+    [ "[+] a   0.0s"; "[+] b   0.0s" ]
+    (List.filteri (fun i _ -> i < 2) (lines t));
+  close t;
+  check_lines "each task once, in order"
+    [
+      "[+] a   0.0s";
+      "[+] b   0.0s";
+      "[+] c   0.0s";
+      "[+] d   0.0s";
+      "[+] e   0.0s";
+    ]
     (lines t)
 
 (* A row of bytes with a label of 30 cells, as its terminal narrows: the
@@ -3692,6 +3746,10 @@ let suite =
         test_running_label_kept;
       Alcotest.test_case "a printed row keeps its width" `Quick
         test_printed_width_kept;
+      Alcotest.test_case "steps share their columns" `Quick
+        test_steps_share_columns;
+      Alcotest.test_case "the tasks that wait fit the region" `Quick
+        test_held_tasks_fit;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
