@@ -62,16 +62,25 @@ let full_bar look width =
    input field. Its cells stay blank, as do those of a task that does not
    count, so that nothing moves when the bar appears. Once work has advanced,
    the bar shows at least half a cell. A task that ended keeps its bar as far
-   as it went. *)
+   as it went, in the colour of how it ended: muted for a success, so that
+   the running rows stand out. *)
+let ended_style look r =
+  match outcome r with
+  | None -> None
+  | Some `Succeeded -> Some (Widget.muted look)
+  | Some `Failed -> Some (Style.fg (Theme.failed (theme look)))
+  | Some `Cancelled -> Some (Style.fg (Theme.warning (theme look)))
+
 let bar look r width =
   if not (counted r) then V.empty
   else
+    let style = ended_style look r in
     match fraction (metric r) with
-    | Some f when f >= 1. -> full_bar look width
+    | Some f when f >= 1. && style = None -> full_bar look width
     | Some f when f > 0. ->
         (* A half cell, the least a bar shows, in UTF-8 and in ASCII alike. *)
         let f = Float.max f (1. /. float (max 1 (width * 2))) in
-        V.paint look (Bar.horizontal ~width f)
+        V.paint look (Bar.horizontal ?style ~width f)
     | _ -> pad width
 
 let count_cell look r =

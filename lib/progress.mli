@@ -263,7 +263,9 @@ val row : ?layout:Layout.t -> Task.t -> View.t
 (** [row task] is the row of [task] in its room ({!View.fit}): drawn by [layout]
     (defaults to {!Layout.default}) while it runs, its pieces giving way to fit,
     and its line once it ended: its mark, then its label, bar, count, rate and
-    time in the columns of the rows ({!Layout}). *)
+    time in the columns of the rows ({!Layout}). The bar of a task that ended is
+    muted if it succeeded, and in the colour of a failure or a warning if it
+    failed or was cancelled. *)
 
 val tree : ?layout:Layout.t -> Task.t -> View.t
 (** [tree task] is the tree of [task] in its room ({!View.fit}): the row of

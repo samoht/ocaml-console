@@ -657,6 +657,28 @@ let test_label_style () =
     "faint" "\027[2mjob\027[0m"
     (drawn Progress.Layout.(label ~style:Style.faint ()))
 
+(* A running bar is in the accent colour; once its task ended, a bar is
+   muted for a success and in the failure colour for a failure. *)
+let test_ended_bar_colour () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let drawn task =
+    View.to_string ~styled:true (View.sized ~width:40 (Progress.row task))
+  in
+  let job count =
+    let task = Task.start root "job" in
+    Task.set_items task ~count ~total:4;
+    task
+  in
+  let running = job 4 and passed = job 4 and failed = job 2 in
+  Task.succeed passed;
+  Task.fail failed;
+  let has msg sgr task =
+    Alcotest.(check bool) msg true (contains (sgr ^ "\u{2501}") (drawn task))
+  in
+  has "running, in the accent" "\027[36m" running;
+  has "a success, muted" "\027[2m" passed;
+  has "a failure, in red" "\027[31m" failed
+
 (* [pp_bytes] formats a count of bytes as a row's count and rate do. *)
 let test_pp_bytes () =
   List.iter
@@ -3751,6 +3773,8 @@ let suite =
       Alcotest.test_case "the tasks that wait fit the region" `Quick
         test_held_tasks_fit;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
+      Alcotest.test_case "an ended bar takes the colour of its end" `Quick
+        test_ended_bar_colour;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
       Alcotest.test_case "the columns widen once for each kind of progress"
