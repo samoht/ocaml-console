@@ -561,12 +561,13 @@ let test_nested () =
   let late = Task.start p "late" in
   Task.succeed late;
   close t;
-  check_lines "the parent first, each child under it, in start order"
+  check_lines
+    "the parent first, each child under it, in start order, the late one too"
     [
       "\u{2717} parent";
       "  \u{251c}\u{2500}\u{2500} \u{2713} one";
-      "  \u{2514}\u{2500}\u{2500} \u{25cb} two";
-      "\u{25cb} late";
+      "  \u{251c}\u{2500}\u{2500} \u{25cb} two";
+      "  \u{2514}\u{2500}\u{2500} \u{25cb} late";
     ]
     (List.map untimed (lines t))
 
@@ -2930,13 +2931,18 @@ let test_count_and_time_padded () =
     (screen t);
   close t
 
-(* monopam's sync: each step is a top task that waits in the region once it
-   ended, with its message as its label. The first step is renamed, for a
-   moment, to a label of 66 cells: while it shows, it is cut to the room the
-   count and the time leave; once replaced, it widens no column. The steps
-   move to the scrollback together, in the columns their labels need. *)
+(* monopam's sync with a label column fixed at 16 cells: the first step is
+   renamed, for a moment, to a label of 66 cells, which is cut to the column;
+   no row moves sideways, and the steps move to the scrollback in that
+   column. *)
 let test_replaced_label_widens_nothing () =
-  let t = terminal ~theme ~width:40 ~height:8 () in
+  let layout =
+    Progress.Layout.(
+      list
+        ~sep:(const (View.text " "))
+        [ spinner; label ~width:16 (); bar (); count; rate; elapsed ])
+  in
+  let t = terminal ~theme ~width:40 ~height:8 ~layout () in
   let long =
     "asn1-combinators.72f5a97d25b0dce59820f089b61908d2fd742072 complete"
   in
@@ -2954,16 +2960,19 @@ let test_replaced_label_widens_nothing () =
     step ~relabel:long "syncing pins" ~message:"pins synced" ~count:24
       ~total:275
   in
-  check_lines "the long label cut, the count and the time in their columns"
-    [ " \\  asn1-combinators.72f\u{2026}  24/275   0.3s" ]
+  check_lines "the long label cut to the column"
+    [ " \\  asn1-combinator\u{2026}  24/275   0.3s" ]
     live;
   let live = step "syncing opam" ~message:"opam synced" ~count:515 ~total:515 in
-  check_lines "the column of the labels shown"
-    [ "[+] pins synced   24/275   0.3s"; " -  syncing opam 515/515   0.3s" ]
+  check_lines "the column fixed"
+    [
+      "[+] pins synced       24/275   0.3s";
+      " -  syncing opam     515/515   0.3s";
+    ]
     live;
   ignore (step "checking" ~message:"packages checked" ~count:515 ~total:515);
   close t;
-  check_lines "the steps in the columns their labels need"
+  check_lines "the steps in that column"
     [
       "[+] pins synced       24/275   0.3s";
       "[+] opam synced      515/515   0.3s";
@@ -2972,8 +2981,8 @@ let test_replaced_label_widens_nothing () =
     (lines t)
 
 (* A running task keeps the widest label it has drawn in the label column,
-   so that a task renamed at each step moves no row sideways; once it ends,
-   its message alone counts. *)
+   so that a task renamed at each step moves no row sideways, and the column
+   keeps that width once it ends. *)
 let test_running_label_kept () =
   let t = terminal ~theme ~width:40 ~height:8 ~keep_ended:true () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
@@ -2987,12 +2996,8 @@ let test_running_label_kept () =
     (screen t);
   Task.succeed ~message:"done" a;
   Display.redraw t.display;
-  let track = String.concat "" (List.init 14 (fun _ -> "\u{2591}")) in
-  check_lines "the column of the labels shown, room for a bar of 16 cells"
-    [
-      "[+] done                            0.0s";
-      " |  b    \u{2588}\u{2588}" ^ track ^ "     1/9   0.0s";
-    ]
+  check_lines "the column does not narrow"
+    [ "[+] done                     0.0s"; " |  b                  1/9   0.0s" ]
     (screen t);
   Task.succeed b;
   close t
@@ -3036,10 +3041,10 @@ let test_steps_share_columns () =
   close t;
   check_lines "one column each"
     [
-      "[+] indexed             " ^ bar 17 ^ "     518/518   0.0s";
-      "[+] packages discovered " ^ bar 17 ^ "     517/517   0.0s";
-      "[+] split               " ^ bar 17 ^ " 42331/42331   0.0s";
-      "[+] exported            " ^ bar 17 ^ "       98/98   0.0s";
+      "[+] indexed              " ^ bar 16 ^ "     518/518   0.0s";
+      "[+] packages discovered  " ^ bar 16 ^ "     517/517   0.0s";
+      "[+] split                " ^ bar 16 ^ " 42331/42331   0.0s";
+      "[+] exported             " ^ bar 16 ^ "       98/98   0.0s";
       "done";
     ]
     (lines t)
@@ -3760,11 +3765,11 @@ let suite =
         test_ended_keeps_columns;
       Alcotest.test_case "the count and the time keep their columns" `Quick
         test_count_and_time_padded;
-      Alcotest.test_case "a replaced label widens no column" `Quick
+      Alcotest.test_case "a fixed label column moves nothing" `Quick
         test_replaced_label_widens_nothing;
       Alcotest.test_case "the label is cut before the count and the time" `Quick
         test_label_cut_before_count;
-      Alcotest.test_case "a running task keeps the widest label it drew" `Quick
+      Alcotest.test_case "the label column never narrows" `Quick
         test_running_label_kept;
       Alcotest.test_case "a printed row keeps its width" `Quick
         test_printed_width_kept;

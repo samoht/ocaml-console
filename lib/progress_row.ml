@@ -108,7 +108,7 @@ let eta look r =
 let bar_max = 40
 let bar_min = 10
 
-type columns = { label : int; least : int; lead : int }
+type columns = { label : int; least : int; lead : int; fixed : bool }
 
 (* The stages of what gives way that are not pieces': at the third, the
    label is cut, down to [narrowest] cells; at the fourth, the count gets
@@ -137,7 +137,7 @@ let columns look r =
     else widest (d + 1) (max n (Work.label_cell w d))
   in
   let label = widest 0 0 in
-  { label; least = min label narrowest; lead = lead look }
+  { label; least = min label narrowest; lead = lead look; fixed = false }
 
 (* What a piece shows at [stage]: a view, or a place for the growing bar, the
    label or the spacer, which the row sizes. *)
@@ -362,6 +362,13 @@ let in_room look r ~bar_w ~column ~label ~label_w cells =
    column narrows to no fewer cells than the label: the pieces give way
    until it fits whole, and it is cut only once every piece has. Without a
    room, nothing gives way. *)
+(* A label is cut to a fixed label column, except in the scrollback. *)
+let fixed_label look ?columns ~whole label =
+  match columns with
+  | Some c when c.fixed && (not whole) && V.width label > c.label ->
+      cut look c.label label
+  | _ -> label
+
 let laid look ~time ?width ?columns ?(whole = false) ~label layout r =
   let layout = Progress_layout.for_task layout r in
   let has is = List.exists is layout in
@@ -369,6 +376,7 @@ let laid look ~time ?width ?columns ?(whole = false) ~label layout r =
     has (fun (p : Progress_layout.piece) ->
         match p.kind with Label _ -> true | _ -> false)
   in
+  let label = if named then fixed_label look ?columns ~whole label else label in
   let label_w = if named then V.width label else 0 in
   let reserve =
     if has (fun (p : Progress_layout.piece) -> p.kind = Spacer) then 1 else 0
@@ -423,7 +431,7 @@ let live look ~time ?width ?columns layout r =
   let style =
     List.find_map
       (fun (p : Progress_layout.piece) ->
-        match p.kind with Label s -> Some s | _ -> None)
+        match p.kind with Label (s, _) -> Some s | _ -> None)
       (Progress_layout.for_task layout r)
   in
   let style = Option.value style ~default:Style.bold in

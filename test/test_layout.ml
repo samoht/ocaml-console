@@ -91,9 +91,9 @@ let test_tree_moves () =
     ]
     (List.map squeeze (lines t))
 
-(* Three levels, the endings interleaved: a top task moves whole when it
-   ends, after the top tasks that ended before it, each in the order of its
-   tree. *)
+(* Three levels, the endings interleaved: a top task with a failure's
+   output moves whole when it ends, after the top tasks that ended before
+   it, each in the order of its tree. *)
 let test_three_levels () =
   let t = terminal ~width:40 ~height:12 ~label:"S" () in
   let d = t.root in
@@ -104,6 +104,7 @@ let test_three_levels () =
   let f = Task.start e "f" in
   let a2 = Task.start a "a2" in
   Task.succeed c;
+  Task.log f "f1";
   Task.fail f;
   Task.succeed e;
   Task.succeed a2;
@@ -118,6 +119,7 @@ let test_three_levels () =
     [
       "\u{2713} e";
       "  \u{2514}\u{2500}\u{2500} \u{2717} f";
+      "      \u{203a} f1";
       "\u{2713} a";
       "  \u{251c}\u{2500}\u{2500} \u{2713} b";
       "  \u{2502}   \u{2514}\u{2500}\u{2500} \u{2713} c";

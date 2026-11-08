@@ -9,7 +9,8 @@
 type kind =
   | Spinner
   | Mark  (** The mark of how the task ended. *)
-  | Label of Style.t
+  | Label of Style.t * int option
+      (** A label in that style, in a column that many cells wide, if given. *)
   | Bar of int option  (** A bar that many cells wide, or that grows. *)
   | Percent
   | Count
@@ -41,6 +42,10 @@ val for_task : t -> Task_core.t -> piece list
 val has_label : piece list -> bool
 (** [has_label ps] is [true] iff [ps] hold a {!constructor-Label}. *)
 
+val label_width : t -> int option
+(** [label_width l] is the width of the label column [l]'s label fixes, if it
+    does. *)
+
 val reads : t -> Look.t -> View_core.kind
 (** [reads l look] is what a row that [l] draws in [look] reads: the tasks and
     the time, and any state with a {!constructor-Custom} piece or a
@@ -49,7 +54,7 @@ val reads : t -> Look.t -> View_core.kind
 val spinner : t
 (** [spinner] is {!Progress.Layout.spinner}. *)
 
-val label : ?style:Style.t -> unit -> t
+val label : ?style:Style.t -> ?width:int -> unit -> t
 (** [label ~style ()] is {!Progress.Layout.label}. *)
 
 val bar : ?width:int -> unit -> t

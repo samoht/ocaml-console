@@ -32,6 +32,9 @@ type columns = {
       (** The fewest cells the label column is cut to before the pieces of the
           later stages give way. *)
   lead : int;  (** The width in cells of the widest spinner frame or mark. *)
+  fixed : bool;
+      (** [true] iff the layout fixes the label column: a longer label is cut to
+          it, except in the scrollback. *)
 }
 (** The type for the columns a row shares with the rows around it. *)
 

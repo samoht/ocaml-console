@@ -6,7 +6,7 @@
 type kind =
   | Spinner
   | Mark
-  | Label of Style.t
+  | Label of Style.t * int option
   | Bar of int option
   | Percent
   | Count
@@ -51,7 +51,13 @@ let one ?stage kind = [ { kind; stage } ]
    stage 3 and the count gets shorter at stage 4, as [Progress_row] draws
    them. *)
 let spinner = one Spinner
-let label ?(style = Style.bold) () = one (Label style)
+
+let label ?(style = Style.bold) ?width () =
+  (match width with
+  | Some n when n < 1 ->
+      invalid_arg "Console.Progress.Layout.label: width below 1"
+  | _ -> ());
+  one (Label (style, width))
 
 let bar ?width () =
   (match width with
@@ -76,6 +82,10 @@ let give_way n t =
 
 let is_label p = match p.kind with Label _ -> true | _ -> false
 let has_label pieces = List.exists is_label pieces
+
+let label_width t =
+  List.find_map (fun p -> match p.kind with Label (_, w) -> w | _ -> None) t
+
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
 (* A row has at most one label, the piece that is cut, and one spacer, the

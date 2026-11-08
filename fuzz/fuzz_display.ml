@@ -1334,25 +1334,36 @@ let settle_moves moves held =
         else true)
       !held
 
-(* Closing ends the tasks still running in the order they started, and moves
-   them with those that wait: with [cancelled], the first one cancelled moves
-   them all, then each other one moves as it is cancelled. *)
+(* [close_moves tasks moves held] is, read before the display closes, what
+   records the trees that move as it closes. Closing ends the tasks still
+   running in the order they started: with [cancelled], a tree with a
+   cancelled task that kept lines moves as it ends, with those that wait;
+   the others wait, and all that wait move last, in the order they
+   started. *)
 let close_moves ?(cancelled = true) tasks moves held =
+  let rec has_output x =
+    (Task.state x.tk <> `Succeeded && Task.output x.tk <> [])
+    || List.exists has_output x.tkids
+  in
   let running =
-    List.filter
-      (fun x -> x.tparent = None && (not x.moved) && not (List.memq x !held))
+    List.filter_map
+      (fun x ->
+        if x.tparent = None && (not x.moved) && not (List.memq x !held) then
+          Some (x, cancelled && has_output x)
+        else None)
       (Array.to_list tasks)
   in
-  match running with
-  | first :: rest when cancelled ->
-      wait held first;
-      List.iter (move moves) !held;
-      held := [];
-      List.iter (move moves) rest
-  | _ ->
-      List.iter (wait held) running;
-      List.iter (move moves) !held;
-      held := []
+  fun () ->
+    List.iter
+      (fun (x, now) ->
+        wait held x;
+        if now then begin
+          List.iter (move moves) !held;
+          held := []
+        end)
+      running;
+    List.iter (move moves) !held;
+    held := []
 
 (* Runs [steps] under [root], calling [frame] after each, and gives the tasks,
    the groups of names in the order they move to the scrollback (none with
@@ -1405,8 +1416,9 @@ let test_scrollback_tree steps h =
     | _ -> failf "the summary is not last:@.%a" Fmt.(list ~sep:cut string) rows
   in
   let tasks, moves, held = run_tree (root t) ~frame steps in
+  let closed = close_moves tasks moves held in
   Display.close d;
-  close_moves tasks moves held;
+  closed ();
   let lines = Console_vte.scrollback_lines t.vte @ screen t.vte in
   let seen =
     List.concat_map
@@ -1843,8 +1855,9 @@ let test_commit steps policy =
     run_tree root ~frame:(fun () -> Display.redraw d) steps
   in
   Task.succeed root;
+  let closed = close_moves ~cancelled:false tasks moves held in
   Display.close d;
-  close_moves ~cancelled:false tasks moves held;
+  closed ();
   let heads =
     List.filter_map (function h :: _ -> Some h | [] -> None) !moves
   in

@@ -2,6 +2,9 @@
 
 ### Added
 
+- `Progress.Layout.label ~width`, to fix the label column, so that no row
+  moves sideways whatever the labels; a longer label is cut.
+
 - `View.wrap ~words`, to choose where a line may break (#2).
 
 - `Console_eio.domain_mgr`, so that a program that runs domains shows the
@@ -50,13 +53,16 @@
   process. Under either variable, such a clock used from another domain
   raises `Invalid_argument` (#66).
 
+- The label column never narrows while the display is open.
+
 - The bar of a task that ended is muted if it succeeded, and red or yellow if
   it failed or was cancelled, so that the running rows stand out.
 
-- A top task that succeeds stays in the region until something else is printed
+- A top task that ends stays in the region until something else is printed
   to the scrollback, the region runs out of room, or the display closes, and
   then moves with the others that wait, so that steps run one after another
-  line up in the scrollback. A task that fails still moves as it ends.
+  line up in the scrollback. A task that fails with output still moves as it
+  ends.
 
 - `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
   needs no scheduler (#61).

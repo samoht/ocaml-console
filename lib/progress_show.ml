@@ -14,7 +14,17 @@ let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
       let look = Ctx.look c and width = Ctx.width c in
       if Progress_tree.draws_label layout r then widen_label r;
-      let columns = Progress_row.columns look r in
+      let columns =
+        match Layout.label_width layout with
+        | Some w ->
+            {
+              (Progress_row.columns look r) with
+              label = w;
+              least = min w Progress_row.narrowest;
+              fixed = true;
+            }
+        | None -> Progress_row.columns look r
+      in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r
       else lines (Progress_row.ended look ?width ~columns ~whole:false r))
@@ -63,15 +73,15 @@ let shape ?size = function
 
 let print d vs = Display_core.print_lines d vs
 
-(* A top task that succeeded waits in the region, with the tasks under it,
-   and moves to the scrollback with the others that wait when anything else
-   is printed there, when the region has no room left for them, or when the
+(* A top task that ended waits in the region, with the tasks under it, and
+   moves to the scrollback with the others that wait when anything else is
+   printed there, when the region has no room left for them, or when the
    display closes, so that rows printed one after another share their
    columns. They move in the order the region draws them, the order they
-   started, the first at the top. A tree that holds a failure or a cancellation has its output to
-   print: it moves at once, after those that wait. A tree that draws no line
-   moves at once. A task started under a top task that waits ends at once
-   and joins its tree. *)
+   started, the first at the top. A tree that holds a failure or a
+   cancellation with output moves at once, after those that wait, so that
+   the output shows. A tree that draws no line moves at once. A task started
+   under a top task that waits ends at once and joins its tree. *)
 
 (* A tree that waits, and what [commit] made of it as it ended, while it
    still had its output. *)
@@ -91,8 +101,12 @@ let rec top_of r =
   | Some p when (not (is_root p)) && not (gone p) -> top_of p
   | _ -> r
 
-let rec troubled r =
-  outcome r <> Some `Succeeded || List.exists troubled (children r)
+(* A task that failed or was cancelled with lines it kept, [r] or one under
+   it. *)
+let rec has_output r =
+  outcome r <> Some `Succeeded
+  && ((not (Queue.is_empty (output r))) || dropped r > 0)
+  || List.exists has_output (children r)
 
 (* [moved d w] moves the tree [w] from the region to the scrollback, as
    [commit] drew it, laid out now. It is laid out first, then forgotten, then
@@ -106,7 +120,6 @@ let moved d w =
     protect
       (fun () ->
         Display_core.caught d ~default:None (fun () ->
-            Work.hold_labels (work w.task);
             Option.map (V.resolve (Ctx.v ~width look)) w.view))
       ~finally:(fun () -> forget w.task)
   in
@@ -156,7 +169,7 @@ let hold h d ~layout ~commit r =
         if Progress_tree.lines top = 0 then moved d w
         else begin
           h.queue <- insert w h.queue;
-          if troubled top then move_all h d ~layout
+          if has_output top then move_all h d ~layout
         end
   end
 
