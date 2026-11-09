@@ -45,9 +45,10 @@ Windows consoles are not supported.
 <!-- $MDX skip -->
 ```sh
 $ opam install console console-eio eio_main cmdliner
+$ opam install console-lwt # for Lwt
 ```
 
-console comes as two opam packages, which hold five libraries:
+console comes as three opam packages, which hold seven libraries:
 
 - `console`: the styles, the widgets, the themes and the display. It needs
   neither Eio nor Unix.
@@ -56,9 +57,11 @@ console comes as two opam packages, which hold five libraries:
 - `console.text`: makes untrusted text safe to print.
 - `console.input`: a line editor that does no input or output.
 - `console.driver`: what a backend for another scheduler builds on, in direct
-  style. Its interface may change until a second backend has settled it.
+  style, as `console-eio` and `console-lwt` do.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
+- `console-lwt`: shows the progress rows of a program that runs with
+  [Lwt](https://github.com/ocsigen/lwt).
 
 console needs OCaml 5.4 or later, and prints through
 [fmt](https://erratique.ch/software/fmt). Its JSON events use
@@ -649,7 +652,8 @@ waiting on real time. A program that sleeps on that clock, and passes it to
 `Console_eio.run`, therefore shows the same times on every machine while
 its rows still move. The examples wait on that clock, so the times in their
 recordings are the ones a test checks. The rules of this deterministic mode
-are in the section "Deterministic mode" of `Console_eio`.
+are in the section "Deterministic mode" of `Console_eio`. `console-lwt` has
+no deterministic mode and always runs in real time.
 
 `CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as an
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording
@@ -780,6 +784,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console_driver` | Runs console on a scheduler (`console.driver`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
+| `Console_lwt` | Shows the tasks of a program with Lwt (`console-lwt`) |
 
 ## Known limitations
 

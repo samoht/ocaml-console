@@ -37,6 +37,10 @@
   cancellation (`Console_driver.S`); the driver calls them only on the
   scheduler's thread (#61, #67).
 
+- `console-lwt`, to show the progress rows of a program that runs with Lwt.
+  It has no deterministic mode: it runs in real time under
+  `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST` (#67).
+
 ### Changed
 
 - `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on

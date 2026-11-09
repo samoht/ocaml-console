@@ -10,8 +10,8 @@
     does the rest: it finds the terminal, shows the work, takes the program's
     output and its [Logs] messages, redraws, and gives the terminal back.
 
-    This library is [console.driver]. Its interface may change until a second
-    backend has settled it. *)
+    This library is [console.driver], on which [console-eio] and [console-lwt]
+    build. *)
 
 (** What a scheduler gives console. A {e fiber} is whatever the scheduler runs
     concurrently in a domain. The driver calls {!S.notify} from any thread,
