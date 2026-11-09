@@ -21,7 +21,7 @@ val protect :
     disposition, the process stops as it would have, inside [suspend stop]
     (defaults to [stop ()]), [stop] returning once the process is continued;
     nested calls suspend innermost first. A signal the program handles or
-    ignores is left to it.
+    ignores, with [Sys.signal] or outside OCaml, is left to it.
 
     The signal handler runs at any safe point: [restore] and [suspend] are
     called through [idle k], which calls [k] at once (the default) or at the

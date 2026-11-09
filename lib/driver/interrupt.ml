@@ -146,14 +146,23 @@ let resend signo =
   Unix.kill (Unix.getpid ()) signo;
   ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
 
+(* [disposition s] is the address of the handler that the kernel holds for
+   [s], or [0n] for the default disposition. [Sys.signal] reports a handler
+   installed outside OCaml, such as one of [Lwt_unix.on_signal], as the
+   default. [ours] is that of the handlers of {!catch}. *)
+external disposition : int -> nativeint = "console_driver_disposition"
+
+let ours = Atomic.make 0n
+
 (* [release ()] puts back the default disposition of the signals it caught,
    unless the program installed a handler of its own since. *)
 let rec release () =
   List.iter
     (fun s ->
-      match Sys.signal s Sys.Signal_default with
-      | Sys.Signal_handle h when h == handle || h == stop -> ()
-      | theirs -> Sys.set_signal s theirs)
+      if Nativeint.equal (disposition s) (Atomic.get ours) then
+        match Sys.signal s Sys.Signal_default with
+        | Sys.Signal_handle h when h == handle || h == stop -> ()
+        | theirs -> Sys.set_signal s theirs)
     (Atomic.exchange caught [])
 
 (* [handle signo] sends [signo] again once, after the last restoration or
@@ -193,9 +202,12 @@ and handle signo =
 let catch () =
   List.iter
     (fun (s, h) ->
-      match Sys.signal s (Sys.Signal_handle h) with
-      | Sys.Signal_default -> update caught (List.cons s)
-      | chosen -> Sys.set_signal s chosen)
+      if Nativeint.equal (disposition s) 0n then
+        match Sys.signal s (Sys.Signal_handle h) with
+        | Sys.Signal_default ->
+            Atomic.set ours (disposition s);
+            update caught (List.cons s)
+        | chosen -> Sys.set_signal s chosen)
     ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
 
 let protect ?idle ?(suspend = fun stop -> stop ()) ?(resume = ignore) ?terminal
