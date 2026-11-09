@@ -23,9 +23,11 @@ let domain_mgr d =
 
 let run ~clock ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain
     ?delay f =
-  Backend.run
-    ~clock:(clock :> Eio.Time.Mono.ty Eio.Resource.t)
-    ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain ?delay f
+  Eio.Fiber.with_binding Backend.clock
+    (clock :> Eio.Time.Mono.ty Eio.Resource.t)
+    (fun () ->
+      Backend.run ?ppf ?progress ?layout ?label ?view ?keep_ended ?commit ?plain
+        ?delay f)
 
 let with_output = Backend.with_output
 let print = Backend.print

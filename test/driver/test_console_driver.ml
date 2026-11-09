@@ -8,11 +8,8 @@ open Console
 (* What a scheduler with one fiber gives: all a backend must write, with neither
    Eio nor effects. *)
 module Driver = Console_driver.Make (struct
-  type clock = unit
-
-  let elapsed () () = 0.
-  let tick () _ = ()
-  let recording_time () () = 0.
+  let clock () () = 0.
+  let tick _ = ()
 
   type 'a key = 'a option ref
 
@@ -61,7 +58,7 @@ let test_run () =
   let b, ppf = buffer () in
   let root = ref None in
   let v =
-    Driver.run ~clock:() ~ppf ~progress:`Plain (fun r ->
+    Driver.run ~ppf ~progress:`Plain (fun r ->
         root := Some r;
         Task.run r "work" (fun t ->
             Task.log t "a line";
@@ -77,7 +74,7 @@ let test_raise () =
   let b, ppf = buffer () in
   let root = ref None in
   Alcotest.check_raises "goes on" (Failure "boom") (fun () ->
-      Driver.run ~clock:() ~ppf ~progress:`Plain (fun r ->
+      Driver.run ~ppf ~progress:`Plain (fun r ->
           root := Some r;
           failwith "boom"));
   Alcotest.(check bool)
@@ -87,10 +84,10 @@ let test_raise () =
 
 let test_task_is_current () =
   let _, ppf = buffer () in
-  Driver.run ~clock:() ~ppf ~progress:`Quiet (fun root ->
+  Driver.run ~ppf ~progress:`Quiet (fun root ->
       let inner =
         Task.run root "outer" (fun outer ->
-            Driver.run ~clock:() ~ppf (fun given -> (outer, given)))
+            Driver.run ~ppf (fun given -> (outer, given)))
       in
       Alcotest.(check bool)
         "a nested run gets the current task" true
@@ -98,7 +95,7 @@ let test_task_is_current () =
 
 let test_output_reaches_the_display () =
   let b, ppf = buffer () in
-  Driver.run ~clock:() ~ppf ~progress:`Plain (fun _ ->
+  Driver.run ~ppf ~progress:`Plain (fun _ ->
       Driver.print (View.text "printed");
       Driver.with_output (fun out -> Fmt.pf out "written@.");
       Driver.redraw ());
@@ -110,7 +107,7 @@ let test_logs_reach_the_display () =
   let b, ppf = buffer () in
   let before = Logs.reporter () in
   let reporter =
-    Driver.run ~clock:() ~ppf ~progress:`Plain (fun _ ->
+    Driver.run ~ppf ~progress:`Plain (fun _ ->
         Logs.app (fun m -> m "in the run");
         Domain.join
           (Domain.spawn (fun () -> Logs.app (fun m -> m "in a worker")));
@@ -125,7 +122,7 @@ let test_logs_reach_the_display () =
 let test_a_run_after_a_run () =
   let b, ppf = buffer () in
   let once text =
-    Driver.run ~clock:() ~ppf ~progress:`Plain (fun r -> Task.run r text ignore)
+    Driver.run ~ppf ~progress:`Plain (fun r -> Task.run r text ignore)
   in
   once "first";
   once "second";

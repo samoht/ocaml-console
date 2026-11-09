@@ -3,12 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-include Console_driver.Make (struct
-  type clock = Eio.Time.Mono.ty Eio.Resource.t
+(* The clock of the run, which [Console_eio.run] binds. *)
+let clock : Eio.Time.Mono.ty Eio.Resource.t Eio.Fiber.key =
+  Eio.Fiber.create_key ()
 
-  let elapsed = Virtual_clock.elapsed
-  let tick = Virtual_clock.tick
-  let recording_time = Virtual_clock.recording_time
+let run_clock () =
+  match Eio.Fiber.get clock with
+  | Some c -> c
+  | None -> invalid_arg "Console_eio: a display outside Console_eio.run"
+
+include Console_driver.Make (struct
+  let clock () = Virtual_clock.time (run_clock ())
+  let tick d = Virtual_clock.tick (run_clock ()) d
 
   type 'a key = 'a Eio.Fiber.key
 

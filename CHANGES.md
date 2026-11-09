@@ -32,7 +32,10 @@
 - `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#34).
 
-- `console.driver`, to run console on a scheduler other than Eio (#61).
+- `console.driver`, to run console on a scheduler other than Eio. A backend
+  gives it a clock, fiber-local values, a way to wait and wake, daemons and
+  cancellation (`Console_driver.S`); the driver calls them only on the
+  scheduler's thread (#61, #67).
 
 ### Changed
 

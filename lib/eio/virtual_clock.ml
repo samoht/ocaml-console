@@ -5,12 +5,6 @@
 
 let deterministic = Cast.deterministic
 
-(* The seconds since [seconds clock] was applied, on [clock]. *)
-let seconds clock =
-  let start = Eio.Time.Mono.now clock in
-  fun () ->
-    Mtime.Span.to_float_ns (Mtime.span start (Eio.Time.Mono.now clock)) *. 1e-9
-
 (* The clock of deterministic mode (Console_eio, "Deterministic mode").
    [sleeps] holds the program's pending sleeps, by wake-up time and then by
    start. [used] counts the uses of the clock, which tell {!settle} that a
@@ -117,16 +111,12 @@ let clock c =
 let state (Eio.Resource.T (t, ops)) =
   Option.map (fun get -> get t) (Eio.Resource.get_opt ops Virtual)
 
-let elapsed clock =
+let time clock =
   if deterministic () && Option.is_none (state clock) then fun () -> 0.
-  else seconds clock
+  else fun () ->
+    Int64.to_float (Mtime.to_uint64_ns (Eio.Time.Mono.now clock)) *. 1e-9
 
 let tick clock =
   match state clock with
   | Some t -> Virtual.redraw t
   | None -> Eio.Time.Mono.sleep clock
-
-let recording_time clock =
-  match state clock with
-  | Some t -> fun () -> Int64.to_float (Mtime.to_uint64_ns t.now) *. 1e-9
-  | None -> fun () -> 0.

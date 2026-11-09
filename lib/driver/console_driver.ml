@@ -4,11 +4,8 @@
   ---------------------------------------------------------------------------*)
 
 module type S = sig
-  type clock
-
-  val elapsed : clock -> unit -> float
-  val tick : clock -> float -> unit
-  val recording_time : clock -> unit -> float
+  val clock : unit -> unit -> float
+  val tick : float -> unit
   val sleep : float -> unit
 
   type 'a key
@@ -32,10 +29,7 @@ module type S = sig
 end
 
 module type T = sig
-  type clock
-
   val run :
-    clock:clock ->
     ?ppf:Format.formatter ->
     ?progress:Console.Progress.t ->
     ?layout:Console.Progress.Layout.t ->
@@ -58,7 +52,6 @@ module Display = Console.Display
 module Task = Console.Task
 
 module Make (B : S) = struct
-  type clock = B.clock
   type run = Capture.run = { display : Display.t; root : Task.t; json : bool }
 
   (* A terminal has one live region at a time. The display that holds it is
@@ -67,6 +60,25 @@ module Make (B : S) = struct
      that a [run] in another fiber or domain joins it, and an exit in the middle
      of the work still closes it. *)
 
+  (* The driver calls [B] only on the home thread of a domain, the first that
+     starts a run or makes a task current there, and [B.notify] anywhere. *)
+  let home : int option Domain.DLS.key = Domain.DLS.new_key (fun () -> None)
+  let self () = Thread.id (Thread.self ())
+
+  let enter () =
+    match Domain.DLS.get home with
+    | Some t -> Int.equal t (self ())
+    | None ->
+        Domain.DLS.set home (Some (self ()));
+        true
+
+  let at_home () =
+    match Domain.DLS.get home with
+    | Some t -> Int.equal t (self ())
+    | None -> false
+
+  let get k = if at_home () then B.get k else None
+  let in_fiber () = at_home () && B.in_fiber ()
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
   let busy = Atomic.make false
@@ -100,7 +112,7 @@ module Make (B : S) = struct
   (* A fiber that outlives its run keeps the binding of a closed display, so the
      binding counts only while it is the shared display and not closing. *)
   let bound () =
-    match (B.get current, Atomic.get shared) with
+    match (get current, Atomic.get shared) with
     | Some r, Some s when r == s.run && not (Atomic.get s.closing) -> Some r
     | _ -> None
 
@@ -108,7 +120,7 @@ module Make (B : S) = struct
 
   (* A fiber of another domain has no binding, and reaches the program's run. *)
   let display_of_run () =
-    match (bound (), B.get current, Atomic.get shared) with
+    match (bound (), get current, Atomic.get shared) with
     | Some r, _, _ -> Some r.display
     | None, None, Some s when elsewhere s && not (Atomic.get s.closing) ->
         Some s.run.display
@@ -160,8 +172,8 @@ module Make (B : S) = struct
      handler, no task is current. *)
   let scope =
     {
-      Task_driver.current = (fun () -> B.get task);
-      within = (fun t f -> B.with_binding task t f);
+      Task_driver.current = (fun () -> get task);
+      within = (fun t f -> if enter () then B.with_binding task t f else f ());
       cancelled;
     }
 
@@ -174,7 +186,7 @@ module Make (B : S) = struct
 
   (* A [Cancelled] raised in a fiber that is not cancelled, or outside any fiber,
      is not a cancellation of the caller. *)
-  let cancelling e = cancelled e && B.in_fiber () && is_cancelled ()
+  let cancelling e = cancelled e && in_fiber () && is_cancelled ()
 
   (* How long, in seconds, a write waits for its output in a cancelled run or
      after a cancellation cut a write: the output may be why the run was
@@ -226,7 +238,7 @@ module Make (B : S) = struct
      by the cancellation, the update would leave rows of the region on the
      screen. *)
   let atomic f =
-    if not (B.in_fiber () && is_cancelled ()) then f ()
+    if not (in_fiber () && is_cancelled ()) then f ()
     else if not (shielded f) then B.check ()
 
   (* [whole f] is [f ()], which a cancellation that arrives after it started
@@ -253,14 +265,14 @@ module Make (B : S) = struct
   let direct : unit B.key = B.key ()
 
   (* Outside any fiber, as in an [at_exit] function, no bytes go straight out. *)
-  let is_direct () = Option.is_some (B.get direct)
+  let is_direct () = Option.is_some (get direct)
   let capture = Capture.take ~direct:is_direct
 
   (* When a task ends, what the formatters hold is flushed as its output, and its
      unended line is ended. Outside any fiber, no task can be made current. *)
   let task_ended task =
     if Capture.taking () then
-      if B.in_fiber () then Task.within task Capture.flush_all
+      if in_fiber () then Task.within task Capture.flush_all
       else Capture.flush_all ();
     Capture.end_line task
 
@@ -305,7 +317,7 @@ module Make (B : S) = struct
   let deliver ~owner ~refused root level message =
     if
       (not (Int.equal (Domain.self () :> int) (owner : Domain.id :> int)))
-      || B.in_fiber ()
+      || in_fiber ()
     then begin
       Task_driver.report ~refused root level message;
       `Written
@@ -358,15 +370,20 @@ module Make (B : S) = struct
   (* The display redraws every tenth of a second on its clock, so that the
      spinners turn and the timers run while no task reports, and it draws
      afresh once [repaint] is set. The end of the run stops the redraws, but
-     never in the middle of one ({!whole}). *)
-  let rec animate ~sleep ~repaint display () =
-    sleep 0.1;
-    if Atomic.get repaint && not (Display_driver.writing display) then begin
-      Atomic.set repaint false;
-      Display_driver.restart display
-    end;
-    whole (fun () -> Display.redraw display);
-    animate ~sleep ~repaint display ()
+     never in the middle of one ({!whole}). A daemon checks [stopped] before
+     each wait, since a cancellation can miss a fiber that runs. *)
+  let rec animate ~stopped ~sleep ~repaint display () =
+    if not (stopped ()) then begin
+      sleep 0.1;
+      if not (stopped ()) then begin
+        if Atomic.get repaint && not (Display_driver.writing display) then begin
+          Atomic.set repaint false;
+          Display_driver.restart display
+        end;
+        whole (fun () -> Display.redraw display);
+        animate ~stopped ~sleep ~repaint display ()
+      end
+    end
 
   (* While the program is stopped, the terminal is as it would be without a
      region, with the cursor shown. Once the program continues, the cursor is
@@ -437,12 +454,14 @@ module Make (B : S) = struct
       listening = Atomic.make false;
     }
 
-  let rec listen relay () =
+  let rec listen ~stopped relay () =
     let next () =
       match Atomic.exchange relay.pending [] with [] -> None | l -> Some l
     in
-    List.iter Capture.safely (List.rev (B.wait relay.wake next));
-    listen relay ()
+    if not (stopped ()) then begin
+      List.iter Capture.safely (List.rev (B.wait relay.wake next));
+      listen ~stopped relay ()
+    end
 
   let rec relayed relay k =
     let l = Atomic.get relay.pending in
@@ -451,7 +470,7 @@ module Make (B : S) = struct
 
   let idle relay ~flow display k =
     let k () = Display_driver.when_idle display k in
-    if flow && Atomic.get relay.listening && not (B.in_fiber ()) then
+    if flow && Atomic.get relay.listening && not (in_fiber ()) then
       relayed relay k
     else k ()
 
@@ -514,12 +533,17 @@ module Make (B : S) = struct
       Atomic.set relay.listening true;
       Fun.protect ~finally:(fun () -> Atomic.set relay.listening false)
       @@ fun () ->
+      let stop = Atomic.make false in
+      let stopped () = Atomic.get stop in
       let work () =
+        Fun.protect ~finally:(fun () -> Atomic.set stop true) @@ fun () ->
         Logs.set_reporter
           (reporter ~previous ~owner:(Domain.self ()) ~closed run.root);
         Fun.protect ~finally:give_back @@ fun () -> first_run s f
       in
-      B.background [ animate ~sleep ~repaint display; listen relay ] work
+      B.background
+        [ animate ~stopped ~sleep ~repaint display; listen ~stopped relay ]
+        work
     with
     | value ->
         last_writes display (fun () ->
@@ -625,12 +649,12 @@ module Make (B : S) = struct
     | (`Plain | `Quiet | `Json) as form -> lines form
 
   (* Open a new display and run [f] on its root task. *)
-  let open_display ~clock ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain
-      ?delay ~progress f =
-    let now = B.elapsed clock in
-    let sleep = B.tick clock in
+  let open_display ~ppf ?layout ?label ?view ?keep_ended ?commit ?plain ?delay
+      ~progress f =
+    let now = B.clock () in
+    let sleep = B.tick in
     match
-      let recorded = Recording.start ~time:(B.recording_time clock) ppf in
+      let recorded = Recording.start ~time:now ppf in
       let root = Task_driver.root ?label ~scope ~now () in
       let display, intercept, cursor =
         display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain
@@ -650,8 +674,9 @@ module Make (B : S) = struct
         release ();
         raise e
 
-  let run ~clock ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended
-      ?commit ?plain ?delay f =
+  let run ?(ppf = Fmt.stderr) ?progress ?layout ?label ?view ?keep_ended ?commit
+      ?plain ?delay f =
+    ignore (enter () : bool);
     let progress = Option.value progress ~default:`Auto in
     match bound () with
     | Some r -> f (given r.root)
@@ -665,8 +690,8 @@ module Make (B : S) = struct
               await_release ();
               if claim () then begin
                 Console_tty.ensure ();
-                open_display ~clock ~ppf ?layout ?label ?view ?keep_ended
-                  ?commit ?plain ?delay ~progress f
+                open_display ~ppf ?layout ?label ?view ?keep_ended ?commit
+                  ?plain ?delay ~progress f
               end
               else begin
                 B.sleep 0.001;
