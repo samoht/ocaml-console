@@ -184,6 +184,10 @@ let centred n v =
     let before = (n - w) / 2 in
     V.(pad before ++ v ++ pad (n - w - before))
 
+(* Whether [p], drawn as [v], is a constant whose text is blank. *)
+let is_blank (p : Progress_layout.piece) v =
+  match p.kind with Const _ -> String.trim (V.to_string v) = "" | _ -> false
+
 (* The cells kept up to [i], each with its piece, the width of those of a
    fixed width, and whether the bar grows. *)
 let rec collect pieces ~cells ~keep ~lead i acc fixed grows =
@@ -226,7 +230,11 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
       cells
   in
   let keep = Array.map not gone in
-  let blank i = keep.(i) && pieces.(i).blank in
+  let blank i =
+    match cells.(i) with
+    | Some (Shown v) -> keep.(i) && is_blank pieces.(i) v
+    | _ -> false
+  in
   for i = 0 to n - 1 do
     if gone.(i) then
       if i > 0 && blank (i - 1) then keep.(i - 1) <- false
@@ -234,7 +242,7 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
   done;
   if n > 0 && gone.(n - 1) then begin
     let rec trim i =
-      if i >= 0 && ((not keep.(i)) || pieces.(i).blank) then begin
+      if i >= 0 && ((not keep.(i)) || blank i) then begin
         keep.(i) <- false;
         trim (i - 1)
       end
@@ -260,11 +268,7 @@ let blank_piece r (p : Progress_layout.piece) =
   | Percent -> Option.is_none (percent (metric r))
   | Rate -> rate_text (metric r) (rate r) = ""
   | Eta -> Option.is_none (Task_core.eta r)
-  | Const _ -> p.blank
   | _ -> false
-
-let is_const (p : Progress_layout.piece) =
-  match p.kind with Const _ -> true | _ -> false
 
 (* The cells of the blank pieces after the label, up to the first that draws
    something, without the blank text just before that one. A label cut short
@@ -272,9 +276,10 @@ let is_const (p : Progress_layout.piece) =
    label for a column it leaves empty. *)
 let blank_after r ~bar_w cells =
   let rec run taken n = function
+    | (p, Shown v) :: rest when is_blank p v -> run taken (n + V.width v) rest
     | (p, Shown v) :: rest when blank_piece r p ->
         let n = n + V.width v in
-        run (if is_const p then taken else n) n rest
+        run n n rest
     | (p, Grows) :: rest when blank_piece r p ->
         let n = n + bar_w in
         run n n rest

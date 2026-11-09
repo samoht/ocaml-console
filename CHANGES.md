@@ -55,8 +55,9 @@
   view draws now reach the program at once, instead of at the next redraw or
   close (#53).
 
-- Progress updates cost less, and console no longer builds its tables of
-  widths and durations as a program starts (#30, #40).
+- Progress updates cost less, and a program that links console allocates less
+  as it starts: no table of widths or durations is built until it is used,
+  also when the program builds a progress layout at load (#30, #40, #64).
 
 ### Fixed
 

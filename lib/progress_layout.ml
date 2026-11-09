@@ -18,7 +18,7 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option }
 
 type t = piece list
 
@@ -44,13 +44,7 @@ let reads t =
   if List.exists own t then fun look -> reads_in look View_core.tasks t
   else fun _ -> View_core.tasks
 
-let one ?stage kind =
-  let blank =
-    match kind with
-    | Const v -> String.trim (View_core.to_string v) = ""
-    | _ -> false
-  in
-  [ { kind; stage; blank } ]
+let one ?stage kind = [ { kind; stage } ]
 
 (* The stages at which pieces give way: 1 for the rate and the time left, 2
    for the bar and the percentage, 5 for the elapsed time. The label is cut at
