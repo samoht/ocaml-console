@@ -676,7 +676,7 @@ let test_ended_bar_colour () =
   let has msg sgr task =
     Alcotest.(check bool) msg true (contains (sgr ^ "\u{2501}") (drawn task))
   in
-  has "running, in the accent" "\027[36m" running;
+  has "running, in the accent" "\027[94m" running;
   has "a success, muted" "\027[2m" passed;
   has "a failure, in red" "\027[31m" failed
 

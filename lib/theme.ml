@@ -87,8 +87,8 @@ let magenta = Color.ansi_256 164
 let default =
   {
     name = "default";
-    accent = Color.cyan;
-    palette = [ Color.cyan ];
+    accent = Color.bright_blue;
+    palette = [ Color.bright_blue ];
     succeeded = Color.green;
     warning = Color.yellow;
     failed = Color.red;

@@ -53,6 +53,8 @@
   process. Under either variable, such a clock used from another domain
   raises `Invalid_argument` (#66).
 
+- `Theme.default`'s accent is bright blue rather than cyan.
+
 - The label column never narrows while the display is open.
 
 - The bar of a task that ended is muted if it succeeded, and red or yellow if
