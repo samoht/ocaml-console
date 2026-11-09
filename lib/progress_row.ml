@@ -184,8 +184,9 @@ let centred n v =
     let before = (n - w) / 2 in
     V.(pad before ++ v ++ pad (n - w - before))
 
-(* Whether [p], drawn as [v], is a constant whose text is blank. *)
-let is_blank (p : Progress_layout.piece) v =
+(* Whether [p], drawn as [v], is a separator: a constant whose text is only
+   blanks. *)
+let is_separator (p : Progress_layout.piece) v =
   match p.kind with Const _ -> String.trim (V.to_string v) = "" | _ -> false
 
 (* The cells kept up to [i], each with its piece, the width of those of a
@@ -210,9 +211,9 @@ let rec collect pieces ~cells ~keep ~lead i acc fixed grows =
 
 (* What [pieces] show at [stage], the width of those of a fixed width,
    whether the bar grows and whether the label ends the row. A piece that has
-   given way, or that shows nothing, drops the blank text before it, or the
+   given way, or that shows nothing, drops the separator before it, or the
    one after it if none is before; a row whose last piece has gone ends with
-   no blank. With [lead], the spinner and the mark take that many cells. *)
+   no separator. With [lead], the spinner and the mark take that many cells. *)
 let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
   let n = Array.length pieces in
   let cells =
@@ -230,19 +231,19 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
       cells
   in
   let keep = Array.map not gone in
-  let blank i =
+  let separator i =
     match cells.(i) with
-    | Some (Shown v) -> keep.(i) && is_blank pieces.(i) v
+    | Some (Shown v) -> keep.(i) && is_separator pieces.(i) v
     | _ -> false
   in
   for i = 0 to n - 1 do
     if gone.(i) then
-      if i > 0 && blank (i - 1) then keep.(i - 1) <- false
-      else if i + 1 < n && blank (i + 1) then keep.(i + 1) <- false
+      if i > 0 && separator (i - 1) then keep.(i - 1) <- false
+      else if i + 1 < n && separator (i + 1) then keep.(i + 1) <- false
   done;
   if n > 0 && gone.(n - 1) then begin
     let rec trim i =
-      if i >= 0 && ((not keep.(i)) || blank i) then begin
+      if i >= 0 && ((not keep.(i)) || separator i) then begin
         keep.(i) <- false;
         trim (i - 1)
       end
@@ -259,8 +260,8 @@ let shown look r ~time ~stage ~lead (pieces : Progress_layout.piece array) =
   in
   (cells, fixed, grows, ends cells)
 
-(* Whether [p] draws only blank cells on the row of [r]. *)
-let blank_piece r (p : Progress_layout.piece) =
+(* Whether [p] shows nothing on the row of [r], drawing only blank cells. *)
+let shows_nothing r (p : Progress_layout.piece) =
   match p.kind with
   | Count -> ( match metric r with Spin -> true | _ -> false)
   | Bar _ -> (
@@ -270,17 +271,18 @@ let blank_piece r (p : Progress_layout.piece) =
   | Eta -> Option.is_none (Task_core.eta r)
   | _ -> false
 
-(* The cells of the blank pieces after the label, up to the first that draws
-   something, without the blank text just before that one. A label cut short
-   of room takes them, so that a row that counts nothing does not cut its
-   label for a column it leaves empty. *)
+(* The cells of the pieces after the label that show nothing, up to the
+   first that shows something, without the separator just before that one. A
+   label cut short of room takes them, so that a row that counts nothing does
+   not cut its label for a column it leaves empty. *)
 let blank_after r ~bar_w cells =
   let rec run taken n = function
-    | (p, Shown v) :: rest when is_blank p v -> run taken (n + V.width v) rest
-    | (p, Shown v) :: rest when blank_piece r p ->
+    | (p, Shown v) :: rest when is_separator p v ->
+        run taken (n + V.width v) rest
+    | (p, Shown v) :: rest when shows_nothing r p ->
         let n = n + V.width v in
         run n n rest
-    | (p, Grows) :: rest when blank_piece r p ->
+    | (p, Grows) :: rest when shows_nothing r p ->
         let n = n + bar_w in
         run n n rest
     | _ -> taken
