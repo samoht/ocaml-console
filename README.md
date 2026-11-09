@@ -106,7 +106,7 @@ program's. When standard error is a pipe or a CI log, nothing is redrawn
 and the program prints plain lines instead.
 
 The recording at the top of this page is
-[examples/quickstart/main.ml](examples/quickstart/main.ml). It runs three
+[examples/quickstart/eio/main.ml](examples/quickstart/eio/main.ml). It runs three
 test suites side by side as rows, then prints a table of their results. Its
 `--theme` option picks one of eighteen themes, and its
 `--color=auto|always|never` option says when to use colour.
@@ -707,8 +707,11 @@ Each example is a program under [examples/](examples/). From a checkout of
 this repository, `dune exec` runs one, as in
 `dune exec -- examples/columns/main.exe`.
 
-- [quickstart](examples/quickstart/main.ml) runs three test suites as rows,
-  then prints a table of their results.
+- [quickstart](examples/quickstart/) runs three test suites as rows, then
+  prints a table of their results. The same program runs on
+  [Eio](examples/quickstart/eio/main.ml) and on
+  [Lwt](examples/quickstart/lwt/main.ml), sharing the code that does not
+  depend on the scheduler.
 - [progress](examples/progress/main.ml) shows a step that counts files, with
   a layer under it that counts bytes, in each `--progress` mode.
 - [display](examples/display/main.ml) runs a build under a title and a
