@@ -45,9 +45,10 @@ Windows consoles are not supported.
 <!-- $MDX skip -->
 ```sh
 $ opam install console console-eio eio_main cmdliner
+$ opam install console-lwt # for Lwt
 ```
 
-console comes as two opam packages, which hold five libraries:
+console comes as three opam packages, which hold seven libraries:
 
 - `console`: the styles, the widgets, the themes and the display. It needs
   neither Eio nor Unix.
@@ -56,9 +57,11 @@ console comes as two opam packages, which hold five libraries:
 - `console.text`: makes untrusted text safe to print.
 - `console.input`: a line editor that does no input or output.
 - `console.driver`: what a backend for another scheduler builds on, in direct
-  style. Its interface may change until a second backend has settled it.
+  style, as `console-eio` and `console-lwt` do.
 - `console-eio`: shows the progress rows of a program that runs with
   [Eio](https://github.com/ocaml-multicore/eio).
+- `console-lwt`: shows the progress rows of a program that runs with
+  [Lwt](https://github.com/ocsigen/lwt).
 
 console needs OCaml 5.4 or later, and prints through
 [fmt](https://erratique.ch/software/fmt). Its JSON events use
@@ -103,7 +106,7 @@ program's. When standard error is a pipe or a CI log, nothing is redrawn
 and the program prints plain lines instead.
 
 The recording at the top of this page is
-[examples/quickstart/main.ml](examples/quickstart/main.ml). It runs three
+[examples/quickstart/eio/main.ml](examples/quickstart/eio/main.ml). It runs three
 test suites side by side as rows, then prints a table of their results. Its
 `--theme` option picks one of eighteen themes, and its
 `--color=auto|always|never` option says when to use colour.
@@ -643,20 +646,20 @@ the [Quick start](#quick-start), compiled as an executable:
 ```
 
 A program that sleeps can keep its times moving under the variable.
-`Console_eio.clock` then makes a virtual clock, whose time starts at zero.
-A sleep on it wakes at the time it started plus its duration, whatever the
-program computes in between, and still lasts that duration in real time. A
-program that sleeps on that clock, and passes it to `Console_eio.run`,
-therefore shows the same times on every machine while its rows still move.
-The examples wait on that clock, so the times in their recordings are the
-ones a test checks.
+`Console_eio.clock` then makes a virtual clock, whose time starts at zero
+and jumps to the next sleep once nothing in the program can run, without
+waiting on real time. A program that sleeps on that clock, and passes it to
+`Console_eio.run`, therefore shows the same times on every machine while
+its rows still move. The examples wait on that clock, so the times in their
+recordings are the ones a test checks. The rules of this deterministic mode
+are in the section "Deterministic mode" of `Console_eio`. `console-lwt` has
+no deterministic mode and always runs in real time.
 
 `CONSOLE_CAST=FILE` records the run in `FILE` instead of drawing it, as an
 [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording
 of a terminal of `$COLUMNS` by `$LINES`. It implies
-`CONSOLE_DETERMINISTIC_CLOCK`, and the sleeps on a clock made by
-`Console_eio.clock` take no real time. The recording is then the same bytes
-on every run, made in a fraction of the program's time.
+`CONSOLE_DETERMINISTIC_CLOCK`. The recording is then the same bytes on every
+run, made in a fraction of the program's time.
 
 The widgets need no clock at all. `to_string` on a table, a tree, a panel,
 a rule or a bar returns the text a test compares, without escape codes
@@ -704,8 +707,11 @@ Each example is a program under [examples/](examples/). From a checkout of
 this repository, `dune exec` runs one, as in
 `dune exec -- examples/columns/main.exe`.
 
-- [quickstart](examples/quickstart/main.ml) runs three test suites as rows,
-  then prints a table of their results.
+- [quickstart](examples/quickstart/) runs three test suites as rows, then
+  prints a table of their results. The same program runs on
+  [Eio](examples/quickstart/eio/main.ml) and on
+  [Lwt](examples/quickstart/lwt/main.ml), sharing the code that does not
+  depend on the scheduler.
 - [progress](examples/progress/main.ml) shows a step that counts files, with
   a layer under it that counts bytes, in each `--progress` mode.
 - [display](examples/display/main.ml) runs a build under a title and a
@@ -714,6 +720,9 @@ this repository, `dune exec` runs one, as in
   trees side by side.
 - [charts](examples/charts/main.ml) draws a week's load as a bar chart and
   a few metrics as sparklines.
+- [top](examples/top/main.ml) shows four cores as boxes side by side, above
+  a gauge of all their jobs. A pool of domains runs the jobs, which report
+  to the display with no lock.
 - [themes](examples/themes/main.ml) draws a tree, a table and progress rows
   in the theme it is given, as the gallery shows.
 
@@ -778,6 +787,7 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 | `Console_driver` | Runs console on a scheduler (`console.driver`) |
 | `Console_eio` | Shows the tasks of a program with Eio (`console-eio`) |
 | `Console_eio.Prompt` | Questions asked on the terminal, passwords included |
+| `Console_lwt` | Shows the tasks of a program with Lwt (`console-lwt`) |
 
 ## Known limitations
 

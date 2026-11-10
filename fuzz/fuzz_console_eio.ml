@@ -764,31 +764,26 @@ let ended_tasks output =
       | Error (`Msg m) -> fail m)
 
 (* The JSON of two tasks that sleep [first] and [second] seconds side by
-   side, the backing clock then set to [overshoot] nanoseconds. Each task's
-   elapsed time is its own sleep. *)
-let concurrent_sleeps ~first ~second overshoot =
+   side, while another fiber yields [yields] times. Each task's elapsed time
+   is its own sleep. *)
+let concurrent_sleeps ~first ~second yields =
   Eio_mock.Backend.run @@ fun () ->
-  let backing = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock backing in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let out = Buffer.create 512 in
   let ppf = Format.formatter_of_buffer out in
-  let ready, wake = Eio.Promise.create () in
-  let entered = ref 0 in
   Console_eio.run ~clock ~ppf ~progress:`Json (fun d ->
       let work label delay =
-        Console.Task.run d label (fun _ ->
-            incr entered;
-            if !entered = 2 then Eio.Promise.resolve wake ();
-            Eio.Time.Mono.sleep clock delay)
+        Console.Task.run d label (fun _ -> Eio.Time.Mono.sleep clock delay)
       in
-      Eio.Fiber.both
-        (fun () ->
-          Eio.Fiber.both
-            (fun () -> work "first" first)
-            (fun () -> work "second" second))
-        (fun () ->
-          Eio.Promise.await ready;
-          Eio_mock.Clock.Mono.set_time backing (Mtime.of_uint64_ns overshoot)));
+      Eio.Fiber.all
+        [
+          (fun () -> work "first" first);
+          (fun () -> work "second" second);
+          (fun () ->
+            for _ = 1 to yields do
+              Eio.Fiber.yield ()
+            done);
+        ]);
   Format.pp_print_flush ppf ();
   let output = Buffer.contents out in
   check
@@ -797,14 +792,13 @@ let concurrent_sleeps ~first ~second overshoot =
         [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
   output
 
-(* How late the backing clock wakes two concurrent sleeps does not change
-   the bytes of the run. *)
-let test_deterministic_concurrency a b =
+(* A fiber that yields beside two concurrent sleeps does not change the
+   bytes of the run. *)
+let test_deterministic_concurrency a b yields =
   Env_harness.with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "0") ] @@ fun () ->
   let duration n = float_of_int (1 + (n mod 20)) /. 10. in
   let capture = concurrent_sleeps ~first:(duration a) ~second:(duration b) in
-  check_eq ~pp:Fmt.Dump.string (capture 10_000_000_000L)
-    (capture 20_000_000_000L)
+  check_eq ~pp:Fmt.Dump.string (capture 0) (capture (yields * 16))
 
 let with_recording deterministic f =
   let file = Filename.temp_file "console-fuzz" ".cast" in
@@ -951,7 +945,7 @@ let suite =
       test_case "recording byte chunks preserves Unicode escapes and the screen"
         [ uint8 ] test_cast_chunking;
       test_case "concurrent deterministic sleeps give reproducible JSON"
-        [ uint8; uint8 ] test_deterministic_concurrency;
+        [ uint8; uint8; uint8 ] test_deterministic_concurrency;
       test_case
         "progress names are a Cmdliner enum and errors list every choice"
         [ bytes ] test_progress_enum;

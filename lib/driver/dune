@@ -2,6 +2,9 @@
  (name console_driver)
  (public_name console.driver)
  (private_modules capture interrupt)
+ (foreign_stubs
+  (language c)
+  (names interrupt_stubs))
  (flags
   (:standard -open Console__ -open Console_tty__))
  (libraries console console.text console.tty fmt logs threads.posix unix))

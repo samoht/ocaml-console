@@ -41,32 +41,16 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
 
-(* [step mock] moves [mock] to its next timer, if it has one: a sleep that
-   waits for its turn on [Console_eio.clock] sets none. *)
-let step mock =
-  try Eio_mock.Clock.Mono.advance mock with Invalid_argument _ -> ()
-
 (* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
-   of a mock clock, which moves to the end of each sleep in turn. *)
+   of a mock clock. *)
 let sleeps () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref false in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.both
-            (fun () ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Eio.Time.Mono.sleep clock 0.5;
-              slept := true)
-            (fun () ->
-              while not !slept do
-                Eio.Fiber.yield ();
-                step mock
-              done)));
-
+          Eio.Time.Mono.sleep clock 1.5;
+          Eio.Time.Mono.sleep clock 0.5));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
@@ -74,32 +58,19 @@ let sleeps () =
    [Console_eio.clock] of a mock clock. *)
 let overlapping () =
   Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let buf, ppf = buffer () in
-  let slept = ref 0 in
   Console_eio.run ~clock ~ppf (fun display ->
       Console.Task.run display "nap" (fun _ ->
-          Eio.Fiber.all
-            [
-              (fun () ->
-                Eio.Time.Mono.sleep clock 1.;
-                incr slept);
-              (fun () ->
-                Eio.Time.Mono.sleep clock 2.;
-                incr slept);
-              (fun () ->
-                while !slept < 2 do
-                  Eio.Fiber.yield ();
-                  step mock
-                done);
-            ]));
+          Eio.Fiber.both
+            (fun () -> Eio.Time.Mono.sleep clock 1.)
+            (fun () -> Eio.Time.Mono.sleep clock 2.)));
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 (* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
    the time of the sleeps on a clock of [Console_eio.clock], and zero on
-   another clock; the waits still run on the clock behind it. *)
+   another clock. *)
 let test_deterministic_clock () =
   let deterministic f =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] (fun () -> f ())
@@ -119,32 +90,87 @@ let test_deterministic_clock () =
   in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
-(* The two builds of examples/columns, with sleeps on [Console_eio.clock] of
-   a mock clock whose real time a seeded random schedule moves: each build
-   works a random real time before each sleep, which wakes the sleeps then
-   due at once, and a driver moves the clock by random steps after random
-   numbers of yields. *)
+(* What a task prints that sleeps 1.5 then 0.5 seconds on [Console_eio.clock]
+   of a mock clock that never moves. It fails if a sleep waits on that
+   clock. *)
+let still_nap () =
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let buf, ppf = buffer () in
+  Eio.Fiber.first
+    (fun () ->
+      Console_eio.run ~clock ~ppf (fun root ->
+          Console.Task.run root "nap" (fun t ->
+              Eio.Time.Mono.sleep clock 1.5;
+              Console.Task.set_items t ~count:1 ~total:2;
+              Eio.Time.Mono.sleep clock 0.5;
+              Console.Task.set_items t ~count:2 ~total:2)))
+    (fun () ->
+      for _ = 1 to 100_000 do
+        Eio.Fiber.yield ()
+      done;
+      Alcotest.fail "a sleep waited on the clock behind");
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* Under CONSOLE_DETERMINISTIC_CLOCK alone, a sleep takes no real time. *)
+let test_sleeps_take_no_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Alcotest.(check bool)
+    "the time of the sleeps" true
+    (contains "\u{2713} nap  2/2  2.0s" (still_nap ()))
+
+(* What a task prints that sleeps 0.5 seconds on [Console_eio.clock], then
+   awaits a promise that another fiber resolves after [n] yields. *)
+let awaits n =
+  Eio_main.run @@ fun _ ->
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
+  let buf, ppf = buffer () in
+  Console_eio.run ~clock ~ppf (fun root ->
+      let ready, resolve = Eio.Promise.create () in
+      Eio.Fiber.both
+        (fun () ->
+          Console.Task.run root "wait" (fun _ ->
+              Eio.Time.Mono.sleep clock 0.5;
+              Eio.Promise.await ready))
+        (fun () ->
+          for _ = 1 to n do
+            Eio.Fiber.yield ()
+          done;
+          Eio.Promise.resolve resolve ()));
+  Format.pp_print_flush ppf ();
+  Buffer.contents buf
+
+(* The redraws never move the time: a task that waits on another fiber
+   shows the same time however many yields that fiber takes. *)
+let test_redraws_keep_the_time () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  let few = awaits 10 in
+  Alcotest.(check bool) "the time of the sleep" true (contains "wait  0.5s" few);
+  Alcotest.(check string) "the same time" few (awaits 10_000)
+
+(* The two builds of examples/columns, with sleeps on [Console_eio.clock].
+   With a seed other than zero, each build works a random real time before
+   each sleep, and another fiber yields a random number of times in a
+   loop. *)
 let perturbed ?cast ~progress seed =
   let env = match cast with Some f -> [ ("CONSOLE_CAST", f) ] | None -> [] in
   with_env env @@ fun () ->
   let rand = Random.State.make [| seed |] in
-  let mock = Eio_mock.Clock.Mono.make () in
-  let real = ref 0 in
-  let pass () =
-    if seed > 0 then begin
-      real := !real + Random.State.int rand 300_000_000;
-      Eio_mock.Clock.Mono.set_time mock
-        (Mtime.of_uint64_ns (Int64.of_int !real))
-    end
+  let work () =
+    if seed > 0 then
+      for i = 1 to Random.State.int rand 100_000 do
+        ignore (Sys.opaque_identity (i * i))
+      done
   in
-  let clock = Console_eio.clock mock in
+  let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
   let build root (name, pace, steps) =
     Console.Task.run root name (fun b ->
         List.iter
           (fun (step, total) ->
             Console.Task.run b step (fun task ->
                 for count = 1 to total do
-                  pass ();
+                  work ();
                   Eio.Time.Mono.sleep clock pace;
                   Console.Task.set_items task ~count ~total
                 done))
@@ -170,8 +196,7 @@ let perturbed ?cast ~progress seed =
           while not !finished do
             for _ = 0 to Random.State.int rand 4 do
               Eio.Fiber.yield ()
-            done;
-            if seed > 0 then pass () else step mock
+            done
           done));
   Format.pp_print_flush ppf ();
   match cast with
@@ -211,29 +236,7 @@ let recording f =
   Sys.remove file;
   lines
 
-(* A task that sleeps 1.5 then 0.5 seconds, recorded, on a mock clock that
-   never moves: a sleep that waited on it would never end, and the work
-   fails if it does not end first. *)
-let recorded_nap () =
-  recording @@ fun () ->
-  Eio_main.run @@ fun _ ->
-  let mock = Eio_mock.Clock.Mono.make () in
-  let clock = Console_eio.clock mock in
-  let _, ppf = buffer () in
-  Eio.Fiber.first
-    (fun () ->
-      Console_eio.run ~clock ~ppf (fun root ->
-          Console.Task.run root "nap" (fun t ->
-              Eio.Time.Mono.sleep clock 1.5;
-              Console.Task.set_items t ~count:1 ~total:2;
-              Eio.Time.Mono.sleep clock 0.5;
-              Console.Task.set_items t ~count:2 ~total:2));
-      Format.pp_print_flush ppf ())
-    (fun () ->
-      for _ = 1 to 100_000 do
-        Eio.Fiber.yield ()
-      done;
-      Alcotest.fail "a sleep waited for the real time")
+let recorded_nap () = recording @@ fun () -> ignore (still_nap ())
 
 (* asciicast v2: a header, then an event a line, each newline-delimited JSON:
    the rows drawn, and nothing on the output itself. *)
@@ -256,9 +259,8 @@ let test_cast_format () =
         (fst
            (Console_vte.cursor_history (Cast_harness.event (List.hd lines)).data))
 
-(* Each write is at its time on the virtual clock: the redraws a tenth of a
-   second apart, the count when the first sleep ends, the last write when
-   the second does. *)
+(* Each write is at its time on the virtual clock: the count when the first
+   sleep ends, the last write when the second does. *)
 let test_cast_times () =
   let events = Cast_harness.events (recorded_nap ()) in
   let times = List.map (fun (e : Cast_harness.event) -> e.time) events in
@@ -323,6 +325,102 @@ let test_cast_schedule () =
   for seed = 1 to 50 do
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
+
+(* A recording of four domains, each a loop over a sleep on
+   [Console_eio.clock] and a tick of work. A domain counts its ticks on a
+   task of its own and on a shared one. With a seed other than zero, each
+   tick works a random real time, and another fiber yields a random number
+   of times in a loop. *)
+let recorded_domains seed =
+  let rand = Random.State.make [| seed |] in
+  let file = Filename.temp_file "console" ".cast" in
+  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  with_env
+    [
+      ("CONSOLE_CAST", file);
+      ("COLUMNS", "40");
+      ("LINES", "8");
+      ("TERM", "xterm");
+    ]
+    (fun () ->
+      Eio_main.run @@ fun env ->
+      let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
+      let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+      let _, ppf = buffer () in
+      let ticks = 8 in
+      let finished = ref false in
+      Console_eio.run ~clock ~ppf ~progress:`Tty ~keep_ended:true (fun root ->
+          let all = Console.Task.start root "all" in
+          Console.Task.set_items all ~count:0 ~total:(4 * ticks);
+          Eio.Fiber.both
+            (fun () ->
+              Eio.Fiber.List.iter
+                (fun d ->
+                  let task = Console.Task.start root (Fmt.str "domain %d" d) in
+                  Console.Task.set_items task ~count:0 ~total:ticks;
+                  Eio.Domain_manager.run domains (fun () ->
+                      for i = 1 to ticks do
+                        Eio.Time.Mono.sleep clock 0.1;
+                        let rec work n s =
+                          if n = 0 then s else work (n - 1) (Digest.string s)
+                        in
+                        let n =
+                          if seed = 0 then 0 else Random.State.int rand 5
+                        in
+                        let s = work (1 + (n * 2_000)) "" in
+                        Console.Task.log task
+                          (Fmt.str "tick %d %d" i (String.length s));
+                        Console.Task.advance task;
+                        Console.Task.advance all
+                      done;
+                      Console.Task.succeed task))
+                [ 0; 1; 2; 3 ];
+              finished := true)
+            (fun () ->
+              while seed > 0 && not !finished do
+                for _ = 0 to Random.State.int rand 4 do
+                  Eio.Fiber.yield ()
+                done
+              done);
+          Console.Task.succeed all));
+  In_channel.with_open_bin file In_channel.input_all
+
+(* Whatever the domains' real schedule, a recording is the same bytes. *)
+let test_cast_domains () =
+  let calm = recorded_domains 0 in
+  Alcotest.(check bool) "every tick counted" true (contains "32/32" calm);
+  for seed = 1 to 10 do
+    Alcotest.(check string)
+      (Fmt.str "schedule %d" seed)
+      calm (recorded_domains seed)
+  done
+
+(* [Console_eio.domain_mgr] starts a domain, but in deterministic mode its
+   new domain is the caller's. *)
+let test_domain_mgr () =
+  let elsewhere () =
+    Eio_main.run @@ fun env ->
+    let domains = Console_eio.domain_mgr (Eio.Stdenv.domain_mgr env) in
+    let self = Domain.self () in
+    Eio.Domain_manager.run domains (fun () -> Domain.self () <> self)
+  in
+  let mode value =
+    with_env
+      [ ("CONSOLE_CAST", ""); ("CONSOLE_DETERMINISTIC_CLOCK", value) ]
+      elsewhere
+  in
+  Alcotest.(check bool) "another domain" true (mode "");
+  Alcotest.(check bool) "the same domain" false (mode "1")
+
+(* In deterministic mode, a clock of [Console_eio.clock] used from another
+   domain raises. *)
+let test_clock_owner () =
+  with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
+  Eio_main.run @@ fun env ->
+  let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
+  match Domain.join (Domain.spawn (fun () -> Eio.Time.Mono.now clock)) with
+  | _ -> Alcotest.fail "the clock was read from another domain"
+  | exception Invalid_argument _ -> ()
 
 let test_run_raises () =
   with_clock (fun clock ->
@@ -1198,6 +1296,22 @@ let test_theme_not_a_choice () =
   in
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
+(* [waitpid flags pid] is the status of [pid], waited for again when a
+   signal interrupts the wait. *)
+let rec waitpid flags pid =
+  try snd (Unix.waitpid flags pid)
+  with Unix.Unix_error (Unix.EINTR, _, _) -> waitpid flags pid
+
+(* [stopped_by_sigtstp pid] is [true] iff [pid] stops on SIGTSTP. A process
+   that never stopped is gone by the time waitpid looks. *)
+let stopped_by_sigtstp pid =
+  match
+    Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
+        waitpid [ Unix.WUNTRACED ] pid)
+  with
+  | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
+  | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false
+
 (* Ctrl-Z gives the terminal back before the program stops: the region is
    erased and the cursor shown. SIGTSTP's default action is to stop the
    process: in a group of its own, under a parent in the same session, the
@@ -1221,14 +1335,7 @@ let test_suspend () =
   let stopped = ref false and status = ref None in
   let out =
     Pty_reader.read_all pty (fun () ->
-        (* It is gone by the time waitpid looks if it never stopped. *)
-        (stopped :=
-           match
-             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
-                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
-           with
-           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
-           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        stopped := stopped_by_sigtstp pid;
         if !stopped then Unix.kill pid Sys.sigcont;
         status := Some (Eio.Process.await child))
   in
@@ -1276,13 +1383,7 @@ let test_suspend_blocked () =
   let stopped = ref false and status = ref None in
   let out =
     Pty_reader.read_all pty (fun () ->
-        (stopped :=
-           match
-             Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
-                 snd (Unix.waitpid [ Unix.WUNTRACED ] pid))
-           with
-           | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
-           | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false);
+        stopped := stopped_by_sigtstp pid;
         if !stopped then Unix.kill pid Sys.sigcont;
         status := Some (Eio.Process.await child))
   in
@@ -1299,13 +1400,20 @@ let test_suspend_blocked () =
     "the cursor is shown" true
     (Console_vte.cursor_visible vte)
 
-(* In a process group that no shell controls, a stop does not take effect:
-   the terminal is given back and the region drawn again once, and the work
-   goes on. A display that gave the terminal back again and again would
+(* In a process group that no shell controls, Linux and macOS discard a
+   stop: the terminal is given back and the region drawn again once, and the
+   work goes on. FreeBSD stops the process all the same, so there the test
+   continues it. A display that gave the terminal back again and again would
    show the cursor without end; the reader stops it then. *)
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let freebsd =
+    Eio.Process.parse_out
+      (Eio.Stdenv.process_mgr env)
+      Eio.Buf_read.line [ "uname"; "-s" ]
+    = "FreeBSD"
+  in
   let pty = open_pty ~sw in
   let child =
     Eio_unix.Process.spawn_unix ~sw
@@ -1331,7 +1439,10 @@ let test_suspend_without_stop () =
   in
   let status =
     Eio.Fiber.first
-      (fun () -> Eio.Process.await child)
+      (fun () ->
+        let pid = Eio.Process.pid child in
+        if freebsd && stopped_by_sigtstp pid then Unix.kill pid Sys.sigcont;
+        Eio.Process.await child)
       (fun () ->
         try read () with End_of_file | Eio.Io _ -> Eio.Fiber.await_cancel ())
   in
@@ -1490,11 +1601,7 @@ let piped_status args =
       (Array.of_list ("piped.exe" :: args))
       null null null
   in
-  let rec wait () =
-    try snd (Unix.waitpid [] pid)
-    with Unix.Unix_error (Unix.EINTR, _, _) -> wait ()
-  in
-  wait ()
+  waitpid [] pid
 
 (* The default action of SIGINT and SIGTERM is abnormal termination (XBD
    signal.h): the process ends by the signal, not by an exit that a shell would
@@ -1603,8 +1710,8 @@ let suite =
         test_sigint_restore_fails;
       Alcotest.test_case "ended from another domain or thread" `Quick
         test_elsewhere_ends;
-      Alcotest.test_case "a stop that does not take effect resumes once" `Quick
-        test_suspend_without_stop;
+      Alcotest.test_case "a stop in a group no shell controls resumes once"
+        `Quick test_suspend_without_stop;
       Alcotest.test_case "Ctrl-Z gives the terminal back, fg redraws" `Quick
         test_suspend;
       Alcotest.test_case "SIGINT prints a cancelled task's output" `Quick
@@ -1618,6 +1725,10 @@ let suite =
       Alcotest.test_case "run on a monotonic clock" `Quick
         test_run_on_a_monotonic_clock;
       Alcotest.test_case "deterministic clock" `Quick test_deterministic_clock;
+      Alcotest.test_case "sleeps take no real time" `Quick
+        test_sleeps_take_no_time;
+      Alcotest.test_case "redraws keep the time" `Quick
+        test_redraws_keep_the_time;
       Alcotest.test_case "a deterministic clock ignores the schedule" `Quick
         test_deterministic_schedule;
       Alcotest.test_case "a recording's header and events" `Quick
@@ -1627,6 +1738,11 @@ let suite =
       Alcotest.test_case "a recording ignores the schedule" `Quick
         test_cast_schedule;
       Alcotest.test_case "a recording's line feeds" `Quick test_cast_line_feeds;
+      Alcotest.test_case "a recording of domains ignores the schedule" `Quick
+        test_cast_domains;
+      Alcotest.test_case "domain_mgr" `Quick test_domain_mgr;
+      Alcotest.test_case "a virtual clock belongs to its domain" `Quick
+        test_clock_owner;
       Alcotest.test_case "run raises" `Quick test_run_raises;
       Alcotest.test_case "a view that raises" `Quick test_run_view_raises;
       Alcotest.test_case "a commit" `Quick test_run_commit;

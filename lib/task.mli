@@ -148,6 +148,9 @@ val log : ?level:level -> t -> string -> unit
       MiB of all of them for its failure: past that, the oldest go first and a
       line counts them. A line, a label and a message are each kept up to 4 KiB,
       cut between two characters and ended with three dots.
+    - The lines under a running task's row are drawn in the theme's muted colour
+      ({!Theme.muted}), except a warning or an error. A line printed to the
+      scrollback, such as the output of a failed task, is not muted.
     - The lines of the root belong to no task.
     - [log] drops a line given to a task that ended. A [Logs] message or a
       printed line from a fiber whose task ended is not dropped: it goes to the

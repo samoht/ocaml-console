@@ -94,10 +94,11 @@ val pp : t Fmt.t
     pieces leave, so the count and the time stay right-aligned at the end of the
     row. A label wider than its column first takes the cells of the pieces after
     it that show nothing, such as the count of a task that counts nothing. A
-    piece that gives way, or that shows nothing, takes with it the blank
-    {!Layout.const} before it, or after it. The rows of a region share their
-    columns, so they give way together; a task under another, whose label column
-    is narrower by the guides of its tree, keeps as many fewer cells of label.
+    piece that gives way, or that shows nothing, takes with it the
+    {{!Layout.const}separator} before it, or the one after it. The rows of a
+    region share their columns, so they give way together; a task under another,
+    whose label column is narrower by the guides of its tree, keeps as many
+    fewer cells of label.
 
     {b Columns.} The label, the bar, the count and the rate each take a column
     that the rows of a root share, and the elapsed time a column of six cells; a
@@ -106,16 +107,12 @@ val pp : t Fmt.t
     need, and only widen; the label column is as wide as the labels the rows
     show:
     - The label column is as wide as the widest label drawn, behind the guides
-      of its depth: that of each task that ended, its message if it has one, and
-      the widest label each running task has drawn, which a task renamed at each
-      step keeps while it runs, so that its row moves nothing sideways. A
-      running row whose layout holds no label ({!Layout.choose}) does not count.
-      A wider label widens the column in the first frame after its task starts,
-      is renamed or ends. Once a running task ends, its labels count no more, so
-      a label it was renamed from widens no row after it: the column narrows if
-      that label was the widest. A top task that leaves for the scrollback keeps
-      the label column as wide as it was printed, so that the rows printed after
-      it line up with it.
+      of its depth, a task that ended counting its message if it has one, and it
+      never narrows while the display is open. A running row whose layout holds
+      no label ({!Layout.choose}) does not count. A wider label widens the
+      column in the first frame after its task starts, is renamed or ends. A
+      task renamed at each step, to a name too long for the column to stay put,
+      is best drawn with a label of a fixed width ({!Layout.label}).
     - The bar column opens with the first task that counts.
     - A count of items takes the cells its total needs, at least [999/999], so a
       display of items is as dense as its counts allow. A task of items with a
@@ -124,7 +121,7 @@ val pp : t Fmt.t
       widest count of bytes, [1023.99 KiB / 1023.99 TiB], and opens the rate
       column at the widest rate, [1023.99 MiB/s]. Later tasks of bytes, larger
       totals and first rates widen nothing.
-    - No column but the label column narrows while the display is open.
+    - No column narrows while the display is open.
 
     So a column widens at most once for each new kind of progress, for a count
     of items with more digits, or for a wider label: a display of bytes alone,
@@ -164,10 +161,17 @@ module Layout : sig
   (** [spinner] is the spinner of the row's theme ({!Spinner.view}), in the
       row's colour: the colour of the {!Theme.palette} the row takes. *)
 
-  val label : ?style:Style.t -> unit -> t
+  val label : ?style:Style.t -> ?width:int -> unit -> t
   (** [label ()] is the task's label, in [style] (defaults to {!Style.bold}),
-      padded to the label column. Short of room, it is cut with an ellipsis at
-      the third stage, once the pieces of the first two have given way. *)
+      padded to the label column. The column is as wide as the widest label
+      shown, and never narrows while the display is open. With [width], the
+      column is that many cells wide, so that nothing moves whatever the labels:
+      a longer label is cut with an ellipsis, except in the scrollback, where it
+      goes past the column on its own row. Short of room, the label is cut with
+      an ellipsis at the third stage, once the pieces of the first two have
+      given way.
+
+      @raise Invalid_argument if [width] is below 1. *)
 
   val bar : ?width:int -> unit -> t
   (** [bar ()] is a progress bar ({!Bar.horizontal}) [width] cells wide or,
@@ -203,7 +207,10 @@ module Layout : sig
       after it sit against the right edge. *)
 
   val const : View.t -> t
-  (** [const v] is [v] on every row, on one line. *)
+  (** [const v] is [v] on every row, on one line. A [v] whose text is only
+      blanks is a separator. It goes with the piece before or after it when that
+      piece gives way or shows nothing, so a row never shows two gaps side by
+      side. *)
 
   val custom : (Task.t -> View.t) -> t
   (** [custom f] is [f task] on the row of [task], on one line, drawn again at
@@ -259,7 +266,9 @@ val row : ?layout:Layout.t -> Task.t -> View.t
 (** [row task] is the row of [task] in its room ({!View.fit}): drawn by [layout]
     (defaults to {!Layout.default}) while it runs, its pieces giving way to fit,
     and its line once it ended: its mark, then its label, bar, count, rate and
-    time in the columns of the rows ({!Layout}). *)
+    time in the columns of the rows ({!Layout}). The bar of a task that ended is
+    muted if it succeeded, and in the colour of a failure or a warning if it
+    failed or was cancelled. *)
 
 val tree : ?layout:Layout.t -> Task.t -> View.t
 (** [tree task] is the tree of [task] in its room ({!View.fit}): the row of
@@ -319,8 +328,9 @@ val show :
       view that raises is replaced by the default one, and the display raises
       its exception as {!Display} says.
     - [commit] (defaults to the {!tree} of the task) is what a top task that
-      ends leaves in the scrollback, given the task as it ended, with the output
-      it kept ({!Task.output}) even when it succeeded; [None] leaves nothing.
+      ended leaves in the scrollback, given the task as it ended, with the
+      output it kept ({!Task.output}) even when it succeeded, and laid out when
+      it moves there ({!design}); [None] leaves nothing.
     - [plain], if given, prints the program's own lines in place of those of the
       tasks when they print as lines, with [`Plain] or with [`Auto] off a
       terminal: [plain e] for each event [e] of a task, as wide as [size] says
@@ -356,13 +366,19 @@ val show :
       how far the work is stays where the eye left it, below the rows.
     - A task that ends stays in the region, marked as it ended, under its
       parent, while its top task runs.
-    - When a top task ends, it moves to the scrollback with every task under it,
-      as its tree: each task once, under its parent, in the order they started,
-      and a task that failed or was cancelled followed by its output. Tasks move
-      by top task so that a task never lands above its parent and the tasks of
-      one top task stay together, however their ends interleave. The tree is
-      laid out, then the task forgotten, then the tree printed with the region
-      drawn again below it, so it never shows twice.
+    - A top task that ended moves to the scrollback with every task under it, as
+      its tree: each task once, under its parent, in the order they started, and
+      a task that failed or was cancelled followed by its output. Tasks move by
+      top task so that a task never lands above its parent and the tasks of one
+      top task stay together, however their ends interleave. The tree is laid
+      out, then the task forgotten, then the tree printed with the region drawn
+      again below it, so it never shows twice.
+    - A top task that ended waits in the region, marked, until anything else is
+      printed to the scrollback, the region has no room left for it, or the
+      display closes. The tasks that wait then move together, in the order they
+      started, so that steps run one after another share their columns. A tree
+      that holds a failure or a cancellation with output moves as its top task
+      ends, after the tasks that wait, so that its output shows at once.
     - With [keep_ended] ({!show}), no task moves: the tasks that ended stay in
       the region until the display closes, as in a view of trees side by side,
       where a column should not empty while the others run.
@@ -426,14 +442,13 @@ val show :
       rest of the line stays empty, within the first [min w 100] columns.
       Nothing in the region moves sideways unless the terminal width changes, a
       column widens, at most once for each new kind of progress or for a wider
-      label, or the label column narrows as the task with the widest label ends
-      ({!Layout}).
+      label ({!Layout}), and never with a label column of a fixed width.
     - Short of room, the counts and the timers stay right-aligned in their
       columns: the rate, the bar and the percentage give way first, then the
       label is cut, down to 12 cells, and only then does the count of bytes get
       shorter and the timer go.
-    - The rows of the top tasks printed one after another in the scrollback line
-      up as far as the labels known when each was printed allow: a label column,
-      once printed, never narrows.
+    - The rows of the top tasks that move to the scrollback together line up.
+      Rows printed after them line up with them as far as the labels known then
+      allow.
     - A label cut to fit is cut between two characters and ends with an ellipsis
       that turns its style off. *)

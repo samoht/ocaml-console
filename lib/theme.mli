@@ -124,7 +124,7 @@ val v :
 (** [v ()] is {!default} with the given parts replaced:
 
     - [name] is its {!name} (defaults to ["custom"]);
-    - [accent] is the main colour (defaults to {!default}'s cyan);
+    - [accent] is the main colour (defaults to {!default}'s bright blue);
     - [palette] are the colours that successive progress rows take in turn, and
       that a bar without a style spreads along its length when there are several
       (defaults to [[accent]], and [[]] is taken as the default);
@@ -223,14 +223,14 @@ val still : t -> t
     scheme's text, to just above it. *)
 
 val default : t
-(** [default] is the terminal's named colours: cyan, with green, yellow and red
-    for a success, a warning and a failure, and faint text for what is muted. A
-    terminal shows them in the colours of its own scheme, which its user chose
-    to read on its background, and a recording in those of the recorder's. It
-    has bold headers, rounded frames and a braille spinner. Its marks, for the
-    states of {!type-mark} in order, are a bullet, a check mark, a cross, a
-    circle, a single right-pointing angle quotation mark, [!], a cross and a
-    middle dot. *)
+(** [default] is the terminal's named colours: bright blue, with green, yellow
+    and red for a success, a warning and a failure, and faint text for what is
+    muted. A terminal shows them in the colours of its own scheme, which its
+    user chose to read on its background, and a recording in those of the
+    recorder's. It has bold headers, rounded frames and a braille spinner. Its
+    marks, for the states of {!type-mark} in order, are a bullet, a check mark,
+    a cross, a circle, a single right-pointing angle quotation mark, [!], a
+    cross and a middle dot. *)
 
 val ascii : t
 (** [ascii] is {!default} drawn with ASCII characters only: ASCII frames, tree

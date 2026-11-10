@@ -6,7 +6,7 @@
 type kind =
   | Spinner
   | Mark
-  | Label of Style.t
+  | Label of Style.t * int option
   | Bar of int option
   | Percent
   | Count
@@ -18,7 +18,7 @@ type kind =
   | Custom of (Task_core.t -> View_core.t)
   | Choose of (Task_core.t -> piece list)
 
-and piece = { kind : kind; stage : int option; blank : bool }
+and piece = { kind : kind; stage : int option }
 
 type t = piece list
 
@@ -44,20 +44,20 @@ let reads t =
   if List.exists own t then fun look -> reads_in look View_core.tasks t
   else fun _ -> View_core.tasks
 
-let one ?stage kind =
-  let blank =
-    match kind with
-    | Const v -> String.trim (View_core.to_string v) = ""
-    | _ -> false
-  in
-  [ { kind; stage; blank } ]
+let one ?stage kind = [ { kind; stage } ]
 
 (* The stages at which pieces give way: 1 for the rate and the time left, 2
    for the bar and the percentage, 5 for the elapsed time. The label is cut at
    stage 3 and the count gets shorter at stage 4, as [Progress_row] draws
    them. *)
 let spinner = one Spinner
-let label ?(style = Style.bold) () = one (Label style)
+
+let label ?(style = Style.bold) ?width () =
+  (match width with
+  | Some n when n < 1 ->
+      invalid_arg "Console.Progress.Layout.label: width below 1"
+  | _ -> ());
+  one (Label (style, width))
 
 let bar ?width () =
   (match width with
@@ -82,6 +82,10 @@ let give_way n t =
 
 let is_label p = match p.kind with Label _ -> true | _ -> false
 let has_label pieces = List.exists is_label pieces
+
+let label_width t =
+  List.find_map (fun p -> match p.kind with Label (_, w) -> w | _ -> None) t
+
 let is_spacer p = match p.kind with Spacer -> true | _ -> false
 
 (* A row has at most one label, the piece that is cut, and one spacer, the

@@ -10,6 +10,14 @@ val draws_label : Progress_layout.t -> Task_core.t -> bool
 (** [draws_label l r] is [true] iff the row of [r] drawn by [l] has a label, as
     it always has once [r] ended. *)
 
+val measure : layout:Progress_layout.t -> Task_core.t -> unit
+(** [measure ~layout r] widens the label column for the rows of [r]'s tree that
+    draw a label. *)
+
+val lines : Task_core.t -> int
+(** [lines r] is the number of lines the tree of [r] takes when nothing in it
+    folds. *)
+
 val view : layout:Progress_layout.t -> Task_core.t -> View_core.t
 (** [view ~layout r] is the tree of [r] laid out in its room: [r] and the tasks
     under it, or the top tasks if [r] is the root. In a room with a height, a

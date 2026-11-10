@@ -109,6 +109,9 @@ val closed : t -> bool
 val width : t -> int
 (** [width d] is the terminal's width, read at the last redraw. *)
 
+val height : t -> int
+(** [height d] is the terminal's height, read at the last redraw. *)
+
 val look : ?live:bool -> t -> Look.t
 (** [look d] is the look [d] draws in, live iff [live] (defaults to [false]) and
     [d] draws in colour. *)
@@ -122,6 +125,10 @@ val on_settle : t -> (unit -> unit) -> unit
 
 val on_close : t -> (unit -> unit) -> unit
 (** [on_close d f] has [d] call [f] as it closes, before its last frame. *)
+
+val on_print : t -> (unit -> unit) -> unit
+(** [on_print d f] has [d] call [f] before it prints anything above the region,
+    and as it closes, after {!on_close}'s function. *)
 
 val on_output : t -> (string -> unit) -> unit
 (** [on_output d f] gives [f] what {!with_output} prints, rather than printing

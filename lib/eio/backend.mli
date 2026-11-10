@@ -5,4 +5,7 @@
 
 (** {!Console_driver.Make} on Eio. *)
 
-include Console_driver.T with type clock = Eio.Time.Mono.ty Eio.Resource.t
+val clock : Eio.Time.Mono.ty Eio.Resource.t Eio.Fiber.key
+(** [clock] is bound to the clock that the display of a run reads. *)
+
+include Console_driver.T

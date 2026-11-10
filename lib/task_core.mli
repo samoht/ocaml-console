@@ -161,27 +161,17 @@ module Work : sig
 
   val label_cell : work -> int -> int
   (** [label_cell w d] is the width in cells of the label column at {!depth}
-      [d]: the widest label {!widen_label} was given there by a task that ended
-      (its message if it has one) or by a task that runs, and at least the width
-      {!hold_labels} kept. *)
+      [d]: the widest label {!widen_label} was given there. *)
 
   val depths : work -> int
   (** [depths w] is one more than the deepest {!depth} at which {!widen_label}
       was called, or [0] if it never was. *)
-
-  val hold_labels : work -> unit
-  (** [hold_labels w] keeps the label column of each depth at least as wide as
-      {!label_cell} is now, however the running tasks end. A view calls it as it
-      prints rows that cannot move, so that the rows printed after them line up.
-  *)
 end
 
 val widen_label : t -> unit
 (** [widen_label r] widens the label column of [r]'s depth to the width of the
-    label [r] draws, if it is narrower. A view calls it for each row that draws
-    a label. While [r] runs, the column keeps the widest label [r] has drawn;
-    once [r] ends, those leave the column and its message, or its label if it
-    has none, widens it for good. *)
+    label [r] draws, its message once it ended, if it is narrower. A view calls
+    it for each row that draws a label. The column never narrows. *)
 
 val keep : t -> memo list -> unit
 (** [keep r m] makes [m] what views keep of [r]. *)

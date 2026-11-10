@@ -561,12 +561,13 @@ let test_nested () =
   let late = Task.start p "late" in
   Task.succeed late;
   close t;
-  check_lines "the parent first, each child under it, in start order"
+  check_lines
+    "the parent first, each child under it, in start order, the late one too"
     [
       "\u{2717} parent";
       "  \u{251c}\u{2500}\u{2500} \u{2713} one";
-      "  \u{2514}\u{2500}\u{2500} \u{25cb} two";
-      "\u{25cb} late";
+      "  \u{251c}\u{2500}\u{2500} \u{25cb} two";
+      "  \u{2514}\u{2500}\u{2500} \u{25cb} late";
     ]
     (List.map untimed (lines t))
 
@@ -656,6 +657,28 @@ let test_label_style () =
   Alcotest.(check string)
     "faint" "\027[2mjob\027[0m"
     (drawn Progress.Layout.(label ~style:Style.faint ()))
+
+(* A running bar is in the accent colour; once its task ended, a bar is
+   muted for a success and in the failure colour for a failure. *)
+let test_ended_bar_colour () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let drawn task =
+    View.to_string ~styled:true (View.sized ~width:40 (Progress.row task))
+  in
+  let job count =
+    let task = Task.start root "job" in
+    Task.set_items task ~count ~total:4;
+    task
+  in
+  let running = job 4 and passed = job 4 and failed = job 2 in
+  Task.succeed passed;
+  Task.fail failed;
+  let has msg sgr task =
+    Alcotest.(check bool) msg true (contains (sgr ^ "\u{2501}") (drawn task))
+  in
+  has "running, in the accent" "\027[94m" running;
+  has "a success, muted" "\027[2m" passed;
+  has "a failure, in red" "\027[31m" failed
 
 (* [pp_bytes] formats a count of bytes as a row's count and rate do. *)
 let test_pp_bytes () =
@@ -923,6 +946,61 @@ let test_colours () =
   (* The default theme's red is the terminal's own. *)
   Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
+
+(* Under a running task's row, a printed line and a Logs message below the
+   warning level are muted: faint in the default theme. A warning or an error
+   keeps its mark's colour and its text is not muted. *)
+let test_log_muted () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  Task.run ~log_lines:4 t.root "job" (fun job ->
+      Task.log job "split pkg/";
+      Task.log ~level:`Info job "push main";
+      Task.log ~level:`Warning job "disk low";
+      Task.log ~level:`Error job "push failed";
+      Display.redraw t.display;
+      let out = written t in
+      Alcotest.(check bool)
+        "the printed line, faint" true
+        (contains "\027[2msplit pkg/\027[0m" out);
+      Alcotest.(check bool)
+        "the Logs message, faint" true
+        (contains "\027[2m  push main\027[0m" out);
+      Alcotest.(check bool)
+        "the warning, its mark yellow and its text plain" true
+        (contains "\027[1;33m!\027[0m disk low\r" out);
+      Alcotest.(check bool)
+        "the error, its mark red and its text plain" true
+        (contains "\027[1;31m\u{2717}\027[0m push failed" out));
+  close t
+
+(* The output of a failed task goes to the scrollback, where it is read:
+   it is not muted. *)
+let test_failure_not_muted () =
+  let t = terminal ~styled:true ~width:40 ~height:10 () in
+  let job = Task.start t.root "job" in
+  Task.log job "Error: unbound value x";
+  Display.redraw t.display;
+  t.chunks := [];
+  Task.fail job;
+  let out = written t in
+  Alcotest.(check bool)
+    "the line, plain" true
+    (contains "\027[0m Error: unbound value x\r\n" out);
+  Alcotest.(check bool) "not faint" false (contains "\027[2mError" out)
+
+(* A theme with a muted colour draws the lines under a running task's row
+   in that colour, not faint. *)
+let test_log_muted_colour () =
+  let t = terminal ~theme:Theme.nord ~styled:true ~width:40 ~height:10 () in
+  Task.run t.root "job" (fun job ->
+      Task.log job "split pkg/";
+      Display.redraw t.display;
+      let out = written t in
+      Alcotest.(check bool)
+        "nord's muted colour" true
+        (contains "\027[38;2;150;158;173msplit pkg/\027[0m" out);
+      Alcotest.(check bool) "not faint" false (contains "\027[2m" out));
+  close t
 
 (* On a terminal wider than 100 columns, the rows and the lines of ended
    tasks keep to 100, so that a count and a timer stay near their label. *)
@@ -2853,14 +2931,18 @@ let test_count_and_time_padded () =
     (screen t);
   close t
 
-(* monopam's sync: each step is a top task that moves to the scrollback as
-   it ends, with its message as its label. The first step is renamed, for a
-   moment, to a label of 66 cells: while it shows, it is cut to the room the
-   count and the time leave; once replaced, it widens no column. A row in
-   the scrollback cannot move, so a step's label column is the widest label
-   of the steps that ended before it, its own included. *)
+(* monopam's sync with a label column fixed at 16 cells: the first step is
+   renamed, for a moment, to a label of 66 cells, which is cut to the column;
+   no row moves sideways, and the steps move to the scrollback in that
+   column. *)
 let test_replaced_label_widens_nothing () =
-  let t = terminal ~theme ~width:40 ~height:8 () in
+  let layout =
+    Progress.Layout.(
+      list
+        ~sep:(const (View.text " "))
+        [ spinner; label ~width:16 (); bar (); count; rate; elapsed ])
+  in
+  let t = terminal ~theme ~width:40 ~height:8 ~layout () in
   let long =
     "asn1-combinators.72f5a97d25b0dce59820f089b61908d2fd742072 complete"
   in
@@ -2878,26 +2960,29 @@ let test_replaced_label_widens_nothing () =
     step ~relabel:long "syncing pins" ~message:"pins synced" ~count:24
       ~total:275
   in
-  check_lines "the long label cut, the count and the time in their columns"
-    [ " \\  asn1-combinators.72f\u{2026}  24/275   0.3s" ]
+  check_lines "the long label cut to the column"
+    [ " \\  asn1-combinator\u{2026}  24/275   0.3s" ]
     live;
   let live = step "syncing opam" ~message:"opam synced" ~count:515 ~total:515 in
-  check_lines "the column of the labels shown"
-    [ "[+] pins synced  24/275   0.3s"; " -  syncing opam 515/515   0.3s" ]
+  check_lines "the column fixed"
+    [
+      "[+] pins synced       24/275   0.3s";
+      " -  syncing opam     515/515   0.3s";
+    ]
     live;
   ignore (step "checking" ~message:"packages checked" ~count:515 ~total:515);
   close t;
-  check_lines "the steps in the columns their labels need"
+  check_lines "the steps in that column"
     [
-      "[+] pins synced  24/275   0.3s";
-      "[+] opam synced 515/515   0.3s";
+      "[+] pins synced       24/275   0.3s";
+      "[+] opam synced      515/515   0.3s";
       "[+] packages checked 515/515   0.3s";
     ]
     (lines t)
 
 (* A running task keeps the widest label it has drawn in the label column,
-   so that a task renamed at each step moves no row sideways; once it ends,
-   its message alone counts. *)
+   so that a task renamed at each step moves no row sideways, and the column
+   keeps that width once it ends. *)
 let test_running_label_kept () =
   let t = terminal ~theme ~width:40 ~height:8 ~keep_ended:true () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
@@ -2911,29 +2996,80 @@ let test_running_label_kept () =
     (screen t);
   Task.succeed ~message:"done" a;
   Display.redraw t.display;
-  let track = String.concat "" (List.init 14 (fun _ -> "\u{2591}")) in
-  check_lines "the column of the labels shown, room for a bar of 16 cells"
-    [
-      "[+] done                            0.0s";
-      " |  b    \u{2588}\u{2588}" ^ track ^ "     1/9   0.0s";
-    ]
+  check_lines "the column does not narrow"
+    [ "[+] done                     0.0s"; " |  b                  1/9   0.0s" ]
     (screen t);
   Task.succeed b;
   close t
 
-(* A row printed while a wider label runs keeps that width: the rows
-   printed after it line up with it, though the wider label then ends with
-   a shorter message. *)
+(* A line printed while a wider label runs moves the tasks that wait
+   first, in that label's column, and the rows printed after them keep that
+   width, though the wider label then ends with a shorter message. *)
 let test_printed_width_kept () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let fetch = Task.start t.root "fetch dependencies" in
   let build = Task.start t.root "build" in
   Display.redraw t.display;
   Task.succeed build;
+  Display.print t.display (View.text "note");
   Task.succeed ~message:"fetched" fetch;
   close t;
   check_lines "one label column"
-    [ "[+] build                0.0s"; "[+] fetched              0.0s" ]
+    [ "[+] build                0.0s"; "note"; "[+] fetched              0.0s" ]
+    (lines t)
+
+(* Steps that end one after another wait in the region and move to the
+   scrollback together, in one label column and one count column, though
+   the first label is the shortest and a later count the widest. *)
+let test_steps_share_columns () =
+  let t = terminal ~theme ~width:60 ~height:12 () in
+  let bar n = String.concat "" (List.init n (fun _ -> "\u{2588}")) in
+  let step label ~message total =
+    let r = Task.start t.root label in
+    Task.set_items r ~count:total ~total;
+    Display.redraw t.display;
+    Task.succeed ~message r
+  in
+  step "indexing" ~message:"indexed" 518;
+  step "discovering packages" ~message:"packages discovered" 517;
+  step "splitting" ~message:"split" 42331;
+  step "exporting" ~message:"exported" 98;
+  Alcotest.(check int)
+    "nothing in the scrollback yet" 0
+    (Console_vte.scrollback_size t.vte);
+  Display.print t.display (View.text "done");
+  close t;
+  check_lines "one column each"
+    [
+      "[+] indexed              " ^ bar 16 ^ "     518/518   0.0s";
+      "[+] packages discovered  " ^ bar 16 ^ "     517/517   0.0s";
+      "[+] split                " ^ bar 16 ^ " 42331/42331   0.0s";
+      "[+] exported             " ^ bar 16 ^ "       98/98   0.0s";
+      "done";
+    ]
+    (lines t)
+
+(* A region too short for the tasks that wait moves the oldest of them, in
+   the order they ended. *)
+let test_held_tasks_fit () =
+  let t = terminal ~theme ~width:30 ~height:4 () in
+  List.iter
+    (fun l ->
+      Task.succeed (Task.start t.root l);
+      Display.redraw t.display)
+    [ "a"; "b"; "c"; "d"; "e" ];
+  check_lines "the oldest moved, none folded"
+    [ "[+] a   0.0s"; "[+] b   0.0s" ]
+    (List.filteri (fun i _ -> i < 2) (lines t));
+  close t;
+  check_lines "each task once, in order"
+    [
+      "[+] a   0.0s";
+      "[+] b   0.0s";
+      "[+] c   0.0s";
+      "[+] d   0.0s";
+      "[+] e   0.0s";
+    ]
     (lines t)
 
 (* A row of bytes with a label of 30 cells, as its terminal narrows: the
@@ -3532,6 +3668,11 @@ let suite =
       Alcotest.test_case "children" `Quick test_children;
       Alcotest.test_case "output" `Quick test_output;
       Alcotest.test_case "a label's style" `Quick test_label_style;
+      Alcotest.test_case "a task's lines, muted" `Quick test_log_muted;
+      Alcotest.test_case "a failed task's output, not muted" `Quick
+        test_failure_not_muted;
+      Alcotest.test_case "a task's lines, in the muted colour" `Quick
+        test_log_muted_colour;
       Alcotest.test_case "bytes as rows show them" `Quick test_pp_bytes;
       Alcotest.test_case "bytes fit their column" `Quick test_bytes_width;
       Alcotest.test_case "durations as rows show them" `Quick test_pp_duration;
@@ -3624,15 +3765,21 @@ let suite =
         test_ended_keeps_columns;
       Alcotest.test_case "the count and the time keep their columns" `Quick
         test_count_and_time_padded;
-      Alcotest.test_case "a replaced label widens no column" `Quick
+      Alcotest.test_case "a fixed label column moves nothing" `Quick
         test_replaced_label_widens_nothing;
       Alcotest.test_case "the label is cut before the count and the time" `Quick
         test_label_cut_before_count;
-      Alcotest.test_case "a running task keeps the widest label it drew" `Quick
+      Alcotest.test_case "the label column never narrows" `Quick
         test_running_label_kept;
       Alcotest.test_case "a printed row keeps its width" `Quick
         test_printed_width_kept;
+      Alcotest.test_case "steps share their columns" `Quick
+        test_steps_share_columns;
+      Alcotest.test_case "the tasks that wait fit the region" `Quick
+        test_held_tasks_fit;
       Alcotest.test_case "a task that ended draws its bar" `Quick test_ended_bar;
+      Alcotest.test_case "an ended bar takes the colour of its end" `Quick
+        test_ended_bar_colour;
       Alcotest.test_case "plain's last frame is the terminal's width" `Quick
         test_plain_last_frame_width;
       Alcotest.test_case "the columns widen once for each kind of progress"

@@ -21,7 +21,8 @@
     With [exit-cancelled], a cancelled fiber calls [exit], on such a flow. With
     [exit-view], a view calls [exit] each time it draws, on such a flow. With
     [print], it prints a rule and a table above the rows, as wide as the display
-    lays them out. *)
+    lays them out. With [domain], a task starts the program's first domain, and
+    then prints. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -170,6 +171,12 @@ let () =
                       "a description long enough to wrap in a narrow table";
                   ];
                 ]))
+  | [| _; "domain" |] ->
+      Console_tty.setup ();
+      Console_eio.run ~clock (fun display ->
+          Console.Task.run display "spawn" (fun _ ->
+              Domain.join (Domain.spawn ignore));
+          Fmt.epr "after the first domain@.")
   | [| _; n |] ->
       Console_eio.run ~clock (fun display ->
           for i = 1 to int_of_string n do

@@ -1,0 +1,5 @@
+; Linked before every library it is listed ahead of, so it samples their
+; initialisers.
+
+(library
+ (name init_first))

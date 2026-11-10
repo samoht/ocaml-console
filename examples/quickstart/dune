@@ -1,15 +1,3 @@
-(executable
- (name main)
- (libraries
-  console
-  console.tty
-  console-eio
-  eio
-  eio_main
-  fmt
-  fmt.cli
-  cmdliner))
-
 (rule
  (enabled_if %{lib-available:console-eio})
  (target quickstart.cast)
@@ -20,7 +8,7 @@
    (setenv
     LINES
     25
-    (run ./main.exe)))))
+    (run ./eio/main.exe)))))
 
 (rule
  (enabled_if %{lib-available:console-eio})
@@ -32,7 +20,7 @@
    (setenv
     LINES
     25
-    (run ./main.exe --theme=rainbow)))))
+    (run ./eio/main.exe --theme=rainbow)))))
 
 (rule
  (enabled_if %{lib-available:console-eio})
@@ -42,9 +30,9 @@
    %{bin:k7}
    play
    --show
-   "dune exec -- examples/quickstart/main.exe"
+   "dune exec -- examples/quickstart/eio/main.exe"
    --show
-   "dune exec -- examples/quickstart/main.exe --theme=rainbow"
+   "dune exec -- examples/quickstart/eio/main.exe --theme=rainbow"
    -o
    %{target}
    %{dep:quickstart.cast}

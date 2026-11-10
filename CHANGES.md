@@ -2,7 +2,14 @@
 
 ### Added
 
+- `Progress.Layout.label ~width`, to fix the label column, so that no row
+  moves sideways whatever the labels; a longer label is cut.
+
 - `View.wrap ~words`, to choose where a line may break (#2).
+
+- `Console_eio.domain_mgr`, so that a program that runs domains shows the
+  same frames on every run under `CONSOLE_CAST` or
+  `CONSOLE_DETERMINISTIC_CLOCK` (#66).
 
 - `Console_input.crlf`, so that output sent to a raw-mode terminal starts each
   line in the first column (#3).
@@ -28,9 +35,36 @@
 - `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
   (#34).
 
-- `console.driver`, to run console on a scheduler other than Eio (#61).
+- `console.driver`, to run console on a scheduler other than Eio. A backend
+  gives it a clock, fiber-local values, a way to wait and wake, daemons and
+  cancellation (`Console_driver.S`); the driver calls them only on the
+  scheduler's thread (#61, #67).
+
+- `console-lwt`, to show the progress rows of a program that runs with Lwt.
+  It has no deterministic mode: it runs in real time under
+  `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST` (#67).
 
 ### Changed
+
+- `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
+  `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
+  time jumps to the next sleep once nothing in the program can run, and
+  stands still while the program waits on anything else, such as a child
+  process. Under either variable, such a clock used from another domain
+  raises `Invalid_argument` (#66).
+
+- `Theme.default`'s accent is bright blue rather than cyan.
+
+- The label column never narrows while the display is open.
+
+- The bar of a task that ended is muted if it succeeded, and red or yellow if
+  it failed or was cancelled, so that the running rows stand out.
+
+- A top task that ends stays in the region until something else is printed
+  to the scrollback, the region runs out of room, or the display closes, and
+  then moves with the others that wait, so that steps run one after another
+  line up in the scrollback. A task that fails with output still moves as it
+  ends.
 
 - `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
   needs no scheduler (#61).
@@ -55,8 +89,15 @@
   view draws now reach the program at once, instead of at the next redraw or
   close (#53).
 
-- Progress updates cost less, and console no longer builds its width tables
-  as a program starts (#30, #40).
+- Progress updates cost less, and a program that links console allocates less
+  as it starts: no table of widths or durations is built until it is used,
+  also when the program builds a progress layout at load (#30, #40, #64).
+
+- The live lines under a running task's row, printed, logged with `Logs` or
+  given with `Task.log`, are now drawn in the theme's muted colour (faint in
+  the default theme), so they read as a log under the row. A warning or an
+  error is drawn as before, and so is every line printed to the scrollback,
+  such as the output of a failed task (#65).
 
 ### Fixed
 
@@ -66,6 +107,10 @@
 
 - `Console_eio.run` from another domain now joins the run under way instead of
   raising `Invalid_argument` (#57).
+
+- A `CONSOLE_CAST` recording now keeps what a program writes after it starts
+  its first domain (for example by creating an `Eio.Executor_pool`). It used
+  to go to the terminal instead (#66).
 
 - A `Logs` message from a worker domain no longer waits for the display, so a
   program that waits for its workers no longer hangs. Past 4 MiB of waiting
@@ -82,6 +127,9 @@
 - A signal or an `exit` that can't reach the display still shows the cursor,
   and ends an escape code cut in half. This covers another domain or thread,
   and a write that does not end within a second (#37).
+
+- On OpenBSD too, a signal or an `exit` that cannot reach the display shows
+  the cursor (#70).
 
 - Progress rows short of room keep their count and time in their columns, and
   a label a task was renamed from no longer widens its column once the task

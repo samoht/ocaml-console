@@ -278,13 +278,22 @@ let columns ~layout look r nodes =
   let offsets = Array.init (max 1 (Work.depths w - base)) offset in
   let widest = ref 0 in
   Array.iteri
-    (fun d o -> widest := max !widest (o + Work.label_cell w (base + d)))
+    (fun d o ->
+      let cell = Work.label_cell w (base + d) in
+      if cell > 0 then widest := max !widest (o + cell))
     offsets;
-  let widest = !widest and lead = Progress_row.lead look in
+  let fixed = Progress_layout.label_width layout in
+  let widest = Option.value fixed ~default:!widest
+  and lead = Progress_row.lead look in
   let least = min widest Progress_row.narrowest in
   fun d ->
     let o = if d < Array.length offsets then offsets.(d) else offset d in
-    { Progress_row.label = widest - o; least = max 0 (least - o); lead }
+    {
+      Progress_row.label = max 1 (widest - o);
+      least = max 0 (least - o);
+      lead;
+      fixed = Option.is_some fixed;
+    }
 
 let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
 
@@ -443,6 +452,9 @@ let whole ~layout c r =
       (trees ~layout ~form:Whole ~cut:(-1)
          ~cols:(columns ~layout (Ctx.look c) r nodes)
          r nodes)
+
+let measure ~layout r = widen layout (tops shows r)
+let lines r = if gone r then 0 else fst (count ~form:Full r (tops shows r))
 
 let view ~layout r =
   V.deferred ~kind:(Progress_layout.reads layout) (fun c ->

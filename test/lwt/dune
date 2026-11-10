@@ -1,0 +1,18 @@
+(test
+ (name test)
+ (package console-lwt)
+ (libraries
+  alcotest
+  astring
+  console
+  console-lwt
+  cast_harness
+  display_harness
+  env_harness
+  fmt
+  logs
+  lwt
+  lwt.unix
+  matrix.vte
+  threads.posix
+  unix))

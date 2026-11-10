@@ -10,30 +10,28 @@
     does the rest: it finds the terminal, shows the work, takes the program's
     output and its [Logs] messages, redraws, and gives the terminal back.
 
-    This library is [console.driver]. Its interface may change until a second
-    backend has settled it. *)
+    This library is [console.driver], on which [console-eio] and [console-lwt]
+    build. *)
 
 (** What a scheduler gives console. A {e fiber} is whatever the scheduler runs
-    concurrently in a domain. A scheduler without cancellation takes [first a _]
-    as [a ()], [protect f] as [f ()], and [check ()] as doing nothing. *)
+    concurrently in a domain. The driver calls {!S.notify} from any thread,
+    domain or signal handler, and every other function only on the first thread
+    of each domain that starts a [run] or makes a task current there. A
+    scheduler without cancellation takes [first a _] as [a ()], [protect f] as
+    [f ()], and [check ()] as doing nothing. *)
 module type S = sig
   (** {1:clock Time} *)
 
-  type clock
-  (** The type for what [run] reads the time on. *)
+  val clock : unit -> unit -> float
+  (** [clock () ()] is the time that the display shows and records, in seconds
+      from any origin. The driver applies [clock ()] as a display opens, in a
+      fiber of its run, and calls the function it returns from any domain. *)
 
-  val elapsed : clock -> unit -> float
-  (** [elapsed c ()] is the seconds since [elapsed c] was applied. It is called
-      from any domain. *)
-
-  val tick : clock -> float -> unit
-  (** [tick c d] waits [d] seconds between two redraws. *)
-
-  val recording_time : clock -> unit -> float
-  (** [recording_time c ()] is when a recording stamps what is written. *)
+  val tick : float -> unit
+  (** [tick d] waits [d] seconds on that time between two redraws. *)
 
   val sleep : float -> unit
-  (** [sleep d] waits [d] real seconds, whatever the clock does. *)
+  (** [sleep d] waits [d] real seconds. *)
 
   (** {1:local Fiber-local values} *)
 
@@ -45,7 +43,7 @@ module type S = sig
 
   val get : 'a key -> 'a option
   (** [get k] is the value bound to [k] in the calling fiber, and [None] outside
-      any fiber. It is called from any domain, thread or signal handler. *)
+      any fiber. *)
 
   val with_binding : 'a key -> 'a -> (unit -> 'b) -> 'b
   (** [with_binding k v f] is [f ()] with [k] bound to [v]. *)
@@ -59,8 +57,7 @@ module type S = sig
   (** [wake ()] is a new {!type-wake}. *)
 
   val notify : wake -> unit
-  (** [notify w] has the fibers that wait on [w] look again. It is called from
-      any domain and from a signal handler. *)
+  (** [notify w] has the fibers that wait on [w] look again. *)
 
   val wait : wake -> (unit -> 'a option) -> 'a
   (** [wait w f] is [v] as soon as [f ()] is [Some v]. It calls [f] again after
@@ -70,12 +67,13 @@ module type S = sig
   (** {1:fibers Fibers} *)
 
   val in_fiber : unit -> bool
-  (** [in_fiber ()] is [true] iff the caller runs in a fiber. It is called from
-      any domain, thread or signal handler. *)
+  (** [in_fiber ()] is [true] iff the caller runs in a fiber. *)
 
   val background : (unit -> unit) list -> (unit -> 'a) -> 'a
   (** [background daemons f] is [f ()], with each of [daemons] running in a
-      fiber of its own until [f] ends. A daemon does not return. *)
+      fiber of its own. Once [f] ends, the daemons still running are cancelled;
+      the driver's daemons also return by themselves then. A daemon that raises
+      cancels [f], and [background] raises its exception. *)
 
   val first : (unit -> 'a) -> (unit -> 'a) -> 'a
   (** [first a b] runs [a] and [b] concurrently and is the result of the first
@@ -99,11 +97,7 @@ end
 
 (** What a backend gets. [Console_eio] documents each function. *)
 module type T = sig
-  type clock
-  (** The type for what {!run} reads the time on. *)
-
   val run :
-    clock:clock ->
     ?ppf:Format.formatter ->
     ?progress:Console.Progress.t ->
     ?layout:Console.Progress.Layout.t ->
@@ -115,7 +109,8 @@ module type T = sig
     ?delay:float ->
     (Console.Task.t -> 'a) ->
     'a
-  (** [run ~clock f] is [f root], with the work under [root] shown on [ppf]. *)
+  (** [run f] is [f root], with the work under [root] shown on [ppf]. It is
+      called in a fiber. *)
 
   val with_output : (Format.formatter -> 'a) -> 'a
   (** [with_output f] is {!Console.Display.with_output} on the run's display. *)
@@ -133,7 +128,7 @@ module type T = sig
 end
 
 (** One application holds one terminal: a program applies it once. *)
-module Make (B : S) : T with type clock = B.clock
+module Make (_ : S) : T
 
 val on_signals :
   ?suspend:((unit -> unit) -> unit) ->

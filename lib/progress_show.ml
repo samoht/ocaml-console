@@ -14,7 +14,17 @@ let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
       let look = Ctx.look c and width = Ctx.width c in
       if Progress_tree.draws_label layout r then widen_label r;
-      let columns = Progress_row.columns look r in
+      let columns =
+        match Layout.label_width layout with
+        | Some w ->
+            {
+              (Progress_row.columns look r) with
+              label = w;
+              least = min w Progress_row.narrowest;
+              fixed = true;
+            }
+        | None -> Progress_row.columns look r
+      in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r
       else lines (Progress_row.ended look ?width ~columns ~whole:false r))
@@ -63,51 +73,122 @@ let shape ?size = function
 
 let print d vs = Display_core.print_lines d vs
 
-let laid_out d ~layout ~commit r =
-  let look = Display_core.look d in
-  Work.hold_labels (work r);
-  let width = min (Display_core.width d) 100 in
-  let committed =
-    match commit with None -> Some (tree ~layout r) | Some f -> f r
-  in
-  Option.map (V.resolve (Ctx.v ~width look)) committed
+(* A top task that ended waits in the region, with the tasks under it, and
+   moves to the scrollback with the others that wait when anything else is
+   printed there, when the region has no room left for them, or when the
+   display closes, so that rows printed one after another share their
+   columns. They move in the order the region draws them, the order they
+   started, the first at the top. A tree that holds a failure or a
+   cancellation with output moves at once, after those that wait, so that
+   the output shows. A tree that draws no line moves at once. A task started
+   under a top task that waits ends at once and joins its tree. *)
 
-(* [moved d ~layout ~commit r] moves the ended task [r] from the region to the
-   scrollback, drawn by [commit], as its tree by default. It is laid out
-   first, then forgotten, then printed, so that it never shows twice. Its
-   label column is kept, so that the rows printed after it line up with it. If
-   [commit] raises, [r] is still forgotten and nothing is printed. *)
-let moved d ~layout ~commit r =
+(* A tree that waits, and what [commit] made of it as it ended, while it
+   still had its output. *)
+type waiting = { task : Task_core.t; mutable view : V.t option }
+type held = { mutable queue : waiting list; mutable moving : bool }
+
+let held () = { queue = []; moving = false }
+
+(* [w] among [ws], in the order they started. *)
+let rec insert w = function
+  | x :: rest when id x.task < id w.task -> x :: insert w rest
+  | ws -> w :: ws
+
+(* The highest task above [r] that is still drawn, the root aside. *)
+let rec top_of r =
+  match parent r with
+  | Some p when (not (is_root p)) && not (gone p) -> top_of p
+  | _ -> r
+
+(* A task that failed or was cancelled with lines it kept, [r] or one under
+   it. *)
+let rec has_output r =
+  outcome r <> Some `Succeeded
+  && ((not (Queue.is_empty (output r))) || dropped r > 0)
+  || List.exists has_output (children r)
+
+(* [moved d w] moves the tree [w] from the region to the scrollback, as
+   [commit] drew it, laid out now. It is laid out first, then forgotten, then
+   printed, so that it never shows twice. Its label column is kept, so that
+   the rows printed after it line up with it. If laying it out raises, the
+   task is still forgotten and nothing is printed. *)
+let moved d w =
+  let look = Display_core.look d in
+  let width = min (Display_core.width d) 100 in
   let committed =
     protect
       (fun () ->
         Display_core.caught d ~default:None (fun () ->
-            laid_out d ~layout ~commit r))
-      ~finally:(fun () -> forget r)
+            Option.map (V.resolve (Ctx.v ~width look)) w.view))
+      ~finally:(fun () -> forget w.task)
   in
   match committed with
   | Some v when not (V.is_empty v) -> Display_core.print d v
   | _ -> Display_core.touch d
 
-(* [running_above r] is [true] iff a task above [r], other than the root, is
-   running. A task that ends moves to the scrollback only if none is: a top
-   task as it ends, or a task started under a task that already moved. *)
-let rec running_above r =
-  match parent r with
-  | None -> false
-  | Some p -> (is_running p && not (is_root p)) || running_above p
+(* [move h d ~layout ~until] moves the trees [h] holds, the first started
+   first, until [until ()], each in the label column of all of them. A
+   tree's own print does not move the next one first. *)
+let move h d ~layout ~until =
+  if (not h.moving) && h.queue <> [] && not (until ()) then begin
+    h.moving <- true;
+    protect
+      (fun () ->
+        List.iter (fun w -> Progress_tree.measure ~layout w.task) h.queue;
+        let rec go () =
+          match h.queue with
+          | w :: rest when not (until ()) ->
+              h.queue <- rest;
+              if not (gone w.task) then moved d w;
+              go ()
+          | _ -> ()
+        in
+        go ())
+      ~finally:(fun () -> h.moving <- false)
+  end
 
-let on_live d ~layout ~keep_ended ~commit = function
-  | Started _ | Progressed _ | Renamed _ -> Display_core.touch d
+let move_all h d ~layout = move h d ~layout ~until:(fun () -> false)
+
+(* The region keeps a line for the summary and one the display leaves. *)
+let fits d root =
+  let below = if Option.is_some (Work.summary (work root)) then 1 else 0 in
+  Progress_tree.lines root + below <= Display_core.height d - 1
+
+let hold h d ~layout ~commit r =
+  let top = top_of r in
+  if not (is_running top) then begin
+    let view =
+      Display_core.caught d ~default:None (fun () ->
+          match commit with None -> Some (tree ~layout top) | Some f -> f top)
+    in
+    match List.find_opt (fun w -> w.task == top) h.queue with
+    | Some w -> w.view <- view
+    | None ->
+        let w = { task = top; view } in
+        if Progress_tree.lines top = 0 then moved d w
+        else begin
+          h.queue <- insert w h.queue;
+          if has_output top then move_all h d ~layout
+        end
+  end
+
+(* Only a task that starts or ends changes the lines the region needs, so
+   only then do the trees that wait move to make room. *)
+let on_live d ~layout ~keep_ended ~commit ~held:h root = function
+  | Started _ ->
+      Display_core.touch d;
+      move h d ~layout ~until:(fun () -> fits d root)
+  | Progressed _ | Renamed _ -> Display_core.touch d
   | Line (r, line) ->
       let look = Display_core.look d and width = Display_core.width d in
       if is_root r then print d (Progress_row.message look ~width line)
       else if is_running r then Display_core.touch d
       else print d (Progress_row.labelled look ~width:(min width 100) r line)
   | Ended r ->
-      if (not (is_root r)) && (not keep_ended) && not (running_above r) then
-        moved d ~layout ~commit r
-      else Display_core.touch d
+      if (not (is_root r)) && not keep_ended then hold h d ~layout ~commit r;
+      Display_core.touch d;
+      move h d ~layout ~until:(fun () -> fits d root)
 
 let on_plain d ~keep_ended = function
   | Started r ->
@@ -208,7 +289,10 @@ let show_with ?write_error ?cancelled ?atomic ?(progress = `Auto)
     watch (work root) (fun change -> Display_core.reporting d on_change change)
   in
   (match form with
-  | Live -> watching (on_live d ~layout ~keep_ended ~commit)
+  | Live ->
+      let h = held () in
+      Display_core.on_print d (fun () -> move_all h d ~layout);
+      watching (on_live d ~layout ~keep_ended ~commit ~held:h root)
   | Plain -> (
       match plain with
       | None -> watching (on_plain d ~keep_ended)
