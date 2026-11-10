@@ -34,15 +34,13 @@
   (jsont (>= 0.3.0))
   (bytesrw (>= 0.1.0))
   logs
-  ; The tests' terminal emulator, from the released matrix. It lacks fixes
-  ; some tests need, which are skipped until console moves to matrix 0.2.0.
-  (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
+  (matrix (and :with-test (>= 0.2.0) (< 0.3.0)))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (re :with-test)
-  (k7 :with-test)))
+  (k7 (and :with-test (>= 0.10.0)))))
 
 (package
  (name console-eio)
@@ -68,12 +66,12 @@
   (cmdliner :with-test)
   (cstruct :with-test)
   (logs :with-test)
-  (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))
+  (matrix (and :with-test (>= 0.2.0) (< 0.3.0)))
   (eio_main :with-test)
   (alcobar (and :with-test (>= 0.3.2)))
   (jsont :with-test)
   (bytesrw :with-test)
-  (k7 :with-test)))
+  (k7 (and :with-test (>= 0.10.0)))))
 
 (package
  (name console-lwt)
@@ -97,4 +95,4 @@
   (mdx :with-test)
   (fmt :with-test)
   (logs :with-test)
-  (matrix (and :with-test (>= 0.1.0) (< 0.2.0)))))
+  (matrix (and :with-test (>= 0.2.0) (< 0.3.0)))))

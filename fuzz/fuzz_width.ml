@@ -121,7 +121,6 @@ let test_joins a b =
 let test_matches_terminal s =
   let s = Console_text.sanitize ~keep_newlines:false s in
   guard (Console_width.string_width s < 1000);
-  Matrix_0_1.discard_newer_unicode s;
   let vte = Console_vte.v ~rows:1 ~cols:1000 () in
   Console_vte.feed vte s;
   check_eq ~pp:Fmt.int

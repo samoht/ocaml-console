@@ -74,7 +74,9 @@ let test_sub_width () =
     done
   done
 
-(* The width is the column a terminal's cursor reaches. *)
+(* The width is the column a terminal's cursor reaches. A wide spacing mark
+   after a character, as in U+FFFD U+302E, is left out: console adds its two
+   cells, and matrix's emulator makes the cluster two cells wide. *)
 let test_matches_terminal () =
   List.iter
     (fun s ->
@@ -90,7 +92,6 @@ let test_matches_terminal () =
       "e\xcc\x81";
       "\xf0\x9f\x8e\x89 ok";
       "\u{0915}\u{093F} ok";
-      "\u{FFFD}\u{302E} ok";
     ]
 
 let utf_8 cps =

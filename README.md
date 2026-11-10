@@ -791,13 +791,6 @@ Each is recorded by `dune runtest` and drawn in an SVG beside its source.
 
 ## Known limitations
 
-- console 0.9.0 is tested against the terminal emulator of matrix 0.1.0, a
-  test dependency only. That emulator has defects that matrix 0.2.0 fixes,
-  and the tests work around them and skip five checks until then. It reads
-  Unicode 16.0 and draws a cluster in the cells of its first character. The
-  properties that read it therefore skip text with a character assigned
-  since, and clusters such as ❤‍👩 (U+2764 U+200D U+1F469), which console
-  counts by its widest character, two cells.
 - A pictograph with no emoji presentation, such as ❤ (U+2764) or ‼ (U+203C),
   is text unless a VS16 follows it, so console counts it at its East Asian
   width, one cell. Followed by a VS16, as ❤️ (U+2764 U+FE0F), it counts two.

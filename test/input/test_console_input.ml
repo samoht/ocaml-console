@@ -226,9 +226,7 @@ let test_cluster_joins_after () =
   check_typed "a flag's second half before its first"
     [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
     ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x";
-  (* matrix 0.1.0's emulator draws U+2764 ZWJ U+1F469 in the one cell of
-     U+2764, where console counts the two of U+1F469, so this checks the echo
-     rather than the screen. *)
+  (* The echo erases the two cells console counts for U+2764 ZWJ U+1F469. *)
   let t = Console_input.v () in
   ignore (Console_input.feed t ("x\u{1F469}" ^ left ^ "\u{2764}\u{200D}"));
   Alcotest.(check string)
@@ -582,10 +580,7 @@ let suite =
       Alcotest.test_case "wide char left" `Quick test_wide_left_steps_two_cells;
       Alcotest.test_case "backspace erases a cluster" `Quick
         test_cluster_backspace;
-      Alcotest.test_case "arrows step over a cluster" `Quick
-        (Display_harness.skip_on_matrix_0_1
-           "invariant-hq/mosaic@65da7988 (a combining mark after ASCII)"
-           test_cluster_arrows);
+      Alcotest.test_case "arrows step over a cluster" `Quick test_cluster_arrows;
       Alcotest.test_case "a cluster joins the one after the cursor" `Quick
         test_cluster_joins_after;
       Alcotest.test_case "history up" `Quick test_history_up;

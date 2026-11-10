@@ -120,13 +120,3 @@ val check_room : rows:int -> cols:int -> string -> int -> View.t -> unit
 
 val check_invalid : string -> (unit -> unit) -> unit
 (** [check_invalid msg f] checks that [f ()] raises [Invalid_argument msg]. *)
-
-(** {1:matrix Tests matrix 0.1.0 fails}
-
-    The emulator of matrix 0.1.0 has defects that invariant-hq/mosaic has fixed
-    since. The tests that meet them are skipped until console moves to matrix
-    0.2.0. *)
-
-val skip_on_matrix_0_1 : string -> ('a -> unit) -> 'a -> unit
-(** [skip_on_matrix_0_1 fix test v] skips the test without running [test v].
-    [fix] names the upstream change it needs. *)

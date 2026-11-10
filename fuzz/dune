@@ -13,7 +13,6 @@
   text_harness
   view_harness
   widget_harness
-  matrix_0_1
   matrix.vte
   fmt
   re

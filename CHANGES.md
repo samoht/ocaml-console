@@ -46,6 +46,10 @@
 
 ### Changed
 
+- The tests now need matrix 0.2.0 and k7 0.10.0, which installs on Windows.
+  They read the screen with matrix's Ghostty width method, and the checks
+  skipped on matrix 0.1.0 run again.
+
 - `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
   `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
   time jumps to the next sleep once nothing in the program can run, and

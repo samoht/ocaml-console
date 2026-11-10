@@ -127,7 +127,3 @@ let check_room ~rows ~cols msg row v =
 
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
-
-let skip_on_matrix_0_1 fix _ _ =
-  Fmt.pr "Skipped on matrix 0.1.0, which lacks %s.@." fix;
-  Alcotest.skip ()

@@ -197,7 +197,6 @@ let on_screen s =
 let test_joiners_fit s n =
   let s = View.text (joined s) and w = 1 + abs (n mod 12) in
   let fits what l =
-    Matrix_0_1.discard_stray_vs16 (plain l);
     let cells = on_screen (plain l) in
     if View.width l > w || cells > w then
       failf "%s to %d is %d cells, %d on the terminal: %S" what w (View.width l)
@@ -307,7 +306,6 @@ let test_linked_unicode_cuts s n =
   check_eq ~pp:Fmt.int
     (occurrences "\027]8;;https://example.invalid\027\\")
     (occurrences "\027]8;;\027\\");
-  Matrix_0_1.discard_newer_unicode line;
   let vte = Console_vte.v ~rows:1 ~cols:81 () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
@@ -386,7 +384,7 @@ let test_gradient_wrap s k =
   for i = 0 to cols - 1 do
     if
       not
-        (Grid.cells_equal
+        (Matrix_grid.cells_equal
            (Console_vte.grid expected)
            i (Console_vte.grid actual) i)
     then failf "wrapping changed the glyph or colour at column %d" i

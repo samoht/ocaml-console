@@ -411,7 +411,6 @@ let test_printed block k m =
   match print look block with
   | None -> ()
   | Some out ->
-      Matrix_0_1.discard_stray_vs16 out;
       check_eq ~pp:Fmt.(option Dump.string) (Some out) (print look block);
       check (String.is_valid_utf_8 out);
       if not (escapes_whole out) then failf "a cut escape in %S" out;
@@ -456,8 +455,8 @@ let view_screen theme ~width ~height ~time block =
   let rows =
     List.init (height - 1) (fun y ->
         List.init width (fun x ->
-            let i = Grid.idx g ~x ~y in
-            (Grid.is_continuation g i, Grid.get_text g i)))
+            let i = Matrix_grid.idx g ~x ~y in
+            (Matrix_grid.is_continuation g i, Matrix_grid.get_text g i)))
   in
   Display.close d;
   rows
@@ -492,7 +491,9 @@ let nested_cells raw =
       let g = Console_vte.grid vte in
       List.filter_map
         (fun i ->
-          match Grid.get_text g i with "" | " " -> None | _ -> Some (g, i))
+          match Matrix_grid.get_text g i with
+          | "" | " " -> None
+          | _ -> Some (g, i))
         (List.init cols Fun.id))
     (String.split_on_char '\n' raw)
 
@@ -531,11 +532,11 @@ let render_nested ~theme ~utf_8 span =
 
 (* What a cell of a grid shows. *)
 let grid_cell g i =
-  ( Grid.get_text g i,
-    Grid.get_attrs g i,
+  ( Matrix_grid.get_text g i,
+    Matrix_grid.get_attrs g i,
     Ansi.Color.to_rgb (Console_vte.fg g i),
     Ansi.Color.to_rgb (Console_vte.bg g i),
-    Grid.hyperlink_url g (Grid.get_link g i) )
+    Matrix_grid.get_link g i )
 
 (* Wrapping changes where a widget's lines break, not the glyphs, colours
    or attributes of its non-space cells. The cells are compared on the
@@ -560,7 +561,8 @@ let test_nested_wrap s k n =
     (fun (g, i) (h, j) ->
       if grid_cell g i <> grid_cell h j then
         failf "wrapping at %d changed a cell in %s: %S became %S" width
-          (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
+          (Theme.name theme) (Matrix_grid.get_text g i)
+          (Matrix_grid.get_text h j))
     expected actual
 
 (* Widgets side by side keep their cells when a widget around them wraps

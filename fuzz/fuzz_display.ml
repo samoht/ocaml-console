@@ -490,11 +490,11 @@ let test_output_exception s cancel =
   Console_vte.feed t.vte "AFTER";
   check (has "AFTER" (List.nth (screen t.vte) y));
   let grid = Console_vte.grid t.vte in
-  let index = Grid.idx grid ~x:0 ~y in
+  let index = Matrix_grid.idx grid ~x:0 ~y in
   let reference = Console_vte.v ~rows:8 ~cols:40 () in
   Console_vte.feed reference "AFTER";
   let plain = Console_vte.grid reference in
-  let first = Grid.idx plain ~x:0 ~y:0 in
+  let first = Matrix_grid.idx plain ~x:0 ~y:0 in
   let colours g i =
     Ansi.Color.(to_rgba (Console_vte.fg g i), to_rgba (Console_vte.bg g i))
   in
@@ -1130,7 +1130,7 @@ let test_view_exception_close n k styled =
   Console_vte.feed reference "AFTER";
   for x = 0 to 4 do
     let grid = Console_vte.grid term and plain = Console_vte.grid reference in
-    check (Grid.cells_equal grid (Grid.idx grid ~x ~y) plain x)
+    check (Matrix_grid.cells_equal grid (Matrix_grid.idx grid ~x ~y) plain x)
   done
 
 (* A long-running parent keeps a bounded part of its ended children and
