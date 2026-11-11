@@ -26,10 +26,11 @@ type t = {
 }
 
 (* Numbers are written with 15 significant digits, the most that survive a
-   round trip through a float. A time rounded to the millisecond is then
-   written as short as it can be (1.5, 0), and an integer below 10^15
-   exactly. An integer from 10^15 up is written as a string of decimal
-   digits, as jsont writes one beyond 2^53-1; [natural] decodes both. *)
+   round trip through a float. So a time rounded to the millisecond is
+   written in its shortest form (1.5, 0), and an integer below 10^15 is
+   written exactly. An integer from 10^15 up is written as a string of
+   decimal digits, as jsont does beyond 2^53-1. [natural] decodes both
+   forms. *)
 let number_format : Jsont.number_format = "%.15g"
 
 let natural_error s =
@@ -67,9 +68,9 @@ let int =
 
 let int64 = natural ~to_int64:Fun.id ~of_int64:Option.some
 
-(* Seconds are clamped to [-10^12, 10^12] and rounded to the millisecond:
-   at most 15 significant digits, so that the number written reads back as
-   it was. *)
+(* Seconds are clamped to [-10^12, 10^12] and rounded to the millisecond.
+   That is at most 15 significant digits, so the number written reads back
+   unchanged. *)
 let max_seconds = 1e12
 
 let rounded_seconds x =
@@ -80,7 +81,7 @@ let rounded_seconds x =
 
 let seconds = Jsont.map Jsont.number ~dec:rounded_seconds ~enc:rounded_seconds
 
-(* A C1 control, U+0080 to U+009F, acts as an escape code on a terminal
+(* A C1 control (U+0080 to U+009F) acts as an escape code on a terminal
    that reads 8-bit controls. jsont already escapes C0 controls and DEL. *)
 let is_c1 u =
   let c = Uchar.to_int u in
@@ -251,9 +252,9 @@ let text e = e.text
 let message e = e.message
 let level e = e.level
 
-(* A member of an event with an unlisted name may have any type. Such a
-   member decodes as [Mistyped], which [of_members] refuses for an event
-   with a listed name. *)
+(* A member of an event with an unlisted name may have any type. A member of
+   the wrong type decodes as [Mistyped]. [of_members] refuses [Mistyped] for
+   an event with a listed name. *)
 type 'a member = Typed of 'a | Mistyped
 
 let member c =
@@ -270,8 +271,8 @@ let member c =
     ~enc:(fun _ -> enc)
     ()
 
-(* The members of an event's JSON object, in the order they are written;
-   [None] for a member the event does not have. *)
+(* The members of the JSON object of an event, in the order they are
+   written. A member that the event does not have is [None]. *)
 type members = {
   time : float;
   event : string;

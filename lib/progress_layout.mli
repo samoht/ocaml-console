@@ -3,15 +3,17 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Row layouts: the representation behind {!Progress.Layout}, which documents
-    the values the two modules share. *)
+(** Row layouts. This is the representation behind {!Progress.Layout}, which
+    documents the values both modules share. *)
 
 type kind =
   | Spinner
   | Mark  (** The mark of how the task ended. *)
   | Label of Style.t * int option
-      (** A label in that style, in a column that many cells wide, if given. *)
-  | Bar of int option  (** A bar that many cells wide, or that grows. *)
+      (** A label in this style. With a width, its column is that many cells
+          wide. *)
+  | Bar of int option
+      (** A bar of that many cells. Without a width, the bar grows. *)
   | Percent
   | Count
   | Rate
@@ -23,12 +25,12 @@ type kind =
   | Choose of (Task_core.t -> piece list)
 
 and piece = { kind : kind; stage : int option }
-(** The type for the pieces of a row: what each shows and the stage at which it
-    gives way, if it does. *)
+(** The type for the pieces of a row: what each piece shows, and the stage at
+    which it gives way, if any. *)
 
 type t
-(** The type for layouts: at most one {!constructor-Label} and one
-    {!constructor-Spacer}. *)
+(** The type for layouts. A layout holds at most one {!constructor-Label} and
+    one {!constructor-Spacer}. *)
 
 val pieces : t -> piece list
 (** [pieces l] are the pieces of [l], left to right. *)
@@ -40,16 +42,16 @@ val for_task : t -> Task_core.t -> piece list
     @raise Invalid_argument if they hold two labels or two spacers. *)
 
 val has_label : piece list -> bool
-(** [has_label ps] is [true] iff [ps] hold a {!constructor-Label}. *)
+(** [has_label ps] is [true] iff [ps] holds a {!constructor-Label}. *)
 
 val label_width : t -> int option
-(** [label_width l] is the width of the label column [l]'s label fixes, if it
-    does. *)
+(** [label_width l] is the width of the label column, if the label of [l] fixes
+    it. *)
 
 val reads : t -> Look.t -> View_core.kind
-(** [reads l look] is what a row that [l] draws in [look] reads: the tasks and
-    the time, and any state with a {!constructor-Custom} piece or a
-    {!constructor-Const} view that reads it. *)
+(** [reads l look] is what a row drawn by [l] in [look] reads: the tasks and the
+    time, plus any state that a {!constructor-Custom} piece or a
+    {!constructor-Const} view reads. *)
 
 val spinner : t
 (** [spinner] is {!Progress.Layout.spinner}. *)
@@ -101,7 +103,8 @@ val default : t
 
 val ended : t
 (** [ended] is {!default} with the mark of how the task ended in place of the
-    spinner: the line of a task that ended, in the columns of the rows. *)
+    spinner. It draws the line of a task that ended, in the columns of the rows.
+*)
 
 val pp : t Fmt.t
 (** [pp] formats a layout for diagnostics, in an unspecified format. *)
