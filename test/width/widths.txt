@@ -32,6 +32,11 @@
 # - Unicode 16.0: EastAsianWidth.txt, emoji-data.txt, emoji-sequences.txt
 #   and emoji-variation-sequences.txt.
 #
+# The Hangul jamo rows and the last two rows come from the same files, read
+# in 2026-11 at vte@1db464a7, kitty@14f82c6f, wezterm@458a100c (now
+# wezterm/wezterm), ghostty@a622196c and xterm XTermId 1.99. xterm's
+# mk_wcwidth returns -1 for U+D7FF, so its width there is unknown.
+#
 # Console's policy is the grapheme clustering of kitty and Ghostty: a
 # cluster takes the cells of its widest code point, an emoji sequence (ZWJ,
 # skin tone, flag, keycap, a valid VS16) two, and each spacing mark (general
@@ -70,3 +75,15 @@
 00B1                       | 1     | 1   | 1     | 1       | 1       | 1      | 1       | an ambiguous sign
 1100 1161 11A8             | 2     | 2   | 2     | ?       | 2       | 2      | 2       | a Hangul syllable of jamo
 0061 200B 0062             | 2     | 2   | 2     | ?       | ?       | 3      | 2       | a zero-width space
+0061 1161                  | 1     | 1   | 2     | 1       | 1       | 2      | 2       | a Hangul medial vowel after a letter
+1161                       | 0     | 0   | 1     | 0       | 0       | 1      | 1       | a Hangul medial vowel alone
+0061 11A8                  | 1     | 1   | 2     | 1       | 1       | 2      | 2       | a Hangul final consonant after a letter
+11A8                       | 0     | 0   | 1     | 0       | 0       | 1      | 1       | a Hangul final consonant alone
+0061 D7B0                  | 1     | 1   | 2     | 1       | 1       | 2      | 2       | an Extended-B medial vowel after a letter
+D7B0                       | 0     | 0   | 1     | 0       | 0       | 1      | 1       | an Extended-B medial vowel alone
+0061 D7CB                  | 1     | 1   | 2     | 1       | 1       | 2      | 2       | an Extended-B final consonant after a letter
+D7CB                       | 0     | 0   | 1     | 0       | 0       | 1      | 1       | an Extended-B final consonant alone
+0061 D7FF                  | ?     | 1   | 2     | 1       | 2       | 2      | 2       | an unassigned code point among the jamo, after a letter
+D7FF                       | ?     | 0   | 1     | 0       | 1       | 1      | 1       | an unassigned code point among the jamo, alone
+1F469 093F                 | 3     | 3   | 2     | 2       | 2       | 3      | 3       | an emoji and a vowel sign
+FFFD 302E                  | 3     | 3   | 1     | 1       | 2       | 3      | 3       | a wide spacing mark after a narrow character

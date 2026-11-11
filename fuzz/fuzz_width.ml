@@ -121,6 +121,7 @@ let test_joins a b =
 let test_matches_terminal s =
   let s = Console_text.sanitize ~keep_newlines:false s in
   guard (Console_width.string_width s < 1000);
+  guard (Console_vte.counts_as_console s);
   let vte = Console_vte.v ~rows:1 ~cols:1000 () in
   Console_vte.feed vte s;
   check_eq ~pp:Fmt.int

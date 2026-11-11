@@ -5,9 +5,10 @@
 
 (** An emulated terminal, and what a terminal recording put on its screen.
 
-    The tests read console's output on the screen of an emulator, matrix's
-    [Vte], which reads its bytes as xterm does. On it, as in xterm and VTE and
-    as console counts it, a spacing mark takes a cell of its own.
+    The tests read console's output from the screen of an emulator, matrix's
+    [Vte]. It parses bytes as xterm does and sizes grapheme clusters as Ghostty
+    does. For a few clusters, Ghostty's size differs from console's, and the
+    emulator cannot tell which is right ({!counts_as_console}).
 
     A recording of a program that redraws lines in place holds every redraw, so
     reading it as text does not say what the screen showed. {!frames} replays a
@@ -47,6 +48,19 @@ val cursor_pos : t -> int * int
 
 val cursor_visible : t -> bool
 (** [cursor_visible t] is [true] iff the cursor is shown. *)
+
+val counts_as_console : string -> bool
+(** [counts_as_console s] is [true] iff the emulator gives every grapheme
+    cluster of [s] as many cells as console counts. It is [false] in two cases:
+    - A cluster that is wider than two cells because of its spacing marks, such
+      as U+1F469 U+093F or U+FFFD U+302E. Console counts three cells, like
+      xterm, VTE and iTerm2. The emulator counts two, like Ghostty.
+    - A Hangul vowel or final consonant outside a syllable, or any code point
+      from U+D7B0 to U+D7FF. Console counts one cell, like kitty and iTerm2. The
+      emulator counts none.
+
+    [test/width/widths.txt] records what each terminal draws. Tests that compare
+    console's widths with the screen skip the inputs where this is [false]. *)
 
 val cursor_history : string -> bool * bool
 (** [cursor_history s] is [(hidden, shown)] for a fresh terminal that reads [s]

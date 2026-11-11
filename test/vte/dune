@@ -1,3 +1,3 @@
 (library
  (name console_vte)
- (libraries console_width matrix.ansi matrix.grid matrix.vte))
+ (libraries console_width matrix.ansi matrix.grid matrix.text matrix.vte))

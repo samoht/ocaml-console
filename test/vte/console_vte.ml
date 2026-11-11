@@ -32,6 +32,13 @@ let feed t s =
   in
   ignore (Vte.feed_string t.vte s)
 
+let counts_as_console s =
+  List.for_all
+    (fun c ->
+      Console_width.string_width c
+      = Matrix_text.measure ~width_method:`Unicode_wide ~tab_width:8 c)
+    (Console_width.clusters s)
+
 let cursor_history s =
   let t = v ~rows:24 ~cols:80 () in
   let hidden = ref false in

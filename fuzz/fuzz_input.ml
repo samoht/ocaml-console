@@ -69,7 +69,9 @@ let test_echo_shows_the_line keys =
   let editor = Console_input.v () in
   let term = Console_vte.v ~raw:true ~rows:1 ~cols:200 () in
   List.iter
-    (fun k -> Console_vte.feed term (fst (Console_input.feed editor k)))
+    (fun k ->
+      Console_vte.feed term (fst (Console_input.feed editor k));
+      guard (Console_vte.counts_as_console (Console_input.pending editor)))
     keys;
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
