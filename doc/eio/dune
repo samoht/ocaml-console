@@ -8,6 +8,7 @@
  (libraries
   console
   console.tty
+  console.cli
   console-eio
   eio
   eio.core

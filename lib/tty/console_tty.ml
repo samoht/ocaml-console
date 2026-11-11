@@ -6,10 +6,10 @@
 let outputs = [ (Fmt.stdout, Unix.stdout); (Fmt.stderr, Unix.stderr) ]
 
 let setup ?style_renderer ?utf_8 ?theme () =
+  Option.iter Console.Theme.set_program theme;
   List.iter
     (fun (ppf, fd) ->
-      Console.Env.setup ?style_renderer ?utf_8 ?theme ~is_tty:(Unix.isatty fd)
-        ppf)
+      Console.Env.setup ?style_renderer ?utf_8 ~is_tty:(Unix.isatty fd) ppf)
     outputs;
   ignore (Recording.start ~time:(fun () -> 0.) Fmt.stdout : bool)
 

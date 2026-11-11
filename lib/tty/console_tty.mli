@@ -25,11 +25,13 @@ val setup :
   ?theme:Console.Theme.t ->
   unit ->
   unit
-(** [setup ()] is {!Console.Env.setup} on {!Fmt.stdout} and on {!Fmt.stderr},
-    each a terminal iff [Unix.isatty] says its descriptor is one. It sets their
-    style renderer, {!Fmt.utf_8}, {!Console.Color.val-depth} and
-    {!Console.Theme} from [style_renderer], [utf_8], [theme] and the
-    environment, by the rules of {!Console.Env.setup}.
+(** [setup ()] runs {!Console.Env.setup} on {!Fmt.stdout} and {!Fmt.stderr}.
+    Each one is a terminal iff [Unix.isatty] says its descriptor is one. It sets
+    their style renderer, {!Fmt.utf_8} and {!Console.Color.val-depth} from
+    [style_renderer], [utf_8] and the environment, with the rules of
+    {!Console.Env.setup}. If [theme] is given, it becomes the program's theme
+    ({!Console.Theme.set_program}). Both outputs then use it, and so do strings
+    built with a new formatter, such as {!Fmt.str} creates.
 
     [CONSOLE_CAST], set to a file name, makes [setup] record both outputs there,
     as [Console_eio.run] does, so that a program that prints without a run is

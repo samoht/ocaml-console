@@ -61,6 +61,7 @@ let find s ppf =
 
 let sets = Atomic.make 0
 let generation () = Atomic.get sets
+let changed () = Atomic.incr sets
 
 let set s ppf v =
   if s.watched then Atomic.incr sets;

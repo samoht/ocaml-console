@@ -1,0 +1,9 @@
+(library
+ (name console_cli)
+ (public_name console.cli)
+ (libraries console console.tty cmdliner fmt fmt.cli))
+
+(mdx
+ (package console)
+ (files console_cli.mli)
+ (libraries console console.cli cmdliner fmt))

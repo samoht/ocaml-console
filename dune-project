@@ -24,8 +24,9 @@
    the whole screen. The console.tty library decides colour and UTF-8 for
    the standard outputs from the terminal and the environment, with Unix
    alone. The console.text library makes untrusted text safe to print,
-   console.input is a line editor that does no I/O, and console.driver runs
-   console on a scheduler.")
+   console.input is a line editor that does no I/O, console.driver runs
+   console on a scheduler, and console.cli gives a Cmdliner program --color
+   and --theme options.")
  (depends
   (ocaml (>= 5.4))
   (fmt (>= 0.9))
@@ -34,6 +35,7 @@
   (jsont (>= 0.3.0))
   (bytesrw (>= 0.1.0))
   logs
+  (cmdliner (>= 1.1.0))
   (matrix (and :with-test (>= 0.2.0) (< 0.3.0)))
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)

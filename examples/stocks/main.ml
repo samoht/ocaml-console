@@ -286,8 +286,7 @@ let view =
           panels room [ histogram (); breadth (); most_active () ];
         ])
 
-let main theme =
-  Console_tty.setup ~theme ();
+let main () =
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~ppf:Fmt.stdout
@@ -300,8 +299,8 @@ let main theme =
       List.iter (fun s -> s.tick <- 0.) stocks;
       closed := true)
 
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
+let cmd =
+  Cmdliner.Cmd.(
+    v (info "stocks") Cmdliner.Term.(const main $ Console_cli.setup ()))
 
-let cmd = Cmdliner.Cmd.(v (info "stocks") Cmdliner.Term.(const main $ theme))
 let () = exit (Cmdliner.Cmd.eval cmd)

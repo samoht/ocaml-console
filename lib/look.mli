@@ -19,6 +19,9 @@ val default : t
 (** [default] is the look of a formatter given nothing: {!Theme.default}, in
     UTF-8, not live. *)
 
+val program : unit -> t
+(** [program ()] is {!default} with the program's theme ({!Theme.program}). *)
+
 val ascii_theme : t -> bool
 (** [ascii_theme l] is [true] iff the theme of [l] draws in ASCII on any
     formatter: its bars are [`Ascii], or the lines of its frames are ASCII. *)

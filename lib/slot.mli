@@ -32,6 +32,11 @@ val generation : unit -> int
     [~watched:true], on any formatter, so that a reader of such a slot knows
     when to read it again. *)
 
+val changed : unit -> unit
+(** [changed ()] increments {!generation}, as {!set} on a watched slot does.
+    Call it when the value used for an empty watched slot changes, so that
+    readers read the slot again. *)
+
 val unset : Format.formatter -> bool
 (** [unset ppf] is [true] iff only slots that are not settings changed the tag
     functions of [ppf]: neither {!Fmt} (to set its style renderer, say) nor a

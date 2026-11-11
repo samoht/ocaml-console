@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries console console.tty console-eio eio eio_main fmt cmdliner))
+ (libraries console console.cli console-eio eio eio_main fmt cmdliner))
 
 (rule
  (enabled_if %{lib-available:console-eio})

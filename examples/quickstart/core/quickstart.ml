@@ -22,18 +22,13 @@ let results () =
   in
   Table.view cols (List.map row suites)
 
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
-
 let main run =
-  let check color theme =
-    Console_tty.setup ?style_renderer:color ~theme ();
+  let check () =
     run ();
     Fmt.pr "%a@." View.pp (results ())
   in
   let cmd =
     Cmdliner.Cmd.(
-      v (info "check")
-        Cmdliner.Term.(const check $ Fmt_cli.style_renderer () $ theme))
+      v (info "check") Cmdliner.Term.(const check $ Console_cli.setup ()))
   in
   exit (Cmdliner.Cmd.eval cmd)

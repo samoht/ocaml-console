@@ -16,6 +16,7 @@
   console.input
   console.text
   console.tty
+  console.cli
   console-eio
   eio
   eio.unix

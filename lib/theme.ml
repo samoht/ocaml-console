@@ -295,7 +295,14 @@ let of_string s =
 (* The theme slot is not a setting ([Slot.unset]), so [Env.ensure] still
    sets up the colours of a formatter given only a theme. *)
 let slot = Slot.v ~setting:false ~watched:true ()
-let get ppf = Option.value (Slot.find slot ppf) ~default
+let program_theme = Atomic.make default
+let program () = Atomic.get program_theme
+
+let set_program t =
+  Atomic.set program_theme t;
+  Slot.changed ()
+
+let get ppf = match Slot.find slot ppf with Some t -> t | None -> program ()
 let set ppf t = Slot.set slot ppf t
 
 let pp_motion ppf = function

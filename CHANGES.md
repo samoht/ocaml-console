@@ -40,6 +40,14 @@
   cancellation (`Console_driver.S`); the driver calls them only on the
   scheduler's thread (#61, #67).
 
+- `console.cli`, whose `Console_cli.setup` gives a Cmdliner program a
+  `--theme` and a `--color` option and applies them to both standard outputs
+  (#78).
+
+- `Theme.set_program`, to choose the theme of every formatter that has none of
+  its own, including the new formatters that `Fmt.str` and
+  `Format.asprintf` create (#78).
+
 - `console-lwt`, to show the progress rows of a program that runs with Lwt.
   It has no deterministic mode: it runs in real time under
   `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST` (#67).
@@ -56,6 +64,14 @@
   stands still while the program waits on anything else, such as a child
   process. Under either variable, such a clock used from another domain
   raises `Invalid_argument` (#66).
+
+- `Console_tty.setup ~theme` now sets the program's theme instead of the theme
+  of each standard output, so strings built with `Fmt.str` and
+  `View.to_string` use it too. A formatter given a theme with `Theme.set`
+  keeps that theme (#78).
+
+- `View.to_string` now draws in the program's theme rather than always in
+  `Theme.default` (#78).
 
 - `Theme.default`'s accent is bright blue rather than cyan.
 

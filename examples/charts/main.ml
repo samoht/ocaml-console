@@ -45,15 +45,14 @@ let readings =
          [ View.text name; sparkline values; View.text (current values) ])
        metrics)
 
-let main theme =
-  Console_tty.setup ~theme ();
+let main () =
   let title s = View.role `Header (View.text s) in
   Fmt.pr "%a@.%a@.@.%a@.%a@." View.pp (title "Load this week") View.pp
     (Panel.view (Bar.chart ~height:6 week))
     View.pp (title "Machine") View.pp readings
 
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
+let cmd =
+  Cmdliner.Cmd.(
+    v (info "charts") Cmdliner.Term.(const main $ Console_cli.setup ()))
 
-let cmd = Cmdliner.Cmd.(v (info "charts") Cmdliner.Term.(const main $ theme))
 let () = exit (Cmdliner.Cmd.eval cmd)

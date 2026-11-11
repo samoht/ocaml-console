@@ -126,19 +126,24 @@ let test_env_setup () =
 
 (* [setup ~theme] gives both outputs the theme, and [setup] without one
    keeps it. *)
+(* [setup ~theme] sets the program's theme. Both outputs and new formatters
+   use it, and a later [setup ()] keeps it. *)
 let test_setup_theme () =
   let theme ppf = Console.Theme.name (Console.Theme.get ppf) in
+  let before = Console.Theme.program () in
   let restore () =
+    Console.Theme.set_program before;
     List.iter
-      (fun ppf ->
-        Fmt.set_style_renderer ppf `None;
-        Console.Theme.set ppf Console.Theme.default)
+      (fun ppf -> Fmt.set_style_renderer ppf `None)
       [ Fmt.stdout; Fmt.stderr ]
   in
   Fun.protect ~finally:restore (fun () ->
       Console_tty.setup ~theme:Console.Theme.nord ();
       Alcotest.(check string) "standard output" "nord" (theme Fmt.stdout);
       Alcotest.(check string) "standard error" "nord" (theme Fmt.stderr);
+      Alcotest.(check string)
+        "a fresh formatter" "nord"
+        (theme (Format.formatter_of_buffer (Buffer.create 0)));
       Console_tty.setup ();
       Alcotest.(check string) "kept" "nord" (theme Fmt.stderr))
 

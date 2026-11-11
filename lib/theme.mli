@@ -13,10 +13,10 @@
     - the frame of tables and panels, and how it moves;
     - the lines of a tree and the spinner of a {!Display}.
 
-    A formatter has one theme ({!set}), and every widget printed on it is drawn
-    in that theme, with ASCII glyphs alone when the formatter is not
-    {!Fmt.utf_8}. Text takes a colour of the theme, such as that of a success,
-    with {!View.role}.
+    Each formatter draws in one theme: its own theme if {!set} gave it one, and
+    otherwise the program's theme ({!set_program}). On a formatter that is not
+    {!Fmt.utf_8}, widgets use ASCII glyphs only. Text takes a colour of the
+    theme, such as that of a success, with {!View.role}.
 
     The predefined themes suit different terminals:
     - {!default} is drawn in the terminal's own named colours and faint text,
@@ -329,13 +329,22 @@ val of_string : string -> (t, [ `Msg of string ]) result
 
 (** {1:formatters Themes of formatters} *)
 
+val set_program : t -> unit
+(** [set_program t] makes [t] the program's theme. From now on, every formatter
+    without its own theme draws in [t]. This includes the new formatters that
+    {!Fmt.str} and {!Format.asprintf} create. Call it once at startup;
+    [Console_tty.setup ~theme] calls it. *)
+
+val program : unit -> t
+(** [program ()] is the last theme given to {!set_program}, or {!default}. *)
+
 val set : Format.formatter -> t -> unit
-(** [set ppf t] makes [t] the theme of [ppf], in which the widgets printed on
-    [ppf] from now on are drawn. *)
+(** [set ppf t] gives [ppf] its own theme [t]. Widgets printed on [ppf] from now
+    on use [t], whatever the program's theme is. *)
 
 val get : Format.formatter -> t
-(** [get ppf] is the theme of [ppf]: the last one {!set} gave it, else
-    {!default}. *)
+(** [get ppf] is the theme [ppf] draws in: the last theme {!set} gave it, or
+    else the program's theme ({!program}). *)
 
 (** {1:fmt Formatting} *)
 

@@ -339,28 +339,25 @@ other, each with an optional `~gap` between them. The
 <img src="examples/themes/github-light.svg" width="32%" alt="Theme.github_light drawing a tree, a table and progress rows">
 </p>
 
-A theme holds the colours and glyphs that every widget shares. `Theme.set`
-gives a formatter its theme, and `Console_tty.setup ~theme` sets the same
-theme on both standard outputs. Text takes one of the theme's colours with
+A theme holds the colours and glyphs that every widget shares. Every
+formatter draws in the program's theme, which `Theme.set_program` sets, a
+fresh one such as `Fmt.str` makes included; `Theme.set` gives one formatter
+a theme of its own. Text takes one of the theme's colours with
 `View.role`: ``View.role `Succeeded (View.text "passed")`` is in the
 theme's colour for success.
 
-`Theme.all` lists the eighteen themes by name, in the form a `--theme`
-option reads:
+`Console_cli.setup` gives a Cmdliner program a `--theme` option, which
+reads the names of the eighteen themes of `Theme.all`, and a `--color`
+option. It applies them before the program runs, to the rows a run draws
+on standard error and to everything printed on standard output:
 
 ```ocaml
-let theme =
-  Cmdliner.Arg.(
-    value
-    & opt (enum Console.Theme.all) Console.Theme.default
-    & info [ "theme" ] ~doc:"The look of the output.")
-
-let greet theme =
-  Console.Theme.set Fmt.stdout theme;
+let greet () =
   Fmt.pr "%a@." Console.View.pp (Console.Panel.view (Console.View.text "hello"))
 
 let cmd =
-  Cmdliner.Cmd.v (Cmdliner.Cmd.info "greet") Cmdliner.Term.(const greet $ theme)
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "greet")
+    Cmdliner.Term.(const greet $ Console_cli.setup ())
 ```
 
 ```ocaml
@@ -368,6 +365,19 @@ let cmd =
 ╔═══════╗
 ║ hello ║
 ╚═══════╝
+- : int = 0
+```
+
+Without `--theme`, the program keeps the theme it has, `Theme.default`
+unless it chose another with `Theme.set_program` first:
+
+```ocaml
+# Console.Theme.set_program Console.Theme.default;;
+- : unit = ()
+# Cmdliner.Cmd.eval ~argv:[| "greet" |] cmd;;
+╭───────╮
+│ hello │
+╰───────╯
 - : int = 0
 ```
 

@@ -46,7 +46,7 @@ val sizes : Console.View.t = <abstr>
 
 {1:libraries Libraries}
 
-The [console] package has four libraries:
+The [console] package has five libraries:
 
 {ul
 {- [console], the module {!Console}: styles, views, the widgets, the
@@ -55,6 +55,9 @@ The [console] package has four libraries:
 {- [console.tty], the module {!Console_tty}: colour, colour depth and UTF-8
    for the standard outputs, decided from the terminal and the environment
    or from a [--color] option.}
+{- [console.cli], the module {!Console_cli}: [--color] and [--theme]
+   options for a {{:https://erratique.ch/software/cmdliner}Cmdliner}
+   program, applied to both standard outputs and to the program's theme.}
 {- [console.text], the module {!Console_text}: untrusted text made safe to
    print, without the rest of [console].}
 {- [console.input], the module {!Console_input}: a line editor that turns
@@ -67,8 +70,8 @@ The [console] package has four libraries:
 {- {!Console.View} and {!Console.Style} for text in colour.}
 {- {!Console.Table}, {!Console.Tree}, {!Console.Panel}, {!Console.Rule} and
    {!Console.Bar} for the widgets.}
-{- {!Console.Theme} to choose a look, and to let users choose one with a
-   [--theme] option.}
+{- {!Console.Theme} to choose a look, and {!Console_cli.setup} to let users
+   choose one with a [--theme] option.}
 {- {!Console.Task} and {!Console.Progress} for the progress rows and what a pipe
    gets, [Console_eio], in the [console-eio] package, for where the
    program's text goes, and {!Console.Display} for what a live region

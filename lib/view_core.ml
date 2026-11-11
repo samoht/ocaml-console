@@ -754,7 +754,7 @@ module F = struct
     Buffer.contents buf
 
   let to_string ?(styled = false) t =
-    render ~look:Look.default
+    render ~look:(Look.program ())
       ?depth:(if styled then Some `True_color else None)
       t
 
@@ -1166,6 +1166,9 @@ let render ~look ?depth t = F.render ~look ?depth (flat t)
 let pp ppf t =
   F.pp ppf (flat_in (Ctx.v ~width:(Format.pp_get_margin ppf ()) (Look.v ppf)) t)
 
-let to_string ?styled t = F.to_string ?styled (flat t)
+let flat_in_program t = flat_in (Ctx.v (Look.program ())) t
+let to_string ?styled t = F.to_string ?styled (flat_in_program t)
 let pp_lines ppf ts = F.pp_lines ppf (List.map flat ts)
-let string_of_lines ?styled ts = F.string_of_lines ?styled (List.map flat ts)
+
+let string_of_lines ?styled ts =
+  F.string_of_lines ?styled (List.map flat_in_program ts)

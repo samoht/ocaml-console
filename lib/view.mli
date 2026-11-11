@@ -65,8 +65,8 @@ val role : Theme.role -> t -> t
     colour.
 
     It is as wide as [v]. It is printed in colours at the formatter's
-    {!Color.val-depth}, and as the text of [v] without colour. {!to_string}
-    styles it in {!Theme.default}. *)
+    {!Color.val-depth}, and as the text of [v] without colour. {!to_string} uses
+    the program's theme ({!Theme.program}). *)
 
 val gradient : ?colors:Color.t list -> t -> t
 (** [gradient ~colors v] is [v] in colours graded along each of its lines, over
@@ -306,6 +306,6 @@ val pp : t Fmt.t
     on lines of its own, as ["%a@."] does. *)
 
 val to_string : ?styled:bool -> t -> string
-(** [to_string v] is [v] at its natural size and at time [0.], drawn in
-    {!Theme.default} in UTF-8, with its styles and links in 24-bit colour iff
-    [styled] (defaults to [false]). *)
+(** [to_string v] is [v] at its natural size and at time [0.], drawn in UTF-8
+    with the program's theme ({!Theme.program}). Its styles and links are in
+    24-bit colour iff [styled] (defaults to [false]). *)

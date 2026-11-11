@@ -127,6 +127,46 @@ let test_on_formatter () =
     (Fmt.style_renderer ppf = `Ansi_tty);
   check "another formatter" Theme.default other
 
+let with_program t f =
+  let before = Theme.program () in
+  Theme.set_program t;
+  Fun.protect ~finally:(fun () -> Theme.set_program before) f
+
+(* A formatter without its own theme uses the program's theme. This includes
+   new formatters and View.to_string. A formatter's own theme wins. *)
+let test_program () =
+  let own = Format.formatter_of_buffer (Buffer.create 0) in
+  Theme.set own Theme.nord;
+  with_program Theme.dos @@ fun () ->
+  let fresh = Format.formatter_of_buffer (Buffer.create 0) in
+  let check what want got = Alcotest.(check bool) what true (want == got) in
+  check "the program's" Theme.dos (Theme.program ());
+  check "a fresh formatter" Theme.dos (Theme.get fresh);
+  check "a formatter's own" Theme.nord (Theme.get own);
+  let panel = Panel.view (View.text "1") in
+  let dos = "\u{2554}\u{2550}" in
+  Alcotest.(check bool)
+    "Fmt.str" true
+    (contains dos (Fmt.str "%a" View.pp panel));
+  Alcotest.(check bool)
+    "View.to_string" true
+    (contains dos (View.to_string panel))
+
+(* A live display on a formatter without its own theme redraws when the
+   program's theme changes. *)
+let test_program_redraws () =
+  let term = terminal () in
+  let task = Task.start term.root "copy" in
+  Task.set_items task ~count:1 ~total:2;
+  Display.redraw term.display;
+  with_program Theme.dos @@ fun () ->
+  Task.set_items task ~count:1 ~total:2;
+  Display.redraw term.display;
+  Display.close term.display;
+  Alcotest.(check bool)
+    "dos bars" true
+    (contains "\u{2588}\u{2591}" (written term))
+
 (* A widget built once takes the look of each formatter it is printed on. *)
 let test_widgets_read_it () =
   let check what pp v ~ascii ~default =
@@ -675,6 +715,9 @@ let suite =
       Alcotest.test_case "schemes" `Quick test_schemes;
       Alcotest.test_case "pp" `Quick test_pp;
       Alcotest.test_case "on the formatter" `Quick test_on_formatter;
+      Alcotest.test_case "the program's theme" `Quick test_program;
+      Alcotest.test_case "a display redraws in the program's theme" `Quick
+        test_program_redraws;
       Alcotest.test_case "widgets read it" `Quick test_widgets_read_it;
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
       Alcotest.test_case "a display's bars in the palette" `Quick
