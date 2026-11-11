@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Views, with the operations the widgets and the display share. {!View} is
-    their public face and documents the values both have. *)
+(** Views, with the operations that the widgets and the display share. {!View}
+    is the public interface and documents the values that both modules have. *)
 
 type t
 (** The type for views. *)
@@ -15,16 +15,16 @@ type align = [ `Left | `Center | `Right ]
 (** {1:room Room and time} *)
 
 type kind = { live : bool; tasks : bool; timed : bool }
-(** The type for what a deferred view reads besides its room: [live] for state
-    outside the view that changes between frames, [tasks] for the tasks, which
-    are part of that state, and [timed] for the time. A view that reads none
+(** The type for what a deferred view reads besides its room. [live] is state
+    outside the view that changes between frames. [tasks] is the tasks, which
+    are part of that state. [timed] is the time. A view that reads none of them
     caches its layout per room. *)
 
 val static : kind
 (** [static] reads nothing besides the room. *)
 
 val timed : kind
-(** [timed] reads the time alone. *)
+(** [timed] reads only the time. *)
 
 val tasks : kind
 (** [tasks] reads the tasks and the time, and no other state. *)
@@ -42,15 +42,17 @@ val deferred :
   ?still:bool ->
   (Ctx.t -> t) ->
   t
-(** [deferred ~kind ~grow ~min_width ~still lay] is the view that is [lay c]
-    when laid out in [c]. [kind] (defaults to {!static} in every look) says what
-    it reads, [grow] (defaults to [0]) is its weight in an {!hcat} that shares a
-    room, and [min_width] is the width below which it should not be laid out.
-    With [still] (defaults to [false]), every frame has the lines of its frame
-    at time [0.], each cut or padded to the width it has there. *)
+(** [deferred ~kind ~grow ~min_width ~still lay] is the view [lay c] when it is
+    laid out in [c].
+    - [kind] (defaults to {!static} in every look) says what the view reads.
+    - [grow] (defaults to [0]) is its weight in an {!hcat} that shares a room.
+    - [min_width] is the width below which it should not be laid out.
+    - With [still] (defaults to [false]), every frame has as many lines as the
+      frame at time [0.], and each line is cut or padded to the width of the
+      same line at time [0.]. *)
 
 val kind : t -> Look.t -> kind
-(** [kind v look] is what [v] reads in [look]: what any of its parts reads. *)
+(** [kind v look] is what [v] reads in [look]: all that its parts read. *)
 
 val kinds : t list -> Look.t -> kind
 (** [kinds vs look] is what any of [vs] reads in [look]. *)
@@ -59,9 +61,10 @@ val is_flat : t -> bool
 (** [is_flat v] is [true] iff [v] has no deferred part. *)
 
 val min_width : Ctx.t -> t -> int
-(** [min_width c v] is the width below which [v] should not be laid out in [c]:
-    the widest word of a flat view, the [min_width] given to a deferred one, or
-    else the [min_width] of the view it lays out in [c]. *)
+(** [min_width c v] is the width below which [v] should not be laid out in [c].
+    For a flat view, it is the width of its widest word. For a deferred view, it
+    is the [min_width] given to it, or else the [min_width] of the view it lays
+    out in [c]. *)
 
 val resolve : Ctx.t -> t -> t
 (** [resolve c v] is [v] laid out in [c], with no deferred part. A {!drawn} part
@@ -124,10 +127,10 @@ val ellipsis : string
 (** [ellipsis] is U+2026. *)
 
 val truncate : ?ellipsis:string -> int -> t -> t
-(** [truncate ~ellipsis w v] is like {!View.truncate} but ends a cut line with
+(** [truncate ~ellipsis w v] is like {!View.truncate}, but ends a cut line with
     [ellipsis] (defaults to the {!Look.ellipsis} of the look it is printed in).
-    An ellipsis wider than [w] cells keeps only its first grapheme clusters that
-    fit in them. *)
+    If [ellipsis] is wider than [w] cells, only its first grapheme clusters that
+    fit in [w] cells are kept. *)
 
 val crop : ?left:int -> ?width:int -> t -> t
 (** [crop ~left ~width v] is {!View.crop}. *)
@@ -143,60 +146,63 @@ val to_string : ?styled:bool -> t -> string
 
 (** {1:widgets For the widgets}
 
-    These lay a deferred view out at its natural size, in {!Look.default} at
-    time [0.], when they are given one. *)
+    When given a deferred view, these functions lay it out at its natural size,
+    in {!Look.default}, at time [0.]. *)
 
 val lines : t -> t list
 (** [lines v] are the lines of [v], without their line feeds. It is never empty.
 *)
 
 val block : t list -> t
-(** [block lines] is [lines] one under the other, as one block: a display whose
-    region is too short for all of a view drops the lines of a block together.
-*)
+(** [block lines] is [lines] one under the other, as one block. When the region
+    of a display is too short for a whole view, it drops all the lines of a
+    block together. *)
 
 val seamed : t -> (bool * t) list
 (** [seamed v] is the {!lines} of [v], each paired with [true] iff it is in the
     same {!block} as the line above it. *)
 
 val pad_to : int -> t -> t
-(** [pad_to w line] is the line [line] cut to its first [w] cells, between two
-    clusters, then padded with spaces to exactly [w] cells. *)
+(** [pad_to w line] is [line] cut to its first [w] cells, between two clusters,
+    then padded with spaces to exactly [w] cells. *)
 
 val wrap_hanging : int -> t -> t list
-(** [wrap_hanging w v] is like {!wrap} but the continuation lines of each line
+(** [wrap_hanging w v] is like {!wrap}, but the continuation lines of each line
     start under the text after its first word, at most [w / 2] cells in. *)
 
 val chop : int -> t -> t list
-(** [chop w v] is like {!wrap} but breaks each line of [v] every [w] cells,
-    mid-word, as a terminal wraps a line wider than it. *)
+(** [chop w v] is like {!wrap}, but breaks each line of [v] every [w] cells,
+    even inside a word, as a terminal wraps a line that is too wide. *)
 
 val widest_word : t -> int
 (** [widest_word v] is the width of the widest run of [v] without a space. *)
 
 val drawn : (Look.t -> t) -> t
-(** [drawn draw] is the view [draw look] when it is printed in [look], and
+(** [drawn draw] is the view [draw look] when it is printed in [look]. It is
     measured as [draw Look.default]. Every [draw look] must take the same cells
-    as [draw Look.default], one cluster for one. A part of it that {!truncate}
-    or {!wrap} keep is drawn as the same cells of [draw look]. *)
+    as [draw Look.default], one cluster for one. When {!truncate} or {!wrap}
+    keep a part of the view, that part is drawn as the same cells of
+    [draw look]. *)
 
 val paint : Look.t -> t -> t
 (** [paint look v] is [v] with each {!drawn} part drawn in [look]. *)
 
 val recell :
   (cell:int -> (Style.t -> string -> Style.t * string) option) -> t -> t
-(** [recell f line] is [line] with some clusters redrawn: a cluster [g] in style
-    [s] that starts [cell] cells in is drawn as [r s g], a new style and glyph,
-    when [f ~cell] is [Some r]. A new glyph that does not take the cells of [g],
-    or holds a control character, is replaced by [g]. A cluster of a {!drawn}
-    part is kept. *)
+(** [recell f line] is [line] with some clusters redrawn. Let [g] be a cluster
+    in style [s] that starts [cell] cells into [line]. When [f ~cell] is
+    [Some r], [g] is drawn as [r s g], a new style and glyph. If the new glyph
+    does not take the same cells as [g], or holds a control character, the new
+    style is drawn with the glyph [g]. A cluster of a {!drawn} part is never
+    redrawn. *)
 
 val render : look:Look.t -> ?depth:Color.depth -> t -> string
-(** [render ~look ~depth v] is [v] drawn in [look] with its styles at [depth],
-    or its text alone without [depth]. *)
+(** [render ~look ~depth v] is [v] drawn in [look], with its styles at [depth].
+    Without [depth], it is only the text of [v]. *)
 
 val pp_lines : t list Fmt.t
-(** [pp_lines] formats views one per line, with no line end after the last. *)
+(** [pp_lines] formats views one per line, with no line end after the last one.
+*)
 
 val string_of_lines : ?styled:bool -> t list -> string
 (** [string_of_lines lines] is [lines] joined by line feeds, each as

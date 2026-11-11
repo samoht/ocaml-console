@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** The frames of a spinner, which {!Theme} and {!Spinner} share. *)
+(** The frames of a spinner, shared by {!Theme} and {!Spinner}. *)
 
 val braille : string list
 (** See {!Spinner.braille}. *)
@@ -21,5 +21,5 @@ val v : string -> string list -> string list
     @raise Invalid_argument naming [fn] if [frames] is empty. *)
 
 val at : string list -> time:float -> string
-(** [at frames ~time] is the frame shown [time] seconds in, ten frames a second:
-    the first one for a [time] that is not positive or not finite. *)
+(** [at frames ~time] is the frame shown [time] seconds in, at ten frames a
+    second. It is the first frame when [time] is not positive or not finite. *)

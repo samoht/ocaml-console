@@ -5,9 +5,9 @@
 
 type look = Look.t
 
-(* A formatter that is not UTF-8 shows ASCII alone. A border or a guide with
-   any glyph that is not ASCII is replaced whole by its ASCII counterpart, so
-   that its pieces still join; a glyph the border leaves empty stays empty. *)
+(* A formatter that is not UTF-8 shows only ASCII. A border or a guide with
+   any glyph that is not ASCII is replaced whole by its ASCII version, so that
+   its pieces still join. A glyph that the border leaves empty stays empty. *)
 let shows look glyphs =
   look.Look.utf_8 || List.for_all Console_width.is_ascii glyphs
 
@@ -18,7 +18,7 @@ let muted look =
 
 let accent look = Style.fg (Theme.accent look.Look.theme)
 
-(* A border or a guide in no style of its own is drawn in the muted colour. *)
+(* A border or a guide with no style of its own is drawn in the muted colour. *)
 let border look border =
   let border = Option.value border ~default:(Theme.border look.Look.theme) in
   let border =

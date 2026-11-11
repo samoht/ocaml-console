@@ -5,33 +5,33 @@
 
 (** Colours, tables, trees and progress rows for command-line tools.
 
-    [Console] prints into the terminal's normal scrollback, as [make] or [ls]
-    do. While work runs, it redraws only the rows of a {!Display}. A program
-    that takes over the whole screen is better served by a full-screen library.
+    [Console] prints into the normal scrollback of the terminal, as [make] or
+    [ls] do. While work runs, it redraws only the rows of a {!Display}. For a
+    program that takes over the whole screen, use a full-screen library instead.
     Windows consoles are not supported.
 
     A {!View.t} is text in a {!Style.t}: colours, bold, italic and so on. The
     widgets ({!Table}, {!Tree}, {!Panel}, {!Rule} and {!Bar}) lay out views and
-    print with {!Format}, and a {!Theme} gives them one look.
+    print with {!Format}. A {!Theme} gives them one look.
 
-    Each widget's [view] is a view, laid out only when it is printed, in the
-    room it is given ({!View.fit}). So a table goes in a panel, the panel in a
-    cell of another table, beside a tree ({!View.hcat}) or in a display's view,
-    and each of them is drawn in the theme of the formatter that prints it.
-    [Console_eio.run] runs a {!Display}.
+    The [view] of each widget is a view. It is laid out only when it is printed,
+    in the room it is given ({!View.fit}). So a table can go in a panel, the
+    panel in a cell of another table, next to a tree ({!View.hcat}) or in the
+    view of a display. Each of them is drawn in the theme of the formatter that
+    prints it. [Console_eio.run] runs a {!Display}.
 
     {b Guarantees.}
-    - Widths are counted in terminal cells, as the terminal draws the text. A
-      wide character, such as a Chinese one or an emoji, takes two cells, and an
-      accent added to a letter takes none.
-    - A widget printed by {!View.pp} is no wider than the formatter's margin,
-      and in a room no wider than the room. It ends without a line end, so
-      ["%a@."] prints it on its own lines.
-    - A view holds only text that prints: a line end in it starts a new line and
-      any other control character is a space, so caller text cannot move the
-      cursor or change colours.
-    - Every style a printer turns on, it turns off before the line ends.
-    - Text cut to fit is cut between two characters and ends with an ellipsis.
+    - Widths are counted in terminal cells, the way the terminal draws the text.
+      A wide character, such as a Chinese character or an emoji, takes two
+      cells. An accent added to a letter takes none.
+    - A widget printed by {!View.pp} is no wider than the formatter's margin. In
+      a room, it is no wider than the room. It ends without a line end, so
+      ["%a@."] prints it on lines of its own.
+    - A view holds only text that can be printed. A line end in it starts a new
+      line, and any other control character becomes a space. So text from the
+      caller cannot move the cursor or change colours.
+    - A printer turns off every style that it turns on, before the line ends.
+    - Text cut to fit is cut between two characters, and ends with an ellipsis.
     - On a formatter that is not {!Fmt.utf_8}, the widgets draw their frames,
       lines, bars, spinners, marks and ellipses in ASCII.
     - The guarantees of a live region are those of {!Display}.
@@ -40,10 +40,11 @@
     check it.
 
     Text is in colour when its formatter is set to colour
-    ({!Fmt.set_style_renderer}), in the colours its {!Color.val-depth} allows.
-    [Console_tty.setup], in the [console.tty] library, sets both for standard
-    output and standard error, from the terminal and the environment, following
-    the rules of {!Env}; a program without Unix applies those rules itself.
+    ({!Fmt.set_style_renderer}), with the colours that its {!Color.val-depth}
+    allows. [Console_tty.setup], in the [console.tty] library, sets both for
+    standard output and standard error. It reads the terminal and the
+    environment, and follows the rules of {!Env}. A program without Unix applies
+    those rules itself.
 
     {1:quickstart Quick start}
 
@@ -108,9 +109,9 @@
 
     {2:progress Progress}
 
-    A program reports its work as {!Task}s under a root, and calls
-    [Console_eio.run] once to show them, which passes the root to the code that
-    does the work:
+    A program reports its work as {!Task}s under a root. It calls
+    [Console_eio.run] once to show them, and [Console_eio.run] passes the root
+    to the code that does the work:
 
     {[
     open Console
@@ -122,9 +123,10 @@
           Task.set_items step ~count:2 ~total:2)
     ]}
 
-    [Console_eio.run ~clock ~label:"Building" build_step] runs it, with [clock]
-    as [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself,
-    since a run inside another one gets the task current where it is called. *)
+    [Console_eio.run ~clock ~label:"Building" build_step] runs it, where [clock]
+    is [Eio.Stdenv.mono_clock env]. A library can call [Console_eio.run] itself:
+    a run inside another run gets the task that is current where it is called.
+*)
 
 (** {1:modules Modules} *)
 

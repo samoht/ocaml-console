@@ -3,11 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* What the frame on screen was drawn from: the number of changes the display
-   was told of, the time in twentieths of a second when the view reads the
-   time (a spinner turns every tenth, and a time rounded to the tenth changes
-   on the half), and the terminal's size. A view that reads state the display
-   is not told of ([live]) is drawn again on every paint. *)
+(* What the frame on screen was drawn from: the number of changes that the
+   display was told of, the time in twentieths of a second when the view reads
+   the time, and the size of the terminal. The time is in twentieths because a
+   spinner turns every tenth, and a time rounded to the tenth changes on the
+   half. A view that reads state that the display is not told of ([live]) is
+   drawn again at every paint. *)
 type stamp = {
   mutable changes : int;
   mutable tick : int;
@@ -75,18 +76,18 @@ let since_start { now; start; _ } = now () -. start
 let hide_cursor = "\027[?25l"
 let show_cursor = "\027[?25h"
 
-(* A row of its own, from any column: [width] spaces written from the first
-   column fill the row and leave the cursor on it, and written from any other
-   column they wrap onto the next row. The carriage return then goes to the
+(* A row of its own, from any column. Written from the first column, [width]
+   spaces fill the row and leave the cursor on it. Written from any other
+   column, they wrap onto the next row. The carriage return then goes to the
    first column. *)
 let fresh_row t = String.make t.width ' ' ^ "\r\027[K"
 
 (* An exception raised by a view, a hook, the size function or the output is
-   kept in [failure] and raised by the next call that reports failures, so
-   that drawing never fails an unrelated call and closing restores the
-   terminal first. An interrupt, an exhausted heap or stack, or the
-   cancellation of the fiber is not kept: the view has not failed, and only
-   the program can handle it. *)
+   kept in [failure]. The next call that reports failures raises it. So
+   drawing never fails an unrelated call, and closing restores the terminal
+   first. An interrupt, an exhausted heap or stack, or the cancellation of the
+   fiber is not kept: the view has not failed, and only the program can handle
+   these. *)
 let urgent t e = Task_core.is_async e || t.cancelled e
 let protect = Task_core.protect
 
@@ -115,19 +116,20 @@ let caught t ~default f =
       keep t e;
       default
 
-(* Each operation of the display writes its output in one piece, on a
-   terminal as one synchronized update (mode 2026), so that the terminal never
+(* Each operation of the display writes its output in one piece. On a
+   terminal, it is one synchronized update (mode 2026), so the terminal never
    shows a region half erased or half drawn. A write error, such as a closed
-   pipe, ends the display's output and nothing else. *)
+   pipe, ends the output of the display and nothing else. *)
 
 let sync_on = "\027[?2026h"
 let sync_off = "\027[?2026l"
 let synchronized t s = if is_live t then sync_on ^ s ^ sync_off else s
 
-(* Without a terminal, standard output may share the display's pipe, so it is
-   flushed first and what the program printed there goes out first. A write
-   error on standard output is the program's: after one, console stops
-   flushing it, and the program's own writes meet the error. *)
+(* Without a terminal, standard output may share the pipe of the display. So
+   standard output is flushed first, and what the program printed there goes
+   out first. A write error on standard output belongs to the program: after
+   one, console stops flushing it, and the program's own writes meet the
+   error. *)
 let stdout_failed = Atomic.make false
 let write_error t = function Sys_error _ -> true | e -> t.write_error e
 
@@ -154,9 +156,8 @@ let write_now t { text; framed; _ } =
         out.out_flush ())
   with e when write_error t e -> ()
 
-(* A signal handler can run at any safe point, so what it asks of the display
-   ([when_idle]) waits in [idle] until the current drawing or write is
-   done. *)
+(* A signal handler can run at any safe point. So what it asks of the display
+   ([when_idle]) waits in [idle] until the current drawing or write is done. *)
 let rec drain t =
   match Atomic.exchange t.idle [] with
   | [] -> ()
@@ -179,13 +180,14 @@ let rec post t f =
 
 let when_idle t f = if t.busy = 0 && not (foreign t) then f () else post t f
 
-(* What another domain asked waits for the domain that runs the display. It
-   did not make the owner's call, so what it raises stays there, unless it is an
-   interrupt or an exhausted heap or stack. *)
+(* A request from another domain waits for the domain that runs the display.
+   The owner did not make that request, so an exception that the request
+   raises is dropped, unless it is an interrupt or an exhausted heap or
+   stack. *)
 let routed t f =
   post t (fun () -> try f () with e when not (Task_core.is_async e) -> ())
 
-(* The owner does what waits before it does what it is called for. *)
+(* The owner first does the requests that wait, then what it is called for. *)
 let settle t =
   if t.busy = 0 then begin
     t.settle ();
@@ -199,12 +201,12 @@ let rec owned t f =
     f ()
   end
 
-(* An interrupt or a cancellation can cut a write anywhere, and how much of it
-   the output took is unknown. Written again, a frame's cursor moves would
-   start from where the first part left the cursor and could erase what is
-   above the region, so no queued write goes out again. Only the text meant to
-   be printed once, each write's [salvage], is kept, and the region starts
-   again on a row of its own. *)
+(* An interrupt or a cancellation can cut a write anywhere, and how much of
+   the write the output took is unknown. If a frame were written again, its
+   cursor moves would start from where the first part left the cursor, and
+   could erase what is above the region. So no queued write goes out again.
+   Only the text meant to be printed once, the [salvage] of each write, is
+   kept, and the region starts again on a row of its own. *)
 let tear t =
   Queue.iter (fun (w : pending) -> t.left <- t.left ^ w.salvage) t.writes;
   Queue.clear t.writes;
@@ -212,9 +214,9 @@ let tear t =
   t.frame <- [||];
   t.frame_widths <- [||]
 
-(* The salvage of a tear goes out before anything queued since. On a terminal
-   it first ends the cut update, moves to a row of its own and erases the rows
-   below. *)
+(* The salvage of a tear goes out before anything queued after the tear. On a
+   terminal, it first ends the cut update, moves to a row of its own and
+   erases the rows below. *)
 let mend t =
   if t.torn then begin
     t.torn <- false;
@@ -233,7 +235,8 @@ let mend t =
 
 (* The output functions of [ppf] may yield to another fiber (an Eio flow) in
    the middle of a write. A write from that fiber waits in [writes], and the
-   write under way writes it out in turn, so that writes never interleave. *)
+   write under way writes it out after its own text, so writes never
+   interleave. *)
 let send_now ~framed ~salvage t s =
   if s <> "" then begin
     (try
@@ -272,8 +275,8 @@ let unwritten t = t.torn || not (Queue.is_empty t.writes)
    processing off, a line feed keeps the column. *)
 let eol t = if is_live t then "\r\n" else "\n"
 
-(* The formatter's look, still and live, cached while its theme and its UTF-8
-   setting are unchanged. The live look moves only in colour ([depth]):
+(* The look of the formatter, still and live, cached while its theme and its
+   UTF-8 setting do not change. The live look moves only in colour ([depth]):
    without colour, rain would still change its glyphs. *)
 let look ?(live = false) t =
   let theme = Theme.get t.ppf and utf_8 = Fmt.utf_8 t.ppf in
@@ -294,13 +297,13 @@ let look ?(live = false) t =
 let render_in look t line = View_core.render ~look ?depth:t.depth line
 let render t line = render_in (look t) t line
 
-(* One row stays free for the cursor: a region as tall as the screen would
+(* One row stays free for the cursor. A region as tall as the screen would
    scroll its first line out of reach of the cursor moves that erase it. *)
 let capacity t = max 0 (t.height - 1)
 
-(* The last [height] lines of [lines]. The rest of a block cut by the top
-   edge is dropped too, so that no fragment of a table's or a panel's frame
-   shows. *)
+(* The last [height] lines of [lines]. When the top edge cuts a block, the
+   rest of the block is dropped too, so no part of the frame of a table or a
+   panel shows. *)
 let last height lines =
   let extra = List.length lines - height in
   if extra <= 0 then List.map snd lines
@@ -311,8 +314,9 @@ let last height lines =
     in
     List.map snd (past_block (List.drop extra lines))
 
-(* The lines of [view] laid out in [c], the last [height] of them if given,
-   each drawn in [look] and cut to the terminal's width if there is one. *)
+(* The lines of [view] laid out in [c], each drawn in [look]. With [height],
+   only the last [height] lines. With a terminal, each line is cut to the
+   width of the terminal. *)
 let lines t ~look ?height c view =
   let lines =
     match View_core.resolve c view with
@@ -342,8 +346,9 @@ let frame t =
       let c = Ctx.v ~width:t.width ~height ~time:(since_start t) look in
       lines t ~look ~height c t.view
 
-(* [or_fallback t draw] is [draw ()], called again with the fallback view if
-   the view raises, and no line if the fallback raises too. *)
+(* [or_fallback t draw] is [draw ()]. If the view raises, [draw] is called
+   again with the fallback view. If the fallback raises too, there is no
+   line. *)
 let or_fallback t draw =
   match draw () with
   | lines -> lines
@@ -353,14 +358,14 @@ let or_fallback t draw =
 
 let spans t = or_fallback t (fun () -> frame t)
 
-(* No screen is this wide or tall, and the display writes a row of its width
-   when it starts, so a larger size is taken as this one. *)
+(* No screen is this wide or tall. The display writes a row of its width when
+   it starts, so a larger size is taken as this one. *)
 let max_size = 4096
 let bounded n = min max_size (max 1 n)
 
 (* Text printed once is laid out at time 0 in the still look, with no height
-   bound: as wide as the terminal, and without one as wide as [once_width]
-   gives, or unbounded. *)
+   bound. With a terminal, it is as wide as the terminal. Without one, it is
+   as wide as [once_width] gives, or unbounded. *)
 let once t =
   let look = look t in
   let width =
@@ -381,15 +386,15 @@ let add_up buf n =
     Buffer.add_char buf 'A'
   end
 
-(* The rows the frame on screen takes at [width]: a terminal that reflows
-   its lines when it narrows has wrapped each old line onto more rows. *)
+(* The rows that the frame on screen takes at [width]. When a terminal that
+   reflows its lines narrows, it wraps each old line onto more rows. *)
 let rows_on_screen t =
   Array.fold_left
     (fun acc w -> acc + max 1 ((w + t.width - 1) / max 1 t.width))
     0 t.frame_widths
 
-(* Moves the cursor from the end of the region's last line to the start of
-   its first, and erases everything below. *)
+(* Moves the cursor from the end of the last line of the region to the start
+   of its first line, and erases everything below. *)
 let clear buf t =
   let rows = rows_on_screen t in
   if rows > 0 then begin
@@ -416,10 +421,10 @@ let refresh_size t =
           t.height <- h;
           changed)
 
-(* No line end follows the last line: on the bottom row of the screen it
-   would scroll the region up on every redraw. Each line is erased from the
-   first column before it is written, so that the erase cannot take the last
-   cell of a full line. *)
+(* No line end follows the last line: on the bottom row of the screen, it
+   would scroll the region up at every redraw. Each line is erased from the
+   first column before it is written, so the erase cannot take the last cell
+   of a full line. *)
 let draw buf t ~resized spans =
   let look = look t in
   let lines =
@@ -440,8 +445,8 @@ let draw buf t ~resized spans =
         lines
     end
     else begin
-      (* A region drawn afresh starts at the cursor, which output the
-         display did not see may have moved anywhere. *)
+      (* A region drawn from scratch starts at the cursor. Output that the
+         display did not see may have moved the cursor anywhere. *)
       clear buf t;
       Array.iteri
         (fun i line ->
@@ -453,9 +458,9 @@ let draw buf t ~resized spans =
     t.frame_widths <- Array.of_list (List.map snd spans)
   end
 
-(* A redraw when nothing the frame depends on has changed draws, computes
-   and allocates nothing. The look is read again from the formatter only
-   after a slot, such as its theme, was set. *)
+(* When nothing that the frame depends on has changed, a redraw draws,
+   computes and allocates nothing. The look is read again from the formatter
+   only after a slot, such as its theme, was set. *)
 let reads t =
   let look =
     match t.looks with
@@ -485,9 +490,9 @@ let mark t =
   p.height <- t.height;
   t.painted_at <- t.now ()
 
-(* [framing t f] writes what [f] adds to the display's buffer, which every
-   frame reuses, as one synchronized update. When [f] adds nothing, only the
-   writes already queued go out. *)
+(* [framing t f] writes what [f] adds to the buffer of the display as one
+   synchronized update. Every frame reuses this buffer. When [f] adds nothing,
+   only the writes already queued go out. *)
 let framing ?salvage t f =
   let buf = t.buf in
   Buffer.clear buf;
@@ -510,7 +515,7 @@ let start_region t =
   end
 
 (* The salvage of a tear goes out first. No frame is queued behind a write
-   that did not go out; otherwise frames that the next one replaces would
+   that did not go out. Otherwise frames that the next frame replaces would
    pile up. *)
 let paintable t =
   if (not t.closed) && unwritten t then write t "";
@@ -523,9 +528,9 @@ let paint_now t =
     if t.shown && (resized || stale t || t.frame = [||]) then begin
       mark t;
       let spans = spans t in
-      (* A narrower terminal has reflowed the old frame, so it is cleared
-         with its rows counted at the new width. Drawing the view may have
-         closed the display. *)
+      (* A narrower terminal has reflowed the old frame, so the frame is
+         cleared with its rows counted at the new width. Drawing the view may
+         have closed the display. *)
       if not t.closed then
         framing t (fun buf ->
             if resized then clear buf t;
@@ -566,8 +571,8 @@ let commit_now t lines =
     in
     if t.suspended = 0 && not t.closed then start_region t;
     if t.suspended = 0 && (not t.closed) && t.shown then begin
-      (* The lines often explain an interrupt raised while drawing the frame,
-         so they still go out. *)
+      (* The lines often explain an interrupt raised while the frame was
+         drawn, so they still go out. *)
       let drawn = ref None in
       protect
         (fun () -> drawn := Some (spans t))
@@ -590,7 +595,7 @@ let erase t =
   clear buf t;
   write t (Buffer.contents buf)
 
-(* [tapped out note] is [out] that also calls [note] with the last byte of
+(* [tapped out note] is [out], but it also calls [note] with the last byte of
    each write, and with a space for spaces and indentation. *)
 let tapped (out : Format.formatter_out_functions) note =
   let out_string s o l =
@@ -614,7 +619,7 @@ let tapped (out : Format.formatter_out_functions) note =
   }
 
 (* [tap ppf note] makes [ppf] call [note] as {!tapped} does. It returns the
-   out functions [ppf] had before and those it has now. *)
+   out functions that [ppf] had before and the ones it has now. *)
 let tap ppf note =
   let out = Format.pp_get_formatter_out_functions ppf () in
   let ours = tapped out note in
@@ -623,8 +628,8 @@ let tap ppf note =
 
 let note_line t c = t.partial <- c <> '\n'
 
-(* Without a terminal, what the program and the display write on [ppf] is
-   watched for its last byte, so that a line the display prints starts at
+(* Without a terminal, the last byte of what the program and the display
+   write on [ppf] is watched, so that a line printed by the display starts at
    the first column. *)
 let watch_lines t =
   flush_ppf t;
@@ -713,7 +718,6 @@ let set_view t view =
     raise_failure t
   end
 
-(* A view printed once is laid out as {!once} says and printed at once. *)
 let print t view =
   owned t @@ fun () ->
   if (not t.closed) || t.closing then begin
@@ -738,7 +742,7 @@ let end_line t (out : Format.formatter_out_functions) last =
     end
   with e when write_error t e -> ()
 
-(* What [f] writes goes to [on_output] rather than to [ppf]. *)
+(* What [f] writes goes to [on_output] instead of [ppf]. *)
 let taken t on_output f =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -750,8 +754,8 @@ let taken t on_output f =
       Format.pp_print_flush ppf ();
       on_output (Buffer.contents buf))
 
-(* What [f] writes is watched for its last byte: output that does not end
-   its line is ended, so the region starts on a line of its own. *)
+(* The last byte of what [f] writes is watched. Output that does not end its
+   line is ended, so the region starts on a line of its own. *)
 let with_output_here t f =
   let call () =
     flush_ppf t;
@@ -798,9 +802,9 @@ let with_output t f =
     with_output_here t f
   end
 
-(* The last step of closing, given the last frame [out]: on a terminal, erase
-   the region, show the cursor and write [out]; otherwise write [out] and give
-   the formatter its own output functions back. *)
+(* The last step of closing, given the last frame [out]. On a terminal, it
+   erases the region, shows the cursor and writes [out]. Otherwise it writes
+   [out] and gives the formatter its own output functions back. *)
 let restore t out =
   if is_live t then begin
     let buf = Buffer.create 256 in
@@ -812,8 +816,8 @@ let restore t out =
   else protect (fun () -> write ~salvage:out t out) ~finally:t.release
 
 (* The display is marked closed first, so that what [on_close] ends draws no
-   region. Each step runs whatever the steps before it raised, so that the
-   terminal is restored before the worst exception propagates. *)
+   region. Each step runs even if the steps before it raised, so the terminal
+   is restored before the worst exception propagates. *)
 let shut t =
   t.closed <- true;
   t.closing <- true;
