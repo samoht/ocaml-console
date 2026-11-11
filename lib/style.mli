@@ -41,10 +41,10 @@ val bg : Color.t -> t
 (** [bg c] is the style with background colour [c]. *)
 
 val ( + ) : t -> t -> t
-(** [s0 + s1] is [s0] with the attributes of [s1] added and the colours that
-    [s1] sets replacing those of [s0]. {!none} is its unit and it is
-    associative: [s + none], [none + s] and [s] are equal, and so are
-    [s0 + (s1 + s2)] and [(s0 + s1) + s2]. *)
+(** [s0 + s1] is [s0] with the attributes of [s1] added. The colours that [s1]
+    sets replace those of [s0]. {!none} is its unit and it is associative:
+    [s + none], [none + s] and [s] are equal, and so are [s0 + (s1 + s2)] and
+    [(s0 + s1) + s2]. *)
 
 val equal : t -> t -> bool
 (** [equal s0 s1] is [true] iff [s0] and [s1] are the same style. *)
@@ -55,13 +55,13 @@ val compare : t -> t -> int
 (** {1:fmt Formatting} *)
 
 val styled : t -> 'a Fmt.t -> 'a Fmt.t
-(** [styled s pp_v] formats like [pp_v] in [s] iff the formatter's style
-    renderer ({!Fmt.style_renderer}) is [`Ansi_tty], and like [pp_v] otherwise.
-    Its colours are reduced to the formatter's {!Color.val-depth}.
+(** [styled s pp_v] formats like [pp_v]. It uses the style [s] iff the
+    formatter's style renderer ({!Fmt.style_renderer}) is [`Ansi_tty]. The
+    colours of [s] are reduced to the formatter's {!Color.val-depth}.
 
-    - Inside another [styled], [s] is added to the outer style ({!( + )}), and
-      the outer style is selected again after [pp_v].
-    - The escape codes take no room on the line, so the boxes and breaks of
+    - Inside another [styled], [s] is added to the outer style ({!( + )}). After
+      [pp_v], the outer style is selected again.
+    - The escape codes take no space on the line, so the boxes and breaks of
       [pp_v] lay out as they do without colour. *)
 
 val pp : t Fmt.t
@@ -70,5 +70,5 @@ val pp : t Fmt.t
 (**/**)
 
 val sgr : Color.depth -> t -> string
-(** [sgr d s] is the escape code that selects [s], with its colours reduced to
-    [d] ({!Color.downsample}), or [""] if [s] sets nothing. *)
+(** [sgr d s] is the escape code that selects [s], or [""] if [s] sets nothing.
+    The colours are reduced to [d] ({!Color.downsample}). *)

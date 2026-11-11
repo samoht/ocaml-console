@@ -14,14 +14,14 @@ type drawn = {
   lines : View_core.t list;
 }
 
-(* The cells of the frame's left and right columns, each as wide as its
+(* The widths of the frame's left and right columns. Each is as wide as its
    widest glyph. *)
 let columns border =
   let c = Border.chars border in
   ( Widget.widest [ c.top_left; c.left; c.bottom_left ],
     Widget.widest [ c.top_right; c.right; c.bottom_right ] )
 
-(* The cells the border and the padding take on a content line. *)
+(* The cells that the border and the padding take on a content line. *)
 let frame border padding =
   let left, right = columns border in
   left + right + (2 * padding)
@@ -33,9 +33,9 @@ let natural_width panel =
     (max (label panel.title) (label panel.subtitle) - (2 * panel.padding))
     panel.lines
 
-(* The width of a content line: what the fixed width leaves inside the
-   frame, or else the content's natural width, capped by what [margin]
-   leaves beside the border and padding. *)
+(* The width of a content line. With a fixed width, it is the space inside
+   the frame. Otherwise it is the content's natural width. It is never more
+   than what [margin] leaves after the border and the padding. *)
 let content_width ~margin panel =
   let frame = frame panel.border panel.padding in
   let room =
@@ -45,9 +45,8 @@ let content_width ~margin panel =
   in
   max 0 (min room (margin - frame))
 
-(* In a box sized to its content, a line wider than the room wraps at its
-   words, hanging under the text after its first word; a box of fixed width
-   cuts it instead. *)
+(* A line wider than [cw] wraps at its words in a box sized to its content.
+   A box of fixed width cuts it instead. *)
 let fitted_lines panel cw =
   if cw <= 0 then List.map (fun _ -> View_core.empty) panel.lines
   else
@@ -60,8 +59,8 @@ let fitted_lines panel cw =
 
 let pad = Widget.pad
 
-(* A top or bottom edge with [label] centred in it, and the span of cells
-   that the label and its two spaces take, which [Border_motion] skips. *)
+(* A top or bottom edge with [label] centred in it. Also returns the cells
+   that the label and its two spaces take; [Border_motion] skips them. *)
 let edge look style ~left ~mid ~right inner label =
   let draw n = View_core.ink style (Widget.fill n mid) in
   let middle, gap =
@@ -78,8 +77,8 @@ let edge look style ~left ~mid ~right inner label =
   in
   (View_core.(ink style left ++ middle ++ ink style right), gap)
 
-(* Only a frame that fits the margin and has both edges moves. A frame wider
-   than the margin has every line cut to it. *)
+(* Only a frame that fits the margin and has both edges is animated. A frame
+   wider than the margin has every line cut to the margin. *)
 let framed panel ~margin ~width ~left ~right (top, top_gap) body
     (bottom, bottom_gap) =
   let lines = top @ body @ bottom in
@@ -137,8 +136,8 @@ let lines_of ~margin panel =
   framed panel ~margin ~width ~left:lw ~right:rw (top, top_gap) body
     (bottom, bottom_gap)
 
-(* The content is laid out in the room the frame leaves. A panel that
-   expands takes the whole room as its fixed width. *)
+(* The content is laid out in the room that the frame leaves. A panel that
+   expands uses the whole room as its fixed width. *)
 let view ?border ?title ?subtitle ?(padding = 1) ?(expand = false) content =
   if padding < 0 then invalid_arg "Console.Panel.view: negative padding";
   let edges =

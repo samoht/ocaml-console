@@ -27,8 +27,8 @@ let framed ~glyphs ~track ~brackets body =
       [ View_core.ink track left; body; View_core.ink track right ]
   else body
 
-(* The fill and the track. A heavy line on a light one fills to the half
-   cell, and shows without colour; blocks and ASCII fill whole cells. *)
+(* [cells ~glyphs ~width frac] is the fill and the track. [`Line] fills to
+   the half cell; blocks and ASCII fill whole cells. *)
 let cells ~glyphs ~width frac =
   let whole fill track =
     let full = int_of_float (Float.round (frac *. float_of_int width)) in
@@ -44,10 +44,9 @@ let cells ~glyphs ~width frac =
       let fill = Widget.fill full "━" ^ if half then "╸" else "" in
       (fill, Widget.fill rest "─")
 
-(* A palette of several colours is spread along the whole bar, each filled
-   cell in the colour of its place: the fill uncovers the colours as it
-   grows rather than recolouring the cells it has. A theme's palette is
-   never empty; the [[]] case only completes the match. *)
+(* Each filled cell takes the palette colour of its position, so cells keep
+   their colour as the fill grows. A theme's palette is never empty: the
+   [[]] case only completes the match. *)
 let fill ~style ~width look glyphs =
   match (style, Theme.palette look.Look.theme) with
   | Some style, _ -> View_core.ink style glyphs
@@ -69,15 +68,12 @@ let draw t look =
   framed ~glyphs ~track ~brackets:t.brackets
     View_core.(fill ~style:t.style ~width:t.width look filled ++ ink track rest)
 
-(* A bar given no width grows to its room, and is ten cells at its natural
-   size. Its brackets take two of its cells, and are left out when the room
-   leaves no cell between them. *)
 let horizontal ?style ?track ?(brackets = false) ?width frac =
   let t =
     v ?style ?track ~brackets ~width:(Option.value width ~default:10) frac
   in
   let frame = if brackets then 2 else 0 in
-  (* Adding the brackets saturates at [max_int]. *)
+  (* Add the brackets without going past [max_int]. *)
   let framed w = min w (max_int - frame) + frame in
   View_core.deferred
     ~grow:(if width = None then 1 else 0)
@@ -95,21 +91,14 @@ let horizontal ?style ?track ?(brackets = false) ?width frac =
       View_core.drawn (draw t))
 
 let eighths = [| " "; "▁"; "▂"; "▃"; "▄"; "▅"; "▆"; "▇"; "█" |]
-
-(* In ASCII, a cell is a blank when empty, a dot when filled to less than
-   half, a colon to less than seven eighths, and a hash above. *)
 let ascii_eighths = [| " "; "."; "."; "."; ":"; ":"; ":"; "#"; "#" |]
 
-(* The eighths of each cell, from the bottom up: whole cells, then the cell
-   the rest fills, then empty ones. *)
+(* [column ~height frac] is the number of filled eighths in each cell, bottom
+   cell first. *)
 let column ~height frac =
   let total = int_of_float (Float.round (frac *. float_of_int (height * 8))) in
   List.init height (fun i -> max 0 (min 8 (total - (i * 8))))
 
-(* A cell's colour is that of the height its fill reaches: up the theme's
-   palette if it has several colours, and otherwise from the colour of a
-   success through that of a warning to that of a failure, so that the
-   cells of a sparkline show their values. *)
 let height_style ~style look p =
   match style with
   | Some style -> style
@@ -135,8 +124,7 @@ let vertical_cell ~style ~track ~height ~width i e look =
 let clamp frac =
   if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
 
-(* A peak is a line low or high in the cell it reaches, if the fill leaves
-   that cell empty. *)
+(* The peak mark: a line at the bottom or the top of its cell. *)
 let cap ~track ~width ~high look =
   let glyph =
     if Widget.bar look = `Ascii then "-" else if high then "▔" else "▁"
@@ -167,9 +155,6 @@ let draw_vertical ~style ~track ~peak ~width ~height frac =
                 View_core.drawn (vertical_cell ~style ~track ~height ~width i e))
           cells))
 
-(* A vertical bar is as tall as its room, or one row at its natural size.
-   It is [width] wide, or as wide as its room without [width], and never
-   wider than its room. *)
 let vertical ?style ?track ?(peak = 0.) ?width frac =
   (match width with
   | Some w when w < 0 -> invalid_arg "Console.Bar.vertical: negative width"
@@ -188,10 +173,9 @@ let vertical ?style ?track ?(peak = 0.) ?width frac =
       in
       draw_vertical ~style ~track ~peak ~width ~height frac)
 
-(* The highest value fills its cell. Without [min], the lowest fills an
-   eighth, the least a cell shows; with [min], a value at [min] is empty. A
-   sparkline is one row in a room of any height, and shows the last values
-   that fit in a room narrower than it. *)
+(* The highest value fills its cell. Without [min], the lowest value fills
+   one eighth, the smallest visible fill. With [min], a value at [min] is
+   empty. *)
 let sparkline ?style ?min ?max values =
   let lo = List.fold_left Float.min Float.infinity values
   and hi = List.fold_left Float.max Float.neg_infinity values in
@@ -213,8 +197,8 @@ let sparkline ?style ?min ?max values =
           View_core.concat (List.drop (n - Int.max 0 w) cells)
       | _ -> View_core.concat cells)
 
-(* [x] to three significant digits and at most four decimals, without
-   trailing zeros. *)
+(* [digits x] is [x] to three significant digits and at most four decimals,
+   without trailing zeros. *)
 let digits x =
   let decimals =
     if x <= 0. then 0
@@ -233,9 +217,6 @@ let digits x =
 
 let units = [| "k"; "M"; "G"; "T"; "P"; "E"; "Z"; "Y" |]
 
-(* A whole value below a million is written in full, another value below
-   ten thousand to three digits, and any other in thousands, millions and
-   so on. *)
 let value v =
   if not (Float.is_finite v) then Fmt.str "%g" v
   else
@@ -255,9 +236,8 @@ let value v =
     in
     if plain = "0" then plain else sign ^ plain
 
-(* A bar's column: the value above it, the bar, the label under it, and their
-   width. An empty bar on its baseline means zero, so no value is shown above
-   it. *)
+(* A bar's column: the value above, the bar, the label below, and their
+   width. A zero value shows no number: the empty bar already says it. *)
 let chart_column look ?style ~top (name, v) =
   let frac = if top > 0. then v /. top else 0. in
   let label = Widget.one_line (View_core.text name) in
@@ -270,10 +250,6 @@ let chart_column look ?style ~top (name, v) =
   let style = Option.map (fun f -> f name v) style in
   (at shown, vertical ?style ~width:w frac, at label, w)
 
-(* The bars take the room's height less the three lines around them, or
-   [height] if that is less, and 8 rows with neither. In a room too short for
-   the three lines, the values above the bars are left out first, then the
-   baseline, then the labels. Lines wider than the room are cut. *)
 let chart ?height ?scale ?style bars =
   let top =
     match scale with

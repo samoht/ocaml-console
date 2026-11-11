@@ -5,8 +5,8 @@
 
 (** Trees, drawn like the output of [tree].
 
-    Each node is on its own row, behind the {!Guide} lines that connect it to
-    its parent.
+    Each node is on its own row, after the {!Guide} lines that connect it to its
+    parent.
 
     {[
     let tree =
@@ -35,20 +35,21 @@ val label : t -> View.t
 (** [label t] is the label of [t]. *)
 
 val children : t -> t list
-(** [children t] are the sub-trees of [t], in order. *)
+(** [children t] is the sub-trees of [t], in order. *)
 
 (** {1:views Views} *)
 
 val view : ?guide:Guide.t -> ?indent:int -> t -> View.t
-(** [view t] draws [t] laid out in its room ({!View.fit}), each node on its own
-    lines, behind the lines of [guide] that connect it to its parent (defaults
-    to the guide of the formatter's theme, {!Theme.get}).
+(** [view t] draws [t], laid out in its room ({!View.fit}). Each node starts on
+    its own line, after the lines of [guide] that connect it to its parent.
+    [guide] defaults to the guide of the formatter's theme ({!Theme.get}).
 
-    - A label is laid out in the room its guides leave it. One wider than that
-      wraps, and the rest goes under its text, behind the lines that go on to
-      the node's next sibling. No line is wider than the room.
-    - [indent] (defaults to [0]) is the cells before the guides of every line
-      but the first line of the root: a display's task tree is a
-      [view ~indent:2], whose sub-tasks start under their parent's label.
+    - A label is laid out in the room that its guides leave. A label wider than
+      that wraps. Its next lines start under its text, after the guide lines
+      that continue to the node's next sibling. No line is wider than the room.
+    - [indent] (defaults to [0]) is the number of cells before the guides, on
+      every line except the first line of the root. For example, a display's
+      task tree is a [view ~indent:2], so sub-tasks start under their parent's
+      label.
 
     @raise Invalid_argument if [indent] is negative. *)

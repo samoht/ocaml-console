@@ -11,8 +11,8 @@ let deterministic () =
 
 type header = { width : int; height : int; term : string option }
 
-(* [utf_8 s] is [s] with each maximal ill-formed UTF-8 subpart as one U+FFFD.
-   It keeps the C1 controls, which [to_line] escapes. *)
+(* [utf_8 s] is [s] with each maximal ill-formed UTF-8 subpart replaced by
+   one U+FFFD. It keeps the C1 controls; [to_line] escapes them. *)
 let utf_8 = Event.replaced (fun _ -> true)
 
 let env =
@@ -57,8 +57,8 @@ let event =
   Jsont.t3 ~kind:"asciicast event" ~dec ~enc Jsont.json
 
 (* asciicast v2 writes non-printable code points as \uXXXX, but a JSON encoder
-   leaves the C1 controls as they are. In UTF-8 they are the byte pairs C2 80
-   to C2 9F, and no other character contains such a pair. *)
+   leaves C1 controls as they are. In UTF-8, C1 controls are the byte pairs
+   C2 80 to C2 9F, and no other character contains such a pair. *)
 let escape_c1 s =
   let b = Buffer.create (String.length s) in
   let n = String.length s in
@@ -75,7 +75,8 @@ let escape_c1 s =
   go 0;
   Buffer.contents b
 
-(* A time to the microsecond is written as short as it can be: 1.5, or 0. *)
+(* [%.15g] writes a time rounded to the microsecond in its shortest form,
+   such as 1.5 or 0. *)
 let to_line t v =
   match Jsont_bytesrw.encode_string ~number_format:"%.15g" t v with
   | Ok s -> escape_c1 s ^ "\n"

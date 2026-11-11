@@ -60,8 +60,8 @@ let sgr depth style =
   let down = Option.map (Color.sgr depth) in
   Sgr.start { style with fg = down style.fg; bg = down style.bg }
 
-(* The style that the enclosing [styled] calls have selected on a formatter.
-   An inner call adds its style to it, and selects it again when it ends. *)
+(* The style that the enclosing [styled] calls selected on a formatter. An
+   inner call adds its style to it, and selects it again when it ends. *)
 let current = Slot.v ~setting:false ()
 
 let styled style pp_v ppf v =

@@ -3,8 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* As in cmdliner and fmt: a non-empty NO_COLOR, or a TERM that is unset,
-   empty or dumb, turns colour off; otherwise a terminal gets colour. *)
+(* The same rules as cmdliner and fmt. *)
 let dumb ~getenv =
   match getenv "TERM" with None | Some ("" | "dumb") -> true | Some _ -> false
 
@@ -25,8 +24,8 @@ let depth ~getenv =
   | _, Some term when has ~affix:"256color" term -> `Ansi_256
   | _ -> `Ansi_16
 
-(* The locale's character set is that of the first of these variables that
-   is set and not empty, as setlocale(3) reads them. *)
+(* The locale comes from the first of these variables that is set and not
+   empty, in the order setlocale(3) reads them. *)
 let utf_8 ~getenv =
   let set name = match getenv name with Some "" -> None | v -> v in
   match List.find_map set [ "LC_ALL"; "LC_CTYPE"; "LANG" ] with

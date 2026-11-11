@@ -5,31 +5,30 @@
 
 let rain_glyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:.=*+-<>|/"
 
-(* The glyph of cell [p] in tenth [k] of a second. The same pair always
-   picks the same glyph, so a frame is a function of its time. The odd
-   multiplier scatters neighbouring cells over the glyphs, and the 30-bit
-   mask keeps the hash non-negative on a 31-bit int. *)
+(* [rain_glyph p k] is the glyph of cell [p] at tenth of a second [k]. It
+   depends only on [p] and [k], so a frame depends only on its time. The odd
+   multiplier spreads neighbouring cells over the glyphs. The 30-bit mask
+   keeps the hash non-negative on a 31-bit int. *)
 let rain_glyph p k =
   let h = ((p * 507224497) + (k * 40503)) land 0x3fffffff in
   String.make 1 rain_glyphs.[h mod String.length rain_glyphs]
 
-(* How many cells cell [p] is behind a head that runs [speed] cells a
-   second round a perimeter of [n] cells. *)
+(* [behind ~n ~speed elapsed p] is how many cells cell [p] is behind a head
+   that moves [speed] cells per second round a perimeter of [n] cells. *)
 let behind ~n ~speed elapsed p =
   let head = Float.to_int (Float.rem (elapsed *. speed) (Float.of_int n)) in
   (head - p + n) mod n
 
-(* A frame with no colour of the theme is drawn faint. A cell that motion
-   colours drops the faint attribute, so that its colour keeps its
-   contrast. *)
+(* A frame with no theme colour is drawn faint. A cell that the motion
+   colours loses the faint attribute, so its colour keeps its contrast. *)
 let base style = if Style.equal style Style.faint then Style.none else style
 let recolour c style = Style.(base style + fg c)
 let bright c style = Style.(base style + bold + fg c)
 
-(* A drop is a bold head in the main colour followed by a trail that fades
-   from the main colour to the muted one. The head and the two cells behind
-   it show random glyphs, but only on a straight line: a corner or a tee,
-   where lines meet, keeps its glyph so that the frame stays whole. *)
+(* A drop is a bold head in the accent colour, then a trail that fades from
+   the accent colour to the muted one. The head and the two cells behind it
+   show random glyphs, but only on straight lines. Corners and tees keep
+   their glyph, so the frame stays whole. *)
 let rain theme ~line ~n ~elapsed p style glyph =
   let d = behind ~n ~speed:15. elapsed p in
   let fade = min 12 (n - 1) in
@@ -46,9 +45,9 @@ let rain theme ~line ~n ~elapsed p style glyph =
     (recolour (Color.blend (Theme.accent theme) muted t) style, glyph)
   else (style, glyph)
 
-(* [colours] spread once round the frame, from the first at the top-left
-   corner back to it, moved clockwise at 8 cells a second for [elapsed]
-   seconds. *)
+(* [graded colours ~n ~elapsed] spreads [colours] once round the frame, from
+   the first colour at the top-left corner back to it. The gradient has moved
+   clockwise at 8 cells per second for [elapsed] seconds. *)
 let graded colours ~n ~elapsed p style glyph =
   let palette = Array.of_list colours in
   let k = Array.length palette and n = Float.of_int n in
@@ -65,8 +64,8 @@ let graded colours ~n ~elapsed p style glyph =
 let sweep theme ~line:_ ~n ~elapsed p style glyph =
   graded (Theme.palette theme) ~n ~elapsed p style glyph
 
-(* A lap takes four seconds, at a speed kept between 8 and 30 cells a second
-   so that the eye can follow it on any size of frame. *)
+(* A lap takes four seconds. The speed stays between 8 and 30 cells per
+   second, so the eye can follow it on a frame of any size. *)
 let shimmer theme ~line:_ ~n ~elapsed p style glyph =
   let speed = Float.min 30. (Float.max 8. (Float.of_int n /. 4.)) in
   let d = behind ~n ~speed elapsed p in
@@ -78,9 +77,9 @@ let shimmer theme ~line:_ ~n ~elapsed p style glyph =
 let cell_of = function `Rain -> rain | `Sweep -> sweep | `Shimmer -> shimmer
 
 (* Cells are numbered clockwise from the top-left corner: the top line, the
-   right edge, the bottom line from the right and the left edge from the
-   bottom. All the cells of one line of an edge wider than one cell share
-   its number. *)
+   right edge, the bottom line from right to left, then the left edge from
+   bottom to top. On an edge wider than one cell, the cells of one line share
+   a number. *)
 let position ~width ~height ~left ~right ~y x =
   if y = 0 then Some x
   else if y = height - 1 then Some (width + height - 2 + (width - 1 - x))
@@ -88,7 +87,8 @@ let position ~width ~height ~left ~right ~y x =
   else if x < left then Some ((2 * width) + height - 2 + (height - 2 - y))
   else None
 
-(* A border's gradient is still; the theme's motion draws over it. *)
+(* The border's gradient does not move. The theme's motion is drawn over
+   it. *)
 let frame (look : Look.t) ~time border ~left ~right ?(gaps = []) lines =
   let motion = Theme.motion look.theme and colours = Border.gradient border in
   match lines with
@@ -109,9 +109,9 @@ let frame (look : Look.t) ~time border ~left ~right ?(gaps = []) lines =
         let still =
           if colours = [] then None else Some (graded colours ~n ~elapsed:0.)
         in
-        (* When not live, a sweep keeps its colours at time 0, since they
-           cover the whole frame. Rain and a shimmer only highlight a few
-           cells, so they are not drawn. *)
+        (* When not live, a sweep is drawn at time 0, because it colours the
+           whole frame. Rain and shimmer only highlight a few cells, so they
+           are not drawn. *)
         let moving =
           Option.bind motion (fun motion ->
               let elapsed =

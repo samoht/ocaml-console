@@ -25,9 +25,9 @@ let v (type a) ?(setting = true) ?(watched = false) () : a t =
 
 type mark = Format.stag -> string
 
-(* A slot's tag function answers [Probe r] by storing itself in [r], with
-   whether only slots that are not settings lie under it. [unset] looks
-   through such slots this way. *)
+(* A slot's tag function answers [Probe r] by storing itself in [r], and
+   whether only non-setting slots lie below it. [unset] uses this to look
+   through such slots. *)
 type Format.stag += Probe of (mark * bool) option ref
 
 let format_marks =
@@ -46,8 +46,8 @@ let unset_marks (f : mark) =
 let unset ppf =
   unset_marks (Format.pp_get_formatter_stag_functions ppf ()).mark_open_stag
 
-(* The string a slot's tag function returns for its own tags. No other tag
-   function returns it, so [ask] can tell whether a slot answered. *)
+(* The string that a slot's tag function returns for its own tags. No other
+   tag function returns it, so [ask] can tell whether a slot answered. *)
 let ack = "\000console.slot"
 
 let ask s ppf op =
