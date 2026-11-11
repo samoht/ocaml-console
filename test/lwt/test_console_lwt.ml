@@ -466,8 +466,10 @@ let test_promises_outlive_their_run () =
     (seen ())
 
 (* Signals that the program handles with [Lwt_unix.on_signal] stay its own,
-   during a run and after it. *)
+   during a run and after it. Windows has no SIGTSTP, and its [Unix.kill] can
+   only send SIGKILL. *)
 let test_lwt_signal_handlers () =
+  if Sys.win32 then Alcotest.skip ();
   let signals = [ Sys.sigint; Sys.sigterm; Sys.sigtstp ] in
   let caught = ref [] and waiting = ref None in
   let handler s =
