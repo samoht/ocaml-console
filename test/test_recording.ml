@@ -129,15 +129,18 @@ let test_header () =
     {|{"version":2,"width":80,"height":24,"env":{"TERM":"a\"\n\u001B"}}|};
   (* RFC 8259 section 8.1: JSON text exchanged is UTF-8, whatever the bytes of
      the variable. A lead byte at the end of the value must not swallow the
-     closing quote. *)
-  List.iter
-    (fun term ->
-      check
-        ("a TERM that is not UTF-8: " ^ String.escaped term)
-        [ ("TERM", term) ]
-        (Fmt.str {|{"version":2,"width":80,"height":24,"env":{"TERM":"%s"}}|}
-           "\u{FFFD}"))
-    [ "\xc2"; "\xff"; "\xe2\x82" ]
+     closing quote. Windows stores the environment in UTF-16 and converts
+     bytes that are not UTF-8 through its code page, so it cannot hold these
+     bytes. *)
+  if not Sys.win32 then
+    List.iter
+      (fun term ->
+        check
+          ("a TERM that is not UTF-8: " ^ String.escaped term)
+          [ ("TERM", term) ]
+          (Fmt.str {|{"version":2,"width":80,"height":24,"env":{"TERM":"%s"}}|}
+             "\u{FFFD}"))
+      [ "\xc2"; "\xff"; "\xe2\x82" ]
 
 let test_events () =
   recording (fun file ->
