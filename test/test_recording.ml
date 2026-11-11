@@ -400,8 +400,10 @@ let test_standard_formatters () =
       same "stderr left alone" true (out_string Fmt.stderr == was_err))
 
 (* [start] ends the program on a file it cannot open, so it runs in a child;
-   what the child does to its environment and formatters stays there. *)
+   what the child does to its environment and formatters stays there. Windows
+   has no [fork]. *)
 let cannot_record ~before file =
+  if Sys.win32 then Alcotest.skip ();
   let log = Filename.temp_file "console-test-recording" ".log" in
   Fun.protect ~finally:(fun () -> Sys.remove log) @@ fun () ->
   Format.pp_print_flush Format.std_formatter ();
