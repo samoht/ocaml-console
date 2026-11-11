@@ -3,9 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A prompt reads its answers from an Eio flow, so that waiting for one
-   suspends the fiber instead of parking the domain, and writes its questions
-   on a formatter, as every other output of the library is written. *)
+(* A prompt reads its answers from an Eio flow, so waiting for an answer
+   suspends the fiber, not the whole domain. It writes its questions on a
+   formatter, like every other output of the library. *)
 
 type t = {
   interactive : bool;
@@ -14,13 +14,13 @@ type t = {
   ppf : Format.formatter;
 }
 
-(* The longest answer, in bytes. The cap keeps a source that never sends a
-   line feed from growing the buffer without bound; a longer line is an
-   [Error]. The buffer holds an answer and its CRLF. *)
+(* The longest answer, in bytes. Without this cap, a source that never sends a
+   line feed would grow the buffer without bound. A longer line is an [Error].
+   The buffer holds an answer and its CRLF. *)
 let max_answer = 4096
 
-(* Whether the input is a terminal is a property of its descriptor: a flow
-   with none, such as a string source or a mock's pipe, is not one. *)
+(* The input is a terminal if its descriptor is one. A flow with no
+   descriptor, such as a string source or a mock's pipe, is not a terminal. *)
 let terminal stdin =
   Option.bind (Eio_unix.Resource.fd_opt stdin) (fun fd ->
       if Eio_unix.Fd.use_exn "isatty" fd Unix.isatty then Some fd else None)
@@ -52,8 +52,8 @@ let line t question =
     (* The question goes out first, so it is on the terminal even when the
        answer never comes. *)
     Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
-    (* [Buf_read.line] would return an unterminated last line as a line, but
-       an answer cut short by the end of the input is [`End_of_input]. *)
+    (* [Buf_read.line] returns an unterminated last line as a line. Here, an
+       answer cut short by the end of the input is [`End_of_input]. *)
     let read () =
       let line = Eio.Buf_read.take_while (fun c -> c <> '\n') t.input in
       let answer =
@@ -67,9 +67,8 @@ let line t question =
         Some answer
       end
     in
-    (* The rest of the line is skipped, so that the next question reads the
-       line after it; skipping, unlike reading, keeps the buffer within its
-       cap. *)
+    (* Skip the rest of the line, so that the next question reads the next
+       line. Skipping, unlike reading, keeps the buffer within its cap. *)
     let too_long () =
       Eio.Buf_read.skip_while (fun c -> c <> '\n') t.input;
       (try Eio.Buf_read.char '\n' t.input with End_of_file -> ());
@@ -88,9 +87,9 @@ let confirm t question =
       | "y" | "yes" -> Ok true
       | _ -> Ok false)
 
-(* Echo is the terminal's own line discipline, so masking what is typed means
-   switching it off on the descriptor behind the input. Eio has no termios, so
-   that part is Unix; reading and writing stay on the prompt's flows. *)
+(* The terminal's line discipline does the echo. To mask what is typed, we
+   switch echo off on the descriptor behind the input. Eio has no termios, so
+   this part uses Unix. Reads and writes still use the prompt's flows. *)
 let masked_attributes attr =
   {
     attr with
@@ -136,20 +135,21 @@ let secret t question =
         Fmt.pf t.ppf "%s%!" (Console_text.sanitize question);
         Fun.protect ~finally:restore @@ fun () ->
         Console_driver.on_signals ~restore @@ fun () ->
-        (* [TCSAFLUSH] discards the input not read yet, as getpass(3) does:
-           the terminal echoed what was typed before the echo went off. *)
+        (* [TCSAFLUSH] discards the unread input, as getpass(3) does, because
+           the terminal already echoed what was typed before echo went off. *)
         Unix.tcsetattr fd Unix.TCSAFLUSH (masked_attributes original);
-        (* [read_masked] answers with an error past [max_answer] bytes, so
-           the editor's own cap is above it and never refuses a byte
+        (* [read_masked] returns an error after [max_answer] bytes. The
+           editor's own cap is above that, so the editor never refuses a byte
            first. *)
         let input = Console_input.v ~mask:"*" ~max_line:(max_answer + 1) () in
         read_masked t input 0
       with Unix.Unix_error (e, fn, _) ->
         Fmt.error_msg "%s: %s" fn (Unix.error_message e))
 
-(* The terminal sends keys as they are typed, without echo. While SIGTSTP
-   stops the program, [suspend] gives the terminal back as it was found, and
-   it sets the keys mode again once the program continues. *)
+(* In keys mode, the terminal sends keys as they are typed, without echo.
+   While SIGTSTP stops the program, [suspend] restores the original terminal
+   mode. It sets keys mode again when the program continues. *)
+
 let keys t f =
   match t.terminal with
   | None -> Error (`Msg "no terminal to read keys on")

@@ -7,7 +7,9 @@ module Prompt = Prompt
 
 let clock = Virtual_clock.clock
 
-(* The domain manager of deterministic mode: a new domain is a call. *)
+(* The domain manager of deterministic mode: it runs a new domain as a plain
+   function call. *)
+
 module Fibers = struct
   type t = unit
 

@@ -10,8 +10,9 @@
 /* Exported by the runtime, declared only under CAML_INTERNALS. */
 CAMLextern int caml_convert_signal_number(int);
 
-/* The address of the handler that the kernel holds for a signal, or 0 for
-   the default disposition and on Windows. */
+/* Returns the address of the kernel's handler for a signal. Returns 0 for the
+   default disposition, and always on Windows. */
+
 CAMLprim value console_driver_disposition(value signo) {
   intnat h = 0;
 #ifndef _WIN32

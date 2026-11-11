@@ -6,7 +6,7 @@
 let positive n = if n > 0 then Some n else None
 
 (* A display draws at most 4096 columns or rows, so a larger [$COLUMNS] or
-   [$LINES] is taken as unset. *)
+   [$LINES] counts as unset. *)
 let usable n = if n > 0 && n <= 4096 then Some n else None
 
 external window_size : Unix.file_descr -> int = "console_tty_window_size"
@@ -30,8 +30,8 @@ let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)
 
 (* POSIX XBD 8.3: when set, COLUMNS and LINES override the size of the terminal.
-   There is no [tput] fallback: it would fork only to read the termcap entry
-   that the shell already read. *)
+   There is no [tput] fallback, because it would fork just to read the termcap
+   entry that the shell already read. *)
 let width fd =
   first ~default:80
     [ (fun () -> dimension_of_env "COLUMNS" usable); width_of_ioctl fd ]
@@ -48,8 +48,6 @@ let asked () =
 
 let dimensions fd = (width fd, height fd)
 
-(* The descriptor that [ppf] writes to, when [ppf] is {!Fmt.stdout} or
-   {!Fmt.stderr}. *)
 let descriptor ppf =
   if ppf == Fmt.stdout then Some Unix.stdout
   else if ppf == Fmt.stderr then Some Unix.stderr
@@ -68,8 +66,8 @@ let device unix =
   | st -> Some st.Unix.st_rdev
   | exception Unix.Unix_error _ -> None
 
-(* The standard formatters on the same terminal as [unix], whose lines the
-   display prints above its region. A standard formatter on another terminal
+(* The standard formatters on the same terminal as [unix]. The display prints
+   their lines above its region. A standard formatter on another terminal
    writes straight out. *)
 let routed unix =
   let on_display std =
@@ -79,8 +77,9 @@ let routed unix =
   in
   List.filter on_display [ Fmt.stdout; Fmt.stderr ]
 
-(* macOS keeps hundreds of unused ttyp* to ttyw*, so its own ttys* come
-   before the other tty*, such as OpenBSD's pseudo-terminals. *)
+(* macOS has hundreds of unused ttyp* to ttyw* devices. So its own ttys*
+   devices come before the other tty* devices, such as OpenBSD's
+   pseudo-terminals. *)
 let device_names ~dev ~pts =
   let tty n = n <> "tty" && String.starts_with ~prefix:"tty" n in
   let macos, others =
@@ -89,10 +88,10 @@ let device_names ~dev ~pts =
   let in_dir dir = List.map (Filename.concat dir) in
   ("/dev/tty" :: in_dir "/dev/pts" pts) @ in_dir "/dev" (macos @ others)
 
-(* [reopened unix] is the terminal of [unix] opened again, found by its
-   device, so that the last resort is written on it without blocking and
-   without changing the flags of a descriptor that the program shares with
-   its shell. *)
+(* [reopened unix] finds the terminal of [unix] by its device and opens it
+   again. The last-resort sequence is then written without blocking, and
+   without changing the flags of a descriptor that the program shares with its
+   shell. *)
 let reopened unix =
   let rdev name =
     match Unix.stat name with
@@ -119,8 +118,8 @@ let reopened unix =
   match device unix with
   | None -> None
   | Some d ->
-      (* [stat] on /dev/tty gives the device of /dev/tty itself: only an
-         opened descriptor tells the device of the controlling terminal. *)
+      (* [stat] on /dev/tty gives the device of /dev/tty itself. Only an open
+         descriptor gives the device of the controlling terminal. *)
       List.find_map
         (fun name ->
           if name = "/dev/tty" || rdev name = Some d then opened d name
@@ -132,7 +131,6 @@ let file unix =
   | st -> Some (st.Unix.st_dev, st.Unix.st_ino)
   | exception Unix.Unix_error _ -> None
 
-(* The standard formatters that write where [unix] does. *)
 let sharing unix =
   let shares std =
     match (descriptor std, file unix) with
@@ -148,7 +146,8 @@ let cursor unix visible =
 
 let size ppf = Option.map (fun unix () -> dimensions (Some unix)) (of_ppf ppf)
 
-(* The widest a display draws, whatever the terminal says. *)
+(* The maximum width that a display draws, whatever the terminal reports. *)
+
 let max_width = 4096
 
 let width_of ppf =

@@ -6,8 +6,8 @@
 (** Console with {{:https://github.com/ocsigen/lwt}Lwt}.
 
     {!run} shows the tasks of a program ({!Console.Task}) on the terminal as
-    [Console_eio.run] does, with an Lwt promise in place of a fiber. The
-    documentation of [Console_eio] holds for it except where this one says
+    [Console_eio.run] does, but with an Lwt promise instead of a fiber. The
+    documentation of [Console_eio] applies, except where this page says
     otherwise.
 
     {[
@@ -34,19 +34,22 @@ val run :
   (Console.Task.t -> 'a Lwt.t) ->
   'a Lwt.t
 (** [run f] is the promise of [f root], with the work under [root] shown on
-    [ppf] until that promise resolves. Unless [f] ended it, [root] succeeds when
-    the promise resolves and fails when it is rejected, or is cancelled if the
-    rejection is [Lwt.Canceled]. [run] does not raise. Its promise is rejected
-    with the exception of [f] once the display has closed.
+    [ppf] until that promise resolves. Unless [f] already ended [root], [root]
+    succeeds when the promise resolves and fails when it is rejected. If the
+    rejection is [Lwt.Canceled], [root] is cancelled instead. [run] does not
+    raise. Its promise is rejected with the exception of [f] after the display
+    closes.
 
     The arguments are those of [Console_eio.run].
 
-    [Lwt.cancel] on [run]'s promise cancels the promise it waits on, that of [f]
-    or of the display's last writes, then the display closes as for any
-    rejection. A view that raises in a redraw cancels the promise of [f], if it
-    can be cancelled, and [run] is rejected with the view's exception.
+    [Lwt.cancel] on [run]'s promise cancels the promise that [run] waits on: the
+    promise of [f], or that of the display's last writes. Then the display
+    closes as for any rejection. If a view raises in a redraw, the promise of
+    [f] is cancelled, if it can be, and [run] is rejected with the view's
+    exception.
 
-    A [run] while another runs, nested or not, joins it as in [Console_eio]. *)
+    A [run] called while another run is active, nested or not, joins it as in
+    [Console_eio]. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
 (** [with_output f] is {!Console.Display.with_output} on the display of the run,
@@ -70,30 +73,31 @@ module Task : sig
     string ->
     (Console.Task.t -> 'a Lwt.t) ->
     'a Lwt.t
-  (** [run parent label f] is the promise of [f task], for a [task] that
-      {!Console.Task.run} starts. The task succeeds when the promise resolves
-      and fails when it is rejected, or is cancelled if the rejection is
-      [Lwt.Canceled]. [task] is current in [f] and in the promises that [f]
-      binds. [run] does not raise, and what [f] raises rejects the promise.
+  (** [run parent label f] is the promise of [f task], where {!Console.Task.run}
+      starts [task]. The task succeeds when the promise resolves and fails when
+      it is rejected. If the rejection is [Lwt.Canceled], the task is cancelled
+      instead. [task] is current in [f] and in the promises that [f] binds.
+      [run] does not raise: an exception from [f] rejects the promise.
 
-      {!Console.Task.within} also takes a function that returns a promise, and
-      makes the task current in the promises it binds. *)
+      {!Console.Task.within} also accepts a function that returns a promise, and
+      makes the task current in the promises that this function binds. *)
 end
 
 (** {1:lwt Lwt}
 
-    The current task and the run are bound with [Lwt.with_value], so that the
-    callbacks of a promise see those of the code that made the promise. A signal
-    that the program handles, with [Sys.signal] or [Lwt_unix.on_signal], is left
-    to it, as in [Console_eio].
+    The current task and the run are bound with [Lwt.with_value]. So the
+    callbacks of a promise see the task and the run of the code that made the
+    promise. A signal that the program handles, with [Sys.signal] or
+    [Lwt_unix.on_signal], is left to the program, as in [Console_eio].
 
     {1:limits Limitations}
 
-    - [run] is called on the thread that runs Lwt. Another thread or domain sees
-      no task: a message logged in another thread, such as one of
-      [Lwt_preemptive.detach], goes to the reporter installed before [run], and
-      one from another domain reaches the run outside any task.
-    - There is no deterministic mode: under [CONSOLE_DETERMINISTIC_CLOCK] or
-      [CONSOLE_CAST], [run] runs in real time, and a [CONSOLE_CAST] recording
-      carries the real times.
+    - Call [run] on the thread that runs Lwt. Another thread or domain sees no
+      task. A message logged in another thread, such as one of
+      [Lwt_preemptive.detach], goes to the reporter installed before [run]. A
+      message from another domain reaches the run outside any task.
+    - There is no deterministic mode. With [CONSOLE_DETERMINISTIC_CLOCK] or
+      [CONSOLE_CAST] set, [run] still uses real time, and a [CONSOLE_CAST]
+      recording has real times.
+
     - There is no prompt ([Console_eio.Prompt]). *)

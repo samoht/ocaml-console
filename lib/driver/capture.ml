@@ -19,16 +19,17 @@ type taken = {
   direct : unit -> bool;
   mutable out : Format.formatter_out_functions;
   mutable pass : Format.formatter_out_functions;
-      (* [out], seen by the display *)
-  held : Buffer.t; (* whole lines for above the region *)
+      (* [out], as the display watches it *)
+  held : Buffer.t; (* whole lines to write above the region *)
   root : line; (* the unended line outside any task *)
 }
 
 let taken : taken list Atomic.t = Atomic.make []
 let lines : (int, line) Hashtbl.t = Hashtbl.create 16
 
-(* The most bytes an unended line holds, the size of a channel's buffer. Past it,
-   the line goes out, cut between two characters and outside an escape code. *)
+(* The maximum size of an unended line: the size of a channel's buffer. A
+   longer line goes out cut, between two characters and outside any escape
+   code. *)
 let max_pending = 65536
 
 let safely f =
@@ -43,8 +44,9 @@ let take_from b k =
   Buffer.add_substring b all k (String.length all - k);
   String.sub all 0 k
 
-(* Adds [s] to [l], then gives [emit] the whole lines this ends, or the piece
-   cut off a line grown past [max_pending]. *)
+(* [add_to l s o len emit] adds the bytes to [l]. It then gives [emit] the
+   lines that are now complete or, if the line is longer than [max_pending],
+   the piece cut from it. *)
 let add_to l s o len emit =
   Buffer.add_substring l.pending s o len;
   let ends_a_line =
@@ -141,9 +143,11 @@ let take ~direct run ppf =
   in
   remember ()
 
-(* Before the first domain starts, Format gives [Fmt.stdout] and [Fmt.stderr] the
-   [out_string] and [out_flush] of a buffer per domain. This runs after that, so a
-   taken formatter is taken again over the new pair. *)
+(* Before the first domain starts, Format replaces the [out_string] and
+   [out_flush] of [Fmt.stdout] and [Fmt.stderr] with a buffer per domain. This
+   hook runs after that and captures these formatters again over the new
+   functions. *)
+
 let () =
   let rebase i =
     if i.ppf == Format.std_formatter || i.ppf == Format.err_formatter then begin
