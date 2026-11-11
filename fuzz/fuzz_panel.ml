@@ -7,7 +7,7 @@ open Alcobar
 open Console
 open Widget_harness
 
-(* A panel is no wider than the margin, turns its styles off, and a panel of
+(* A panel is no wider than the margin and turns its styles off. A panel of
    fixed width that fits the margin is a rectangle of that width. *)
 let test_fits s n m =
   let margin = 1 + abs (m mod 80) in
@@ -47,8 +47,8 @@ let test_wide_border n =
     (fun l -> check_eq ~pp:Fmt.int width (cells l))
     (String.split_on_char '\n' out)
 
-(* [Panel.view] refuses a padding near [max_int], with or without [expand]:
-   no box holds it, and computing the box's size would overflow. *)
+(* [Panel.view] refuses a padding near [max_int], with or without [expand].
+   No box can hold it, and the box size would overflow. *)
 let test_overflowing_padding n expand =
   let padding = max_int - (n mod 1024) in
   match Panel.view ~padding ~expand View.empty with

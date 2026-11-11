@@ -5,8 +5,8 @@
 
 open Env_harness
 
-(* [Colour] follows the colour rules of cmdliner and fmt, and reads the depth
-   the environment announces. *)
+(* [Colour] follows the colour rules of cmdliner and fmt. It reads the colour
+   depth from the environment. *)
 let test_colour_rules () =
   let env pairs name = List.assoc_opt name pairs in
   let renderer ~is_tty pairs =
@@ -87,9 +87,9 @@ let test_setup () =
             (Fmt.style_renderer Fmt.stdout = `None);
           Alcotest.(check bool) "the locale" true (Fmt.utf_8 Fmt.stderr)))
 
-(* [Env.setup] applies the rules of [Console_tty.setup] to any formatter, and
-   is told whether it is a terminal instead of asking Unix: a formatter on a
-   buffer, which no descriptor backs, gets colour when the caller says it is a
+(* [Env.setup] applies the rules of [Console_tty.setup] to any formatter. The
+   caller says whether it is a terminal; [Env.setup] does not ask Unix. So a
+   formatter on a buffer gets colour when the caller says it is a
    terminal. *)
 let test_env_setup () =
   let renderer ppf =
@@ -124,8 +124,6 @@ let test_env_setup () =
       Console.Env.ensure ~is_tty:true ppf;
       Alcotest.(check string) "a choice is kept" "none" (renderer ppf))
 
-(* [setup ~theme] gives both outputs the theme, and [setup] without one
-   keeps it. *)
 (* [setup ~theme] sets the program's theme. Both outputs and new formatters
    use it, and a later [setup ()] keeps it. *)
 let test_setup_theme () =
@@ -147,7 +145,7 @@ let test_setup_theme () =
       Console_tty.setup ();
       Alcotest.(check string) "kept" "nord" (theme Fmt.stderr))
 
-(* What [probe.exe mode] prints, in an environment that announces 256
+(* [probe mode] is the output of [probe.exe mode] in an environment with 256
    colours. *)
 let probe mode =
   let env =
@@ -168,8 +166,8 @@ let probe mode =
   ignore (Unix.close_process_full p);
   out
 
-(* [ensure] sets up an output on which the program chose nothing, and keeps a
-   choice the program made; giving the output a theme is not such a choice. *)
+(* [ensure] sets up an output if the program chose nothing for it, and keeps
+   the program's choice otherwise. Setting a theme is not such a choice. *)
 let test_ensure () =
   Alcotest.(check string) "nothing chosen" "none 256" (probe "plain");
   Alcotest.(check string) "a theme is not a choice" "none 256" (probe "themed");
@@ -188,7 +186,7 @@ let test_is_terminal () =
         (fun () ->
           Alcotest.(check bool) "a pipe" false (Console_tty.is_terminal w)))
 
-(* Only the standard outputs have a terminal behind them. *)
+(* [size] is [None] for a formatter other than the standard outputs. *)
 let test_size_of_a_pipe () =
   let ppf = Format.formatter_of_buffer (Buffer.create 16) in
   Alcotest.(check bool) "none" true (Option.is_none (Console_tty.size ppf))

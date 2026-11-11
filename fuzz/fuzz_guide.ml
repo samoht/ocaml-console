@@ -6,7 +6,7 @@
 open Alcobar
 open Console
 
-(* The accessors give back what [v] and [with_style] were given. *)
+(* The accessors return what [v] and [with_style] received. *)
 let test a b c d =
   let g = Guide.v ~branch:a ~last:b ~pipe:c ~space:d () in
   check

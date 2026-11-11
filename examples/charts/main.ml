@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (* Vertical bars: a week's load as a bar chart in a panel, then a few
-   metrics, each with a sparkline of its last readings and its current
+   metrics. Each metric has a sparkline of its last readings and its current
    value. [--theme] draws them in another theme. *)
 
 open Console
@@ -29,8 +29,8 @@ let metrics =
 
 let current values = Fmt.str "%.0f%%" (List.nth values (List.length values - 1))
 
-(* The readings are percentages: every sparkline spans 0 to 100, so a disk
-   12% full is a low bar, in the colour of a low value. *)
+(* The readings are percentages, so every sparkline spans 0 to 100. A disk
+   that is 12% full is a low bar, in the colour of a low value. *)
 let sparkline values = Bar.sparkline ~min:0. ~max:100. values
 
 let readings =

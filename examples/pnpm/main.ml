@@ -4,11 +4,11 @@
   ---------------------------------------------------------------------------*)
 
 (* An install that looks like pnpm's. The progress line and the box of a
-   running script are redrawn in place; what is done goes to the
-   scrollback as pnpm prints it: the packages added, the progress line once
-   done, a script's box once it ends, the dependencies added and the time
-   it all took. Pipe it through [cat] to see the lines a CI log gets, which
-   are pnpm's there too. *)
+   running script are redrawn in place. Finished work goes to the
+   scrollback, as pnpm prints it: the packages added, the final progress
+   line, a script's box when it ends, the dependencies added and the total
+   time. Pipe it through [cat] to see the lines a CI log gets; they also
+   match pnpm's. *)
 
 open Console
 
@@ -61,8 +61,9 @@ let packages n =
           paint added (String.make (min n width) '+'));
     ]
 
-(* Each package resolved is reused from the store or downloaded, four ticks
-   later; the packages are added once all are resolved and downloaded. *)
+(* Each resolved package is either reused from the store or downloaded
+   four ticks later. The packages are added once all are resolved and
+   downloaded. *)
 let fetch clock =
   let downloads = Queue.create () in
   let tick = ref 0 in
@@ -85,8 +86,8 @@ let fetch clock =
   fetching := false;
   Console_eio.print (progress_line ())
 
-(* A script runs as a task, labelled as pnpm names it, and its box shows
-   the task's last ten lines, also the box it leaves in the scrollback. *)
+(* A script runs as a task, labelled as pnpm names it. Its box shows the
+   task's last ten lines. It leaves the same box in the scrollback. *)
 type script = { label : string; dir : string; cmd : string }
 
 let scripts = ref []
@@ -127,7 +128,7 @@ let postinstall clock root ~dir ~cmd output =
       Task.log task line)
     output
 
-(* Off a terminal, a script's lines as pnpm appends them. *)
+(* Off a terminal, prints a script's lines as pnpm appends them. *)
 let plain e =
   match (Task.Event.task e, Task.Event.kind e) with
   | Some (_, [ label ]), `Start ->
@@ -167,7 +168,7 @@ let dependencies =
       [ ("esbuild", "0.21.5"); ("typescript", "5.5.4"); ("vite", "5.3.5") ] );
   ]
 
-(* What was added, and the time it all took, each after a blank line. *)
+(* What was added and the total time, each after a blank line. *)
 let summary elapsed =
   let package (name, version) =
     View.(paint added "+" ++ text (" " ^ name ^ " ") ++ paint grey version)

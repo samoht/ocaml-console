@@ -3,12 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A music player in the style of Winamp 2, drawn as a live display: the
-   elapsed time in LCD digits, the title scrolling past, a spectrum analyser
-   whose peaks fall slowly, the seek bar and the playlist. The music is
-   synthetic: each band of the spectrum is a few sines and seeded noise, so
-   every run draws the same frames. It plays the five seconds of the first
-   track and three of the second, then stops. *)
+(* A music player in the style of Winamp 2, drawn as a live display. It
+   shows the elapsed time in LCD digits, the title scrolling past, a
+   spectrum analyser with slowly falling peaks, the seek bar and the
+   playlist. The music is synthetic: each band of the spectrum is a few
+   sines plus seeded noise, so every run draws the same frames. It plays
+   all five seconds of the first track and three seconds of the second,
+   then stops. *)
 
 open Console
 
@@ -91,12 +92,14 @@ let loudness track rng band t =
   let noise = Random.State.float rng 0.24 -. 0.12 in
   (track.energy *. (0.7 -. (0.4 *. x) +. tone +. (0.45 *. kick))) +. noise
 
-(* The player moves on ten times a second, as the display redraws. *)
+(* The player advances ten times a second, as often as the display
+   redraws. *)
 let rate = 10
 let elapsed () = float player.ticks /. float rate
 let seconds () = player.ticks / rate
 
-(* Bars rise at once and drop fast; a peak stays, then falls ever faster. *)
+(* Bars rise at once and drop fast. A peak stays, then falls faster and
+   faster. *)
 let tick () =
   let p = player in
   p.ticks <- p.ticks + 1;
@@ -125,9 +128,9 @@ let lit s = paint green s
 let off s = View.role `Muted (View.text s)
 let glyph room utf_8 ascii = if Room.utf_8 room then utf_8 else ascii
 
-(* Each band is a bar two cells wide, its peak a line above it, and as many
-   bands show as fit. A bar takes the theme's palette up its height, as
-   Winamp colours its analyser. *)
+(* Each band is a bar two cells wide, with its peak as a line above it. As
+   many bands show as fit. Like Winamp's analyser, a bar takes the theme's
+   palette up its height. *)
 let spectrum room =
   let shown =
     match Room.width room with
@@ -163,8 +166,8 @@ let lcd room =
       (List.init 3 (fun r ->
            lit (String.concat " " (List.map (fun c -> (digit c).(r)) chars))))
 
-(* The title as Winamp scrolls it: one cell further at each step, round
-   and round. *)
+(* The title, scrolled as Winamp does it: one cell further at each step,
+   round and round. *)
 let marquee width title offset =
   let n = View.width title in
   let ring = View.concat (List.init ((width / n) + 2) (fun _ -> title)) in
@@ -220,7 +223,7 @@ let buttons room =
       View.hcat ~gap:2 [ off "EQ"; lit "PL" ];
     ]
 
-(* The screens of the player, black on its grey case. *)
+(* The player's screens: black on its grey case. *)
 let screen f =
   View.fit (fun room ->
       View.styled
@@ -251,8 +254,8 @@ let player_window =
          View.fit buttons;
        ])
 
-(* The playing track is marked as well as highlighted, so that it shows
-   without colour too. *)
+(* The playing track is marked as well as highlighted, so it shows without
+   colour too. *)
 let playlist_window =
   let entry room i t =
     let width = Option.value (Room.width room) ~default:60 in

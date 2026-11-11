@@ -26,8 +26,8 @@ let test_names () =
   | Error (`Msg m) ->
       Alcotest.(check bool) "names the choices" true (contains "quiet" m)
 
-(* What a display given [progress] prints for a task that succeeds, with a
-   line of output, and one that fails, with another, under a header. *)
+(* What a display with [progress] prints for two tasks under a header: one
+   succeeds and one fails, each with a line of output. *)
 let shown ?size progress =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -46,8 +46,8 @@ let shown ?size progress =
 
 let lines s = List.filter (( <> ) "") (String.split_on_char '\n' s)
 
-(* [`Quiet] prints the failure, its line and its output, and nothing else,
-   also when [size] says there is a terminal. *)
+(* [`Quiet] prints only the failure, its line and its output, even when
+   [size] reports a terminal. *)
 let test_quiet () =
   List.iter
     (fun size ->
@@ -64,14 +64,14 @@ let test_quiet () =
 
 let decode line = Jsont_bytesrw.decode_string Task.Event.jsont line
 
-(* Each line decodes with [Task.Event.jsont], and its event is written
-   as the line was. *)
+(* Each line decodes with [Task.Event.jsont], and its event encodes back to
+   the same line. *)
 let reads_back line =
   match decode line with
   | Ok e -> Alcotest.(check string) "written back" line (Task.Event.to_string e)
   | Error e -> Alcotest.failf "%S does not decode: %s" line e
 
-(* [`Json] prints one event a line, and nothing else. *)
+(* [`Json] prints one event per line, and nothing else. *)
 let test_json () =
   List.iter
     (fun size ->
@@ -89,8 +89,8 @@ let test_json () =
         (contains "\"status\":\"failed\"" out))
     [ None; Some (fun () -> (80, 24)) ]
 
-(* As JSON, each change of a count is one event, unthrottled, and a call
-   that changes nothing writes no event. *)
+(* In JSON, each change of a count writes one event, with no throttling. A
+   call that changes nothing writes no event. *)
 let test_json_counts () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -107,10 +107,10 @@ let test_json_counts () =
           (contains "\"event\":\"progress\"")
           (lines (Buffer.contents buf))))
 
-(* What a display given [`Json] writes for every kind of event: tasks under
-   tasks, counts and bytes, a new label, endings with and without a
-   message, output outside any task, awkward text and a result with its
-   detail, with the clock at [step] seconds a call. *)
+(* [events ~step result] is what a display with [`Json] writes for every
+   kind of event: nested tasks, counts and bytes, a new label, endings with
+   and without a message, output outside any task, awkward text, and a
+   result with its detail. The clock advances [step] seconds per call. *)
 let events ~step result =
   let buffer = Buffer.create 1024 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -145,7 +145,8 @@ let events ~step result =
   Format.pp_print_flush ppf ();
   lines (Buffer.contents buffer)
 
-(* Every line the display writes decodes, and is written back as it was. *)
+(* Every line the display writes decodes, and encodes back to the same
+   line. *)
 let test_json_reads_back () =
   List.iter
     (fun (step, result) ->
@@ -161,12 +162,12 @@ let test_json_reads_back () =
 
 module Event = Task.Event
 
-(* Two events are the same if they write the same line: [Event.t] is
-   abstract, and its line holds each of its members. *)
+(* Two events are equal if they write the same line. [Event.t] is abstract,
+   and its line holds all of its members. *)
 let same_event a b = String.equal (Event.to_string a) (Event.to_string b)
 let event time make = Event.to_string (make ~time)
 
-(* The line of each event, its members in order. *)
+(* The line of each event, with its members in order. *)
 let test_json_lines () =
   let check name expected kind =
     Alcotest.(check string) name expected (event 1.5 kind);
@@ -209,8 +210,8 @@ let test_json_lines () =
     "a time that is not finite" {|{"time":0,"event":"pause"}|}
     (event Float.nan (Event.other "pause"))
 
-(* A consumer skips the members, events and values it does not know, and an
-   event that lacks a member of its kind does not decode. *)
+(* A consumer skips the members, events and values it does not know. An
+   event that lacks a member its kind requires does not decode. *)
 let test_json_growth () =
   let kind line =
     match decode line with
@@ -234,8 +235,8 @@ let test_json_growth () =
     "a missing member" true
     (kind {|{"time":0,"event":"start","task":["x"]}|} = None)
 
-(* [`Plain] prints the lines of a pipe on a terminal too, and [`Auto] as
-   [size] says. *)
+(* [`Plain] prints pipe output even on a terminal. [`Auto] chooses from
+   what [size] reports. *)
 let test_plain () =
   let plain = shown `Plain in
   Alcotest.(check string)
@@ -247,7 +248,7 @@ let test_plain () =
     (String.contains plain '\027');
   Alcotest.(check bool) "a line for the success" true (contains "fine" plain)
 
-(* [`Tty] redraws the rows, on 80 by 24 without [size]. *)
+(* [`Tty] redraws the rows. Without [size], it assumes 80 by 24. *)
 let test_tty () =
   let hide = "\027[?25l" in
   Alcotest.(check bool) "tty hides the cursor" true (contains hide (shown `Tty));
@@ -255,7 +256,7 @@ let test_tty () =
     "auto on a terminal too" true
     (contains hide (shown ~size:(fun () -> (80, 24)) `Auto))
 
-(* Rounding the largest finite float to 15 digits must still read back. *)
+(* The largest finite float, rounded to 15 digits, still reads back. *)
 let test_json_max_float () =
   let e =
     Event.succeeded ~task:(0, [ "work" ]) ~time:Float.max_float
@@ -263,8 +264,8 @@ let test_json_max_float () =
   in
   reads_back (Event.to_string e)
 
-(* [`Other s] with [s] a listed value is that value; [other] refuses a
-   listed event name. *)
+(* [`Other s], where [s] is a listed value, equals that value. [other]
+   refuses a listed event name. *)
 let test_other_listed () =
   (match Event.other ~time:0. "start" with
   | _ -> Alcotest.fail "other took a listed event name"
@@ -309,8 +310,8 @@ let test_negative () =
       {|{"time":0,"event":"start","id":"-1","task":[]}|};
     ]
 
-(* An event of another name keeps its id and task when they have their
-   types, and skips any other member. *)
+(* An event with an unknown name keeps its id and task when they have the
+   right types, and skips any other member. *)
 let test_unknown_event_members () =
   let read line =
     match Event.of_string line with

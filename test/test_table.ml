@@ -20,7 +20,7 @@ let test_basic () =
   Alcotest.(check bool) "contains A" true (contains "A" output);
   Alcotest.(check bool) "contains 1" true (contains "1" output)
 
-(* Without a border or a theme, a table is framed as a panel is. *)
+(* Without a border or a theme, a table has the same frame as a panel. *)
 let test_default_border () =
   let table = Table.(view [ column (View.text "A") ] [ [ View.text "1" ] ]) in
   let panel = Panel.view (View.text "1") in
@@ -48,9 +48,10 @@ let test_wrap () =
   Alcotest.(check bool) "contains wraps" true (contains "wraps" output);
   Alcotest.(check bool) "no ellipsis" false (contains "…" output)
 
-(* A URL is one token, which a terminal selects whole. A table too narrow for
-   its natural width wraps another column at its spaces before it cuts the
-   URL; the width is still a hard bound when no column can wrap. *)
+(* A URL is one token, which a terminal selects whole. When a table is too
+   narrow for its natural width, it wraps another column at its spaces before
+   it cuts the URL. The width is still a hard limit when no column can
+   wrap. *)
 let test_wrap_preserves_unbroken_token () =
   let url = "https://rg.fr-par.scw.cloud/run-space" in
   let table =
@@ -66,7 +67,7 @@ let test_wrap_preserves_unbroken_token () =
   let output = View.to_string (View.sized ~width:(natural_width - 1) table) in
   Alcotest.(check bool) "URL remains contiguous" true (contains url output)
 
-(* [View.to_string] writes no escape code: colour comes from the formatter
+(* [View.to_string] writes no escape code. Colour comes from the formatter
    given to [pp], never from detecting a terminal. *)
 let test_string_conversion_is_plain () =
   let t =
@@ -84,8 +85,8 @@ let render renderer table =
   View.pp ppf table;
   Format.pp_print_char ppf '\n'
 
-(* [table] printed in colour at a margin of [width]: the bytes, and the rows
-   that are not blank. *)
+(* [styled_rows ~width table] prints [table] in colour at a margin of
+   [width]. It is the bytes and the rows that are not blank. *)
 let styled_rows ~width table =
   let raw =
     View_harness.capture @@ fun ppf ->
@@ -98,8 +99,8 @@ let styled_rows ~width table =
     String.split_on_char '\n' raw
     |> List.filter (fun row -> String.trim row <> "") )
 
-(* [table] printed on a formatter in [theme], in UTF-8 iff [utf_8], in
-   true colour iff [styled]. *)
+(* [printed table] is [table] printed on a formatter in [theme], in UTF-8
+   iff [utf_8], and in true colour iff [styled]. *)
 let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
   let buf = Buffer.create 128 in
   let ppf = Format.formatter_of_buffer buf in
@@ -113,9 +114,9 @@ let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* bar.mli: a bar in a cell is drawn in the theme and the UTF-8 of the
-   formatter the table is printed on, and a column narrower than the bar
-   narrows it. *)
+(* A bar in a cell uses the theme and the UTF-8 setting of the formatter
+   that prints the table. A column narrower than the bar makes the bar
+   narrower. *)
 let test_bar_cell () =
   let table ?overflow ?max_width bar =
     Table.view ~border:Border.none
@@ -150,9 +151,9 @@ let test_bar_cell () =
        (accent Theme.nord "\u{2501}\u{2501}")
        (printed ~theme:Theme.nord ~styled:true half))
 
-(* table.mli, to_span: without a width, a table as a span is laid out at
-   its natural width, so a short row's last cell, which runs to the end of
-   the line in a table without edges, is not aligned against an unbounded
+(* Without a width, a table used as a span is laid out at its natural
+   width. In a table without edges, a short row's last cell runs to the end
+   of the line; this keeps it from being aligned against an unbounded
    line. *)
 let test_span_natural_width () =
   let table =
@@ -172,7 +173,7 @@ let test_span_natural_width () =
     "as printed at its natural width" (View.to_string table)
     (View.to_string span)
 
-(* bar.mli, to_span: a bar alone as a span is drawn when printed. *)
+(* A bar alone, used as a span, is drawn when printed. *)
 let test_bar_span () =
   let buf = Buffer.create 16 in
   let ppf = Format.formatter_of_buffer buf in
@@ -264,11 +265,11 @@ let test_formatter_margin_never_wraps_border () =
     (List.length logical_rows, 0)
     (Console_vte.cursor_pos vte)
 
-(* Every margin is a hard limit: columns that do not shrink, minimum widths,
-   wide glyphs, combining marks, control bytes and malformed UTF-8 never take a
-   row past it, so the terminal never wraps a right border onto the next row.
-   Each margin from 4 to 80 is checked, to catch one-cell errors where the set
-   of columns shown changes. *)
+(* Every margin is a hard limit. Columns that do not shrink, minimum widths,
+   wide glyphs, combining marks, control bytes and malformed UTF-8 never push
+   a row past it, so the terminal never wraps a right border onto the next
+   row. The test checks each margin from 4 to 80, to catch one-cell errors
+   where the set of visible columns changes. *)
 let test_every_margin_is_a_hard_limit () =
   let hostile =
     [
@@ -321,9 +322,9 @@ let test_every_margin_is_a_hard_limit () =
           (List.exists
              (fun edge -> String.starts_with ~prefix:edge row)
              [ "╭"; "│"; "├"; "╰" ]);
-        (* Five columns and their borders take 16 cells at the least;
-           below that, every line is cut where it reaches the margin and
-           says so, rather than a column being left out. *)
+        (* Five columns and their borders need at least 16 cells. Below that,
+           each line is cut at the margin and marked as cut; no column is
+           left out. *)
         Alcotest.(check bool)
           (Fmt.str "right border or a cut at width %d" width)
           true
@@ -359,8 +360,8 @@ let test_invalid_shape () =
     (Invalid_argument "Console.Table.view: expected 1 to 2 cells, got 0")
     (fun () -> ignore (Table.view columns [ [] ]))
 
-(* A [~shrinkable:false] column keeps its full width when the table is fitted to
-   a narrow terminal; a shrinkable neighbour gives way instead. *)
+(* A [~shrinkable:false] column keeps its full width when the table fits a
+   narrow terminal. A shrinkable neighbour gets narrower instead. *)
 let test_shrinkable_protects_column () =
   let long_name = "a-very-long-package-name" in
   let detail = "1234567890" in
@@ -389,9 +390,9 @@ let test_shrinkable_protects_column () =
     "a shrinkable package name is cut at the same width" false
     (contains long_name (View.to_string (View.sized ~width:35 shrinkable)))
 
-(* A border with no glyphs draws no edge either: a row starts at its first
-   cell and ends at its last cell's text, so a listing pipes as it prints. A
-   right-aligned last column keeps its padding, which is on its left. *)
+(* A border with no glyphs also draws no edge. A row starts at its first cell
+   and ends at its last cell's text, so a listing looks the same in a pipe.
+   A right-aligned last column keeps its padding, which is on its left. *)
 let test_no_border_draws_no_edge () =
   let lines table =
     View.to_string table |> String.split_on_char '\n'
@@ -428,7 +429,8 @@ let test_no_border_draws_no_edge () =
        (of_string_rows ~border:Border.none [ col; col; col ]
           [ [ "fix"; "stuck"; "/pool" ]; [ "main"; ""; "" ] ]))
 
-(* [gap] is the spaces between two cells, a frame's glyph among them. *)
+(* [gap] is the number of spaces between two cells. A frame's glyph goes in
+   the middle of them. *)
 let test_gap () =
   let cols = [ Table.column (View.text "A"); Table.column (View.text "BB") ] in
   let rows = [ [ View.text "1"; View.text "2" ] ] in
@@ -452,8 +454,8 @@ let test_gap () =
     (Invalid_argument "Console.Table.view: negative gap") (fun () ->
       ignore (Table.view ~gap:(-1) cols rows))
 
-(* A column of a given width is that wide at its natural size, whatever its
-   cells, and narrows as a column as wide as its cells would. *)
+(* A column with a given width has that width at natural size, whatever its
+   cells. It narrows the same way as a column sized by its cells. *)
 let test_column_width () =
   let lines t = String.split_on_char '\n' (View.to_string t) in
   Alcotest.(check (list string))
@@ -494,9 +496,9 @@ let test_column_width () =
     (Invalid_argument "Console.Table.column: negative width") (fun () ->
       ignore (Table.column ~width:(-1) (View.text "A")))
 
-(* A cell that may be laid out narrower than its widest word, such as a
-   sparkline ([View.fit ~min_width]), lets its column narrow first, also
-   when its overflow wraps. *)
+(* A cell that can be narrower than its widest word, such as a sparkline
+   ([View.fit ~min_width]), lets its column narrow first, also when its
+   overflow wraps. *)
 let test_cell_min_width () =
   let spark = Bar.sparkline (List.init 20 float_of_int) in
   let narrow session =
@@ -536,7 +538,8 @@ let test_cell_min_width () =
     "a sparkline in a role" true
     (contains "Acme Corporation" (narrow (View.role `Succeeded spark)))
 
-(* A border in one style is one sequence per run of border glyphs. *)
+(* A border in one style uses one escape sequence per run of border
+   glyphs. *)
 let test_styled_border_runs () =
   let t =
     Table.view
@@ -598,9 +601,9 @@ let test_wide_border () =
       Alcotest.(check bool) "frame fits requested width" true (width <= 20))
     widths
 
-(* [rules] draws a rule between each two rows, after a row's last line, in
-   the glyphs and the style of the header's rule; a table without edges has
-   none. *)
+(* [rules] draws a rule between rows, after each row's last line, with the
+   glyphs and style of the header's rule. A table without edges has no
+   rules. *)
 let test_rules () =
   let table ?rules ?border () =
     Table.view ?rules ?border
@@ -634,10 +637,10 @@ let test_rules () =
   Alcotest.(check string)
     "in the header rule's style" (List.nth lines 2) (List.nth lines 4)
 
-(* [Border.simple] draws no frame: the columns two spaces apart, as in a
-   table without edges, and a rule under the header as wide as the table,
-   between the rows too with [rules], in ASCII on a formatter that is not
-   UTF-8. *)
+(* [Border.simple] draws no frame. The columns are two spaces apart, as in a
+   table without edges. A rule as wide as the table goes under the header,
+   and also between rows with [rules]. On a formatter that is not UTF-8,
+   the rule is ASCII. *)
 let test_simple () =
   let table ?rules () =
     Table.view ?rules ~border:Border.simple

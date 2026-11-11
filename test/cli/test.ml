@@ -11,8 +11,8 @@ let restore f =
         (fun ppf -> Fmt.set_style_renderer ppf `None)
         [ Fmt.stdout; Fmt.stderr ])
 
-(* Runs the command with [args]. Returns the exit code, whether the command
-   ran, and the program's theme. *)
+(* [run args] runs the command with [args]. It returns the exit code, whether
+   the command ran, and the program's theme. *)
 let run args =
   let ran = ref false in
   let cmd =

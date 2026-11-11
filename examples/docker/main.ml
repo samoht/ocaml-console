@@ -3,13 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A multi-stage image build, drawn as the tty progress of docker buildx
-   build: a header that counts the steps, one row per step with its time
-   against the right edge, the layers of a step under it, the last lines of a
-   running step faint under those, and the rows that ended in one colour. No
-   step leaves the region until the build ends, and the last frame stays.
-   Pipe it through [cat] to see the lines a CI log gets, those of BuildKit's
-   plain progress.
+(* A multi-stage image build, drawn like the tty progress of [docker buildx
+   build]. A header counts the steps. Each step has one row, with its time
+   against the right edge. The layers of a step go under its row, and the
+   last lines of a running step go under those, faint. An ended row is drawn
+   in one colour. No step leaves the region until the build ends, and the
+   last frame stays. Pipe it through [cat] to see the lines a CI log gets:
+   those of BuildKit's plain progress.
 
    The Dockerfile it builds:
    {v
@@ -29,7 +29,7 @@ open Console
 
 let tail_lines = 6
 
-(* The labels of the steps the cache answers. *)
+(* The labels of the steps served from the cache. *)
 let cached = Hashtbl.create 8
 let is_cached task = Hashtbl.mem cached (Task.label task)
 
@@ -37,7 +37,8 @@ let cached_step root name =
   Hashtbl.replace cached name ();
   Task.run root name ignore
 
-(* The steps the build knows of, which grows as the Dockerfile is read. *)
+(* The number of steps the build knows of. It grows as the Dockerfile is
+   read. *)
 let known = ref 1
 
 (* Sizes as docker prints them, in powers of 1000. *)
@@ -62,8 +63,8 @@ let prefix task =
   | _ when is_cached task -> "CACHED "
   | _ -> ""
 
-(* [name], cut to leave room for [status] after it, and [right] against the
-   right edge. *)
+(* [name], cut to leave room for [status] after it, then [right] against
+   the right edge. *)
 let line width ?(status = "") ?(right = "") style name =
   let cells s = View.width (View.text s) in
   let room = width - cells right in
@@ -117,8 +118,8 @@ let rows width step =
   in
   (row :: List.map action (Task.children step)) @ tail
 
-(* Set by [plain] off a terminal, where its lines already told the build:
-   the view is then empty, so the output ends with the last step, as
+(* [plain] sets this off a terminal, where its lines already show the
+   build. The view is then empty, so the output ends with the last step, as
    BuildKit's plain progress does. *)
 let plain_lines = ref false
 
@@ -136,9 +137,9 @@ let view root =
         in
         View.vcat (header width root :: rows))
 
-(* BuildKit's plain progress: each step is a vertex [#n], and a line of a
-   vertex follows a blank line and its name when another vertex printed last.
-   Output is timed from the start of its step. *)
+(* BuildKit's plain progress. Each step is a vertex [#n]. If another vertex
+   printed last, the vertex's line comes after a blank line and the vertex's
+   name. Output times count from the start of its step. *)
 type vertex = { n : int; name : string; started : float }
 
 let vertices = Hashtbl.create 16

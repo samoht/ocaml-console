@@ -15,11 +15,11 @@ let split s = String.split_on_char '\n' s
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 
-(* [above top root] is [top] above the default view of [root]; [top] loses
-   its lines first when the two do not fit. *)
+(* [above top root] is [top] above the default view of [root]. When the two
+   do not fit, [top] loses its lines first. *)
 let above top root = View.vcat [ top; Progress.view root ]
 
-(* [show ~now ppf] is a root timed by [now] and the display of its tasks on
+(* [show ~now ppf] is a root timed by [now], and a display of its tasks on
    [ppf]. *)
 let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
   let root, view = rooted ?label ?view now in
@@ -54,7 +54,7 @@ let test_plain_lines () =
     ]
     (split out)
 
-(* A line the display prints starts at the first column, even after the
+(* A line printed by the display starts at the first column, even when the
    program left a line unfinished on the same formatter. *)
 let test_plain_column () =
   let buffer = Buffer.create 64 in
@@ -71,8 +71,8 @@ let test_plain_column () =
     [ "partial"; "next"; "again"; "[-] t"; "[+] t  0.0s"; "after"; "" ]
     (String.split_on_char '\n' (Buffer.contents buffer))
 
-(* A task still running when the root ends ends with it: it is cancelled
-   when the root is cancelled, and succeeds when the root succeeds. *)
+(* A task still running when the root ends also ends. It is cancelled when
+   the root is cancelled, and succeeds when the root succeeds. *)
 let test_plain_unfinished () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -88,9 +88,8 @@ let test_plain_unfinished () =
       Task.succeed ~message:"done" d)
     [ "[-] left"; "[+] left  0.0s"; "[+] done"; "" ]
 
-(* Without a terminal, no colour tells a failure from a success, so the
-   closing line of a task that did not succeed names its outcome, in the
-   muted style of its time. *)
+(* Without a terminal, no colour shows a failure. So the last line of a task
+   that did not succeed names its outcome, in the muted style of its time. *)
 let test_plain_outcome_word () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -142,8 +141,8 @@ let test_plain_attribution () =
       "";
     ]
 
-(* A tab in a task's output goes to the next stop of eight columns from the
-   start of its line, so tabbed columns stay aligned. *)
+(* A tab in a task's output moves to the next multiple of eight columns
+   from the start of its line, so tabbed columns stay aligned. *)
 let test_tabs () =
   check_plain "tab stops"
     (fun d _ ->
@@ -236,8 +235,8 @@ let test_region () =
     "no bare line feed" false
     (Re.execp (Re.Perl.compile_pat "(^|[^\r])\n") (written t))
 
-(* A view with a table taller than the room: the table loses its first
-   lines, and the tasks and the summary stay. *)
+(* When a view has a table taller than the space, the table loses its first
+   lines. The tasks and the summary stay. *)
 let test_tall_header () =
   let t = terminal ~width:40 ~height:8 ~label:"S" () in
   let rows =
@@ -256,9 +255,9 @@ let test_tall_header () =
   Task.succeed a;
   close t
 
-(* In raw mode a line feed keeps the column. The display never relies on a
-   line feed to return the cursor, so a raw tty shows the same screen as a
-   cooked one. *)
+(* In raw mode a line feed keeps the column. The display never uses a line
+   feed to return the cursor, so a raw tty shows the same screen as a cooked
+   one. *)
 let test_raw_tty () =
   let run raw =
     let t = terminal ~theme ~width:40 ~label:"Build" ~raw () in
@@ -282,9 +281,9 @@ let test_raw_tty () =
   check_lines "the region after a line above it" later later';
   check_lines "the final screen" final final'
 
-(* The program left "Fetching " unended. The region starts on the next row,
-   so its first line, nearly as wide as the screen, does not wrap and a
-   repaint erases all of it. *)
+(* The program left "Fetching " without a line end. The region starts on the
+   next row. Its first line is nearly as wide as the screen, so it does not
+   wrap, and a repaint erases all of it. *)
 let test_after_a_partial_line () =
   let run before =
     let t = terminal ~theme ~width:40 ~before ~label:(String.make 28 'h') () in
@@ -303,8 +302,8 @@ let test_after_a_partial_line () =
     (used first');
   check_lines "the final screen" ("Fetching" :: final) final'
 
-(* While a task runs, its window shows its latest lines, logged and reported
-   alike, and cuts a line too wide for it. *)
+(* While a task runs, its window shows its latest lines, both logged and
+   reported. It cuts a line that is too wide. *)
 let test_window () =
   let t = roomy () in
   let wide = "wide " ^ String.make 40 'w' in
@@ -321,7 +320,7 @@ let test_window () =
   close t;
   check_lines "a success folds them all away" [ "[+] job   0.0s" ] (lines t)
 
-(* The cell where [needle] starts in [row]. *)
+(* [cell_of needle row] is the cell where [needle] starts in [row]. *)
 let cell_of needle row =
   let rec find i =
     if i + String.length needle > String.length row then
@@ -365,8 +364,9 @@ let test_label_truncated () =
   Alcotest.(check bool) "ellipsis" true (contains "\xe2\x80\xa6" row);
   Alcotest.(check bool) "fits" true (View.width (View.text row) <= 20)
 
-(* More running tasks than rows: the latest show, after a line that counts
-   the others, and the summary stays last. No redraw scrolls the terminal. *)
+(* With more running tasks than rows, the latest tasks show after a line
+   that counts the others. The summary stays last. No redraw scrolls the
+   terminal. *)
 let test_capped () =
   let t = terminal ~theme ~width:30 ~height:5 ~label:"H" () in
   let tasks =
@@ -389,8 +389,8 @@ let test_capped () =
   List.iter Task.cancel tasks;
   close t
 
-(* Eight running tasks with a log line each fit in eight rows exactly: the
-   windows give way and every task shows. With two rows fewer, only the
+(* Eight running tasks with one log line each fit in exactly eight rows: the
+   windows are dropped and every task shows. With two rows fewer, only the
    latest tasks show, after a line that counts the others. *)
 let test_marker_counts () =
   let run height =
@@ -426,7 +426,8 @@ let test_marker_fits () =
   let t = terminal ~theme ~width:12 ~height:4 () in
   let tasks = List.init 6 (fun i -> Task.start t.root (Fmt.str "t%d" i)) in
   Display.redraw t.display;
-  (* A row wider than the terminal would wrap onto a fourth row. *)
+  (* A row wider than the terminal would wrap onto a fourth row; there are
+     three. *)
   Alcotest.(check int)
     "three rows" 3
     (List.length (List.filter (( <> ) "") (screen t)));
@@ -451,7 +452,8 @@ let test_with_output () =
   Task.succeed a;
   close t
 
-(* Output without a line end is ended before the region is drawn again. *)
+(* The display ends output that has no line end before it draws the region
+   again. *)
 let test_with_output_partial () =
   let t = terminal ~theme ~width:30 () in
   let a = Task.start t.root "job" in
@@ -463,9 +465,9 @@ let test_with_output_partial () =
   Task.succeed a;
   close t
 
-(* Cursor moves in the program's output act above the region, and the
-   region is drawn whole below them, on rows it erases first. The tty is raw,
-   so a line feed does not return the cursor either. *)
+(* Cursor moves in the program's output act above the region. The region is
+   then drawn whole below them, on rows it erases first. The tty is raw, so a
+   line feed does not return the cursor. *)
 let test_with_output_moves () =
   List.iter
     (fun move ->
@@ -494,16 +496,16 @@ let test_redraw_idle () =
   Alcotest.(check int) "nothing written" before (writes t);
   close t
 
-(* A terminal that narrows reflows the old frame onto more rows; the redraw
-   moves up over all of them. *)
+(* When a terminal narrows, it reflows the old frame onto more rows. The
+   redraw moves up over all of them. *)
 let test_narrowing () =
   let t = terminal ~theme ~width:40 ~height:8 ~label:"Header" () in
   Display.print t.display (View.text "above");
   Task.set_items (Task.start t.root "job") ~count:1 ~total:4;
   Display.redraw t.display;
-  (* A terminal reflows what it holds when it narrows, and the cursor stays on
-     the last row: the task's row of 40 cells and the summary of 21 take four
-     rows at 20. *)
+  (* When a terminal narrows, it reflows its content and the cursor stays on
+     the last row. At 20 columns, the task's row of 40 cells and the summary
+     of 21 take four rows. *)
   let wide = Console_vte.v ~rows:8 ~cols:40 () in
   Console_vte.feed wide (written t);
   let held = List.filter (( <> ) "") (Console_vte.screen wide) in
@@ -571,7 +573,7 @@ let test_nested () =
     ]
     (List.map untimed (lines t))
 
-(* A task that its parent ends still says how it ended, on a pipe too. *)
+(* A task ended by its parent still shows how it ended, also on a pipe. *)
 let test_nested_plain () =
   check_plain "a start line and an end line each"
     (fun d _ ->
@@ -603,8 +605,8 @@ let test_keys_and_transient () =
       Task.succeed (Task.start ~transient:true d "gone"))
     [ "[-] first"; "[+] first  0.0s"; "[-] third"; "[+] third  0.0s"; "" ]
 
-(* A [Task.run] that finds its key running enters that task and ends
-   nothing: the task ends as the call that started it says. *)
+(* If a task with the same key is running, [Task.run] enters that task and
+   ends nothing. The task ends as the call that started it says. *)
 let test_with_task_shared_key () =
   check_plain "one task, ended once by the first"
     (fun d _ ->
@@ -658,7 +660,7 @@ let test_label_style () =
     "faint" "\027[2mjob\027[0m"
     (drawn Progress.Layout.(label ~style:Style.faint ()))
 
-(* A running bar is in the accent colour; once its task ended, a bar is
+(* A running bar is in the accent colour. Once its task ends, the bar is
    muted for a success and in the failure colour for a failure. *)
 let test_ended_bar_colour () =
   let root = Task.root ~now:(fun () -> 0.) () in
@@ -680,7 +682,7 @@ let test_ended_bar_colour () =
   has "a success, muted" "\027[2m" passed;
   has "a failure, in red" "\027[31m" failed
 
-(* [pp_bytes] formats a count of bytes as a row's count and rate do. *)
+(* [pp_bytes] formats a count of bytes like the count and rate of a row. *)
 let test_pp_bytes () =
   List.iter
     (fun (n, s) ->
@@ -694,8 +696,8 @@ let test_pp_bytes () =
       (-1L, "0 B");
     ]
 
-(* A count of bytes is never wider than "1023.99 KiB", the width at which the
-   count and rate columns open. *)
+(* A count of bytes is never wider than "1023.99 KiB". The count and rate
+   columns open at that width. *)
 let test_bytes_width () =
   let widest = String.length "1023.99 KiB" in
   let check n =
@@ -713,8 +715,8 @@ let test_bytes_width () =
     done
   done
 
-(* [advance] adds to the count and keeps the total, as indicatif's inc,
-   Rich's Progress.advance and tqdm's update do. *)
+(* [advance] adds to the count and keeps the total, like indicatif's inc,
+   Rich's Progress.advance and tqdm's update. *)
 let test_advance () =
   let root = Task.root ~now:(fun () -> 0.) () in
   let progress = Alcotest.testable Fmt.nop ( = ) in
@@ -748,9 +750,9 @@ let test_advance () =
   Task.advance root;
   check "the root counts nothing" `Spin root
 
-(* [pp_duration] formats a duration as a row's elapsed time does: seconds,
-   then minutes and seconds, then hours and minutes, a value that rounds up
-   to the next unit shown in that unit. *)
+(* [pp_duration] formats a duration like the elapsed time of a row: seconds,
+   then minutes and seconds, then hours and minutes. A value that rounds up
+   to the next unit is shown in that unit. *)
 let test_pp_duration () =
   List.iter
     (fun (secs, s) ->
@@ -786,8 +788,8 @@ let test_layout_choose () =
   Task.succeed b;
   close t
 
-(* The label column counts the labels the rows draw: a running row whose
-   layout has no label does not widen it. *)
+(* The label column measures only the labels that rows draw. A running row
+   with no label in its layout does not widen it. *)
 let test_label_column_drawn () =
   let layout =
     Progress.Layout.(
@@ -805,8 +807,8 @@ let test_label_column_drawn () =
   Task.succeed b;
   close t
 
-(* A transient task that succeeded leaves the tree and the children of its
-   parent, its line and all. *)
+(* A transient task that succeeded leaves the tree and its parent's
+   children, with its line. *)
 let test_transient_child_leaves () =
   let t = terminal ~theme ~width:60 () in
   let parent = Task.start t.root "resolve" in
@@ -825,8 +827,8 @@ let test_transient_child_leaves () =
   Task.succeed parent;
   close t
 
-(* With [keep_ended], the tasks that ended stay on a pipe too, so that the
-   last frame sees them. *)
+(* With [keep_ended], ended tasks stay also on a pipe, so the last frame
+   sees them. *)
 let test_keep_ended_plain () =
   let children = ref [] in
   let view root =
@@ -844,7 +846,7 @@ let test_keep_ended_plain () =
   in
   check_lines "the step's tasks, at the end" [ "layer" ] !children
 
-(* A count near [max_int] still shows its share. *)
+(* A count near [max_int] still shows its percentage. *)
 let test_large_counts () =
   let layout =
     Progress.Layout.(list [ label (); const (View.text " "); percent ])
@@ -885,8 +887,8 @@ let test_invalid () =
   Display.close display
 
 (* [size] has no documented bound, and a terminal reports what it is told
-   ($COLUMNS under [`Tty] without a terminal): a display of any width runs,
-   and writes in proportion to what it draws, not to the width. *)
+   ($COLUMNS under [`Tty] without a terminal). A display of any width runs.
+   It writes in proportion to what it draws, not to the width. *)
 let test_any_width () =
   List.iter
     (fun w ->
@@ -909,8 +911,8 @@ let test_any_width () =
           Printexc.raise_with_backtrace e bt)
     [ 1_000_000; Sys.max_string_length; max_int ]
 
-(* A closed display ignores a fiber that outlives it or a library that holds
-   on to it: nothing raises and nothing is written. *)
+(* A closed display ignores calls from a fiber that outlives it or a library
+   that keeps it: nothing raises and nothing is written. *)
 let test_closed () =
   let t = terminal ~theme ~label:"Build" () in
   let d = t.display in
@@ -943,13 +945,13 @@ let test_colours () =
   Task.fail a;
   close t;
   let out = written t in
-  (* The default theme's red is the terminal's own. *)
+  (* The red of the default theme is the terminal's own red. *)
   Alcotest.(check bool) "red failure" true (contains "\027[1;31m" out);
   Alcotest.(check bool) "styles closed" true (contains "\027[0m" out)
 
-(* Under a running task's row, a printed line and a Logs message below the
-   warning level are muted: faint in the default theme. A warning or an error
-   keeps its mark's colour and its text is not muted. *)
+(* Under a running task's row, printed lines and Logs messages below the
+   warning level are muted (faint in the default theme). A warning or an
+   error keeps the colour of its mark, and its text is not muted. *)
 let test_log_muted () =
   let t = terminal ~styled:true ~width:40 ~height:10 () in
   Task.run ~log_lines:4 t.root "job" (fun job ->
@@ -973,8 +975,8 @@ let test_log_muted () =
         (contains "\027[1;31m\u{2717}\027[0m push failed" out));
   close t
 
-(* The output of a failed task goes to the scrollback, where it is read:
-   it is not muted. *)
+(* The output of a failed task goes to the scrollback for reading, so it is
+   not muted. *)
 let test_failure_not_muted () =
   let t = terminal ~styled:true ~width:40 ~height:10 () in
   let job = Task.start t.root "job" in
@@ -988,8 +990,8 @@ let test_failure_not_muted () =
     (contains "\027[0m Error: unbound value x\r\n" out);
   Alcotest.(check bool) "not faint" false (contains "\027[2mError" out)
 
-(* A theme with a muted colour draws the lines under a running task's row
-   in that colour, not faint. *)
+(* In a theme with a muted colour, the lines under a running task's row use
+   that colour, not faint. *)
 let test_log_muted_colour () =
   let t = terminal ~theme:Theme.nord ~styled:true ~width:40 ~height:10 () in
   Task.run t.root "job" (fun job ->
@@ -1003,7 +1005,8 @@ let test_log_muted_colour () =
   close t
 
 (* On a terminal wider than 100 columns, the rows and the lines of ended
-   tasks keep to 100, so that a count and a timer stay near their label. *)
+   tasks use at most 100 columns, so a count and a timer stay near their
+   label. *)
 let test_wide () =
   let t = terminal ~width:160 ~height:8 () in
   let task = Task.start t.root ("compile " ^ String.make 62 'x') in
@@ -1018,9 +1021,9 @@ let test_wide () =
     "the line it ends on" 100
     (List.fold_left max 0 (widths ()))
 
-(* On a terminal, each write of the display is one synchronized update, so
-   that a terminal that knows the mode shows a frame whole; a pipe gets no
-   such escape. *)
+(* On a terminal, each write of the display is one synchronized update, so a
+   terminal that supports the mode shows a whole frame. A pipe gets no such
+   escape. *)
 let test_synchronized () =
   let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
   let t = terminal ~label:"Build" () in
@@ -1044,8 +1047,8 @@ let test_synchronized () =
   let (), out = plain (fun d _ -> Task.succeed (Task.start d "a")) in
   Alcotest.(check bool) "none on a pipe" false (contains "?2026" out)
 
-(* On a pipe there is no window: a task says when it starts, each of its lines
-   comes at once after its label, and it says when it ends. *)
+(* On a pipe there is no window. A task prints a line when it starts, each
+   of its lines at once after its label, and a line when it ends. *)
 let test_pipe_lines () =
   check_plain "in turn, each after its task's label"
     (fun d _ ->
@@ -1062,9 +1065,9 @@ let test_pipe_lines () =
       "";
     ]
 
-(* On a pipe, [plain] gives the lines printed for the tasks' events, in
-   place of the tasks' own lines and output; the root's output and the last
-   frame print as before. A terminal ignores [plain]. *)
+(* On a pipe, [plain] gives the lines printed for task events. They replace
+   the tasks' own lines and output. The root's output and the last frame
+   print as before. A terminal ignores [plain]. *)
 let test_plain_own_lines () =
   let plain e =
     match (Task.Event.kind e, Task.Event.task e) with
@@ -1093,9 +1096,9 @@ let test_plain_own_lines () =
     "rows on a terminal" true
     (List.exists (contains "[+] job") (lines t))
 
-(* With [delay], the region shows only once the display has run that long,
-   while what is printed goes out at once; a run that ends sooner leaves
-   only its last frame. *)
+(* With [delay], the region shows only after the display has run that long.
+   Printed output goes out at once. A run that ends sooner leaves only its
+   last frame. *)
 let test_delay () =
   let t = terminal ~theme ~label:"Build" ~delay:0.5 () in
   let job = Task.start t.root "job" in
@@ -1135,8 +1138,8 @@ let test_pipe_start () =
     (split (Buffer.contents buffer));
   Display.close display
 
-(* A line the program printed wraps as the terminal wraps it, mid-word,
-   while a line after a mark goes on under its text, between words. *)
+(* A line printed by the program wraps like the terminal wraps it, mid-word.
+   A line after a mark wraps between words and continues under its text. *)
 let test_root_line_wraps () =
   let t = terminal ~theme ~width:10 ~height:6 () in
   Task.log t.root "Get:1 [72.7 kB]";
@@ -1146,8 +1149,8 @@ let test_root_line_wraps () =
     [ "Get:1 [72."; "7 kB]"; "! aaaa"; "  bbbbbbb" ]
     (lines t)
 
-(* On a terminal, a task that succeeds drops its output, the lines that
-   left its window too. *)
+(* On a terminal, a task that succeeds drops all its output, including the
+   lines that left its window. *)
 let test_success_drops () =
   let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
@@ -1160,8 +1163,8 @@ let test_success_drops () =
   close t;
   check_lines "only its line" [ "[+] job   0.0s" ] (lines t)
 
-(* A task that fails prints all its output under its line, in one
-   block, without its label and not cut: a line too wide goes on over the
+(* A task that fails prints all its output under its line, in one block,
+   without its label and not cut. A line that is too wide continues on the
    rows below. [Task.run] fails its task when its function raises. *)
 let test_failure_block () =
   let t = roomy () in
@@ -1192,8 +1195,8 @@ let test_failure_block () =
     "no label under the line" false
     (List.exists (contains "job:") (List.tl rows))
 
-(* The block holds the latest lines, at most 1 MiB of them, and one line
-   says how many were dropped. *)
+(* The block holds the latest lines, at most 1 MiB. One line says how many
+   lines were dropped. *)
 let test_failure_cap () =
   let t = terminal ~theme ~width:40 ~height:10 () in
   let job = Task.start t.root "job" in
@@ -1224,8 +1227,8 @@ let test_failure_cap () =
     (contains (Fmt.str "%d lines dropped" first) out);
   close t
 
-(* On a pipe nothing is kept: every line was printed when it came, and
-   none is printed again under the failure. *)
+(* On a pipe nothing is kept. Every line was printed when it came, and none
+   is printed again under the failure. *)
 let test_failure_plain () =
   let n = 2000 in
   let (), out =
@@ -1246,8 +1249,9 @@ let test_failure_plain () =
     [ "[x] job  0.0s  failed"; "" ]
     tail
 
-(* A cancelled task, as Ctrl-C cancels them all, prints all its output
-   under its line as a failure does, the lines that left its window too. *)
+(* A cancelled task (Ctrl-C cancels all of them) prints all its output under
+   its line, as a failure does. This includes the lines that left its
+   window. *)
 let test_cancelled_output () =
   let t = roomy () in
   let job = Task.start ~log_lines:2 t.root "job" in
@@ -1266,9 +1270,9 @@ let test_cancelled_output () =
       Task.cancel job)
     [ "[-] job"; "  # job: a"; "[~] job  0.0s  cancelled"; "" ]
 
-(* Output logged to the root goes above the rows at once and stays, while a
-   task runs, when that task fails and after the root ended. The root counts
-   nothing, and only its first ending counts. *)
+(* Output logged to the root goes above the rows at once and stays there:
+   while a task runs, when that task fails, and after the root ends. The
+   root counts nothing, and only its first end counts. *)
 let test_root () =
   let t = roomy () in
   let d = t.root in
@@ -1328,9 +1332,9 @@ let test_root () =
       "";
     ]
 
-(* [within task f] makes a task that runs current for [f], and ends nothing:
-   what [f] prints and the tasks it starts are [task]'s, also when [f]
-   raises. *)
+(* [within task f] makes the running [task] current for [f] and ends
+   nothing. What [f] prints and the tasks it starts belong to [task], also
+   when [f] raises. *)
 let test_within () =
   check_plain "the lines of the task given"
     (fun d _ ->
@@ -1362,8 +1366,8 @@ let test_within () =
       "";
     ]
 
-(* Two tasks that run at once: on a terminal each block is printed under
-   its own line, never interleaved with the other's. *)
+(* When two tasks run at once on a terminal, each block is printed under its
+   own line and never mixed with the other. *)
 let test_two_tasks () =
   let t = roomy () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
@@ -1377,9 +1381,9 @@ let test_two_tasks () =
     [ "[x] a"; "  # a1"; "  # a2"; "[x] b"; "  # b1"; "  # b2" ]
     (List.map untimed (lines t))
 
-(* [Task.run]: the task is current for its function, so tasks and messages
-   inside it go under it; it succeeds when the function returns, unless the
-   function ended it first. *)
+(* [Task.run] makes the task current for its function, so tasks and messages
+   inside it go under it. The task succeeds when the function returns,
+   unless the function ended it first. *)
 let test_with_task () =
   let v, out =
     plain ~theme (fun d _ ->
@@ -1423,8 +1427,8 @@ let test_with_task () =
       "";
     ]
 
-(* A task that [Task.run] fails when its function raises says why, in its
-   line and in its JSON end event. *)
+(* When its function raises, [Task.run] fails the task. The task gives the
+   reason in its line and in its JSON end event. *)
 let test_with_task_reason () =
   let run progress =
     let buf = Buffer.create 256 in
@@ -1445,8 +1449,8 @@ let test_with_task_reason () =
     (contains "\"status\":\"failed\",\"elapsed\":0,\"message\":\"fetch: Failure"
        (run `Json))
 
-(* [children t] are the tasks under [t], the top tasks for the root; a task
-   that ended stays among them while its top task runs. *)
+(* [children t] are the tasks under [t]; for the root, the top tasks. An
+   ended task stays among them while its top task runs. *)
 let test_children () =
   let t = terminal ~theme ~width:40 ~height:10 () in
   let d = t.root in
@@ -1461,8 +1465,8 @@ let test_children () =
   Alcotest.(check int) "none under b" 0 (List.length (Task.children b));
   close t
 
-(* [output] is the lines a task keeps, oldest first, and [dropped] counts
-   the oldest it let go past 1 MiB; a task that succeeded keeps none, and
+(* [output] is the lines a task keeps, oldest first. [dropped] counts the
+   oldest lines dropped past 1 MiB. A task that succeeded keeps no lines, and
    the root has none. *)
 let test_output () =
   let t = terminal ~theme ~width:40 ~height:10 () in
@@ -1493,8 +1497,8 @@ let test_output () =
   Task.succeed top;
   close t
 
-(* [rate] is the count per second that the rate column shows, [None] before
-   the task counts. *)
+(* [rate] is the count per second shown in the rate column. It is [None]
+   before the task counts. *)
 let test_rate () =
   let t = terminal ~theme ~width:100 () in
   let job = Task.start t.root "job" in
@@ -1510,7 +1514,7 @@ let test_rate () =
   Task.succeed job;
   close t
 
-(* A task whose count follows a list. *)
+(* A task that counts the items of a list. *)
 let test_iter () =
   let seen = ref [] in
   let (), out =
@@ -1539,8 +1543,8 @@ let steps =
       [ View.text "compile"; View.text "3.4s" ];
     ]
 
-(* [printed ~margin pp v] is the lines [pp] prints of [v] on a formatter in
-   [theme], at [margin]. *)
+(* [printed ~margin pp v] is the lines that [pp] prints for [v] on a
+   formatter with [theme] and [margin]. *)
 let printed ?(theme = theme) ~margin pp v =
   split
     ( capture @@ fun ppf ->
@@ -1550,21 +1554,21 @@ let printed ?(theme = theme) ~margin pp v =
 
 let table ~width = View.sized ~width:(min width 100) steps
 
-(* [fit root f] is the view [f root ~width ~height], where [width] and
-   [height] are those of the display's region. *)
+(* [fit root f] is the view [f root ~width ~height], with the [width] and
+   [height] of the display's region. *)
 let fit root f =
   View.fit (fun room ->
       let width = Option.value (Room.width room) ~default:80
       and height = Option.value (Room.height room) ~default:max_int in
       f root ~width ~height)
 
-(* The default view in a room [width] wide and [height] tall. *)
+(* [default root ~width ~height] is the default view of [root] in a space
+   [width] wide and [height] tall. *)
 let default root ~width ~height = View.sized ~width ~height (Progress.view root)
 
-(* A view set on the display takes the region: here a table above the
-   default view, which is the tree of the tasks and then the summary, the
-   last line. The view is given the terminal's width and its height less
-   one. *)
+(* A view set on the display fills the region. Here it is a table above the
+   default view: the tree of the tasks, then the summary on the last line.
+   The view gets the terminal's width and its height minus one. *)
 let test_view () =
   let t = terminal ~theme ~width:40 ~height:12 ~label:"Build" () in
   let heights = ref [] in
@@ -1584,8 +1588,8 @@ let test_view () =
     (contains "[-] Build" (List.nth rows (n + 1)));
   Alcotest.(check int) "the room" 11 (List.hd !heights)
 
-(* A view line wider than the terminal is cut, and a view taller than the
-   room loses its first lines, so that the summary at its bottom stays. *)
+(* A view line wider than the terminal is cut. A view taller than the space
+   loses its first lines, so the summary at its bottom stays. *)
 let test_view_fits () =
   let t = terminal ~theme ~width:20 ~height:6 ~label:"Build" () in
   let tall = View.text "a view line much wider than twenty\nb\nc\nd\ne\nf" in
@@ -1608,9 +1612,9 @@ let test_view_fits () =
     (screen t);
   close t
 
-(* On a terminal too short for the view, the view loses its first lines,
-   and a table cut in its height is dropped whole, also beside text in an
-   [hcat]: the region shows no fragment of its frame. *)
+(* On a terminal too short for the view, the view loses its first lines. A
+   table that would be cut in height is dropped whole, also next to text in
+   an [hcat], so the region shows no part of its frame. *)
 let test_view_short () =
   let t = terminal ~theme ~width:40 ~height:6 ~label:"Build" () in
   let table = View.sized ~width:30 steps in
@@ -1637,8 +1641,8 @@ let test_view_short () =
     (List.filteri (fun i _ -> i < 2) (screen t));
   close t
 
-(* On a wide terminal the view is given its width, and the tree keeps to
-   100 columns. *)
+(* On a wide terminal the view gets the full width, and the tree uses at
+   most 100 columns. *)
 let test_view_width () =
   let t = terminal ~theme ~width:160 () in
   let given = ref 0 in
@@ -1655,8 +1659,8 @@ let test_view_width () =
     "the row" 100
     (Console_width.string_width (List.hd (screen t)))
 
-(* The default view and the summary take the width they are given, so a
-   view puts them in a column narrower than the terminal. *)
+(* The default view and the summary use the width they are given, so a view
+   can put them in a column narrower than the terminal. *)
 let test_default_view_column () =
   let t = terminal ~theme ~width:120 ~height:12 ~label:"Building" () in
   let panel = View.sized ~width:30 (Panel.view (View.text "status")) in
@@ -1677,7 +1681,7 @@ let test_default_view_column () =
     && List.exists (contains "status") (screen t));
   close t
 
-(* Widgets side by side make a view, each at the width it is given. *)
+(* Widgets side by side make a view; each one uses the width it is given. *)
 let test_view_hcat () =
   let t = terminal ~theme ~width:40 ~height:12 ~label:"Build" () in
   let panel = Panel.view (View.text "status") in
@@ -1696,7 +1700,7 @@ let test_view_hcat () =
     "on one line" true
     (contains "step" (List.nth rows 1) && contains "status" (List.nth rows 1))
 
-(* A view replaces the one before, and its last frame stays once the
+(* A new view replaces the previous one. Its last frame stays after the
    display closes. *)
 let test_view_replaced () =
   let t = terminal ~theme ~width:30 () in
@@ -1707,8 +1711,8 @@ let test_view_replaced () =
   close t;
   check_lines "its last frame stays" [ "second" ] (lines t)
 
-(* Without a terminal a view is drawn once, when the display closes, after
-   the tasks' lines. *)
+(* Without a terminal, a view is drawn once, after the tasks' lines, when
+   the display closes. *)
 let test_view_plain () =
   let (), out =
     plain ~theme ~label:"Build"
@@ -1742,9 +1746,9 @@ let border_glyphs =
 
 let clusters = Console_width.clusters
 
-(* A table's frame moves in a live display drawn in a theme with motion:
-   from one frame to the next, only its border cells change, each to a glyph
-   as wide, so that every line keeps its width and its cells their place. *)
+(* In a live display with a motion theme, a table's border moves. From one
+   frame to the next, only the border cells change, each to a glyph of the
+   same width. So every line keeps its width and every cell its place. *)
 let test_view_moves () =
   let run theme ~styled =
     let t = terminal ~theme ~styled ~width:40 ~height:12 () in
@@ -1796,8 +1800,8 @@ let test_view_moves () =
     "still once stilled" true
     (unmoved (run (Theme.still Theme.matrix) ~styled:true))
 
-(* A table in [Border.simple] has no frame to move: in a theme with motion,
-   every frame of a view is the still one. *)
+(* A table in [Border.simple] has no frame to move. In a motion theme, every
+   frame of the view is the still frame. *)
 let test_simple_view_stands_still () =
   let simple =
     Table.view ~border:Border.simple
@@ -1824,8 +1828,8 @@ let test_simple_view_stands_still () =
       close t)
     Theme.[ matrix; rainbow; tokyo_night ]
 
-(* A view that raises does not stop the close from restoring the terminal:
-   the display drops it and draws the default view in its place. *)
+(* A view that raises does not stop the close from restoring the terminal.
+   The display drops the view and draws the default view instead. *)
 let test_view_exception_close () =
   let t = terminal ~styled:true ~width:40 ~height:10 () in
   ignore (Task.start t.root "running");
@@ -1847,8 +1851,8 @@ let test_view_exception_close () =
     "cursor restored after the view exception" true
     (Console_vte.cursor_visible t.vte)
 
-(* A task ends once, even when a function called as it ends ends it again:
-   one end event, and the first outcome stays. *)
+(* A task ends only once, even if a function called during its end ends it
+   again. There is one end event, and the first outcome stays. *)
 let test_task_ends_once () =
   let buf = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buf in
@@ -1867,9 +1871,9 @@ let test_task_ends_once () =
   Alcotest.(check int) "one end" 1 (List.length ended);
   Alcotest.(check bool) "the first outcome" true (Task.state task = `Succeeded)
 
-(* An interrupt while a task ends, from the function called as it ends or
-   from a watcher, leaves no task half ended: the tasks under it end too, and
-   every display of the root sees each end. *)
+(* An interrupt while a task ends leaves no task half ended, whether it
+   comes from the function called at the end or from a watcher. The tasks
+   under it end too, and every display of the root sees each end. *)
 let test_end_interrupted () =
   let root = Task.root ~now:(fun () -> 0.) () in
   let commit _ = raise Sys.Break in
@@ -1907,21 +1911,21 @@ let test_end_interrupted () =
   Display.close live
 
 (* [breaking_size ()] is a buffer, a formatter on it, a flag [broken], and a
-   terminal size that raises [Exit] once [broken] is set. *)
+   terminal size function that raises [Exit] once [broken] is set. *)
 let breaking_size () =
   let buf = Buffer.create 256 in
   let broken = ref false in
   let size () = if !broken then raise Exit else (40, 10) in
   (buf, Format.formatter_of_buffer buf, broken, size)
 
-(* [check_buffer_restored ppf buf] flushes [ppf] and checks that what it
-   wrote on [buf] hid the cursor and shows it again at the end (DECTCEM). *)
+(* [check_buffer_restored ppf buf] flushes [ppf]. It checks that the output
+   in [buf] hid the cursor and shows it again at the end (DECTCEM). *)
 let check_buffer_restored ppf buf =
   Format.pp_print_flush ppf ();
   check_cursor_restored "cursor" (Buffer.contents buf)
 
-(* Exceptions the program must see at once. A view that raises one of them
-   has not failed: the display passes the exception on and keeps the view. *)
+(* Exceptions that the program must see at once. A view that raises one of
+   them has not failed: the display re-raises it and keeps the view. *)
 let urgent = [ Out_of_memory; Stack_overflow; Sys.Break ]
 
 let breaking e =
@@ -1976,8 +1980,8 @@ let test_view_urgent_close () =
         (Console_vte.cursor_visible t.vte))
     urgent
 
-(* A view that raises [Sys.Break] at the close makes the close raise it, and
-   the cursor is shown again. *)
+(* If a view raises [Sys.Break] at the close, the close raises it and shows
+   the cursor again. *)
 let test_urgent_beats_kept () =
   let buf, ppf, broken, size = breaking_size () in
   let view =
@@ -1989,8 +1993,8 @@ let test_urgent_beats_kept () =
   Alcotest.check_raises "closing" Sys.Break (fun () -> Display.close display);
   check_buffer_restored ppf buf
 
-(* A terminal size that raises at the close makes the close raise, once the
-   cursor is shown again and the last frame drawn with the view. *)
+(* If the terminal size raises at the close, the close raises. It first
+   shows the cursor again and draws the last frame with the view. *)
 let test_size_raises_at_close () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -2007,8 +2011,8 @@ let test_size_raises_at_close () =
     "the view stays for the last frame" true
     (contains "x" (Buffer.sub buf drawn (Buffer.length buf - drawn)))
 
-(* A terminal size that raises during a print does not make the print
-   raise: the next redraw raises, and the view stays for the last frame. *)
+(* If the terminal size raises during a print, the print does not raise.
+   The next redraw raises, and the view stays for the last frame. *)
 let test_size_raises_in_print () =
   let buf, ppf, broken, size = breaking_size () in
   let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
@@ -2022,9 +2026,9 @@ let test_size_raises_in_print () =
     "the view stays" true
     (contains "x" (Buffer.contents buf))
 
-(* An exception from the output other than a write error belongs to the
-   program: the print and the close raise it, and the close still gives the
-   formatter its own output functions back. *)
+(* An exception from the output that is not a write error belongs to the
+   program. The print and the close raise it. The close still restores the
+   formatter's own output functions. *)
 let test_output_raises () =
   let failing = ref false in
   let out _ _ _ = if !failing then failwith "output" in
@@ -2041,8 +2045,8 @@ let test_output_raises () =
     ((Format.pp_get_formatter_out_functions ppf ()).out_string == before);
   Display.redraw display
 
-(* When the flush after its function raises, [with_output] still gives the
-   formatter back its margin and output functions, and raises the function's
+(* When the flush after its function raises, [with_output] still restores
+   the formatter's margin and output functions. It raises the function's
    exception, unless the flush raised [Sys.Break]. *)
 let test_with_output_finally () =
   let check_ending ~label ~raises ~expect =
@@ -2071,9 +2075,9 @@ let test_with_output_finally () =
   check_ending ~label:"the work's" ~raises:Exit ~expect:(Failure "work");
   check_ending ~label:"an interrupt" ~raises:Sys.Break ~expect:Sys.Break
 
-(* Every function queued with [when_idle] runs even when one raises. The
-   redraw raises the first exception, or the one the view was already
-   raising, here [Out_of_memory]. *)
+(* Every function queued with [when_idle] runs, even when one raises. The
+   redraw raises the first exception, or the exception the view was already
+   raising (here [Out_of_memory]). *)
 let test_idle_raises () =
   let queue d ran =
     Console__.Display_driver.when_idle d (fun () -> raise Exit);
@@ -2109,7 +2113,8 @@ let test_idle_raises () =
   armed := false;
   Display.close d
 
-(* [Fun.protect] wraps what its [finally] raises: that is what it was. *)
+(* [Fun.protect] wraps an exception raised by its [finally]. The display
+   treats the wrapped exception as the exception inside it. *)
 let test_view_wrapped () =
   let wrapped = Fun.Finally_raised Sys.Break in
   let t, _, broken = breaking wrapped in
@@ -2119,7 +2124,7 @@ let test_view_wrapped () =
   broken := false;
   close t
 
-(* A view may close its own display: nothing is drawn after that. *)
+(* A view can close its own display. Nothing is drawn after that. *)
 let test_view_closes () =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -2151,7 +2156,8 @@ let test_view_closes () =
   Format.pp_print_flush ppf ();
   Alcotest.(check string) "nothing after it" written (Buffer.contents buf)
 
-(* What ends a task as the display closes may raise: the terminal comes first. *)
+(* The code that ends a task when the display closes can raise. The display
+   restores the terminal first. *)
 let test_commit_raises_at_close () =
   let commit _ = raise Exit in
   let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
@@ -2162,7 +2168,8 @@ let test_commit_raises_at_close () =
     "cursor restored" true
     (Console_vte.cursor_visible t.vte)
 
-(* A view that changes at every frame, on a terminal of twelve rows. *)
+(* [numbered ppf] is a display on a terminal of twelve rows, with a view that
+   changes at every frame. *)
 let numbered ppf =
   let n = ref 0 in
   let view =
@@ -2174,7 +2181,7 @@ let numbered ppf =
 
 let updates s = List.length (Astring.String.cuts ~sep:"\027[?2026h" s) - 1
 
-(* [last_frame s] is the last frame that [numbered] drew in [s], and [rows s]
+(* [last_frame s] is the last frame that [numbered] drew in [s]. [rows s] is
    the rows that [s] leaves on a screen. *)
 let last_frame s =
   Re.Group.get
@@ -2186,8 +2193,8 @@ let rows s =
   Console_vte.feed vte s;
   List.filter (( <> ) "") (Console_vte.screen vte)
 
-(* After a write interrupted by [Sys.Break], the display still knows what the
-   screen holds: the next writes erase no line printed above the region, and
+(* After [Sys.Break] interrupts a write, the display still knows what the
+   screen holds. The next writes erase no line printed above the region, and
    the close shows the cursor. *)
 let test_write_cut_short () =
   let buf = Buffer.create 256 and armed = ref false in
@@ -2224,8 +2231,8 @@ let test_write_cut_short () =
     [ "keep-1"; "keep-2"; "keep-3"; "keep-4"; "after" ];
   Alcotest.(check bool) "the cursor shown" true (Console_vte.cursor_visible vte)
 
-(* In mode 2026 a terminal holds back what it draws until the update ends, so
-   the display ends an update cut in the middle before it writes anything
+(* In mode 2026 a terminal holds back what it draws until the update ends.
+   So the display ends an interrupted update before it writes anything
    else. *)
 let test_update_cut_in_the_middle () =
   let buf = Buffer.create 256 and armed = ref false in
@@ -2261,9 +2268,9 @@ let test_update_cut_in_the_middle () =
     (Console_vte.synchronized_open (String.sub written 0 line_after));
   Display.close d
 
-(* While an interrupt cuts the writes, the redraws they drop are not sent
-   late: once a write goes through, one update draws the latest frame, and the
-   frame drawn before the cut stays above the region. *)
+(* Redraws dropped while an interrupt cuts the writes are not sent later.
+   Once a write goes through, one update draws the latest frame. The frame
+   drawn before the interrupt stays above the region. *)
 let test_write_stays_cut () =
   let buf = Buffer.create 256 and failing = ref false in
   let out s o l =
@@ -2288,8 +2295,8 @@ let test_write_stays_cut () =
     (rows all);
   Display.close d
 
-(* Redraws asked during a slow write, as another fiber would, do not pile up
-   behind it. *)
+(* Redraws requested during a slow write, as from another fiber, do not pile
+   up behind it. *)
 let test_write_under_way () =
   let buf = Buffer.create 256 and during = ref ignore in
   let out s o l =
@@ -2314,9 +2321,9 @@ let test_write_under_way () =
   check_lines "the rows" [ last_frame all ] (rows all);
   Display.close d
 
-(* An exception that a hook raises as a task ends is kept for the next call
-   that reports failures: the task ends, its function's value is returned, and
-   its row leaves the region. *)
+(* An exception raised by a hook when a task ends is kept for the next call
+   that reports failures. The task ends, its function's value is returned,
+   and its row leaves the region. *)
 let test_hook_raises () =
   let commit _ = failwith "commit" in
   let t = terminal ~styled:true ~width:40 ~height:10 ~commit () in
@@ -2339,9 +2346,9 @@ let test_hook_raises () =
   Alcotest.check_raises "the close" (Failure "plain") (fun () ->
       Display.close display)
 
-(* A view that raises in a frame no call to the display asked for, the first
-   or the last one, is replaced by the default view and the display still
-   closes; the next redraw or the close raises the exception. *)
+(* A view can raise in a frame that no call to the display requested: the
+   first frame or the last. The default view then replaces it and the display
+   still closes. The next redraw or the close raises the exception. *)
 let test_view_exception_later () =
   let t =
     terminal ~width:40 ~height:10
@@ -2373,9 +2380,9 @@ let test_view_exception_later () =
   Alcotest.check_raises "on a pipe" Exit (fun () ->
       ignore (plain ~view:last (fun _ _ -> ())))
 
-(* An interrupt or an exhausted heap or stack in a view is not kept for a
-   later call, since the view has not failed: it propagates from the call
-   that was drawing, the view stays, and the close still restores the
+(* An interrupt, or an exhausted heap or stack, in a view is not kept for a
+   later call, because the view has not failed. It propagates from the call
+   that was drawing, and the view stays. The close still restores the
    terminal before it propagates. *)
 let test_view_urgent () =
   List.iter
@@ -2402,8 +2409,8 @@ let test_view_urgent () =
         (Console_vte.cursor_visible t.vte))
     [ Sys.Break; Out_of_memory; Stack_overflow; Fun.Finally_raised Sys.Break ]
 
-(* On a narrow terminal the label is what tells two rows apart: it is cut
-   only once the bar has given way, and the row still ends with its timer. *)
+(* On a narrow terminal the label is what tells two rows apart. It is cut
+   only after the bar is dropped, and the row still ends with its timer. *)
 let test_label_before_bar () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let step = Task.start t.root "RUN make" in
@@ -2426,8 +2433,8 @@ let test_label_before_bar () =
        rows);
   close t
 
-(* The same in two trees side by side, as examples/columns lays them out on
-   75 columns. *)
+(* The same, with two trees side by side on 75 columns, as in
+   examples/columns. *)
 let test_label_before_bar_hcat () =
   let t = terminal ~theme ~width:75 ~height:12 () in
   let view d ~width ~height =
@@ -2453,9 +2460,9 @@ let test_label_before_bar_hcat () =
     (List.exists (contains "comp") (screen t));
   close t
 
-(* When the display closes, the scrollback keeps each task's label readable:
-   a label that does not fit next to its count goes on below, never one
-   character a line. *)
+(* When the display closes, each task's label stays readable in the
+   scrollback. A label that does not fit next to its count continues below,
+   never one character per line. *)
 let test_last_frame_label_readable () =
   let t = terminal ~theme ~width:40 ~height:30 () in
   let step = Task.start t.root "RUN make" in
@@ -2474,9 +2481,9 @@ let test_last_frame_label_readable () =
     (List.exists (contains "RUN make") rows
     && List.exists (contains "sha256") rows)
 
-(* On a pipe, a task's output and the tasks under it are told apart by
-   their paths, not by an indentation: a child's lines name its parent, and
-   a line of output names its own task, two columns in. *)
+(* On a pipe, a task's output and its child tasks are told apart by their
+   paths, not by indentation. A child's lines name its parent. A line of
+   output names its own task, indented by two columns. *)
 let test_plain_output_not_sibling () =
   check_plain "each line names its task"
     (fun d _ ->
@@ -2494,8 +2501,8 @@ let test_plain_output_not_sibling () =
       "";
     ]
 
-(* On a pipe a failure's output is printed once: the lines streamed as they
-   came are not printed again under the failure. *)
+(* On a pipe the output of a failure is printed once. The lines streamed as
+   they came are not printed again under the failure. *)
 let test_plain_failure_output_once () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -2507,8 +2514,8 @@ let test_plain_failure_output_once () =
     "the line once" 1
     (List.length (List.filter (contains "checksum mismatch") (split out)))
 
-(* A task's mark follows how the program ended it: a failed child does not
-   fail its parent, and a parent the program fails is marked failed. *)
+(* A task's mark shows how the program ended it. A failed child does not
+   fail its parent. A parent that the program fails is marked failed. *)
 let test_parent_of_failure () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -2537,8 +2544,8 @@ let test_parent_of_failure () =
     "on a terminal too" true
     (List.exists (fun r -> untimed r = "[+] parent") (lines t))
 
-(* With [`Quiet], a nested failure shows with its parent's label, since an
-   indentation alone would not say where it is. *)
+(* With [`Quiet], a nested failure shows with its parent's label, because
+   indentation alone would not show where it is. *)
 let test_quiet_failure_context () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -2555,8 +2562,8 @@ let test_quiet_failure_context () =
   Alcotest.(check bool) "the failure shows" true (contains "sha256" out);
   Alcotest.(check bool) "with its parent" true (contains "RUN make" out)
 
-(* On a pipe, the lines of two trees that run at once interleave: a child's
-   line says whose child it is, as its output lines say their task. *)
+(* On a pipe, the lines of two trees that run at once are interleaved. A
+   child's line names its parent, as output lines name their task. *)
 let test_plain_interleaved_children () =
   let (), out =
     plain ~theme (fun d _ ->
@@ -2573,8 +2580,8 @@ let test_plain_interleaved_children () =
     "each fetch line names its build" true
     (List.for_all (fun l -> contains "linux" l || contains "macos" l) fetches)
 
-(* With [`Quiet] only what fails shows, a failed transient task too: its
-   output is the run's only trace of the failure. *)
+(* With [`Quiet], only failures show, including a failed transient task.
+   Its output is the only trace of the failure. *)
 let test_quiet_transient_failure () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -2590,7 +2597,7 @@ let test_quiet_transient_failure () =
     (contains "disk full" (Buffer.contents buffer))
 
 (* While the display is open, the summary shows the root as running, even
-   once every task so far has ended. *)
+   when every task so far has ended. *)
 let test_summary_between_tasks () =
   let t = terminal ~theme ~width:40 ~label:"Build" () in
   let a = Task.start t.root "fetch" in
@@ -2604,7 +2611,7 @@ let test_summary_between_tasks () =
     (List.exists (contains "[+] Build") (screen t));
   close t
 
-(* The 4 KiB cut keeps a flag, one grapheme cluster, whole. *)
+(* The 4 KiB cut does not split a flag, which is one grapheme cluster. *)
 let test_cap_keeps_a_flag () =
   let flag = "\u{1F1EB}\u{1F1F7}" in
   let label = String.make 4089 'a' ^ flag ^ "b" in
@@ -2618,7 +2625,7 @@ let test_cap_keeps_a_flag () =
     "the flag whole or not at all" true
     (has flag || not (has "\u{1F1EB}"))
 
-(* The mark of a line of output is not the separator of its path. *)
+(* The mark of an output line is not the path separator. *)
 let test_pipe_output_mark_not_separator () =
   let (), out =
     plain (fun d _ ->
@@ -2632,7 +2639,8 @@ let test_pipe_output_mark_not_separator () =
   let count = List.length (Re.matches (Re.Perl.compile_pat "\u{203A}") line) in
   Alcotest.(check int) ("one U+203A in " ^ String.escaped line) 1 count
 
-(* A label is not cut for a count column its row leaves empty. *)
+(* A label is not cut to make room for a count column that its row leaves
+   empty. *)
 let test_label_not_cut_for_an_empty_count () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -2653,7 +2661,7 @@ let test_label_not_cut_for_an_empty_count () =
     true
     (contains "level-5-label" tree)
 
-(* On a pipe a failed transient task prints its line and its reason. *)
+(* On a pipe, a failed transient task prints its line and its reason. *)
 let test_plain_transient_failure () =
   let buffer = Buffer.create 64 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -2683,8 +2691,8 @@ let test_tty_transient_failure () =
     (List.exists (contains "[x] probe") all
     && List.exists (contains "disk full") all)
 
-(* The row of a task of bytes with a label of 30 cells, 5 seconds in, on a
-   terminal [width] wide. *)
+(* [bytes_row_at width] is the row of a task counting bytes, with a label
+   of 30 cells, after 5 seconds, on a terminal [width] wide. *)
 let bytes_row_at width =
   let t = terminal ~theme ~width ~height:4 () in
   let r = Task.start t.root "a-label-of-thirty-cells-long-x" in
@@ -2696,12 +2704,13 @@ let bytes_row_at width =
   close t;
   row
 
-(* At each width from 80 cells down to 20, the row of bytes keeps its whole
-   label down to 67 cells (3 + 1 + 30 + 1 + 25 + 1 + 6), its bar down to 78,
-   with the 10 cells of the narrowest bar and one blank, and never its rate,
-   which needs 92. Its full count stays down to 49, where its label is cut
-   to 12 cells, and its time down to 33, where the short count of 9 cells
-   and a label of 12 still fit. *)
+(* Widths go from 80 cells down to 20. The row of bytes keeps:
+   - its whole label down to 67 cells (3 + 1 + 30 + 1 + 25 + 1 + 6);
+   - its bar down to 78 (the narrowest bar is 10 cells, plus one blank);
+   - its rate never, as the rate needs 92;
+   - its full count down to 49, where the label is cut to 12 cells;
+   - its time down to 33, where the short count of 9 cells and a label of
+     12 still fit. *)
 let test_count_and_time_after_label () =
   let bar = Re.Perl.compile_pat "\u{2588}|\u{2591}" in
   for width = 80 downto 20 do
@@ -2720,7 +2729,7 @@ let test_count_and_time_after_label () =
     shows "the time" (width >= 33) (contains "5.0s" row)
   done
 
-(* The cell of the last of [row]'s block or shade glyphs. *)
+(* [bar_end row] is the cell of the last block or shade glyph in [row]. *)
 let bar_end row = Option.map snd (bar_span row)
 
 let test_bars_line_up () =
@@ -2744,13 +2753,14 @@ let test_bars_line_up () =
     (List.for_all (( = ) (List.hd ends)) ends);
   close t
 
-(* The cell width of [row], every glyph one cell. *)
+(* [cells row] is the width of [row] in cells, counting one cell for each
+   glyph. *)
 let cells row = Array.length (glyphs row)
 let span = Alcotest.(option (pair int int))
 
-(* A row is packed from the left: the label, then the bar, the count and
-   the time. The bars of all rows start one cell after the widest label,
-   are as wide, 40 cells at most, and the rest of the line stays empty. *)
+(* A row is packed from the left: the label, the bar, the count and the
+   time. The bars of all rows start one cell after the widest label and have
+   the same width, at most 40 cells. The rest of the line stays empty. *)
 let test_rows_pack_left () =
   let t = terminal ~theme ~width:100 ~height:8 () in
   let labels = [ "parser"; "layout"; "a-longer-render-suite" ] in
@@ -2787,8 +2797,8 @@ let test_rows_pack_left () =
       close t
   | _ -> Alcotest.fail ("no bar in\n" ^ all)
 
-(* While the terminal narrows, the bar loses a cell for each column it
-   loses, from 40 cells down to 10, before the rate gives way. *)
+(* As the terminal narrows, the bar loses one cell for each lost column, from
+   40 cells down to 10. Only then is the rate dropped. *)
 let test_bar_shrinks_first () =
   let row_at width =
     let t = terminal ~theme ~width ~height:4 () in
@@ -2834,8 +2844,8 @@ let test_bar_shrinks_first () =
     "the rate gives way" true
     (List.exists (fun (_, rate, _) -> not rate) rows)
 
-(* A count of bytes that gives way keeps to three digits: 1000 of a unit
-   or more is shown in the next one. *)
+(* A shortened count of bytes has at most three digits: 1000 of a unit or
+   more is shown in the next unit. *)
 let test_short_bytes () =
   let row_at width =
     let t = terminal ~theme ~width ~height:4 () in
@@ -2868,8 +2878,8 @@ let full row =
         (Uchar.equal (Uchar.of_int 0x2588))
         (Array.sub (glyphs row) i (j - i + 1))
 
-(* A task that ends keeps its count and its time in the columns of the
-   rows that run, and its bar, full, in the cells of theirs. *)
+(* A task that ends keeps its count and time in the same columns as the
+   running rows, and its full bar in the same cells as their bars. *)
 let test_ended_keeps_columns () =
   let t = terminal ~theme ~width:100 ~height:8 () in
   let build = Task.start t.root "build" in
@@ -2904,9 +2914,9 @@ let test_ended_keeps_columns () =
   Alcotest.(check bool) ("its bar full " ^ msg) true (full (row "ends" after));
   close t
 
-(* Where the bar gives way, the count and the time keep their columns,
-   right-aligned and padded: on 40 columns a row of a 16-cell label, a
-   count and a time takes 35 cells, and 46 with the narrowest bar. *)
+(* When the bar is dropped, the count and the time keep their columns,
+   right-aligned and padded. On 40 columns, a row with a 16-cell label, a
+   count and a time takes 35 cells; with the narrowest bar it takes 46. *)
 let test_count_and_time_padded () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let rows =
@@ -2931,10 +2941,10 @@ let test_count_and_time_padded () =
     (screen t);
   close t
 
-(* monopam's sync with a label column fixed at 16 cells: the first step is
-   renamed, for a moment, to a label of 66 cells, which is cut to the column;
-   no row moves sideways, and the steps move to the scrollback in that
-   column. *)
+(* A sync in the style of monopam, with a label column fixed at 16 cells.
+   The first step is briefly renamed to a label of 66 cells, which is cut to
+   the column. No row moves sideways, and the steps move to the scrollback in
+   that column. *)
 let test_replaced_label_widens_nothing () =
   let layout =
     Progress.Layout.(
@@ -2980,9 +2990,9 @@ let test_replaced_label_widens_nothing () =
     ]
     (lines t)
 
-(* A running task keeps the widest label it has drawn in the label column,
-   so that a task renamed at each step moves no row sideways, and the column
-   keeps that width once it ends. *)
+(* The label column keeps the widest label a running task has drawn. So a
+   task renamed at each step moves no row sideways. The column keeps that
+   width after the task ends. *)
 let test_running_label_kept () =
   let t = terminal ~theme ~width:40 ~height:8 ~keep_ended:true () in
   let a = Task.start t.root "a" and b = Task.start t.root "b" in
@@ -3002,9 +3012,10 @@ let test_running_label_kept () =
   Task.succeed b;
   close t
 
-(* A line printed while a wider label runs moves the tasks that wait
-   first, in that label's column, and the rows printed after them keep that
-   width, though the wider label then ends with a shorter message. *)
+(* A line printed while a task with a wider label runs first moves the
+   waiting tasks, in that label's column. The rows printed after them keep
+   that width, even though the wider task then ends with a shorter
+   message. *)
 let test_printed_width_kept () =
   let t = terminal ~theme ~width:40 ~height:8 () in
   let fetch = Task.start t.root "fetch dependencies" in
@@ -3018,9 +3029,9 @@ let test_printed_width_kept () =
     [ "[+] build                0.0s"; "note"; "[+] fetched              0.0s" ]
     (lines t)
 
-(* Steps that end one after another wait in the region and move to the
-   scrollback together, in one label column and one count column, though
-   the first label is the shortest and a later count the widest. *)
+(* Steps that end one after another wait in the region. They move to the
+   scrollback together, in one label column and one count column, even
+   though the first label is the shortest and a later count the widest. *)
 let test_steps_share_columns () =
   let t = terminal ~theme ~width:60 ~height:12 () in
   let bar n = String.concat "" (List.init n (fun _ -> "\u{2588}")) in
@@ -3049,8 +3060,8 @@ let test_steps_share_columns () =
     ]
     (lines t)
 
-(* A region too short for the tasks that wait moves the oldest of them, in
-   the order they ended. *)
+(* When the region is too short for the waiting tasks, the oldest of them
+   move out first, in the order they ended. *)
 let test_held_tasks_fit () =
   let t = terminal ~theme ~width:30 ~height:4 () in
   List.iter
@@ -3072,11 +3083,13 @@ let test_held_tasks_fit () =
     ]
     (lines t)
 
-(* A row of bytes with a label of 30 cells, as its terminal narrows: the
-   rate gives way, then the bar; then the label is cut, down to 12 cells,
-   while the count and the time keep their columns; then the count gets
-   shorter, in a column of its own; then the time goes; and only then is
-   the label cut further. *)
+(* A row of bytes with a label of 30 cells, as the terminal narrows:
+   - the rate is dropped, then the bar;
+   - the label is cut down to 12 cells, and the count and the time keep
+     their columns;
+   - the count gets shorter, in its own column;
+   - the time is dropped;
+   - only then is the label cut further. *)
 let test_label_cut_before_count () =
   check_lines "each width"
     [
@@ -3088,9 +3101,9 @@ let test_label_cut_before_count () =
     ]
     (List.map bytes_row_at [ 70; 60; 48; 32; 20 ])
 
-(* The line of a task that ended at its total runs from its label to its
-   count with no gap: its bar is full. One that failed before its total
-   draws its bar as far as it went. *)
+(* The line of a task that ended at its total has no gap between its label
+   and its count: its bar is full. A task that failed before its total draws
+   its bar as far as it got. *)
 let test_ended_bar () =
   let t = terminal ~theme ~width:80 ~height:8 () in
   let total = 60 in
@@ -3125,9 +3138,9 @@ let test_ended_bar () =
   Alcotest.(check bool) ("a part of a bar " ^ msg) false (full lint);
   close t
 
-(* At a fixed width nothing in the region moves sideways while counts grow,
-   a row with a wider count starts and a table's cells change: two trees
-   side by side, as examples/columns lays them out. *)
+(* Two trees side by side, as in examples/columns. At a fixed width nothing
+   in the region moves sideways while counts grow, while a row with a wider
+   count starts, and while a table's cells change. *)
 let region_stands_still ~width ~bars =
   let t = terminal ~theme ~width ~height:16 () in
   let status = Hashtbl.create 2 in
@@ -3202,8 +3215,8 @@ let test_region_stands_still () =
   region_stands_still ~width:100 ~bars:true;
   region_stands_still ~width:80 ~bars:false
 
-(* examples/progress: once a task counting bytes has its total, its first
-   rate moves no bar sideways. *)
+(* As in examples/progress: once a task counting bytes has its total, its
+   first rate moves no bar sideways. *)
 let test_rate_keeps_bars_still () =
   let t = terminal ~theme ~width:80 ~height:8 () in
   let step = Task.start t.root "RUN make" in
@@ -3228,10 +3241,10 @@ let test_rate_keeps_bars_still () =
   close t
 
 (* The count and rate columns only widen, at most once for each new kind of
-   progress, and never narrow. Rows of items are as dense as their counts
-   need. The first task of bytes widens the count column to the widest
-   count of bytes and opens the rate column, once: later tasks of bytes,
-   larger totals and first rates move no bar. *)
+   progress, and never narrow. Rows of items are only as wide as their
+   counts need. The first task of bytes widens the count column to the
+   widest count of bytes and opens the rate column, once. Later tasks of
+   bytes, larger totals and first rates move no bar. *)
 let test_columns_widen_once () =
   let t = terminal ~theme ~width:80 ~height:10 () in
   let bar label rows =
@@ -3306,7 +3319,8 @@ let test_elapsed_rounded () =
       (3599.6, "1h00m");
     ]
 
-(* The bytes per second a rate text says, such as "724.00 KiB/s". *)
+(* [rate_of s] is the number of bytes per second in a rate text such as
+   "724.00 KiB/s". *)
 let rate_of s =
   match String.split_on_char ' ' (String.trim s) with
   | [ n; unit ] ->
@@ -3320,9 +3334,9 @@ let rate_of s =
       float_of_string n *. k
   | _ -> Alcotest.failf "rate %S" s
 
-(* The rate weighs the past by the time since it was measured: a task that
-   reports every hundredth of a second and one that reports every second
-   show the same rate for the same bytes. *)
+(* The rate weighs each past sample by the time since it was measured. So a
+   task that reports every hundredth of a second and one that reports every
+   second show the same rate for the same bytes. *)
 let test_rate_time_weighted () =
   let now = ref 0. in
   let root = Task.root ~now:(fun () -> !now) () in
@@ -3348,7 +3362,7 @@ let test_rate_time_weighted () =
     "between the old rate and the new" true
     (a > 262144. && a < 1048576.)
 
-(* The time left is what remains of the count at the task's rate. *)
+(* The time left is the remaining count divided by the task's rate. *)
 let test_eta () =
   let now = ref 0. in
   let root = Task.root ~now:(fun () -> !now) () in
@@ -3366,8 +3380,8 @@ let test_eta () =
     (String.trim
        (View.to_string (Progress.row ~layout:Progress.Layout.eta fresh)))
 
-(* [on_event] sees each event of the root's tasks, in order, the root's end
-   last. *)
+(* [on_event] sees each event of the root's tasks in order, with the root's
+   end last. *)
 let test_on_event () =
   let root = Task.root ~now:(fun () -> 0.) () in
   let seen = ref [] in
@@ -3396,7 +3410,7 @@ let test_on_event () =
     kinds
 
 (* A top task leaves in the scrollback what [commit] draws for it: here one
-   line a task, or nothing. *)
+   line per task, or nothing. *)
 let test_commit () =
   let run commit =
     let t = terminal ~theme ~width:30 ~height:8 ~commit () in
@@ -3411,8 +3425,8 @@ let test_commit () =
     (run (fun t -> Some (View.text ("done " ^ Task.label t))));
   check_lines "nothing" [] (run (fun _ -> None))
 
-(* [commit] sees a top task as it ended, with the output of a success,
-   which the task drops once committed. *)
+(* [commit] sees a top task as it ended, including the output of a success.
+   The task drops that output once committed. *)
 let test_commit_output () =
   let seen = ref [] in
   let commit job =
@@ -3427,8 +3441,8 @@ let test_commit_output () =
   check_lines "then none" [] (Task.output job);
   close t
 
-(* [print] writes at once: above the region on a terminal, with the region
-   drawn again below it, and in turn on a pipe. *)
+(* [print] writes at once. On a terminal it writes above the region and
+   draws the region again below. On a pipe it writes in order. *)
 let test_print () =
   let t = terminal ~theme ~width:30 ~height:8 () in
   ignore (Task.start t.root "job");
@@ -3448,8 +3462,8 @@ let test_print () =
     "on a pipe, at once" "printed\n" (Buffer.contents buffer);
   Display.close display
 
-(* With [`Plain], the last frame is as wide as the terminal when there is
-   one, and whole without one. *)
+(* With [`Plain], the last frame is as wide as the terminal if there is one,
+   and is not cut if there is none. *)
 let test_plain_last_frame_width () =
   let rule = View.fit (fun _ -> Rule.view ()) in
   let last ?size () =
@@ -3468,11 +3482,11 @@ let test_plain_last_frame_width () =
     (last ~size:(fun () -> (40, 24)) ());
   Alcotest.(check int) "whole on a pipe" 4 (last ())
 
-(* A display that keeps its rows and trees between frames shows the same
-   screen as one that keeps nothing, as tasks start, count, log, are renamed
-   and end, and as time moves the spinners and timers. A layout with a
-   [custom] piece keeps nothing, and an empty piece adds nothing to a row, so
-   that layout gives the display that keeps nothing. *)
+(* A display that caches its rows and trees between frames shows the same
+   screen as one that caches nothing. This holds as tasks start, count, log,
+   are renamed and end, and as time moves the spinners and timers. A layout
+   with a [custom] piece caches nothing, and an empty piece adds nothing to a
+   row, so that layout gives the display that caches nothing. *)
 let test_kept_rows () =
   let time = ref 0. in
   let now () = !time in
@@ -3522,9 +3536,9 @@ let test_kept_rows () =
   Display.close kept;
   Display.close fresh
 
-(* A display made with [Display.v] is told of no change, so each redraw lays
-   out again a view that reads the tasks or the program's state, even with
-   the clock standing still, and lays out a view that reads neither once. *)
+(* A display made with [Display.v] is told of no change. So each redraw lays
+   out again a view that reads the tasks or the program's state, even when
+   the clock does not move. A view that reads neither is laid out once. *)
 let test_redraw_reads_state () =
   let now () = 0. in
   let root = Task.root ~label:"build" ~now () in
@@ -3554,9 +3568,9 @@ let test_redraw_reads_state () =
   Alcotest.(check int) "the still view laid out once" 1 !calls;
   Display.close d
 
-(* The display of a root's tasks is told of each change to them: a redraw
-   with no change lays out no view of the tasks, while a view that reads the
-   program's state is laid out at each. *)
+(* The display of a root's tasks is told of each change to them. A redraw
+   with no change does not lay out a view of the tasks again. A view that
+   reads the program's state is laid out at each redraw. *)
 let test_redraw_told () =
   let t = terminal () in
   let rows, calls = laid ~tasks:true () in

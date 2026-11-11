@@ -4,11 +4,11 @@
   ---------------------------------------------------------------------------*)
 
 (* A step that counts its files, with a layer under it that counts bytes.
-   [main.exe 2>&1 | cat] shows the plain lines a pipe gets,
-   [main.exe --progress=plain] prints them on a terminal too, and
+   [main.exe 2>&1 | cat] shows the plain lines a pipe gets.
+   [main.exe --progress=plain] prints them on a terminal too.
    [--progress=tty], [quiet] and [json] show the other modes. With [--fail],
-   the layer fails and the program fails the step and the root too, since a
-   failed child does not fail its parent, then exits with 1. *)
+   the layer fails. A failed child does not fail its parent, so the program
+   also fails the step and the root, then exits with 1. *)
 
 let build ~fail clock root =
   let step = Console.Task.start ~log_lines:4 root "RUN make" in

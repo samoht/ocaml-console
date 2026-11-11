@@ -3,11 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [cargo build] of a binary with a dozen dependencies. A crate says that it
-   compiles when its first unit starts, and that line stays in the
-   scrollback; the units that run are transient tasks, which leave nothing
-   there, named on the one line redrawn below it. Pipe it through [cat] to
-   see the lines a CI log gets. *)
+(* [cargo build] of a binary with a dozen dependencies. When the first unit
+   of a crate starts, a line says that the crate compiles. That line stays in
+   the scrollback. The running units are transient tasks: they leave nothing
+   in the scrollback, and their names show on the one line redrawn below it.
+   Pipe it through [cat] to see the lines a CI log gets. *)
 
 open Console
 
@@ -24,7 +24,7 @@ let status ?(style = header) verb what =
 
 let say verb fmt = Fmt.kstr (fun s -> Console_eio.print (status verb s)) fmt
 
-(* What rustc says of the program's own code. *)
+(* What rustc says about the program's own code. *)
 let unused_variable =
   let open View in
   let bar = styled gutter (text "   |") in
@@ -87,8 +87,9 @@ let app =
     ~deps:[ "serde"; "serde_json"; "tokio" ]
     ~warnings:[ unused_variable ]
 
-(* The units cargo schedules: a build script is compiled, then run, before
-   rustc compiles the crate, which also waits for the crates it uses. *)
+(* The units cargo schedules. A build script is compiled, then run, before
+   rustc compiles the crate. rustc also waits for the crates that the crate
+   uses. *)
 type job = {
   label : string;
   crate : crate;
@@ -146,8 +147,8 @@ let generated c =
           apply %d suggestion)"
          c.name c.name n c.name n)
 
-(* A transient [build] task counts the units that ended, since the root
-   shows no count, and each unit is a transient task under it while it holds
+(* The root shows no count, so a transient [build] task counts the units
+   that ended. Each unit is a transient task under [build] while it holds
    one of the [jobs] slots. *)
 let compile ~jobs clock root =
   let plan = plan () in
@@ -177,8 +178,8 @@ let compile ~jobs clock root =
   in
   Eio.Fiber.List.iter run plan
 
-(* Cargo's bar: [=] up to a [>] head, in 50 cells less the count and the
-   15 cells of the status. *)
+(* Cargo's bar: [=] up to a [>] head. It takes 50 cells, minus the count
+   and the 15 cells of the status. *)
 let bar count total =
   let stats = Fmt.str " %d/%d" count total in
   let width = 50 - 15 - 2 - String.length stats in
@@ -191,7 +192,7 @@ let bar count total =
 
 let running task = Task.state task = `Running
 
-(* The one line below the scrollback, while the build runs. *)
+(* The one line below the scrollback while the build runs. *)
 let building root =
   View.fit (fun _ ->
       match List.filter running (Task.children root) with

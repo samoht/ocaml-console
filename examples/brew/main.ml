@@ -3,12 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [brew install wget], as Homebrew draws it: the bottle manifests and the
-   bottles of wget and its dependencies download side by side, each row with
-   its spinner, its phase and its sizes, and a [####] bar while it downloads.
-   A download that is done leaves a check mark in the scrollback. Then each
-   dependency pours, and wget last. Piped through [cat], each download prints
-   one line once done, as Homebrew does off a terminal. *)
+(* [brew install wget], drawn as Homebrew draws it. The bottle manifests and
+   the bottles of wget and its dependencies download side by side. Each row
+   shows a spinner, a phase and sizes, and a [####] bar during the download.
+   A finished download leaves a check mark in the scrollback. Then each
+   dependency pours, and wget pours last. Piped through [cat], each download
+   prints one line when it is done, as Homebrew does off a terminal. *)
 
 open Console
 
@@ -83,7 +83,7 @@ let formulae =
 let target = List.nth formulae (List.length formulae - 1)
 let dependencies = List.filter (fun f -> f != target) formulae
 
-(* Each download has a phase, as Homebrew's [Downloadable] does. *)
+(* Each download has a phase, like Homebrew's [Downloadable]. *)
 type phase = Preparing | Downloading | Verifying | Verified
 
 let phase_name = function
@@ -116,8 +116,8 @@ let longest =
 
 let download_of_label label = List.find (fun d -> d.message = label) downloads
 
-(* As [Formatter.disk_usage_readable_size_unit]: decimal units, to one
-   decimal, the unit right-aligned in two cells. *)
+(* Like [Formatter.disk_usage_readable_size_unit]: decimal units with one
+   decimal place, and the unit right-aligned in two cells. *)
 let size bytes =
   let rec pick size unit = function
     | next :: rest when Float.round (size *. 10.) /. 10. >= 1000. ->
@@ -127,9 +127,9 @@ let size bytes =
   let size, unit = pick bytes "B" [ "KB"; "MB"; "GB" ] in
   Fmt.str "%5.1f%2s" size unit
 
-(* The line of a download as [message_with_progress] draws it, in [width]
-   cells: its message, then the bar while it downloads, its phase and its
-   sizes against the right edge. *)
+(* The line of a download in [width] cells, as [message_with_progress]
+   draws it: the message, then the bar during the download, then the phase
+   and sizes against the right edge. *)
 let line ~width d count =
   let available = width - 1 in
   let fetched = size count in
@@ -159,8 +159,8 @@ let count t =
   | `Bytes (n, _) -> Int64.to_float n
   | `Spin | `Items _ -> 0.
 
-(* The row of a running download: its spinner, then, in the cells the
-   spinner leaves, its line drawn as the one it leaves in the scrollback. *)
+(* The row of a running download: its spinner, then its line in the
+   remaining cells. The line is the same one it leaves in the scrollback. *)
 let row t =
   View.fit (fun room ->
       let width = Option.value (Room.width room) ~default:80 - 2 in
@@ -179,7 +179,7 @@ let view root =
 
 let check = View.role `Succeeded (View.text "✔︎")
 
-(* A download that is done stays in the scrollback, checked. *)
+(* A finished download stays in the scrollback with a check mark. *)
 let commit t =
   let d = download_of_label (Task.label t) in
   Some
@@ -188,14 +188,15 @@ let commit t =
          let rest = View.text (line ~width d d.bytes) in
          View.(check ++ text " " ++ rest)))
 
-(* Off a terminal, Homebrew prints each download once done, without sizes. *)
+(* Off a terminal, Homebrew prints each download when it is done, without
+   sizes. *)
 let plain e =
   match (Task.Event.kind e, Task.Event.task e) with
   | `End, Some (_, path) when path <> [] ->
       Some View.(check ++ text (" " ^ List.nth path (List.length path - 1)))
   | _ -> None
 
-(* Several mirrors of the bottles' CDN, at 1 to 3 MB/s. *)
+(* Downloads come from several mirrors of the bottles' CDN, at 1 to 3 MB/s. *)
 let fetch clock root i d =
   Task.run ~transient:true root d.message @@ fun t ->
   let speed = 1e6 +. (float (i mod 5) *. 5e5) in
@@ -215,7 +216,7 @@ let fetch clock root i d =
   Eio.Time.Mono.sleep clock (0.1 +. (d.bytes /. 1e8));
   d.phase <- Verified
 
-(* A heading as [ohai] writes it, blue, or as [oh1], green. *)
+(* A heading like Homebrew's [ohai] (blue) or [oh1] (green). *)
 let arrow colour v =
   Fmt.pr "%a@." View.pp
     View.(styled (Style.fg colour) (text "==>") ++ text " " ++ v)
@@ -238,7 +239,7 @@ let pour clock f =
      else string_of_int f.files)
     f.installed
 
-(* Homebrew's spinner, in its blue. *)
+(* Homebrew's spinner, in Homebrew's blue. *)
 let theme =
   Theme.v ~name:"brew" ~palette:[ Color.blue ]
     ~spinner:[ "⠋"; "⠙"; "⠚"; "⠞"; "⠖"; "⠦"; "⠴"; "⠲"; "⠳"; "⠓" ]

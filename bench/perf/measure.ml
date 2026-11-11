@@ -3,16 +3,16 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The words allocated by the calling domain so far: minor plus major, less
-   what was promoted, which the minor count has already seen. *)
+(* The words allocated by the calling domain so far: minor plus major,
+   minus promoted words, which the minor count already includes. *)
 let words () =
   let minor, promoted, major = Gc.counters () in
   minor +. major -. promoted
 
 let wall = Unix.gettimeofday
 
-(* A formatter that discards what it is given, counting the frames the
-   display wrote: a frame is one synchronized update. *)
+(* A formatter that discards its output and counts the frames the display
+   wrote. A frame is one synchronized update. *)
 type sink = { ppf : Format.formatter; frames : int ref }
 
 let sync_on = "\027[?2026h"
@@ -32,7 +32,7 @@ let sink () =
   Fmt.set_utf_8 ppf true;
   { ppf; frames }
 
-(* [per_call ~n f] runs [f i] for [i] in [1..n] and is the processor
+(* [per_call ~n f] runs [f i] for [i] in [1..n]. It returns the processor
    nanoseconds and the words allocated per call. *)
 let per_call ~n f =
   for i = 1 to min n 1000 do
@@ -47,10 +47,10 @@ let per_call ~n f =
 
 let failures = ref 0
 
-(* [verdict ~gated ~ratchet ?target w] says how [w] words compare with
-   their budget. If [gated] (the default), a count over the ratchet once
-   rounded, as it is printed, is a failure; otherwise the ratchet is only
-   the count recorded, printed beside it. *)
+(* [verdict ~gated ~ratchet ?target w] compares [w] words with their
+   budget. [w] is rounded first, as it is printed. If [gated] (the default),
+   a count over the ratchet is a failure. Otherwise the ratchet is only the
+   recorded count, printed next to [w]. *)
 let verdict ?(gated = true) ~ratchet ?target w =
   let target =
     match target with Some t -> Fmt.str ", target %.0f" t | None -> ""

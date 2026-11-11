@@ -5,7 +5,8 @@
 
 open Alcobar
 
-(* A formatter whose first write raises the exception [k] picks. *)
+(* [refusing k] is a formatter that raises on its first write. [k] picks the
+   exception. *)
 let refusing k =
   let refused = ref false in
   Format.make_formatter
@@ -20,8 +21,8 @@ let refusing k =
     (fun () -> ())
 
 (* A Logs call during [run] returns even when the display's formatter raises
-   on its write: the message goes to the reporter installed before [run], and
-   [over] and the continuation run once each. *)
+   on write. The message goes to the reporter installed before [run]. [over]
+   and the continuation each run once. *)
 let test_refused_record s k =
   Eio_mock.Backend.run @@ fun () ->
   let text = String.sub s 0 (min 64 (String.length s)) in
@@ -57,16 +58,16 @@ let test_refused_record s k =
   (match failure with
   | None -> ()
   | Some ex -> failf "a Logs call raised %s" (Printexc.to_string ex));
-  (* An empty message writes nothing, so the formatter does not raise and the
-   message is not handed on. *)
+  (* An empty message writes nothing. So the formatter does not raise, and
+     the message is not passed on. *)
   let expected = if text = "" then [] else [ text ] in
   check_eq ~pp:Fmt.(Dump.list Dump.string) expected (List.rev !kept);
   check_eq ~pp:Fmt.int 1 !over_count;
   check_eq ~pp:Fmt.int 1 !continued
 
-(* A [run] that a sibling fiber joined returns only once the sibling's
-   function ends, even when its own function raises, so the sibling's task
-   output still reaches the display under its task's label. *)
+(* When a sibling fiber joins a [run], that [run] returns only after the
+   sibling's function ends. This holds even when its own function raises. So
+   the sibling's task output still reaches the display under its label. *)
 let test_sibling_lifetime k failing =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -117,8 +118,8 @@ let test_sibling_lifetime k failing =
     records;
   check !returned
 
-(* A fiber forked under a [run] that has since ended does not reuse its
-   closed display: the fiber's own [run] joins the display running then, or
+(* A fiber forked under a [run] that has ended does not reuse its closed
+   display. The fiber's own [run] joins the display running at that time, or
    opens a new one. *)
 let test_surviving_fiber k =
   let failing = k land 8 <> 0 and active = k land 16 <> 0 in
@@ -169,12 +170,12 @@ let test_surviving_fiber k =
     (List.init count (fun i -> Fmt.str "  \u{203a} later: record-%d" i))
     records
 
-(* With [`Json], each line the display writes decodes as an event that
-   encodes back to the same line, and the labels and lines of output decode
-   as the display sanitizes them, whatever bytes they were given. *)
+(* With [`Json], each line the display writes decodes as an event, and that
+   event encodes back to the same line. Labels and output lines decode as
+   the display sanitizes them, for any input bytes. *)
 module Event = Console.Task.Event
 
-(* [e] as a variant of its members, to match on. *)
+(* [members e] is [e] as a variant of its members, to match on. *)
 let members e =
   let task () = Option.get (Event.task e) in
   let get = Option.get in
@@ -193,8 +194,8 @@ let members e =
           Event.message e )
   | `Other name -> `Other name
 
-(* The events of the lines of [out], each checked to be valid UTF-8 and to
-   be written back as it is. *)
+(* [events out] is the events of the lines of [out]. It checks that each
+   line is valid UTF-8 and encodes back unchanged. *)
 let events out =
   String.split_on_char '\n' out
   |> List.filter (fun l -> l <> "")
@@ -207,8 +208,8 @@ let events out =
       | Error e -> failf "%s does not decode: %s" line e)
 
 let test_json_events label text =
-  (* The display expands a tab to the next tab stop, which the expected
-     lines below do not model. *)
+  (* The display expands a tab to the next tab stop. The expected lines
+     below do not model this. *)
   let text = String.map (fun c -> if c = '\t' then ' ' else c) text in
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -252,7 +253,8 @@ let test_json_events label text =
        (function `End (_, `Failed, _, _) -> true | _ -> false)
        events)
 
-(* The id and the name of an event of a task. *)
+(* [of_task e] is the task id and the event name of [e], if [e] belongs to a
+   task. *)
 let of_task = function
   | `Start ((id, _), _) -> Some (id, "start")
   | `Progress ((id, _), _, _, _) -> Some (id, "progress")
@@ -261,9 +263,9 @@ let of_task = function
   | `End (Some (id, _), _, _, _) -> Some (id, "end")
   | `Output (None, _, _) | `End (None, _, _, _) | `Other _ -> None
 
-(* On a formatter that yields after every chunk, as one backed by an Eio
-   flow may, each task's events still come whole and in order: start,
-   output, progress, end. *)
+(* The formatter yields after every chunk, as one backed by an Eio flow may.
+   Each task's events still come whole and in order: start, output,
+   progress, end. *)
 let test_json_concurrent_records chunk tasks =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -304,9 +306,9 @@ let test_json_concurrent_records chunk tasks =
            records))
     (List.init tasks Fun.id)
 
-(* With [`Quiet] on a pseudo-terminal (tty.exe runs teardown.exe on one),
-   a task's lines from Task.log, Fmt on standard output or error, and Logs
-   show only when the task fails or is cancelled. *)
+(* With [`Quiet] on a pseudo-terminal, a task's lines show only when the task
+   fails or is cancelled. This covers Task.log, Fmt on standard output or
+   error, and Logs. tty.exe runs teardown.exe on the pseudo-terminal. *)
 let test_quiet_terminal_records ending =
   let mode =
     match ending mod 3 with
@@ -345,9 +347,9 @@ let test_quiet_terminal_records ending =
       in
       check_eq ~pp:Fmt.(Dump.list Dump.string) expected lines
 
-(* With tasks that succeed, fail and are cancelled concurrently, the JSON
-   events pair every start with one end, name each task's parent, and keep
-   each task's counts and log levels. *)
+(* Tasks succeed, fail and are cancelled concurrently. The JSON events pair
+   every start with one end, name each task's parent, and keep each task's
+   counts and log levels. *)
 let lifecycle_levels =
   [|
     (Logs.App, "app");
@@ -408,7 +410,7 @@ let capture_lifecycles k count =
   Format.pp_print_flush ppf ();
   (events (Buffer.contents out), !expected)
 
-(* The labels of an event of a task. *)
+(* [labels_of e] is the labels of the task of [e]. *)
 let labels_of = function
   | `Start ((_, l), _)
   | `Progress ((_, l), _, _, _)
@@ -504,9 +506,9 @@ let test_json_lifecycle k =
   | _ -> fail "the work does not end failed, last"
 
 (* With [~progress:`Tty] on a formatter that is not a terminal, the display
-   takes its size from COLUMNS and LINES, writes no line wider than COLUMNS,
-   and shows the cursor again when the run ends, also when its function
-   raises. *)
+   reads its size from COLUMNS and LINES. It writes no line wider than
+   COLUMNS. It shows the cursor again when the run ends, also when the
+   function raises. *)
 let with_dimensions width height f =
   Env_harness.with_env
     [ ("COLUMNS", string_of_int width); ("LINES", string_of_int height) ]
@@ -568,9 +570,9 @@ let test_forced_tty_screen k label =
            (fun line -> String.contains line 'Z')
            (Console_vte.screen ~scrollback:true screen)))
 
-(* With [`Quiet], a run whose tasks all succeed writes nothing, even when a
-   task flushes or yields in the middle of a line, and leaves the cursor shown
-   on a terminal. *)
+(* With [`Quiet], a run where all tasks succeed writes nothing, even when a
+   task flushes or yields in the middle of a line. On a terminal, the cursor
+   stays visible. *)
 let test_quiet_unended_success size flush =
   let text = String.make (1 + (size mod 64)) 'x' in
   let out =
@@ -586,9 +588,9 @@ let test_quiet_unended_success size flush =
   check_eq ~pp:Fmt.Dump.string "" out;
   check (Console_vte.cursor_visible screen)
 
-(* With [`Json], a task that yields in the middle of a line keeps that
-   line: no part of it goes to a sibling task, to the root, or after the
-   task's end event. *)
+(* With [`Json], a task that yields in the middle of a line keeps that line.
+   No part of it goes to a sibling task, to the root, or after the task's
+   end event. *)
 let test_json_partial_attribution size newline =
   let prefix i = string_of_int i ^ String.make (1 + (size mod 32)) 'x' in
   let out =
@@ -632,8 +634,8 @@ let test_json_partial_attribution size newline =
     [ 0; 1 ];
   check_eq ~pp:Fmt.int 0 (Hashtbl.length active)
 
-(* With [`Json], a line printed in two flushed parts is one output event,
-   whole, also past 64 KiB. *)
+(* With [`Json], a line printed in two flushed parts gives one whole output
+   event, also above 64 KiB. *)
 let test_json_long_line size split =
   let length = if size land 1 = 0 then 65536 + size else 1 + size in
   let text = String.make length 'x' in
@@ -653,8 +655,9 @@ let test_json_long_line size split =
   check (fst (List.hd output) = Some (0, [ "large" ]));
   check_eq ~pp:Fmt.Dump.string text (snd (List.hd output))
 
-(* What [run ppf] writes, with [ppf] a buffer's formatter or
-   {!Format.str_formatter}, in [theme]. *)
+(* [capture_progress_formatter ~theme ~use_str run] is what [run ppf] writes
+   in [theme]. [ppf] is {!Format.str_formatter} when [use_str] is [true],
+   and a buffer's formatter otherwise. *)
 let capture_progress_formatter ~theme ~use_str run =
   let buf = Buffer.create 256 in
   let ppf =
@@ -673,9 +676,9 @@ let capture_progress_formatter ~theme ~use_str run =
       Format.pp_print_flush ppf ();
       if use_str then Format.flush_str_formatter () else Buffer.contents buf)
 
-(* For a program that prints only through its tasks, [Progress.show] and
-   [Console_eio.run] write the same bytes in every progress mode and every
-   theme, on {!Format.str_formatter} too. *)
+(* When a program prints only through its tasks, [Progress.show] and
+   [Console_eio.run] write the same bytes. This holds in every progress mode
+   and theme, also on {!Format.str_formatter}. *)
 let test_direct_progress_parity k label use_str =
   let label = String.sub label 0 (min 128 (String.length label)) in
   let _, theme =
@@ -720,8 +723,8 @@ let test_direct_progress_parity k label use_str =
           check_eq ~pp:Fmt.Dump.string direct driven)
         Console.Progress.all)
 
-(* [Progress.all] works as a Cmdliner enum, and the error of
-   [Progress.of_string] on an unknown name lists every name. *)
+(* [Progress.all] works as a Cmdliner enum. On an unknown name, the error of
+   [Progress.of_string] lists every name. *)
 let test_progress_enum text =
   let parse =
     Cmdliner.Arg.conv_parser (Cmdliner.Arg.enum Console.Progress.all)
@@ -750,7 +753,8 @@ let test_progress_enum text =
           if not (contains 0) then failf "diagnostic omitted progress %s" name)
         Console.Progress.all
 
-(* The tasks that ended in the JSON [output], with their elapsed times. *)
+(* [ended_tasks output] is the tasks that ended in the JSON [output], with
+   their elapsed times. *)
 let ended_tasks output =
   String.split_on_char '\n' output
   |> List.filter (( <> ) "")
@@ -763,9 +767,10 @@ let ended_tasks output =
       | Ok _ -> None
       | Error (`Msg m) -> fail m)
 
-(* The JSON of two tasks that sleep [first] and [second] seconds side by
-   side, while another fiber yields [yields] times. Each task's elapsed time
-   is its own sleep. *)
+(* [concurrent_sleeps ~first ~second yields] is the JSON of two concurrent
+   tasks that sleep [first] and [second] seconds, while another fiber yields
+   [yields] times. It checks that each task's elapsed time is its own
+   sleep. *)
 let concurrent_sleeps ~first ~second yields =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
@@ -792,7 +797,7 @@ let concurrent_sleeps ~first ~second yields =
         [ ([ "first" ], Some first); ([ "second" ], Some second) ]);
   output
 
-(* A fiber that yields beside two concurrent sleeps does not change the
+(* A fiber that yields next to two concurrent sleeps does not change the
    bytes of the run. *)
 let test_deterministic_concurrency a b yields =
   Env_harness.with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "0") ] @@ fun () ->
@@ -814,10 +819,9 @@ let with_recording deterministic f =
     ~finally:(fun () -> Sys.remove file)
     (fun () -> Env_harness.with_env bindings (fun () -> f file))
 
-(* Under [CONSOLE_CAST], a sleep on [Console_eio.clock] returns although the
-   backing mock clock never moves. A sleep that waited on that clock would
-   leave the mock backend with no fiber to run, and the backend would
-   raise. *)
+(* Under [CONSOLE_CAST], a sleep on [Console_eio.clock] returns even though
+   the mock clock below never moves. If the sleep waited on that clock, the
+   mock backend would have no fiber to run and would raise. *)
 let test_cast_sleep n =
   with_recording false @@ fun _ ->
   Eio_mock.Backend.run @@ fun () ->

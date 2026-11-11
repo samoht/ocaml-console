@@ -26,7 +26,7 @@ let style n =
     Style.none
     (List.mapi (fun i s -> (i, s)) parts)
 
-(* [none] is a unit of [+], [+] is associative, and the colours of its right
+(* [none] is a unit of [+], and [+] is associative. The colours of the right
    argument win. *)
 let test_laws a b c =
   let a = style a and b = style b and c = style c in
@@ -36,8 +36,8 @@ let test_laws a b c =
   check (Style.equal Style.(a + b + b) Style.(a + b));
   Fmt.kstr ignore "%a" Style.pp a
 
-(* [compare] is a total order that agrees with [equal], on styles and on
-   their colours. *)
+(* On styles and on colours, [compare] is a total order that agrees with
+   [equal]. *)
 let test_order a b c =
   let order compare equal a b c =
     check (Bool.equal (compare a b = 0) (equal a b));

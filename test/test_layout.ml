@@ -3,9 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The region and the scrollback on a terminal: the summary last in every
-   frame, a top task's tree moved whole when it ends, and a region that
-   never scrolls the terminal. *)
+(* The region and the scrollback on a terminal. The summary is last in every
+   frame, a top task's tree moves whole when it ends, and the region never
+   scrolls the terminal. *)
 
 open Console
 open Display_harness
@@ -25,7 +25,7 @@ let last_row t =
   | [] -> ""
 
 (* The summary is the last line of the region in every frame, whatever
-   starts, ends or is printed, and the last line printed at close. *)
+   starts, ends or is printed. It is also the last line printed at close. *)
 let test_summary_last () =
   let t = terminal ~width:40 ~height:10 ~label:"Build" () in
   let d = t.root in
@@ -59,9 +59,9 @@ let test_summary_last () =
     | l :: _ -> contains "\u{2717} Build" l
     | [] -> false)
 
-(* The tasks of the example: a step with a layer under it, which ends
-   first. The layer waits in the region under its step, then goes to the
-   scrollback with it, under it, and the summary is last. *)
+(* The tasks of the example: a step with a layer under it, and the layer ends
+   first. The layer waits in the region under its step. Then it moves to the
+   scrollback with the step, under it. The summary is last. *)
 let test_tree_moves () =
   let t = terminal ~width:60 ~height:10 ~label:"Building" () in
   let d = t.root in
@@ -91,9 +91,9 @@ let test_tree_moves () =
     ]
     (List.map squeeze (lines t))
 
-(* Three levels, the endings interleaved: a top task with a failure's
-   output moves whole when it ends, after the top tasks that ended before
-   it, each in the order of its tree. *)
+(* Three levels with interleaved endings. A top task that holds a failure's
+   output moves whole when it ends. It comes after the top tasks that ended
+   before it, and each keeps the order of its tree. *)
 let test_three_levels () =
   let t = terminal ~width:40 ~height:12 ~label:"S" () in
   let d = t.root in
@@ -128,8 +128,8 @@ let test_three_levels () =
     ]
     (List.map untimed (lines t))
 
-(* A child that fails keeps its output, under its own line, in its place
-   in the tree. *)
+(* A child that fails keeps its output under its own line, at its place in
+   the tree. *)
 let test_failed_child_in_place () =
   let t = terminal ~width:40 ~height:12 () in
   let d = t.root in
@@ -152,8 +152,8 @@ let test_failed_child_in_place () =
     ]
     (List.map untimed (lines t))
 
-(* A tree too tall folds the tasks that ended under each task into one
-   line, which says how many failed, and keeps every running one. *)
+(* When a tree is too tall, the ended tasks under each task fold into one
+   line that says how many failed. Every running task stays. *)
 let test_fold () =
   let t = terminal ~width:40 ~height:6 ~label:"S" () in
   let d = t.root in
@@ -180,8 +180,8 @@ let test_fold () =
   close t;
   Alcotest.(check int) "every task in the scrollback" 9 (List.length (lines t))
 
-(* Output outside any task goes above the region at once and stays there,
-   the region below it, the summary last. *)
+(* Output outside any task goes above the region at once and stays there.
+   The region is below it, and the summary is last. *)
 let test_root_above () =
   let t = terminal ~width:40 ~height:10 ~label:"S" () in
   let d = t.root in
@@ -197,8 +197,8 @@ let test_root_above () =
     [ "outside"; "\u{2713} a"; "\u{2713} S 0.0s (1/1)" ]
     (List.map untimed (lines t))
 
-(* More running tasks than rows: no redraw scrolls the terminal, and the
-   summary stays the last line. *)
+(* With more running tasks than rows, no redraw scrolls the terminal, and
+   the summary stays the last line. *)
 let test_no_scroll () =
   let t = terminal ~width:40 ~height:6 ~label:"S" () in
   let d = t.root in
@@ -223,7 +223,7 @@ let test_no_scroll () =
   List.iter Task.succeed tasks;
   close t
 
-(* Window lines give way by age, including across a parent and its child. *)
+(* The oldest window lines go first, also across a parent and its child. *)
 let test_window_age () =
   let t = terminal ~width:60 ~height:4 () in
   let d = t.root in
@@ -243,10 +243,10 @@ let test_window_age () =
     "the oldest window line gives way" false
     (List.exists (contains "older") rows)
 
-(* The bound of the waiting region holds for a single completed task: one
-   with a 4 MiB label keeps about 1 MiB at most. The test keeps neither the
-   task nor its label and the formatter drops what it is given, so the live
-   bytes measured are the display's. *)
+(* The waiting region stays bounded for a single completed task: a task with
+   a 4 MiB label keeps at most about 1 MiB. The test keeps neither the task
+   nor its label, and the formatter drops its input, so the live bytes
+   measured belong to the display. *)
 let test_oversized_waiting_task () =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
   let root = Task.root ~now:(fun () -> 0.) () in

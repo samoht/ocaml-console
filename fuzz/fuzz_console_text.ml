@@ -12,8 +12,8 @@ let printable s =
           (fun c -> (Char.code c < 0x20 && c <> '\n') || c = '\127')
           s)
 
-(* [sanitize] and [strip] give printable UTF-8 and are idempotent, [strip]
-   leaves no escape, and [sanitize ~keep_newlines:false] leaves no line
+(* [sanitize] and [strip] return printable UTF-8 and are idempotent.
+   [strip] leaves no escape. [sanitize ~keep_newlines:false] leaves no line
    feed. *)
 let test_laws s =
   let san = Console_text.sanitize s and str = Console_text.strip s in
@@ -24,8 +24,8 @@ let test_laws s =
   check
     (not (String.contains (Console_text.sanitize ~keep_newlines:false s) '\n'))
 
-(* [strip ~keep_styles] leaves no style on after it: text printed after it
-   is drawn as it would be on its own. *)
+(* [strip ~keep_styles] turns every style off at its end. Text printed after
+   it looks the same as on its own. *)
 let test_styles_isolated s =
   let draw prefix =
     let vte = Console_vte.v ~rows:2 ~cols:8 () in
@@ -37,10 +37,10 @@ let test_styles_isolated s =
   let styled = Console_text.strip ~keep_newlines:false ~keep_styles:true s in
   check (draw styled = draw "")
 
-(* A line ends at LF, VT, FF, NEL (U+0085, C2 85 in UTF-8), and at a CR
-   not followed by one of them once the characters [sanitize] removes are
-   skipped. [sanitize] keeps one line feed for each line end. A variation
-   selector is among the removed characters because after a CR it has no
+(* A line ends at LF, VT, FF or NEL (U+0085, C2 85 in UTF-8). It also ends
+   at a CR, unless one of these follows it after skipping the characters
+   [sanitize] removes. [sanitize] keeps one line feed for each line end.
+   [removed] includes variation selectors, because after a CR they have no
    base. *)
 let removed c =
   c = 0x061c || c = 0x200b || c = 0x200e || c = 0x200f
@@ -78,8 +78,8 @@ let test_line_ends s =
   let lines = String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 in
   check_eq ~pp:Fmt.int (line_ends s) (lines (Console_text.sanitize s))
 
-(* [strip] removes a silent control inserted between two characters of text
-   without escapes, and gives back that text. *)
+(* Insert a silent control between two characters of text with no escapes.
+   [strip] removes it and returns the original text. *)
 let test_silent_discarded s p k =
   let s = Console_text.strip s in
   let rec boundary i =
@@ -96,8 +96,8 @@ let test_silent_discarded s p k =
   let with_c = String.sub s 0 i ^ c ^ String.sub s i (String.length s - i) in
   check_eq ~pp:Fmt.Dump.string s (Console_text.strip with_c)
 
-(* Zeros inside an extended colour are components or palette indices, not
-   resets: [strip ~keep_styles] keeps the colour on the text and restores
+(* A zero inside an extended colour is a component or a palette index, not a
+   reset. [strip ~keep_styles] keeps the colour on the text, then restores
    the default style for the next character. *)
 let test_extended_colours r g k =
   let sequence =
@@ -124,8 +124,8 @@ let test_extended_colours r g k =
   check_eq ~pp:Fmt.Dump.string output
     (Console_text.strip ~keep_styles:true output)
 
-(* The characters of [s] as [String.get_utf_8_uchar] decodes them: where
-   each starts and ends, and whether it is valid. *)
+(* [decodes s] is the list of decodes of [s] by [String.get_utf_8_uchar].
+   Each entry has its start, its end and the decode, valid or not. *)
 let decodes s =
   let n = String.length s in
   let rec go i acc =
@@ -137,9 +137,10 @@ let decodes s =
   in
   go 0 []
 
-(* [boundary s] falls where a decode of [s] starts, or at its end. Without
-   an escape code it is the end of [s], or the start of its last decode if
-   that one is invalid: a character cut short goes to the next piece. *)
+(* [boundary s] is the start of a decode of [s], or the end of [s]. If [s]
+   has no escape code, it is the end of [s], or the start of the last decode
+   when that decode is invalid. So a truncated character goes to the next
+   piece. *)
 let test_boundary s =
   let n = String.length s and k = Console_text.boundary s in
   let ds = decodes s in
@@ -158,8 +159,9 @@ let test_boundary s =
     in
     check_eq ~pp:Fmt.int expected k
 
-(* Characters whose keeping depends on their neighbours: tags, the black
-   flag, the cancel tag, selectors and what may come before one. *)
+(* Characters that [sanitize] keeps or removes depending on their
+   neighbours: tags, the black flag, the cancel tag, selectors and
+   characters that may come before a selector. *)
 let pieces =
   [|
     "a"; " "; "\r"; "\n"; "\027[1m"; "\u{1F3F4}"; "\u{E0067}"; "\u{E0062}";
@@ -175,8 +177,9 @@ let neighbours =
       String.concat ""
         (List.map (fun k -> pieces.(k mod Array.length pieces)) l))
 
-(* No two selectors are adjacent in what [sanitize] keeps, a tag is kept
-   only inside a whole emoji tag sequence, and the laws hold. *)
+(* In the output of [sanitize], no two selectors are adjacent, and a tag
+   appears only inside a whole emoji tag sequence. The laws above also
+   hold. *)
 let test_neighbours s =
   test_laws s;
   test_line_ends s;

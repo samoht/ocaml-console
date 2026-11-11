@@ -12,7 +12,8 @@ let with_temp f =
   let file = Filename.temp_file "console-test-recording" ".cast" in
   Fun.protect ~finally:(fun () -> Sys.remove file) (fun () -> f file)
 
-(* Ends the recording under way, which puts its formatters back. *)
+(* [end_recording ()] ends the current recording and restores its
+   formatters. *)
 let end_recording () =
   with_env
     [ ("CONSOLE_CAST", "") ]
@@ -20,9 +21,9 @@ let end_recording () =
       let unused = Format.formatter_of_buffer (Buffer.create 0) in
       ignore (Recording.start ~time:(fun () -> 0.) unused : bool))
 
-(* [recording f] runs [f file] with a recording asked for on a temporary
-   [file] and a known terminal, then leaves no recording, no file and no
-   variable changed. *)
+(* [recording f] runs [f file] with a recording requested on a temporary
+   [file] and a known terminal. Afterwards it leaves no recording, no file
+   and no changed variable. *)
 let recording ?(env = []) f =
   with_temp (fun file ->
       with_env
@@ -42,12 +43,12 @@ let buffered () =
   let b = Buffer.create 16 in
   (b, Format.formatter_of_buffer b)
 
-(* The lines of a finished recording. *)
+(* [lines file] is the lines of a finished recording. *)
 let lines file = List.filter (( <> ) "") (String.split_on_char '\n' (read file))
 let header = {|{"version":2,"width":80,"height":24,"env":{"TERM":"xterm"}}|}
 
-(* Lines are compared as the JSON values they write: asciicast v2 is
-   newline-delimited JSON, whatever its spacing or number format. *)
+(* Lines are compared as JSON values, because asciicast v2 is
+   newline-delimited JSON whatever its spacing or number format. *)
 let check_lines msg expected actual =
   Alcotest.(check (list Cast_harness.json))
     msg
@@ -58,7 +59,8 @@ let write ppf s =
   Format.pp_print_string ppf s;
   Format.pp_print_flush ppf ()
 
-(* A clock that reads the given times in turn, and stays on the last. *)
+(* [clock times] returns each of [times] in turn, then keeps returning the
+   last one. *)
 let clock times =
   let left = ref times in
   fun () ->
@@ -127,11 +129,11 @@ let test_header () =
   check "a TERM that is not text is still one line"
     [ ("TERM", "a\"\n\027") ]
     {|{"version":2,"width":80,"height":24,"env":{"TERM":"a\"\n\u001B"}}|};
-  (* RFC 8259 section 8.1: JSON text exchanged is UTF-8, whatever the bytes of
+  (* RFC 8259 section 8.1: exchanged JSON text is UTF-8, whatever the bytes of
      the variable. A lead byte at the end of the value must not swallow the
-     closing quote. Windows stores the environment in UTF-16 and converts
-     bytes that are not UTF-8 through its code page, so it cannot hold these
-     bytes. *)
+     closing quote. Windows cannot hold these bytes: it stores the
+     environment in UTF-16 and converts non-UTF-8 bytes through its code
+     page. *)
   if not Sys.win32 then
     List.iter
       (fun term ->
@@ -181,8 +183,8 @@ let test_boxes () =
         [ header; {|[0,"o","a\r\n  b"]|} ]
         (lines file))
 
-(* A terminal's driver puts a carriage return before a line feed that has
-   none. *)
+(* A terminal driver adds a carriage return before a line feed that lacks
+   one. *)
 let test_carriage_returns () =
   recording (fun file ->
       let _, ppf = buffered () in
@@ -203,7 +205,7 @@ let test_carriage_returns () =
         ]
         (lines file))
 
-(* The time never goes back, and it is written to the microsecond. *)
+(* The time never goes backwards, and it is written to the microsecond. *)
 let test_time () =
   recording (fun file ->
       let _, ppf = buffered () in
@@ -220,7 +222,8 @@ let test_time () =
         ]
         (lines file))
 
-(* A character or an escape code cut by a flush waits for the rest. *)
+(* When a flush cuts a character or an escape code, the recording waits for
+   the rest. *)
 let test_cut_short () =
   recording (fun file ->
       let _, ppf = buffered () in
@@ -244,8 +247,8 @@ let test_cut_short () =
         (lines file))
 
 (* asciicast v2, "o": data is valid UTF-8. Bytes that are not UTF-8 are
-   replaced as Unicode Core Spec 3.9 says, and the bytes of a character left
-   unfinished are written, replaced, when the recording ends. *)
+   replaced as Unicode Core Spec 3.9 says. When the recording ends, the bytes
+   of an unfinished character are written as replacements. *)
 let test_hostile_bytes () =
   let replaced = "\u{fffd}" in
   with_temp (fun other ->

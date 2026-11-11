@@ -6,9 +6,10 @@
 open Alcobar
 open Console
 
-(* Text whose clusters, cells and bytes do not line up: wide characters, a
-   spacing mark that joins the letter before it in a cluster of two cells,
-   an emoji sequence, spaces, punctuation and slashes. *)
+(* Pieces of text where clusters, cells and bytes have different counts:
+   wide characters, an emoji sequence, spaces, punctuation and slashes. It
+   also has a spacing mark, which joins the letter before it in a cluster of
+   two cells. *)
 let alphabet =
   [|
     "x";
@@ -28,8 +29,8 @@ let text s =
     (List.init (String.length s) (fun i ->
          alphabet.(Char.code s.[i] mod Array.length alphabet)))
 
-(* A span in several styles, cut between characters where the generator
-   says. *)
+(* [span s] is [s] in several styles. The generator picks where the style
+   changes, always between characters. *)
 let span s =
   let styles =
     [| Style.none; Style.bold; Style.fg Color.red; Style.underline |]
@@ -62,8 +63,8 @@ let no_space s =
   String.concat ""
     (String.split_on_char ' ' (String.concat "" (String.split_on_char '\n' s)))
 
-(* Any bytes print as valid UTF-8 with no control character but the line
-   feed, styled or not. *)
+(* Any bytes print as valid UTF-8, styled or not. The only control character
+   in the output is the line feed. *)
 let test_sanitized s =
   let p = plain (View.text s) in
   check (String.is_valid_utf_8 p);
@@ -79,13 +80,13 @@ let test_width_subadditive a b =
   let a = span (text a) and b = span (text b) in
   check (View.width View.(a ++ b) <= View.width a + View.width b)
 
-(* A style boundary adds no cell: the styled span is as wide as its text. *)
+(* A style change adds no cell: the styled span is as wide as its text. *)
 let test_width_styles s =
   let s = text s in
   check_eq ~pp:Fmt.int (View.width (View.text s)) (View.width (span s))
 
-(* [width (truncate w s) <= max 0 w], [truncate w s = s] when it fits, a cut
-   line ends with an ellipsis after a prefix of the line, and truncating
+(* [width (truncate w s) <= max 0 w], and [truncate w s = s] when [s] fits.
+   A cut line is a prefix of the line followed by an ellipsis. Truncating
    again changes nothing. *)
 let test_truncate s n =
   let s = span (text s) and w = abs (n mod 50) in
@@ -121,14 +122,15 @@ let test_truncate_closes s n =
       if not (String.starts_with ~prefix:"\027[0m" rest) then
         failf "a style left on: %S" t
 
-(* The cells of the widest cluster of [s]. *)
+(* [widest s] is the width in cells of the widest cluster of [s]. *)
 let widest s =
   List.fold_left
     (fun w c -> max w (Console_width.string_width c))
     0 (Console_width.clusters s)
 
-(* A line cut into words after the bytes [cuts] picks, some of them empty:
-   cuts inside a character or a cluster too. *)
+(* [cut_words cuts line] cuts [line] into words after the bytes that [cuts]
+   picks. Some words are empty, and a cut can fall inside a character or a
+   cluster. *)
 let cut_words cuts line =
   let m = String.length cuts in
   let cut i = Char.code cuts.[i mod m] in
@@ -144,9 +146,9 @@ let cut_words cuts line =
   let n = String.length line in
   List.rev (String.sub line !first (n - !first) :: !words)
 
-(* Whatever words the line is cut into, [wrap] gives at least one line,
-   every line fits, and when every cluster fits in a line every non-space
-   character is kept, in order. *)
+(* For any cut into words, [wrap] returns at least one line, and every line
+   fits. When every cluster fits in a line, [wrap] keeps every non-space
+   character, in order. *)
 let test_wrap s n cuts =
   let s = span (text s) and w = width n in
   let words = if cuts = "" then None else Some (cut_words cuts) in
@@ -158,10 +160,10 @@ let test_wrap s n cuts =
       (no_space (plain s))
       (no_space (String.concat "" (List.map plain lines)))
 
-(* Characters that change the width of the one before them, or join it:
-   VS16 and VS15, the zero-width joiner, a combining mark, the keycap mark
-   and a skin tone, with the bases they act on, a regional indicator and
-   letters. *)
+(* Characters that join the character before them or change its width:
+   VS16, VS15, the zero-width joiner, a combining mark, the keycap mark and
+   a skin tone. The array also has the bases they act on, a regional
+   indicator and letters. *)
 let joiners =
   [|
     "a";
@@ -186,17 +188,18 @@ let joined s =
     (List.init (String.length s) (fun i ->
          joiners.(Char.code s.[i] mod Array.length joiners)))
 
-(* The column a terminal's cursor reaches after [s]. A sample whose cells
-   the emulator counts differently from console is discarded
-   ({!Console_vte.counts_as_console}). *)
+(* [on_screen s] is the column where a terminal's cursor stops after [s]. If
+   the emulator counts the cells differently from console, the sample is
+   discarded ({!Console_vte.counts_as_console}). *)
 let on_screen s =
   guard (Console_vte.counts_as_console (Console_text.strip s));
   let term = Console_vte.v ~rows:1 ~cols:500 () in
   Console_vte.feed term s;
   snd (Console_vte.cursor_pos term)
 
-(* With VS16, VS15, joiners and marks, a cut line and every wrapped line
-   fit their width, as console measures it and on the terminal. *)
+(* With VS16, VS15, joiners and marks, a truncated line and every wrapped
+   line fit their width. This holds for console's width and on the
+   terminal. *)
 let test_joiners_fit s n =
   let s = View.text (joined s) and w = 1 + abs (n mod 12) in
   let fits what l =
@@ -216,8 +219,8 @@ let test_wrap_refuses n =
   | _ -> fail "a non-positive width is refused"
   | exception Invalid_argument _ -> ()
 
-(* RFC 3986, sections 2.1 to 2.3: the characters a URI may hold, the
-   percent sign of an escape included. *)
+(* The characters a URI may hold, by RFC 3986 sections 2.1 to 2.3. This
+   includes the percent sign of an escape. *)
 let uri_char = function
   | 'A' .. 'Z'
   | 'a' .. 'z'
@@ -227,10 +230,10 @@ let uri_char = function
       true
   | _ -> false
 
-(* A link prints as its label, and the target it writes holds only URI
-   characters: each byte of [uri] outside them becomes a three-byte percent
-   escape. An empty URI writes no link, and neither does a label of line
-   ends alone, which has no text to click. *)
+(* A link prints as its label. The target it writes has only URI
+   characters: each other byte of [uri] becomes a three-byte percent escape.
+   An empty URI writes no link. A label made only of line ends writes no
+   link either, because it has no text to click. *)
 let test_link label uri =
   let l = View.link ~uri (View.text label) in
   check_eq ~pp:Fmt.Dump.string (plain (View.text label)) (plain l);
@@ -251,15 +254,15 @@ let test_link label uri =
         (String.length uri + (2 * !outside))
         (String.length target)
 
-(* [concat ~sep] puts [sep] between each two. *)
+(* [concat ~sep] puts [sep] between each pair of neighbours. *)
 let test_concat a b c =
   let parts = List.map View.text [ a; b; c ] in
   check_eq ~pp:Fmt.Dump.string
     (String.concat "," (List.map plain parts))
     (plain (View.concat ~sep:(View.text ",") parts))
 
-(* Each line of a styled span of several lines opens its style and ends
-   with a reset, so no style stays on across a line feed. *)
+(* In a styled span of several lines, each line opens its style and ends
+   with a reset. So no style stays on across a line feed. *)
 let test_multiline_resets s =
   let line = Console_text.sanitize ~keep_newlines:false s ^ "x" in
   let raw =
@@ -314,8 +317,9 @@ let test_linked_unicode_cuts s n =
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
 
-(* [span] is as wide as [t] and prints as [t]'s text in [theme]: as it is
-   without colour, and with its escapes removed at every depth. *)
+(* [check_is_text ~theme t span] checks that [span] is as wide as [t] and
+   prints as the text of [t] in [theme]. Without colour the output is that
+   text. At every depth, it is that text once escapes are removed. *)
 let check_is_text ~theme t span =
   check_eq ~pp:Fmt.int (View.width t) (View.width span);
   check_eq ~pp:Fmt.Dump.string (plain t) (plain span);
@@ -330,8 +334,8 @@ let check_is_text ~theme t span =
         (Re.replace_string sgr ~by:"" (printed (Some depth))))
     [ `Ansi_16; `Ansi_256; `True_color ]
 
-(* A gradient is its text: as wide, and printed as that text with escape
-   codes added, at any depth and in any theme. *)
+(* A gradient is as wide as its text. It prints as that text plus escape
+   codes, at any depth and in any theme. *)
 let test_gradient s k =
   let s = if k land 1 = 0 then text s else s in
   let colors =
@@ -358,9 +362,9 @@ let test_role s k =
     (View.text s)
     (View.role role (View.text s))
 
-(* Wrapping a gradient changes where its lines break, not the colours of
-   its text: the pieces printed one after the other draw the same cells on
-   the terminal as the whole. *)
+(* Wrapping a gradient changes where its lines break, not the colours of its
+   text. The pieces printed in sequence draw the same cells on the terminal
+   as the whole. *)
 let test_gradient_wrap s k =
   let clusters =
     [| "x"; "\u{754c}"; "e\u{0301}"; "\u{1f469}\u{200d}\u{1f4bb}"; "\u{0645}" |]
@@ -394,8 +398,8 @@ let test_gradient_wrap s k =
     then failf "wrapping changed the glyph or colour at column %d" i
   done
 
-(* Vertical composition preserves every line, including trailing blank
-   lines, and omits parts that contain no text. *)
+(* [vcat] keeps every line, including trailing blank lines. It omits parts
+   that have no text. *)
 let test_vcat_height inputs =
   let spans = List.map (fun s -> View.styled Style.bold (View.text s)) inputs in
   let combined = View.vcat spans in
@@ -408,9 +412,8 @@ let test_vcat_height inputs =
   in
   check_eq ~pp:Fmt.Dump.string expected (View.to_string combined)
 
-(* A view's size does not depend on its time: whatever a [fit] part draws
-   at a time, the view takes the cells of its frame at time 0, line by
-   line. *)
+(* A view's size does not depend on time. Whatever a [fit] part draws, each
+   line of the view has the width it has at time 0. *)
 let test_still_size frames time width =
   let frames = Array.of_list (List.map View.text frames) in
   let n = Array.length frames in

@@ -3,9 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A display drives an emulated terminal. Each write it makes is fed to the
-   emulator as one chunk, and the screen is read after every chunk: the
-   guarantees of [display.mli] are checked on what a reader would see. *)
+(* A display drives an emulated terminal. Each write of the display goes to
+   the emulator as one chunk, and the test reads the screen after every
+   chunk. So the guarantees of [display.mli] are checked on what a reader
+   would see. *)
 
 open Alcobar
 open Console
@@ -82,11 +83,11 @@ let nonblank vte = List.filter (( <> ) "") (screen vte)
 let count p l = List.length (List.filter p l)
 let has affix s = Re.execp (Re.compile (Re.str affix)) s
 
-(* Each line a chunk writes, its escapes removed, fits the terminal. *)
+(* Each line of a chunk fits the terminal once its escapes are removed. *)
 let check_chunk_lines ~width chunk =
   List.iter
     (fun l ->
-      (* A carriage return moves to the first column; it draws nothing. *)
+      (* A carriage return moves to the first column and draws nothing. *)
       let l = String.concat "" (String.split_on_char '\r' l) in
       let l = Console_text.strip l in
       if Console_width.string_width l > width then
@@ -95,8 +96,8 @@ let check_chunk_lines ~width chunk =
           width l)
     (String.split_on_char '\n' chunk)
 
-(* Every line feed the display writes on a terminal follows a carriage
-   return, so a tty in raw mode starts each line at the first column too. *)
+(* On a terminal, the display writes a carriage return before every line
+   feed. So a tty in raw mode also starts each line at the first column. *)
 let check_line_ends chunk =
   String.iteri
     (fun i c ->
@@ -104,7 +105,8 @@ let check_line_ends chunk =
         failf "a bare line feed at byte %d of %S" i chunk)
     chunk
 
-(* Every style turned on in a chunk is off again at the end of each line. *)
+(* Every style that a chunk turns on is off again at the end of each
+   line. *)
 let check_styles_closed chunk =
   List.iter
     (fun l ->
@@ -126,8 +128,8 @@ let check_styles_closed chunk =
       | Some s -> failf "%S left on in %S" s l)
     (String.split_on_char '\n' chunk)
 
-(* A write of the display is one synchronized update: it opens and closes
-   the mode once, at its ends. *)
+(* Each write of the display is one synchronized update. It opens the mode
+   once at its start and closes it once at its end. *)
 let check_synchronized chunk =
   let begin_ = "\027[?2026h" and end_ = "\027[?2026l" in
   let occurrences sub =
@@ -141,7 +143,7 @@ let check_synchronized chunk =
       && occurrences end_ = 1)
   then failf "not one synchronized update: %S" chunk
 
-(* A display on an emulated terminal, and what the test knows of it. *)
+(* A display on an emulated terminal, and the state the test tracks. *)
 type term = {
   vte : Console_vte.t;
   size : (int * int) ref;
@@ -153,8 +155,9 @@ type term = {
   mutable tasks : Task.t array;
 }
 
-(* The header is on the screen exactly once, so the region is never blank,
-   half drawn or drawn twice, and no byte of the program is on its row. *)
+(* The header is on the screen exactly once. So the region is never blank,
+   half drawn or drawn twice. No byte of the program is on the header's
+   row. *)
 let check_screen t =
   let rows = screen t.vte in
   let n = count (has header) rows in
@@ -167,13 +170,13 @@ let check_screen t =
       failf "the program's bytes are in the header row: %S" row
   | _ -> ()
 
-(* A frame drawn in place over the one before matches the same frame drawn
-   afresh by [with_output]: nothing of the old frame is left, and nothing of
-   the new one erased. The comparison stops at the last non-blank row of the
-   fresh draw, since only a fresh draw erases the rows below the region that
-   the program's cursor moves left behind. *)
+(* A frame drawn in place over the previous frame matches the same frame
+   drawn fresh by [with_output]. Nothing of the old frame is left, and
+   nothing of the new one is erased. The comparison stops at the last
+   non-blank row of the fresh draw. Only a fresh draw erases the rows below
+   the region, which the program's cursor moves may leave behind. *)
 let check_in_place t =
-  (* Output moves the tasks that wait to the scrollback first. *)
+  (* Output first moves the waiting tasks to the scrollback. *)
   Option.iter
     (fun d ->
       Display.with_output d ignore;
@@ -215,8 +218,8 @@ let terminal ?(prefix = "") ?theme ?scope ~width ~height ~styled () =
     Buffer.clear chunk;
     if s <> "" then begin
       incr t.chunks;
-      (* What the program writes under [with_output] is not the display's,
-         so the checks skip it. *)
+      (* The program writes this under [with_output], not the display, so
+         the checks skip it. *)
       if not !(t.in_output) then begin
         check_chunk_lines ~width:(fst !(t.size)) s;
         check_line_ends s;
@@ -261,9 +264,9 @@ let finish task o =
   | 1 -> Task.fail task
   | _ -> Task.cancel task
 
-(* A redraw changes only the region: the rows from the cursor's up to the
-   height of the screen less one. A second redraw at the same time changes
-   nothing and writes nothing. *)
+(* A redraw changes only the region: the [height - 1] rows that end at the
+   cursor's row. A second redraw at the same time changes nothing and
+   writes nothing. *)
 let redraw_twice t =
   let before = screen t.vte in
   Display.redraw (display t);
@@ -289,8 +292,8 @@ let output t l =
       Fmt.pf ppf "%s@." (label l);
       t.in_output := false)
 
-(* Bytes the program writes through [with_output] go out unchanged: here
-   two runs of [Z] around bytes that move the cursor or erase. *)
+(* Bytes the program writes through [with_output] go out unchanged. The test
+   writes two runs of [Z] around bytes that move the cursor or erase. *)
 let moves =
   [|
     "\r";
@@ -335,10 +338,10 @@ let apply t = function
   | Output l -> output t l
   | Program (c, n) -> program t c n
 
-(* Random operations on a terminal where the program left [p] cells of a
-   line unended. That line stays as it is and the region starts below it;
-   every screen passes [check_screen] and [check_in_place]; after the close,
-   the cursor is visible at the start of a line. *)
+(* Random operations on a terminal where the program left a line of [p]
+   cells without a line end. That line stays as it is, and the region starts
+   below it. Every screen passes [check_screen] and [check_in_place]. After
+   the close, the cursor is visible at the start of a line. *)
 let test ops w h styled p =
   let width = 8 + (w mod 72) in
   let prefix = String.make (p mod width) 'p' in
@@ -361,7 +364,7 @@ let test ops w h styled p =
   if snd (Console_vte.cursor_pos t.vte) <> 0 then
     fail "the cursor is not at the start of a line"
 
-(* Without a terminal, nothing moves the cursor: every line is printed once,
+(* Without a terminal, nothing moves the cursor. Every line is printed once,
    and the header comes last. *)
 let test_plain ops =
   let buf = Buffer.create 256 in
@@ -387,11 +390,10 @@ let test_plain ops =
       if not (has header last) then failf "the header is not last: %S" last
   | [] -> fail "no header"
 
-(* The display keeps no task that ended, and a running task keeps at most
-   1 MiB of its output, to print if it fails. After batches that fill that
-   1 MiB, the live heap measures what is kept rather than what is
-   allocated, and must not grow. The task succeeds at the end, so the 1 MiB
-   it holds is not printed. *)
+(* The display keeps no ended task. A running task keeps at most 1 MiB of
+   its output, to print if it fails. After batches that fill that 1 MiB,
+   the live heap measures what is kept, not what is allocated, and it must
+   not grow. The task succeeds at the end, so its 1 MiB is not printed. *)
 let test_retained_heap n =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let root = Task.root ~now:(fun () -> 0.) () in
@@ -421,8 +423,8 @@ let test_retained_heap n =
       Display.close d)
 
 (* On a pipe, each line of output comes once, in order, after its task's
-   label. Every line is a unique token, so a duplicate, a reordering or a
-   line given to the wrong task shows. *)
+   label. Every line is a unique token, so the test detects a duplicate, a
+   reordering, or a line given to the wrong task. *)
 let test_pipe_attribution n =
   let b = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer b in
@@ -500,7 +502,7 @@ let test_output_exception s cancel =
   in
   check (colours grid index = colours plain first)
 
-(* The rows [vte] scrolled away, then its screen. *)
+(* [all_rows vte] is the rows [vte] scrolled away, then its screen. *)
 let all_rows vte =
   String.concat "\n"
     (Console_vte.scrollback_lines vte @ [ Console_vte.to_string vte ])
@@ -552,10 +554,10 @@ let test_static_rows_and_idle n =
   done;
   Display.close d
 
-(* A formatter that records the terminal after each flush: its rows, trailing
-   spaces removed, and its cursor's position and visibility. Frames are
-   compared as the terminal shows them, since CRLF handling may drop
-   trailing padding without changing the screen. *)
+(* A formatter that records the terminal after each flush: its rows without
+   trailing spaces, and the cursor's position and visibility. The test
+   compares frames as the terminal shows them, because CRLF handling may
+   drop trailing padding without changing the screen. *)
 let capture_frames () =
   let out = Buffer.create 512 and chunk = Buffer.create 512 in
   let vte = Console_vte.v ~rows:8 ~cols:40 () in
@@ -580,7 +582,8 @@ let capture_frames () =
   in
   (Format.make_formatter write flush, out, frames)
 
-(* A line sanitized, each tab gone to the next stop of eight columns. *)
+(* [sanitized_line line] is [line] sanitized, with each tab expanded to the
+   next stop of eight columns. *)
 let sanitized_line line =
   String.split_on_char '\t' line
   |> List.map Console_text.sanitize
@@ -599,9 +602,9 @@ let sanitized_line line =
        None
   |> Option.value ~default:""
 
-(* [input] as the display shows it in a task's output: a CR before a line
-   feed is part of that line end, and a CR that ends the text is a line end
-   of its own. *)
+(* [sanitized_log_lines input] is [input] as the display shows it in a
+   task's output. A CR before a line feed belongs to that line end. A CR at
+   the end of the text is a line end on its own. *)
 let sanitized_log_lines input =
   let text =
     String.split_on_char '\n' input
@@ -616,8 +619,9 @@ let sanitized_log_lines input =
   in
   if String.ends_with ~suffix:"\r" input then text ^ "\n" else text
 
-(* The bytes and the frames of a run where [input] is every label, mark,
-   spinner frame and end message, and [lines] every log. *)
+(* [untrusted_run input lines] is the bytes and the frames of a run. [input]
+   is every label, mark, spinner frame and end message, and [lines] is every
+   log. *)
 let untrusted_run input lines =
   let ppf, out, frames = capture_frames () in
   Fmt.set_style_renderer ppf `Ansi_tty;
@@ -684,16 +688,16 @@ let test_extreme_terminals n styled =
         Task.set_items task ~count:i ~total:100
       done;
       redraw_twice t;
-      (* No task ended and no line went above the region, and a region that
-         fits leaves the bottom row free, so nothing scrolled. *)
+      (* No task ended and no line went above the region. A region that fits
+         leaves the bottom row free, so nothing scrolled. *)
       check_eq ~pp:Fmt.int 0 (Console_vte.scrollback_size t.vte);
       Display.close d;
       check (Console_vte.cursor_visible t.vte);
       check_eq ~pp:Fmt.int 0 (snd (Console_vte.cursor_pos t.vte)))
     [ (1, 1); (2, 80); (300, 10) ]
 
-(* On a terminal of any width above 100 columns, no row the display draws
-   nor line it prints for a task is wider than 100. *)
+(* On a terminal wider than 100 columns, no row the display draws and no
+   line it prints for a task is wider than 100. *)
 let test_wide n label =
   let width = 101 + (n land 0xff) in
   let t = terminal ~width ~height:10 ~styled:true () in
@@ -715,9 +719,10 @@ let test_wide n label =
           width l)
     (List.map rstrip (Console_vte.scrollback_lines t.vte) @ screen t.vte)
 
-(* [n] running tasks with [l] log lines each, on a screen [h] rows high: the
-   region is at most [h - 1] lines, the summary last; every task shows, or
-   the latest ones after a line that counts exactly the others. *)
+(* [n] running tasks with [l] log lines each, on a screen [h] rows high. The
+   region has at most [h - 1] lines, with the summary last. Either every
+   task shows, or the latest ones show after a line that gives the exact
+   count of the others. *)
 let test_marker_counts n l h =
   let n = 1 + (n mod 12) and l = l mod 3 and h = 3 + (h mod 12) in
   let t = terminal ~width:30 ~height:h ~styled:false () in
@@ -745,9 +750,9 @@ let test_marker_counts n l h =
   | None -> check_eq ~pp:Fmt.int n tasks);
   Display.close d
 
-(* A model of where each line goes. Every line is a unique token; the model
-   follows which task is current, what each window holds and how each task
-   ends, and the properties count where each token lands. *)
+(* A model of where each line goes. Every line is a unique token. The model
+   tracks the current task, what each window holds and how each task ends.
+   The properties count where each token lands. *)
 
 type step =
   | New of int option * int
@@ -781,13 +786,12 @@ type mtask = {
   mutable kids : mtask list;
 }
 
-(* A line of the model: its token, the task it was given to, whether it is
-   task output rather than a Logs message, and whether that task was still
-   running. *)
+(* A line of the model: its token, its task, whether it is task output (not
+   a Logs message), and whether that task was still running. *)
 type line = { token : string; owner : mtask option; output : bool; ran : bool }
 
-(* [model_end o t] ends [t] with [o] after its running children, which
-   succeed if [t] succeeds and are cancelled otherwise. *)
+(* [model_end o t] ends the running children of [t], then ends [t] with [o].
+   The children succeed if [t] succeeds, and are cancelled otherwise. *)
 let rec model_end o t =
   if Option.is_none t.outcome then begin
     let child = match o with `Succeeded -> `Succeeded | _ -> `Cancelled in
@@ -809,7 +813,8 @@ let scope current =
     cancelled = (fun _ -> false);
   }
 
-(* A task of the model, started under [parent], or [root]. *)
+(* [new_task root parent name window_size] is a task of the model, started
+   under [parent], or under [root] if there is none. *)
 let new_task root parent name window_size =
   let task =
     Task.start ~log_lines:window_size
@@ -836,8 +841,9 @@ let pick_task tasks i =
   let n = Array.length !tasks in
   if n = 0 then None else Some !tasks.(i mod n)
 
-(* Runs [steps] on the tasks of [root], whose scope reads its current task
-   from [current], and closes [d], which shows them. *)
+(* [run_steps root d current steps] runs [steps] on the tasks of [root], then
+   closes [d], which shows them. The scope of [root] reads its current task
+   from [current]. *)
 let run_steps root d current steps =
   let tasks = ref [||] and lines = ref [] in
   let pick = pick_task tasks in
@@ -870,7 +876,7 @@ let run_steps root d current steps =
       | Finish (i, o) -> Option.iter (fun t -> end_task t o) (pick i))
     steps;
   Display.close d;
-  (* Closing cancels the tasks still running, the latest started first. *)
+  (* Closing cancels the tasks still running, latest started first. *)
   List.iter (fun t -> model_end `Cancelled t) (List.rev (Array.to_list !tasks));
   List.rev !lines
 
@@ -900,8 +906,8 @@ let check_lines ~where expected out =
 
 let ended l = match l.owner with Some t -> t.outcome | None -> None
 
-(* On a pipe every line comes at once and once only, after its task's
-   label or alone without a task. *)
+(* On a pipe, every line comes at once and only once. It follows its task's
+   label, or stands alone when it has no task. *)
 let test_pipe_lines steps =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -920,10 +926,11 @@ let test_pipe_lines steps =
     (List.map (fun l -> (l, expected l)) lines)
     (String.split_on_char '\n' (Buffer.contents buf))
 
-(* On a terminal a line of a running task, output or Logs message alike,
-   never reaches the scrollback if the task succeeds, and goes once under
-   its line, without its label, if it fails or is cancelled. A Logs message
-   of a task that ended goes above at once, after its label. *)
+(* On a terminal, take a line of a running task, output or Logs message. If
+   the task succeeds, the line never reaches the scrollback. If the task
+   fails or is cancelled, the line appears once under the task's line,
+   without its label. A Logs message of an ended task goes above at once,
+   after its label. *)
 let test_terminal_lines steps =
   let current = ref None in
   let t =
@@ -947,7 +954,7 @@ let themes = Array.of_list (List.map snd Theme.all)
 let pick_theme n = themes.(n mod Array.length themes)
 
 (* The glyphs of straight lines. A moving frame swaps only these, so its
-   corners and tees stay where lines meet. *)
+   corners and tees stay where the lines meet. *)
 let line_glyphs =
   List.concat_map
     (fun b ->
@@ -957,8 +964,8 @@ let line_glyphs =
 
 let clusters = Console_width.clusters
 
-(* A table of [cells] from [labels], or a panel with them as its title and
-   its lines, as a printer and as a span at a width. *)
+(* [widget kind cells] is a table of [cells], or a panel with [cells] as its
+   title and lines. It returns a printer and a span at a given width. *)
 let widget kind cells =
   let cells = List.filteri (fun i _ -> i < 4) cells in
   let cells = List.map (fun c -> View.text (label c)) cells in
@@ -981,14 +988,15 @@ let widget kind cells =
     in
     ((fun ppf -> View.pp ppf panel), fun width -> View.sized ~width panel)
 
-(* [top f] above the default view of [root], [f] given the room's width. *)
+(* [above top root] is [top] above the default view of [root]. [top] gets
+   the room's width. *)
 let above top root =
   View.fit (fun r ->
       View.vcat
         [ top (Option.value (Room.width r) ~default:80); Progress.view root ])
 
-(* The rows above the summary, the last line of the view, at each of
-   [times] in tenths of a second. *)
+(* [view_frames theme ~width span times] is the rows above the summary (the
+   last line of the view), at each of [times] in tenths of a second. *)
 let view_frames theme ~width span times =
   let t = terminal ~theme ~width ~height:600 ~styled:true () in
   let d = display t in
@@ -1009,11 +1017,11 @@ let view_frames theme ~width span times =
   Display.close d;
   frames
 
-(* In every frame of a view in a theme with motion, only the glyphs of
-   straight lines differ from the same frame in the still theme, each
-   replaced by a glyph as wide, so every line keeps its width and every cell
-   its place. The still theme draws the same frame at every time: the widget
-   as printed on a formatter. *)
+(* Compare each frame of a view in a theme with motion to the same frame in
+   the still theme. Only the glyphs of straight lines differ, each replaced
+   by a glyph of the same width. So every line keeps its width, and every
+   cell its place. The still theme draws the same frame at every time: the
+   widget as printed on a formatter. *)
 let test_view_frames kind cells n w times =
   let theme = pick_theme n and width = 8 + (w mod 113) in
   let pp, span = widget kind cells in
@@ -1056,11 +1064,11 @@ let test_view_frames kind cells n w times =
         moving still)
     moving still
 
-(* On a pipe, a view is drawn at the end, followed only by the summary
-   line. A widget printed on a formatter does not move: it prints the same
-   bytes twice, and the bytes of the still theme without colour, and with
-   colour too unless the theme's motion is a sweep, which colours the
-   frame. *)
+(* On a pipe, a view is drawn at the end, followed only by the summary line.
+   A widget printed on a formatter does not move: it prints the same bytes
+   twice. Without colour, it prints the bytes of the still theme. With
+   colour, it also does, unless the theme's motion is a sweep, which
+   colours the frame. *)
 let test_view_pipe kind cells n m =
   let theme = pick_theme n in
   let pp, _ = widget kind cells in
@@ -1097,9 +1105,9 @@ let test_view_pipe kind cells n m =
   if Theme.motion theme <> Some `Sweep then
     check_eq ~pp:Fmt.Dump.string (printed (Theme.still theme)) (printed theme)
 
-(* After a view raises, closing the display does not raise again, shows the
-   cursor at the start of a line and restores the default attributes, so
-   the next text on the terminal is drawn plainly. *)
+(* After a view raises, closing the display does not raise again. It shows
+   the cursor at the start of a line and restores the default attributes,
+   so the next text on the terminal is plain. *)
 let test_view_exception_close n k styled =
   let width = 20 + (n mod 61) and height = 8 + (k mod 8) in
   let term = Console_vte.v ~raw:true ~rows:height ~cols:width () in
@@ -1134,10 +1142,10 @@ let test_view_exception_close n k styled =
   done
 
 (* A long-running parent keeps a bounded part of its ended children and
-   their output, failed and cancelled keyed children included: nothing
-   without a terminal, and at most 1 MiB on one, where ended children wait
-   for their parent. The formatter discards what it is given, so the heap
-   measured is the display's alone. *)
+   their output, including failed and cancelled keyed children. Without a
+   terminal it keeps nothing. On a terminal, ended children wait for their
+   parent, up to 1 MiB. The formatter discards its input, so the measured
+   heap is only the display's. *)
 let test_finished_children_heap n terminal =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) (fun () -> ()) in
   let size = if terminal then Some (fun () -> (80, 10)) else None in
@@ -1161,11 +1169,10 @@ let test_finished_children_heap n terminal =
   in
   Fun.protect
     (fun () ->
-      (* On a terminal, ended children wait for their parent up to 1 MiB;
-         past it the oldest are dropped down to half of that, so the heap
-         rises and falls by up to 1 MiB. It may exceed its warm size by that
-         much, never by the three batches that follow, each of a megabyte or
-         more. *)
+      (* On a terminal, ended children wait for their parent up to 1 MiB.
+         Above that, the display drops the oldest down to half of it. So the
+         heap rises and falls by up to 1 MiB. It may exceed its warm size by
+         that much, but not by the next three batches, each 1 MiB or more. *)
       ignore (batch ());
       let warm = ref (batch ()) in
       if terminal then warm := max !warm (batch ());
@@ -1178,9 +1185,9 @@ let test_finished_children_heap n terminal =
       done)
     ~finally:(fun () -> Display.close d)
 
-(* Setting another theme on the formatter redraws the whole region as a
-   fresh display in that theme draws it, view and log window included, and
-   a second redraw writes nothing. *)
+(* Setting another theme on the formatter redraws the whole region, view and
+   log window included, as a fresh display in that theme draws it. A second
+   redraw writes nothing. *)
 let theme_switch_display width theme =
   let term = Console_vte.v ~raw:true ~rows:12 ~cols:width () in
   Console_vte.feed term "before\r\n";
@@ -1244,8 +1251,8 @@ let test_theme_switch old_index next_index n =
 
 (* {1 The scrollback and the region}
 
-   Random trees of tasks, ended in a random order: a model says, for each
-   task, the tasks it moves to the scrollback with. *)
+   Random trees of tasks end in a random order. For each task, a model
+   gives the tasks that move to the scrollback with it. *)
 
 type ttask = {
   tk : Task.t;
@@ -1287,15 +1294,15 @@ let tree_step = with_printer pp_tree_step tree_step
 (* [gone x] is [true] iff the display moved [x]'s tree to the scrollback. *)
 let gone x = View.to_string (View.sized ~width:80 (Progress.tree x.tk)) = ""
 
-(* [wait held x] adds [x] to the trees that wait, in the order they
-   started. *)
+(* [wait held x] adds [x] to the waiting trees, kept in start order. *)
 let wait held x =
   let index y = int_of_string (String.sub y.tname 1 2) in
   held := List.stable_sort (fun a b -> compare (index a) (index b)) (x :: !held)
 
-(* A new task named [tname] under [tparent], or [root]. Started under a tree
-   already moved to the scrollback, and without [keep_ended], it waits to
-   move there alone. *)
+(* [start_tree_task ~keep_ended ~held root tparent tname] is a new task named
+   [tname] under [tparent], or under [root]. Without [keep_ended], a task
+   started under a tree already in the scrollback waits to move there on
+   its own. *)
 let start_tree_task ~keep_ended ~held root tparent tname =
   let tk =
     Task.start (match tparent with Some p -> p.tk | None -> root) tname
@@ -1312,17 +1319,17 @@ let start_tree_task ~keep_ended ~held root tparent tname =
   | _ -> ());
   x
 
-(* [move moves x] records that [x]'s tree moved to the scrollback, as it is
-   now. *)
+(* [move moves x] records that the current tree of [x] moved to the
+   scrollback. *)
 let move moves x =
   if not x.moved then begin
     x.moved <- true;
     moves := preorder x :: !moves
   end
 
-(* A top task that ended waits in the region with the others, and they move
-   in the order they started: [held] are the trees that wait, in that order,
-   and those the display moved are recorded. *)
+(* An ended top task waits in the region with the other waiting tasks. They
+   move in start order. [held] is the waiting trees, in that order.
+   [settle_moves] records the trees that the display moved. *)
 let settle_moves moves held =
   held :=
     List.filter
@@ -1334,12 +1341,12 @@ let settle_moves moves held =
         else true)
       !held
 
-(* [close_moves tasks moves held] is, read before the display closes, what
-   records the trees that move as it closes. Closing ends the tasks still
-   running in the order they started: with [cancelled], a tree with a
-   cancelled task that kept lines moves as it ends, with those that wait;
-   the others wait, and all that wait move last, in the order they
-   started. *)
+(* Call [close_moves tasks moves held] before the display closes. It returns
+   a function that records the trees that move during the close. Closing
+   ends the running tasks in start order. With [cancelled], a tree with a
+   cancelled task that kept lines moves when it ends, together with the
+   waiting trees. Other trees wait, and all waiting trees move last, in
+   start order. *)
 let close_moves ?(cancelled = true) tasks moves held =
   let rec has_output x =
     (Task.state x.tk <> `Succeeded && Task.output x.tk <> [])
@@ -1365,9 +1372,10 @@ let close_moves ?(cancelled = true) tasks moves held =
     List.iter (move moves) !held;
     held := []
 
-(* Runs [steps] under [root], calling [frame] after each, and gives the tasks,
-   the groups of names in the order they move to the scrollback (none with
-   [keep_ended]) and the trees that wait to move. *)
+(* [run_tree root ~frame steps] runs [steps] under [root] and calls [frame]
+   after each step. It returns the tasks, the groups of names in the order
+   they move to the scrollback (none with [keep_ended]), and the trees that
+   wait to move. *)
 let run_tree ?(keep_ended = false) root ~frame steps =
   let tasks = ref [||] and moves = ref [] and held = ref [] in
   let pick = pick_task tasks in
@@ -1398,9 +1406,9 @@ let run_tree ?(keep_ended = false) root ~frame steps =
 let names_in line tasks =
   List.filter (fun x -> has x.tname line) (Array.to_list tasks)
 
-(* Every frame has the summary last, no redraw scrolls the terminal, and
-   after the close the scrollback lists every task once: each top task's
-   tree whole, its tasks under it in the order they started. *)
+(* Every frame has the summary last, and no redraw scrolls the terminal.
+   After the close, the scrollback lists every task once. Each top task's
+   tree is whole, with its tasks under it in start order. *)
 let test_scrollback_tree steps h =
   let height = 6 + (h mod 15) and width = 80 in
   let t = terminal ~width ~height ~styled:false () in
@@ -1427,10 +1435,11 @@ let test_scrollback_tree steps h =
   in
   check_eq ~pp:Fmt.(Dump.list string) (List.concat (List.rev !moves)) seen
 
-(* The rows of [r] above the summary. *)
+(* [above_summary r] is the number of rows of [r] above the summary. *)
 let above_summary r = Option.map (fun h -> h - 1) (Room.height r)
 
-(* The trees of the top tasks of [root] side by side, then the summary. *)
+(* [side_by_side ~width root] is the trees of the top tasks of [root] side
+   by side, then the summary. *)
 let side_by_side ~width root =
   View.fit (fun r ->
       let width = Option.value (Room.width r) ~default:width in
@@ -1447,7 +1456,8 @@ let side_by_side ~width root =
           Progress.summary root;
         ])
 
-(* At most three top tasks, so that each column holds its names. *)
+(* Keep at most three top tasks, so that each column has room for its
+   names. *)
 let at_most_three_tops steps =
   let tops = ref 0 in
   List.filter
@@ -1459,8 +1469,8 @@ let at_most_three_tops steps =
     steps
 
 (* With [keep_ended] and a view of the top tasks' trees side by side, every
-   frame fits the screen with the summary last, and the last frame holds
-   every task once. *)
+   frame fits the screen with the summary last. The last frame shows every
+   task once. *)
 let test_columns steps h =
   let height = 6 + (h mod 15) and width = 120 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
@@ -1501,8 +1511,8 @@ let test_columns steps h =
           lines)
     tasks
 
-(* The default view is the tree of the root, fit to the room the summary
-   leaves, then the summary: the two draw the same bytes. *)
+(* The default view draws the same bytes as the tree of the root, fit to the
+   room the summary leaves, followed by the summary. *)
 let test_default_view steps h =
   let height = 4 + (h mod 15) in
   let run view =
@@ -1551,7 +1561,8 @@ let pp_pack ppf = function
 
 let pack = with_printer pp_pack pack
 
-(* The cell [s] starts at in [row], each glyph one cell. *)
+(* [start_cell s row] is the cell where [s] starts in [row], counting each
+   glyph as one cell. *)
 let start_cell s row =
   let s = Display_harness.glyphs s in
   let n = Array.length s in
@@ -1579,8 +1590,8 @@ let laid_out label row =
       })
     (start_cell label cells)
 
-(* What, besides a wider label, widens the columns the rows share: a task
-   that counts bytes, and a total of items with more digits. *)
+(* Besides a wider label, two things widen the columns the rows share: a
+   task that counts bytes, and an item total with more digits. *)
 let widening tasks =
   List.fold_left
     (fun (bytes, items) (task, _) ->
@@ -1590,8 +1601,8 @@ let widening tasks =
       | `Spin -> (bytes, items))
     (false, 0) tasks
 
-(* Applies [step] to [tasks] under [root], each with its label, and to the
-   clock [now]. *)
+(* [apply_pack ~root ~now ~tasks step] applies [step] to [tasks] under
+   [root] and to the clock [now]. [tasks] pairs each task with its label. *)
 let apply_pack ~root ~now ~tasks step =
   let pick i =
     match !tasks with
@@ -1623,8 +1634,9 @@ let apply_pack ~root ~now ~tasks step =
   | Finish (i, o) -> Option.iter (fun task -> finish task o) (pick i)
   | Tick -> now := !now +. 0.25
 
-(* Runs [steps] on a region, [frame rows tasks] after each with the rows on
-   the screen and the tasks with their labels. *)
+(* [run_packs steps w ~frame] runs [steps] on a region. After each step it
+   calls [frame rows tasks] with the rows on the screen and the tasks with
+   their labels. *)
 let run_packs steps w ~frame =
   let width = 40 + (w mod 81) and height = 24 in
   let vte = Console_vte.v ~rows:height ~cols:width () in
@@ -1676,15 +1688,16 @@ let check_rows_pack ~previous rows tasks =
       | _ -> ());
       previous := Some (key, (first, last), ends, shown)
 
-(* The rows of a region pack from the left: the bars of all rows start in
-   one column, one cell after the widest label, and are as wide; every row
-   with columns ends in one column; and over a run at one width, the bars
-   never move left, and the columns move only when they widen. *)
+(* The rows of a region pack from the left. The bars of all rows start at
+   the same column, one cell after the widest label, and have the same
+   width. Every row with columns ends at the same column. During a run at
+   one width, the bars never move left, and the columns move only when they
+   widen. *)
 let test_rows_pack steps w =
   let previous = ref None in
   run_packs steps w ~frame:(check_rows_pack ~previous)
 
-(* [row] from the cell [label] starts at. *)
+(* [from_label label row] is [row] from the cell where [label] starts. *)
 let from_label label row =
   let cells = Display_harness.glyphs row in
   Option.map
@@ -1696,7 +1709,8 @@ let from_label label row =
       Buffer.contents b)
     (start_cell label cells)
 
-(* The cell after the widest label on the screen. *)
+(* [label_column rows tasks] is the cell after the widest label on the
+   screen. *)
 let label_column rows tasks =
   List.fold_left
     (fun n (_, label) ->
@@ -1721,15 +1735,15 @@ let check_ended_rows ~seen rows tasks =
             | _ -> Hashtbl.replace seen label (key, row)))
     tasks
 
-(* The row of a task that ended, from its label on, stays the same while
-   the columns stay as they are, as time passes and the other tasks
+(* The row of an ended task, from its label on, does not change while the
+   columns do not change. This holds as time passes and as other tasks
    progress, start and end. *)
 let test_ended_rows_stay steps w =
   let seen = Hashtbl.create 16 in
   run_packs steps w ~frame:(check_ended_rows ~seen)
 
 (* When the room shrinks the windows, the latest output stays on the
-   screen, whether the parent or its child wrote it. *)
+   screen, whether the parent or the child wrote it. *)
 let test_window_age n newest_child =
   let t = Display_harness.terminal ~width:60 ~height:4 () in
   let d = t.display in
@@ -1752,8 +1766,9 @@ let test_window_age n newest_child =
   if not (List.exists (Display_harness.contains "newest-output") rows) then
     failf "the newest output was dropped: %a" Fmt.(Dump.list string) rows
 
-(* An ended child waiting for its parent keeps at most about 1 MiB, even
-   when it is the newest and its label or end message is larger. *)
+(* An ended child that waits for its parent keeps at most about 1 MiB. This
+   holds even when it is the newest child and its label or end message is
+   larger. *)
 let test_oversized_waiting_task n message =
   let ppf = Format.make_formatter (fun _ _ _ -> ()) ignore in
   let root = Task.root ~now:(fun () -> 0.) () in
@@ -1776,8 +1791,8 @@ let test_oversized_waiting_task n message =
   if retained > 1_048_576 + 65_536 then
     failf "one completed child retains %d bytes (limit 1 MiB)" retained
 
-(* Sizing a task's tree for one place, at any width and height, changes
-   neither the view laid out elsewhere nor the frame on the terminal: the
+(* Sizing a task's tree for one place, at any width and height, does not
+   change the view laid out elsewhere or the frame on the terminal. The
    display redraws nothing. *)
 let test_tree_local_dimensions w h =
   let t = Display_harness.terminal ~width:80 ~height:12 ~label:"summary" () in
@@ -1811,8 +1826,8 @@ let test_tree_local_dimensions w h =
   check unchanged
 
 (* A view that reads neither the time nor the program's state is drawn
-   once: redraws at later times write nothing, whatever the theme, as long
-   as nothing moves it. *)
+   once. Later redraws write nothing, in any theme, as long as nothing
+   moves the view. *)
 let test_static_view w h k times =
   let width = 8 + (w mod 100) and height = 3 + (h mod 20) in
   let writes = ref 0 in
@@ -1839,9 +1854,9 @@ let test_static_view w h k times =
   check_eq ~pp:Fmt.int drawn !writes;
   Display.close d
 
-(* A tree that moves to the scrollback leaves what [commit] gives: here one
-   line for the task that moves and none for the tasks under it, or nothing
-   when [commit] gives [None]. *)
+(* A tree that moves to the scrollback leaves what [commit] returns. Here
+   that is one line for the moving task and none for the tasks under it, or
+   nothing when [commit] returns [None]. *)
 let test_commit steps policy =
   let width = 80 and height = 8 in
   let vte = Console_vte.v ~rows:height ~cols:width () in

@@ -6,8 +6,8 @@
 let fresh () = Format.formatter_of_buffer (Buffer.create 16)
 let check_find = Alcotest.(check (option int))
 
-(* A slot holds one value per formatter, the last one set, apart from the
-   other slots. *)
+(* A slot holds one value per formatter: the last one set. Each slot is
+   independent of the others. *)
 let test_find () =
   let a = Slot.v () and b = Slot.v () in
   let ppf = fresh () and other = fresh () in
@@ -21,15 +21,16 @@ let test_find () =
   check_find "both" (Some 2) (Slot.find a ppf);
   check_find "another formatter" None (Slot.find a other)
 
-(* A formatter like another, as Fmt.with_buffer makes it, keeps its values. *)
+(* A formatter made with [Fmt.with_buffer ~like] keeps the values of the
+   original. *)
 let test_like () =
   let s = Slot.v () and ppf = fresh () in
   Slot.set s ppf 1;
   let like = Fmt.with_buffer ~like:ppf (Buffer.create 16) in
   check_find "carried over" (Some 1) (Slot.find s like)
 
-(* [Slot.unset ppf] turns [false] once Fmt or a slot that is a setting sets
-   something on [ppf], in whichever order; a slot that is not a setting leaves
+(* [Slot.unset ppf] becomes [false] once Fmt, or a slot that is a setting,
+   sets something on [ppf], in any order. A slot that is not a setting leaves
    it [true]. *)
 let test_unset () =
   let unset what want ppf = Alcotest.(check bool) what want (Slot.unset ppf) in

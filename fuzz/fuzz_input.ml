@@ -6,8 +6,8 @@
 open Alcobar
 
 (* Feeding input at once or a byte at a time gives the same echo, lines,
-   pending text and history; the history given is kept sanitized; the echo
-   holds no escape character; a masked editor keeps no history. *)
+   pending text and history. The editor keeps the given history sanitized.
+   The echo has no escape character. A masked editor keeps no history. *)
 let test_chunks s =
   let make () =
     Console_input.v ~prompt:s ~history:[ s ]
@@ -39,10 +39,10 @@ let test_chunks s =
   check (Console_input.history masked = [])
 
 (* Keys that edit a line in place: characters one or two cells wide, both
-   erasing keys, and the left and right arrows. A combining
-   mark, a spacing mark, a VS16 and a ZWJ join the character before them. A
-   VS16 after the heart, or a ZWJ between two emoji, makes an emoji sequence
-   two cells wide. *)
+   erase keys, and the left and right arrows. A combining mark, a spacing
+   mark, a VS16 and a ZWJ join the character before them. A VS16 after the
+   heart, or a ZWJ between two emoji, makes an emoji sequence two cells
+   wide. *)
 let keys =
   [|
     "a";
@@ -63,8 +63,7 @@ let keys =
 
 let key = map [ uint8 ] (fun k -> keys.(k mod Array.length keys))
 
-(* The echo of any editing, written on a terminal, shows the line being
-   typed. *)
+(* After any edit, the echo written on a terminal shows the pending line. *)
 let test_echo_shows_the_line keys =
   let editor = Console_input.v () in
   let term = Console_vte.v ~raw:true ~rows:1 ~cols:200 () in
@@ -76,10 +75,10 @@ let test_echo_shows_the_line keys =
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
 
-(* Whatever is typed, the cursor stands between two clusters of the line as
-   console segments it, never inside one, even after a character that
-   joins the cluster after the cursor: a [|] typed then splits the line
-   where its clusters split. *)
+(* After any keys, the cursor is between two clusters of the line, never
+   inside one. This holds even after a character that joins the cluster
+   after the cursor. The test types [|] and checks that it splits the line
+   at a cluster boundary. *)
 let test_cursor_between_clusters keys =
   let editor = Console_input.v () in
   List.iter (fun k -> ignore (Console_input.feed editor k)) keys;
@@ -92,8 +91,9 @@ let test_cursor_between_clusters keys =
         (Console_width.clusters before @ Console_width.clusters after)
   | _ -> failf "not one | in %S" (Console_input.pending editor)
 
-(* Inserting a multi-codepoint cluster before a suffix must redraw that
-   suffix at its new column, even when the cluster changes width as typed. *)
+(* Inserting a multi-codepoint cluster before a suffix redraws the suffix at
+   its new column. This holds even when the cluster changes width as it is
+   typed. *)
 let test_insert_cluster k n split =
   let clusters =
     [|
@@ -132,8 +132,8 @@ let test_insert_cluster k n split =
     (Console_vte.to_string actual);
   check (cursor = Console_vte.cursor_pos actual)
 
-(* A password mask counts clusters rather than their codepoints, including
-   when a multibyte character arrives one byte at a time. *)
+(* A password mask shows one mask per cluster, not per codepoint. This
+   holds also when a multibyte character arrives one byte at a time. *)
 let test_masked_clusters data split =
   let clusters =
     [|
@@ -171,9 +171,9 @@ let test_masked_clusters data split =
     ~eq:(List.equal String.equal) [ secret ] lines;
   check (Console_input.history editor = [])
 
-(* A masked editor submits its secret as the bytes typed, malformed and
-   unfinished UTF-8 included, and fed at once or a byte at a time gives the
-   same secret and the same echo. *)
+(* A masked editor submits the exact bytes typed, including malformed and
+   truncated UTF-8. Feeding at once or a byte at a time gives the same
+   secret and the same echo. *)
 let test_secret_bytes data =
   let data = String.sub data 0 (min 256 (String.length data)) in
   let secret =

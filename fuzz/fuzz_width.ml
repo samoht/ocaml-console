@@ -14,8 +14,8 @@ let is_spacing_mark u =
 let is_regional_indicator u =
   0x1f1e6 <= Uchar.to_int u && Uchar.to_int u <= 0x1f1ff
 
-(* An emoji that is text by default, which a VS16 right after it shows as
-   an emoji. *)
+(* [is_text_emoji u] is [true] for an emoji shown as text by default. A VS16
+   right after it shows it as an emoji. *)
 let is_text_emoji u =
   Uucp.Emoji.is_emoji u && not (Uucp.Emoji.is_emoji_presentation u)
 
@@ -24,9 +24,9 @@ let rec selects_emoji = function
       (Uchar.to_int b = 0xfe0f && is_text_emoji a) || selects_emoji rest
   | _ -> false
 
-(* A cluster takes the cells of its widest character, two if it is an
-   emoji sequence (a flag, or a VS16 after a text emoji), plus the cells of
-   each spacing mark after its first character. *)
+(* The width policy. A cluster takes the cells of its widest character, or
+   at least two for an emoji sequence (a flag, or a VS16 after a text emoji).
+   Each spacing mark after the first character adds its own cells. *)
 let cluster_cells c =
   match uchars c with
   | [] -> 0
@@ -48,8 +48,8 @@ let policy_width s =
 let policy_clusters s =
   List.rev (Uuseg_string.fold_utf_8 `Grapheme_cluster (fun l c -> c :: l) [] s)
 
-(* Characters of every kind the policy names, to build text of clusters
-   that bytes alone rarely make. *)
+(* One character of each kind the policy names. Random bytes rarely make
+   these clusters, so the generator builds text from them. *)
 let alphabet =
   [|
     "a"; "1"; "#"; " "; "\u{00E9}"; "\u{0301}"; "\u{754C}"; "\u{0915}";
@@ -71,7 +71,7 @@ let text =
       String.concat ""
         (List.map (fun k -> alphabet.(k mod Array.length alphabet)) l))
 
-(* Text of runs of one character, as bars and rules draw. *)
+(* Text made of runs of one repeated character, as bars and rules draw. *)
 let runs =
   map
     [ list (pair uint8 uint8) ]
@@ -84,8 +84,8 @@ let runs =
                     alphabet.(k mod Array.length alphabet))))
            l))
 
-(* [string_width] follows the policy above on any bytes, and [clusters]
-   gives its clusters on sanitized text. *)
+(* [string_width] follows the policy above on any bytes. On sanitized text,
+   [clusters] returns the policy's clusters. *)
 let test_policy s =
   check_eq ~pp:Fmt.int (policy_width s) (Console_width.string_width s);
   check_eq
@@ -102,8 +102,8 @@ let test_sub s a b =
     (Console_width.string_width (String.sub s pos len))
     (Console_width.sub_width s ~pos ~len)
 
-(* Text that does not join the text before it adds its cells and its
-   clusters to those of that text. *)
+(* When [b] does not join [a], the cells and clusters of [a ^ b] are those of
+   [a] plus those of [b]. *)
 let test_joins a b =
   let a = Console_text.sanitize a and b = Console_text.sanitize b in
   if not (Console_width.joins a b) then begin
@@ -116,8 +116,8 @@ let test_joins a b =
       (Console_width.clusters (a ^ b))
   end
 
-(* For printable UTF-8, the width is the column a terminal's cursor reaches
-   after the same bytes. *)
+(* For printable UTF-8, the width is the column where a terminal's cursor
+   stops after the same bytes. *)
 let test_matches_terminal s =
   let s = Console_text.sanitize ~keep_newlines:false s in
   guard (Console_width.string_width s < 1000);

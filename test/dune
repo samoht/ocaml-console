@@ -24,8 +24,8 @@
   fmt
   unix))
 
-; The terminal a test sees is the one it sets up, not the one dune runs in:
-; $COLUMNS and $LINES would override its size.
+; Each test sets up its own terminal. Clear $COLUMNS and $LINES so that the
+; terminal dune runs in does not override its size.
 
 (env
  (_

@@ -31,7 +31,8 @@ let test_colours () =
     "the right colour wins" true
     (Style.equal (Style.fg blue) Style.(fg red + fg blue))
 
-(* [pp] printed on a buffer in colour at [depth], or without colour. *)
+(* [printed pp] is [pp] printed on a buffer in colour at [depth], or without
+   colour if [depth] is not given. *)
 let printed ?depth ?(margin = 78) pp =
   let buf = Buffer.create 16 in
   let ppf = Format.formatter_of_buffer buf in
@@ -45,8 +46,8 @@ let printed ?depth ?(margin = 78) pp =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* style.mli, styled: any printer, in the formatter's depth, and plain on a
-   formatter without colour. *)
+(* [Style.styled] works with any printer, at the formatter's depth, and
+   prints plain text on a formatter without colour. *)
 let test_styled () =
   let red_int ppf = Style.(styled (fg red)) Fmt.int ppf 42 in
   Alcotest.(check string) "no colour" "42" (printed red_int);
@@ -60,8 +61,8 @@ let test_styled () =
     "a style that sets nothing" "42"
     (printed ~depth:`Ansi_16 (fun ppf -> Style.styled Style.none Fmt.int ppf 42))
 
-(* style.mli, styled: an inner style adds to the outer one, which is on again
-   after it. *)
+(* With [Style.styled], an inner style adds to the outer one, and the outer
+   style comes back after it. *)
 let test_styled_nested () =
   let inner = Style.(styled (fg Color.red)) Fmt.string in
   let outer ppf () =
@@ -73,7 +74,7 @@ let test_styled_nested () =
     "nested" "\027[1ma\027[1;31mb\027[0m\027[1mc\027[0m"
     (printed ~depth:`Ansi_16 (fun ppf -> Style.styled Style.bold outer ppf ()))
 
-(* style.mli, styled: escape codes take no room on the line. *)
+(* With [Style.styled], escape codes take no room on the line. *)
 let test_styled_width () =
   let word = Style.(styled bold) Fmt.string in
   Alcotest.(check string)

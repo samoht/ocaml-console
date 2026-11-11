@@ -10,7 +10,7 @@ val suites : (string * int) list
 (** [suites] are the names of the test suites and their numbers of tests. *)
 
 val pause : float
-(** [pause] is the seconds a test takes. *)
+(** [pause] is the time a test takes, in seconds. *)
 
 val label : string
 (** [label] is the label of the run. *)

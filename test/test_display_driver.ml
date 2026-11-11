@@ -15,10 +15,10 @@ let split = String.split_on_char '\n'
 (* [untimed l] is [l] without the timer at its end. *)
 let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 
-(* A Logs message inside a task is its output, as a line given to [log]
-   is: it shows in the task's window, goes when the task succeeds, even
-   once pushed out of the window, and is printed under the task's line,
-   after the mark of its level, when it fails. *)
+(* A Logs message inside a task is task output, like a line given to [log].
+   It shows in the task's window and goes away when the task succeeds, even
+   after it leaves the window. When the task fails, it is printed under the
+   task's line, after the mark of its level. *)
 let test_logs_in_task () =
   let run ~fails =
     let t = roomy () in
@@ -39,9 +39,9 @@ let test_logs_in_task () =
     [ "[x] job"; "  ! first"; "  # out"; "  last" ]
     (run ~fails:true)
 
-(* A Logs message with no current task goes above at once, a
-   debug message after its own mark, an application or an information
-   message after none. A task started with [task] is not current. *)
+(* A Logs message with no current task goes above the rows at once. A debug
+   message has its own mark; an application or information message has no
+   mark. A task started with [Task.start] is not current. *)
 let test_logs_outside () =
   let report d =
     ignore (Task.start d "running");
@@ -70,7 +70,7 @@ let test_logs_outside () =
   check_lines "the default theme's debug mark" [ "\u{00b7} debug"; "" ]
     (split out)
 
-(* A driver's scope says which task is current, here a fiber's own. *)
+(* A driver's scope says which task is current; here, the fiber's own. *)
 let test_scope () =
   let current = ref None in
   let scope =
@@ -112,10 +112,10 @@ let test_scope () =
     ]
     (split (Buffer.contents buffer))
 
-(* A signal handler runs at any safe point, such as in the middle of a write
-   of the display. What it asks of the display through [when_idle] waits until
-   that write is done, so that a suspension asked for during a write erases the
-   region on the screen rather than a region half written. *)
+(* A signal handler runs at any safe point, for example in the middle of a
+   display write. Work it queues with [when_idle] waits until that write
+   ends. So a suspension asked for during a write erases the region on the
+   screen, not a half-written region. *)
 let test_when_idle () =
   let vte = Console_vte.v ~rows:8 ~cols:40 () in
   let buffer = Buffer.create 256 in

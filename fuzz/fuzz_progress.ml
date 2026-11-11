@@ -8,7 +8,8 @@ module Event = Console.Task.Event
 
 let known_events = [ "start"; "progress"; "label"; "output"; "end" ]
 
-(* Strings that are often one of the listed values of a member. *)
+(* Strings that are often one of the listed values of a member, and
+   otherwise any bytes. *)
 let value listed = choose (bytes :: List.map const listed)
 
 let open_value listed =
@@ -36,8 +37,8 @@ let nat = map [ int ] (fun n -> n land max_int)
 let task = map [ nat; list bytes ] (fun id path -> (id, path))
 let nat64 = map [ int64 ] (fun n -> Int64.logand n Int64.max_int)
 
-(* Any event, as a function of its time. [Event.other] is given only a name
-   that is not a listed event. *)
+(* Any event, as a function of its time. [Event.other] only gets names that
+   are not listed events. *)
 let kind =
   choose
     [
@@ -74,12 +75,12 @@ let decode line =
   | Ok e -> e
   | Error (`Msg e) -> failf "%S does not decode: %s" line e
 
-(* [same_event a b] is [true] iff [a] and [b] write the same line: [Event.t]
-   is abstract, and its line holds each of its members. *)
+(* [same_event a b] is [true] iff [a] and [b] write the same line. [Event.t]
+   is abstract, and its line holds all its members. *)
 let same_event a b = String.equal (Event.to_string a) (Event.to_string b)
 
-(* An event's line is valid UTF-8 on one line, without a control character,
-   and decodes to an event that writes the same line. *)
+(* An event's line is one line of valid UTF-8 with no control character. It
+   decodes to an event that writes the same line. *)
 let test_round_trip time kind =
   let e = kind ~time in
   let line = Event.to_string e in
@@ -89,9 +90,9 @@ let test_round_trip time kind =
   check_eq ~pp:Fmt.Dump.string line (Event.to_string back);
   check (same_event back e)
 
-(* [Event.other] refuses a listed event name, and an event with an
-   [`Other s] unit, level or status reads back equal to itself, also when
-   [s] is a listed value. *)
+(* [Event.other] refuses a listed event name. An event with an [`Other s]
+   unit, level or status reads back equal to itself, also when [s] is a
+   listed value. *)
 let test_other s =
   (match Event.other ~time:0. s with
   | e ->
@@ -110,8 +111,8 @@ let test_other s =
   | Ok e -> check (same_event (decode (Event.to_string e)) e)
   | Error _ -> ()
 
-(* [s] as an event holds it: each maximal subpart of an ill-formed sequence
-   and each C1 control replaced by U+FFFD. *)
+(* [cleaned s] is [s] as an event stores it. Each maximal subpart of an
+   ill-formed sequence, and each C1 control, becomes U+FFFD. *)
 let cleaned s =
   let buf = Buffer.create (String.length s) in
   let rec go i =
@@ -128,8 +129,8 @@ let cleaned s =
   go 0;
   Buffer.contents buf
 
-(* Any bytes in a label read back as [cleaned] gives them: valid UTF-8
-   without a C1 control, every other character kept. *)
+(* Any bytes in a label read back as [cleaned] returns them: valid UTF-8
+   with no C1 control, and every other character kept. *)
 let test_string s =
   let e = decode (Event.to_string (Event.label ~time:0. (0, [ s ]) s)) in
   match (Event.task e, Event.text e) with
@@ -138,8 +139,8 @@ let test_string s =
       check_eq ~pp:Fmt.Dump.string (cleaned s) t
   | _ -> fail "not the label event"
 
-(* A time reads back rounded to the millisecond, held in [-10^12, 10^12]
-   seconds, and is zero if it is not finite. *)
+(* A time reads back rounded to the millisecond and clamped to
+   [-10^12, 10^12] seconds. A time that is not finite reads back as zero. *)
 let test_time x =
   let back = Event.time (decode (Event.to_string (Event.other ~time:x "x"))) in
   if not (Float.is_finite x) then check_eq ~pp:Fmt.float 0. back
@@ -147,8 +148,8 @@ let test_time x =
     let x = Float.min 1e12 (Float.max (-1e12) x) in
     check_eq ~pp:Fmt.float ((Float.round (x *. 1000.) /. 1000.) +. 0.) back
 
-(* A count reads back as it was, a JSON number below 10^15 and a string of
-   decimal digits from there. *)
+(* A count reads back unchanged. Below 10^15 it is a JSON number; from 10^15
+   it is a string of decimal digits. *)
 let test_count c n =
   let line =
     Event.to_string
@@ -164,10 +165,9 @@ let test_count c n =
   check (Event.count e = Some c);
   check (Event.total e = Some n)
 
-(* Every event field, through the public display API, with any bytes in
-   labels, end messages and the result's message: each line decodes with
-   [Event.of_string], encodes back to the same line, and is the event
-   expected. *)
+(* Every event field, set through the public display API, with any bytes in
+   labels and end messages. Each line decodes with [Event.of_string],
+   encodes back to the same line, and is the expected event. *)
 let public_schema_events k raw =
   let open Console in
   let clean s = Console_text.sanitize ~keep_newlines:false s in
@@ -220,9 +220,9 @@ let public_schema_events k raw =
   in
   (events, (count, status, detail))
 
-(* What a display keeps of a label or a message: all of it within 4 KiB,
-   and otherwise its start cut between two characters and ended with three
-   dots, 4 KiB in all. *)
+(* [kept s] is what a display keeps of a label or a message. Up to 4 KiB it
+   keeps all of it. Above, it keeps the start, cut between two characters,
+   then three dots: 4 KiB in all. *)
 let kept s =
   if String.length s <= 4096 then s
   else
@@ -263,8 +263,8 @@ let test_public_schema k text =
         failf "event %d is %a, not %a" i Event.pp actual Event.pp expected)
     (List.combine expected events)
 
-(* Extreme times: the finite limits and any IEEE-754 bit pattern, which the
-   float generator rarely produces. *)
+(* Extreme times: the finite limits and any IEEE-754 bit pattern. The float
+   generator rarely produces these. *)
 let extreme_seconds =
   choose
     [
@@ -277,9 +277,9 @@ let test_extreme_seconds time =
   test_round_trip time (fun ~time:t ->
       Event.succeeded ~task:(0, [ "work" ]) ~time:t ~elapsed:time ())
 
-(* An unknown event may carry a member with a known name and another JSON
-   type, as a future event might: it decodes as [Event.other], the member
-   ignored. *)
+(* An unknown event may have a member with a known name but another JSON
+   type, as a future event might. It decodes as [Event.other] and the
+   member is ignored. *)
 let test_unknown_schema k =
   let members =
     [|
@@ -300,7 +300,7 @@ let test_unknown_schema k =
   let line = Fmt.str {|{"time":1.25,"event":"pause","%s":%s}|} name json in
   check (same_event (decode line) (Event.other ~time:1.25 "pause"))
 
-(* Truncated multi-byte sequences, each a whole input. *)
+(* Truncated multi-byte sequences. Each one is a whole input. *)
 let invalid_prefix =
   choose (List.map const [ "\xf0\x9f"; "\xf0\x9f\x98"; "\xe2\x82" ])
 
@@ -310,9 +310,9 @@ let test_invalid_bytes raw =
   check (Event.text (Event.output ~time:0. raw) = Some expected);
   check_eq ~pp:Fmt.Dump.string expected (Console_text.sanitize raw)
 
-(* Each accessor gives the member of its event, and [None] for a member the
-   event does not have, on the event built and on the event decoded from its
-   line. *)
+(* Each accessor returns the member of its event, or [None] when the event
+   has no such member. This holds on the built event and on the event
+   decoded from its line. *)
 let test_accessors raw id n =
   let text = cleaned raw and task = (id, [ cleaned raw ]) in
   let verify ?task ?parent ?count ?total ?unit ?status ?elapsed ?text ?message
@@ -355,8 +355,8 @@ let test_accessors raw id n =
     (Event.succeeded ~message:raw ~time:1.25 ~elapsed:0.5 ());
   verify (`Other "pause") (Event.other ~time:1.25 "pause")
 
-(* A retained text is cut between two grapheme clusters, then ends in
-   ASCII dots. *)
+(* A kept text is cut between two grapheme clusters and ends in ASCII
+   dots. *)
 let test_retained_cut k =
   let tails =
     [|

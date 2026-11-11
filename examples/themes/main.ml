@@ -3,12 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The same title, tree, table and progress rows in the theme its argument
-   names, the title graded through the theme's palette: the README's
-   gallery is recordings of this program, one per theme. The table is
+(* The same title, tree, table and progress rows, in the theme named by the
+   argument. The title is graded through the theme's palette. The README's
+   gallery holds recordings of this program, one per theme. The table is
    drawn above the rows while they run, so a theme with motion shows its
-   frame moving, and stays, still, in the view's last frame once they are
-   done. *)
+   frame moving. When the rows are done, the table stays, still, in the
+   view's last frame. *)
 
 open Console
 
@@ -34,7 +34,7 @@ let tree =
     ]
 
 let progress ~clock table =
-  (* The table above the rows and the summary. *)
+  (* The table goes above the rows and the summary. *)
   let view root =
     View.vcat [ View.sized ~width:100 table; Progress.view root ]
   in

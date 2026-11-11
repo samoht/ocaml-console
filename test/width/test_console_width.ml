@@ -31,7 +31,7 @@ let test_widths () =
           "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"))
 
 (* A cluster takes the cells of its widest character, not of its first
-   one with any width. *)
+   character with a width. *)
 let test_widest () =
   check "a bare heart is text" 1 "\u{2764}";
   check "a bare double exclamation mark is text" 1 "\u{203C}";
@@ -42,8 +42,8 @@ let test_widest () =
   check "a VS16 after a combining mark selects nothing" 1
     "\u{2764}\u{0301}\u{FE0F}"
 
-(* A spacing mark adds its cells once, after the first character of its
-   cluster. *)
+(* A spacing mark after the first character of its cluster adds its cells
+   once. *)
 let test_marks () =
   check "a spacing mark after a mark of no width" 1 "\u{0301}\u{0940}";
   check "Thai SARA AM after its consonant" 2 "\u{0E01}\u{0E33}";
@@ -54,8 +54,7 @@ let test_marks () =
     (Console_width.is_spacing_mark 0x0E33);
   check "a wide spacing mark after a ZWJ" 2 "\u{200D}\u{302E}"
 
-(* A VS16 that selects nothing still splits the text as it is: it does
-   not join the clusters around it. *)
+(* A VS16 that selects nothing does not join the clusters around it. *)
 let test_stray_vs16_splits () =
   check "a prepended letter, a VS16, then CJK" 3 "\u{0D4E}\u{FE0F}\u{754C}";
   Alcotest.(check (list string))
@@ -74,9 +73,9 @@ let test_sub_width () =
     done
   done
 
-(* The width is the column a terminal's cursor reaches. A wide spacing mark
-   after a character, as in U+FFFD U+302E, is left out: console adds its two
-   cells, and matrix's emulator makes the cluster two cells wide. *)
+(* The width is the column that a terminal's cursor reaches. The cases leave
+   out a wide spacing mark after a character, as in U+FFFD U+302E: console
+   adds its two cells, but the emulator makes the cluster two cells wide. *)
 let test_matches_terminal () =
   List.iter
     (fun s ->
@@ -102,8 +101,9 @@ let utf_8 cps =
     cps;
   Buffer.contents b
 
-(* The rows of widths.txt: the string, the cells each terminal gives it,
-   [None] where unknown, and console's. *)
+(* [rows ()] reads widths.txt. Each row is a name, the string, the cells
+   each terminal gives it ([None] if unknown), and the cells console
+   gives it. *)
 let rows () =
   In_channel.with_open_text "widths.txt" In_channel.input_lines
   |> List.filter (fun l -> l <> "" && l.[0] <> '#')
@@ -120,8 +120,8 @@ let rows () =
           | _ -> Alcotest.failf "a short row: %S" line)
       | [] -> Alcotest.failf "an empty row: %S" line)
 
-(* Console's width of each string is the count every terminal shows where
-   they agree, and the count of one of them where they do not. *)
+(* Where all terminals agree on a width, console gives the same width.
+   Where they disagree, console gives the width of one of them. *)
 let test_real_terminals () =
   let rows = rows () in
   Alcotest.(check bool) "the table has rows" true (List.length rows > 10);

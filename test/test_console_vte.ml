@@ -3,10 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* One record of the byte stream BSD script(1) -r writes: the payload length,
-   the wall clock, the kind, then the payload, little-endian throughout. The
-   seconds and microseconds are given apart so the fixture states exact times
-   rather than rounding a float into a field. *)
+(* [record] is one record of the byte stream that BSD script(1) -r writes:
+   the payload length, the wall clock, the kind, then the payload, all
+   little-endian. Seconds and microseconds are separate arguments, so the
+   fixture states exact times instead of rounding a float. *)
 let record ~kind ~sec ~usec payload =
   let buffer = Buffer.create (24 + String.length payload) in
   let add64 v =
@@ -26,9 +26,9 @@ let record ~kind ~sec ~usec payload =
   Buffer.add_string buffer payload;
   Buffer.contents buffer
 
-(* A session whose third write redraws the second line rather than adding a
-   third: the cursor goes up, returns to column zero and overwrites. Counting
-   the lines in the byte stream reports three; the screen holds two. *)
+(* A session whose third write redraws the second line instead of adding a
+   third. The cursor goes up, returns to column zero and overwrites. The
+   byte stream has three lines; the screen has two. *)
 let redraw_session =
   String.concat ""
     [
@@ -40,9 +40,9 @@ let redraw_session =
 
 let frames = Alcotest.(list (pair (float 1e-9) (list string)))
 
-(* The screen after each write, with the seconds since the recording started.
-   The header record makes no frame, the redraw replaces the row it lands on,
-   and the trailing space of "third " is trimmed from the screen. *)
+(* The screen after each write, with the seconds since the recording
+   started. The header record makes no frame. The redraw replaces the row it
+   lands on. The trailing space of "third " is trimmed from the screen. *)
 let test_frames_are_the_screen_after_each_write () =
   Alcotest.check frames "three writes, two rows"
     [
@@ -52,8 +52,8 @@ let test_frames_are_the_screen_after_each_write () =
     ]
     (Console_vte.frames ~rows:6 ~cols:20 redraw_session)
 
-(* Each screen keeps what earlier writes left on it: one emulator reads the
-   whole session, where a fresh emulator per write would lose "first". *)
+(* Each screen keeps what earlier writes left on it. One emulator reads the
+   whole session; a new emulator for each write would lose "first". *)
 let test_frames_keep_the_screen_between_writes () =
   match Console_vte.frames ~rows:6 ~cols:20 redraw_session with
   | [ _; _; (_, rows) ] ->
@@ -61,8 +61,9 @@ let test_frames_keep_the_screen_between_writes () =
         "the last screen still holds the first line" [ "first"; "third" ] rows
   | other -> Alcotest.failf "expected three frames, got %d" (List.length other)
 
-(* A capture of a program that was still running ends mid-record. The stream
-   stops there rather than raising, and every whole record before it stands. *)
+(* A capture of a program that was still running ends in the middle of a
+   record. The stream stops there without raising, and keeps every whole
+   record before it. *)
 let test_a_partial_record_ends_the_stream () =
   let truncated =
     let whole =
@@ -79,8 +80,8 @@ let test_a_partial_record_ends_the_stream () =
        (Console_vte.frames ~rows:6 ~cols:20
           (record ~kind:'s' ~sec:1 ~usec:0 "\n")))
 
-(* A header whose length is near [max_int] promises more than the stream
-   holds; the bound is checked without overflowing, so the stream ends. *)
+(* A header with a length near [max_int] promises more bytes than the stream
+   holds. The bound check does not overflow, so the stream ends. *)
 let test_a_huge_length_ends_the_stream () =
   let huge =
     let header = record ~kind:'o' ~sec:1 ~usec:0 "" in
@@ -90,9 +91,9 @@ let test_a_huge_length_ends_the_stream () =
   in
   Alcotest.(check int) "no record" 0 (List.length (Console_vte.records huge))
 
-(* [records] carries the epoch seconds the capture stamped, as the file holds
-   them; [frames] counts from the first record instead, so that two captures
-   of one command compare. *)
+(* [records] keeps the epoch seconds stored in the file. [frames] counts from
+   the first record instead, so two captures of one command can be
+   compared. *)
 let test_records_carry_the_wall_clock () =
   Alcotest.(check (list (pair (float 1e-9) string)))
     "three writes, stamped as recorded"
@@ -102,7 +103,7 @@ let test_records_carry_the_wall_clock () =
     (Console_vte.records redraw_session)
 
 (* [screen] is what a reader sees: no trailing blanks on a row, no blank rows
-   under the last one, and the scrollback in front only when asked. *)
+   after the last one, and the scrollback first only when asked for. *)
 let test_screen_trims_what_no_reader_sees () =
   let vte = Console_vte.v ~rows:6 ~cols:20 () in
   Console_vte.feed vte "padded   \r\n";
@@ -121,8 +122,8 @@ let check_screen msg expected t =
 let check_cursor msg expected t =
   Alcotest.(check (pair int int)) msg expected (Console_vte.cursor_pos t)
 
-(* A backspace moves the cursor and erases nothing, which is how a line
-   editor steps back over the text after its cursor. *)
+(* A backspace moves the cursor and erases nothing. A line editor uses this
+   to step back over the text after its cursor. *)
 let test_backspace_moves () =
   let t = read [ "abc\b\b" ] in
   check_screen "the text stays" [ "abc" ] t;
@@ -133,7 +134,7 @@ let foreground t ~x ~y =
   let i = Matrix_grid.idx g ~x ~y in
   Ansi.Color.to_rgb (Console_vte.fg g i)
 
-(* SGR 39 and 49 give back the terminal's own colours. *)
+(* SGR 39 and 49 restore the terminal's default colours. *)
 let test_default_colours () =
   let plain = foreground (read [ "X" ]) ~x:0 ~y:0 in
   let reset = foreground (read [ "\027[31;41m\027[39;49mX" ]) ~x:0 ~y:0 in
@@ -142,15 +143,15 @@ let test_default_colours () =
   Alcotest.(check bool)
     "colour 39 of the palette is a colour" false (palette = plain)
 
-(* A character of no width joins the cell before it, in the same write as
-   its letter or in the next one. *)
+(* A zero-width character joins the previous cell, whether it comes in the
+   same write as its letter or in the next one. *)
 let test_zero_width_kept () =
   check_screen "a combining mark" [ "e\u{301}x" ] (read [ "e\u{301}x" ]);
   check_screen "in the next write" [ "e\u{301}" ] (read [ "e"; "\u{301}" ]);
   check_screen "a bidirectional override" [ "a\u{202e}b" ]
     (read [ "a\u{202e}b" ])
 
-(* After a character in the last column, a cursor control acts from that
+(* After a character in the last column, a cursor control starts from that
    column. *)
 let test_last_column () =
   let full = "0123456789" in

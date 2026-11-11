@@ -17,14 +17,14 @@ let check_ansi msg want span =
     (View.to_string ~styled:true (View.concat want))
     (ansi span)
 
-(* bar.mli, v: a filled cell is a heavy line, a track cell a light one, and
-   a half filled cell the left half of a heavy one. *)
+(* [Bar.horizontal]: a filled cell is a heavy line and a track cell is a
+   light line. A half-filled cell is the left half of a heavy line. *)
 let test_v_halves () =
   check_plain "empty" "─" (Bar.horizontal ~width:1 0.);
   check_plain "half" "╸" (Bar.horizontal ~width:1 0.5);
   check_plain "full" "━" (Bar.horizontal ~width:1 1.)
 
-(* bar.mli, v: the fill rounds to the nearest half cell. *)
+(* The fill rounds to the nearest half cell. *)
 let test_v_rounding () =
   check_plain "half of three cells" "━╸─" (Bar.horizontal ~width:3 0.5);
   check_plain "half of four cells" "━━──" (Bar.horizontal ~width:4 0.5);
@@ -33,7 +33,7 @@ let test_v_rounding () =
   check_plain "below a quarter is none" "──" (Bar.horizontal ~width:2 0.12);
   check_plain "19.8 halves is 20" "━━━━━━━━━━" (Bar.horizontal ~width:10 0.99)
 
-(* bar.mli, v: the fraction is clamped to 0..1 and NaN is 0. *)
+(* The fraction is clamped to 0..1, and NaN counts as 0. *)
 let test_v_clamped () =
   check_plain "negative" "───" (Bar.horizontal ~width:3 (-1.));
   check_plain "over one" "━━━" (Bar.horizontal ~width:3 2.);
@@ -41,8 +41,8 @@ let test_v_clamped () =
   check_plain "nan" "───" (Bar.horizontal ~width:3 Float.nan);
   check_plain "zero width" "" (Bar.horizontal ~width:0 0.5)
 
-(* bar.mli, spans: the fill carries [style], the track and the brackets
-   [track], and a part with no cell adds no style. *)
+(* The fill has the style [style]. The track and the brackets have the style
+   [track]. A part with no cell adds no style. *)
 let test_v_styles () =
   check_ansi "fill and track"
     [ View.styled red (View.text "━╸"); View.styled dim (View.text "─") ]
@@ -66,8 +66,8 @@ let test_v_styles () =
     ]
     (Bar.horizontal ~style:red ~track:dim ~brackets:true ~width:3 0.5)
 
-(* bar.mli: on a formatter that is not UTF-8, whole cells of [#] on a track
-   of [-]. *)
+(* On a formatter that is not UTF-8, a bar draws whole cells of [#] on a
+   track of [-]. *)
 let test_ascii () =
   let ascii bar = View_harness.printed ~utf_8:false bar in
   Alcotest.(check string) "half" "##--" (ascii (Bar.horizontal ~width:4 0.5));
@@ -75,12 +75,12 @@ let test_ascii () =
     "brackets" "[#--]"
     (ascii (Bar.horizontal ~brackets:true ~width:3 0.4))
 
-(* [bar] printed on a formatter in [theme]. *)
+(* [in_theme theme bar] is [bar] printed on a formatter in [theme]. *)
 let in_theme ?(utf_8 = true) theme bar = View_harness.printed ~theme ~utf_8 bar
 
-(* theme.mli, bar: a theme gives its bars their glyphs. [dos] fills whole
-   cells with full blocks on a light shade, in brackets, [ascii] draws [#]
-   on [-] even in UTF-8, and the others heavy lines on light ones. *)
+(* A theme sets the glyphs of its bars. [dos] draws whole cells of full
+   blocks on a light shade, in brackets. [ascii] draws [#] on [-], even in
+   UTF-8. The other themes draw heavy lines on light lines. *)
 let test_theme_glyphs () =
   let check = Alcotest.(check string) in
   let half = Bar.horizontal ~width:4 0.5 in
@@ -101,11 +101,11 @@ let test_theme_glyphs () =
     && Theme.bar Theme.default = `Line
     && Theme.bar (Theme.v ~bar:`Block ()) = `Block)
 
-(* theme.mli, palette: a bar given no style spreads a palette of several
-   colours along its length, each cell in the colour of its place, so the
-   fill uncovers the colours as it grows; a bar given a style is in it, and
-   one in a palette of one colour is in that colour, as a progress row's bar
-   is, whatever the main colour. *)
+(* A bar with no style spreads a palette of several colours along its
+   length. Each cell has the colour of its position, so the fill shows more
+   colours as it grows. A bar with a style uses that style. With a palette of
+   one colour, the bar is in that colour, whatever the main colour; a
+   progress row's bar works the same way. *)
 let test_palette () =
   let styled theme bar = View_harness.printed ~theme ~depth:`True_color bar in
   let palette = Array.of_list (Theme.palette Theme.rainbow) in
@@ -181,7 +181,8 @@ let test_vertical_ascii () =
     (List.map (column ~utf_8:false) [ 0.; 0.25; 0.5; 0.9; 1. ]);
   Alcotest.(check string) "an ASCII theme" ":" (column ~theme:Theme.ascii 0.6)
 
-(* Vertical bars side by side are a sparkline, or a histogram in a room. *)
+(* Vertical bars side by side make a sparkline, or a histogram when given a
+   height. *)
 let test_vertical_charts () =
   let values = [ 0.; 0.25; 0.5; 0.75; 1. ] in
   Alcotest.(check string)
@@ -199,8 +200,8 @@ let test_vertical_palette () =
   in
   Alcotest.(check string) "plain" "█\n█" s
 
-(* A sparkline runs from its lowest value to its highest, the lowest drawn as
-   an eighth of a cell. *)
+(* A sparkline scales from its lowest value to its highest. The lowest value
+   is drawn as an eighth of a cell. *)
 let test_sparkline () =
   Alcotest.(check string)
     "from the lowest to the highest" "▁▃▆█"
@@ -212,15 +213,16 @@ let test_sparkline () =
     "all equal" "▁▁"
     (View.to_string (Bar.sparkline [ 3.; 3. ]))
 
-(* A sparkline is one row in a room of any height, as in a display. *)
+(* A sparkline takes one row, whatever the height of its room, as in a
+   display. *)
 let test_sparkline_one_row () =
   let line = Bar.sparkline [ 1.; 2.; 3. ] in
   Alcotest.(check string)
     "one row" (View.to_string line)
     (View.to_string (View.sized ~height:5 line))
 
-(* A chart's bars are as wide as their labels, their values above them and
-   their labels under a baseline. *)
+(* Each bar of a chart is as wide as its label. The values are above the
+   bars and the labels are under a baseline. *)
 let test_chart () =
   Alcotest.(check string)
     "values, bars, baseline and labels"
@@ -234,7 +236,7 @@ let test_chart () =
     "no value over an empty bar" "     4 \n    ███\n───────\nMon Tue"
     (View.to_string (Bar.chart ~height:1 [ ("Mon", 0.); ("Tue", 4.) ]))
 
-(* A chart's bars take the style its function gives each. *)
+(* Each bar of a chart takes the style that [~style] returns for it. *)
 let test_chart_style () =
   let green = Style.fg Color.green in
   let style label _ = if label = "Mon" then red else green in
@@ -252,7 +254,7 @@ let test_chart_style () =
              (Bar.chart ~height:1 ~style [ ("Mon", 2.); ("Tue", 2.) ])))
        1)
 
-(* A peak is a line in the cell it reaches, above the fill. *)
+(* A peak is drawn as a line in the cell it reaches, above the fill. *)
 let test_vertical_peak () =
   let bar ?utf_8 peak frac =
     View_harness.at ?utf_8 ~time:0.
@@ -268,8 +270,8 @@ let test_vertical_peak () =
     "in the cell the fill ends in" " \n \n \n\u{2584}" (bar 0.22 0.125);
   Alcotest.(check string) "off UTF-8" "-\n \n \n#" (bar ~utf_8:false 0.9 0.25)
 
-(* A chart's values are plain numbers, to three digits past ten
-   thousand, never in e-notation. *)
+(* A chart prints its values as plain numbers, never in e-notation. Past ten
+   thousand, it keeps three digits. *)
 let test_chart_values () =
   let values bars =
     List.hd
@@ -292,7 +294,7 @@ let test_chart_values () =
          ("h", -3500.7);
        ])
 
-(* A vertical bar of no width grows to its room, as a column does. *)
+(* A vertical bar with no width grows to fill its room, as a column does. *)
 let test_vertical_width () =
   Alcotest.(check string)
     "fixed" "▄▄▄"
@@ -319,8 +321,8 @@ let test_horizontal_room () =
       Alcotest.(check bool) "within its room" true (View.width v <= width))
     [ Bar.horizontal ~width:20 0.5; Bar.horizontal ~brackets:true 0.5 ]
 
-(* bar.mli, horizontal: a bar wider than its room takes the room, however
-   wide it asks to be. *)
+(* A horizontal bar wider than its room shrinks to the room, whatever width
+   it asks for. *)
 let test_horizontal_huge_width () =
   let check msg want bar =
     Alcotest.(check int) msg want (View.width (View.sized ~width:20 bar))
@@ -349,8 +351,8 @@ let test_chart_room () =
     (fst (Console_vte.cursor_pos terminal) < 5);
   Alcotest.(check bool) "within its room" true (View.width v <= 5)
 
-(* Without colour, an empty bar and a full one are told apart by their
-   glyphs: in every theme the fill and the track differ. *)
+(* Without colour, the glyphs still tell an empty bar from a full one: every
+   theme uses different glyphs for the fill and the track. *)
 let test_empty_and_full_differ () =
   List.iter
     (fun (name, theme) ->
