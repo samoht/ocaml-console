@@ -46,9 +46,9 @@ let check_fits margin lines =
         Alcobar.failf "%d cells at margin %d: %S" (cells l) margin l)
     lines
 
-(* The index after the escape sequence at [i] of [l], and whether it turns a
-   style on or off, opens or closes a link, or neither. An OSC ends at BEL or
-   at ESC \. *)
+(* The index after the escape sequence at index [i] of [l], and its effect: it
+   turns a style on or off, opens or closes a link, or neither. An OSC ends at
+   BEL or at ESC \. *)
 let escape l i =
   let n = String.length l in
   let rec upto p j = if j >= n || p l.[j] then j else upto p (j + 1) in

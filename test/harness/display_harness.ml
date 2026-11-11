@@ -45,8 +45,8 @@ let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
-(* [finish root d] ends a run as [Console_eio.run] does once its function
-   returns: [root] succeeds, unless it already ended, and [d] closes. *)
+(* [finish root d] ends a run as [Console_eio.run] does when its function
+   returns. [root] succeeds unless it already ended, and [d] closes. *)
 let finish root d =
   Task.succeed root;
   Display.close d

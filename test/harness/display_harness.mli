@@ -9,8 +9,8 @@
 open Console
 
 module Driver = Task_driver
-(** How [Console_eio.run] drives tasks: their scope, its [Logs] messages and the
-    current task. *)
+(** How [Console_eio.run] drives tasks: their scope, their [Logs] messages and
+    the current task. *)
 
 val contains : string -> string -> bool
 (** [contains affix s] is [true] iff [affix] occurs in [s]. *)
@@ -19,17 +19,17 @@ val glyphs : string -> Uchar.t array
 (** [glyphs s] are the characters of [s], in order. *)
 
 val feeding : Console_vte.t -> Format.formatter
-(** [feeding vte] is a formatter that feeds [vte] what it holds at each flush.
-*)
+(** [feeding vte] is a formatter that feeds its buffered text to [vte] at each
+    flush. *)
 
 val check_cursor_restored : string -> string -> unit
-(** [check_cursor_restored msg written] checks that a terminal that read
-    [written] had its cursor hidden and ends with it shown (DECTCEM). *)
+(** [check_cursor_restored msg written] checks that a terminal reading [written]
+    hides its cursor and ends with it shown (DECTCEM). *)
 
 val bar_span : string -> (int * int) option
-(** [bar_span row] is the cells of the first and the last block or shade glyph
-    of [row], each glyph one cell: the ends of a bar in {!Console.Theme.dos}, if
-    [row] has one. *)
+(** [bar_span row] is the cells of the first and last block or shade glyph of
+    [row], if any. Each glyph is one cell. In {!Console.Theme.dos}, these are
+    the ends of a bar. *)
 
 val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
@@ -62,8 +62,8 @@ type term = private {
   size : (int * int) ref;
   chunks : string list ref;  (** Newest first. *)
 }
-(** The type for displays on an emulated terminal: every write the display makes
-    is one chunk fed to [vte]. *)
+(** The type for displays on an emulated terminal. Each write of the display is
+    fed to [vte] as one chunk. *)
 
 val terminal :
   ?width:int ->
@@ -93,8 +93,8 @@ val roomy : unit -> term
     for a task, its window and its logs. *)
 
 val close : term -> unit
-(** [close t] makes the root succeed, unless it ended, and closes the display,
-    as [Console_eio.run] does once its function returns. *)
+(** [close t] makes the root succeed unless it already ended, then closes the
+    display. [Console_eio.run] does the same when its function returns. *)
 
 val writes : term -> int
 (** [writes t] is the number of writes the display made. *)
@@ -106,12 +106,12 @@ val resize : term -> width:int -> height:int -> unit
 (** [resize t ~width ~height] resizes the terminal and its emulator. *)
 
 val screen : term -> string list
-(** [screen t] are the rows of the screen, trailing blanks and blank rows at the
-    bottom removed. *)
+(** [screen t] is the rows of the screen, without trailing blanks or blank rows
+    at the bottom. *)
 
 val lines : term -> string list
-(** [lines t] are the scrollback and screen rows, trailing blanks and blank rows
-    at the bottom removed. *)
+(** [lines t] is the scrollback and screen rows, without trailing blanks or
+    blank rows at the bottom. *)
 
 val check_room : rows:int -> cols:int -> string -> int -> View.t -> unit
 (** [check_room ~rows ~cols msg row v] checks that printing [v] on a terminal of

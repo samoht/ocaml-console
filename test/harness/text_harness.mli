@@ -14,5 +14,5 @@ val maximal_subparts : (string * string * string) list
     its bytes and what they convert to. *)
 
 val silent : int list
-(** [silent] are the controls a terminal acts on without printing, CAN and SUB
-    among them, and DEL. *)
+(** [silent] is the controls that a terminal acts on without printing, including
+    CAN and SUB, plus DEL. *)

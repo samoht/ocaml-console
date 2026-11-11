@@ -5,8 +5,8 @@
 
 open Console
 
-(* What a scheduler with one fiber gives: all a backend must write, with neither
-   Eio nor effects. *)
+(* What a scheduler with one fiber provides: everything a backend must write,
+   without Eio and without effects. *)
 module Driver = Console_driver.Make (struct
   let clock () () = 0.
   let tick _ = ()

@@ -76,8 +76,8 @@ let screen ?(scrollback = false) t =
   let rows = if scrollback then scrollback_lines t @ visible else visible in
   drop_trailing_blanks (List.map rstrip rows)
 
-(* One record's header is 24 bytes: the payload length, the wall clock the
-   capture stamped it with, and which of the three kinds it is. *)
+(* A record header is 24 bytes: the payload length, the wall-clock time the
+   capture stamped, and the record kind (one of three). *)
 let header_size = 24
 let u64 s off = Int64.to_int (String.get_int64_le s off)
 let i32 s off = Int32.to_int (String.get_int32_le s off)
@@ -85,9 +85,9 @@ let i32 s off = Int32.to_int (String.get_int32_le s off)
 let records recording =
   let n = String.length recording in
   let rec loop off acc =
-    (* A capture of a program that was still running ends mid-record, so a
-       header that does not fit, or one promising more payload than is left,
-       ends the stream rather than raising. *)
+    (* A capture of a program that was still running ends in the middle of a
+       record. So a header that does not fit, or that announces more payload
+       than is left, ends the stream instead of raising. *)
     if off + header_size > n then List.rev acc
     else
       let len = u64 recording off in

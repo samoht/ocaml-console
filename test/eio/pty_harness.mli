@@ -7,6 +7,6 @@
 
 val open_pty : sw:Eio.Switch.t -> Eio_unix.Pty.t
 (** [open_pty ~sw] is a pseudo-terminal. Where none can be opened, as in opam's
-    sandbox on macOS, the test is skipped, or fails if
-    [CONSOLE_TEST_REQUIRE_PTY] is set: CI sets it, so that the terminal tests
-    cannot stop running unseen. *)
+    sandbox on macOS, the test is skipped. If [CONSOLE_TEST_REQUIRE_PTY] is set,
+    the test fails instead. CI sets it, so that the terminal tests cannot stop
+    running without anyone noticing. *)

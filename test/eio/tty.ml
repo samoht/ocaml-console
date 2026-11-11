@@ -4,15 +4,18 @@
   ---------------------------------------------------------------------------*)
 
 (* [tty.exe program args] runs [program] on a terminal of 80 columns and 24
-   rows, in the environment of [tty.exe], and prints the screen it leaves,
-   the lines scrolled off its top first; [tty.exe --cols n program args] does
-   so on a terminal of [n] columns; [tty.exe -] prints the screen that
-   the bytes of its standard input leave, and [tty.exe --cast file] the one
-   that the asciicast recording [file] leaves on a terminal of its size, and
-   [tty.exe --cursor file] what the bytes of [file] did to the cursor, and
-   [tty.exe --times file] the time of each event of the recording, as a number.
-   Where no pseudo-terminal can be opened, such as in opam's sandbox on
-   macOS, it exits with 77. *)
+   rows, in the environment of [tty.exe]. It prints the screen that [program]
+   leaves, starting with the lines scrolled off the top. The other forms are:
+   - [tty.exe --cols n program args]: the same, on a terminal of [n] columns.
+   - [tty.exe -]: the screen that the bytes of standard input leave.
+   - [tty.exe --cast file]: the screen that the asciicast recording [file]
+     leaves, on a terminal of its size.
+   - [tty.exe --cursor file]: what the bytes of [file] did to the cursor.
+   - [tty.exe --times file]: the time of each event of the recording, as a
+     number.
+
+   Where no pseudo-terminal can be opened, such as in opam's sandbox on macOS,
+   it exits with 77. *)
 
 let rows = 24
 let cols = 80
@@ -73,8 +76,8 @@ let terminal ~cols argv =
       prerr_endline "tty.exe: no pseudo-terminal";
       exit 77
 
-(* Decoded with Cast, the codec under test, as [cast] is: a transcript compares
-   the numbers it prints, not their spelling in the recording. *)
+(* Decoded with Cast, the codec under test, as [cast] is. A transcript compares
+   the numbers it prints, not how the recording spells them. *)
 let times file =
   match In_channel.with_open_bin file In_channel.input_lines with
   | [] -> failwith (file ^ ": empty")
@@ -83,7 +86,7 @@ let times file =
         (fun l -> Fmt.pr "%g@." (decode Console__.Cast.event l).time)
         events
 
-(* DECTCEM as a terminal holds it: the cursor starts shown. *)
+(* The DECTCEM state of a terminal: the cursor starts shown. *)
 let cursor file =
   print_endline
     (match

@@ -66,9 +66,9 @@ let test_partial_eof () =
   let t, _ =
     prompt ~interactive:true [ `Return "unfinished"; `Raise End_of_file ]
   in
-  (* [Buf_read.line] accepts an unterminated last line, but the prompt
-     answers [Error] when the input ends, so that a partial answer does not
-     open a typed gate. *)
+  (* [Buf_read.line] accepts an unterminated last line. The prompt still
+     answers [Error] when the input ends, so a partial answer cannot open a
+     typed gate. *)
   ended (P.line t "line: ")
 
 exception Read_failure
@@ -118,8 +118,8 @@ let test_limit () =
   let t, _ = prompt ~interactive:true (byte_reads (String.make 4097 'a')) in
   refused (P.line t "too long: ")
 
-(* An answer too long is refused, and the next question reads the line
-   after it, not what is left of it. *)
+(* An answer that is too long is refused. The next question reads the next line,
+   not the rest of the long one. *)
 let test_limit_skipped () =
   Eio_mock.Backend.run @@ fun () ->
   let t, _ =
@@ -185,10 +185,10 @@ let test_nested_fiber () =
               Alcotest.(check bool) "inherited display" true (d == nested)))
         Eio.Fiber.yield)
 
-(* Two runs in sibling fibers share one display, which closes once the
-   last of them ends: the task the second starts after the first returned
-   still prints its lines. A run that starts while the other's display
-   closes opens its own once that one is gone. *)
+(* Two runs in sibling fibers share one display, which closes when the last run
+   ends. A task that the second run starts after the first run returned still
+   prints its lines. A run that starts while the other run's display closes
+   opens its own display once that one is gone. *)
 let test_sibling_fibers () =
   let siblings ~overlap =
     Eio_mock.Backend.run @@ fun () ->
@@ -214,9 +214,9 @@ let test_sibling_fibers () =
   Alcotest.(check (pair bool bool))
     "a run after the other's display" (false, true) (siblings ~overlap:false)
 
-(* A run whose function raises waits for a sibling run that shares its
-   display, even when that sibling yields while it prints: the display does
-   not close under it. *)
+(* A run whose function raises waits for a sibling run that shares its display,
+   even when that sibling yields while it prints. The display does not close
+   under the sibling. *)
 let test_failing_first_run_waits () =
   Eio_mock.Backend.run @@ fun () ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -307,8 +307,8 @@ let test_setup () =
         [ `None; `Ansi_tty ];
       Console_tty.setup ())
 
-(* Lines logged from nested runs in fibers and from other domains all reach
-   the output, each source's in the order it logged them. *)
+(* Lines logged from nested runs in fibers and from other domains all reach the
+   output, in the order each source logged them. *)
 let source = Logs.Src.create "console.concurrent"
 
 let domain_records reporter prefix count =
@@ -378,8 +378,8 @@ let test_concurrent_order () =
       ]
   done
 
-(* A signal handler the program installs while a run holds the terminal is
-   still in place after the run. *)
+(* A signal handler that the program installs during a run is still in place
+   after the run. *)
 let mine (_ : int) = ()
 
 let test_handler_kept () =
@@ -396,8 +396,9 @@ let test_handler_kept () =
     | Sys.Signal_handle f -> f == mine
     | _ -> false)
 
-(* console_eio.mli: "A signal the program handles or ignores is left to it", as
-   a program started under nohup or in the background finds SIGINT ignored. *)
+(* console_eio.mli says that a signal the program handles or ignores is left to
+   it. For example, a program started under nohup or in the background finds
+   SIGINT ignored. *)
 let test_disposition_left () =
   let handled = function Sys.Signal_handle f -> f == mine | _ -> false in
   let ignored = function Sys.Signal_ignore -> true | _ -> false in

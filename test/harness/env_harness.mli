@@ -6,7 +6,7 @@
 (** The environment of a test. *)
 
 val with_env : (string * string) list -> (unit -> 'a) -> 'a
-(** [with_env bindings f] is [f ()] with [bindings] in the environment, and puts
-    the variables back once [f] ends. [Unix.putenv] cannot unset a variable: one
-    that was unset comes back empty, which [Cast], [Colour] and [Recording.size]
-    all read as unset. *)
+(** [with_env bindings f] is [f ()] with [bindings] in the environment. It
+    restores the variables when [f] ends. [Unix.putenv] cannot unset a variable,
+    so a variable that was unset is restored as empty. [Cast], [Colour] and
+    [Recording.size] all read an empty variable as unset. *)

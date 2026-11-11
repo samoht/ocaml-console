@@ -1,6 +1,6 @@
 (copy_files ../../lib/tty/terminal.{ml,mli})
 
-; Terminal is private to console.driver: its copy is built as console.driver
+; Terminal is private to console.driver. This copy is built as console.driver
 ; builds it, with the modules of console in scope.
 
 (library

@@ -21,14 +21,14 @@ type t
 (** The type for emulated terminals. *)
 
 val v : ?raw:bool -> rows:int -> cols:int -> unit -> t
-(** [v ~rows ~cols ()] is a blank terminal of [rows] by [cols] cells, its cursor
-    at the top left. A line feed also returns the cursor to the first column, as
-    a tty with output processing on makes it; with [raw] (default [false]) it
-    keeps the column, as with output processing off. *)
+(** [v ~rows ~cols ()] is a blank terminal of [rows] by [cols] cells, with its
+    cursor at the top left. A line feed also moves the cursor to the first
+    column, as a tty with output processing on does. With [raw] (default
+    [false]), a line feed keeps the column, as with output processing off. *)
 
 val feed : t -> string -> unit
-(** [feed t s] is the terminal reading [s]. An escape sequence or a character
-    that [s] leaves unended is read with the bytes of the next [feed]. *)
+(** [feed t s] makes [t] read [s]. If [s] ends inside an escape sequence or a
+    character, the rest is read from the next [feed]. *)
 
 val vte : t -> Vte.t
 (** [vte t] is the emulator behind [t]. *)
@@ -64,9 +64,9 @@ val counts_as_console : string -> bool
 
 val cursor_history : string -> bool * bool
 (** [cursor_history s] is [(hidden, shown)] for a fresh terminal that reads [s]
-    a byte at a time: [hidden] is [true] iff the cursor was hidden at some
+    one byte at a time. [hidden] is [true] iff the cursor was hidden at some
     point, and [shown] iff it is shown at the end. A terminal starts with its
-    cursor shown, so [shown] tells that a hidden cursor was shown again only
+    cursor shown, so [shown] means that a hidden cursor was shown again only
     when [hidden] is [true]. *)
 
 val synchronized_open : string -> bool
@@ -93,36 +93,34 @@ val bg : Matrix_grid.t -> int -> Ansi.Color.t
 (** [bg g i] is the background colour of cell [i] of [g]. *)
 
 val screen : ?scrollback:bool -> t -> string list
-(** [screen t] is the visible screen: one string per row, trailing blanks
-    removed, and the blank rows at the bottom dropped. [scrollback] (default
-    [false]) puts the lines that have already scrolled off the top in front of
-    it. *)
+(** [screen t] is the visible screen: one string per row, without trailing
+    blanks or the blank rows at the bottom. With [scrollback] (default [false]),
+    the lines that scrolled off the top come first. *)
 
 (** {1:recordings Recordings} *)
 
 val records : string -> (float * string) list
 (** [records recording] is what the recorded program wrote and when, oldest
-    first: one element per write, carrying the seconds since the epoch that the
-    capture stamped it with.
+    first. There is one element per write, with the time the capture stamped on
+    it, in seconds since the epoch.
 
-    [recording] is the raw byte stream BSD [script(1) -r] writes, a sequence of
+    [recording] is the raw byte stream that BSD [script(1) -r] writes. It is a
+    sequence of little-endian records:
 
     {v <uint64 len><int64 tv_sec><int32 tv_usec><int32 kind><len bytes> v}
 
-    little-endian throughout, with [kind] ['s'] for the session header, ['o']
-    for a write the program made and ['e'] for the end. Only the ['o'] records
-    are returned; a trailing partial record is dropped, since a capture of a
-    program that was still running ends in one. It does not read util-linux's
-    [script], which keeps its timings in a second file, and it does not read
-    asciicast. *)
+    [kind] is ['s'] for the session header, ['o'] for a write of the program,
+    and ['e'] for the end. Only the ['o'] records are returned. A trailing
+    partial record is dropped, because a capture of a program that was still
+    running ends with one. It does not read asciicast, or the output of
+    util-linux's [script], which keeps its timings in a second file. *)
 
 val frames : rows:int -> cols:int -> string -> (float * string list) list
 (** [frames ~rows ~cols recording] is the screen after each write in
-    [recording], with its timestamp: the writes of {!records} replayed into a
-    [rows] by [cols] terminal, each paired with {!screen} taken straight after
-    it.
+    [recording], with its timestamp. It replays the writes of {!records} into a
+    [rows] by [cols] terminal, and takes {!screen} right after each one.
 
-    The timestamp is seconds from the recording's first record, not the epoch
-    seconds {!records} carries, so two captures of the same command are
-    comparable and a diff over one is stable. Empty writes make no frame: they
-    change nothing on the screen. *)
+    The timestamp is in seconds since the first record of the recording, not
+    since the epoch as in {!records}. So two captures of the same command are
+    comparable, and a diff of one is stable. Empty writes make no frame, because
+    they change nothing on the screen. *)
