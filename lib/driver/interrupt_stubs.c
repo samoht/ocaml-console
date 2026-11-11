@@ -5,13 +5,10 @@
 
 #include <caml/alloc.h>
 #include <caml/mlvalues.h>
-
-#ifndef _WIN32
 #include <signal.h>
 
 /* Exported by the runtime, declared only under CAML_INTERNALS. */
 CAMLextern int caml_convert_signal_number(int);
-#endif
 
 /* The address of the handler that the kernel holds for a signal, or 0 for
    the default disposition and on Windows. */
@@ -29,4 +26,10 @@ CAMLprim value console_driver_disposition(value signo) {
   (void)signo;
 #endif
   return caml_copy_nativeint(h);
+}
+
+/* Sends a signal to the calling thread. */
+CAMLprim value console_driver_raise(value signo) {
+  raise(caml_convert_signal_number(Int_val(signo)));
+  return Val_unit;
 }

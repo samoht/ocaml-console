@@ -190,6 +190,10 @@
 - `Bar.horizontal ~brackets:true` given a width near `max_int` now fills its
   room, instead of drawing one cell or none (#60).
 
+- A run no longer raises `Invalid_argument` on Windows, which has no SIGTSTP.
+  On Windows, SIGINT and SIGTERM close the display, then exit with code 3, the
+  default for these signals (#79).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

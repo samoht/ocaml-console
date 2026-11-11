@@ -25,7 +25,9 @@ type holder = {
   terminal : Unix.file_descr option;
 }
 
+(* Windows has SIGINT and SIGTERM, but no SIGTSTP. *)
 let ends = [ Sys.sigint; Sys.sigterm ]
+let stops = if Sys.win32 then [] else [ Sys.sigtstp ]
 let holders : holder list Atomic.t = Atomic.make []
 let caught = Atomic.make []
 let ending = Atomic.make false
@@ -136,15 +138,22 @@ let rec stop signo =
   end
   else attempt abandon
 
-(* [resend signo] sends [signo] again, unblocked in the sending thread: the
-   runtime blocks it in a handler, and every other thread may block it too,
-   as the thread of the display does when another domain handles it. POSIX
-   delivers it to the sending thread before [kill] returns when no other
-   thread takes it. *)
+external raise_signal : int -> unit = "console_driver_raise"
+
+(* [resend signo] sends [signo] to this process again. The runtime blocks
+   [signo] while its handler runs, and other threads may block it too (the
+   display's thread does when another domain handles it), so the sending
+   thread unblocks it first. POSIX then delivers it to that thread before
+   [kill] returns, if no other thread takes it. Windows has no [kill] for
+   signals and no signal mask, so there the C [raise] sends it, and its
+   default action exits with code 3. *)
 let resend signo =
-  let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
-  Unix.kill (Unix.getpid ()) signo;
-  ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
+  if Sys.win32 then raise_signal signo
+  else begin
+    let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
+    Unix.kill (Unix.getpid ()) signo;
+    ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
+  end
 
 (* [disposition s] is the address of the handler that the kernel holds for
    [s], or [0n] for the default disposition. [Sys.signal] reports a handler
@@ -208,7 +217,7 @@ let catch () =
             Atomic.set ours (disposition s);
             update caught (List.cons s)
         | chosen -> Sys.set_signal s chosen)
-    ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
+    (List.map (fun s -> (s, stop)) stops @ List.map (fun s -> (s, handle)) ends)
 
 let protect ?idle ?(suspend = fun stop -> stop ()) ?(resume = ignore) ?terminal
     ~restore f =
