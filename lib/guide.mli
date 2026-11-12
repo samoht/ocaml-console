@@ -23,7 +23,8 @@ val v :
   unit ->
   t
 (** [v ~style ~branch ~last ~pipe ~space ()] is a guide with the given glyphs,
-    drawn in [style] (defaults to {!Style.none}). Like a {!Border.v}, a guide in
+    each made safe by [Console_text.sanitize ~keep_newlines:false], drawn in
+    [style] (defaults to {!Style.none}). Like a {!Border.v}, a guide in
     {!Style.none} is drawn in the muted colour of the formatter's theme
     ({!Theme.muted}). *)
 

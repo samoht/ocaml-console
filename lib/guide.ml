@@ -6,8 +6,16 @@
 type glyphs = { branch : string; last : string; pipe : string; space : string }
 type t = glyphs Inked.t
 
+let clean = Console_text.sanitize ~keep_newlines:false
+
 let v ?style ~branch ~last ~pipe ~space () =
-  Inked.v ?style { branch; last; pipe; space }
+  Inked.v ?style
+    {
+      branch = clean branch;
+      last = clean last;
+      pipe = clean pipe;
+      space = clean space;
+    }
 
 let branch t = (Inked.get t).branch
 let last t = (Inked.get t).last

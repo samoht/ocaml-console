@@ -206,6 +206,10 @@
 - `Console_width.sub_width` raises `Invalid_argument` for a part that is not in
   the string, instead of a negative width or a read past its end (#82).
 
+- `Guide.v` draws a control character in a glyph as a space, as its
+  documentation says and as `Border.v` does. A line feed in a glyph no longer
+  splits the lines of a tree (#82).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.
