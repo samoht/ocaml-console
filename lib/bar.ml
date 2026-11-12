@@ -45,12 +45,10 @@ let cells ~glyphs ~width frac =
       (fill, Widget.fill rest "─")
 
 (* Each filled cell takes the palette colour of its position, so cells keep
-   their colour as the fill grows. A theme's palette is never empty: the
-   [[]] case only completes the match. *)
+   their colour as the fill grows. *)
 let fill ~style ~width look glyphs =
   match (style, Theme.palette look.Look.theme) with
   | Some style, _ -> View_core.ink style glyphs
-  | None, [] -> View_core.ink (Widget.accent look) glyphs
   | None, [ c ] -> View_core.ink (Style.fg c) glyphs
   | None, palette ->
       let last = float_of_int (max 1 (width - 1)) in
