@@ -51,7 +51,14 @@ end
 module Display = Console.Display
 module Task = Console.Task
 
+(* A program has one terminal, but it may apply [Make] once for each backend it
+   links. [holder] is the application whose run holds the terminal. *)
+let applications = Atomic.make 0
+let holder : int option Atomic.t = Atomic.make None
+
 module Make (B : S) = struct
+  let application = Atomic.fetch_and_add applications 1
+
   type run = Capture.run = { display : Display.t; root : Task.t; json : bool }
 
   (* A terminal has one live region at a time. The display that holds it is
@@ -131,7 +138,6 @@ module Make (B : S) = struct
 
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
-  let busy = Atomic.make false
   let ending : (unit -> unit) option Atomic.t = Atomic.make None
 
   (* A one-time event that fibers wait for. *)
@@ -300,14 +306,24 @@ module Make (B : S) = struct
       (fun () -> Fun.protect await_cancel ~finally:(fun () -> reach cut));
     if not !finished then B.check ()
 
+  (* [claim ()] is [true] iff this run takes the terminal, and [false] iff a
+     run of this backend holds it already. A run of another backend raises. *)
   let claim () =
     at_exit ();
-    Atomic.compare_and_set busy false true
+    let rec go () =
+      match Atomic.get holder with
+      | Some a when Int.equal a application -> false
+      | Some _ ->
+          invalid_arg
+            "Console_driver.run: a run of another backend holds the terminal"
+      | None -> Atomic.compare_and_set holder None (Some application) || go ()
+    in
+    go ()
 
   let release () =
     Option.iter (fun s -> reach s.released) (Atomic.exchange shared None);
     Atomic.set ending None;
-    Atomic.set busy false
+    Atomic.set holder None
 
   let direct : unit B.key = B.key ()
 

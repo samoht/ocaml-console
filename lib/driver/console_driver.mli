@@ -128,7 +128,10 @@ module type T = sig
       straight out. A prompt needs this. *)
 end
 
-(** A program applies [Make] only once, because a program has one terminal. *)
+(** [Make (B)] runs console on [B]. A program that links several backends
+    applies [Make] once for each, but it has one terminal: {!T.run} raises
+    [Invalid_argument] if it starts while a run of another application holds the
+    terminal. *)
 module Make (_ : S) : T
 
 val on_signals :

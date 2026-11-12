@@ -121,6 +121,10 @@
 
 ### Fixed
 
+- `Console_lwt.run` while a `Console_eio.run` is under way, or the other way
+  round, now raises `Invalid_argument`. It used to open a second display on
+  the same terminal (#82).
+
 - `Task` and `Display` now work from any domain, so a worker of an
   `Eio.Executor_pool` can report progress. `Task.advance` from several domains
   used to lose steps, and `Task.log` could end the program (#57).

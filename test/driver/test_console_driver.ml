@@ -7,7 +7,7 @@ open Console
 
 (* What a scheduler with one fiber provides: everything a backend must write,
    without Eio and without effects. *)
-module Driver = Console_driver.Make (struct
+module Backend = struct
   let clock () () = 0.
   let tick _ = ()
 
@@ -41,7 +41,9 @@ module Driver = Console_driver.Make (struct
   let cancelled _ = false
   let write_error = function Sys_error _ -> true | _ -> false
   let sleep _ = ()
-end)
+end
+
+module Driver = Console_driver.Make (Backend)
 
 let buffer () =
   let b = Buffer.create 256 in
@@ -130,6 +132,22 @@ let test_a_run_after_a_run () =
   has "first" out;
   has "second" out
 
+(* A program that links two backends applies [Make] twice. The terminal is
+   still one: a run of one may not start while a run of the other holds it. *)
+module Other = Console_driver.Make (Backend)
+
+let test_two_backends () =
+  let _, ppf = buffer () in
+  let inner () =
+    Other.run ~ppf ~progress:`Plain (fun r -> Task.run r "inner" ignore)
+  in
+  Alcotest.check_raises "refused"
+    (Invalid_argument
+       "Console_driver.run: a run of another backend holds the terminal")
+    (fun () -> Driver.run ~ppf ~progress:`Plain (fun _ -> inner ()));
+  inner ();
+  Driver.run ~ppf ~progress:`Plain ignore
+
 let suite =
   ( "console_driver",
     [
@@ -141,4 +159,6 @@ let suite =
       Alcotest.test_case "logs reach the display" `Quick
         test_logs_reach_the_display;
       Alcotest.test_case "a run after a run" `Quick test_a_run_after_a_run;
+      Alcotest.test_case "two backends do not share the terminal" `Quick
+        test_two_backends;
     ] )

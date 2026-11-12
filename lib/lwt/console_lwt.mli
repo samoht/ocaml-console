@@ -49,7 +49,8 @@ val run :
     exception.
 
     A [run] called while another run is active, nested or not, joins it as in
-    [Console_eio]. *)
+    [Console_eio]. A [run] called while a run of [Console_eio] is active is
+    rejected with [Invalid_argument]. *)
 
 val with_output : (Format.formatter -> 'a) -> 'a
 (** [with_output f] is {!Console.Display.with_output} on the display of the run,

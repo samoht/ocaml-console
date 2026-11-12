@@ -133,7 +133,8 @@ val domain_mgr : _ Eio.Domain_manager.t -> Eio.Domain_manager.ty Eio.Resource.t
     it is called, or the root. So a library can call [run] without knowing
     whether its caller did. The display closes when the last of these functions
     ends. A [run] that starts while the display is closing waits until it is
-    gone, then opens its own.
+    gone, then opens its own. A [run] that starts while a run of [Console_lwt]
+    is active raises [Invalid_argument]: the program has one terminal.
 
     {1:deterministic Deterministic mode}
 
