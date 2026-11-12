@@ -166,8 +166,10 @@ let cell look r ~time ~stage (p : Progress_layout.piece) =
            (muted look (rate_text (metric r) (rate r))))
   | Eta -> Shown (eta look r)
   | Elapsed -> Shown (timer look (elapsed r))
-  | Const v -> Shown (if V.is_flat v then v else V.resolve (Ctx.v look) v)
-  | Custom f -> Shown (V.resolve (Ctx.v ~time look) (f r))
+  | Const v ->
+      Shown
+        (Widget.one_line (if V.is_flat v then v else V.resolve (Ctx.v look) v))
+  | Custom f -> Shown (Widget.one_line (V.resolve (Ctx.v ~time look) (f r)))
   | Choose _ -> Shown V.empty
 
 let last_stage pieces =

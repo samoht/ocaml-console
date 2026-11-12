@@ -199,6 +199,10 @@
   scrollback. The tasks started under a task that ended count against the
   1 MiB that wait under the running task above it (#82).
 
+- A `Progress.Layout.const` or `custom` piece of several lines now draws on
+  one line, as documented, instead of making its row taller than the region
+  counts (#82).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

@@ -862,6 +862,30 @@ let test_large_counts () =
   Task.succeed task;
   close t
 
+(* A [const] or [custom] piece of several lines draws on one line, so each
+   task takes one line of the region. *)
+let test_pieces_one_line () =
+  let layout =
+    Progress.Layout.(
+      list
+        ~sep:(const (View.text " "))
+        [
+          label ();
+          custom (fun _ -> View.text "x\ny");
+          const (View.text "c1\nc2");
+        ])
+  in
+  let t = terminal ~theme ~layout ~width:40 ~height:10 () in
+  let a = Task.start t.root "a" in
+  let b = Task.start t.root "b" in
+  Display.redraw t.display;
+  check_lines "the rows"
+    [ "a x y c1 c2"; "b x y c1 c2" ]
+    (List.filter (( <> ) "") (List.map String.trim (screen t)));
+  Task.succeed a;
+  Task.succeed b;
+  close t
+
 let test_invalid () =
   let d, display =
     show ~now:(fun () -> 0.) (Format.formatter_of_buffer (Buffer.create 1))
@@ -3678,6 +3702,8 @@ let suite =
         test_with_task_shared_key;
       Alcotest.test_case "counts" `Quick test_counts;
       Alcotest.test_case "large counts" `Quick test_large_counts;
+      Alcotest.test_case "pieces of several lines draw on one" `Quick
+        test_pieces_one_line;
       Alcotest.test_case "invalid" `Quick test_invalid;
       Alcotest.test_case "a terminal of any width" `Quick test_any_width;
       Alcotest.test_case "a closed display ignores calls" `Quick test_closed;
