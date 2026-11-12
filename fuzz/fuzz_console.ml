@@ -393,8 +393,11 @@ let rec may_overflow = function
   | Styled (_, b) -> may_overflow b
   | _ -> false
 
-(* The cells a line takes on a terminal wide enough for it. *)
+(* The cells a line takes on a terminal wide enough for it. A sample whose
+   cells the emulator counts differently from console is discarded
+   ({!Console_vte.counts_as_console}). *)
 let on_screen line =
+  guard (Console_vte.counts_as_console (Console_text.strip line));
   let term = Console_vte.v ~rows:1 ~cols:2000 () in
   Console_vte.feed term line;
   snd (Console_vte.cursor_pos term)

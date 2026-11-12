@@ -186,8 +186,11 @@ let joined s =
     (List.init (String.length s) (fun i ->
          joiners.(Char.code s.[i] mod Array.length joiners)))
 
-(* The column a terminal's cursor reaches after [s]. *)
+(* The column a terminal's cursor reaches after [s]. A sample whose cells
+   the emulator counts differently from console is discarded
+   ({!Console_vte.counts_as_console}). *)
 let on_screen s =
+  guard (Console_vte.counts_as_console (Console_text.strip s));
   let term = Console_vte.v ~rows:1 ~cols:500 () in
   Console_vte.feed term s;
   snd (Console_vte.cursor_pos term)
@@ -306,6 +309,7 @@ let test_linked_unicode_cuts s n =
   check_eq ~pp:Fmt.int
     (occurrences "\027]8;;https://example.invalid\027\\")
     (occurrences "\027]8;;\027\\");
+  guard (Console_vte.counts_as_console stripped);
   let vte = Console_vte.v ~rows:1 ~cols:81 () in
   Console_vte.feed vte raw;
   check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
