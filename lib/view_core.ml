@@ -905,6 +905,15 @@ let lift ?(room = Fun.id) ts f =
         let c = room c in
         Flat (f (List.map (flat_in c) ts)))
 
+(* [lift2 a b f] is {!lift} on two views. *)
+let lift2 a b f =
+  match (a, b) with
+  | Flat a, Flat b -> Flat (f a b)
+  | _ ->
+      deferred
+        ~kind:(kinds [ a; b ])
+        (fun c -> Flat (f (flat_in c a) (flat_in c b)))
+
 let map ?(room = Fun.id) f = function
   | Flat x -> Flat (f x)
   | t -> deferred ~kind:(kind t) (fun c -> Flat (f (flat_in (room c) t)))
@@ -959,37 +968,41 @@ let link ~uri t = restyle (F.link ~uri) t
 let styled s t = restyle (F.styled s) t
 let role r t = restyle (F.role r) t
 let gradient ?colors t = restyle (F.gradient ?colors) t
-
-let ( ++ ) a b =
-  match (a, b) with
-  | Flat a, Flat b -> Flat F.(a ++ b)
-  | _ -> lift [ a; b ] (function [ a; b ] -> F.(a ++ b) | _ -> assert false)
+let ( ++ ) a b = lift2 a b F.( ++ )
 
 let concat ?(sep = empty) ts =
-  lift (sep :: ts) (function
-    | sep :: ts -> F.concat ~sep ts
-    | [] -> assert false)
+  match sep with
+  | Flat sep -> lift ts (F.concat ~sep)
+  | Deferred _ ->
+      deferred
+        ~kind:(kinds (sep :: ts))
+        (fun c ->
+          Flat (F.concat ~sep:(flat_in c sep) (List.map (flat_in c) ts)))
 
 let vcat ?(gap = 0) ts =
   if gap < 0 then invalid_arg "Console.View.vcat: negative gap";
   lift ts (F.vcat ~gap)
 
-(* [apportion room weights] splits [room] cells among positive [weights], so
-   that the shares add up to [room]. Each weight takes the integer part of its
-   quota. The cells left go one each to the largest remainders, the earliest
-   first on a tie. Weights so large that [room * weight] would overflow are
-   scaled down first. *)
-let apportion room weights =
-  let n = List.length weights in
-  if n = 0 then []
+(* [apportion room weight f items] is [f x share] for each [x] of [items],
+   where the shares split [room] cells by the [weight] of each item and add
+   up to [room]. Each weight takes the integer part of its quota. The cells
+   left go one each to the largest remainders, the earliest first on a tie;
+   a weight of [0] has no remainder, and fewer cells are left than there are
+   remainders, so it gets none. Weights so large that [room * weight] would
+   overflow are scaled down first. *)
+let apportion room weight f items =
+  let biggest = List.fold_left (fun m x -> max m (weight x)) 0 items in
+  if biggest = 0 then List.map (fun x -> f x 0) items
   else
-    let biggest = List.fold_left max 0 weights in
-    let limit = max 1 (max_int / max 1 room / max 1 n) in
+    let weights = List.map weight items in
+    let n = List.length items in
+    let positive = List.length (List.filter (fun g -> g > 0) weights) in
+    let limit = max 1 (max_int / max 1 room / positive) in
     let weights =
       if biggest <= limit then weights
       else
         let d = (biggest / limit) + 1 in
-        List.map (fun g -> max 1 (g / d)) weights
+        List.map (fun g -> if g = 0 then 0 else max 1 (g / d)) weights
     in
     let total = List.fold_left ( + ) 0 weights in
     let quotas = Array.of_list (List.map (fun g -> room * g) weights) in
@@ -1003,7 +1016,7 @@ let apportion room weights =
       let i = order.(k) in
       shares.(i) <- shares.(i) + 1
     done;
-    Array.to_list shares
+    List.mapi (fun i x -> f x shares.(i)) items
 
 (* In a room [w] cells wide, the views that do not grow are laid out first,
    from left to right. Each one gets the room that the views before it leave.
@@ -1014,43 +1027,38 @@ let share c ~gap ts =
   | None ->
       List.map (flat_in (Ctx.with_room ~width:None ~height:(Ctx.height c) c)) ts
   | Some w ->
-      let left = ref w and shown = ref 0 in
-      let fixed =
+      let in_room w t =
+        flat_in (Ctx.with_room ~width:(Some w) ~height:(Ctx.height c) c) t
+      in
+      let left = ref w and shown = ref 0 and n = ref 0 in
+      let laid =
         List.map
           (fun t ->
-            if grow t > 0 then None
+            if grow t > 0 then begin
+              incr n;
+              `Grows t
+            end
             else
               let room = max 0 (!left - if !shown > 0 then gap else 0) in
-              let f =
-                flat_in
-                  (Ctx.with_room ~width:(Some room) ~height:(Ctx.height c) c)
-                  t
-              in
+              let f = in_room room t in
               if not (F.is_empty f) then begin
                 left := room - F.width f;
                 incr shown
               end;
-              Some f)
+              `Laid f)
           ts
       in
-      let growers = List.filter (fun t -> grow t > 0) ts in
-      let n = List.length growers in
+      let n = !n in
       let gaps = if n = 0 then 0 else if !shown > 0 then n else n - 1 in
       let room =
-        if gaps > 0 && gap > !left / gaps then 0 else !left - (gap * gaps)
+        if gaps > 0 && gap > !left / gaps then 0
+        else max 0 (!left - (gap * gaps))
       in
-      let shares = ref (apportion room (List.map grow growers)) in
-      List.map2
-        (fun t f ->
-          match (f, !shares) with
-          | Some f, _ -> f
-          | None, share :: rest ->
-              shares := rest;
-              flat_in
-                (Ctx.with_room ~width:(Some share) ~height:(Ctx.height c) c)
-                t
-          | None, [] -> assert false)
-        ts fixed
+      apportion room
+        (function `Laid _ -> 0 | `Grows t -> grow t)
+        (fun x share ->
+          match x with `Laid f -> f | `Grows t -> in_room share t)
+        laid
 
 let hcat ?(gap = 2) ts =
   if gap < 0 then invalid_arg "Console.View.hcat: negative gap";
