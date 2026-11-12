@@ -241,9 +241,15 @@ let clusters s =
        (fun l ~offset ~len ~cells:_ -> String.sub s offset len :: l)
        [] s ~pos:0 ~len:(String.length s))
 
-let sub_width s ~pos ~len =
+(* [width s ~pos ~len] is {!sub_width} on a part that is in [s]. *)
+let width s ~pos ~len =
   if is_ascii_sub s ~pos ~len then len
   else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
+
+let sub_width s ~pos ~len =
+  if pos < 0 || len < 0 || pos > String.length s - len then
+    invalid_arg "Console_width.sub_width: the part is not in the string";
+  width s ~pos ~len
 
 (* The last character of [a], when [a] ends with a byte that is not
    ASCII. *)
@@ -289,5 +295,4 @@ let joins a b =
         || Uucp.Break.grapheme_cluster (Uchar.utf_decode_uchar d) = `PP)
 
 let string_width s =
-  if is_ascii s then String.length s
-  else sub_width s ~pos:0 ~len:(String.length s)
+  if is_ascii s then String.length s else width s ~pos:0 ~len:(String.length s)

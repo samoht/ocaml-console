@@ -203,6 +203,9 @@
   one line, as documented, instead of making its row taller than the region
   counts (#82).
 
+- `Console_width.sub_width` raises `Invalid_argument` for a part that is not in
+  the string, instead of a negative width or a read past its end (#82).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

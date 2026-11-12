@@ -32,7 +32,10 @@ val string_width : string -> int
     test/width/widths.txt lists the cells that each terminal uses. *)
 
 val sub_width : string -> pos:int -> len:int -> int
-(** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)]. *)
+(** [sub_width s ~pos ~len] is [string_width (String.sub s pos len)].
+
+    @raise Invalid_argument
+      if [pos] and [len] do not designate a valid substring of [s]. *)
 
 val clusters : string -> string list
 (** [clusters s] are the grapheme clusters (UAX #29) of [s], in order. *)

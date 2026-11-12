@@ -73,6 +73,22 @@ let test_sub_width () =
     done
   done
 
+(* A part that is not in the string is refused, as by [String.sub]. *)
+let test_sub_width_range () =
+  let refused s ~pos ~len =
+    match Console_width.sub_width s ~pos ~len with
+    | n -> Alcotest.failf "%S at %d for %d: %d cells" s pos len n
+    | exception Invalid_argument _ -> ()
+  in
+  refused "abc" ~pos:1 ~len:(-3);
+  refused "abc" ~pos:(-1) ~len:2;
+  refused "abc" ~pos:0 ~len:5;
+  refused "abc" ~pos:4 ~len:0;
+  refused "\u{E9}" ~pos:0 ~len:4;
+  refused "\u{E9}\u{E9}\u{E9}" ~pos:0 ~len:20;
+  refused "a\u{4E00}" ~pos:0 ~len:6;
+  refused "a\u{4E00}" ~pos:2 ~len:max_int
+
 (* The width is the column that a terminal's cursor reaches. The cases leave
    out a wide spacing mark after a character, as in U+FFFD U+302E: console
    adds its two cells, but the emulator makes the cluster two cells wide. *)
@@ -147,6 +163,7 @@ let suite =
       Alcotest.test_case "a stray VS16 splits as it is" `Quick
         test_stray_vs16_splits;
       Alcotest.test_case "a part as a string" `Quick test_sub_width;
+      Alcotest.test_case "a part out of the string" `Quick test_sub_width_range;
       Alcotest.test_case "matches the terminal" `Quick test_matches_terminal;
       Alcotest.test_case "as real terminals show it" `Quick test_real_terminals;
     ] )
