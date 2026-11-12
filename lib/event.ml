@@ -12,8 +12,7 @@ type task = int * string list
 type t = {
   time : float;
   kind : kind;
-  id : int option;
-  task : string list option;
+  task : task option;
   parent : int option;
   count : int64 option;
   total : int64 option;
@@ -182,8 +181,7 @@ let bare ?task ~time kind =
   {
     time = rounded_seconds time;
     kind;
-    id = Option.map fst task;
-    task = Option.map (fun (_, path) -> List.map kept path) task;
+    task = Option.map (fun (id, path) -> (id, List.map kept path)) task;
     parent = None;
     count = None;
     total = None;
@@ -238,10 +236,7 @@ let other ?task ~time name =
 
 let time e = e.time
 let kind e = e.kind
-
-let task e =
-  match (e.id, e.task) with Some id, Some t -> Some (id, t) | _ -> None
-
+let task e = e.task
 let parent e = e.parent
 let count e = e.count
 let total e = e.total
@@ -296,8 +291,8 @@ let to_members (e : t) =
   {
     time = e.time;
     event = kinds.to_string e.kind;
-    id = typed e.id;
-    task = typed e.task;
+    id = typed (Option.map fst e.task);
+    task = typed (Option.map snd e.task);
     parent = typed e.parent;
     count = typed e.count;
     total = typed e.total;
