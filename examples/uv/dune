@@ -29,6 +29,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff uv.svg uv.generated.svg)))

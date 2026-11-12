@@ -25,6 +25,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff default.svg default.generated.svg)))
@@ -52,6 +53,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff ascii.svg ascii.generated.svg)))
@@ -88,6 +90,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff dos.svg dos.generated.svg)))
@@ -124,6 +127,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff matrix.svg matrix.generated.svg)))
@@ -151,6 +155,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff rainbow.svg rainbow.generated.svg)))
@@ -187,6 +192,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff dracula.svg dracula.generated.svg)))
@@ -223,6 +229,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff nord.svg nord.generated.svg)))
@@ -259,6 +266,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff solarized-dark.svg solarized-dark.generated.svg)))
@@ -295,6 +303,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff solarized-light.svg solarized-light.generated.svg)))
@@ -331,6 +340,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff gruvbox-dark.svg gruvbox-dark.generated.svg)))
@@ -367,6 +377,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff gruvbox-light.svg gruvbox-light.generated.svg)))
@@ -403,6 +414,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff catppuccin-latte.svg catppuccin-latte.generated.svg)))
@@ -439,6 +451,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff catppuccin-mocha.svg catppuccin-mocha.generated.svg)))
@@ -475,6 +488,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff tokyo-night.svg tokyo-night.generated.svg)))
@@ -511,6 +525,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff one-dark.svg one-dark.generated.svg)))
@@ -547,6 +562,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff monokai.svg monokai.generated.svg)))
@@ -583,6 +599,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff github-dark.svg github-dark.generated.svg)))
@@ -619,6 +636,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff github-light.svg github-light.generated.svg)))

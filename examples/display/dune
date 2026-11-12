@@ -29,6 +29,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff display.svg display.generated.svg)))
@@ -62,6 +63,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff matrix.svg matrix.generated.svg)))
@@ -93,6 +95,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff rainbow.svg rainbow.generated.svg)))
@@ -126,6 +129,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff tokyo-night.svg tokyo-night.generated.svg)))

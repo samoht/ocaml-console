@@ -27,5 +27,6 @@
 
 (rule
  (alias runtest)
+ (package console)
  (action
   (diff charts.svg charts.generated.svg)))
