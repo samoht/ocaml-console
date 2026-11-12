@@ -34,9 +34,7 @@ let mark_style look (m : Theme.mark) =
 let mark look m = V.ink (mark_style look m) (Widget.mark look m)
 let outcome_mark (o : outcome) = (o :> Theme.mark)
 let label_of r = Option.value (message r) ~default:(label r)
-
-let mark_of look r =
-  mark look (outcome_mark (Option.value (outcome r) ~default:`Cancelled))
+let mark_of look r = mark look (state r :> Theme.mark)
 
 (* Computed in floats: [100 * cur] overflows an int long before [cur] does. *)
 let percent m =
@@ -580,17 +578,18 @@ let under_task = text "  "
 
 (* The compact line of a task that ended. It says [failed] or [cancelled] in
    words, since the output may have no colour. *)
-let appended look r =
+let appended look r (e : ended) =
   let count = match count_text (metric r) with "" -> "" | c -> "  " ^ c in
   let ended =
-    match Option.value (outcome r) ~default:`Cancelled with
+    match e.outcome with
     | `Succeeded -> ""
     | `Failed -> "  failed"
     | `Cancelled -> "  cancelled"
   in
   V.(
-    mark_of look r ++ text " "
-    ++ path look r (label_of r)
+    mark look (outcome_mark e.outcome)
+    ++ text " "
+    ++ path look r (Option.value e.message ~default:(label r))
     ++ muted look (count ^ "  " ^ Task_text.duration (elapsed r) ^ ended))
 
 (* In a room, a line that does not fit continues on the lines below, under
@@ -657,9 +656,9 @@ let summary look ?width root =
     (Work.summary w)
 
 let verdict look ?width root =
-  match (outcome root, Task_core.message root) with
-  | Some o, Some msg -> (
-      let lead = V.(mark look (outcome_mark o) ++ text " ") in
+  match Task_core.ended root with
+  | Some { outcome; message = Some msg; _ } -> (
+      let lead = V.(mark look (outcome_mark outcome) ++ text " ") in
       let msg = V.ink Style.bold msg in
       match width with
       | None -> [ V.(lead ++ msg) ]

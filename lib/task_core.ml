@@ -9,6 +9,10 @@ type level = [ `App | `Error | `Warning | `Info | `Debug ]
 type kind = Output | Logs of level
 type line = { gap : float; kind : kind; text : string; seq : int }
 type memo = ..
+type ended = { at : float; outcome : outcome; message : string option }
+
+(* A task runs, then finishes while the tasks under it end, then ends. *)
+type status = Running | Finishing | Done of ended
 
 module Keys = Map.Make (String)
 
@@ -35,7 +39,7 @@ and change =
   | Progressed of t
   | Renamed of t
   | Line of t * line
-  | Ended of t
+  | Ended of t * ended
 
 and work = {
   now : unit -> float;
@@ -77,10 +81,7 @@ and t = {
   mutable metric : metric;
   transient : bool;
   started_at : float;
-  mutable ended_at : float option;
-  mutable message : string option;
-  mutable outcome : outcome option;
-  mutable finishing : bool;
+  mutable status : status;
   mutable children : t list;
   mutable child_limit : int;
   mutable gone : bool;
@@ -96,12 +97,20 @@ and t = {
 }
 
 let is_root r = r.id < 0
-let is_running r = r.ended_at = None
+
+let is_running r =
+  match r.status with Running | Finishing -> true | Done _ -> false
+
+let ended r =
+  match r.status with Done e -> Some e | Running | Finishing -> None
+
+let outcome r = Option.map (fun e -> e.outcome) (ended r)
+let message r = Option.bind (ended r) (fun e -> e.message)
 
 let elapsed r =
-  match r.ended_at with
-  | Some f -> f -. r.started_at
-  | None -> r.work.now () -. r.started_at
+  match r.status with
+  | Done e -> e.at -. r.started_at
+  | Running | Finishing -> r.work.now () -. r.started_at
 
 let since_start w = w.now () -. w.start
 let rec depth r = match r.parent with None -> 0 | Some p -> 1 + depth p
@@ -158,7 +167,8 @@ let rec tell change = function
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
-  | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
+  | Started r | Progressed r | Renamed r | Line (r, _) | Ended (r, _) ->
+      changed r);
   tell change w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
@@ -268,10 +278,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     metric = Spin;
     transient;
     started_at = now;
-    ended_at = None;
-    message = None;
-    outcome = None;
-    finishing = false;
+    status = Running;
     children = [];
     child_limit = 16;
     gone = false;
@@ -361,9 +368,7 @@ let widen_label r =
     Array.blit w.label_cells 0 cells 0 n;
     w.label_cells <- cells
   end;
-  let label =
-    if is_running r then r.label else Option.value r.message ~default:r.label
-  in
+  let label = Option.value (message r) ~default:r.label in
   w.label_cells.(d) <- max w.label_cells.(d) (Console_width.string_width label)
 
 (* The tasks that ended and are kept under a task weigh at most [held_cap]
@@ -409,10 +414,10 @@ let rec size r =
   List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
 
 (* The bytes that a task that ended holds. A success drops its output. *)
-let weight r =
+let weight r (e : ended) =
   256 + String.length r.label
-  + Option.fold ~none:0 ~some:String.length r.message
-  + (if r.outcome = Some `Succeeded then 0 else r.output_bytes)
+  + Option.fold ~none:0 ~some:String.length e.message
+  + (if e.outcome = `Succeeded then 0 else r.output_bytes)
   + r.held
 
 let shed p latest =
@@ -436,11 +441,11 @@ let rec bound p latest =
   if p.held > held_cap then shed p latest;
   if counted p then Option.iter (fun q -> bound q p) p.parent
 
-let hold r =
+let hold r e =
   if counted r then
     Option.iter
       (fun p ->
-        r.weight <- weight r;
+        r.weight <- weight r e;
         carry p r.weight;
         bound p r)
       r.parent
@@ -454,12 +459,13 @@ let rec forget_key w k =
   if not (Atomic.compare_and_set w.by_key m (Keys.remove k m)) then
     forget_key w k
 
-let ended outcome ?message r =
+let conclude outcome ?message r =
   let w = r.work in
   Queue.clear r.window;
-  r.ended_at <- Some (w.now ());
-  r.message <- Option.map Task_text.label message;
-  r.outcome <- Some outcome;
+  let e =
+    { at = w.now (); outcome; message = Option.map Task_text.label message }
+  in
+  r.status <- Done e;
   if not (is_root r) then begin
     w.finished <- w.finished + 1;
     match outcome with
@@ -468,10 +474,10 @@ let ended outcome ?message r =
     | `Succeeded -> ()
   end;
   Option.iter (forget_key w) r.key;
-  hold r;
+  hold r e;
   (* A success clears its output after the watchers have seen its end. *)
   Fun.protect
-    (fun () -> notify w (Ended r))
+    (fun () -> notify w (Ended (r, e)))
     ~finally:(fun () ->
       if outcome = `Succeeded then begin
         Queue.clear r.output;
@@ -483,14 +489,15 @@ let ended outcome ?message r =
    succeeds, and are cancelled otherwise. A task ends once and completely,
    even if that function or a subtask raises. *)
 let rec finish outcome ?message r =
-  if is_running r && not r.finishing then begin
-    r.finishing <- true;
-    let children = List.rev (running_children r) in
-    run_all
-      ((fun () -> r.work.ending r)
-       :: List.map (fun c () -> finish (child_outcome outcome) c) children
-      @ [ (fun () -> ended outcome ?message r) ])
-  end
+  match r.status with
+  | Finishing | Done _ -> ()
+  | Running ->
+      r.status <- Finishing;
+      let children = List.rev (running_children r) in
+      run_all
+        ((fun () -> r.work.ending r)
+         :: List.map (fun c () -> finish (child_outcome outcome) c) children
+        @ [ (fun () -> conclude outcome ?message r) ])
 
 let rename r label =
   if is_running r && not (is_root r) then begin
@@ -777,10 +784,9 @@ let link parent r =
   notify w (Started r);
   (* A task started under a task that ended ends at once. It succeeds if
      its parent succeeded, and is cancelled otherwise. *)
-  match parent.outcome with
-  | None -> ()
-  | Some `Succeeded -> finish `Succeeded r
-  | Some (`Failed | `Cancelled) -> finish `Cancelled r
+  match parent.status with
+  | Running | Finishing -> ()
+  | Done e -> finish (child_outcome e.outcome) r
 
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
@@ -853,14 +859,15 @@ let event (ch : change) =
           | Logs l -> Some (l :> Event.level)
         in
         Some (Event.output ?task:(task r) ?level ~time line.text)
-    | Ended r ->
-        let e =
-          match Option.value r.outcome ~default:`Cancelled with
+    | Ended (r, e) ->
+        let ev =
+          match e.outcome with
           | `Succeeded -> Event.succeeded
           | `Failed -> Event.failed
           | `Cancelled -> Event.cancelled
         in
-        Some (e ?task:(task r) ?message:r.message ~time ~elapsed:(elapsed r) ())
+        Some
+          (ev ?task:(task r) ?message:e.message ~time ~elapsed:(elapsed r) ())
 
 let on_event r f =
   let w = r.work in
@@ -871,17 +878,17 @@ let on_event r f =
   if foreign w then post w add else add ()
 
 let state r : [ `Running | outcome ] =
-  match r.outcome with
-  | None -> `Running
-  | Some o -> (o :> [ `Running | outcome ])
+  match r.status with
+  | Running | Finishing -> `Running
+  | Done e -> (e.outcome :> [ `Running | outcome ])
 
 let pp ppf r =
   Fmt.pf ppf "<task %d %S%s>" r.id r.label
-    (match r.outcome with
-    | None -> ""
-    | Some `Succeeded -> " succeeded"
-    | Some `Failed -> " failed"
-    | Some `Cancelled -> " cancelled")
+    (match state r with
+    | `Running -> ""
+    | `Succeeded -> " succeeded"
+    | `Failed -> " failed"
+    | `Cancelled -> " cancelled")
 
 let id r = r.id
 let work r = r.work
@@ -889,8 +896,6 @@ let parent r = r.parent
 let label r = r.label
 let metric r = r.metric
 let transient r = r.transient
-let message r = r.message
-let outcome r = r.outcome
 let window r = r.window
 let output r = r.output
 let dropped r = r.dropped

@@ -186,7 +186,7 @@ let on_live d ~layout ~keep_ended ~commit ~held:h root = function
       if is_root r then print d (Progress_row.message look ~width line)
       else if is_running r then Display_core.touch d
       else print d (Progress_row.labelled look ~width:(min width 100) r line)
-  | Ended r ->
+  | Ended (r, _) ->
       if (not (is_root r)) && not keep_ended then hold h d ~layout ~commit r;
       Display_core.touch d;
       move h d ~layout ~until:(fun () -> fits d root)
@@ -200,10 +200,10 @@ let on_plain d ~keep_ended = function
       let look = Display_core.look d in
       if is_root r then print d (Progress_row.message look line)
       else print d (Progress_row.labelled look r line)
-  | Ended r ->
+  | Ended (r, e) ->
       if not (is_root r) then begin
-        if not (transient r && outcome r = Some `Succeeded) then
-          print d [ Progress_row.appended (Display_core.look d) r ];
+        if not (transient r && e.outcome = `Succeeded) then
+          print d [ Progress_row.appended (Display_core.look d) r e ];
         if not keep_ended then forget r
       end
 
@@ -211,7 +211,7 @@ let on_plain d ~keep_ended = function
    in place of the lines console prints. The lines of the root print as they
    do without [plain]. *)
 let on_own d ~keep_ended root plain = function
-  | (Line (r, _) | Ended r) as change when is_root r ->
+  | (Line (r, _) | Ended (r, _)) as change when is_root r ->
       on_plain d ~keep_ended change
   | change ->
       protect
@@ -222,7 +222,9 @@ let on_own d ~keep_ended root plain = function
                   Option.iter (Display_core.print d) (plain e))
           | None -> ())
         ~finally:(fun () ->
-          match change with Ended r when not keep_ended -> forget r | _ -> ())
+          match change with
+          | Ended (r, _) when not keep_ended -> forget r
+          | _ -> ())
 
 (* The output a task kept, under its line. *)
 let kept look r =
@@ -237,13 +239,13 @@ let on_quiet d = function
       if is_root r then print d (Progress_row.message look line)
       else if not (is_running r) then
         print d (Progress_row.labelled look r line)
-  | Ended r ->
+  | Ended (r, e) ->
       if not (is_root r) then begin
-        (match outcome r with
-        | Some (`Failed | `Cancelled) ->
+        (match e.outcome with
+        | `Failed | `Cancelled ->
             let look = Display_core.look d in
-            print d (Progress_row.appended look r :: kept look r)
-        | _ -> ());
+            print d (Progress_row.appended look r e :: kept look r)
+        | `Succeeded -> ());
         forget r
       end
 
@@ -251,7 +253,7 @@ let on_json d root change =
   (match event change ~time:(since_start (work root)) with
   | Some e -> Display_core.write d (Event.to_string e ^ "\n")
   | None -> ());
-  match change with Ended r when not (is_root r) -> forget r | _ -> ()
+  match change with Ended (r, _) when not (is_root r) -> forget r | _ -> ()
 
 (* The default view of a root in each form: the tree and the summary for
    [Live] and [Plain], only the final message of the work for [Quiet], and

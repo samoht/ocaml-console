@@ -109,8 +109,9 @@ val more : Look.t -> int -> View_core.t
 val started : Look.t -> t -> View_core.t
 (** [started look r] is the line printed when [r] starts without a terminal. *)
 
-val appended : Look.t -> t -> View_core.t
-(** [appended look r] is the line printed when [r] ends without a terminal. *)
+val appended : Look.t -> t -> ended -> View_core.t
+(** [appended look r e] is the line printed when [r] ends as [e] without a
+    terminal. *)
 
 val labelled : Look.t -> ?width:int -> t -> line -> View_core.t list
 (** [labelled look ~width r l] is [l] after the path of [r], printed above the

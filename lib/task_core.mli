@@ -45,6 +45,13 @@ type line = {
 type memo = ..
 (** The type for what a view caches about a task it laid out. *)
 
+type ended = {
+  at : float;  (** The time on the clock of the root. *)
+  outcome : outcome;
+  message : string option;
+}
+(** The type for how a task ended. *)
+
 type scope = {
   current : unit -> t option;
   within : 'a. t -> (unit -> 'a) -> 'a;
@@ -62,7 +69,7 @@ and change =
   | Progressed of t
   | Renamed of t
   | Line of t * line
-  | Ended of t
+  | Ended of t * ended
 
 and work
 (** The type for the state shared by the tasks of one root. *)
@@ -95,8 +102,11 @@ val transient : t -> bool
 val message : t -> string option
 (** [message r] is {!Task.message}. *)
 
+val ended : t -> ended option
+(** [ended r] is how [r] ended, or [None] while it runs. *)
+
 val outcome : t -> outcome option
-(** [outcome r] is how [r] ended, or [None] while it runs. *)
+(** [outcome r] is the outcome of {!ended}[ r]. *)
 
 val window : t -> line Queue.t
 (** [window r] holds the latest lines of [r], at most [log_lines] of them. It is
