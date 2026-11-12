@@ -366,24 +366,47 @@ let widen_label r =
   in
   w.label_cells.(d) <- max w.label_cells.(d) (Console_width.string_width label)
 
-let rec forget r =
-  changed r;
-  r.memo <- [];
-  r.gone <- true;
-  List.iter forget r.children;
-  r.children <- [];
-  Queue.clear r.output;
-  r.output_bytes <- 0;
-  r.held <- 0
-
-let rec size r =
-  List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
-
 (* The tasks that ended and are kept under a task weigh at most [held_cap]
    bytes, as [weight] estimates them. Past this limit, the oldest are
    forgotten until they weigh half of it. The task that just ended is
    kept. *)
 let held_cap = 1_048_576
+
+(* [counted r] is [true] iff the weight of [r] is in what its parent holds:
+   [r] ended, and neither [r] nor its parent was forgotten. *)
+let counted r =
+  (not (is_running r))
+  && (not r.gone)
+  && match r.parent with Some p -> not p.gone | None -> false
+
+(* [carry p delta] adds [delta] to what [p] holds. While [p] is counted, its
+   weight changes as much, and so does what its parent holds, up to the first
+   task that runs. This is the only change to [held] and to a weight once it
+   is counted. *)
+let rec carry p delta =
+  p.held <- p.held + delta;
+  if counted p then begin
+    p.weight <- p.weight + delta;
+    Option.iter (fun q -> carry q delta) p.parent
+  end
+
+let rec drop r =
+  changed r;
+  r.memo <- [];
+  r.gone <- true;
+  List.iter drop r.children;
+  r.children <- [];
+  Queue.clear r.output;
+  r.output_bytes <- 0;
+  r.held <- 0;
+  r.weight <- 0
+
+let forget r =
+  if counted r then Option.iter (fun p -> carry p (-r.weight)) r.parent;
+  drop r
+
+let rec size r =
+  List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
 
 (* The bytes that a task that ended holds. A success drops its output. *)
 let weight r =
@@ -397,7 +420,6 @@ let shed p latest =
     if
       p.held > held_cap / 2 && c != latest && (not (is_running c)) && not c.gone
     then begin
-      p.held <- p.held - c.weight;
       p.shed <- p.shed + size c;
       changed p;
       forget c;
@@ -407,13 +429,21 @@ let shed p latest =
   in
   p.children <- List.rev (List.filter keep (List.rev p.children))
 
+(* [bound p latest] sheds the tasks under [p] and under each task above it
+   that hold more than [held_cap], from [p] up to the first task that runs.
+   [latest] and the tasks above it are kept. *)
+let rec bound p latest =
+  if p.held > held_cap then shed p latest;
+  if counted p then Option.iter (fun q -> bound q p) p.parent
+
 let hold r =
-  match r.parent with
-  | None -> ()
-  | Some p ->
-      r.weight <- weight r;
-      p.held <- p.held + r.weight;
-      if p.held > held_cap then shed p r
+  if counted r then
+    Option.iter
+      (fun p ->
+        r.weight <- weight r;
+        carry p r.weight;
+        bound p r)
+      r.parent
 
 let child_outcome = function
   | `Succeeded -> `Succeeded

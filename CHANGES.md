@@ -194,6 +194,11 @@
   On Windows, SIGINT and SIGTERM close the display, then exit with code 3, the
   default for these signals (#79).
 
+- A top task in the scrollback no longer counts among the tasks that wait, so
+  the top tasks that succeed after a failure with a long output all reach the
+  scrollback. The tasks started under a task that ended count against the
+  1 MiB that wait under the running task above it (#82).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

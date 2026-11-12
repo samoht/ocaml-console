@@ -264,9 +264,63 @@ let test_oversized_waiting_task () =
   if retained > 1_048_576 + 65_536 then
     Alcotest.failf "one completed child retains %d bytes (limit 1 MiB)" retained
 
+(* A top task in the scrollback no longer counts among the tasks that wait:
+   a failure with 1 MiB of output moves at once, and every top task that
+   succeeds after it still reaches the scrollback. *)
+let test_moved_tasks_free_room () =
+  let buf = Buffer.create 4096 in
+  let ppf = Format.formatter_of_buffer buf in
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let commit t = Some (View.text ("moved " ^ Task.label t ^ ".")) in
+  let d = Progress.show ~commit ~size:(fun () -> (80, 50)) ppf root in
+  let a = Task.start root "A" in
+  for i = 1 to 300 do
+    Task.log a (String.make 4000 'y' ^ string_of_int i)
+  done;
+  Task.fail a;
+  let names = List.init 20 (fun i -> Fmt.str "T%d" (i + 1)) in
+  List.iter (fun n -> Task.succeed (Task.start root n)) names;
+  Display.close d;
+  Format.pp_print_flush ppf ();
+  let out = Buffer.contents buf in
+  let missing =
+    List.filter (fun n -> not (contains ("moved " ^ n ^ ".") out)) ("A" :: names)
+  in
+  check_lines "missing from the scrollback" [] missing
+
+(* The subtasks started under a task that ended count among the tasks that
+   wait under the running task above it: 1 MiB in all, not 1 MiB under each
+   task that ended. The test keeps no task but [g], so the live bytes
+   measured are the tasks that wait under [g]. *)
+let test_late_subtasks_bounded () =
+  let root = Task.root ~now:(fun () -> 0.) () in
+  let g = Task.start root "g" in
+  let live_bytes () =
+    Gc.full_major ();
+    (Gc.stat ()).live_words * (Sys.word_size / 8)
+  in
+  let before = live_bytes () in
+  let label = String.make 4000 'x' in
+  for i = 1 to 16 do
+    let p = Task.start g (string_of_int i) in
+    Task.succeed p;
+    for j = 1 to 300 do
+      ignore (Task.start p (label ^ string_of_int j))
+    done
+  done;
+  let retained = live_bytes () - before in
+  Task.succeed g;
+  if retained > 1_048_576 + 65_536 then
+    Alcotest.failf "the tasks that wait under g retain %d bytes (limit 1 MiB)"
+      retained
+
 let suite =
   ( "layout",
     [
+      Alcotest.test_case "a moved task frees its room" `Quick
+        test_moved_tasks_free_room;
+      Alcotest.test_case "late subtasks stay bounded" `Quick
+        test_late_subtasks_bounded;
       Alcotest.test_case "one oversized waiting task stays bounded" `Quick
         test_oversized_waiting_task;
       Alcotest.test_case "windows give way oldest first across tasks" `Quick
