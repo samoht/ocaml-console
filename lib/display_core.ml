@@ -38,8 +38,8 @@ type t = {
   mutable view : View_core.t;
   fallback : View_core.t;
   mutable failure : (exn * Printexc.raw_backtrace) option;
-  mutable frame : string array;
-  mutable frame_widths : int array;
+  (* The lines on screen, each with the cells it takes. *)
+  mutable frame : (string * int) array;
   mutable painted_at : float;
   mutable changes : int;
   mutable told : bool;
@@ -211,8 +211,7 @@ let tear t =
   Queue.iter (fun (w : pending) -> t.left <- t.left ^ w.salvage) t.writes;
   Queue.clear t.writes;
   t.torn <- true;
-  t.frame <- [||];
-  t.frame_widths <- [||]
+  t.frame <- [||]
 
 (* The salvage of a tear goes out before anything queued after the tear. On a
    terminal, it first ends the cut update, moves to a row of its own and
@@ -393,8 +392,8 @@ let add_up buf n =
    reflows its lines narrows, it wraps each old line onto more rows. *)
 let rows_on_screen t =
   Array.fold_left
-    (fun acc w -> acc + max 1 ((w + t.width - 1) / max 1 t.width))
-    0 t.frame_widths
+    (fun acc (_, w) -> acc + max 1 ((w + t.width - 1) / max 1 t.width))
+    0 t.frame
 
 (* Moves the cursor from the end of the last line of the region to the start
    of its first line, and erases everything below. *)
@@ -405,8 +404,7 @@ let clear buf t =
     add_up buf (rows - 1);
     Buffer.add_string buf "\027[J"
   end;
-  t.frame <- [||];
-  t.frame_widths <- [||]
+  t.frame <- [||]
 
 let refresh_size t =
   match t.size with
@@ -431,7 +429,7 @@ let refresh_size t =
 let draw buf t ~resized spans =
   let look = look t in
   let lines =
-    Array.of_list (List.map (fun (l, _) -> render_in look t l) spans)
+    Array.of_list (List.map (fun (l, w) -> (render_in look t l, w)) spans)
   in
   if lines <> t.frame || resized then begin
     let n = Array.length lines in
@@ -439,8 +437,8 @@ let draw buf t ~resized spans =
       Buffer.add_char buf '\r';
       add_up buf (n - 1);
       Array.iteri
-        (fun i line ->
-          if not (String.equal line t.frame.(i)) then begin
+        (fun i (line, _) ->
+          if not (String.equal line (fst t.frame.(i))) then begin
             Buffer.add_string buf "\027[K";
             Buffer.add_string buf line
           end;
@@ -452,13 +450,12 @@ let draw buf t ~resized spans =
          display did not see may have moved the cursor anywhere. *)
       clear buf t;
       Array.iteri
-        (fun i line ->
+        (fun i (line, _) ->
           Buffer.add_string buf (if i > 0 then "\r\n\027[K" else "\r\027[K");
           Buffer.add_string buf line)
         lines
     end;
-    t.frame <- lines;
-    t.frame_widths <- Array.of_list (List.map snd spans)
+    t.frame <- lines
   end
 
 (* When nothing that the frame depends on has changed, a redraw draws,
@@ -677,7 +674,6 @@ let v ?size ?once_width ?(write_error = fun _ -> false)
       fallback;
       failure = None;
       frame = [||];
-      frame_widths = [||];
       painted_at = neg_infinity;
       changes = 0;
       told = false;
