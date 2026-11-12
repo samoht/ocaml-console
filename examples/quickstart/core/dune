@@ -1,3 +1,3 @@
 (library
  (name quickstart)
- (libraries console console.tty fmt fmt.cli cmdliner))
+ (libraries console console.cli fmt cmdliner))

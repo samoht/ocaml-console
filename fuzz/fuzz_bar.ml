@@ -6,8 +6,8 @@
 open Alcobar
 open Console
 
-(* A bar is exactly [width] cells, two more with brackets, for any fraction;
-   a negative width is refused. *)
+(* A bar is [width] cells wide, or [width + 2] with brackets, at any
+   fraction. A negative width raises [Invalid_argument]. *)
 let test_width n f b =
   let width = n mod 100 in
   match Bar.horizontal ~brackets:b ~width f with
@@ -18,7 +18,7 @@ let test_width n f b =
         (Console_width.string_width (View.to_string bar))
   | exception Invalid_argument _ -> if width >= 0 then fail "width refused"
 
-(* A vertical bar is one cell wide and exactly as tall as its room, at any
+(* A vertical bar is one cell wide and as tall as its room, at any
    fraction. *)
 let test_vertical_height h frac utf_8 =
   let height = 1 + abs (h mod 40) in

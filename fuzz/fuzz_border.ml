@@ -6,8 +6,8 @@
 open Alcobar
 open Console
 
-(* [chars] and [style] give back what [v] and [with_style] were given, each
-   glyph as the text it prints. *)
+(* [chars] and [style] return what [v] and [with_style] received. Each glyph
+   comes back as the text it prints. *)
 let test s =
   let glyphs s =
     {

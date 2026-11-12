@@ -6,8 +6,8 @@
 open Alcobar
 open Console
 
-(* A spinner printed once shows its first frame, as the text it prints, and is
-   as wide as its widest frame; an empty spinner is refused. *)
+(* A spinner printed once shows the text of its first frame. It is as wide
+   as its widest frame. A spinner with no frame is refused. *)
 let test_frame frames =
   (match Spinner.view ~frames:[] () with
   | _ -> fail "empty spinner accepted"

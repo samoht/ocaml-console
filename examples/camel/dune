@@ -35,6 +35,7 @@
 
 (rule
  (alias runtest)
+ (package console-eio)
  (enabled_if %{lib-available:console-eio})
  (action
   (diff camel.svg camel.generated.svg)))

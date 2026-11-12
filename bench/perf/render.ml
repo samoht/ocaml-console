@@ -5,17 +5,17 @@
 
 (* The cost of redrawing, on a virtual clock, with 1 to 1000 tasks in view.
 
-   1. A frame: the words it allocates, which are deterministic, and its
-      processor time, with the tasks still (only the time moved) and with
-      every task advanced since the last frame.
+   1. A frame: its allocated words (deterministic) and its processor time.
+      There are two cases: tasks still (only the time moved), and every
+      task advanced since the last frame.
    2. Coalescing: [rate] updates per simulated second, spread over the
-      tasks; the frames drawn per simulated second, which must not depend
-      on the rate.
+      tasks. It prints the frames drawn per simulated second, which must
+      not depend on the rate.
 
-   With [--check], fails if a simulated second draws more than 11 frames.
-   A frame's words are printed beside the count recorded, but not checked:
-   most are Format's and Fmt's, and change with their releases. Usage:
-   render.exe [--check] *)
+   With [--check], it fails if a simulated second draws more than 11
+   frames. A frame's words are printed next to the recorded count but not
+   checked: most come from Format and Fmt, and change with their releases.
+   Usage: render.exe [--check] *)
 
 open Console
 
@@ -25,13 +25,13 @@ let visible = if check then [ 1; 10; 100 ] else [ 1; 10; 100; 1000 ]
 let rates =
   if check then [ 10; 1_000; 10_000 ] else [ 10; 1_000; 100_000; 1_000_000 ]
 
-(* The number of frames a case draws; fewer with [--check], which needs
-   only their words. *)
+(* The number of frames a case draws. [--check] draws fewer, because it
+   needs only their words. *)
 let frames_of tasks = max 10 ((if check then 2_000 else 20_000) / tasks)
 
-(* The words a frame may allocate, by tasks in view and whether they moved:
-   [ratchet] is what the code allocates now, on flambda or not, whichever
-   is more; [target] is a thousand words a row. *)
+(* The words a frame may allocate, by tasks in view and whether they moved.
+   [ratchet] is what the code allocates now, the larger of the flambda and
+   non-flambda counts. [target] is a thousand words a row. *)
 let ratchet tasks busy =
   match (tasks, busy) with
   | 1, false -> 4_036.
@@ -45,7 +45,7 @@ let ratchet tasks busy =
 let target tasks = 1000. *. float (tasks + 1)
 let max_fps = 11.
 
-(* A terminal size that fits the rows of [n] tasks and the summary under
+(* A terminal size that fits the rows of [n] tasks and the summary below
    them. *)
 let size n () = (100, n + 8)
 
@@ -80,7 +80,7 @@ let frames () =
           for _ = 1 to 5 do
             frame ()
           done;
-          (* What the advances cost is measured on its own and subtracted. *)
+          (* Measure the cost of the advances alone, to subtract it. *)
           let adv_w, adv_c =
             if not busy then (0., 0.)
             else begin
@@ -108,8 +108,8 @@ let frames () =
         [ false; true ])
     visible
 
-(* For each number of tasks and each rate, [rate * secs] updates on a
-   virtual clock, and the frames they drew per simulated second. *)
+(* For each number of tasks and each rate, run [rate * secs] updates on a
+   virtual clock and print the frames drawn per simulated second. *)
 let coalescing () =
   Fmt.pr "@.coalescing, virtual clock: frames drawn per simulated second@.";
   Fmt.pr "%6s" "tasks";

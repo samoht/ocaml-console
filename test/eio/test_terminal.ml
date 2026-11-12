@@ -5,21 +5,21 @@
 
 open Display_harness
 
-(* [`Auto] draws a live region where one can be drawn, on the descriptor the
-   display writes to: [Console_eio.run ~ppf:Fmt.stderr] asks standard error,
-   whatever standard output is. A terminal whose [TERM] is [dumb] has no cursor
-   to move, so it gets the appending display, the one a pipe gets. Each case
-   puts a pseudo-terminal or a pipe on the two descriptors for its span and
-   reads what the display wrote: a live region hides the cursor first
-   (ESC [?25l), and an appending display writes no escape at all. *)
+(* [`Auto] draws a live region where it can, on the descriptor the display
+   writes to. [Console_eio.run ~ppf:Fmt.stderr] checks standard error, whatever
+   standard output is. A terminal with [TERM=dumb] has no cursor to move, so it
+   gets the appending display, as a pipe does. Each case puts a pseudo-terminal
+   or a pipe on the two descriptors, and reads what the display wrote. A live
+   region first hides the cursor (ESC [?25l). An appending display writes no
+   escape code at all. *)
 
 let hide_cursor = "\027[?25l"
 let open_pty = Pty_harness.open_pty
 let tty pty = Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Unix.dup
 
-(* [f ()] with standard output on [stdout], standard error on [stderr],
-   [TERM] set to [term] and the colour of both decided for them, in UTF-8,
-   each given back as it was found. *)
+(* [f ()] with standard output on [stdout], standard error on [stderr], [TERM]
+   set to [term], and colour decided for both, in UTF-8. Each is restored
+   afterwards. *)
 let with_fds ~stdout ~stderr ~term f =
   let saved_out = Unix.dup Unix.stdout and saved_err = Unix.dup Unix.stderr in
   let stds = [ Fmt.stdout; Fmt.stderr ] in
@@ -43,17 +43,17 @@ let with_fds ~stdout ~stderr ~term f =
   Console_tty.setup ~utf_8:true ();
   f ()
 
-(* One task, drawn on standard error by [Console_eio.run] in [`Auto], on a
-   clock that never moves: the case asserts which display was chosen and
-   nothing about the machine's pace. *)
+(* One task, drawn on standard error by [Console_eio.run] in [`Auto], on a clock
+   that never moves. The case checks which display was chosen, and nothing about
+   the speed of the machine. *)
 let draw_a_task () =
   let clock = Eio_mock.Clock.Mono.make () in
   Console_eio.run ~clock ~ppf:Fmt.stderr (fun display ->
       let task = Console.Task.start display "step" in
       Console.Task.succeed task)
 
-(* A mark no display writes, so a reader of the terminal knows it has read
-   everything written before it. *)
+(* A mark that no display writes. A reader of the terminal that sees it knows it
+   has read everything written before. *)
 let end_mark = "<end of the case's output>"
 
 let mark fd =
@@ -76,9 +76,9 @@ let with_null f =
   let null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0 in
   Fun.protect ~finally:(fun () -> Unix.close null) (fun () -> f null)
 
-(* Standard error is a terminal and standard output is not: the region is
-   drawn, since the display draws on standard error. An implementation that
-   asks standard output appends here. *)
+(* Standard error is a terminal and standard output is not. The region is drawn,
+   because the display draws on standard error. An implementation that checks
+   standard output appends here. *)
 let test_auto_asks_the_formatters_own_descriptor () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
@@ -100,9 +100,9 @@ let test_auto_asks_the_formatters_own_descriptor () =
     "a live region on standard error's terminal" true
     (contains hide_cursor written)
 
-(* Standard error is a pipe and standard output a terminal: the display
-   appends, and the pipe holds the task's lines and no escape. An
-   implementation that asks standard output draws a region into the pipe. *)
+(* Standard error is a pipe and standard output is a terminal. The display
+   appends, and the pipe holds the task's lines and no escape code. An
+   implementation that checks standard output draws a region into the pipe. *)
 let test_auto_appends_on_a_pipe () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
@@ -127,8 +127,8 @@ let test_auto_appends_on_a_pipe () =
   Alcotest.(check string)
     "the task's lines" "\xe2\x80\xa2 step\n\xe2\x9c\x93 step  0.0s\n" written
 
-(* Both descriptors are the same terminal; under TERM=xterm-256color the
-   region is drawn, under TERM=dumb the display appends. *)
+(* Both descriptors are the same terminal. With TERM=xterm-256color the region
+   is drawn; with TERM=dumb the display appends. *)
 let test_auto_appends_under_term_dumb () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
@@ -150,9 +150,9 @@ let test_auto_appends_under_term_dumb () =
     "the task's line under dumb" true
     (contains "\xe2\x9c\x93 step  0.0s" dumb)
 
-(* Standard output is a terminal, but not the display's: what the program
-   prints there goes out as it is written, a line not yet ended included,
-   since no region of the display is on it. *)
+(* Standard output is a terminal, but not the display's. What the program prints
+   there goes out as it is written, including an unfinished line, because no
+   region of the display is on it. *)
 let test_other_terminal_passes_through () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
@@ -174,7 +174,7 @@ let test_other_terminal_passes_through () =
     "byte for byte, at once" ("partial" ^ end_mark) written
 
 (* Whether [s] holds an SGR sequence: a CSI whose final byte is ['m']. The
-   cursor controls a region is made of are CSIs too, with other final bytes. *)
+   cursor controls of a region are also CSIs, with other final bytes. *)
 let has_sgr s =
   let n = String.length s in
   let rec final j =
@@ -193,7 +193,7 @@ let has_sgr s =
   go 0
 
 (* [run] on a terminal draws in colour as [setup] decides, and draws plain when
-   [NO_COLOR] asks it to; the region is drawn in place either way. *)
+   [NO_COLOR] asks for it. The region is drawn in place either way. *)
 let test_run_styles_a_terminal () =
   Eio_main.run @@ fun _env ->
   Eio.Switch.run @@ fun sw ->
@@ -231,8 +231,8 @@ let check_dimensions msg ~columns ~lines expected =
 let test_small_dimensions () =
   check_dimensions "valid small geometry" ~columns:"10" ~lines:"2" (10, 2)
 
-(* No terminal is wider or taller than 4096 cells: a larger $COLUMNS or
-   $LINES is ignored, as one that is not a number is. *)
+(* No terminal is wider or taller than 4096 cells. A larger $COLUMNS or $LINES
+   is ignored, like one that is not a number. *)
 let test_absurd_dimensions () =
   check_dimensions "the largest" ~columns:"4096" ~lines:"4096" (4096, 4096);
   check_dimensions "only decimal digits" ~columns:"0x50" ~lines:"1_0" (80, 24);
@@ -249,8 +249,7 @@ let test_window_size_of_a_terminal () =
     (Some (123, 45))
     (Eio_unix.Fd.use_exn "tty" (Eio_unix.Pty.tty pty) Terminal.window_size)
 
-(* The last resort looks for the terminal under the names of /dev and
-   /dev/pts. *)
+(* The last resort looks for the terminal by name under /dev and /dev/pts. *)
 let test_device_names () =
   let check msg expected (dev, pts) =
     Alcotest.(check (list string))

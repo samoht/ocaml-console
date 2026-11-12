@@ -7,7 +7,7 @@ module Colour = Console__.Colour
 
 let env pairs name = List.assoc_opt name pairs
 
-(* An environment in which reading a variable the rule does not name fails. *)
+(* An environment that fails when a rule reads a variable it does not name. *)
 let only names pairs name =
   if List.mem name names then env pairs name
   else Alcotest.failf "reads %s, which it does not document" name
@@ -41,8 +41,8 @@ let depth =
   in
   Alcotest.testable pp ( = )
 
-(* Each rule reads the variables it documents and no other: a variable such
-   as FORCE_COLOR cannot change what it says. *)
+(* Each rule reads only the variables it documents. A variable such as
+   FORCE_COLOR cannot change its result. *)
 let test_only_documented () =
   let pairs = [ ("TERM", "xterm") ] in
   Alcotest.(check bool)
@@ -56,9 +56,9 @@ let test_only_documented () =
     "utf_8" false
     (Colour.utf_8 ~getenv:(only [ "LC_ALL"; "LC_CTYPE"; "LANG" ] pairs))
 
-(* Environment values are untrusted: bytes that are not UTF-8, control
-   characters and very long values are read as any other value is, and
-   raise nothing. *)
+(* Environment values are untrusted. Bytes that are not UTF-8, control
+   characters and very long values are read like any other value, and raise
+   nothing. *)
 let test_hostile_values () =
   let long = String.make (1024 * 1024) 'x' in
   let check_depth label expected term =

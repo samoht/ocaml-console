@@ -13,8 +13,8 @@ let rgb r g b =
     invalid_arg "Console.Color.rgb: component outside 0..255";
   Rgb (r, g, b)
 
-(* The digits are read in place, with no copy and no closure. The themes parse
-   their colours as console loads. *)
+(* Read the digits in place, with no copy and no closure: the themes parse
+   their colours when console loads. *)
 let rec hex_from s i =
   i >= String.length s || (Char.Ascii.is_hex_digit s.[i] && hex_from s (i + 1))
 
@@ -106,7 +106,7 @@ let nearest_level v =
 let distance (r, g, b) (r', g', b') =
   ((r - r') * (r - r')) + ((g - g') * (g - g')) + ((b - b') * (b - b'))
 
-(* After tmux's colour_find_rgb: the nearest cube entry or grey, whichever is
+(* As in tmux's colour_find_rgb: the nearest cube entry or grey, whichever is
    nearer. *)
 let xterm_256 (r, g, b) =
   let ri = nearest_level r and gi = nearest_level g and bi = nearest_level b in
@@ -171,15 +171,15 @@ let gradient stops =
     let f = if Float.is_nan f then 0. else Float.max 0. (Float.min 1. f) in
     let x = f *. float_of_int (n - 1) in
     let i = int_of_float x in
-    (* Where [f] falls on a stop, the stop as given, so that a named or
-       palette colour stays one. *)
+    (* When [f] falls on a stop, return the stop as given, so a named or
+       palette colour keeps its kind. *)
     if i >= n - 1 then stops.(n - 1)
     else if Float.of_int i = x then stops.(i)
     else blend stops.(i) stops.(i + 1) (x -. float_of_int i)
 
 let scale f c =
   let r, g, b = to_rgb c in
-  (* Clamped as a float: a large factor overflows [int_of_float]. *)
+  (* Clamp as a float: a large factor would overflow [int_of_float]. *)
   let s v =
     let x = Float.round (float_of_int v *. f) in
     if Float.is_nan x then 0 else int_of_float (Float.max 0. (Float.min 255. x))

@@ -25,7 +25,7 @@ let test_frame () =
   Alcotest.(check string) "infinite time" "a" (at Float.infinity);
   Alcotest.(check string) "nan" "a" (at Float.nan)
 
-(* Printed once, a spinner is still: its first frame. *)
+(* A spinner printed once does not move: it shows its first frame. *)
 let test_printed () =
   Alcotest.(check string)
     "first frame" "a"
@@ -60,7 +60,7 @@ let test_still () =
         (at ~theme:(Theme.still Theme.default) time))
     [ 0.; 0.1; 0.25; 1.; 3600. ]
 
-(* A spinner is as wide as its widest frame at every time. *)
+(* At every time, a spinner is as wide as its widest frame. *)
 let test_width () =
   let frames = [ "."; "..."; "\u{754c}" ] in
   List.iter

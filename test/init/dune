@@ -1,7 +1,7 @@
-; What loading console costs: a program that links console pays, as it starts,
-; for every value a console module builds as it loads, whether it draws
-; anything or not. Every module of every library is linked, so each
-; initialiser runs, and init_first comes first, so it samples them all.
+; The cost of loading console. At startup, a program that links console pays
+; for every value that a console module builds when it loads, even if it draws
+; nothing. Every module of every library is linked, so every initialiser runs.
+; init_first comes first, so it samples them all.
 
 (test
  (name test)

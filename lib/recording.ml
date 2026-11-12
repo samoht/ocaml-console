@@ -24,8 +24,8 @@ let decimal s =
   if s <> "" && String.for_all Char.Ascii.is_digit s then int_of_string_opt s
   else None
 
-(* A display takes at most 4096 columns or rows, so a larger size is not a
-   terminal's. *)
+(* A display has at most 4096 columns or rows, so a larger size cannot come
+   from a terminal. *)
 let dimension name ~default =
   match Option.bind (Sys.getenv_opt name) decimal with
   | Some n when n > 0 && n <= 4096 -> n
@@ -33,7 +33,7 @@ let dimension name ~default =
 
 let size () = (dimension "COLUMNS" ~default:80, dimension "LINES" ~default:24)
 
-(* [shown t data] is [data] as the terminal receives it: the tty driver puts
+(* [shown t data] is [data] as the terminal receives it: the tty driver adds
    a carriage return before each line feed that lacks one. *)
 let shown t data =
   let b = Buffer.create (String.length data + 16) in
@@ -45,8 +45,8 @@ let shown t data =
     data;
   Buffer.contents b
 
-(* The time written never goes back, even when the clock of a later run
-   starts again at zero. *)
+(* The written time never goes back, even when a later run's clock restarts
+   at zero. *)
 let emit t data =
   let time = Float.max t.last (t.time ()) in
   t.last <- time;
@@ -54,8 +54,8 @@ let emit t data =
   output_string t.oc (Cast.to_line Cast.event { time; data });
   flush t.oc
 
-(* Each flush writes one event, cut at a character boundary: the bytes of a
-   character cut short wait in [pending] for the rest of it. *)
+(* Each flush writes one event, cut at a character boundary. The bytes of an
+   incomplete character stay in [pending] until the rest arrives. *)
 let written t o =
   let all = Buffer.contents o.pending in
   match Console_text.boundary all with
@@ -101,8 +101,9 @@ let stop t =
   close_out t.oc
 
 (* Before the first domain starts, Format gives [Fmt.stdout] and [Fmt.stderr]
-   the [out_string] and [out_flush] of a buffer per domain. This runs after
-   that, so a recorded formatter is recorded again over the new pair. *)
+   new [out_string] and [out_flush] functions that write to a per-domain
+   buffer. This hook runs after that, and redirects each recorded formatter
+   again on top of the new functions. *)
 let () =
   let rebase t o =
     if o.ppf == Format.std_formatter || o.ppf == Format.err_formatter then begin
@@ -117,8 +118,8 @@ let () =
         Option.iter (fun t -> List.iter (rebase t) t.outputs) !current)
   with Invalid_argument _ -> ()
 
-(* A recording that cannot be opened ends the program, as a bad option
-   would. *)
+(* If the recording cannot be opened, the program exits, as it does for a
+   bad option. *)
 let open_cast file =
   let oc =
     try open_out_bin file

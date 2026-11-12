@@ -20,10 +20,9 @@ let printed ?theme ?(styled = false) ?(utf_8 = true) ?(margin = 40) pp v =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* The DOS preset draws as Norton Commander did in code page 437: frames of
-   double lines with single lines inside them, tree guides of single lines,
-   blocky bars and the ASCII spinner; ASCII alone where UTF-8 is not
-   shown. *)
+(* The DOS preset draws like Norton Commander in code page 437: double-line
+   frames with single lines inside, single-line tree guides, block bars and
+   the ASCII spinner. Where UTF-8 is not shown, it draws ASCII only. *)
 let test_dos () =
   let t = Theme.dos in
   Alcotest.(check string)
@@ -72,8 +71,8 @@ let test_rainbow () =
     "palette of six colours" 6
     (List.length (Theme.palette t))
 
-(* [v] is the default theme with the parts it is given replaced, and its
-   palette follows its accent. *)
+(* [Theme.v] is the default theme with the given parts replaced. Its palette
+   follows its accent. *)
 let test_v_defaults () =
   let t = Theme.v ~accent:Color.red ~spinner:Spinner.ascii () in
   Alcotest.(check string) "default guide" "├── " (Guide.branch (Theme.guide t));
@@ -84,7 +83,7 @@ let test_v_defaults () =
     "the spinner given" "/"
     (View_harness.at ~theme:t ~time:0.1 (Spinner.view ()))
 
-(* Each scheme keeps the background its authors chose. *)
+(* Each scheme keeps the background chosen by its authors. *)
 let test_schemes () =
   List.iter
     (fun (name, t, bg) ->
@@ -107,9 +106,9 @@ let test_schemes () =
       ("github-light", Theme.github_light, "#ffffff");
     ]
 
-(* A theme is kept on its formatter, as its colour depth is: a formatter
-   given none has the default, and giving one to a formatter changes no
-   other, nor what Fmt keeps on it. *)
+(* A formatter keeps its theme, as it keeps its colour depth. A formatter
+   with no theme has the default. Setting a theme on one formatter changes
+   no other formatter, and does not change what Fmt keeps on it. *)
 let test_on_formatter () =
   let ppf = Format.formatter_of_buffer (Buffer.create 0) in
   let other = Format.formatter_of_buffer (Buffer.create 0) in
@@ -127,7 +126,47 @@ let test_on_formatter () =
     (Fmt.style_renderer ppf = `Ansi_tty);
   check "another formatter" Theme.default other
 
-(* A widget built once takes the look of each formatter it is printed on. *)
+let with_program t f =
+  let before = Theme.program () in
+  Theme.set_program t;
+  Fun.protect ~finally:(fun () -> Theme.set_program before) f
+
+(* A formatter without its own theme uses the program's theme. This includes
+   new formatters and View.to_string. A formatter's own theme wins. *)
+let test_program () =
+  let own = Format.formatter_of_buffer (Buffer.create 0) in
+  Theme.set own Theme.nord;
+  with_program Theme.dos @@ fun () ->
+  let fresh = Format.formatter_of_buffer (Buffer.create 0) in
+  let check what want got = Alcotest.(check bool) what true (want == got) in
+  check "the program's" Theme.dos (Theme.program ());
+  check "a fresh formatter" Theme.dos (Theme.get fresh);
+  check "a formatter's own" Theme.nord (Theme.get own);
+  let panel = Panel.view (View.text "1") in
+  let dos = "\u{2554}\u{2550}" in
+  Alcotest.(check bool)
+    "Fmt.str" true
+    (contains dos (Fmt.str "%a" View.pp panel));
+  Alcotest.(check bool)
+    "View.to_string" true
+    (contains dos (View.to_string panel))
+
+(* A live display on a formatter with no theme of its own redraws when the
+   program's theme changes. *)
+let test_program_redraws () =
+  let term = terminal () in
+  let task = Task.start term.root "copy" in
+  Task.set_items task ~count:1 ~total:2;
+  Display.redraw term.display;
+  with_program Theme.dos @@ fun () ->
+  Task.set_items task ~count:1 ~total:2;
+  Display.redraw term.display;
+  Display.close term.display;
+  Alcotest.(check bool)
+    "dos bars" true
+    (contains "\u{2588}\u{2591}" (written term))
+
+(* A widget built once takes the look of each formatter that prints it. *)
 let test_widgets_read_it () =
   let check what pp v ~ascii ~default =
     Alcotest.(check bool)
@@ -186,8 +225,8 @@ let test_display_reads_it () =
     "dos bars" true
     (contains "\u{2588}\u{2591}" (written term))
 
-(* The progress rows of a theme whose palette has several colours take
-   their bars in the whole palette, from its first colour to its last. *)
+(* When a theme's palette has several colours, the bars of its progress
+   rows use the whole palette, from the first colour to the last. *)
 let test_display_palette () =
   let term = terminal ~theme:Theme.rainbow ~styled:true () in
   let task = Task.start term.root "copy" in
@@ -209,8 +248,8 @@ let test_pp () =
   let s = Fmt.str "%a" Theme.pp Theme.dos in
   Alcotest.(check bool) "mentions the done marker" true (contains "[+]" s)
 
-(* WCAG 2.1 contrast ratio: (L1 + 0.05) / (L2 + 0.05) of the relative
-   luminances, the lighter first. *)
+(* WCAG 2.1 contrast ratio: (L1 + 0.05) / (L2 + 0.05), where L1 and L2 are
+   the relative luminances and L1 is the lighter. *)
 let luminance c =
   let r, g, b = Color.to_rgb c in
   let lin v =
@@ -246,13 +285,13 @@ let presets =
       ("github_light", github_light);
     ]
 
-(* A named colour of the terminal, which its scheme draws. *)
+(* [named c] is true if [c] is a named terminal colour, which the
+   terminal's scheme draws. *)
 let named c = Color.equal (Color.downsample `Ansi_16 c) c
 
-(* The default theme is drawn in the terminal's own colours: its named
-   colours, which the user's scheme shows, and faint text for what is
-   muted, so that nothing it draws is in a colour chosen for another
-   background. *)
+(* The default theme uses the terminal's own colours: its named colours,
+   which the user's scheme shows, and faint text for muted parts. So nothing
+   it draws uses a colour chosen for another background. *)
 let test_default_named () =
   let t = Theme.default in
   List.iter
@@ -268,14 +307,14 @@ let test_default_named () =
     @ List.map (fun c -> ("palette", c)) (Theme.palette t));
   Alcotest.(check bool) "no muted colour" true (Theme.muted t = None)
 
-(* WCAG 2.1 asks a contrast of 4.5:1 for text and 3:1 for graphics. The
-   colours of text are the muted and header colours (counts, timers,
-   headings) and, on a theme that names its background, the colours of the
-   roles, which [View.role] gives to text; the palette colours glyphs. A theme
-   without a background is read on both black and white, where 4.5:1 needs a
-   luminance between 0.175 and 0.183, which no amber of the 256-colour palette
-   has, so its roles are held to 3:1, as glyphs. A named colour is not
-   measured: the terminal's scheme sets its contrast. *)
+(* WCAG 2.1 asks for a contrast of 4.5:1 for text and 3:1 for graphics.
+   Text uses the muted and header colours (counts, timers, headings). On a
+   theme that names its background, text also uses the role colours, which
+   [View.role] applies. The palette colours glyphs. A theme without a
+   background is checked on both black and white. There, 4.5:1 needs a
+   luminance between 0.175 and 0.183, and no amber of the 256-colour palette
+   has one, so its roles are held to 3:1, like glyphs. A named colour is not
+   measured, because the terminal's scheme sets its contrast. *)
 let test_contrast () =
   List.iter
     (fun (name, t) ->
@@ -324,7 +363,7 @@ let test_contrast () =
         backgrounds)
     presets
 
-(* Every theme sets its own headers apart. *)
+(* Every theme makes its headers stand out. *)
 let test_header () =
   List.iter
     (fun (name, t) ->
@@ -332,9 +371,9 @@ let test_header () =
         Alcotest.failf "%s: plain headers" name)
     presets
 
-(* Frames, guides, rules, the track of a bar and the counts and timers of a
-   display are in the theme's muted colour; table headers, panel titles and
-   the display's header in its header style. *)
+(* Frames, guides, rules, a bar's track, and a display's counts and timers
+   use the theme's muted colour. Table headers, panel titles and the
+   display's header use its header style. *)
 let test_roles () =
   let t = Theme.nord in
   let muted = View_harness.sgr (Style.fg (Option.get (Theme.muted t)))
@@ -368,8 +407,8 @@ let test_roles () =
   check "display timer" (muted ^ "0.0s") out;
   check "display header" (header ^ "Build") out
 
-(* A command line chooses a theme by name: [all] holds every predefined
-   theme once, under the name [of_string] reads back. *)
+(* A command line chooses a theme by name. [all] holds each predefined
+   theme once, under the name that [of_string] reads back. *)
 let test_names () =
   Alcotest.(check (list string))
     "names"
@@ -413,8 +452,8 @@ let test_names () =
   Alcotest.(check string) "custom" "custom" (Theme.name (Theme.v ()));
   Alcotest.(check string) "named" "mine" (Theme.name (Theme.v ~name:"mine" ()))
 
-(* A display on a terminal that is not UTF-8, with a spinner, a bar, a
-   nested row, a log line, a label cut to fit and rows hidden behind a
+(* A display on a terminal that is not UTF-8. It has a spinner, a bar, a
+   nested row, a log line, a label cut to fit, and rows hidden behind a
    marker. *)
 let display_bytes theme =
   let buf = Buffer.create 256 in
@@ -434,8 +473,8 @@ let display_bytes theme =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* A formatter that is not UTF-8 gets ASCII alone from every widget, in
-   every theme, a line cut to fit included. *)
+(* On a formatter that is not UTF-8, every widget in every theme prints
+   ASCII only, including a line cut to fit. *)
 let test_ascii_fallback () =
   let long = View.text "a label much wider than the margin" in
   let widgets theme =
@@ -473,8 +512,8 @@ let test_ascii_fallback () =
     (printed ~utf_8:false ~margin:11 View.pp
        (Rule.view ~align:`Left ~label:long ()))
 
-(* [Theme.ascii] draws in ASCII on a UTF-8 formatter too: a chart's
-   baseline and a rule included. *)
+(* [Theme.ascii] draws ASCII on a UTF-8 formatter too, including a chart's
+   baseline and a rule. *)
 let test_ascii_on_utf_8 () =
   List.iter
     (fun (what, v) ->
@@ -485,8 +524,9 @@ let test_ascii_on_utf_8 () =
       ("rule", Rule.view ());
     ]
 
-(* matrix's frames rain, rainbow's sweep its colours round and the themes of
-   colour schemes shimmer in their main colour; the others stand still. *)
+(* The matrix theme's frames rain. The rainbow theme's frames sweep its
+   colours round. The colour-scheme themes shimmer in their main colour. The
+   other themes do not move. *)
 let test_motion () =
   List.iter
     (fun (name, t) ->
@@ -504,7 +544,7 @@ let test_motion () =
     "v: the one given" true
     (Theme.motion (Theme.v ~motion:`Sweep ()) = Some `Sweep)
 
-(* [still] keeps a theme's look and stops what moves: its frames and its
+(* [still] keeps a theme's look and stops its motion: the frames and the
    spinner. *)
 let test_still () =
   let t = Theme.still Theme.matrix in
@@ -519,9 +559,9 @@ let test_still () =
     [ frame 0.; frame 0. ]
     [ frame 0.1; frame 0.55 ]
 
-(* A frame printed on a formatter does not move: its glyphs and colours are
-   those of the theme without motion, except that a sweep grades its palette
-   round the whole frame, as a display draws it at its start. *)
+(* A frame printed on a formatter does not move. Its glyphs and colours are
+   those of the theme without motion. The exception is a sweep: it spreads
+   its palette round the whole frame, as a display draws it at its start. *)
 let test_still_printed () =
   let table =
     Table.view
@@ -571,8 +611,9 @@ let test_still_printed () =
       check "panel" View.pp panel)
     presets
 
-(* The cells of the frame of a table drawn in a live display in [theme], as
-   (glyph, colour) pairs, at each of [times] seconds. *)
+(* [frames theme times] is the frame cells of a table drawn in a live
+   display in [theme], as (glyph, colour) pairs, at each of [times]
+   seconds. *)
 let frames theme times =
   let term = terminal ~theme ~styled:true ~width:40 ~height:12 () in
   let table =
@@ -594,9 +635,9 @@ let frames theme times =
       let height = 5 and width = Console_width.string_width (List.hd rows) in
       let grid = Console_vte.grid term.vte in
       let cell x y =
-        let i = Grid.idx grid ~x ~y in
+        let i = Matrix_grid.idx grid ~x ~y in
         let r, g, b = Ansi.Color.to_rgb (Console_vte.fg grid i) in
-        (Grid.get_text grid i, Color.rgb r g b)
+        (Matrix_grid.get_text grid i, Color.rgb r g b)
       in
       List.concat
         (List.init height (fun y ->
@@ -607,9 +648,9 @@ let frames theme times =
 let same_frame f0 f1 =
   List.for_all2 (fun (g0, c0) (g1, c1) -> g0 = g1 && Color.equal c0 c1) f0 f1
 
-(* Every frame of a theme with motion is drawn in colours at 3:1 or more on
-   its background, as a glyph is, and the frames change; a theme without
-   motion draws the same frame at every time. *)
+(* A theme with motion draws every frame in colours with a contrast of at
+   least 3:1 on its background, like a glyph, and the frames change. A theme
+   without motion draws the same frame at every time. *)
 let test_frame_contrast () =
   let times = List.init 40 (fun i -> float_of_int i *. 0.1) in
   List.iter
@@ -625,7 +666,8 @@ let test_frame_contrast () =
         | Some bg -> [ bg ]
         | None -> [ Color.rgb 0 0 0; Color.rgb 255 255 255 ]
       in
-      (* A frame in no colour of the theme's is in the terminal's own. *)
+      (* A frame in none of the theme's colours uses the terminal's own colours,
+   so it is not measured. *)
       if Theme.muted t <> None || Theme.motion t <> None then
         List.iter
           (List.iter (fun (glyph, c) ->
@@ -639,10 +681,10 @@ let test_frame_contrast () =
           frames)
     presets
 
-(* Rain runs along an intact frame: in every frame the corners and the tees,
-   where lines meet, keep their glyphs, a trail of three cells at most shows
-   other glyphs, and behind it the frame's own lines fade from the main
-   colour. *)
+(* Rain runs along an intact frame. In every frame, the corners and the tees
+   (where lines meet) keep their glyphs. A trail of at most three cells
+   shows other glyphs, and behind it the frame's own lines fade from the
+   main colour. *)
 let test_rain_intact () =
   let times = List.init 60 (fun i -> float_of_int i *. 0.07) in
   let still = List.hd (frames (Theme.still Theme.matrix) [ 0. ]) in
@@ -675,6 +717,9 @@ let suite =
       Alcotest.test_case "schemes" `Quick test_schemes;
       Alcotest.test_case "pp" `Quick test_pp;
       Alcotest.test_case "on the formatter" `Quick test_on_formatter;
+      Alcotest.test_case "the program's theme" `Quick test_program;
+      Alcotest.test_case "a display redraws in the program's theme" `Quick
+        test_program_redraws;
       Alcotest.test_case "widgets read it" `Quick test_widgets_read_it;
       Alcotest.test_case "a display reads it" `Quick test_display_reads_it;
       Alcotest.test_case "a display's bars in the palette" `Quick

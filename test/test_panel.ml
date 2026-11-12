@@ -25,11 +25,11 @@ let render renderer panel =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* A border's gradient runs once round the frame, clockwise from the
-   top-left corner and back to the first colour, and it does not move; the
-   content is not graded. On a frame of ten cells, the second of two colours
-   is at the fifth cell, the bottom-right corner, and each cell between blends
-   the two around its place, as [Color.gradient] does. *)
+(* A border's gradient runs once round the frame, clockwise from the top-left
+   corner and back to the first colour. It does not move, and the content
+   has no gradient. On a frame of ten cells, the second of two colours is at
+   the fifth cell, the bottom-right corner. Each cell in between blends the
+   two colours by its position, as [Color.gradient] does. *)
 let test_gradient_frame () =
   let border =
     Border.with_gradient [ Color.rgb 255 0 0; Color.rgb 0 0 255 ] Border.ascii
@@ -45,7 +45,7 @@ let test_gradient_frame () =
   let out = Buffer.contents buf in
   let fg (r, g, b) glyph = Fmt.str "\027[38;2;%d;%d;%dm%s\027[0m" r g b glyph in
   let line = List.map (fun (rgb, glyph) -> fg rgb glyph) in
-  (* Cell by cell, so that a gradient drawn the other way round fails. *)
+  (* Check cell by cell, so a gradient drawn in the other direction fails. *)
   Alcotest.(check string)
     "the top edge, from the first colour"
     (String.concat ""
@@ -120,9 +120,10 @@ let test_fixed_width_truncates () =
 let lines s = String.split_on_char '\n' s
 let render_at margin panel = View_harness.printed ~margin panel
 
-(* The formatter's margin is a ceiling on the box: a line wider than the room
-   wraps at its words, each continuation hanging under the text after the
-   line's first word, and the box is exactly the margin wide. *)
+(* The formatter's margin is the maximum width of the box. A line wider than
+   the room wraps at its words. Each continuation lines up under the text
+   after the line's first word, and the box is exactly as wide as the
+   margin. *)
 let test_margin_wraps () =
   let panel =
     Panel.view
@@ -143,8 +144,8 @@ let test_margin_wraps () =
        ])
     (render_at 30 panel)
 
-(* A box that fits keeps its natural width, and [to_string] lays a box out
-   at its natural width whatever its length. *)
+(* A box that fits keeps its natural width. [to_string] lays a box out at
+   its natural width, whatever its length. *)
 let test_margin_natural () =
   Alcotest.(check string)
     "fits" "╭────╮\n│ ok │\n╰────╯"
@@ -155,7 +156,8 @@ let test_margin_natural () =
     (Console_width.string_width
        (List.hd (lines (View.to_string (Panel.view (View.text long))))))
 
-(* A styled border opens one sequence for each run of border glyphs. *)
+(* A styled border uses one escape sequence for each run of border
+   glyphs. *)
 let test_styled_border () =
   let red = Color.rgb 255 0 0 in
   let panel =

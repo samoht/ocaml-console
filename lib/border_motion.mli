@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Moving frames: the border cells of a table or a panel, drawn in their
-    theme's {!Theme.motion} at a given time. *)
+(** Animated frames. This module recolours the border cells of a table or a
+    panel with the theme's {!Theme.motion} at a given time. *)
 
 val frame :
   Look.t ->
@@ -16,17 +16,16 @@ val frame :
   View_core.t list ->
   View_core.t list
 (** [frame look ~time border ~left ~right lines] is [lines] with its border
-    cells recoloured. [lines] is a frame of [border] laid out in [look], whose
-    left and right edges take [left] and [right] cells. Its border cells are the
-    cells of its first and last lines and of its edges, except, for each
-    [(y, first, last)] of [gaps] (defaults to [[]]), cells [first] to [last - 1]
-    of line [y].
+    cells recoloured. [lines] is a frame of [border] laid out in [look]. Its
+    left edge is [left] cells wide and its right edge [right] cells wide. The
+    border cells are the cells of the first line, the last line, and the two
+    edges. For each [(y, first, last)] in [gaps] (defaults to [[]]), cells
+    [first] to [last - 1] of line [y] are not border cells.
 
-    The border cells are graded in [border]'s {!Border.gradient}, then drawn as
-    the theme's {!Theme.motion} says at [time] if [look] is live. If [look] is
-    not live, a sweep keeps its colours at time [0.] and the other motions are
-    not drawn.
+    The border cells first get [border]'s {!Border.gradient}. Then, if [look] is
+    live, they are drawn with the theme's {!Theme.motion} at [time]. If [look]
+    is not live, a sweep is drawn at time [0.] and other motions are not drawn.
 
     The result is [lines] unchanged if the border has no gradient and the theme
-    no motion, if an edge is empty, or if there are fewer than two lines or they
-    are not all as wide. *)
+    has no motion, if an edge is empty, if there are fewer than two lines, or if
+    the lines differ in width. *)

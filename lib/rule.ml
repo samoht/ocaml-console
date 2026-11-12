@@ -36,8 +36,6 @@ let line look t width =
         let right = available - 2 - left in
         View_core.(fill left ++ space ++ label ++ space ++ fill right)
 
-(* At its natural size, a label has two glyphs a side, and a line without
-   one is four glyphs. *)
 let natural t = match View_core.width t.label with 0 -> 4 | w -> w + 6
 
 let view ?style ?glyph ?align ?label () =

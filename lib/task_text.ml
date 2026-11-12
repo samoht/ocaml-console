@@ -41,10 +41,10 @@ let bytes_short n =
   else if v < 9.95 then Fmt.str "%.1f%c" v unit
   else Fmt.str "%.0f%c" v unit
 
-(* Every duration under a minute, each made when first shown, since a display
-   shows one per task at each frame. The table itself is made at the first
-   duration. An entry read as "" by a domain racing another's write is made
-   again. *)
+(* A table of every duration under a minute, since a display shows one per
+   task at each frame. Each entry is made when first shown. The table itself
+   is made at the first duration. If a domain reads an entry as "" while
+   another domain writes it, the entry is made again. *)
 let table = Atomic.make [||]
 
 let tenth t =
@@ -76,15 +76,15 @@ let duration secs =
       let m = int_of_float (Float.round (secs /. 60.)) in
       String.concat "" [ string_of_int (m / 60); "h"; two (m mod 60); "m" ]
 
-(* [duration] is at most six cells wide below a hundred hours ("59m59s",
-   "99h59m"). A longer run takes the cells it needs rather than losing a
+(* Below a hundred hours, [duration] is at most six cells wide ("59m59s",
+   "99h59m"). A longer run takes the cells it needs instead of losing a
    digit. *)
 let duration_cells = 6
 let clean = Console_text.sanitize ~keep_newlines:false
 let kept_bytes = 4096
 
-(* ASCII dots, so that a cut ASCII line stays ASCII, which the sanitizing
-   done at each redraw skips quickly. *)
+(* ASCII dots, so a cut ASCII line stays ASCII. The sanitizer that runs at
+   each redraw skips ASCII lines quickly. *)
 let ellipsis = "..."
 
 exception Cut of int
@@ -113,8 +113,8 @@ let last_line_cells s =
         (String.sub s (i + 1) (String.length s - i - 1))
   | None -> Console_width.string_width s
 
-(* [expand_tabs s] is [s] sanitized, each tab replaced by spaces up to the
-   next stop of eight columns from the start of its line. A tab cannot be
+(* [expand_tabs s] is [s] sanitized, with each tab replaced by spaces up to
+   the next stop of eight columns from the start of its line. A tab cannot be
    inside a character or a line end, so the pieces between tabs are sanitized
    separately. *)
 let expand_tabs s =

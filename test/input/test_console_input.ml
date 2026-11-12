@@ -5,13 +5,15 @@
 
 let lines = Alcotest.(list string)
 
-(* A new editor fed [keys]: the editor, the echo and the submitted lines. *)
+(* [fed keys] feeds [keys] to a new editor. It returns the editor, the echo
+   and the submitted lines. *)
 let fed ?complete ?max_line keys =
   let t = Console_input.v ?complete ?max_line () in
   let echo, submitted = Console_input.feed t keys in
   (t, echo, submitted)
 
-(* [keys] fed to a new editor leave [want] as its pending line. *)
+(* [check_fed msg keys want] checks that [keys] fed to a new editor leave
+   [want] as its pending line. *)
 let check_fed msg keys want =
   let t, _, _ = fed keys in
   Alcotest.(check string) msg want (Console_input.pending t)
@@ -23,9 +25,9 @@ let test_printable () =
   Alcotest.(check string)
     "pending holds the line" "abc" (Console_input.pending t)
 
-(* A control sequence with intermediate bytes, such as DECSCUSR (ESC [ 1 SP
-   q) or SR (ESC [ 2 SP A), ends at its final byte: none of it is typed, and
-   a final [A] is not read as an arrow. *)
+(* A control sequence with intermediate bytes ends at its final byte.
+   Examples are DECSCUSR (ESC [ 1 SP q) and SR (ESC [ 2 SP A). None of the
+   sequence is typed, and a final [A] is not read as an arrow. *)
 let test_csi_intermediate () =
   let t, echo, _ = fed "ab\027[1 qc\027[2 Ad" in
   Alcotest.(check string) "echo" "abcd" echo;
@@ -87,10 +89,10 @@ let test_masked_input () =
   Alcotest.(check (list string))
     "secrets are never retained in history" [] (Console_input.history t)
 
-(* A secret is the bytes typed, whatever they are: a bidi mark, a C1
-   control, a byte that is not UTF-8, a mark with nothing to join, or a
-   character cut short. Only masks are echoed, the cursor moved by
-   backspaces. *)
+(* A masked editor returns the exact bytes typed, whatever they are: a bidi
+   mark, a C1 control, a byte that is not UTF-8, a mark with nothing to join,
+   or a character cut short. The echo holds only masks and the backspaces
+   that move the cursor. *)
 let test_masked_keeps_bytes () =
   let secret typed =
     let t = Console_input.v ~mask:"*" () in
@@ -159,8 +161,8 @@ let test_utf8_split_across_feeds () =
   Alcotest.(check string)
     "completed once its bytes arrive" "\xc3\xa9" (Console_input.pending t)
 
-(* A character two cells wide drives the cursor motion and the erase by its
-   cells, not by the character count. *)
+(* For a character two cells wide, the cursor moves and erases by two
+   cells, not by one character. *)
 let test_wide_backspace_clears_two_cells () =
   let echo, _ = Console_input.feed (Console_input.v ()) "\xe4\xb8\xad\127" in
   Alcotest.(check string) "two cells cleared" "\xe4\xb8\xad\b\b  \b\b" echo
@@ -173,8 +175,8 @@ let test_wide_left_steps_two_cells () =
   Alcotest.(check string)
     "left steps over two cells" "\xe4\xb8\xad\xe6\x96\x87\b\b" echo
 
-(* The screen a terminal shows after [keys] typed in an editor, and the
-   line the editor holds. *)
+(* [typed keys] types [keys] in a new editor. It returns the screen the
+   terminal shows and the line the editor holds. *)
 let typed ?mask keys =
   let t = Console_input.v ?mask () in
   let term = Console_vte.v ~raw:true ~rows:1 ~cols:40 () in
@@ -187,8 +189,9 @@ let check_typed msg ?mask keys ~shown ~line =
   Alcotest.(check string) (msg ^ ": the screen") shown s;
   Alcotest.(check string) (msg ^ ": the line") line l
 
-(* A backspace erases the cluster before the cursor, its marks with it, on
-   the screen as in the line, however its characters were typed. *)
+(* A backspace erases the whole cluster before the cursor, marks included.
+   This holds on the screen and in the line, however the cluster was
+   typed. *)
 let test_cluster_backspace () =
   check_typed "a combining mark" [ "ae\u{0301}\127" ] ~shown:"a" ~line:"a";
   check_typed "typed apart" [ "ae"; "\u{0301}"; "\127" ] ~shown:"a" ~line:"a";
@@ -199,8 +202,8 @@ let test_cluster_backspace () =
   check_typed ~mask:"*" "masked" [ "ae\u{0301}"; "\127" ] ~shown:"*" ~line:"a";
   check_typed "a mark with nothing to join" [ "\u{0301}a" ] ~shown:"a" ~line:"a"
 
-(* The arrows step over a cluster whole, so that what is typed next goes
-   before or after it, never inside. *)
+(* The arrows step over a whole cluster. What is typed next goes before or
+   after it, never inside. *)
 let test_cluster_arrows () =
   check_typed "left over a cluster" [ "e\u{0301}"; left; "X" ]
     ~shown:"Xe\u{0301}" ~line:"Xe\u{0301}";
@@ -211,10 +214,10 @@ let test_cluster_arrows () =
     [ "\u{0915}\u{093F}y"; left; left; "X" ]
     ~shown:"X\u{0915}\u{093F}y" ~line:"X\u{0915}\u{093F}y"
 
-(* What is typed at the cursor can join the cluster after it, as a ZWJ
-   joins two emoji, and what is erased can let its neighbours join. The
-   cursor then goes past the joined cluster, never inside it, and the
-   screen shows the line. *)
+(* Text typed at the cursor can join the cluster after it, as a ZWJ joins
+   two emoji. Erasing text can also let its neighbours join. The cursor
+   then moves past the joined cluster, never inside it, and the screen
+   shows the line. *)
 let test_cluster_joins_after () =
   check_typed "a ZWJ before an emoji"
     [ "\u{1F469}"; left; "\u{2764}"; "\u{200D}"; "\u{754C}"; "a" ]
@@ -226,9 +229,7 @@ let test_cluster_joins_after () =
   check_typed "a flag's second half before its first"
     [ "\u{1F1F7}"; left; "\u{1F1EB}"; "x" ]
     ~shown:"\u{1F1EB}\u{1F1F7}x" ~line:"\u{1F1EB}\u{1F1F7}x";
-  (* matrix 0.1.0's emulator draws U+2764 ZWJ U+1F469 in the one cell of
-     U+2764, where console counts the two of U+1F469, so this checks the echo
-     rather than the screen. *)
+  (* Console counts two cells for U+2764 ZWJ U+1F469; the echo erases both. *)
   let t = Console_input.v () in
   ignore (Console_input.feed t ("x\u{1F469}" ^ left ^ "\u{2764}\u{200D}"));
   Alcotest.(check string)
@@ -295,8 +296,8 @@ let test_history_seed_and_order () =
     [ "first"; "second"; "third" ]
     (Console_input.history t)
 
-(* [typed], then a tab, in an editor that completes to [candidates]: the echo
-   of the tab and the line then. *)
+(* [check_tab] types [typed] then a tab in an editor that completes to
+   [candidates]. It checks the echo of the tab and the line after it. *)
 let check_tab candidates typed echo_msg echo line_msg line =
   let t, _, _ = fed ~complete:(fun _ -> candidates) typed in
   let got, _ = Console_input.feed t "\t" in
@@ -338,10 +339,10 @@ let test_complete_utf8 () =
   Alcotest.(check string)
     "no complete character is shared" "" (Console_input.pending t)
 
-(* Bytes that are not a character are replacement characters, one for each
-   maximal part of a character that [String.get_utf_8_uchar] reads, as
-   [Console_text.sanitize] shows them, in the line and on the screen, so the
-   cursor stays where the terminal puts it. *)
+(* Invalid UTF-8 bytes become replacement characters, one for each maximal
+   part that [String.get_utf_8_uchar] reads, as [Console_text.sanitize] shows
+   them. This holds in the line and on the screen, so the cursor stays where
+   the terminal puts it. *)
 let test_invalid_utf8 () =
   List.iter
     (fun bad ->
@@ -382,8 +383,8 @@ let test_echo_is_text () =
   no_escape "completion and prompt" (Console_input.feed t "\t");
   no_escape "history" (Console_input.feed t "\027[A")
 
-(* A typed character the terminal would act on, such as the one-byte CSI
-   U+009B, is echoed and kept as a space. *)
+(* A typed character that the terminal would act on, such as the one-byte
+   CSI U+009B, is echoed and kept as a space. *)
 let test_typed_c1 () =
   let _, echo, submitted = fed "a\xc2\x9b2Jb\r" in
   Alcotest.(check bool)
@@ -391,8 +392,8 @@ let test_typed_c1 () =
     (Display_harness.contains "\xc2\x9b" echo);
   Alcotest.(check lines) "line" [ "a 2Jb" ] submitted
 
-(* A terminal in application cursor mode sends the arrows as ESC O A to
-   ESC O D; they move as ESC [ A to ESC [ D do and insert nothing. *)
+(* In application cursor mode, a terminal sends the arrows as ESC O A to
+   ESC O D. They move like ESC [ A to ESC [ D and insert nothing. *)
 let test_application_arrows () =
   let t = Console_input.v ~history:[ "old" ] () in
   let _, submitted = Console_input.feed t "ab\027ODX\r" in
@@ -400,8 +401,8 @@ let test_application_arrows () =
   let _, submitted = Console_input.feed t "\027OA\r" in
   Alcotest.(check lines) "up arrow" [ "aXb" ] submitted
 
-(* A selector inserted before existing text must still join its base on
-   the terminal, where the suffix has already been echoed. *)
+(* A selector inserted before existing text still joins its base on the
+   terminal, after the text that follows was already echoed. *)
 let test_insert_emoji_before_text () =
   let editor = Console_input.v () in
   let input = "a\027[D\u{2764}\u{fe0f}" in
@@ -430,12 +431,11 @@ let test_masked_history_seed () =
     "a masked editor keeps no history, including its seed" []
     (Console_input.history editor)
 
-(* A line holds at most 4095 bytes, the canonical-mode line of the Linux tty
-   line discipline (its 4096-byte N_TTY_BUF_SIZE less the terminator), so that
-   a peer cannot grow it without bound. Each byte refused past it rings the
-   bell, as readline does. The exact line and echo catch an editor that keeps
-   the excess, one that truncates without a bell, and one that counts
-   characters rather than bytes. *)
+(* A line holds at most 4095 bytes, so a peer cannot grow it without bound.
+   This is the canonical-mode line of the Linux tty: N_TTY_BUF_SIZE (4096)
+   less the terminator. Each refused byte rings the bell, as in readline.
+   The exact line and echo catch an editor that keeps the excess, one that
+   truncates without a bell, and one that counts characters, not bytes. *)
 let test_line_bound () =
   let t, echo, _ = fed (String.make 5000 'a') in
   Alcotest.(check string)
@@ -446,7 +446,7 @@ let test_line_bound () =
     (String.make 4095 'a' ^ String.make 905 '\007')
     echo
 
-(* A character of several bytes that would take the line past the bound is
+(* A multi-byte character that would take the line past the bound is
    refused whole, never split. *)
 let test_line_bound_whole_character () =
   let t = Console_input.v () in
@@ -456,8 +456,8 @@ let test_line_bound_whole_character () =
   Alcotest.(check string)
     "the line is unchanged" (String.make 4094 'a') (Console_input.pending t)
 
-(* ONLCR maps every NL to CR NL on output, including one a CR precedes
-   (termios(3), c_oflag). *)
+(* ONLCR maps every NL to CR NL on output, even after a CR (termios(3),
+   c_oflag). *)
 let test_crlf () =
   Alcotest.(check string) "no line feed" "abc" (Console_input.crlf "abc");
   Alcotest.(check string)
@@ -469,9 +469,9 @@ let test_crlf () =
 
 let numbered i = Fmt.str "line %03d" i
 
-(* The history keeps the 500 newest lines, bash's HISTSIZE, dropping the oldest
-   first. The exact list catches an unbounded history and one that drops the
-   newest lines. *)
+(* The history keeps the 500 newest lines (bash's HISTSIZE) and drops the
+   oldest first. The exact list catches an unbounded history and one that
+   drops the newest lines. *)
 let test_history_bound () =
   let t = Console_input.v () in
   for i = 1 to 600 do
@@ -507,7 +507,7 @@ let test_bound_completion () =
   Alcotest.(check string) "the bell" "ab\007" echo;
   Alcotest.(check string) "the line" "ab" (Console_input.pending t)
 
-(* A seed line longer than the bound is recalled whole, and erasing it works:
+(* A seed line longer than the bound is recalled whole and can be erased:
    the bound refuses inserts, never a backspace. *)
 let test_bound_erase_long_recall () =
   let t = Console_input.v ~max_line:3 ~history:[ "abcdef" ] () in
@@ -582,10 +582,7 @@ let suite =
       Alcotest.test_case "wide char left" `Quick test_wide_left_steps_two_cells;
       Alcotest.test_case "backspace erases a cluster" `Quick
         test_cluster_backspace;
-      Alcotest.test_case "arrows step over a cluster" `Quick
-        (Display_harness.skip_on_matrix_0_1
-           "invariant-hq/mosaic@65da7988 (a combining mark after ASCII)"
-           test_cluster_arrows);
+      Alcotest.test_case "arrows step over a cluster" `Quick test_cluster_arrows;
       Alcotest.test_case "a cluster joins the one after the cursor" `Quick
         test_cluster_joins_after;
       Alcotest.test_case "history up" `Quick test_history_up;

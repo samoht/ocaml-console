@@ -1,6 +1,6 @@
 (executable
  (name main)
- (libraries console console.tty cmdliner fmt))
+ (libraries console console.cli cmdliner fmt))
 
 (rule
  (target charts.cast)
@@ -27,5 +27,6 @@
 
 (rule
  (alias runtest)
+ (package console)
  (action
   (diff charts.svg charts.generated.svg)))

@@ -18,9 +18,9 @@ let shown b ppf =
 
 let lines s = List.filter (( <> ) "") (String.split_on_char '\n' s)
 
-(* [with_reporter f] is [f seen], with a reporter installed around [f] that
-   keeps each message from any domain or thread. [seen ()] are the messages
-   so far, oldest first. *)
+(* [with_reporter f] is [f seen], with a reporter installed around [f]. The
+   reporter keeps each message from any domain or thread. [seen ()] is the
+   messages so far, oldest first. *)
 let with_reporter f =
   let seen = Atomic.make [] in
   let rec add s =
@@ -69,11 +69,10 @@ let outcome p =
 
 let is_pending p = match Lwt.state p with Lwt.Sleep -> true | _ -> false
 
-(* Twelve jobs share the event loop, each in a task of its own and half of
-   them with a subtask per step. A job takes a step per turn of the loop and
-   logs it, so the steps of all jobs interleave. Job 3 raises before its
-   first wait, job 5 is rejected half way, and job 7 is cancelled while it
-   waits. *)
+(* Twelve jobs share the event loop, each in its own task. Half of them have a
+   subtask per step. A job takes one step per turn of the loop and logs it, so
+   the steps of all jobs interleave. Job 3 raises before its first wait, job 5
+   is rejected half way, and job 7 is cancelled while it waits. *)
 let jobs = 12
 let steps i = 1 + (i mod 4)
 
@@ -139,7 +138,8 @@ let test_many_jobs () =
       (match i with 3 | 5 -> `Failed | 7 -> `Cancelled | _ -> `Succeeded)
       (task i)
   done;
-  (* Each step is logged once, under its job, and its subtask if any. *)
+  (* Each step is logged once, under its job, and under its subtask if it has
+     one. *)
   let out_lines = lines out in
   let ran i r = not (i = 3 || (i = 5 && r >= 1) || (i = 7 && r >= 1)) in
   let where i r =
@@ -156,9 +156,9 @@ let test_many_jobs () =
     done
   done;
   (* The steps interleave. Among the jobs with subtasks, every first step
-     comes before any second step, and the same holds among the others. A
+     comes before any second step. The same holds among the other jobs. A
      wait that blocked the loop would run each job to its end before the next
-     starts. *)
+     one starts. *)
   let index line =
     let rec go n = function
       | [] -> max_int
@@ -185,7 +185,7 @@ let test_many_jobs () =
   Alcotest.(check (list string)) "nothing reached the reporter" [] (seen ())
 
 (* A task raises while other promises wait. The run is rejected with its
-   exception once the display has closed, and the tasks that still wait end
+   exception once the display has closed, and the tasks that still wait end as
    cancelled. Waking them later changes nothing. *)
 let test_raise_while_others_wait () =
   with_reporter @@ fun _ ->
@@ -224,8 +224,8 @@ let test_raise_while_others_wait () =
   Alcotest.(check string)
     "nothing written after the rejection" at_rejection (shown b ppf)
 
-(* A redraw whose view raises cancels the program's promise, and the run is
-   rejected with the view's exception. *)
+(* A redraw whose view raises cancels the program's promise. The run is rejected
+   with the view's exception. *)
 let test_view_raises_in_a_redraw () =
   with_reporter @@ fun _ ->
   let b, ppf = buffer () in
@@ -252,9 +252,9 @@ let test_view_raises_in_a_redraw () =
   check_state "the task" `Cancelled (Option.get !work);
   check_cursor_restored "the terminal" (shown b ppf)
 
-(* A run whose view ends it at its [n]th frame, with [wake] on the promise
-   that the program returns. The redraws stop with the run: no timer of
-   theirs is left. *)
+(* A run whose view ends the run at its [n]th frame, by calling [wake] on the
+   promise that the program returns. The redraws stop with the run: none of
+   their timers is left. *)
 let ended_by_view wake n =
   let _, ppf = buffer () in
   let read, seen = Lwt.wait () in
@@ -275,8 +275,8 @@ let test_redraws_stop_with_the_run () = ended_by_view Lwt.wakeup_later 3
 (* [Lwt.wakeup] ends the run in the middle of a redraw. *)
 let test_view_wakes_the_program () = ended_by_view Lwt.wakeup 3
 
-(* [Lwt.cancel] on a running run reaches the promise the program waits on,
-   inside two tasks, and the run is rejected only once the terminal is given
+(* [Lwt.cancel] on a running run reaches the promise that the program waits
+   on, inside two tasks. The run is rejected only after the terminal is given
    back. *)
 let test_cancel_a_run () =
   with_reporter @@ fun seen ->
@@ -307,9 +307,9 @@ let test_cancel_a_run () =
   Alcotest.(check int) "two tasks" 2 (List.length !tasks);
   Alcotest.(check (list string)) "the log stayed in the run" [] (seen ())
 
-(* Runs inside a run are given the task current where they are called, after
-   any number of waits. A run started outside it joins it with the root. The
-   first run's promise resolves only once the run that joined it ends. *)
+(* A run inside a run gets the task that is current where it is called, after
+   any number of waits. A run started outside joins it with the root. The first
+   run's promise resolves only after the run that joined it ends. *)
 let test_nested_and_joined_runs () =
   with_reporter @@ fun _ ->
   let b, ppf = buffer () in
@@ -342,8 +342,8 @@ let test_nested_and_joined_runs () =
               event "a's function ends";
               Lwt.return_unit))
     in
-    (* Started where no run is bound, it joins the run with its root. The
-       task that [a] holds while it waits stays [a]'s. *)
+    (* This run starts where no run is bound, so it joins the run with its
+       root. The task that [a] holds while it waits stays [a]'s. *)
     let b' =
       Console_lwt.run (fun root ->
           root_b := Some root;
@@ -374,10 +374,10 @@ let test_nested_and_joined_runs () =
   let out = lines (shown b ppf) in
   Alcotest.(check bool) "b's task" true (List.mem "  b: from b" out)
 
-(* A task stays current in the thread of Lwt while other threads log. A
-   message from a thread of [Lwt_preemptive.detach] goes to the reporter the
-   run replaced. One from another domain reaches the run outside any task.
-   Neither sees the task bound in Lwt's storage. *)
+(* A task stays current in the Lwt thread while other threads log. A message
+   from a thread of [Lwt_preemptive.detach] goes to the reporter that the run
+   replaced. A message from another domain reaches the run outside any task.
+   Neither one sees the task bound in Lwt's storage. *)
 let test_threads_and_domains () =
   with_reporter @@ fun seen ->
   let b, ppf = buffer () in
@@ -394,8 +394,8 @@ let test_threads_and_domains () =
                    Atomic.set finished true)
                  ()
              in
-             (* The task stays current in this thread until the other one
-                has logged. *)
+             (* The task stays current in this thread until the other thread has
+                logged. *)
              while not (Atomic.get finished) do
                Thread.yield ()
              done;
@@ -426,10 +426,11 @@ let test_threads_and_domains () =
     "the task holds its line alone" false
     (List.exists (fun l -> contains "domain" l || contains "thread" l) output)
 
-(* A promise that outlives its run keeps the run's bindings. Woken during the
-   next run, what it logs goes to that run, outside any task of the dead one.
-   Woken after every run, it logs to the reporter. A run whose [Lwt_main.run] returns
-   while it left a promise sleeping lets the next one start. *)
+(* A promise that outlives its run keeps the run's bindings. If it is woken
+   during the next run, it logs to that run, outside any task of the old run. If
+   it is woken after every run, it logs to the reporter. A run whose
+   [Lwt_main.run] returns while it left a promise sleeping lets the next run
+   start. *)
 let test_promises_outlive_their_run () =
   with_reporter @@ fun seen ->
   let b1, ppf1 = buffer () and b2, ppf2 = buffer () in
@@ -466,8 +467,10 @@ let test_promises_outlive_their_run () =
     (seen ())
 
 (* Signals that the program handles with [Lwt_unix.on_signal] stay its own,
-   during a run and after it. *)
+   during a run and after it. Windows has no SIGTSTP, and its [Unix.kill] can
+   only send SIGKILL. *)
 let test_lwt_signal_handlers () =
+  if Sys.win32 then Alcotest.skip ();
   let signals = [ Sys.sigint; Sys.sigterm; Sys.sigtstp ] in
   let caught = ref [] and waiting = ref None in
   let handler s =
@@ -502,11 +505,23 @@ let test_with_output () =
     "the line" true
     (List.exists (contains "above the rows") (lines (shown b ppf)))
 
-(* A run recorded with [CONSOLE_CAST]: a header, then events that draw the
-   task as its count moves, and give the cursor back last. *)
+(* Ends the current recording, which closes its file. Windows cannot remove an
+   open file. *)
+let end_recording () =
+  with_env
+    [ ("CONSOLE_CAST", "") ]
+    (fun () ->
+      let unused = Format.formatter_of_buffer (Buffer.create 0) in
+      ignore (Console__.Recording.start ~time:(fun () -> 0.) unused : bool))
+
+(* A run recorded with [CONSOLE_CAST]: a header, then events that draw the task
+   as its count changes, and that show the cursor again at the end. *)
 let test_recording () =
   let file = Filename.temp_file "console" ".cast" in
-  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  Fun.protect ~finally:(fun () ->
+      end_recording ();
+      Sys.remove file)
+  @@ fun () ->
   with_env
     [
       ("CONSOLE_CAST", file);

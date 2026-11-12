@@ -131,9 +131,9 @@ let flood t =
 
 let number line = int_of_string (List.hd (String.split_on_char ' ' line))
 
-(* An owner that never looks costs a worker no more than what it holds back:
-   the worker goes on, the owner shows the newest lines, and it says first how
-   many older ones it lost. *)
+(* If the owner never reads, the worker pays only for the lines held back. The
+   worker goes on. The owner shows the newest lines, after a line that says how
+   many older lines it lost. *)
 let test_a_flood_keeps_the_newest_lines () =
   let root = Task.root ~now () in
   let t = Task.start root "t" in
@@ -156,8 +156,8 @@ let test_a_flood_keeps_the_newest_lines () =
         (List.init (List.length kept) (fun i -> lost + i + 1))
         (List.map number kept)
 
-(* Lost lines take nothing else with them, and the rest happens in the order it
-   was asked. *)
+(* Losing lines loses nothing else, and everything else happens in the order it
+   was requested. *)
 let test_a_flood_loses_only_lines () =
   let root = Task.root ~now () in
   let t = Task.start root "t" in
@@ -229,8 +229,8 @@ let test_close_from_a_worker () =
   Display.redraw d;
   Display.close d
 
-(* What a worker sent reaches a display only between its frames: a view that
-   reads a task does not start another frame inside the one it draws. *)
+(* What a worker sends reaches a display only between frames. A view that reads
+   a task does not start another frame inside the frame it draws. *)
 let test_a_view_reads_between_frames () =
   with_buffer @@ fun _ ppf ->
   let root = Task.root ~now () in

@@ -24,8 +24,9 @@ let driver ?(write_error = fun _ -> false) () : show =
 
 let public : show = Progress.show
 
-(* A task that succeeds, one that fails, each with a line, under a header;
-   the root's state once the display closed. *)
+(* [work display ppf] runs, under a header, a task that succeeds and one
+   that fails, each with a line. It is the root's state after the display
+   closes. *)
 let work display ppf =
   let root = Task.root ~label:"Building" ~now:(fun () -> 0.) () in
   let d = display ppf root in
@@ -48,8 +49,8 @@ let shown display =
 
 let size () = (40, 10)
 
-(* While the output takes every write, [show] prints what [Progress.show]
-   prints, in each form, whatever [write_error] would take. *)
+(* While every write succeeds, [show] prints the same as [Progress.show] in
+   each form, whatever [write_error] accepts. *)
 let test_same_as_public () =
   let same label display =
     Alcotest.(check string)
@@ -72,7 +73,7 @@ let test_same_as_public () =
 
 let lines l = String.concat "\n" l ^ "\n"
 
-(* What the work prints as lines, before the last frame. *)
+(* The lines the work prints, before the last frame. *)
 let printed =
   [
     "\u{2022} fine";
@@ -111,7 +112,7 @@ let test_json_exact () =
       {|{"time":0,"event":"end","status":"succeeded","elapsed":0}|};
     ] (fun ppf root -> driver () ~progress:`Json ppf root)
 
-(* Each option reaches the display: what is printed with it, exact. *)
+(* Each option reaches the display: the exact output with that option. *)
 let test_view () =
   check_shown "the last frame" (printed @ [ "mine" ]) (fun ppf root ->
       driver () ~progress:`Plain ~view:(View.text "mine") ppf root)
@@ -140,7 +141,7 @@ let test_size () =
     (fun ppf root ->
       driver () ~progress:`Plain ~size:(fun () -> (12, 10)) ppf root)
 
-(* The clock stays at 0, so no row is drawn and the output holds only what
+(* The clock stays at 0, so no row is drawn. The output holds only what
    [commit] leaves of each task. *)
 let test_commit () =
   let out commit =
@@ -159,7 +160,7 @@ let test_commit () =
     (Display_harness.contains "fine" (out (Some none)))
 
 (* [rows ()] is what a display prints of a task that runs while the clock
-   moves, with a [commit] that leaves nothing of it. *)
+   moves. Its [commit] leaves nothing of the task. *)
 let rows ?layout ?delay () =
   let buffer = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buffer in
@@ -186,7 +187,7 @@ let test_rows () =
   check "a layout without the label" false
     (rows ~layout:Progress.Layout.spinner ())
 
-(* A display that closes while its work runs ends it as cancelled. *)
+(* A display that closes while its work runs marks the work as cancelled. *)
 let test_close_cancels () =
   let run ppf =
     let root = Task.root ~now:(fun () -> 0.) () in
@@ -215,8 +216,8 @@ let succeeded =
 
 let is_closed = function Closed -> true | _ -> false
 
-(* An exception that [write_error] accepts ends the output and nothing else,
-   in each form, and [write_error] is given the exception the output raised. *)
+(* In each form, an exception that [write_error] accepts ends the output and
+   nothing else. [write_error] receives the exception the output raised. *)
 let test_write_error_taken () =
   List.iter
     (fun (label, progress) ->
@@ -238,8 +239,8 @@ let test_write_error_taken () =
         (List.for_all is_closed !seen))
     forms
 
-(* An exception that [write_error] refuses reaches the program, and so does
-   every exception when there is no [write_error]. *)
+(* An exception that [write_error] refuses reaches the program. With no
+   [write_error], every exception reaches the program. *)
 let test_write_error_not_taken () =
   List.iter
     (fun (label, progress) ->
@@ -257,7 +258,8 @@ let test_write_error_not_taken () =
         (fun () -> ignore (work display (raising Closed) : Task.state)))
     forms
 
-(* Whatever the driver is told, [Sys_error] is a write error on any display. *)
+(* [Sys_error] is always a write error on any display, whatever the driver
+   is told. *)
 let test_sys_error () =
   List.iter
     (fun (label, progress) ->
@@ -275,8 +277,8 @@ let test_sys_error () =
       Alcotest.(check int) (label ^ ": not asked") 0 !asked)
     forms
 
-(* A flush that fails ends the output as a failing write does, whether the
-   output is gone before the display opens or after. *)
+(* A failing flush ends the output, as a failing write does. This holds
+   whether the output goes away before or after the display opens. *)
 let test_flush_fails () =
   List.iter
     (fun at_once ->
@@ -298,7 +300,7 @@ let test_flush_fails () =
         forms)
     [ false; true ]
 
-(* [with_output] still calls its function once the output fails. *)
+(* [with_output] still calls its function after the output fails. *)
 let test_with_output_flush_fails () =
   let closed = ref false in
   let flush () = if !closed then raise (Sys_error "EPIPE") in
@@ -309,7 +311,7 @@ let test_with_output_flush_fails () =
   Display.with_output display (fun _ -> called := true);
   Alcotest.(check bool) "what it prints is asked for" true !called
 
-(* An exception that a view raises reaches the program, even when
+(* An exception raised by a view reaches the program, even when
    [write_error] accepts every exception. *)
 let test_view_raises () =
   List.iter

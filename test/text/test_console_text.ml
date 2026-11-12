@@ -3,88 +3,93 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* What a terminal shows of a string: ECMA-48 (5th ed.) gives the grammar of
-   everything else. Each case is [(what, raw, visible)]; a sequence a terminal
-   consumes is gone whole, a malformed UTF-8 sequence is the replacement glyph
-   and a tab is a space, as {!Console_text.sanitize} makes it. *)
+(* Each case is [(what, raw, visible)]: [visible] is what a terminal shows
+   of [raw]. ECMA-48 (5th ed.) gives the grammar of escape codes; section
+   numbers below are from it. A code the terminal consumes is removed whole.
+   Malformed UTF-8 becomes the replacement glyph and a tab becomes a space,
+   as {!Console_text.sanitize} does. *)
 let stripped =
   [
-    (* Annex B.1, CURSOR RIGHT by one in 7-bit and 8-bit codes, 01/11 05/11
-       03/01 04/03 and 09/11 03/01 04/03; 8.3.16 gives CSI as 09/11, which
-       UTF-8 writes as U+009B. Leading zeros and the default are B.1's own. *)
+    (* Annex B.1: CURSOR RIGHT by one, in 7-bit (01/11 05/11 03/01 04/03)
+       and 8-bit (09/11 03/01 04/03) codes. 8.3.16 gives CSI as 09/11, which
+       is U+009B in UTF-8. B.1 also gives the leading zero and the default
+       cases. *)
     ("CUF, 7-bit", "a\027[1Cb", "ab");
     ("CUF, 8-bit", "a\u{009B}1Cb", "ab");
     ("CUF, leading zero", "a\027[01Cb", "ab");
     ("CUF, default", "a\u{009B}Cb", "ab");
-    (* B.1, SCROLL RIGHT by 28: an intermediate byte 02/00 before F. *)
+    (* B.1: SCROLL RIGHT by 28 has an intermediate byte 02/00 before the
+       final byte. *)
     ("SR, 7-bit", "a\027[28 Ab", "ab");
     ("SR, 8-bit", "a\u{009B}28 Ab", "ab");
-    (* B.1, DEFINE AREA QUALIFICATION: F 06/15 is lowercase. *)
+    (* B.1: DEFINE AREA QUALIFICATION has a lowercase final byte, 06/15. *)
     ("DAQ", "a\027[3;4ob", "ab");
-    (* 8.3.117 SGR, the sequence most text carries. *)
+    (* 8.3.117: SGR, the most common sequence in text. *)
     ("SGR", "\027[1;31mred\027[0m", "red");
-    (* 5.4 b: a private parameter string (B.2, =3) is still parameters. *)
+    (* 5.4 b: a private parameter string (B.2, =3) is still a parameter
+       string. *)
     ("private parameters", "a\027[?25lb", "ab");
-    (* 5.6 and 8.3.89: OSC opens a control string that ST (8.3.143, 09/12 or
-       ESC 05/12) closes; xterm's OSC 8 hyperlink is one, and xterm also
+    (* 5.6 and 8.3.89: OSC opens a control string and ST (8.3.143, 09/12 or
+       ESC 05/12) closes it. The xterm OSC 8 hyperlink is one. xterm also
        closes an OSC at BEL. *)
     ( "OSC 8 hyperlink",
       "\027]8;;https://example.com\027\\link\027]8;;\027\\",
       "link" );
     ("OSC, BEL", "\027]0;title\007text", "text");
     ("OSC, 8-bit", "\u{009D}0;title\u{009C}text", "text");
-    (* 5.6: a command string holds 00/08 to 00/13, so a line feed inside an
-       OSC is the OSC's. *)
+    (* 5.6: a command string can hold 00/08 to 00/13, so a line feed inside
+       an OSC belongs to the OSC. *)
     ("OSC over a line feed", "\027]0;a\nb\007c", "c");
-    (* 8.3.27 DCS, in both codes; BEL is outside its command string and
-       closes only an OSC. *)
+    (* 8.3.27: DCS, in both codes. BEL closes an OSC but not a DCS. *)
     ("DCS, 7-bit", "a\027P1$r0m\027\\b", "ab");
     ("DCS, 8-bit", "a\u{0090}1$r0m\u{009C}b", "ab");
     ("BEL does not close a DCS", "a\027Pq\007#0\027\\b", "ab");
-    (* 8.3.128 SOS, 8.3.94 PM, 8.3.2 APC, in both codes; an SOS character
-       string may hold any bit combination but SOS and ST. *)
+    (* 8.3.128 SOS, 8.3.94 PM and 8.3.2 APC, in both codes. An SOS string
+       can hold any bytes except SOS and ST. *)
     ("SOS", "a\027Xs\nos\027\\b", "ab");
     ("SOS, 8-bit", "a\u{0098}sos\u{009C}b", "ab");
     ("PM", "a\027^pm\027\\b", "ab");
     ("PM, 8-bit", "a\u{009E}pm\u{009C}b", "ab");
     ("APC", "a\027_apc\027\\b", "ab");
     ("APC, 8-bit", "a\u{009F}apc\u{009C}b", "ab");
-    (* A control string or sequence that the text ends inside takes the rest
-       of the text, as a terminal reads it. *)
+    (* A control string or sequence that is not closed when the text ends
+       takes the rest of the text, as in a terminal. *)
     ("unterminated OSC", "a\027]0;title", "a");
     ("unterminated CSI", "a\027[31", "a");
     ("lone ESC", "a\027", "a");
     (* An ESC inside a control string ends it and opens what follows. *)
     ("ESC ends a string", "a\027]0;t\027[31mb", "ab");
-    (* 8.3.6 CAN and 8.3.148 SUB: what precedes it is in error and ignored;
-       the DEC parser xterm follows discards them, in a sequence or not. *)
+    (* 8.3.6 CAN and 8.3.148 SUB: the code before them is in error and is
+       ignored. The DEC parser that xterm follows discards them, inside a
+       sequence or not. *)
     ("CAN ends a string", "a\027]0;t\024b", "ab");
     ("CAN ends a CSI", "a\027[3\024b", "ab");
     ("SUB ends a CSI", "a\027[3\026b", "ab");
     ("CAN ends an escape", "a\027(\024b", "ab");
     ("lone CAN", "a\024b", "ab");
     ("lone SUB", "a\026b", "ab");
-    (* 5.3: the other C1 controls, ESC Fe and their 8-bit forms, and the
+    (* 5.3: the other C1 controls (ESC Fe and their 8-bit forms), and the
        ECMA-35 escape sequences ESC Fp, ESC Fs and ESC I F. *)
     ("RI, 7-bit", "a\027Mb", "ab");
-    (* 8.3.86 NEXT LINE ends a line, in both codes. *)
+    (* 8.3.86: NEXT LINE ends a line, in both codes. *)
     ("NEL, 8-bit", "a\u{0085}b", "a\nb");
     ("NEL, 7-bit", "a\027Eb", "a\nb");
     ("lone ST", "a\u{009C}b", "ab");
     ("ESC Fp", "a\0277b", "ab");
     ("ESC Fs", "a\027cb", "ab");
     ("ESC I F", "a\027(Bb", "ab");
-    (* A C0 control inside a control sequence acts and the sequence goes on,
-       as the DEC parser xterm follows does. *)
+    (* A C0 control inside a control sequence acts, and the sequence goes
+       on. The DEC parser that xterm follows does the same. *)
     ("C0 inside CSI", "a\027[3\n1mb", "a\nb");
-    (* A character outside 5.4's ranges ends the sequence, and is text. *)
+    (* A character outside the ranges of 5.4 ends the sequence and is kept
+       as text. *)
     ("CSI cut short", "a\027[3\u{00E9}b", "a\u{00E9}b");
-    (* Malformed UTF-8 is the replacement glyph, a lone 09/11 byte too: in a
-       UTF-8 stream it is not a CSI. *)
+    (* Malformed UTF-8 becomes the replacement glyph. A lone 09/11 byte does
+       too: in a UTF-8 stream it is not a CSI. *)
     ("malformed UTF-8", "a\255b", "a\u{FFFD}b");
     ("raw 09/11 byte", "a\15531mb", "a\u{FFFD}31mb");
-    (* The other cases are {!Console_text.sanitize}'s: a tab is a space and
-       DEL is removed. *)
+    (* As in {!Console_text.sanitize}, a tab becomes a space and DEL is
+       removed. *)
     ("tab and DEL", "a\tb\127c", "a bc");
     ("plain text", "\u{4E16}\u{754C} ok", "\u{4E16}\u{754C} ok");
   ]
@@ -98,10 +103,9 @@ let test_strip () =
     "a line feed becomes a space without keep_newlines" "a b"
     (Console_text.strip ~keep_newlines:false "a\027[3\n1mb")
 
-(* A terminal acts on the C0 controls other than the line ends, HT and ESC,
-   and on DEL, without printing anything, in a sequence or not; a tab leaves
-   blank cells. [strip] keeps what is printed; [sanitize] keeps a cell for
-   each. *)
+(* A terminal prints nothing for DEL and for the C0 controls other than the
+   line ends, HT and ESC, inside a sequence or not. A tab leaves blank cells.
+   [strip] keeps what is printed; [sanitize] keeps one cell for each. *)
 let test_strip_silent () =
   List.iter
     (fun c ->
@@ -123,8 +127,7 @@ let test_strip_silent () =
     Text_harness.silent;
   Alcotest.(check string) "tab" "a b" (Console_text.strip "a\tb")
 
-(* Whatever the input, no ESC and no C1 control reaches the output, and it is
-   UTF-8. *)
+(* For any input, the output is valid UTF-8 with no ESC and no C1 control. *)
 let test_strip_leaves_no_control () =
   List.iter
     (fun (what, raw, _) ->
@@ -148,9 +151,9 @@ let test_truecolour_reset () =
     "red must not leak into subsequent output" (input ^ "\027[0m")
     (Console_text.strip ~keep_styles:true input)
 
-(* 8.3.117: 38, 48 and 58 take their colour as the parameters after them. A
-   38, 48 or 58 with too few of them does not reset, so the style before it
-   is still on and is turned off at the end. *)
+(* 8.3.117: 38, 48 and 58 read their colour from the parameters after them.
+   If too few parameters follow, they do not reset the style. The style
+   before stays on, and the output turns it off at the end. *)
 let test_truncated_colour () =
   List.iter
     (fun tail ->
@@ -160,9 +163,9 @@ let test_truncated_colour () =
         (Console_text.strip ~keep_styles:true input))
     [ "\027[38;0m"; "\027[38;2;0;0m"; "\027[48;2;255;0m"; "\027[58;5m" ]
 
-(* A line ends at a line feed, a carriage return, or CR LF, which ends one
-   line; no line end leaves a carriage return behind as a space. Without
-   [keep_newlines] a line end is one space. *)
+(* A line ends at LF, CR, or CR LF; CR LF ends one line, not two. No line end
+   leaves a CR behind as a space. Without [keep_newlines], a line end becomes
+   one space. *)
 let test_line_ends () =
   let check what expected f input =
     Alcotest.(check string) what expected (f input)
@@ -176,7 +179,7 @@ let test_line_ends () =
   check "CR, a bidirectional mark, LF" "a\nb" Console_text.sanitize
     "a\r\u{200F}\nb";
   check "NEL" "a\nb" Console_text.sanitize "a\u{0085}b";
-  (* 8.3.161 VT and 8.3.51 FF move to the next line, as a terminal's LF. *)
+  (* 8.3.161 VT and 8.3.51 FF move to the next line, like LF. *)
   check "VT" "a\nb" strip "a\011b";
   check "FF" "a\nb" Console_text.sanitize "a\012b";
   check "CR FF" "a\nb" strip "a\r\012b";
@@ -197,10 +200,10 @@ let test_line_ends () =
     "a\rb"
 
 (* Characters that reorder or hide the text around them, or that are
-   invisible text, are removed: the bidirectional embeddings, overrides,
+   invisible, are removed. These are the bidirectional embeddings, overrides,
    isolates and marks, the interlinear annotation characters, the tag
-   characters, and the zero-width space, word joiner, invisible operators
-   and zero-width no-break space. *)
+   characters, the zero-width space, the word joiner, the invisible operators
+   and the zero-width no-break space. *)
 let test_reordering () =
   let hidden =
     [
@@ -243,8 +246,8 @@ let test_reordering () =
     "joiners kept" "\u{1F468}\u{200D}\u{1F469} \u{200C}"
     (Console_text.sanitize "\u{1F468}\u{200D}\u{1F469} \u{200C}")
 
-(* A text read in pieces is cut where no character and no escape code is
-   under way; an escape code that holds all of it is cut between two
+(* [boundary] cuts a text read in pieces outside any character or escape
+   code. If one escape code holds the whole text, it cuts between two
    characters. *)
 let test_boundary () =
   List.iter
@@ -266,9 +269,9 @@ let test_boundary () =
       ("all one escape", "\027]0;t\xe2\x9d", 5);
     ]
 
-(* An emoji tag sequence, such as the flag of Scotland (U+1F3F4, the tags of
-   "gbsct", then U+E007F), is one picture: sanitize keeps its tags, where
-   it removes a tag outside such a sequence. *)
+(* An emoji tag sequence is one picture. An example is the flag of Scotland:
+   U+1F3F4, the tags of "gbsct", then U+E007F. [sanitize] keeps the tags of
+   such a sequence and removes any other tag. *)
 let test_tag_sequence () =
   let scotland =
     "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
@@ -341,11 +344,12 @@ let test_default_ignorable () =
     "a Mongolian variation selector after a base kept" "\u{1820}\u{180B}"
     (Console_text.sanitize "\u{1820}\u{180B}")
 
-(* A variation selector, VS1 to VS16 or VS17 to VS256, selects a glyph of
-   the character before it: one after a base is kept, and one after no
-   base, such as another selector, is removed, so that a run of them cannot
-   hide text. At the start of the text it is kept: its base may end the
-   text before, as when a line editor takes a character at a time. *)
+(* A variation selector (VS1 to VS256) selects a glyph of the character
+   before it. A selector after a base is kept. A selector after no base, for
+   example after another selector, is removed, so a run of selectors cannot
+   hide text. A selector at the start of the text is kept, because its base
+   may be at the end of the previous text, as when a line editor reads one
+   character at a time. *)
 let test_variation_selectors () =
   let check what expected s =
     Alcotest.(check string) what expected (Console_text.sanitize s);
@@ -363,7 +367,8 @@ let test_variation_selectors () =
   check "after a line end" "a\nb" "a\n\u{E0100}b";
   check "after a joiner" "\u{1F468}\u{200D}b" "\u{1F468}\u{200D}\u{FE0F}b"
 
-(* Each maximal subpart is one U+FFFD: Unicode Core Spec, section 3.9. *)
+(* Each maximal subpart becomes one U+FFFD (Unicode Core Spec, section
+   3.9). *)
 let test_maximal_subparts () =
   List.iter
     (fun (table, bytes, converted) ->

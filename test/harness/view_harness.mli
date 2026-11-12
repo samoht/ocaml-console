@@ -16,16 +16,16 @@ val at :
   time:float ->
   View.t ->
   string
-(** [at ~time v] is the text of [v] laid out as a display draws it [time]
-    seconds in, in [theme] (defaults to {!Theme.default}), in UTF-8 iff [utf_8]
-    (defaults to [true]), live iff [live] (defaults to [true]), in a room
-    [width] wide if given. *)
+(** [at ~time v] is the text of [v] as a display draws it [time] seconds after
+    the start. It uses [theme] (defaults to {!Theme.default}), UTF-8 iff [utf_8]
+    (defaults to [true]), and is live iff [live] (defaults to [true]). If
+    [width] is given, the room is [width] wide. *)
 
 val laid : ?live:bool -> ?tasks:bool -> unit -> View.t * int ref
-(** [laid ()] is a view as wide as its room, three cells at its natural size,
-    which reads state outside the view iff [live] (defaults to [false]), the
-    tasks iff [tasks] (defaults to [false]), and the count of the times it was
-    laid out. *)
+(** [laid ()] is a view and the number of times it was laid out. The view is as
+    wide as its room, and three cells wide at its natural size. It reads state
+    outside the view iff [live] (defaults to [false]), and reads the tasks iff
+    [tasks] (defaults to [false]). *)
 
 val capture : (Format.formatter -> unit) -> string
 (** [capture f] is what [f] prints on a formatter, once flushed. *)
@@ -46,7 +46,7 @@ val sgr : Style.t -> string
 
 val fill : char -> int -> View.t
 (** [fill glyph grow] is a view of weight [grow] that fills the width of its
-    room with [glyph], or is one [glyph] wide without one. *)
+    room with [glyph]. Without a room, it is one [glyph] wide. *)
 
 val frame : string -> Border.t
 (** [frame glyph] is the border drawn with [glyph] for every piece.

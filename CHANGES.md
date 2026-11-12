@@ -40,11 +40,23 @@
   cancellation (`Console_driver.S`); the driver calls them only on the
   scheduler's thread (#61, #67).
 
+- `console.cli`, whose `Console_cli.setup` gives a Cmdliner program a
+  `--theme` and a `--color` option and applies them to both standard outputs
+  (#78).
+
+- `Theme.set_program`, to choose the theme of every formatter that has none of
+  its own, including the new formatters that `Fmt.str` and
+  `Format.asprintf` create (#78).
+
 - `console-lwt`, to show the progress rows of a program that runs with Lwt.
   It has no deterministic mode: it runs in real time under
   `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST` (#67).
 
 ### Changed
+
+- The tests now need matrix 0.2.0 and k7 0.10.0, which installs on Windows.
+  They read the screen with matrix's Ghostty width method, and the checks
+  skipped on matrix 0.1.0 run again.
 
 - `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
   `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
@@ -52,6 +64,14 @@
   stands still while the program waits on anything else, such as a child
   process. Under either variable, such a clock used from another domain
   raises `Invalid_argument` (#66).
+
+- `Console_tty.setup ~theme` now sets the program's theme instead of the theme
+  of each standard output, so strings built with `Fmt.str` and
+  `View.to_string` use it too. A formatter given a theme with `Theme.set`
+  keeps that theme (#78).
+
+- `View.to_string` now draws in the program's theme rather than always in
+  `Theme.default` (#78).
 
 - `Theme.default`'s accent is bright blue rather than cyan.
 
@@ -100,6 +120,10 @@
   such as the output of a failed task (#65).
 
 ### Fixed
+
+- `Console_lwt.run` while a `Console_eio.run` is under way, or the other way
+  round, now raises `Invalid_argument`. It used to open a second display on
+  the same terminal (#82).
 
 - `Task` and `Display` now work from any domain, so a worker of an
   `Eio.Executor_pool` can report progress. `Task.advance` from several domains
@@ -169,6 +193,31 @@
 
 - `Bar.horizontal ~brackets:true` given a width near `max_int` now fills its
   room, instead of drawing one cell or none (#60).
+
+- A run no longer raises `Invalid_argument` on Windows, which has no SIGTSTP.
+  On Windows, SIGINT and SIGTERM close the display, then exit with code 3, the
+  default for these signals (#79).
+
+- A top task in the scrollback no longer counts among the tasks that wait, so
+  the top tasks that succeed after a failure with a long output all reach the
+  scrollback. The tasks started under a task that ended count against the
+  1 MiB that wait under the running task above it (#82).
+
+- A `Progress.Layout.const` or `custom` piece of several lines now draws on
+  one line, as documented, instead of making its row taller than the region
+  counts (#82).
+
+- `Console_width.sub_width` raises `Invalid_argument` for a part that is not in
+  the string, instead of a negative width or a read past its end (#82).
+
+- `Guide.v` draws a control character in a glyph as a space, as its
+  documentation says and as `Border.v` does. A line feed in a glyph no longer
+  splits the lines of a tree (#82).
+
+- A `View.fit` part is never laid out in a negative room: `View.sized` and
+  `View.place` take a negative width or height as `0`, as `View.truncate` and
+  `View.crop` do, and the label of a tree whose guides are wider than the
+  margin gets a room of no cell (#82).
 
 ## 0.9.0 (29/10/2026)
 

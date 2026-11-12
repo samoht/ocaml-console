@@ -3,7 +3,7 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The program of ../eio, on Lwt. *)
+(* The same program as ../eio, on Lwt. *)
 
 open Console
 open Lwt.Syntax

@@ -9,6 +9,7 @@ let v ?(live = false) ppf =
   { theme = Theme.get ppf; utf_8 = Fmt.utf_8 ppf; live }
 
 let default = { theme = Theme.default; utf_8 = true; live = false }
+let program () = { default with theme = Theme.program () }
 
 let ascii_theme t =
   let line = (Border.chars (Theme.border t.theme)).horizontal in

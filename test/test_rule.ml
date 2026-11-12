@@ -22,7 +22,7 @@ let test_label () =
     "right" "----- Build"
     (at 11 (Rule.view ~glyph:"-" ~align:`Right ~label ()))
 
-(* A label wider than the line is cut to it, not refused. *)
+(* A label wider than the line is cut to fit, not refused. *)
 let test_long_label_is_cut () =
   Alcotest.(check string)
     "cut to the margin" "lo…"

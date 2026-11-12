@@ -10,7 +10,7 @@ module Driver = Display_harness.Driver
 let marks =
   [ `Running; `Succeeded; `Failed; `Cancelled; `Info; `Warning; `Error; `Debug ]
 
-(* [v] keeps what it is given, its palette is never empty, and a mark is one
+(* [v] keeps its arguments, its palette is never empty, and a mark is one
    line of text. *)
 let test_theme s n =
   let c = Color.ansi_256 (abs n land 255) in
@@ -39,7 +39,7 @@ let test_theme s n =
 let themes = List.map snd Theme.all
 
 (* On a formatter that is not UTF-8, every widget and a live display print
-   ASCII alone, in every theme, for any ASCII text at any margin. *)
+   only ASCII. This holds in every theme, for any ASCII text and margin. *)
 let test_ascii s n =
   let n = n land max_int in
   let s = String.map (fun c -> if Char.code c < 0x80 then c else '?') s in

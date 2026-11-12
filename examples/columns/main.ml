@@ -3,11 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* Two builds side by side: a table of their status above, the tree of each
-   build's steps in a column of its own, and the summary below, all put
-   together with View.vcat and View.hcat. With [~keep_ended:true] the steps that
-   end stay in their column, and the last frame stays once the builds are
-   done. On a terminal too narrow for two columns, the trees go one under the
+(* Two builds side by side, put together with View.vcat and View.hcat: a
+   status table on top, the tree of each build's steps in its own column,
+   and the summary below. With [~keep_ended:true], ended steps stay in their
+   column, and the last frame stays when the builds are done. If the
+   terminal is too narrow for two columns, the trees go one under the
    other. Pipe it through [cat] to see the lines a CI log gets. *)
 
 open Console
@@ -47,10 +47,10 @@ let table () =
          ])
        builds)
 
-(* The table, the two trees side by side when each gets 30 columns, and the
-   summary, as they are at each frame. The display draws the last lines that
-   fit, so the table gives way first; the trees take the height the summary
-   leaves them, and the last frame shows them whole. *)
+(* The table, the two trees and the summary, as they are at each frame. The
+   trees go side by side when each gets 30 columns. The display draws the
+   last lines that fit, so the table gives way first. The trees take the
+   height that the summary leaves, and the last frame shows them whole. *)
 let view root =
   View.fit (fun r ->
       let room = min 100 (Option.value (Room.width r) ~default:100) in

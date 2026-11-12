@@ -3,17 +3,17 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A signal left at its default disposition ends the process without running
-   a finaliser. While something holds the terminal, such a signal is caught:
-   the holder gives the terminal back, then the default disposition is put
-   back and the signal sent again, so that the process still ends by that
-   signal. SIGTSTP is caught the same way but stops the process, and the
-   holder gives the terminal back around the stop. A disposition that the
-   program chose is never replaced.
+(* A signal at its default disposition ends the process without running any
+   finaliser. While a holder has the terminal, we catch such a signal. The
+   holder gives the terminal back. Then we put back the default disposition
+   and send the signal again, so the process still ends by that signal.
+   SIGTSTP is caught the same way, but it stops the process, and the holder
+   gives the terminal back for the time of the stop. We never replace a
+   disposition that the program chose.
 
-   A handler runs at any safe point, also in the middle of the write of a
-   frame, so the holder gives the terminal back at its next idle point, and
-   the signal is sent again from there. *)
+   A handler can run at any safe point, even in the middle of writing a frame.
+   So the holder gives the terminal back at its next idle point, and the
+   signal is sent again from there. *)
 
 type holder = {
   id : int;
@@ -25,7 +25,9 @@ type holder = {
   terminal : Unix.file_descr option;
 }
 
+(* Windows has SIGINT and SIGTERM, but no SIGTSTP. *)
 let ends = [ Sys.sigint; Sys.sigterm ]
+let stops = if Sys.win32 then [] else [ Sys.sigtstp ]
 let holders : holder list Atomic.t = Atomic.make []
 let caught = Atomic.make []
 let ending = Atomic.make false
@@ -38,30 +40,30 @@ let rec update a f =
   let old = Atomic.get a in
   if not (Atomic.compare_and_set a old (f old)) then update a f
 
-(* [here h] is [true] iff [h] can be reached from the calling domain: a holder
-   with an idle point only from its own domain. *)
+(* [here h] is [true] iff the calling domain can reach [h]. A holder with an
+   idle point is reachable only from its own domain. *)
 let here h =
   match h.owner with
   | None -> true
   | Some d -> Int.equal (d :> int) (Domain.self () :> int)
 
-(* [attempt f] runs [f] and drops what it raises, unless that is
-   asynchronous, so that a failed restoration does not stop the signal. *)
+(* [attempt f] runs [f] and drops any exception that is not asynchronous, so
+   that a failed restoration does not stop the signal. *)
 let attempt f = try f () with e when not (Task_driver.is_async e) -> ()
 
-(* The bytes that give a terminal back without any state of the display: CAN
-   and ST end an escape code cut in half, then the sequence ends a link,
-   resets the colours, ends a synchronized update and shows the cursor. *)
+(* Bytes that give a terminal back without knowing the display's state. CAN
+   and ST end a half-written escape code. The rest ends a link, resets the
+   colours, ends a synchronized update and shows the cursor. *)
 let sequence = "\024\027\\\027]8;;\027\\\027[0m\027[?2026l\027[?25h"
 let dead = Atomic.make false
 let written = Atomic.make false
 let is_dead () = Atomic.get dead
 
-(* [give_up hs] sets [dead], after which the display writes nothing more, so
-   that no frame follows the sequence; a write that the kernel already holds
-   cannot be stopped. It then writes the sequence on the terminal of each of
-   [hs], once until {!reopen}. The terminal is non-blocking, so what it does
-   not take at once is dropped. *)
+(* [give_up hs] sets [dead], so the display writes nothing more and no frame
+   follows the sequence. A write already in the kernel cannot be stopped. It
+   then writes the sequence on the terminal of each of [hs], only once until
+   {!reopen}. The terminal is non-blocking, so bytes it does not take at once
+   are dropped. *)
 let give_up hs =
   Atomic.set dead true;
   if not (Atomic.exchange written true) then
@@ -92,15 +94,15 @@ let after_grace f =
        ()
       : Thread.t)
 
-(* [stop signo] stops the process as the default disposition would, inside
-   the [suspend] of every holder, that of the innermost holder outermost;
-   [kill] returns once the process is continued. The runtime blocks a signal
-   while its handler runs, so the signal is unblocked for the stop; in a
-   process group that no shell controls, Linux and macOS discard it, and
-   FreeBSD stops the process all the same. If the
+(* [stop signo] stops the process as the default disposition would. The stop
+   runs inside the [suspend] of every holder. The [suspend] of the innermost
+   holder is the outermost call. [kill] returns when the process continues.
+   The runtime blocks a signal while its handler runs, so [stop] unblocks it
+   for the stop. In a process group that no shell controls, Linux and macOS
+   discard the signal, and FreeBSD stops the process anyway. If the
    suspensions do not start within [grace], or a holder belongs to another
-   domain, the terminal is given up ({!give_up}) around the stop instead, and
-   each holder's [resume] runs once the process is continued. *)
+   domain, the terminal is given up ({!give_up}) for the stop instead. Each
+   holder's [resume] then runs when the process continues. *)
 let rec stop signo =
   let stop () =
     Sys.set_signal signo Sys.Signal_default;
@@ -136,26 +138,33 @@ let rec stop signo =
   end
   else attempt abandon
 
-(* [resend signo] sends [signo] again, unblocked in the sending thread: the
-   runtime blocks it in a handler, and every other thread may block it too,
-   as the thread of the display does when another domain handles it. POSIX
-   delivers it to the sending thread before [kill] returns when no other
-   thread takes it. *)
+external raise_signal : int -> unit = "console_driver_raise"
+
+(* [resend signo] sends [signo] to this process again. The runtime blocks
+   [signo] while its handler runs. Other threads may block it too: the
+   display's thread does when another domain handles it. So the sending thread
+   unblocks it first. POSIX then delivers it to that thread before [kill]
+   returns, unless another thread takes it. Windows has no [kill] for signals
+   and no signal mask, so there the C [raise] sends it. Its default action
+   exits with code 3. *)
 let resend signo =
-  let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
-  Unix.kill (Unix.getpid ()) signo;
-  ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
+  if Sys.win32 then raise_signal signo
+  else begin
+    let mask = Unix.sigprocmask Unix.SIG_UNBLOCK [ signo ] in
+    Unix.kill (Unix.getpid ()) signo;
+    ignore (Unix.sigprocmask Unix.SIG_SETMASK mask : int list)
+  end
 
 (* [disposition s] is the address of the handler that the kernel holds for
    [s], or [0n] for the default disposition. [Sys.signal] reports a handler
-   installed outside OCaml, such as one of [Lwt_unix.on_signal], as the
-   default. [ours] is that of the handlers of {!catch}. *)
+   installed outside OCaml, such as one from [Lwt_unix.on_signal], as the
+   default. [ours] is the address of the handlers that {!catch} installs. *)
 external disposition : int -> nativeint = "console_driver_disposition"
 
 let ours = Atomic.make 0n
 
-(* [release ()] puts back the default disposition of the signals it caught,
-   unless the program installed a handler of its own since. *)
+(* [release ()] puts back the default disposition of the caught signals,
+   unless the program has installed its own handler since. *)
 let rec release () =
   List.iter
     (fun s ->
@@ -165,11 +174,12 @@ let rec release () =
         | theirs -> Sys.set_signal s theirs)
     (Atomic.exchange caught [])
 
-(* [handle signo] sends [signo] again once, after the last restoration or
-   once [grace] has passed, whichever comes first; the timer starts before
-   any restoration runs. The terminal of a holder of another domain is given
-   up at once. An ending signal that arrives before [signo] is sent again is
-   part of the same ending. *)
+(* [handle signo] sends [signo] again, once: after the last restoration or
+   after [grace], whichever comes first. The timer starts before any
+   restoration runs. The terminal of a holder in another domain is given up at
+   once. An ending signal that arrives before [signo] is sent again is part of
+   the same ending. *)
+
 and handle signo =
   if not (Atomic.exchange ending true) then begin
     let sent = Atomic.make false in
@@ -208,7 +218,7 @@ let catch () =
             Atomic.set ours (disposition s);
             update caught (List.cons s)
         | chosen -> Sys.set_signal s chosen)
-    ((Sys.sigtstp, stop) :: List.map (fun s -> (s, handle)) ends)
+    (List.map (fun s -> (s, stop)) stops @ List.map (fun s -> (s, handle)) ends)
 
 let protect ?idle ?(suspend = fun stop -> stop ()) ?(resume = ignore) ?terminal
     ~restore f =

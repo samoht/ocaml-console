@@ -51,17 +51,25 @@ end
 module Display = Console.Display
 module Task = Console.Task
 
+(* A program has one terminal, but it may apply [Make] once for each backend it
+   links. [holder] is the application whose run holds the terminal. *)
+let applications = Atomic.make 0
+let holder : int option Atomic.t = Atomic.make None
+
 module Make (B : S) = struct
+  let application = Atomic.fetch_and_add applications 1
+
   type run = Capture.run = { display : Display.t; root : Task.t; json : bool }
 
   (* A terminal has one live region at a time. The display that holds it is
-     bound in the fibers of its run ([current]), so that a [run] in a fiber
-     under another finds it and adds to it. It is also global ([shared]), so
-     that a [run] in another fiber or domain joins it, and an exit in the middle
-     of the work still closes it. *)
+     bound in the fibers of its run ([current]). So a [run] in a fiber under
+     another run finds that display and adds to it. The display is also global
+     ([shared]). So a [run] in another fiber or domain joins it, and an exit in
+     the middle of the work still closes it. *)
 
-  (* The driver calls [B] only on the home thread of a domain, the first that
-     starts a run or makes a task current there, and [B.notify] anywhere. *)
+  (* The driver calls [B.notify] from anywhere, but the rest of [B] only on the
+     home thread of a domain. The home thread is the first thread that starts a
+     run or makes a task current in that domain. *)
   let home : int option Domain.DLS.key = Domain.DLS.new_key (fun () -> None)
   let self () = Thread.id (Thread.self ())
 
@@ -79,12 +87,60 @@ module Make (B : S) = struct
 
   let get k = if at_home () then B.get k else None
   let in_fiber () = at_home () && B.in_fiber ()
+
+  (* [B] with each call that must run on the home thread checked, so that a
+     call from elsewhere raises instead of running on the wrong scheduler.
+     Creating a key or a wake, notifying, and the two exception tests are
+     allowed anywhere. *)
+  module B = struct
+    include B
+
+    let home name =
+      if not (at_home ()) then
+        invalid_arg ("Console_driver: B." ^ name ^ " called off the home thread")
+
+    let clock () =
+      home "clock";
+      B.clock ()
+
+    let tick d =
+      home "tick";
+      B.tick d
+
+    let sleep d =
+      home "sleep";
+      B.sleep d
+
+    let with_binding k v f =
+      home "with_binding";
+      B.with_binding k v f
+
+    let wait w f =
+      home "wait";
+      B.wait w f
+
+    let background fs f =
+      home "background";
+      B.background fs f
+
+    let first a b =
+      home "first";
+      B.first a b
+
+    let protect f =
+      home "protect";
+      B.protect f
+
+    let check () =
+      home "check";
+      B.check ()
+  end
+
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
-  let busy = Atomic.make false
   let ending : (unit -> unit) option Atomic.t = Atomic.make None
 
-  (* What fibers wait for once. *)
+  (* A one-time event that fibers wait for. *)
   type latch = { reached : bool Atomic.t; wake : B.wake }
 
   let latch () = { reached = Atomic.make false; wake = B.wake () }
@@ -96,8 +152,8 @@ module Make (B : S) = struct
   let await l =
     B.wait l.wake (fun () -> if Atomic.get l.reached then Some () else None)
 
-  (* The runs that share the display of a domain: the one that opened it and
-     those that joined it. It closes once the last of them ends. *)
+  (* The runs that share the display of a domain: the run that opened it and
+     the runs that joined it. The display closes when the last of them ends. *)
   type shared = {
     run : run;
     owner : Domain.id;
@@ -109,8 +165,8 @@ module Make (B : S) = struct
 
   let shared : shared option Atomic.t = Atomic.make None
 
-  (* A fiber that outlives its run keeps the binding of a closed display, so the
-     binding counts only while it is the shared display and not closing. *)
+  (* A fiber that outlives its run keeps the binding of a closed display. So the
+     binding counts only while it is the shared display and is not closing. *)
   let bound () =
     match (get current, Atomic.get shared) with
     | Some r, Some s when r == s.run && not (Atomic.get s.closing) -> Some r
@@ -118,7 +174,7 @@ module Make (B : S) = struct
 
   let elsewhere s = not (Int.equal (Domain.self () :> int) (s.owner :> int))
 
-  (* A fiber of another domain has no binding, and reaches the program's run. *)
+  (* A fiber in another domain has no binding. It uses the shared run. *)
   let display_of_run () =
     match (bound (), get current, Atomic.get shared) with
     | Some r, _, _ -> Some r.display
@@ -140,8 +196,8 @@ module Make (B : S) = struct
                B.with_binding current s.run (fun () -> f (given s.run.root))))
     | _ -> None
 
-  (* A run that starts while the display of its domain closes opens its own
-     once that one is gone. *)
+  (* A run that starts while its domain's display is closing waits until that
+     display is gone, then opens its own. *)
   let await_release () =
     match Atomic.get shared with
     | Some s when Atomic.get s.closing -> await s.released
@@ -152,11 +208,11 @@ module Make (B : S) = struct
     Fun.protect ~finally:(fun () -> Atomic.set s.closing true) @@ fun () ->
     if Atomic.fetch_and_add s.users (-1) > 1 then await s.idle
 
-  (* [exit] runs the [at_exit] functions but no [finally], so the end of a run
-     ([ending]) is registered there. The first run registers it, so that the
-     [at_exit] functions registered before it run after the display is closed.
-     [registered] is an atomic flag rather than a lazy value, since two domains
-     may start their first run at once. *)
+  (* [exit] runs the [at_exit] functions but not the [finally] functions. So the
+     end of a run ([ending]) is registered with [at_exit]. The first run
+     registers it, so that [at_exit] functions registered earlier run after the
+     display is closed. [registered] is an atomic flag, not a lazy value,
+     because two domains may start their first run at the same time. *)
   let registered = Atomic.make false
 
   let at_exit () =
@@ -168,8 +224,8 @@ module Make (B : S) = struct
     | e -> B.cancelled e
 
   (* The current task is a fiber binding, so it stays current in the fibers
-     that its function forks. Outside any fiber, as in a thread or a signal
-     handler, no task is current. *)
+     that its function forks. Outside any fiber, for example in a thread or a
+     signal handler, no task is current. *)
   let scope =
     {
       Task_driver.current = (fun () -> get task);
@@ -188,16 +244,16 @@ module Make (B : S) = struct
      is not a cancellation of the caller. *)
   let cancelling e = cancelled e && in_fiber () && is_cancelled ()
 
-  (* How long, in seconds, a write waits for its output in a cancelled run or
-     after a cancellation cut a write: the output may be why the run was
-     cancelled. A write that nothing cancels waits as any write does, so that a
-     reader that pauses, such as a pager, loses nothing. *)
+  (* How long, in seconds, a write waits for its output in a cancelled run, or
+     after a cancellation interrupted a write. The output itself may be the
+     reason for the cancellation. A write that is not cancelled waits as long as
+     needed, so that a reader that pauses, such as a pager, loses nothing. *)
   let grace = 1.
 
-  (* The time at which the writes that a cancellation waits for give up on the
-     output. The first of them sets it and the first that goes out clears it,
-     so that an output that takes nothing holds them all up, nested or not, for
-     [grace] in total. *)
+  (* The time at which the writes that wait during a cancellation give up on the
+     output. The first such write sets it, and the first write that goes out
+     clears it. So an output that takes nothing delays all these writes, nested
+     or not, by [grace] in total. *)
   let giving_up = Atomic.make None
 
   let deadline () =
@@ -208,15 +264,14 @@ module Make (B : S) = struct
         Atomic.set giving_up (Some d);
         d
 
-  (* [sleep_until] waits on the real time, since the program's clock may be one
-     that does not move. *)
+  (* [sleep_until] uses real time, because the program's clock may not move. *)
   let sleep_until deadline =
     B.sleep (Float.max 0. (deadline -. Unix.gettimeofday ()))
 
-  (* [shielded ~armed f] runs [f ()] protected from cancellation, which a flow
-     may need to write, until the {!deadline} at most, taken once [armed ()]
-     returns (defaults to at once); then [f] is cancelled. It is [true] iff [f]
-     finished in time. *)
+  (* [shielded ~armed f] runs [f ()] protected from cancellation, because a flow
+     may need that to finish a write. The protection lasts at most until the
+     {!deadline}, read when [armed ()] returns (by default, at once). Then [f] is
+     cancelled. The result is [true] iff [f] finished in time. *)
   let shielded ?(armed = ignore) f =
     let finished = ref false and late = ref false in
     B.protect (fun () ->
@@ -232,19 +287,17 @@ module Make (B : S) = struct
     if in_time then Atomic.set giving_up None;
     in_time
 
-  (* An update written in a cancelled fiber goes out whole, as in a fiber that
-     is not cancelled, but waits for its output until the {!deadline} at most;
-     if the deadline cuts it short, the cancellation propagates. Cut half way
-     by the cancellation, the update would leave rows of the region on the
-     screen. *)
+  (* An update written in a cancelled fiber still goes out whole, as in a fiber
+     that is not cancelled. But it waits for its output at most until the
+     {!deadline}. If the deadline stops it, the cancellation propagates. An
+     update stopped half way would leave rows of the region on the screen. *)
   let atomic f =
     if not (in_fiber () && is_cancelled ()) then f ()
     else if not (shielded f) then B.check ()
 
-  (* [whole f] is [f ()], which a cancellation that arrives after it started
-     does not cut. From the cancellation on, [f] waits for the output until the
-     {!deadline} at most; if the deadline cuts it short, the cancellation
-     propagates. *)
+  (* [whole f] is [f ()]. A cancellation that arrives after [f] started does not
+     stop it. From the cancellation on, [f] waits for the output at most until
+     the {!deadline}. If the deadline stops it, the cancellation propagates. *)
   let whole f =
     let cut = latch () in
     let finished = ref false in
@@ -253,22 +306,33 @@ module Make (B : S) = struct
       (fun () -> Fun.protect await_cancel ~finally:(fun () -> reach cut));
     if not !finished then B.check ()
 
+  (* [claim ()] is [true] iff this run takes the terminal, and [false] iff a
+     run of this backend holds it already. A run of another backend raises. *)
   let claim () =
     at_exit ();
-    Atomic.compare_and_set busy false true
+    let rec go () =
+      match Atomic.get holder with
+      | Some a when Int.equal a application -> false
+      | Some _ ->
+          invalid_arg
+            "Console_driver.run: a run of another backend holds the terminal"
+      | None -> Atomic.compare_and_set holder None (Some application) || go ()
+    in
+    go ()
 
   let release () =
     Option.iter (fun s -> reach s.released) (Atomic.exchange shared None);
     Atomic.set ending None;
-    Atomic.set busy false
+    Atomic.set holder None
 
   let direct : unit B.key = B.key ()
 
-  (* Outside any fiber, as in an [at_exit] function, no bytes go straight out. *)
+  (* Outside any fiber, for example in an [at_exit] function, no bytes go
+     straight out. *)
   let is_direct () = Option.is_some (get direct)
   let capture = Capture.take ~direct:is_direct
 
-  (* When a task ends, what the formatters hold is flushed as its output, and its
+  (* When a task ends, the formatters are flushed into its output, and its
      unended line is ended. Outside any fiber, no task can be made current. *)
   let task_ended task =
     if Capture.taking () then
@@ -285,15 +349,17 @@ module Make (B : S) = struct
         Capture.settle run)
       ~finally:(fun () -> Display.close run.display)
 
-  (* Closes the display while the program ends for another reason, which
-     propagates: what a view or a hook raises is dropped, unless it is
-     asynchronous and the reason is not [urgent] already. *)
+  (* [close_quietly run] closes the display while the program ends for another
+     reason, and that reason propagates. It drops any exception from a view or
+     a hook, except an asynchronous one when the reason is not already
+     [urgent]. *)
   let close_quietly ?first ?(urgent = false) run =
     try close_display ?first run
     with e when urgent || not (Task_driver.is_async e) -> ()
 
-  (* From a signal handler or an [at_exit] function, where nothing runs after it,
-     it also drops an interrupt or an exhausted heap or stack. *)
+  (* [close_last run] is for a signal handler or an [at_exit] function, where
+     nothing runs afterwards. It also drops [Sys.Break], [Out_of_memory] and
+     [Stack_overflow]. *)
   let close_last run =
     try close_quietly run
     with Out_of_memory | Stack_overflow | Sys.Break -> ()
@@ -311,9 +377,10 @@ module Make (B : S) = struct
     | Logs.Info -> `Info
     | Logs.Debug -> `Debug
 
-  (* A message from a fiber of the domain that runs the display, or from another
-     domain, which leaves it there. A thread of that domain or a signal handler
-     outside any fiber must not touch the display. *)
+  (* The display takes a message from a fiber of its own domain, or from another
+     domain, which hands it over to the display's domain. In the display's
+     domain, a thread or a signal handler outside any fiber must not touch the
+     display. *)
   let deliver ~owner ~refused root level message =
     if
       (not (Int.equal (Domain.self () :> int) (owner : Domain.id :> int)))
@@ -324,12 +391,12 @@ module Make (B : S) = struct
     end
     else `Closed
 
-  (* A message that the display cannot take, because it is closed or its
-     output fails, goes to the reporter it replaced, so that a log call never
-     fails. A message from a source other than [Logs.default] is prefixed with
-     the source's name, which tells apart the libraries whose messages
-     interleave. An [App] message is the program's own output and has no
-     header, as with [Logs_fmt.reporter]. *)
+  (* If the display cannot take a message, because it is closed or its output
+     fails, the message goes to the reporter that the display replaced. So a log
+     call never fails. A message from a source other than [Logs.default] starts
+     with the source's name, so that the reader can tell interleaved libraries
+     apart. An [App] message is the program's own output and has no header, as
+     with [Logs_fmt.reporter]. *)
   let reporter ~previous ~owner ~closed root =
     let report src l ~over k msgf =
       if Atomic.get closed then previous.Logs.report src l ~over k msgf
@@ -367,11 +434,11 @@ module Make (B : S) = struct
     in
     { Logs.report }
 
-  (* The display redraws every tenth of a second on its clock, so that the
-     spinners turn and the timers run while no task reports, and it draws
-     afresh once [repaint] is set. The end of the run stops the redraws, but
-     never in the middle of one ({!whole}). A daemon checks [stopped] before
-     each wait, since a cancellation can miss a fiber that runs. *)
+  (* The display redraws every tenth of a second on its clock, so that spinners
+     turn and timers run while no task reports. When [repaint] is set, it draws
+     from scratch. The end of the run stops the redraws, but never in the middle
+     of one ({!whole}). The daemon checks [stopped] before each wait, because a
+     cancellation can miss a running fiber. *)
   let rec animate ~stopped ~sleep ~repaint display () =
     if not (stopped ()) then begin
       sleep 0.1;
@@ -385,9 +452,9 @@ module Make (B : S) = struct
       end
     end
 
-  (* While the program is stopped, the terminal is as it would be without a
-     region, with the cursor shown. Once the program continues, the cursor is
-     hidden and the region drawn again. *)
+  (* While the program is stopped, the terminal looks as if there were no
+     region, and the cursor is shown. When the program continues, the cursor is
+     hidden and the region is drawn again. *)
   let suspend ~cursor display stop =
     if Display_driver.closed display then stop ()
     else
@@ -395,9 +462,9 @@ module Make (B : S) = struct
           cursor true;
           Fun.protect stop ~finally:(fun () -> cursor false))
 
-  (* [first_run s f] runs [f] for the run that opened the display of [s]. When
-     [f] raises, it still waits for the runs that joined, as when it returns,
-     unless it is cancelled and cannot wait. *)
+  (* [first_run s f] runs [f] for the run that opened the display of [s]. Then
+     it waits for the runs that joined, whether [f] returns or raises. If [f]
+     raises and the wait is cancelled, it does not wait. *)
   let first_run s f =
     match B.with_binding current s.run (fun () -> f s.run.root) with
     | v ->
@@ -408,8 +475,8 @@ module Make (B : S) = struct
         (try last_out s with e when cancelled e -> ());
         Printexc.raise_with_backtrace e bt
 
-  (* [share run] makes the display of [run] the domain's, for the runs that
-     join it. *)
+  (* [share run] makes the display of [run] the shared display of the domain,
+     so that other runs can join it. *)
   let share run =
     let s =
       {
@@ -424,23 +491,24 @@ module Make (B : S) = struct
     Atomic.set shared (Some s);
     s
 
-  (* The work ends as a task does: it succeeds when [f] returns, fails when
-     [f] raises, and is cancelled when its fiber is, unless [f] ended it. The
-     exception propagates to the caller, which reports it, so the work ends
-     with no message. *)
+  (* The work ends as a task does. It succeeds when [f] returns, fails when [f]
+     raises, and is cancelled when its fiber is cancelled, unless [f] already
+     ended it. The exception propagates to the caller, which reports it, so the
+     work ends with no message. *)
   let end_work root = function
     | Ok _ -> Task.succeed root
     | Error e -> if cancelled e then Task.cancel root else Task.fail root
 
-  (* The end of a cancelled run, or of one whose output a cancellation cut,
-     waits for the output until the {!deadline} at most. *)
+  (* At the end of a cancelled run, or of a run whose output a cancellation
+     interrupted, the last writes wait for the output at most until the
+     {!deadline}. *)
   let last_writes display f =
     if is_cancelled () || Display_driver.unwritten display then
       ignore (shielded f : bool)
     else f ()
 
-  (* A signal handler that runs outside any fiber may not be able to write on
-     a flow, so a fiber of the run does what it asks, while that fiber runs. *)
+  (* A signal handler outside any fiber may not be able to write on a flow. So
+     it passes its work to a fiber of the run, which does it while it runs. *)
   type relay = {
     pending : (unit -> unit) list Atomic.t;
     wake : B.wake;
@@ -474,12 +542,12 @@ module Make (B : S) = struct
       relayed relay k
     else k ()
 
-  (* [exit] ends the run as a return, a raise or a cancellation does, so that
-     what a later [at_exit] function logs or prints goes out as before. The
-     cursor is shown first: the last frame runs a view, which may call [exit]
-     again, and that call ends the program at once. From another thread or
-     domain, or while a write is under way, the display's state is not
-     touched, and the terminal is given up instead. *)
+  (* [exit] ends the run as a return, a raise or a cancellation does. So what a
+     later [at_exit] function logs or prints goes out as usual. The cursor is
+     shown first, because the last frame runs a view. That view may call [exit]
+     again, which ends the program at once. From another thread or domain, or
+     during a write, the display's state is not touched: the terminal is given
+     up instead. *)
   let ends_at_exit (run : run) ~thread ~give_back =
     let owner = Domain.self () in
     Atomic.set ending
@@ -556,11 +624,11 @@ module Make (B : S) = struct
                 end_work run.root (Error e)));
         Printexc.raise_with_backtrace e bt
 
-  (* A formatter for the display alone, with the output and the tag
-     functions of [ppf], as [Fmt.with_buffer ~like] makes one. The tag
-     functions carry the colours, the theme and whether [ppf] is UTF-8. With a
-     formatter of its own, the display can route what is written on [ppf]
-     above its region. Once the terminal is given up, it writes nothing. *)
+  (* [own ppf] is a formatter for the display alone. It has the output and tag
+     functions of [ppf], as [Fmt.with_buffer ~like] does. The tag functions
+     carry the colours, the theme and whether [ppf] is UTF-8. With its own
+     formatter, the display can route what is written on [ppf] above its
+     region. Once the terminal is given up, the formatter writes nothing. *)
   let own ppf =
     let out = Format.pp_get_formatter_out_functions ppf () in
     let alive f = if not (Interrupt.is_dead ()) then f () in
@@ -576,16 +644,16 @@ module Make (B : S) = struct
       (Format.pp_get_formatter_stag_functions ppf ());
     own
 
-  (* The display of [root], the formatters whose lines it takes, and the
-     function that shows or hides the cursor. The display takes:
-     - on a terminal, the standard formatters on that terminal;
-     - quiet or as JSON events, the standard formatters that write where [ppf]
-     does, so that a task's output is printed only if it fails, or becomes
-     an event;
-     - live on another output, [ppf] if it is a standard formatter;
-     - live when [recorded], both standard formatters if [ppf] is one, since
+  (* The display of [root], the formatters it captures, and the function that
+     shows or hides the cursor. The display captures:
+     - on a terminal: the standard formatters on that terminal;
+     - quiet or as JSON events: the standard formatters that write where [ppf]
+     writes, so that a task's output is printed only if the task fails, or
+     becomes an event;
+     - live on another output: [ppf], if it is a standard formatter;
+     - live and [recorded]: both standard formatters, if [ppf] is one, because
      they share the recorded terminal;
-     - as plain lines, none. *)
+     - as plain lines: none. *)
   let display ~recorded ~progress ?layout ?view ?keep_ended ?commit ?plain
       ?delay ppf root =
     let show ?size progress ppf =
@@ -606,8 +674,8 @@ module Make (B : S) = struct
         (Terminal.of_ppf ppf)
     in
     (* In plain lines, the last frame is as wide as the terminal or the
-     recording; on a pipe, as wide as $COLUMNS asks, or not cut without
-     it. *)
+     recording. On a pipe, it is as wide as $COLUMNS, or not cut if $COLUMNS
+     is unset. *)
     let lines form =
       match (form, Terminal.descriptor ppf) with
       | (`Json | `Quiet), Some unix ->
@@ -681,8 +749,8 @@ module Make (B : S) = struct
     match bound () with
     | Some r -> f (given r.root)
     | None ->
-        (* Another fiber or domain may be opening or closing the display: this
-         run then joins the next, or opens it. *)
+        (* Another fiber or domain may be opening or closing the display. This
+         run then joins the next display, or opens it. *)
         let rec first () =
           match join f with
           | Some v -> v

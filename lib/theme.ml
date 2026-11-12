@@ -50,8 +50,6 @@ let motion t = t.motion
 let guide t = t.guide
 let spinner t = t.spinner
 let bar t = t.bar
-
-(* A mark is drawn on one line, as text. *)
 let mark t m = Console_text.sanitize ~keep_newlines:false (t.marks m)
 
 let unicode_marks = function
@@ -82,8 +80,8 @@ let red = Color.ansi_256 160
 let blue = Color.ansi_256 63
 let magenta = Color.ansi_256 164
 
-(* The terminal's own named colours, which its user chose for its
-   background, and faint text for what is muted. *)
+(* The terminal's own named colours, which the user chose for the terminal's
+   background, and faint text for muted parts. *)
 let default =
   {
     name = "default";
@@ -161,13 +159,14 @@ let rainbow =
 
 let still t = { t with motion = None; spinner = Frames.still }
 
-(* Each scheme's colours come from the upstream source named beside it. A
-   colour below its contrast on the scheme's background (4.5:1 for the main
-   colour, the roles and the muted colour, 3:1 for the palette) is written
-   here moved to just above it: the muted colour towards the scheme's text,
-   the others by their lightness alone, keeping their hue and saturation.
-   Headers are bold, in the accent unless [header] names another colour,
-   and frames shimmer in the accent. *)
+(* The colours of each scheme come from the upstream source named next to
+   it. The contrast on the scheme's background must be 4.5:1 for the main
+   colour, the roles and the muted colour, and 3:1 for the palette. A colour
+   below its contrast is written here moved to just above it. The muted
+   colour moves towards the scheme's text. The other colours change only
+   their lightness, and keep their hue and saturation. Headers are bold, in
+   the accent unless [header] names another colour. Frames shimmer in the
+   accent. *)
 
 (* [hex] reads the literals below, which are all valid. *)
 let hex s =
@@ -292,10 +291,17 @@ let of_string s =
       Fmt.error_msg "unknown theme %S, expected one of: %s" s
         (String.concat ", " (List.map fst all))
 
-(* The theme slot is not a setting ([Slot.unset]), so [Env.ensure] still
-   sets up the colours of a formatter given only a theme. *)
+(* The theme slot is not a setting ([Slot.unset]), so [Env.ensure] still sets
+   up the colours of a formatter that has only a theme. *)
 let slot = Slot.v ~setting:false ~watched:true ()
-let get ppf = Option.value (Slot.find slot ppf) ~default
+let program_theme = Atomic.make default
+let program () = Atomic.get program_theme
+
+let set_program t =
+  Atomic.set program_theme t;
+  Slot.changed ()
+
+let get ppf = match Slot.find slot ppf with Some t -> t | None -> program ()
 let set ppf t = Slot.set slot ppf t
 
 let pp_motion ppf = function

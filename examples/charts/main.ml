@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (* Vertical bars: a week's load as a bar chart in a panel, then a few
-   metrics, each with a sparkline of its last readings and its current
+   metrics. Each metric has a sparkline of its last readings and its current
    value. [--theme] draws them in another theme. *)
 
 open Console
@@ -29,8 +29,8 @@ let metrics =
 
 let current values = Fmt.str "%.0f%%" (List.nth values (List.length values - 1))
 
-(* The readings are percentages: every sparkline spans 0 to 100, so a disk
-   12% full is a low bar, in the colour of a low value. *)
+(* The readings are percentages, so every sparkline spans 0 to 100. A disk
+   that is 12% full is a low bar, in the colour of a low value. *)
 let sparkline values = Bar.sparkline ~min:0. ~max:100. values
 
 let readings =
@@ -45,15 +45,14 @@ let readings =
          [ View.text name; sparkline values; View.text (current values) ])
        metrics)
 
-let main theme =
-  Console_tty.setup ~theme ();
+let main () =
   let title s = View.role `Header (View.text s) in
   Fmt.pr "%a@.%a@.@.%a@.%a@." View.pp (title "Load this week") View.pp
     (Panel.view (Bar.chart ~height:6 week))
     View.pp (title "Machine") View.pp readings
 
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
+let cmd =
+  Cmdliner.Cmd.(
+    v (info "charts") Cmdliner.Term.(const main $ Console_cli.setup ()))
 
-let cmd = Cmdliner.Cmd.(v (info "charts") Cmdliner.Term.(const main $ theme))
 let () = exit (Cmdliner.Cmd.eval cmd)

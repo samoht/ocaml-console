@@ -13,7 +13,6 @@
   text_harness
   view_harness
   widget_harness
-  matrix_0_1
   matrix.vte
   fmt
   re
@@ -23,14 +22,29 @@
   uuseg
   alcobar))
 
+; alcobar's --timeout needs SIGALRM, which Windows does not have.
+
 (rule
  (alias runtest)
  (package console)
  (enabled_if
-  (<> %{profile} afl))
+  (and
+   (<> %{profile} afl)
+   (<> %{os_type} Win32)))
  (deps fuzz.exe)
  (action
   (run %{exe:fuzz.exe} --budget 0.3 --timeout 120)))
+
+(rule
+ (alias runtest)
+ (package console)
+ (enabled_if
+  (and
+   (<> %{profile} afl)
+   (= %{os_type} Win32)))
+ (deps fuzz.exe)
+ (action
+  (run %{exe:fuzz.exe} --budget 0.3)))
 
 (rule
  (alias fuzz)
@@ -69,9 +83,22 @@
  (package console-eio)
  (deps ../test/eio/tty.exe ../test/eio/teardown.exe)
  (enabled_if
-  (<> %{profile} afl))
+  (and
+   (<> %{profile} afl)
+   (<> %{os_type} Win32)))
  (action
   (run %{exe:fuzz_eio.exe} --budget 0.3 --timeout 120)))
+
+(rule
+ (alias runtest)
+ (package console-eio)
+ (deps ../test/eio/tty.exe ../test/eio/teardown.exe)
+ (enabled_if
+  (and
+   (<> %{profile} afl)
+   (= %{os_type} Win32)))
+ (action
+  (run %{exe:fuzz_eio.exe} --budget 0.3)))
 
 (rule
  (alias fuzz)

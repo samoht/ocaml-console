@@ -42,7 +42,7 @@ let verdict root =
         (Progress_row.verdict (Ctx.look c) ?width:(Ctx.width c) (root_of root)))
 
 (* On a wide terminal, a count or a timer at the right edge is far from its
-   label: the rows keep to 100 columns. *)
+   label. So the rows use at most 100 columns. *)
 let view ?(layout = Layout.default) root =
   let root = root_of root in
   V.deferred ~kind:(Layout.reads layout) (fun c ->
@@ -73,46 +73,46 @@ let shape ?size = function
 
 let print d vs = Display_core.print_lines d vs
 
-(* A top task that ended waits in the region, with the tasks under it, and
-   moves to the scrollback with the others that wait when anything else is
+(* A top task that ended waits in the region with its subtasks. It moves to
+   the scrollback, with the other waiting trees, when something else is
    printed there, when the region has no room left for them, or when the
-   display closes, so that rows printed one after another share their
-   columns. They move in the order the region draws them, the order they
+   display closes. So rows printed one after another share their columns.
+   The trees move in the order the region draws them: the order they
    started, the first at the top. A tree that holds a failure or a
-   cancellation with output moves at once, after those that wait, so that
-   the output shows. A tree that draws no line moves at once. A task started
-   under a top task that waits ends at once and joins its tree. *)
+   cancellation with output moves at once, after the waiting trees, so the
+   output shows. A tree that draws no line moves at once. A task started
+   under a waiting top task ends at once and joins its tree. *)
 
-(* A tree that waits, and what [commit] made of it as it ended, while it
-   still had its output. *)
+(* A waiting tree, and what [commit] made of it when it ended, while it still
+   had its output. *)
 type waiting = { task : Task_core.t; mutable view : V.t option }
 type held = { mutable queue : waiting list; mutable moving : bool }
 
 let held () = { queue = []; moving = false }
 
-(* [w] among [ws], in the order they started. *)
+(* [w] inserted into [ws], which is in the order the tasks started. *)
 let rec insert w = function
   | x :: rest when id x.task < id w.task -> x :: insert w rest
   | ws -> w :: ws
 
-(* The highest task above [r] that is still drawn, the root aside. *)
+(* The highest task above [r], other than the root, that is still drawn. *)
 let rec top_of r =
   match parent r with
   | Some p when (not (is_root p)) && not (gone p) -> top_of p
   | _ -> r
 
-(* A task that failed or was cancelled with lines it kept, [r] or one under
-   it. *)
+(* Whether [r], or a task under it, failed or was cancelled and kept some
+   output. *)
 let rec has_output r =
   outcome r <> Some `Succeeded
   && ((not (Queue.is_empty (output r))) || dropped r > 0)
   || List.exists has_output (children r)
 
 (* [moved d w] moves the tree [w] from the region to the scrollback, as
-   [commit] drew it, laid out now. It is laid out first, then forgotten, then
-   printed, so that it never shows twice. Its label column is kept, so that
-   the rows printed after it line up with it. If laying it out raises, the
-   task is still forgotten and nothing is printed. *)
+   [commit] drew it. The tree is laid out first, then forgotten, then
+   printed, so it never shows twice. Its label column is kept, so the rows
+   printed after it line up with it. If the layout raises, the task is still
+   forgotten and nothing is printed. *)
 let moved d w =
   let look = Display_core.look d in
   let width = min (Display_core.width d) 100 in
@@ -127,9 +127,9 @@ let moved d w =
   | Some v when not (V.is_empty v) -> Display_core.print d v
   | _ -> Display_core.touch d
 
-(* [move h d ~layout ~until] moves the trees [h] holds, the first started
-   first, until [until ()], each in the label column of all of them. A
-   tree's own print does not move the next one first. *)
+(* [move h d ~layout ~until] moves the trees that [h] holds, in the order
+   they started, until [until ()] is true. They all share one label column.
+   Printing a tree does not move the next tree from inside that print. *)
 let move h d ~layout ~until =
   if (not h.moving) && h.queue <> [] && not (until ()) then begin
     h.moving <- true;
@@ -150,7 +150,8 @@ let move h d ~layout ~until =
 
 let move_all h d ~layout = move h d ~layout ~until:(fun () -> false)
 
-(* The region keeps a line for the summary and one the display leaves. *)
+(* The region keeps one line for the summary and one line that the display
+   leaves free. *)
 let fits d root =
   let below = if Option.is_some (Work.summary (work root)) then 1 else 0 in
   Progress_tree.lines root + below <= Display_core.height d - 1
@@ -173,8 +174,8 @@ let hold h d ~layout ~commit r =
         end
   end
 
-(* Only a task that starts or ends changes the lines the region needs, so
-   only then do the trees that wait move to make room. *)
+(* Only a task that starts or ends changes the number of lines the region
+   needs. So only then do the waiting trees move to make room. *)
 let on_live d ~layout ~keep_ended ~commit ~held:h root = function
   | Started _ ->
       Display_core.touch d;
@@ -185,7 +186,7 @@ let on_live d ~layout ~keep_ended ~commit ~held:h root = function
       if is_root r then print d (Progress_row.message look ~width line)
       else if is_running r then Display_core.touch d
       else print d (Progress_row.labelled look ~width:(min width 100) r line)
-  | Ended r ->
+  | Ended (r, _) ->
       if (not (is_root r)) && not keep_ended then hold h d ~layout ~commit r;
       Display_core.touch d;
       move h d ~layout ~until:(fun () -> fits d root)
@@ -199,17 +200,18 @@ let on_plain d ~keep_ended = function
       let look = Display_core.look d in
       if is_root r then print d (Progress_row.message look line)
       else print d (Progress_row.labelled look r line)
-  | Ended r ->
+  | Ended (r, e) ->
       if not (is_root r) then begin
-        if not (transient r && outcome r = Some `Succeeded) then
-          print d [ Progress_row.appended (Display_core.look d) r ];
+        if not (transient r && e.outcome = `Succeeded) then
+          print d [ Progress_row.appended (Display_core.look d) r e ];
         if not keep_ended then forget r
       end
 
-(* With [plain], the program prints its own lines for the changes of tasks
-   instead of console's; the lines of the root print as without it. *)
+(* With [plain], the program prints its own lines for the changes of tasks,
+   in place of the lines console prints. The lines of the root print as they
+   do without [plain]. *)
 let on_own d ~keep_ended root plain = function
-  | (Line (r, _) | Ended r) as change when is_root r ->
+  | (Line (r, _) | Ended (r, _)) as change when is_root r ->
       on_plain d ~keep_ended change
   | change ->
       protect
@@ -220,7 +222,9 @@ let on_own d ~keep_ended root plain = function
                   Option.iter (Display_core.print d) (plain e))
           | None -> ())
         ~finally:(fun () ->
-          match change with Ended r when not keep_ended -> forget r | _ -> ())
+          match change with
+          | Ended (r, _) when not keep_ended -> forget r
+          | _ -> ())
 
 (* The output a task kept, under its line. *)
 let kept look r =
@@ -235,13 +239,13 @@ let on_quiet d = function
       if is_root r then print d (Progress_row.message look line)
       else if not (is_running r) then
         print d (Progress_row.labelled look r line)
-  | Ended r ->
+  | Ended (r, e) ->
       if not (is_root r) then begin
-        (match outcome r with
-        | Some (`Failed | `Cancelled) ->
+        (match e.outcome with
+        | `Failed | `Cancelled ->
             let look = Display_core.look d in
-            print d (Progress_row.appended look r :: kept look r)
-        | _ -> ());
+            print d (Progress_row.appended look r e :: kept look r)
+        | `Succeeded -> ());
         forget r
       end
 
@@ -249,10 +253,10 @@ let on_json d root change =
   (match event change ~time:(since_start (work root)) with
   | Some e -> Display_core.write d (Event.to_string e ^ "\n")
   | None -> ());
-  match change with Ended r when not (is_root r) -> forget r | _ -> ()
+  match change with Ended (r, _) when not (is_root r) -> forget r | _ -> ()
 
 (* The default view of a root in each form: the tree and the summary for
-   [Live] and [Plain], only the message the work ended with for [Quiet], and
+   [Live] and [Plain], only the final message of the work for [Quiet], and
    nothing for [Json]. *)
 let view_of_form ~layout root = function
   | Live | Plain -> view ~layout root

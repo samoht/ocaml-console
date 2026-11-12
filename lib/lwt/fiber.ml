@@ -7,13 +7,14 @@ open Effect.Deep
 
 type _ Effect.t += Await : 'a Lwt.t -> 'a Effect.t
 
-(* Lwt keeps one storage for the whole program, and [Lwt.with_value] gives it
-   back only when its function returns. A fiber that waits inside
+(* Lwt keeps one storage for the whole program, and [Lwt.with_value] restores
+   it only when its function returns. A fiber that waits inside
    [Lwt.with_value] would leave its bindings in place for whatever runs next.
-   So each stretch of a fiber runs inside a [Lwt.with_value] of its own, which
-   puts the storage back once the fiber waits or ends. The callback that
-   resumes the fiber is registered before that, so it captures the fiber's
-   bindings and restores them when it runs. *)
+   So each part of a fiber between two waits runs inside its own
+   [Lwt.with_value], which restores the storage when the fiber waits or ends.
+   The callback that resumes the fiber is registered before that. So it
+   captures the fiber's bindings and restores them when it runs. *)
+
 let isolation : unit Lwt.key = Lwt.new_key ()
 let isolated f = Lwt.with_value isolation None f
 

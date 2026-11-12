@@ -4,10 +4,10 @@
   ---------------------------------------------------------------------------*)
 
 (* [uv sync] in a fresh project: resolve, download the wheels side by side,
-   install, then list what was installed. Each phase is a run of its own,
-   whose rows go when it ends and leave one line in the scrollback; piped
-   through [cat], those lines are printed, and a line for each large download
-   as it starts and ends. *)
+   install, then list what was installed. Each phase is its own run. Its
+   rows go when it ends, and it leaves one line in the scrollback. Piped
+   through [cat], those lines are printed, plus a line when each large
+   download starts and ends. *)
 
 open Console
 
@@ -49,14 +49,14 @@ let resolved =
 
 let muted s = View.role `Muted (View.text s)
 
-(* As uv writes a duration: [126ms], [1.84s], [1m 05s]. *)
+(* A duration as uv writes it: [126ms], [1.84s], [1m 05s]. *)
 let duration s =
   if s >= 60. then
     Fmt.str "%dm %02ds" (int_of_float s / 60) (int_of_float s mod 60)
   else if s >= 1. then Fmt.str "%.2fs" s
   else Fmt.str "%dms" (int_of_float (Float.round (s *. 1000.)))
 
-(* [Resolved 42 packages in 126ms], muted, the count in bold. *)
+(* Prints [Resolved 42 packages in 126ms], muted, with the count in bold. *)
 let phase_done verb n elapsed =
   Fmt.epr "%a@." View.pp
     View.(
@@ -76,8 +76,8 @@ let phase =
             View.(muted (Task.label t) ++ Fmt.kstr text " (%d/%d)" n total)
         | `Spin | `Bytes _ -> muted (Task.label t)))
 
-(* A download's row: its name, dim, its bar, and its bytes as uv writes them,
-   [3.20 MiB/15.33 MiB]. *)
+(* A download's row: its name (dim), its bar, and its bytes as uv writes
+   them, [3.20 MiB/15.33 MiB]. *)
 let download =
   Progress.Layout.(
     label ~style:Style.faint ()
@@ -92,16 +92,17 @@ let download =
               Progress.pp_bytes total
         | `Spin | `Items _ -> View.empty))
 
-(* A row is a download's when its task counts bytes, and a phase's
-   otherwise. A download that ends leaves at once, as indicatif's
-   [finish_and_clear] does: it is transient. *)
+(* A row is a download's if its task counts bytes, and a phase's otherwise.
+   A download is transient: it leaves at once when it ends, as indicatif's
+   [finish_and_clear] does. *)
 let layout =
   Progress.Layout.choose (fun t ->
       match Task.progress t with `Bytes _ -> download | _ -> phase)
 
 let large p = p.size > mib
 
-(* Off a terminal, uv names each large download as it starts and ends. *)
+(* Off a terminal, uv names each large download when it starts and when it
+   ends. *)
 let plain e =
   match (Task.Event.kind e, Task.Event.task e) with
   | `Start, Some (_, [ _; name ]) ->
@@ -132,7 +133,7 @@ let resolve clock root =
 let fetch clock phase_task i p =
   Task.run ~transient:true phase_task p.name @@ fun t ->
   let total = Int64.of_float p.size in
-  (* Three mirrors, of 2, 3 and 4 MiB/s. *)
+  (* Three mirrors, at 2, 3 and 4 MiB/s. *)
   let speed = (2. +. float (i mod 3)) *. mib in
   let rec go done_ =
     let count = Int64.of_float (Float.min p.size done_) in

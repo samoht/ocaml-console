@@ -8,21 +8,21 @@ module V = View_core
 
 let tasks _ = V.tasks
 
-(* A label laid out when the tree is drawn: in the tree's look, at its time,
-   in the room its guides leave. *)
+(* A label laid out when the tree is drawn, in the look and at the time of
+   the tree, in the room its guides leave. *)
 let label f =
   V.deferred ~kind:tasks (fun c ->
       f (Ctx.look c) ~time:(Ctx.time c) (Ctx.width c))
 
-(* A line of the tree that is not a task's row, such as the count of folded
-   tasks, cut to its room. *)
+(* A line of the tree that is not the row of a task, such as the count of
+   folded tasks, cut to its room. *)
 let line f =
   label (fun look ~time:_ width ->
       let l = f look in
       match width with Some w -> Widget.truncate look w l | None -> l)
 
-(* A transient task that succeeded has no line: the tasks under it take
-   its place. *)
+(* A transient task that succeeded has no line. Its subtasks take its
+   place. *)
 let shows r =
   is_running r || (not (transient r)) || outcome r <> Some `Succeeded
 
@@ -61,15 +61,15 @@ let rec worst acc nodes =
       worst acc n.kids)
     acc nodes
 
-(* How a tree is drawn: [Full], every task and window; [Fold], the ended
-   tasks under each task folded into one line; [Bare], the running tasks
-   alone; [Whole], as the scrollback keeps it. *)
+(* How a tree is drawn: [Full], every task and window; [Fold], the tasks
+   that ended under each task folded into one line; [Bare], the running tasks
+   only; [Whole], as the scrollback keeps it. *)
 type form = Full | Fold | Bare | Whole
 
-(* A task caches its row as last laid out, under the [key] it was laid out
-   for, until the task changes. A running row changes with time only by its
-   spinner frame and its timer, which the key holds. A top task whose whole
-   tree ended caches that tree. A layout whose pieces read live state
+(* A task caches its last laid-out row with the [key] used to lay it out,
+   until the task changes. Over time, a running row changes only in its
+   spinner frame and its timer, and the key holds both. A top task whose
+   whole tree ended caches that tree. A layout whose pieces read live state
    ({!Progress_layout.reads}) caches nothing. *)
 
 type key = {
@@ -120,10 +120,10 @@ let key ~layout ~form ~cut ~top ~column ~time look width r =
     top;
   }
 
-(* [kept r ~kind ~find ~make lay] is the memo of [r] that [find] accepts or,
-   failing that, [lay ()], which [r] then keeps as [make] wraps it. [r] keeps
-   at most two memos of each [kind], since two views may show a task at
-   once. *)
+(* [kept r ~kind ~find ~make lay] is the memo of [r] that [find] accepts. If
+   there is none, it is [lay ()], and [r] keeps it, wrapped by [make]. [r]
+   keeps at most two memos of each [kind], since two views may show a task
+   at the same time. *)
 let kept r ~kind ~find ~make lay =
   match List.find_map find (memo r) with
   | Some v -> v
@@ -141,8 +141,8 @@ let kept r ~kind ~find ~make lay =
 let is_row = function Row _ -> true | _ -> false
 let is_tree = function Tree _ -> true | _ -> false
 
-(* With [fold], [nodes] split into the ended tasks and the others; without,
-   no task is set apart. *)
+(* With [fold], [nodes] split into the tasks that ended and the others.
+   Without [fold], no task is set apart. *)
 let split ~fold nodes =
   if fold then List.partition (fun n -> not (is_running n.row)) nodes
   else ([], nodes)
@@ -150,18 +150,18 @@ let split ~fold nodes =
 (* The [Bare] form shows no line for dropped tasks. *)
 let shed form r = if form = Bare then 0 else shed r
 
-(* The lines under a top task's row are two cells further in than the row,
-   behind the tree's indent, so they have two cells less. *)
+(* The lines under the row of a top task are indented two cells more than
+   the row, by the indent of the tree. So they have two cells less. *)
 let under ~top width =
   Option.map (fun w -> max 1 (w - if top then 2 else 0)) width
 
 let cut_under look ~top width l =
   match under ~top width with Some w -> Widget.truncate look w l | None -> l
 
-(* The label of a node, cached unless the layout reads live state: for a
-   running task, its row, with the lines of its window newer than [cut] in the
-   full and folded forms, and [extra] lines; for a task that ended, its line,
-   with its output when whole. *)
+(* The label of a node, cached unless the layout reads live state. For a
+   running task, it is its row, plus the [extra] lines, plus, in the full and
+   folded forms, the lines of its window newer than [cut]. For a task that
+   ended, it is its line, plus its output in the whole form. *)
 let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
   let row look ~time width lay =
     if extra <> [] || not (keeps layout look) then lay ()
@@ -204,9 +204,9 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
         in
         V.concat ~sep:(V.text "\n") (lines @ output))
 
-(* The lines that open the block of [nodes] under a task, a count of the
-   dropped tasks then a line that folds the ended ones, and the nodes left to
-   draw. *)
+(* The lines that open the block of [nodes] under a task, and the nodes left
+   to draw. The lines are a count of the dropped tasks, then one line that
+   folds the tasks that ended. *)
 let heads ~fold ~shed nodes =
   let ended, shown = split ~fold nodes in
   ( ((if shed > 0 then
@@ -237,16 +237,17 @@ and node ?(top = false) ~layout ~form ~cut ~cols ~depth ?extra n =
     (block ~layout ~form ~fold:(form = Fold) ~shed:(shed form r) ~cut ~cols
        ~depth:(depth + 1) n.kids)
 
-(* The root draws no line: its tree is those of the top tasks, which fold as
-   its children. A task's tree starts with its own line. *)
+(* The root draws no line. Its tree is the trees of the top tasks, which
+   fold as its children. The tree of any other task starts with its own
+   line. *)
 let tops keep r = forest keep (if is_root r then children r else [ r ])
 let top_fold form r = form = Fold && is_root r
 let top_shed form r = if is_root r then shed form r else 0
 let indent = 2
 let drawn tree = Tree.view ~indent tree
 
-(* A running row draws a label if its layout has one, the line of a task
-   that ended always. *)
+(* A running row draws a label if its layout has one. The line of a task
+   that ended always draws one. *)
 let draws_label layout r =
   (not (is_running r))
   || Progress_layout.has_label (Progress_layout.for_task layout r)
@@ -258,11 +259,11 @@ let rec widen layout nodes =
       widen layout n.kids)
     nodes
 
-(* The columns of the rows of [r]'s tree, by the depth they are drawn at:
-   the label column ends where the widest label drawn at any depth ends,
-   behind the guides of its depth. Cut, it keeps as many cells as the
-   label column of the shallowest depth keeps, [narrowest] at most, so
-   that the rows of every depth give way at once. *)
+(* The columns of the rows of the tree of [r], by the depth they are drawn
+   at. At every depth, the label column ends where the widest label ends,
+   counting the guides of its depth. When cut, a label column keeps as many
+   cells as the label column of the shallowest depth keeps, at most
+   [narrowest], so the rows of every depth give way at the same time. *)
 let columns ~layout look r nodes =
   widen layout nodes;
   let w = work r in
@@ -300,7 +301,7 @@ let rec ended n = (not (is_running n.row)) && List.for_all ended n.kids
 let rec versions acc n =
   List.fold_left versions ((id n.row, version n.row) :: acc) n.kids
 
-(* A top task's tree, kept whole once every task in it ended. *)
+(* The tree of a top task, cached once every task in it ended. *)
 let top_tree ~layout ~form ~cut ~cols n =
   let tree = drawn (node ~top:true ~layout ~form ~cut ~cols ~depth:0 n) in
   if not (ended n) then tree
@@ -325,8 +326,8 @@ let trees ~layout ~form ~cut ~cols r nodes =
   in
   List.map drawn heads @ List.map (top_tree ~layout ~form ~cut ~cols) shown
 
-(* The lines the trees take in the region, and how many are of windows,
-   counted without drawing them. *)
+(* The number of lines the trees take in the region, and how many of them
+   are window lines, counted without drawing the trees. *)
 let rec count_block ~form ~fold ~shed nodes =
   let ended, shown = split ~fold nodes in
   let own = (if shed > 0 then 1 else 0) + if ended = [] then 0 else 1 in
@@ -348,7 +349,7 @@ let count ~form r nodes =
   count_block ~form ~fold:(top_fold form r) ~shed:(top_shed form r) nodes
 
 (* The [seq] of the newest of the [n] oldest lines in the windows of running
-   tasks: the lines up to it give way. It is [-1] if none do. *)
+   tasks. The lines up to it give way. It is [-1] if no line gives way. *)
 let cut_tails n nodes =
   let rec seqs acc nodes =
     List.fold_left
@@ -376,8 +377,8 @@ let first c height v =
     V.concat ~sep:(V.text "\n")
       (List.filteri (fun i _ -> i < height) (V.lines v))
 
-(* The latest running tasks that fit, after a line that counts the others,
-   the tree's own task first. *)
+(* The latest running tasks that fit, after a line that counts the others.
+   The task of the tree itself comes first. *)
 let bare ~layout ~cols c ~height r =
   let rec collect acc nodes =
     List.fold_left
@@ -427,8 +428,8 @@ let bare ~layout ~cols c ~height r =
   in
   first c height (draw trees)
 
-(* The tree is counted before it is drawn, and drawn once, in the form that
-   fits. *)
+(* The lines of the tree are counted before it is drawn. It is then drawn
+   once, in the first form that fits. *)
 let region ~layout c ~height r =
   let width = Option.value (Ctx.width c) ~default:1 in
   if height <= 0 || width <= 0 || gone r then V.empty

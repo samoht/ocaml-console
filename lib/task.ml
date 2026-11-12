@@ -10,7 +10,7 @@ type level = Task_core.level
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
 
-(* A transient task that succeeded is replaced by the tasks under it. *)
+(* A transient task that succeeded is replaced by its subtasks. *)
 let rec children t =
   List.concat_map
     (fun c ->
@@ -19,7 +19,7 @@ let rec children t =
 
 let root ?label ~now () = Task_core.root ?label ~now ()
 
-(* What a program reads includes what other domains sent. *)
+(* What a program reads includes the requests sent by other domains. *)
 let settled f t =
   settle t;
   f t

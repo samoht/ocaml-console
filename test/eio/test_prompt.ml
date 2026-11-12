@@ -7,8 +7,8 @@ module Prompt = Console_eio.Prompt
 
 let run f = Eio_main.run (fun _env -> f ())
 
-(* A prompt over a string source and a buffer: the same code path a terminal
-   takes, with the answers scripted and the questions captured. *)
+(* A prompt over a string source and a buffer. It takes the same code path as a
+   terminal, with scripted answers and captured questions. *)
 let prompt ?interactive input =
   let out = Buffer.create 64 in
   let t =
@@ -18,10 +18,10 @@ let prompt ?interactive input =
   in
   (t, out)
 
-(* The wording of a refusal is the implementation's to choose, so an answer is
-   compared after collapsing every error but the end of the input to
-   [Refused]. The one message whose content is specified, that the gate does
-   not echo the word it asks for, gets its own assertion. *)
+(* The implementation chooses the wording of a refusal. So the tests compare
+   answers after mapping every error except the end of the input to [Refused].
+   One message has specified content: the gate does not echo the word it asks
+   for. It has its own assertion. *)
 type 'a answer = Got of 'a | Ended | Refused
 
 let seen = function
@@ -46,8 +46,8 @@ let answer t =
 let string_answer = answer Alcotest.string
 let bool_answer = answer Alcotest.bool
 
-(* A string source is not a terminal, so the default is a prompt that refuses
-   every question without writing a byte. *)
+(* A string source is not a terminal. So the default prompt refuses every
+   question and writes nothing. *)
 let test_a_string_source_is_not_a_terminal () =
   run @@ fun () ->
   let t, out = prompt "y\n" in
@@ -57,8 +57,8 @@ let test_a_string_source_is_not_a_terminal () =
     (seen (Prompt.confirm t "delete?"));
   Alcotest.(check string) "asked nothing" "" (Buffer.contents out)
 
-(* One [t] owns the read buffer, so the second question gets the second line
-   rather than whatever survived the first read. *)
+(* One [t] owns the read buffer, so the second question gets the second line,
+   not what was left from the first read. *)
 let test_line_asks_verbatim_and_keeps_its_place () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "alpha\nbeta\n" in
@@ -69,7 +69,7 @@ let test_line_asks_verbatim_and_keeps_its_place () =
     (seen (Prompt.line t "again: "));
   Alcotest.(check string) "both questions" "name: again: " (Buffer.contents out)
 
-(* The answer is what was typed, spaces and all, minus the terminator. *)
+(* The answer is the typed text, spaces included, without the terminator. *)
 let test_line_keeps_the_spaces_it_was_given () =
   run @@ fun () ->
   let t, _ = prompt ~interactive:true "  spaced out  \n" in
@@ -84,8 +84,8 @@ let test_line_drops_a_crlf_terminator () =
   Alcotest.check string_answer "second" (Got "beta")
     (seen (Prompt.line t "again: "))
 
-(* The question goes out before the read, so it is on the terminal even when
-   the answer never comes. *)
+(* The question is written before the read, so it is on the terminal even when
+   no answer comes. *)
 let test_line_at_end_of_input_is_refused () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "" in
@@ -124,11 +124,13 @@ let test_confirm_at_end_of_input_is_refused () =
   let t, _ = prompt ~interactive:true "" in
   Alcotest.check bool_answer "answer" Ended (seen (Prompt.confirm t "delete?"))
 
-(* A question is text: an escape in it cannot clear the screen. *)
+(* A question is text: an escape code in it cannot clear the screen. *)
 let test_question_is_text () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "y\n" in
-  ignore (Prompt.confirm t "\027[2Jdelete?");
+  Alcotest.(check bool)
+    "answered" true
+    (Prompt.confirm t "\027[2Jdelete?" = Ok true);
   Alcotest.(check bool)
     "no escape" false
     (String.contains (Buffer.contents out) '\027')
@@ -140,8 +142,8 @@ let test_secret_without_a_terminal_is_refused () =
     (seen (Prompt.secret t "secret: "));
   Alcotest.(check string) "nothing asked" "" (Buffer.contents out)
 
-(* [with_stdin ~stdin f] is [f ()] with standard input on [stdin], put back
-   as it was found once [f] ends. *)
+(* [with_stdin ~stdin f] is [f ()] with standard input on [stdin]. Standard
+   input is restored when [f] ends. *)
 let with_stdin ~stdin f =
   let saved = Unix.dup Unix.stdin in
   Fun.protect ~finally:(fun () ->
@@ -151,8 +153,8 @@ let with_stdin ~stdin f =
   Unix.dup2 stdin Unix.stdin;
   f ()
 
-(* [with_pty f] is [f env tty master] on a new pseudo-terminal, [tty] and
-   [master] each a descriptor of its own. *)
+(* [with_pty f] is [f env tty master] on a new pseudo-terminal. [tty] and
+   [master] each have their own descriptor. *)
 let with_pty f =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -168,8 +170,8 @@ let masked tty = not (Unix.tcgetattr tty).Unix.c_echo
 let ready fd =
   match Unix.select [ fd ] [] [] 0. with [], _, _ -> false | _ -> true
 
-(* [drain master] reads what the terminal shows until it shows nothing more
-   for now. *)
+(* [drain master] reads what the terminal shows until it has nothing more to
+   show for now. *)
 let rec drain master =
   if ready master then begin
     ignore (Unix.read master (Bytes.create 4096) 0 4096 : int);
@@ -179,9 +181,9 @@ let rec drain master =
 let type_in master s =
   ignore (Unix.write_substring master s 0 (String.length s) : int)
 
-(* [await_echo master s] waits until the terminal shows [s]. On Linux typed
-   input reaches the line discipline later, and a flush meanwhile misses it;
-   once echoed, it is there. *)
+(* [await_echo master s] waits until the terminal shows [s]. On Linux, typed
+   input reaches the line discipline later, and a flush before that misses it.
+   Once the input is echoed, it is there. *)
 let await_echo master s =
   let shown = Buffer.create 64 in
   let buf = Bytes.create 4096 in
@@ -191,7 +193,7 @@ let await_echo master s =
     Buffer.add_subbytes shown buf 0 n
   done
 
-(* [prompt_on env ~echoed] is a prompt on standard input whose questions and
+(* [prompt_on env ~echoed] is a prompt on standard input. Its questions and
    masks go to a formatter that counts the masks, [*], in [echoed]. *)
 let prompt_on env ~echoed =
   let ppf =
@@ -204,10 +206,10 @@ let prompt_on env ~echoed =
   in
   Prompt.v ~ppf (Eio.Stdenv.stdin env)
 
-(* [secret_typed typed] is the answer of [secret] on a pseudo-terminal where
+(* [secret_typed typed] is the answer of [secret] on a pseudo-terminal, where
    another fiber of the domain types [typed]. That fiber runs only if the read
    lets it: a read that blocks the domain hangs, and the run's guard ends it.
-   The fiber types once the question is masked, since what is typed before is
+   The fiber types once the question is masked, because input typed before is
    discarded. *)
 let secret_typed typed =
   with_pty @@ fun env tty master ->
@@ -224,24 +226,24 @@ let secret_typed typed =
       in
       seen answer)
 
-(* [secret] waits for the terminal as a fiber waits, so the rest of the
-   domain runs meanwhile. *)
+(* [secret] waits for the terminal as a fiber waits, so the rest of the domain
+   runs in the meantime. *)
 let test_secret_leaves_the_domain_running () =
   Alcotest.check string_answer "the typed line" (Got "abc")
     (secret_typed "abc\n")
 
-(* A password is the bytes typed: a bidi mark, a C1 control and a byte
-   that is not UTF-8 come back as they were typed. *)
+(* A password is the typed bytes. A bidi mark, a C1 control and a byte that is
+   not UTF-8 come back as typed. *)
 let test_secret_keeps_bytes () =
   let password = "\u{202e}p\xc2\x85w\xff" in
   Alcotest.check string_answer "the bytes typed" (Got password)
     (secret_typed (password ^ "\n"))
 
-(* [secret] does not take a line longer than its cap. Another domain types
-   the line in pieces once the question is masked, each piece once the
-   prompt has masked all typed before it, so that the terminal's input queue
-   never fills; past the cap the prompt masks no more, and the rest, less
-   than a queue, is typed at once. *)
+(* [secret] does not take a line longer than its cap. Another domain types the
+   line in pieces once the question is masked. It types each piece after the
+   prompt has masked everything typed before, so the terminal's input queue
+   never fills. Past the cap, the prompt masks no more, and the rest of the
+   line, which is shorter than a queue, is typed at once. *)
 let test_secret_cap () =
   let line = String.make 5000 'a' ^ "\n" in
   let cap = 4097 in
@@ -280,13 +282,13 @@ let test_secret_cap () =
   | Got _ -> Alcotest.fail "a line of 5000 bytes taken"
   | _ -> ()
 
-(* What is typed before [secret] masks the terminal is echoed, as it is
-   under getpass(3), but it is not the answer: [secret] discards it and
-   reads what is typed once the question is masked. [typed] is typed first,
-   and a {!Prompt.line} answered [before] is asked first unless [before] is
-   empty. A domain plays the terminal: it reads what the terminal shows, as
-   masking waits for that output to be read, and once the echo is off, the
-   input discarded, it types the answer. *)
+(* Text typed before [secret] masks the terminal is echoed, as under getpass(3),
+   but it is not the answer. [secret] discards it and reads what is typed after
+   the question is masked. [typed] is typed first. If [before] is not empty, a
+   {!Prompt.line} answered with [before] is asked first. A domain plays the
+   terminal. It reads what the terminal shows, because masking waits until that
+   output is read. Once echo is off and the input discarded, it types the
+   answer. *)
 let secret_after ~before typed =
   let result =
     with_pty @@ fun env tty master ->
@@ -316,13 +318,13 @@ let secret_after ~before typed =
 
 let test_secret_drops_typeahead () = secret_after ~before:"" "early\n"
 
-(* A line typed ahead of a question that {!Prompt.line} answers is not
-   kept for the [secret] after it: the terminal hands [line] its own line
-   alone, and [secret] discards the rest, which the terminal echoed. *)
+(* A line typed ahead of a {!Prompt.line} question is not kept for the next
+   [secret]. The terminal gives [line] its own line only, and [secret] discards
+   the rest, which the terminal echoed. *)
 let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
 
-(* While one fiber waits for an answer, the output of another fiber is
-   still its task's: only the prompting fiber writes straight out. [run] takes
+(* While one fiber waits for an answer, the output of another fiber still
+   belongs to its task. Only the prompting fiber writes directly. [run] takes
    the program's output from [Fmt.stdout], which writes into a buffer here. *)
 let test_prompt_leaves_other_fibers_attributed () =
   Eio_main.run @@ fun _env ->
@@ -359,8 +361,8 @@ let test_prompt_leaves_other_fibers_attributed () =
        {|"event":"output","id":0,"task":["work"],"text":"from work"|}
        (Buffer.contents out))
 
-(* [keys] reads each key as it is typed, unshown, and gives the terminal
-   back as it found it; without a terminal it is refused. *)
+(* [keys] reads each key as it is typed, without echo, and restores the terminal
+   as it was. Without a terminal, it is refused. *)
 let test_keys () =
   run (fun () ->
       let t, _ = prompt ~interactive:true "abc" in

@@ -9,9 +9,9 @@ let v label children = { label; children }
 let label t = t.label
 let children t = t.children
 
-(* The first line of a label is laid out in the room beside the node's
-   branch, its other lines in the room beside its rails. A line wider than
-   its room wraps, hanging under its text. *)
+(* The first line of a label uses the room beside the node's branch. Its
+   other lines use the room beside its rails. A line wider than its room
+   wraps, and the next lines start under its text. *)
 let label_lines ~first ~rest label =
   List.concat
     (List.mapi
@@ -50,8 +50,9 @@ let lines c ~guide ~indent t =
     in
     acc := line :: !acc
   in
-  (* [lasts] says, for the node and each of its ancestors below the root,
-     whether it is the last of its siblings, innermost first. *)
+  (* [lasts] has one flag for the node and for each ancestor below the root,
+     innermost first. A flag says whether that node is the last of its
+     siblings. *)
   let rec go lasts node =
     let lead = if lasts = [] then "" else pad in
     let first = lead ^ Widget.branch guide lasts

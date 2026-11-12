@@ -18,7 +18,7 @@ let setup ?style_renderer ?utf_8 ?theme ~is_tty ppf =
   Color.set_depth ppf (Colour.depth ~getenv);
   Option.iter (Theme.set ppf) theme
 
-(* Fmt keeps a formatter's style renderer and UTF-8 flag in tag functions it
-   installs on the first change. A formatter whose tag functions are still
-   Format's own, apart from the slot of its theme, has had nothing chosen. *)
+(* Fmt stores a formatter's style renderer and UTF-8 flag in tag functions,
+   which it installs on the first change. If a formatter still has Format's
+   own tag functions (apart from its theme slot), nothing was configured. *)
 let ensure ~is_tty ppf = if Slot.unset ppf then setup ~is_tty ppf

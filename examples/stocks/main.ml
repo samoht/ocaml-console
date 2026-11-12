@@ -3,23 +3,23 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A trading day on an invented exchange, in five seconds: a dozen invented
-   tickers whose prices follow a seeded random walk, each with its session
-   drawn as a sparkline, and the day's returns as a histogram. A price that
-   just traded shows in the colour of its tick. At the close the table stays
-   in the scrollback. [--theme] draws it in another theme. *)
+(* A trading day on an invented exchange, in five seconds. The prices of a
+   dozen invented tickers follow a seeded random walk. Each ticker shows its
+   session as a sparkline, and a histogram shows the day's returns. A price
+   that just traded shows in the colour of its tick. At the close, the table
+   stays in the scrollback. [--theme] draws it in another theme. *)
 
 open Console
 
 type stock = {
   symbol : string;
   name : string;
-  close : float; (* The previous close, from which the day's change counts. *)
+  close : float; (* The previous close. The day's change counts from it. *)
   drift : float;
   volatility : float;
   lot : float;
   mutable price : float;
-  mutable tick : float; (* The last trade's move, [0.] once it is old. *)
+  mutable tick : float; (* The last trade's move, or [0.] once it is old. *)
   mutable volume : float;
   mutable turnover : float;
   mutable session : float list; (* The prices sampled so far, latest first. *)
@@ -68,8 +68,8 @@ let stocks =
       ~lot:420e3;
   ]
 
-(* The day is [trades] rounds of 0.1s, from 09:30 to 16:00, and the
-   sparklines take a sample every [every] rounds. *)
+(* The day is [trades] rounds of 0.1s, from 09:30 to 16:00. The sparklines
+   take a sample every [every] rounds. *)
 let trades = 50
 let every = 2
 let samples = trades / every
@@ -99,8 +99,8 @@ let next_round () =
   if !round mod every = 0 then
     List.iter (fun s -> s.session <- s.price :: s.session) stocks
 
-(* The day's change in whole cents, so that a change too small to show is
-   [0.], never printed as [-0.00]. *)
+(* The day's change, rounded to whole cents. A change too small to show is
+   [0.], so it never prints as [-0.00]. *)
 let change s =
   let cents = Float.round ((s.price -. s.close) *. 100.) in
   if cents = 0. then 0. else cents /. 100.
@@ -108,7 +108,7 @@ let change s =
 let percent s = 100. *. change s /. s.close
 let clock () = 570 + (!round * 390 / trades)
 
-(* Up in the theme's colour of a success, down in that of a failure. *)
+(* Up is in the theme's success colour, down in its failure colour. *)
 let signed x v = if x < 0. then View.role `Failed v else View.role `Succeeded v
 
 let arrow x =
@@ -147,9 +147,9 @@ let row s =
     View.text (figure s.volume);
   ]
 
-(* Every column is as wide as it will be at the close, so that the table
-   keeps still while the session draws itself. In a narrow terminal the
-   session gives way first. *)
+(* Every column is already as wide as it will be at the close, so the table
+   stays still while the session grows. In a narrow terminal, the session
+   gives way first. *)
 let table () =
   Table.view
     [
@@ -164,8 +164,8 @@ let table () =
     ]
     (List.map row stocks)
 
-(* The composite index, its stocks equally weighted, from its previous
-   close. *)
+(* The previous close of the composite index. The index weights its stocks
+   equally. *)
 let previous = 3141.59
 
 let composite () =
@@ -202,8 +202,9 @@ let header () =
       status;
     ]
 
-(* The day's returns in buckets of one percent, the outer ones holding
-   everything beyond them, losses red and gains green. *)
+(* The day's returns in buckets of one percent. The outer buckets also hold
+   all returns beyond them. Losses take the failure colour and gains the
+   success colour. *)
 let histogram () =
   let bucket s =
     Float.to_int (Float.round (Float.min 4. (Float.max (-4.) (percent s))))
@@ -224,8 +225,8 @@ let histogram () =
          in
          Bar.chart ~height:3 ~style bars))
 
-(* A panel of lines of a muted label and its figures, the figures against
-   the right edge. *)
+(* A panel of lines. Each line has a muted label and its figures, with the
+   figures against the right edge. *)
 let facts title rows =
   let n = List.fold_left (fun n (_, c) -> max n (List.length c)) 0 rows in
   let line (label, cells) =
@@ -267,7 +268,7 @@ let most_active () =
          (string_of_int (i + 1), quote s @ [ View.text (figure s.volume) ]))
        (List.take 6 sorted))
 
-(* The panels under the table, as many as fit from the left. *)
+(* The panels under the table: as many as fit, from the left. *)
 let rec panels room = function
   | [] -> View.empty
   | views -> (
@@ -286,8 +287,7 @@ let view =
           panels room [ histogram (); breadth (); most_active () ];
         ])
 
-let main theme =
-  Console_tty.setup ~theme ();
+let main () =
   Eio_main.run @@ fun env ->
   let clock = Console_eio.clock (Eio.Stdenv.mono_clock env) in
   Console_eio.run ~clock ~ppf:Fmt.stdout
@@ -300,8 +300,8 @@ let main theme =
       List.iter (fun s -> s.tick <- 0.) stocks;
       closed := true)
 
-let theme =
-  Cmdliner.Arg.(value & opt (enum Theme.all) Theme.default & info [ "theme" ])
+let cmd =
+  Cmdliner.Cmd.(
+    v (info "stocks") Cmdliner.Term.(const main $ Console_cli.setup ()))
 
-let cmd = Cmdliner.Cmd.(v (info "stocks") Cmdliner.Term.(const main $ theme))
 let () = exit (Cmdliner.Cmd.eval cmd)

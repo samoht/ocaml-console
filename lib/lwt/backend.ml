@@ -4,15 +4,16 @@
   ---------------------------------------------------------------------------*)
 
 (* Lwt cannot be woken from another domain or from a signal handler. A
-   notification can be sent from both, and runs its function in the event
-   loop. One notification wakes every wait, and each looks again. *)
+   notification can be sent from both, and it runs its function in the event
+   loop. One notification wakes every wait, and each wait checks its condition
+   again. *)
 let woken = Lwt_condition.create ()
 let notification = Lwt_unix.make_notification (Lwt_condition.broadcast woken)
 
-(* [background daemons f] runs [f] in a fiber of its own, so that a daemon
-   that raises can cancel it: the daemon's fiber ends with what it raised,
-   then [f] is cancelled. Once [f] ends, the daemons are cancelled, and the
-   [Lwt.Canceled] they raise then is not a failure. *)
+(* [background daemons f] runs [f] in its own fiber, so that a daemon that
+   raises can cancel it. The daemon's fiber ends with the exception, then [f]
+   is cancelled. When [f] ends, the daemons are cancelled, and the
+   [Lwt.Canceled] that they then raise is not a failure. *)
 let background daemons f =
   let stop = ref false in
   let p = Fiber.spawn f in
@@ -66,13 +67,15 @@ include Console_driver.Make (struct
         Fiber.await (Lwt_condition.wait woken);
         wait () f
 
-  (* Any code on the thread of Lwt can bind values, and has no cancellation
-     to check. *)
+  (* Any code on the Lwt thread can bind values, and has no cancellation to
+     check. *)
   let in_fiber () = true
   let background = background
 
-  (* [Lwt.cancel] rejects the promise a fiber waits on, which then raises
-     [Lwt.Canceled]. It leaves no state on the fiber for [check] to raise. *)
+  (* [Lwt.cancel] rejects the promise that a fiber waits on, and the fiber then
+     raises [Lwt.Canceled]. It leaves no state on the fiber for [check] to
+     raise. *)
+
   let first a _ = a ()
   let protect f = f ()
   let check () = ()

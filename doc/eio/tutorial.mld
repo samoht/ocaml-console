@@ -27,35 +27,24 @@ Its [dune] file lists the libraries it uses:
 (executable
  (public_name check)
  (libraries
-  console console.tty console-eio
-  eio eio_main fmt fmt.cli cmdliner logs))
+  console console.cli console-eio
+  eio eio_main fmt cmdliner logs))
 v}
 
 {1:options Colour and theme}
 
-A program decides on colour once, before it prints. {!Console_tty.setup}
-reads {{:https://no-color.org/}[NO_COLOR]}, [TERM], [COLORTERM]
-and the locale, and from them sets colour, colour depth and UTF-8 on the
-standard outputs. Given a style renderer, [setup] uses that one instead, so
-a [--color=auto|always|never] option read by [Fmt_cli.style_renderer] has
-the last word.
-
-A formatter also keeps a {{!Console.Theme}theme}. The table prints on
-standard output and the progress rows on standard error, so [setup] gives
-both outputs the theme that a [--theme] option reads:
+A program decides on colour and theme once, before it prints.
+[Console_cli.setup] is a Cmdliner term with a [--color=auto|always|never]
+and a [--theme] option. It applies them as {!Console_tty.setup} does: colour
+comes from the option if given, else from
+{{:https://no-color.org/}[NO_COLOR]}, [TERM], [COLORTERM] and the locale,
+and the theme becomes the program's ({!Console.Theme.set_program}). The
+table prints on standard output and the progress rows on standard error,
+and both draw in that theme:
 
 {@ocaml[
-let setup color theme =
-  Console_tty.setup ?style_renderer:color ~theme ();
-  Logs.set_level (Some Logs.Info)
-
-let theme =
-  Cmdliner.Arg.(
-    value
-    & opt (enum Console.Theme.all) Console.Theme.default
-    & info [ "theme" ] ~doc:"The look of the output.")
-
-let options = Cmdliner.Term.(const setup $ Fmt_cli.style_renderer () $ theme)
+let setup () = Logs.set_level (Some Logs.Info)
+let options = Cmdliner.Term.(const setup $ Console_cli.setup ())
 ]}
 
 {!Console.Theme.all} lists the predefined themes under their names, which
@@ -260,10 +249,10 @@ written.
 
 [check --progress=plain] prints the same lines on a terminal. With
 [--progress=quiet] it prints none of them, because no suite fails, and
-only the table remains:
+only the table remains, here in the default theme again:
 
 {@ocaml[
-# Cmdliner.Cmd.eval ~argv:[| "check"; "--progress=quiet" |] cmd;;
+# Cmdliner.Cmd.eval ~argv:[| "check"; "--progress=quiet"; "--theme=default" |] cmd;;
 ╭────────┬───────╮
 │ Suite  │ Tests │
 ├────────┼───────┤

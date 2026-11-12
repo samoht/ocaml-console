@@ -5,10 +5,11 @@
 
 let deterministic = Cast.deterministic
 
-(* The clock of deterministic mode (Console_eio, "Deterministic mode").
-   [sleeps] holds the program's pending sleeps, by wake-up time and then by
-   start. [used] counts the uses of the clock, which tell {!settle} that a
-   fiber runs. [moved] wakes the redraws when the time moves. *)
+(* The clock of deterministic mode (see Console_eio, "Deterministic mode").
+   [sleeps] holds the program's pending sleeps, sorted by wake-up time, then by
+   start order. [used] counts the uses of the clock. A change in [used] tells
+   {!settle} that a fiber is running. [moved] wakes the redraws when the time
+   moves. *)
 module Virtual = struct
   type t = {
     owner : Domain.id;
@@ -35,11 +36,12 @@ module Virtual = struct
   let before (a, i) (b, j) =
     match Mtime.compare a b with 0 -> Int.compare i j | c -> c
 
-  (* Eio does not say when nothing can run, so this guesses: nothing can
-     once two yields in a row see no use of the clock. A fiber that yields
-     without using the clock can be overtaken. The rounds are bounded, so
-     that a fiber that polls the clock in a loop of yields cannot stop it.
-     https://github.com/ocaml-multicore/eio/issues/965 asks for a hook. *)
+  (* Eio does not tell when nothing can run, so [settle] guesses. It assumes
+     that nothing can run once two yields in a row see no use of the clock. A
+     fiber that yields without using the clock can be overtaken. The number of
+     rounds is bounded, so a fiber that polls the clock in a loop of yields
+     cannot block [settle]. https://github.com/ocaml-multicore/eio/issues/965
+     asks for a hook. *)
   let settle t =
     let rec go quiet rounds =
       if quiet < 2 && rounds < 64 then begin
@@ -50,8 +52,9 @@ module Virtual = struct
     in
     go 0 0
 
-  (* Each pending sleep settles in a loop. The earliest one then sets the
-     time to its own and returns. *)
+  (* Each pending sleep calls {!settle} in a loop. Then the earliest sleep sets
+     the time to its wake-up time and returns. *)
+
   let sleep_until t time =
     check t;
     if Mtime.is_later time ~than:t.now then begin

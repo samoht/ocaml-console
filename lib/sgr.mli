@@ -4,7 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 (** Escape codes for colours and styles (ECMA-48 8.3.117, SELECT GRAPHIC
-    RENDITION). {!Color} and {!Style} wrap these types as abstract ones. *)
+    RENDITION). {!Color} and {!Style} make these types abstract. *)
 
 type ansi =
   [ `Black
@@ -25,8 +25,8 @@ type ansi =
   | `Bright_white ]
 (** The type for the 16 named colours. *)
 
-(** The type for colours. A palette index is in \[[0];[255]\] and an RGB
-    component in \[[0];[255]\]. *)
+(** The type for colours. A palette index and an RGB component are both in
+    \[[0];[255]\]. *)
 type color = Ansi of ansi | Rgb of int * int * int | Palette of int
 
 type 'c style = {
@@ -42,12 +42,12 @@ type 'c style = {
 (** The type for styles, in colours of type ['c]. *)
 
 val attributes : _ style -> (string * string) list
-(** [attributes s] are the code and the name of each attribute [s] sets, in the
-    order of the fields. *)
+(** [attributes s] is the code and the name of each attribute that [s] sets, in
+    field order. *)
 
 val start : color style -> string
-(** [start s] is the escape code that selects [s], with its colours as given
-    (not reduced to a colour depth), or [""] if [s] sets nothing. *)
+(** [start s] is the escape code that selects [s], or [""] if [s] sets nothing.
+    The colours are used as given, not reduced to a colour depth. *)
 
 val reset : string
 (** [reset] is the escape code that turns every attribute off. *)

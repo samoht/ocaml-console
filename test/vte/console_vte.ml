@@ -3,117 +3,41 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-type t = {
-  vte : Vte.t;
-  raw : bool;
-  scan : Ansi.Parser.t;
-      (** Parses the bytes [vte] reads, to find the spacing marks. *)
-  mutable split : int option;
-      (** The length of a spacing mark just read. Matrix draws a spacing mark in
-          the cell of its letter unless it starts a write, so [feed] writes the
-          mark apart, and it takes a cell of its own as in xterm and VTE. *)
-  pending : Buffer.t;
-      (** The start of a character whose other bytes come in the next feed. *)
-}
+type t = { vte : Vte.t; raw : bool }
 
 let v ?(raw = false) ~rows ~cols () =
-  {
-    vte = Vte.create ~rows ~cols ();
-    raw;
-    scan = Ansi.Parser.create ();
-    split = None;
-    pending = Buffer.create 4;
-  }
+  { vte = Vte.create ~width_method:`Unicode_wide ~rows ~cols (); raw }
 
 let vte t = t.vte
 let rows t = Vte.rows t.vte
 let cols t = Vte.cols t.vte
-let resize t ~rows ~cols = Vte.resize t.vte ~rows ~cols
+let resize t ~rows ~cols = ignore (Vte.resize t.vte ~rows ~cols)
 let cursor_pos t = Vte.cursor_pos t.vte
-let cursor_visible t = Vte.cursor_visible t.vte
+let cursor_visible t = (Vte.modes t.vte).cursor_visible
 let to_string t = Vte.to_string t.vte
-let scrollback_lines t = Vte.scrollback_lines t.vte
+
+let scrollback_lines t =
+  let n = Vte.scrollback_size t.vte in
+  List.init n (fun i -> Vte.text t.vte (i - n))
+
 let scrollback_size t = Vte.scrollback_size t.vte
 let grid t = Vte.grid t.vte
-
-let fg g i =
-  Ansi.Color.of_rgba_f (Grid.get_fg_r g i) (Grid.get_fg_g g i)
-    (Grid.get_fg_b g i) (Grid.get_fg_a g i)
-
-let bg g i =
-  Ansi.Color.of_rgba_f (Grid.get_bg_r g i) (Grid.get_bg_g g i)
-    (Grid.get_bg_b g i) (Grid.get_bg_a g i)
-
-let scan t = function
-  | Ansi.Parser.Text s ->
-      let c =
-        Uchar.to_int (Uchar.utf_decode_uchar (String.get_utf_8_uchar s 0))
-      in
-      if Console_width.is_spacing_mark c then t.split <- Some (String.length s)
-  | _ -> ()
-
-(* [continues s] is [true] iff more bytes can complete [s], the start of a
-   character: some continuation byte makes the decoder read further. *)
-let continues s =
-  List.exists
-    (fun next ->
-      Uchar.utf_decode_length (String.get_utf_8_uchar (s ^ next) 0)
-      > String.length s)
-    [ "\x80"; "\x90"; "\xa0" ]
-
-(* [complete s] is the length of [s] without the bytes of an unfinished
-   character at its end. *)
-let complete s =
-  let n = String.length s in
-  let rec last i =
-    if i >= n then n
-    else
-      let d = String.get_utf_8_uchar s i in
-      let next = i + Uchar.utf_decode_length d in
-      if next < n then last next
-      else if
-        (not (Uchar.utf_decode_is_valid d))
-        && continues (String.sub s i (n - i))
-      then i
-      else n
-  in
-  last 0
+let fg = Matrix_grid.get_fg
+let bg = Matrix_grid.get_bg
 
 (* A tty with output processing on writes each line feed as CR LF. *)
 let feed t s =
-  let s = Matrix_fix.backspace s in
-  Buffer.add_string t.pending
-    (if t.raw then s else String.concat "\r\n" (String.split_on_char '\n' s));
-  let s = Buffer.contents t.pending in
-  let n = complete s in
-  Buffer.clear t.pending;
-  Buffer.add_substring t.pending s n (String.length s - n);
-  let out = Buffer.create n in
-  let write () =
-    Vte.feed_string t.vte (Buffer.contents out);
-    Buffer.clear out
+  let s =
+    if t.raw then s else String.concat "\r\n" (String.split_on_char '\n' s)
   in
-  let rec characters at =
-    if at < n then begin
-      let d = String.get_utf_8_uchar s at in
-      let next = at + Uchar.utf_decode_length d in
-      for i = at to next - 1 do
-        Buffer.add_char out s.[i];
-        Matrix_fix.scan t.scan s ~at d i (scan t);
-        match t.split with
-        | None -> ()
-        | Some k ->
-            t.split <- None;
-            let mark = Buffer.sub out (Buffer.length out - k) k in
-            Buffer.truncate out (Buffer.length out - k);
-            write ();
-            Buffer.add_string out mark
-      done;
-      characters next
-    end
-  in
-  characters 0;
-  write ()
+  ignore (Vte.feed_string t.vte s)
+
+let counts_as_console s =
+  List.for_all
+    (fun c ->
+      Console_width.string_width c
+      = Matrix_text.measure ~width_method:`Unicode_wide ~tab_width:8 c)
+    (Console_width.clusters s)
 
 let cursor_history s =
   let t = v ~rows:24 ~cols:80 () in
@@ -149,13 +73,11 @@ let drop_trailing_blanks rows =
 
 let screen ?(scrollback = false) t =
   let visible = String.split_on_char '\n' (Vte.to_string t.vte) in
-  let rows =
-    if scrollback then Vte.scrollback_lines t.vte @ visible else visible
-  in
+  let rows = if scrollback then scrollback_lines t @ visible else visible in
   drop_trailing_blanks (List.map rstrip rows)
 
-(* One record's header is 24 bytes: the payload length, the wall clock the
-   capture stamped it with, and which of the three kinds it is. *)
+(* A record header is 24 bytes: the payload length, the wall-clock time the
+   capture stamped, and the record kind (one of three). *)
 let header_size = 24
 let u64 s off = Int64.to_int (String.get_int64_le s off)
 let i32 s off = Int32.to_int (String.get_int32_le s off)
@@ -163,9 +85,9 @@ let i32 s off = Int32.to_int (String.get_int32_le s off)
 let records recording =
   let n = String.length recording in
   let rec loop off acc =
-    (* A capture of a program that was still running ends mid-record, so a
-       header that does not fit, or one promising more payload than is left,
-       ends the stream rather than raising. *)
+    (* A capture of a program that was still running ends in the middle of a
+       record. So a header that does not fit, or that announces more payload
+       than is left, ends the stream instead of raising. *)
     if off + header_size > n then List.rev acc
     else
       let len = u64 recording off in

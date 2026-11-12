@@ -49,8 +49,9 @@ include Console_driver.Make (struct
   let cancelled = function Eio.Cancel.Cancelled _ -> true | _ -> false
   let write_error = function Eio.Io _ -> true | _ -> false
 
-  (* Outside an event loop, as in a domain that Eio does not run, there is no
-     time to wait on. *)
+  (* Outside an event loop, for example in a domain that Eio does not run,
+     there is no time to wait on, so [sleep] waits for a cancellation. *)
+
   let sleep d =
     match Eio_unix.sleep d with
     | () -> ()

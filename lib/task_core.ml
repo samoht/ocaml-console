@@ -9,16 +9,20 @@ type level = [ `App | `Error | `Warning | `Info | `Debug ]
 type kind = Output | Logs of level
 type line = { gap : float; kind : kind; text : string; seq : int }
 type memo = ..
+type ended = { at : float; outcome : outcome; message : string option }
+
+(* A task runs, then finishes while the tasks under it end, then ends. *)
+type status = Running | Finishing | Done of ended
 
 module Keys = Map.Make (String)
 
-(* What other domains asked of a task since the domain that owns it last
-   looked: the last label and absolute count, and the count added since. *)
+(* The requests of other domains on a task since its owner last looked: the
+   last label, the last absolute count, and the count added since. *)
 type 'metric update = { name : string option; set : 'metric option; by : int }
 
-(* What other domains left for the domain that owns a work, newest first. Once
-   [young] holds half of what may wait, it becomes [old] and the lines of [old]
-   are lost. *)
+(* The requests that other domains left for the owner of a work, newest
+   first. When [young] reaches half of [max_backlog], it becomes [old]. The
+   lines in the previous [old] are then lost, but its calls are kept. *)
 type letter = Call of (unit -> unit) | Text of (unit -> unit)
 type mail = { young : letter list; bytes : int; old : letter list; lost : int }
 
@@ -35,7 +39,7 @@ and change =
   | Progressed of t
   | Renamed of t
   | Line of t * line
-  | Ended of t
+  | Ended of t * ended
 
 and work = {
   now : unit -> float;
@@ -77,10 +81,7 @@ and t = {
   mutable metric : metric;
   transient : bool;
   started_at : float;
-  mutable ended_at : float option;
-  mutable message : string option;
-  mutable outcome : outcome option;
-  mutable finishing : bool;
+  mutable status : status;
   mutable children : t list;
   mutable child_limit : int;
   mutable gone : bool;
@@ -96,12 +97,20 @@ and t = {
 }
 
 let is_root r = r.id < 0
-let is_running r = r.ended_at = None
+
+let is_running r =
+  match r.status with Running | Finishing -> true | Done _ -> false
+
+let ended r =
+  match r.status with Done e -> Some e | Running | Finishing -> None
+
+let outcome r = Option.map (fun e -> e.outcome) (ended r)
+let message r = Option.bind (ended r) (fun e -> e.message)
 
 let elapsed r =
-  match r.ended_at with
-  | Some f -> f -. r.started_at
-  | None -> r.work.now () -. r.started_at
+  match r.status with
+  | Done e -> e.at -. r.started_at
+  | Running | Finishing -> r.work.now () -. r.started_at
 
 let since_start w = w.now () -. w.start
 let rec depth r = match r.parent with None -> 0 | Some p -> 1 + depth p
@@ -141,9 +150,9 @@ let rec run_all = function
   | [] -> ()
   | f :: rest -> protect f ~finally:(fun () -> run_all rest)
 
-(* [tell change ws] gives [change] to every watcher of [ws], whatever one of
-   them raises, as {!run_all} does, but allocates nothing when none raises:
-   every progress update makes a change. *)
+(* [tell change ws] gives [change] to every watcher of [ws], even if one of
+   them raises, as {!run_all} does. Unlike {!run_all}, it allocates nothing
+   when no watcher raises, since every progress update makes a change. *)
 let rec tell change = function
   | [] -> ()
   | f :: rest -> (
@@ -158,15 +167,17 @@ let rec tell change = function
 let notify w change =
   w.changes <- w.changes + 1;
   (match change with
-  | Started r | Progressed r | Renamed r | Line (r, _) | Ended r -> changed r);
+  | Started r | Progressed r | Renamed r | Line (r, _) | Ended (r, _) ->
+      changed r);
   tell change w.watchers
 
 let watch w f = w.watchers <- w.watchers @ [ f ]
 let on_ending r f = r.work.ending <- f
 
-(* The domain that made a work owns it, and alone changes it. Another domain
-   leaves what it asks in [inbox], which the owner empties at its next call or
-   redraw, so that a call from the owner costs one comparison and one load. *)
+(* The domain that made a work owns it, and only the owner changes it. Another
+   domain leaves its requests in [inbox]. The owner empties [inbox] at its
+   next call or redraw. So a call from the owner costs one comparison and one
+   load. *)
 let foreign w = not (Int.equal (Domain.self () :> int) (w.owner :> int))
 
 let rec post w f =
@@ -174,9 +185,10 @@ let rec post w f =
   let sent = { m with young = Call f :: m.young } in
   if not (Atomic.compare_and_set w.inbox m sent) then post w f
 
-(* Lines that other domains wait to have shown, in bytes. The owner may be
-   computing or waiting for those domains, so they cannot wait for it: past
-   this, the oldest are lost and the owner says how many before the rest. *)
+(* The bytes of lines that other domains may leave waiting for the owner. The
+   owner may be busy, or waiting for those domains, so they cannot wait for
+   it. Past this limit, the oldest lines are lost. The owner then says how
+   many, before the other lines. *)
 let max_backlog = 4 * 1_048_576
 
 let rec post_line w text f =
@@ -198,9 +210,9 @@ let rec post_line w text f =
   in
   if not (Atomic.compare_and_set w.inbox m sent) then post_line w text f
 
-(* What a domain asks of a task that it cannot check is dropped when it is
-   wrong: the owner did not make the call. Only an interrupt or an exhausted
-   heap or stack goes on. *)
+(* A request from another domain cannot be checked when it is made. If it
+   fails later, it is dropped, since the owner did not make the call. Only an
+   interrupt, an out-of-memory error or a stack overflow propagates. *)
 let attempt letter () =
   let (Call f | Text f) = letter in
   try f () with e when not (is_async e) -> ()
@@ -213,7 +225,8 @@ let rec deliver w =
       (fun () -> run_all (notice :: List.rev_map attempt (m.young @ m.old)))
       ~finally:(fun () -> deliver w)
 
-(* A display that is drawing takes no change, so what waits stays there. *)
+(* A display that is drawing accepts no change, so waiting requests stay in
+   [inbox]. *)
 let settle_work w =
   if Atomic.get w.inbox != no_mail && not (w.holding ()) then deliver w
 
@@ -225,8 +238,8 @@ let holding w f =
   let before = w.holding in
   w.holding <- (fun () -> before () || f ())
 
-(* Each domain has one stack of current tasks: the tasks of a [local] scope are
-   those it marked with its token. *)
+(* Each domain has one stack of current tasks. The tasks of a [local] scope
+   are the ones marked with its token. *)
 let stacks = Domain.DLS.new_key (fun () -> ref [])
 
 let local () =
@@ -265,10 +278,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     metric = Spin;
     transient;
     started_at = now;
-    ended_at = None;
-    message = None;
-    outcome = None;
-    finishing = false;
+    status = Running;
     children = [];
     child_limit = 16;
     gone = false;
@@ -283,7 +293,7 @@ let row w ~id ?key ?parent ~log_lines ~transient label =
     update = Atomic.make no_update;
   }
 
-(* A line of the root belongs to no task: it is not kept, and its [gap] and
+(* A line of the root belongs to no task. It is not kept, and its [gap] and
    [seq] are [0]. *)
 let above root kind text =
   List.iter
@@ -341,15 +351,15 @@ let adopt p r =
   p.children <- r :: p.children;
   p.child_limit <- p.child_limit - 1;
   if p.child_limit <= 0 then begin
-    (* Gone children are dropped from the list each time it doubles, so that
-       adopting stays amortised constant time. *)
+    (* Gone children are removed from the list each time it doubles, so
+       adding a child stays amortised constant time. *)
     p.children <- List.filter (fun c -> not c.gone) p.children;
     p.child_limit <- max 16 (List.length p.children)
   end
 
-(* The label column of a depth only widens, while the display is open: to
-   the widest label drawn there, the message of a task that ended in place of
-   its label. *)
+(* While the display is open, the label column of a depth only widens, to the
+   widest label drawn at that depth. For a task that ended, its message
+   counts in place of its label. *)
 let widen_label r =
   let w = r.work and d = depth r in
   let n = Array.length w.label_cells in
@@ -358,34 +368,56 @@ let widen_label r =
     Array.blit w.label_cells 0 cells 0 n;
     w.label_cells <- cells
   end;
-  let label =
-    if is_running r then r.label else Option.value r.message ~default:r.label
-  in
+  let label = Option.value (message r) ~default:r.label in
   w.label_cells.(d) <- max w.label_cells.(d) (Console_width.string_width label)
 
-let rec forget r =
+(* The tasks that ended and are kept under a task weigh at most [held_cap]
+   bytes, as [weight] estimates them. Past this limit, the oldest are
+   forgotten until they weigh half of it. The task that just ended is
+   kept. *)
+let held_cap = 1_048_576
+
+(* [counted r] is [true] iff the weight of [r] is in what its parent holds:
+   [r] ended, and neither [r] nor its parent was forgotten. *)
+let counted r =
+  (not (is_running r))
+  && (not r.gone)
+  && match r.parent with Some p -> not p.gone | None -> false
+
+(* [carry p delta] adds [delta] to what [p] holds. While [p] is counted, its
+   weight changes as much, and so does what its parent holds, up to the first
+   task that runs. This is the only change to [held] and to a weight once it
+   is counted. *)
+let rec carry p delta =
+  p.held <- p.held + delta;
+  if counted p then begin
+    p.weight <- p.weight + delta;
+    Option.iter (fun q -> carry q delta) p.parent
+  end
+
+let rec drop r =
   changed r;
   r.memo <- [];
   r.gone <- true;
-  List.iter forget r.children;
+  List.iter drop r.children;
   r.children <- [];
   Queue.clear r.output;
   r.output_bytes <- 0;
-  r.held <- 0
+  r.held <- 0;
+  r.weight <- 0
+
+let forget r =
+  if counted r then Option.iter (fun p -> carry p (-r.weight)) r.parent;
+  drop r
 
 let rec size r =
   List.fold_left (fun n c -> if c.gone then n else n + size c) 1 r.children
 
-(* The ended tasks kept under a task weigh at most [held_cap] bytes, as
-   [weight] estimates them. Past it, the oldest are forgotten until they weigh
-   half of it; the task that just ended is kept. *)
-let held_cap = 1_048_576
-
-(* The bytes an ended task holds; a success drops its output. *)
-let weight r =
+(* The bytes that a task that ended holds. A success drops its output. *)
+let weight r (e : ended) =
   256 + String.length r.label
-  + Option.fold ~none:0 ~some:String.length r.message
-  + (if r.outcome = Some `Succeeded then 0 else r.output_bytes)
+  + Option.fold ~none:0 ~some:String.length e.message
+  + (if e.outcome = `Succeeded then 0 else r.output_bytes)
   + r.held
 
 let shed p latest =
@@ -393,7 +425,6 @@ let shed p latest =
     if
       p.held > held_cap / 2 && c != latest && (not (is_running c)) && not c.gone
     then begin
-      p.held <- p.held - c.weight;
       p.shed <- p.shed + size c;
       changed p;
       forget c;
@@ -403,13 +434,21 @@ let shed p latest =
   in
   p.children <- List.rev (List.filter keep (List.rev p.children))
 
-let hold r =
-  match r.parent with
-  | None -> ()
-  | Some p ->
-      r.weight <- weight r;
-      p.held <- p.held + r.weight;
-      if p.held > held_cap then shed p r
+(* [bound p latest] sheds the tasks under [p] and under each task above it
+   that hold more than [held_cap], from [p] up to the first task that runs.
+   [latest] and the tasks above it are kept. *)
+let rec bound p latest =
+  if p.held > held_cap then shed p latest;
+  if counted p then Option.iter (fun q -> bound q p) p.parent
+
+let hold r e =
+  if counted r then
+    Option.iter
+      (fun p ->
+        r.weight <- weight r e;
+        carry p r.weight;
+        bound p r)
+      r.parent
 
 let child_outcome = function
   | `Succeeded -> `Succeeded
@@ -420,12 +459,13 @@ let rec forget_key w k =
   if not (Atomic.compare_and_set w.by_key m (Keys.remove k m)) then
     forget_key w k
 
-let ended outcome ?message r =
+let conclude outcome ?message r =
   let w = r.work in
   Queue.clear r.window;
-  r.ended_at <- Some (w.now ());
-  r.message <- Option.map Task_text.label message;
-  r.outcome <- Some outcome;
+  let e =
+    { at = w.now (); outcome; message = Option.map Task_text.label message }
+  in
+  r.status <- Done e;
   if not (is_root r) then begin
     w.finished <- w.finished + 1;
     match outcome with
@@ -434,29 +474,30 @@ let ended outcome ?message r =
     | `Succeeded -> ()
   end;
   Option.iter (forget_key w) r.key;
-  hold r;
-  (* A success clears its output after the watchers saw its end. *)
+  hold r e;
+  (* A success clears its output after the watchers have seen its end. *)
   Fun.protect
-    (fun () -> notify w (Ended r))
+    (fun () -> notify w (Ended (r, e)))
     ~finally:(fun () ->
       if outcome = `Succeeded then begin
         Queue.clear r.output;
         r.output_bytes <- 0
       end)
 
-(* When a task ends, the [ending] function of its work runs first, then the
-   running tasks under it end, in the order they started: they succeed if it
-   succeeds, and are cancelled otherwise. A task ends once, and whole,
-   whatever that function or a subtask raises. *)
+(* When a task ends, the [ending] function of its work runs first. Then the
+   running subtasks end, in the order they started. They succeed if the task
+   succeeds, and are cancelled otherwise. A task ends once and completely,
+   even if that function or a subtask raises. *)
 let rec finish outcome ?message r =
-  if is_running r && not r.finishing then begin
-    r.finishing <- true;
-    let children = List.rev (running_children r) in
-    run_all
-      ((fun () -> r.work.ending r)
-       :: List.map (fun c () -> finish (child_outcome outcome) c) children
-      @ [ (fun () -> ended outcome ?message r) ])
-  end
+  match r.status with
+  | Finishing | Done _ -> ()
+  | Running ->
+      r.status <- Finishing;
+      let children = List.rev (running_children r) in
+      run_all
+        ((fun () -> r.work.ending r)
+         :: List.map (fun c () -> finish (child_outcome outcome) c) children
+        @ [ (fun () -> conclude outcome ?message r) ])
 
 let rename r label =
   if is_running r && not (is_root r) then begin
@@ -471,8 +512,8 @@ let count_text = function
 
 let rec digits n = if n < 10 then 1 else 1 + digits (n / 10)
 
-(* The widest a count of items can get, given its total: [total/total], and at
-   least [999/999]. *)
+(* The largest width of a count of items with this total: the width of
+   [total/total], and at least that of [999/999]. *)
 let items_width total = max (String.length "999/999") ((2 * digits total) + 1)
 
 let rate_text metric rate =
@@ -487,9 +528,9 @@ let same_metric a b =
   | Bytes (c, n), Bytes (c', n') -> Int64.equal c c' && Int64.equal n n'
   | _ -> false
 
-(* The rate is a moving average that weighs the past by the time since it was
-   measured, with time constant [tau] seconds, not by the number of reports:
-   reporting often or seldom gives the same rate for the same work. *)
+(* The rate is a moving average that weights past samples by their age, with
+   a time constant of [tau] seconds, not by the number of reports. So
+   reporting often or rarely gives the same rate for the same work. *)
 let tau = 2.
 
 let measure r cur =
@@ -507,10 +548,10 @@ let measure r cur =
   end
 
 (* The first task that counts bytes sets the count, short count and rate
-   columns to the widest ones of bytes, which no later count or rate passes,
-   as [Task_text.bytes] is never wider than "1023.99 KiB". A count of items
-   widens the count column, short or not, to what its total needs, when the
-   total changes. *)
+   columns to their widest width for bytes. No later count or rate is wider,
+   since [Task_text.bytes] is never wider than "1023.99 KiB". When the total
+   of a count of items changes, the count column (short or not) widens to
+   what the total needs. *)
 let widest_bytes = String.length "1023.99 KiB / 1023.99 TiB"
 let widest_short = String.length "999M/999M"
 let widest_rate = String.length "1023.99 MiB/s"
@@ -591,9 +632,9 @@ let rec merge r f =
   if not (Atomic.compare_and_set r.update old (f old)) then merge r f
   else if old == no_update then post r.work (fun () -> apply r)
 
-(* [mine r] is [true] iff the caller owns [r], once what other domains asked of
-   it is done. The setters test it rather than take closures, which would
-   allocate on every call. *)
+(* [mine r] is [true] iff the caller owns [r]. If so, the waiting requests of
+   other domains on the work are applied first. The setters test [mine]
+   instead of taking closures, which would allocate on every call. *)
 let mine r =
   (not (foreign r.work))
   && begin
@@ -601,8 +642,9 @@ let mine r =
     true
   end
 
-(* [owned r f] is [f ()] in the domain that owns [r], and there, after what was
-   asked of [r] before, when called from another. *)
+(* [owned r f] runs [f ()] in the domain that owns [r]. When called from
+   another domain, [f ()] runs later in the owner, after the earlier requests
+   on [r]. *)
 let owned r f =
   if mine r then f ()
   else
@@ -650,8 +692,8 @@ let eta r =
   | Some left when r.rate > 0. && is_running r -> Some (left /. r.rate)
   | _ -> None
 
-(* A task keeps at most [output_cap] bytes of output to show if it fails,
-   dropping the oldest lines first. *)
+(* A task keeps at most [output_cap] bytes of output to show if it fails. It
+   drops the oldest lines first. *)
 let output_cap = 1_048_576
 
 let keep_output r line =
@@ -670,7 +712,7 @@ let push r line =
   end
 
 (* A running task keeps each line, capped, in its window and its output. The
-   watchers see every line, uncapped, also from an ended task. *)
+   watchers see every line uncapped, also from a task that ended. *)
 let add r kind text =
   let w = r.work in
   List.iter
@@ -734,18 +776,17 @@ let rec keyed w key make =
       if Atomic.compare_and_set w.by_key m (Keys.add key r m) then (r, true)
       else keyed w key make
 
-(* The task joins its parent where the owner of the work is. *)
+(* The task is added to its parent in the domain that owns the work. *)
 let link parent r =
   let w = parent.work in
   w.started <- w.started + 1;
   if not parent.gone then adopt parent r;
   notify w (Started r);
-  (* A task started under an ended task ends at once: it succeeds if its
-     parent succeeded, and is cancelled otherwise. *)
-  match parent.outcome with
-  | None -> ()
-  | Some `Succeeded -> finish `Succeeded r
-  | Some (`Failed | `Cancelled) -> finish `Cancelled r
+  (* A task started under a task that ended ends at once. It succeeds if
+     its parent succeeded, and is cancelled otherwise. *)
+  match parent.status with
+  | Running | Finishing -> ()
+  | Done e -> finish (child_outcome e.outcome) r
 
 let start ?key ?(log_lines = 8) ?(transient = false) parent label =
   if log_lines < 0 then invalid_arg "Console.Task.start: negative log_lines";
@@ -772,13 +813,14 @@ let succeed ?message r = end_task `Succeeded ?message r
 let fail ?message r = end_task `Failed ?message r
 let cancel ?message r = end_task `Cancelled ?message r
 
-(* The message reads the label where the owner changes it. *)
+(* The message reads the label in the domain that owns the work, where the
+   label changes. *)
 let failed_with r e =
   owned r (fun () ->
       finish `Failed ~message:(r.label ^ ": " ^ Printexc.to_string e) r)
 
 (* A task found by its key is ended by the call that started it, not by this
-   one. *)
+   call. *)
 let run ?key ?log_lines ?transient parent label f =
   match start ?key ?log_lines ?transient parent label with
   | r, false -> within r (fun () -> f r)
@@ -817,14 +859,15 @@ let event (ch : change) =
           | Logs l -> Some (l :> Event.level)
         in
         Some (Event.output ?task:(task r) ?level ~time line.text)
-    | Ended r ->
-        let e =
-          match Option.value r.outcome ~default:`Cancelled with
+    | Ended (r, e) ->
+        let ev =
+          match e.outcome with
           | `Succeeded -> Event.succeeded
           | `Failed -> Event.failed
           | `Cancelled -> Event.cancelled
         in
-        Some (e ?task:(task r) ?message:r.message ~time ~elapsed:(elapsed r) ())
+        Some
+          (ev ?task:(task r) ?message:e.message ~time ~elapsed:(elapsed r) ())
 
 let on_event r f =
   let w = r.work in
@@ -835,17 +878,17 @@ let on_event r f =
   if foreign w then post w add else add ()
 
 let state r : [ `Running | outcome ] =
-  match r.outcome with
-  | None -> `Running
-  | Some o -> (o :> [ `Running | outcome ])
+  match r.status with
+  | Running | Finishing -> `Running
+  | Done e -> (e.outcome :> [ `Running | outcome ])
 
 let pp ppf r =
   Fmt.pf ppf "<task %d %S%s>" r.id r.label
-    (match r.outcome with
-    | None -> ""
-    | Some `Succeeded -> " succeeded"
-    | Some `Failed -> " failed"
-    | Some `Cancelled -> " cancelled")
+    (match state r with
+    | `Running -> ""
+    | `Succeeded -> " succeeded"
+    | `Failed -> " failed"
+    | `Cancelled -> " cancelled")
 
 let id r = r.id
 let work r = r.work
@@ -853,8 +896,6 @@ let parent r = r.parent
 let label r = r.label
 let metric r = r.metric
 let transient r = r.transient
-let message r = r.message
-let outcome r = r.outcome
 let window r = r.window
 let output r = r.output
 let dropped r = r.dropped

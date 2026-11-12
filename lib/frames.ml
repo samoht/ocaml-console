@@ -8,8 +8,8 @@ let braille = [ "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "
 let ascii = [ "|"; "/"; "-"; "\\" ]
 let still = [ "*" ]
 
-(* Frames with nothing to replace are kept as given. The themes console defines
-   check theirs as console loads. *)
+(* Frames with nothing to replace are kept as given. The themes that console
+   defines check their frames when console loads. *)
 let clean frame = Console_text.sanitize ~keep_newlines:false frame == frame
 
 let v fn = function

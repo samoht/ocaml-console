@@ -3,17 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A build in the terminal's scrollback: steps that end are printed once and
-   stay; only the steps still running are redrawn in place, under a title in
-   the theme's palette and a table of the steps, whose frame moves in a theme
-   with motion, and above the summary. The title, the table and the summary
-   are printed once the build is done. Name a theme to see it in that one;
-   pipe it through [cat] to see the lines a CI log gets. *)
+(* A build in the terminal's scrollback. Ended steps are printed once and
+   stay. Only the running steps are redrawn in place. Above them are a title
+   in the theme's palette and a table of the steps; below them is the
+   summary. In a theme with motion, the table's frame moves. The title, the
+   table and the summary are printed when the build is done. Name a theme to
+   see the build in that theme. Pipe it through [cat] to see the lines a CI
+   log gets. *)
 
 open Console
 
-(* The compiler's warnings, which stay above the rows once their step is done.
-*)
+(* The compiler's warnings. They stay above the rows after their step is
+   done. *)
 let src = Logs.Src.create "ocamlopt" ~doc:"The compiler's diagnostics"
 
 type step = { name : string; mutable status : View.t; mutable detail : string }
@@ -26,9 +27,9 @@ let title =
     (View.gradient (View.text "console, built step by step"))
 
 (* The details column has its full width from the start, so the table does
-   not widen as details come. In a room too narrow for that, it takes what
-   is left after the frame and padding (ten cells) and the step and status
-   columns (seven each). *)
+   not widen as details arrive. If the room is too narrow, the column takes
+   what is left after the frame and padding (ten cells) and the step and
+   status columns (seven cells each). *)
 let table room =
   let detail =
     match Room.width room with Some w -> max 1 (min 19 (w - 24)) | None -> 19
@@ -43,7 +44,8 @@ let table room =
        (fun s -> [ View.text s.name; s.status; View.text s.detail ])
        steps)
 
-(* What a step's row of the table says, from start to end. *)
+(* [started name] marks the step's row as running. It returns a function
+   that marks the row done, with a detail. *)
 let started name =
   let s = List.find (fun s -> String.equal s.name name) steps in
   s.status <- View.role `Accent (View.text "running");
@@ -51,8 +53,8 @@ let started name =
     s.status <- View.styled Style.bold (View.role `Succeeded (View.text "done"));
     s.detail <- detail
 
-(* What a step's commands print shows under its row while it runs, and goes
-   when it succeeds. *)
+(* The output of a step's commands shows under its row while it runs, and
+   goes when the step succeeds. *)
 let fetch clock root =
   let finished = started "fetch" in
   Task.run ~log_lines:2 root "fetch dependencies" @@ fun t ->
@@ -77,8 +79,8 @@ let compile clock root =
           Eio.Time.Mono.sleep clock 0.35)
         files;
       Task.set_items t ~count:(Array.length files) ~total:(Array.length files));
-  (* The warning is logged after the task ended, so it stays, while the
-     output of a task that succeeds goes. *)
+  (* The warning is logged after the task ended, so it stays. The output of
+     a task that succeeds goes. *)
   Logs.warn ~src (fun m -> m "eval.ml: unused variable x");
   finished "5 files, 1 warning"
 
@@ -94,9 +96,9 @@ let test clock root =
   done;
   finished "130 passed"
 
-(* The title and the table above the rows and the summary; they give way
-   first when the rows need the room. The table shows the steps as they are
-   at each frame. *)
+(* The title and the table go above the rows and the summary. They give
+   way first when the rows need the room. The table shows the steps as they
+   are at each frame. *)
 let view root =
   View.vcat
     [ title; View.sized ~width:100 (View.fit table); Progress.view root ]

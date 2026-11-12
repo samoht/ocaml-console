@@ -9,7 +9,8 @@
 #include <sys/ioctl.h>
 #endif
 
-/* The columns and the rows of a terminal, in one integer, or -1. */
+/* Returns the columns and rows of a terminal packed in one integer, or -1. */
+
 CAMLprim value console_tty_window_size(value fd) {
 #ifdef TIOCGWINSZ
   struct winsize w;

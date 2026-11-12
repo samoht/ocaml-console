@@ -3,62 +3,66 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [teardown.exe how] ends inside a live display as [how] says. Without an
-   argument its task succeeds; with [sigint], [exit], [raise] or [cancel], it
-   is interrupted, calls [exit] (a CLI's error path), raises to the toplevel
-   or has its fiber cancelled. In these cases it also prints a line on
-   standard output, which goes above the region, and its task a line of
-   output. The other arguments are:
-   - [secret]: SIGINT comes while it reads a password; with [secret-lost],
-     once its terminal is gone from standard input too;
-   - [colourless]: it chose no colour before the display;
-   - [widgets]: it prints every widget before the display;
-   - [themed]: it gave standard error a theme and chose nothing else;
-   - [logs] or [logs-failed]: its task prints and logs, then succeeds or
-     fails;
-   - [quiet-ok], [quiet-fail] or [quiet-cancel]: in quiet mode, its task
-     prints and logs, then succeeds, fails or is cancelled;
-   - [suspend]: SIGTSTP stops it, as Ctrl-Z does, and it goes on once
-     continued; with [orphaned-suspend], in a session of its own, where
-     Linux and macOS discard the stop;
-   - [unflushed]: it prints lines that it never flushes;
-   - [held]: it prints a line outside a task that it does not flush, then
-     one in a task that fails;
-   - [spawn]: it starts its first domain during the display;
-   - [elsewhere]: a thread prints on its terminal;
-   - [sigint-mid-write]: SIGINT comes in the middle of the write of a frame;
-     with [sigint-blocked], that write then never ends;
-   - [cut-link] or [cut-sequence]: SIGINT comes in a write that never ends,
-     cut inside a link or a control sequence;
-   - [exit-thread-blocked] or [exit-domain-blocked]: a thread or a domain
-     calls [exit] during such a write;
-   - [stop-blocked]: SIGTSTP stops it during a write that ends after a
-     while;
-   - [sigint-beside]: SIGINT comes while another domain computes; with
-     [sigint-masked], while the thread of the display blocks it too;
-   - [exit-domain-drawing] or [exit-thread-drawing]: a domain or a thread
-     calls [exit] while the display redraws;
-   - [repeated-signal first second cut closing]: two signals, each [int] or
-     [term], come in a row in the middle of a write, cut after [cut]
-     bytes. *)
+(* [teardown.exe how] ends inside a live display in the way [how] says. With no
+   argument, its task succeeds. With [sigint], [exit], [raise] or [cancel], it
+   is interrupted, calls [exit] (as a CLI's error path does), raises to the
+   toplevel, or has its fiber cancelled. In these four cases it also prints a
+   line on standard output, which goes above the region, and its task prints a
+   line of output. The other arguments are:
+   - [secret]: SIGINT arrives while it reads a password. With [secret-lost],
+     standard input has also lost its terminal.
+   - [colourless]: it turns colour off before the display.
+   - [widgets]: it prints every widget before the display.
+   - [themed]: it gives standard error a theme and makes no other choice.
+   - [logs] or [logs-failed]: its task prints and logs, then succeeds or fails.
+   - [quiet-ok], [quiet-fail] or [quiet-cancel]: in quiet mode, its task prints
+     and logs, then succeeds, fails or is cancelled.
+   - [suspend]: SIGTSTP stops it, as Ctrl-Z does, and it resumes when continued.
+     With [orphaned-suspend], it runs in its own session, where Linux and macOS
+     discard the stop.
+   - [unflushed]: it prints lines that it never flushes.
+   - [held]: it prints a line outside a task without flushing it, then a line in
+     a task that fails.
+   - [spawn]: it starts its first domain during the display.
+   - [elsewhere]: a thread prints on its terminal.
+   - [sigint-mid-write]: SIGINT arrives in the middle of writing a frame. With
+     [sigint-blocked], that write then never ends.
+   - [cut-link] or [cut-sequence]: SIGINT arrives during a write that never
+     ends, cut inside a link or inside a control sequence.
+   - [exit-thread-blocked] or [exit-domain-blocked]: a thread or a domain calls
+     [exit] during such a write.
+   - [stop-blocked]: SIGTSTP stops it during a write that ends after a while.
+   - [sigint-beside]: SIGINT arrives while another domain computes. With
+     [sigint-masked], the display's thread also blocks SIGINT.
+   - [exit-domain-drawing] or [exit-thread-drawing]: a domain or a thread calls
+     [exit] while the display redraws.
+   - [repeated-signal first second cut closing]: two signals arrive in a row in
+     the middle of a write, cut after [cut] bytes. [first] and [second] are each
+     [int] or [term]. *)
 
-(* SIGINT comes once the password is masked. *)
+(* SIGINT arrives once the password is masked. *)
 let secret env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
   Eio.Fiber.both
-    (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
+    (fun () ->
+      (* SIGINT ends the program before the answer comes. *)
+      match Console_eio.Prompt.secret prompt "password: " with
+      | Ok _ | Error _ -> ())
     (fun () ->
       while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
         Eio.Fiber.yield ()
       done;
       Unix.kill (Unix.getpid ()) Sys.sigint)
 
-(* As [secret], with the terminal gone from standard input, so that
-   giving the echo back fails. *)
+(* As [secret], but standard input no longer has the terminal, so restoring the
+   echo fails. *)
 let secret_lost env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
   Eio.Fiber.both
-    (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
+    (fun () ->
+      (* SIGINT ends the program before the answer comes. *)
+      match Console_eio.Prompt.secret prompt "password: " with
+      | Ok _ | Error _ -> ())
     (fun () ->
       while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
         Eio.Fiber.yield ()
@@ -68,16 +72,16 @@ let secret_lost env =
       Unix.kill (Unix.getpid ()) Sys.sigint);
   Fmt.pr "still running@."
 
-(* The program chose no colour itself, as a [--color=never] does, before
-   it runs a display. *)
+(* Before the display, the program turns colour off itself, as [--color=never]
+   does. *)
 let colourless _env =
   Fmt.set_style_renderer Fmt.stdout `None;
   Fmt.set_style_renderer Fmt.stderr `None;
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Console.Task.succeed (Console.Task.start root "plain"))
 
-(* Every widget, on standard output once [setup] has looked at the locale,
-   then a display with a bar. *)
+(* [setup] reads the locale, then every widget is printed on standard output,
+   then a display with a bar runs. *)
 let widgets _env =
   let open Console in
   Console_tty.setup ();
@@ -102,15 +106,15 @@ let widgets _env =
       Console_eio.with_output ignore;
       Task.succeed task)
 
-(* The program chose a theme, and no colour, before the display. *)
+(* Before the display, the program sets a theme and makes no colour choice. *)
 let themed _env =
   Console.Theme.set Fmt.stderr Console.Theme.nord;
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Console.Task.succeed (Console.Task.start root "themed"))
 
-(* A task's output, a line on each standard output, one within the root task
-   and a Logs message from a fiber the task forked; with [fails], the task
-   fails. *)
+(* A task prints its output, a line on each standard output, and a line within
+   the root task. A fiber that the task forks logs a Logs message. With [fails],
+   the task fails. *)
 let logs ~fails _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Console.Task.run root "work" (fun task ->
@@ -132,8 +136,8 @@ let suspend _env =
       Console_eio.with_output ignore;
       Console.Task.succeed task)
 
-(* SIGINT in the middle of a frame's write, half of it on the terminal; with
-   [blocked], the write then never ends. *)
+(* SIGINT arrives in the middle of writing a frame, when half of it is on the
+   terminal. With [blocked], the write then never ends. *)
 let mid_write ~blocked _env =
   let armed = ref false in
   let out = Format.pp_get_formatter_out_functions Fmt.stderr () in
@@ -159,8 +163,8 @@ let mid_write ~blocked _env =
       Console_eio.with_output (fun _ -> armed := true);
       Console.Task.succeed task)
 
-(* A frame's write that never ends, or that ends after [block ()], cut at
-   [cut s] bytes of the frame [s]; then [k ()]. *)
+(* A frame's write is cut at [cut s] bytes of the frame [s], then [k ()] runs.
+   The rest of the write never comes, or comes after [block ()]. *)
 let never () =
   let r, _ = Unix.pipe () in
   ignore (Unix.read r (Bytes.create 1) 0 1 : int)
@@ -188,7 +192,7 @@ let blocked_at ?(block = never) ~cut k _env =
       Console_eio.with_output (fun _ -> armed := true);
       Console_eio.redraw ())
 
-(* Inside the link's address, or inside the first control sequence. *)
+(* Cut inside the link's address, or inside the first control sequence. *)
 let in_link s =
   let rec find i =
     if String.sub s i 6 = "\027]8;;h" then i + 6 else find (i + 1)
@@ -236,9 +240,9 @@ let repeated_signal ~first ~second ~cut ~closing _env =
         Console.Task.succeed task
       end)
 
-(* Lines printed outside a task and never flushed, then a mark written
-   straight to the terminal: what came out before the mark is what the
-   display did not hold back. *)
+(* Lines printed outside a task and never flushed, then a mark written directly
+   to the terminal. The output before the mark is what the display did not hold
+   back. *)
 let unflushed _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun _ ->
       for i = 1 to 100_000 do
@@ -246,16 +250,14 @@ let unflushed _env =
       done;
       ignore (Unix.write_substring Unix.stdout "MARK\n" 0 5 : int))
 
-(* A line printed from a thread of the display's domain. *)
 let elsewhere _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       let task = Console.Task.start root "pushing" in
       Eio_unix.run_in_systhread (fun () -> Fmt.pr "from a thread@.");
       Console.Task.succeed task)
 
-(* A whole line outside a task, long enough that the formatter writes it,
-   waits for a flush; the task's line that comes next must not take it
-   along. *)
+(* A whole line outside a task, long enough that the formatter writes it and
+   then waits for a flush. The next line, in a task, must not take it along. *)
 let held _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Fmt.pr "a held line %s\n" (String.make 100 '.');
@@ -263,12 +265,11 @@ let held _env =
           Fmt.pr "a task line@.";
           Console.Task.fail task))
 
-(* The program's first domain starts in the middle of the display, and
-   Format gives the standard formatters a buffer per domain; lines follow,
-   outside a task and in one that fails. Once the display is gone, it prints
-   whether a write on standard error waits for a flush, as Format's own
-   writes do once a domain has started, rather than going straight to the
-   channel. *)
+(* The program's first domain starts during the display. Format then gives each
+   standard formatter one buffer per domain. Lines follow, outside a task and in
+   a task that fails. After the display, the program prints whether a write on
+   standard error waits for a flush, as Format's own writes do once a domain has
+   started, instead of going directly to the channel. *)
 let spawn _env =
   Console_eio.run ~clock:(Eio_mock.Clock.Mono.make ()) (fun root ->
       Domain.join (Domain.spawn ignore);
@@ -301,9 +302,9 @@ let quiet ending _env =
           | _ -> ());
       Console.Task.within root (fun () -> Fmt.pr "root line@."))
 
-(* SIGINT while another domain computes and the display's domain sleeps,
-   which then lets the other domain handle it; with [masked], the display's
-   thread blocks it, so that the other domain always does. *)
+(* SIGINT arrives while another domain computes and the display's domain sleeps,
+   so the other domain can handle it. With [masked], the display's thread blocks
+   SIGINT, so the other domain always handles it. *)
 let sigint_beside ~masked env =
   let clock = Eio.Stdenv.mono_clock env in
   let stop = Atomic.make false in
@@ -327,7 +328,7 @@ let sigint_beside ~masked env =
   Atomic.set stop true;
   Domain.join worker
 
-(* [exit] from another domain, or from a thread, while the display redraws. *)
+(* [exit] from another domain or from a thread while the display redraws. *)
 let exit_drawing ~from env =
   let clock = Eio.Stdenv.mono_clock env in
   Console_eio.run ~clock (fun root ->

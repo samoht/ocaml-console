@@ -18,8 +18,9 @@ let test_text () =
     "plain string" "hello"
     (View.to_string (View.styled Style.bold (View.text "hello")))
 
-(* A span holds only text that prints: a control is a space, malformed UTF-8
-   the replacement character, and a line feed starts a line. *)
+(* A span holds only printable text. A control becomes a space, malformed
+   UTF-8 becomes the replacement character, and a line feed starts a new
+   line. *)
 let test_sanitized () =
   let span = View.styled Style.bold (View.text "a\tb\nc\027[2Jd\255") in
   Alcotest.(check string)
@@ -54,7 +55,7 @@ let test_truncate () =
   Alcotest.(check string)
     "a wide character is not cut" "界…"
     (View.to_string (View.truncate 4 (View.text "界界界")));
-  (* A VS16 stays with its letter, at whatever width they take. *)
+  (* A VS16 stays with its letter, whatever width they take. *)
   let cut = View.truncate 3 (View.text "a\u{fe0f}bcdef") in
   Alcotest.(check bool)
     "a variation selector stays with its letter" true
@@ -150,7 +151,8 @@ let test_wrap () =
     (Invalid_argument "Console.View.wrap: non-positive width") (fun () ->
       ignore (View.wrap 0 (View.text "a")))
 
-(* [text] cut after each byte [i] where [cut text i]. *)
+(* [cut_after cut text] is [text] cut after each byte [i] where
+   [cut text i] holds. *)
 let cut_after cut text =
   let n = String.length text in
   let words = ref [] and first = ref 0 in
@@ -166,8 +168,8 @@ let cut_after cut text =
 let last_space text i =
   text.[i] = ' ' && (i = String.length text - 1 || text.[i + 1] <> ' ')
 
-(* The spaces outside a backquoted run end a word, as in [View.wrap]'s
-   documentation. *)
+(* Only the spaces outside a backquoted run end a word, as in the
+   documentation of [View.wrap]. *)
 let code_words text =
   let quoted = Array.make (String.length text) false and q = ref false in
   String.iteri
@@ -177,7 +179,7 @@ let code_words text =
     text;
   cut_after (fun t i -> (not quoted.(i)) && last_space t i) text
 
-(* A word rule under which a word also ends after a slash. *)
+(* A word rule where a word also ends after a slash. *)
 let slash_words = cut_after (fun t i -> t.[i] = '/' || last_space t i)
 let byte_words = cut_after (fun _ _ -> true)
 
@@ -265,8 +267,8 @@ let test_link () =
   Alcotest.(check bool)
     "OSC 8 close" true
     (String.ends_with ~suffix:"\027]8;;\027\\" ansi);
-  (* RFC 3986, section 2.1: a byte that may not appear in a URI is
-     percent-encoded, as two upper-case hexadecimal digits. *)
+  (* RFC 3986, section 2.1: a byte that is not allowed in a URI is
+     percent-encoded as two upper-case hexadecimal digits. *)
   let target uri =
     let ansi = View.to_string ~styled:true (View.link ~uri (View.text "x")) in
     match String.index_opt ansi '\027' with
@@ -292,7 +294,7 @@ let test_link () =
     "an empty URI links nowhere" "x"
     (View.to_string ~styled:true (View.link ~uri:"" (View.text "x")));
   (* A form feed ends a line, as a line feed does, so this label has no text
-     to link: a link is written only over the lines that have text. *)
+     to link. A link is written only over lines that have text. *)
   Alcotest.(check string)
     "a label of line ends links nothing" "\n\n"
     (View.to_string ~styled:true
@@ -302,14 +304,14 @@ let test_link () =
     (View.to_string ~styled:true
        (View.link ~uri:"https://x" (View.text "\012a")))
 
-(* One run of a style is written under one escape code. *)
+(* A run of one style is written with one escape code. *)
 let test_runs () =
   Alcotest.(check string)
     "merged" "\027[1mab\027[0m"
     (View.to_string ~styled:true
        View.(styled Style.bold (text "a") ++ styled Style.bold (text "b")))
 
-(* The colours of a formatter's depth. *)
+(* A formatter prints the colours of its depth. *)
 let test_depth () =
   let render depth =
     let buf = Buffer.create 16 in
@@ -346,7 +348,8 @@ let test_zero_width_blank_lines () =
 let fg c s = View.styled (Style.fg c) (View.text s)
 
 (* Each grapheme cluster of a line takes the blend of the stops at its
-   place, the first cluster the first stop and the last the last one. *)
+   position. The first cluster takes the first stop, and the last cluster
+   takes the last stop. *)
 let test_gradient () =
   let red = Color.rgb 255 0 0 and blue = Color.rgb 0 0 255 in
   let check what want got =
@@ -390,7 +393,7 @@ let test_gradient () =
     (View.to_string (View.gradient (View.text "a\027b")));
   Alcotest.(check int) "empty" 0 (View.width (View.gradient (View.text "")))
 
-(* Without colours, a gradient takes the palette of the theme it is printed
+(* A gradient with no colours uses the palette of the theme it is printed
    in, at the formatter's depth. *)
 let test_gradient_theme () =
   let span = View.gradient (View.text "abcdef") in
@@ -414,8 +417,8 @@ let test_gradient_theme () =
     "plain without colour" "abcdef"
     (printed ~theme:Theme.rainbow span)
 
-(* A role takes its style from the theme of the formatter it is printed on,
-   when it is printed. *)
+(* A role takes its style at print time, from the theme of the formatter
+   that prints it. *)
 let test_role () =
   let check what theme want got =
     Alcotest.(check string)
@@ -472,8 +475,8 @@ let test_role () =
     "sanitized" "a b"
     (View.to_string (View.role `Failed (View.text "a\027b")))
 
-(* [View.role] colours a span from under it: the span's own styles and links
-   win, and each line of the span takes the role's colour. *)
+(* [View.role] colours a span from below: the span's own styles and links
+   take priority. Each line of the span takes the role's colour. *)
 let test_with_role () =
   let check what want got =
     Alcotest.(check string)
@@ -503,9 +506,9 @@ let test_with_role () =
 
 let pp_at margin v = printed ~margin v
 
-(* A [fit] part is laid out in the room it is printed in: the formatter's
-   margin under [pp], the width given to [sized], and no width where it is
-   measured or printed whole. *)
+(* A [fit] part is laid out in the room it is printed in. Under [pp], the
+   room is the formatter's margin. Under [sized], it is the given width. When
+   the part is measured or printed whole, there is no width. *)
 let test_fit_room () =
   let room =
     View.fit (fun r ->
@@ -534,14 +537,51 @@ let test_fit_room () =
     "its theme and character set" "ascii false"
     (at ~theme:Theme.ascii ~utf_8:false ~time:0. theme)
 
+(* A negative bound is a room of no cell, as a negative width is for
+   [truncate], [crop] and [place]. *)
+let test_negative_room () =
+  let room =
+    View.fit (fun r ->
+        let pp = Fmt.(option ~none:(any "none") int) in
+        Fmt.kstr View.text "%a by %a" pp (Room.width r) pp (Room.height r))
+  in
+  Alcotest.(check string)
+    "sized" "0 by 0"
+    (View.to_string (View.sized ~width:(-5) ~height:(-2) room));
+  Alcotest.(check string)
+    "sized within the room" "0 by 0"
+    (pp_at 8 (View.sized ~width:(-5) ~height:(-2) room));
+  Alcotest.(check string)
+    "placed" ""
+    (View.to_string (View.place ~width:(-5) ~height:(-2) room));
+  let seen = ref [] in
+  let probe =
+    View.fit (fun r ->
+        seen := (Room.width r, Room.height r) :: !seen;
+        View.empty)
+  in
+  ignore (View.to_string (View.place ~width:(-5) ~height:(-2) probe));
+  Alcotest.(check (list (pair (option int) (option int))))
+    "the room of a placed view"
+    [ (Some 0, Some 0) ]
+    !seen;
+  seen := [];
+  let deep =
+    Tree.v (View.text "r") [ Tree.v (View.text "a") [ Tree.v probe [] ] ]
+  in
+  ignore (pp_at 2 (Tree.view ~guide:Guide.ascii deep));
+  Alcotest.(check (list (option int)))
+    "the room of a label under guides wider than the margin" [ Some 0 ]
+    (List.map fst !seen)
+
 let test_room_pp () =
   let room = View.fit (fun r -> Fmt.kstr View.text "%a" Room.pp r) in
   Alcotest.(check string)
     "without a room" "width unbounded, height unbounded, time 0"
     (View.to_string room)
 
-(* A view's size depends on its room, not on its time: each frame of a
-   [fit] is cut or padded to its frame at time 0. *)
+(* A view's size depends on its room, not on the time. Each frame of a
+   [fit] is cut or padded to the size of its frame at time 0. *)
 let test_fit_still_size () =
   let growing =
     View.fit (fun r ->
@@ -556,8 +596,8 @@ let test_fit_still_size () =
   in
   Alcotest.(check string) "padded" "x  \n " (at ~time:2. shrinking)
 
-(* Under a room, the parts of [hcat] that do not grow take what they need,
-   and a bar of no width grows to the rest. *)
+(* In a room, the parts of [hcat] that do not grow take what they need. A
+   bar with no width grows to fill the rest. *)
 let test_hcat_grow () =
   let row =
     View.(hcat ~gap:1 [ text "label"; Bar.horizontal 0.5; text "50%" ])
@@ -616,7 +656,7 @@ let test_place_wide_cut () =
       Alcotest.(check int) "the box is four cells" 4 (View.width placed))
     [ (`Left, "界… "); (`Center, "界… "); (`Right, " 界…") ]
 
-(* A cut line ends with the ellipsis of the formatter it is printed on. *)
+(* A cut line ends with the ellipsis of the formatter that prints it. *)
 let test_cut_ellipsis () =
   let v = View.text "abcdefgh" in
   let ascii = at ~utf_8:false ~live:false ~time:0. in
@@ -632,8 +672,8 @@ let test_cut_ellipsis () =
     "a line that fits" "abc  "
     (ascii (View.place ~width:5 (View.truncate 5 (View.text "abc"))))
 
-(* A view that reads nothing but its room is laid out once for each room it
-   is printed in; one that reads state is laid out each time. *)
+(* A view that reads only its room is laid out once per room. A view that
+   reads state is laid out every time it is printed. *)
 let test_cached () =
   let v, calls = laid () in
   ignore (at ~width:4 ~time:0. v);
@@ -646,8 +686,8 @@ let test_cached () =
   ignore (at ~width:4 ~time:0. v);
   Alcotest.(check int) "state is read again" 2 !calls
 
-(* The matrix theme's frame moves in a display that draws in colour, and
-   stands still where it is printed once. *)
+(* The matrix theme's frame moves in a display that draws in colour. It
+   does not move when printed once. *)
 let test_matrix_moves () =
   let table =
     Table.view [ Table.column (View.text "Name") ] [ [ View.text "Alice" ] ]
@@ -669,8 +709,8 @@ let test_weighted_room () =
     (fst (Console_vte.cursor_pos terminal));
   Alcotest.(check int) "all eleven cells shared" 11 (View.width (View.text raw))
 
-(* Weights share the room by their ratio, however large, and a negative
-   weight is refused. *)
+(* Weights share the room by their ratio, however large they are. A
+   negative weight is refused. *)
 let test_weights () =
   Alcotest.(check string)
     "huge weights" "aaaaabbbbb"
@@ -727,6 +767,8 @@ let suite =
         test_gradient_theme;
       Alcotest.test_case "a fit part is laid out in its room" `Quick
         test_fit_room;
+      Alcotest.test_case "a negative bound is an empty room" `Quick
+        test_negative_room;
       Alcotest.test_case "a fit part keeps its still size" `Quick
         test_fit_still_size;
       Alcotest.test_case "hcat shares its room" `Quick test_hcat_grow;

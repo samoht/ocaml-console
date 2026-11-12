@@ -5,30 +5,31 @@
 
 (** Running console on a scheduler.
 
-    A backend gives {!Make} what it needs from a scheduler and gets {!T.run},
-    {!T.print}, {!T.with_output} and {!T.redraw}, all in direct style. [run]
-    does the rest: it finds the terminal, shows the work, takes the program's
-    output and its [Logs] messages, redraws, and gives the terminal back.
+    A backend passes to {!Make} what console needs from a scheduler. It gets
+    back {!T.run}, {!T.print}, {!T.with_output} and {!T.redraw}, all in direct
+    style. [run] does the rest: it finds the terminal, shows the work, captures
+    the program's output and its [Logs] messages, redraws, and gives the
+    terminal back.
 
-    This library is [console.driver], on which [console-eio] and [console-lwt]
-    build. *)
+    This library is [console.driver]. [console-eio] and [console-lwt] build on
+    it. *)
 
-(** What a scheduler gives console. A {e fiber} is whatever the scheduler runs
-    concurrently in a domain. The driver calls {!S.notify} from any thread,
-    domain or signal handler, and every other function only on the first thread
-    of each domain that starts a [run] or makes a task current there. A
-    scheduler without cancellation takes [first a _] as [a ()], [protect f] as
-    [f ()], and [check ()] as doing nothing. *)
+(** What a scheduler gives console. A {e fiber} is anything that the scheduler
+    runs concurrently in a domain. The driver calls {!S.notify} from any thread,
+    domain or signal handler. It calls every other function only on the first
+    thread of a domain, in a domain that starts a [run] or makes a task current.
+    A scheduler without cancellation implements [first a _] as [a ()],
+    [protect f] as [f ()], and [check ()] as doing nothing. *)
 module type S = sig
   (** {1:clock Time} *)
 
   val clock : unit -> unit -> float
   (** [clock () ()] is the time that the display shows and records, in seconds
-      from any origin. The driver applies [clock ()] as a display opens, in a
-      fiber of its run, and calls the function it returns from any domain. *)
+      from any origin. The driver calls [clock ()] when a display opens, in a
+      fiber of its run. It may call the returned function from any domain. *)
 
   val tick : float -> unit
-  (** [tick d] waits [d] seconds on that time between two redraws. *)
+  (** [tick d] waits [d] seconds of {!val-clock} time between two redraws. *)
 
   val sleep : float -> unit
   (** [sleep d] waits [d] real seconds. *)
@@ -57,12 +58,13 @@ module type S = sig
   (** [wake ()] is a new {!type-wake}. *)
 
   val notify : wake -> unit
-  (** [notify w] has the fibers that wait on [w] look again. *)
+  (** [notify w] makes the fibers that wait on [w] check their condition again.
+  *)
 
   val wait : wake -> (unit -> 'a option) -> 'a
   (** [wait w f] is [v] as soon as [f ()] is [Some v]. It calls [f] again after
-      each {!notify}, which it must not miss, and is cancelled as its fiber is.
-  *)
+      each {!notify} on [w], and must not miss one. It is cancelled when its
+      fiber is cancelled. *)
 
   (** {1:fibers Fibers} *)
 
@@ -70,18 +72,17 @@ module type S = sig
   (** [in_fiber ()] is [true] iff the caller runs in a fiber. *)
 
   val background : (unit -> unit) list -> (unit -> 'a) -> 'a
-  (** [background daemons f] is [f ()], with each of [daemons] running in a
-      fiber of its own. Once [f] ends, the daemons still running are cancelled;
-      the driver's daemons also return by themselves then. A daemon that raises
-      cancels [f], and [background] raises its exception. *)
+  (** [background daemons f] is [f ()], with each of [daemons] running in its
+      own fiber. When [f] ends, the daemons still running are cancelled. The
+      driver's own daemons also return by themselves at that point. If a daemon
+      raises, [f] is cancelled and [background] raises that exception. *)
 
   val first : (unit -> 'a) -> (unit -> 'a) -> 'a
   (** [first a b] runs [a] and [b] concurrently and is the result of the first
       to end. The other is cancelled. *)
 
   val protect : (unit -> 'a) -> 'a
-  (** [protect f] is [f ()], which a cancellation of the caller does not reach.
-  *)
+  (** [protect f] is [f ()]. Cancelling the caller does not cancel [f]. *)
 
   val check : unit -> unit
   (** [check ()] raises the cancellation of the calling fiber, if any. *)
@@ -109,8 +110,8 @@ module type T = sig
     ?delay:float ->
     (Console.Task.t -> 'a) ->
     'a
-  (** [run f] is [f root], with the work under [root] shown on [ppf]. It is
-      called in a fiber. *)
+  (** [run f] is [f root], with the work under [root] shown on [ppf]. Call it in
+      a fiber. *)
 
   val with_output : (Format.formatter -> 'a) -> 'a
   (** [with_output f] is {!Console.Display.with_output} on the run's display. *)
@@ -122,12 +123,15 @@ module type T = sig
   (** [redraw ()] is {!Console.Display.redraw} on the run's display. *)
 
   val with_terminal : (unit -> 'a) -> 'a
-  (** [with_terminal f] is [f ()] with the rows off the screen, and what [f] and
-      the fibers it starts write on the standard formatters going straight out,
-      as a prompt needs. *)
+  (** [with_terminal f] is [f ()] with the progress rows cleared from the
+      screen. What [f] and its fibers write on the standard formatters goes
+      straight out. A prompt needs this. *)
 end
 
-(** One application holds one terminal: a program applies it once. *)
+(** [Make (B)] runs console on [B]. A program that links several backends
+    applies [Make] once for each, but it has one terminal: {!T.run} raises
+    [Invalid_argument] if it starts while a run of another application holds the
+    terminal. *)
 module Make (_ : S) : T
 
 val on_signals :
@@ -136,7 +140,7 @@ val on_signals :
   (unit -> 'a) ->
   'a
 (** [on_signals ~restore f] is [f ()]. If SIGINT or SIGTERM arrives while [f]
-    runs and the program left it at its default disposition, [restore] runs,
-    innermost first, then the signal ends the program. If SIGTSTP arrives, the
-    process stops inside [suspend stop] (defaults to [stop ()]). A prompt that
-    changes the terminal's mode needs it. *)
+    runs and the program left it at its default disposition, [restore] runs
+    (innermost call first), then the signal ends the program. If SIGTSTP
+    arrives, the process stops inside [suspend stop] (defaults to [stop ()]).
+    Use it in a prompt that changes the terminal's mode. *)

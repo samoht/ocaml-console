@@ -3,9 +3,10 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [opam install dune cmdliner fmt], four jobs at once: the plan, then each
-   action's line in the scrollback as it ends, while the jobs that run share
-   one status line, rewritten in place, which goes once the work is done. *)
+(* [opam install dune cmdliner fmt], with four jobs at once. It prints the
+   plan, then each action's line in the scrollback when the action ends. The
+   running jobs share one status line, rewritten in place. That line goes
+   when the work is done. *)
 
 open Console
 
@@ -18,7 +19,7 @@ type package = {
   install : (string * float) list;
 }
 
-(* Each command is the text opam shows for it, and how long it runs. *)
+(* Each command is the text opam shows for it, with how long it runs. *)
 let packages =
   [
     {
@@ -77,7 +78,7 @@ let packages =
 let requested = [ "dune"; "cmdliner"; "fmt" ]
 let jobs = 4
 
-(* Fetch, build and install each package. *)
+(* Each package has three actions: fetch, build and install. *)
 let actions = 3 * List.length packages
 let finished = ref 0
 let ( ++ ) = View.( ++ )
@@ -137,7 +138,7 @@ let proceed =
           View.text "Proceed with "; stats; View.text " installations? [Y/n] y";
         ])
 
-(* opam's section header: at most 80 cells, and the camel on UTF-8. *)
+(* opam's section header: at most 80 cells, with the camel on UTF-8. *)
 let header title =
   View.fit @@ fun room ->
   let width = min 80 (Option.value ~default:80 (Room.width room)) in
@@ -171,8 +172,9 @@ let job_text task =
           View.text "]";
         ]
 
-(* The texts that fit in [rem] cells, one space apart; when one does not,
-   the line ends with how many are left out, against the right edge. *)
+(* The texts that fit in [rem] cells, one space apart. If one does not
+   fit, the line ends with the number of texts left out, against the right
+   edge. *)
 let rec fit_texts rem = function
   | [] -> []
   | [ t ] when View.width t < rem -> [ t ]

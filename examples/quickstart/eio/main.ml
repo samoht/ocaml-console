@@ -3,8 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The program the README's recording shows, on Eio. It runs test suites side
-   by side as live progress rows, then prints a table of their results. *)
+(* The program shown in the README's recording, on Eio. It runs test suites
+   side by side as live progress rows, then prints a table of their
+   results. *)
 
 open Console
 

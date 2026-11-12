@@ -15,8 +15,8 @@ let test_public_surface () =
   exposed "Table" (module Console.Table : Surface);
   exposed "Display" (module Console.Display : Surface)
 
-(* [sanitize] is the widgets' rule over a plain string: malformed UTF-8 is the
-   replacement glyph, and no control moves the cursor. *)
+(* [sanitize] applies the widgets' rule to a plain string: malformed UTF-8
+   becomes the replacement glyph, and no control can move the cursor. *)
 let test_sanitize () =
   Alcotest.(check string)
     "a tab, a newline and an escape all become spaces" "a b c d"
@@ -38,13 +38,13 @@ let test_sanitize () =
     "\u{4E16}\u{754C} ok"
     (Console_text.sanitize "\u{4E16}\u{754C} ok")
 
-(* SGR (ECMA-48 8.3.117) is the one control sequence that cannot move the
-   cursor, erase a region or name a resource, so the only one [~keep_styles]
-   forwards; its parameter bytes are the digits and ';' alone. *)
+(* [~keep_styles] forwards SGR (ECMA-48 8.3.117) only, because it is the one
+   control sequence that cannot move the cursor, erase a region or name a
+   resource. Its parameter bytes are digits and ';' only. *)
 let styles s = Console_text.strip ~keep_styles:true s
 
-(* Everything that is not a strictly-parsed SGR is removed, as
-   {!Console_text.strip} removes it, and one scanner decides that for both. *)
+(* [~keep_styles] removes everything that is not a strictly parsed SGR, as
+   {!Console_text.strip} does. One scanner decides this for both. *)
 let neutralised what s =
   Alcotest.(check string) what (Console_text.strip s) (styles s)
 
@@ -67,8 +67,8 @@ let test_keep_styles_passes_sgr () =
     (Console_text.strip ~keep_newlines:false ~keep_styles:true
        "\027[31ma\nb\027[0m")
 
-(* The parameter run is bounded at 64 bytes, so that untrusted bytes cannot
-   make the scan as long as they like. *)
+(* The parameter run is at most 64 bytes, so untrusted bytes cannot make the
+   scan arbitrarily long. *)
 let test_keep_styles_bounds_the_parameters () =
   let params n = String.make n '1' in
   Alcotest.(check string)
@@ -93,8 +93,8 @@ let test_keep_styles_neutralises_the_rest () =
   neutralised "an escape that is not a control sequence at all" "\027(Bgone";
   neutralised "the C1 introducer does not open an SGR" "\u{009B}31mred"
 
-(* Styled text leaves no style on after it: a sequence whose last parameter is
-   not 0, or empty, is closed. *)
+(* Styled text leaves no style on after it. A sequence whose last parameter
+   is not 0 or empty gets closed. *)
 let test_keep_styles_closes_what_it_opens () =
   Alcotest.(check string)
     "an unterminated colour is closed" "\027[31mred\027[0m"
@@ -120,8 +120,8 @@ let side ?gap spans = View.to_string (View.hcat ?gap spans)
 let text = View.text
 
 (* [hcat] puts spans side by side, [gap] spaces apart. Each span is padded to
-   its widest line, and a shorter one with blank lines; a line ends after the
-   last span with text on it, and a span with no text is left out. *)
+   its widest line, and a shorter span gets blank lines. A line ends after
+   the last span with text on it. A span with no text is left out. *)
 let test_hcat () =
   Alcotest.(check string)
     "side by side" "a    1\nbbb  2\n     3"
@@ -150,8 +150,8 @@ let test_hcat () =
   Display_harness.check_invalid "Console.View.hcat: negative gap" (fun () ->
       ignore (View.hcat ~gap:(-1) [] : View.t))
 
-(* Each widget is as wide as the width it is given, and each span keeps
-   its colours. *)
+(* Each widget is as wide as its given width, and each span keeps its
+   colours. *)
 let test_hcat_widths () =
   let rule = View.sized ~width:9 (Rule.view ()) in
   Alcotest.(check (list int))
@@ -164,8 +164,8 @@ let test_hcat_widths () =
     (View.to_string ~styled:true red ^ "  " ^ View.to_string ~styled:true blue)
     (View.to_string ~styled:true (View.hcat [ red; blue ]))
 
-(* Spans side by side are a span: they go in a panel, as any span does, in
-   the theme of the formatter that prints it. *)
+(* Spans side by side form a span. Like any span, they fit in a panel, drawn
+   in the theme of the formatter that prints it. *)
 let test_hcat_nests () =
   let tree = Tree.v (View.text "src") [ Tree.v (View.text "lib") [] ] in
   let inner = View.hcat [ Tree.view tree; View.text "2 files" ] in
@@ -181,8 +181,8 @@ let test_hcat_nests () =
     @ [ "+------------------+" ])
     (lines (View.to_string panel))
 
-(* [vcat] puts spans one under the other; a span with no text takes no
-   line, and [height] counts the lines. *)
+(* [vcat] puts spans one under the other. A span with no text takes no line,
+   and [height] counts the lines. *)
 let test_vcat () =
   Alcotest.(check string)
     "one under the other" "a\nbb\nc"
@@ -208,8 +208,8 @@ let test_vcat () =
     @ [ View.to_string (View.sized ~width:5 rule) ])
     (lines (View.to_string (View.vcat [ panel; View.sized ~width:5 rule ])))
 
-(* [shown theme ~margin pp] is what [pp] prints on a formatter in [theme] at
-   [margin], without colours. *)
+(* [shown theme ~margin pp] is what [pp] prints, without colours, on a
+   formatter in [theme] at [margin]. *)
 let shown ?(utf_8 = true) theme ~margin pp =
   let buf = Buffer.create 256 in
   let ppf = Format.formatter_of_buffer buf in
@@ -228,8 +228,9 @@ let steps =
       [ View.text "build the whole tree"; View.text "7.4s" ];
     ]
 
-(* A widget as a span is laid out where it is printed, in that formatter's
-   theme and UTF-8, at the width it was given, as its [pp] lays it out. *)
+(* A widget used as a span is laid out when it is printed. It uses the
+   formatter's theme and UTF-8 setting and its own given width, as its [pp]
+   does. *)
 let test_to_span () =
   let tree = Tree.v (View.text "src") [ Tree.v (View.text "lib") [] ] in
   let panel =
@@ -268,8 +269,8 @@ let test_to_span () =
   Alcotest.(check string)
     "natural width" (View.to_string steps) (View.to_string steps)
 
-(* Widgets nest as spans: a table in a panel in a table cell, drawn in the
-   theme of the formatter that prints the outermost. *)
+(* Widgets nest as spans: here a table in a panel in a table cell. All are
+   drawn in the theme of the formatter that prints the outermost one. *)
 let test_nested () =
   let inner = Panel.view steps in
   let outer =
@@ -290,9 +291,9 @@ let test_nested () =
   let corners = List.length (Astring.String.cuts ~sep:"\u{2554}" dos) - 1 in
   Alcotest.(check int) "three frames in the printing theme" 3 corners
 
-(* A theme whose frame takes two cells lays a widget out wider than the
-   default one: a view is laid out in the theme it is printed in, each of its
-   lines as wide as the others. *)
+(* A view is laid out in the theme it is printed in. With a frame two cells
+   wide, a widget is wider than in the default theme, and all its lines keep
+   the same width. *)
 let test_to_span_cells () =
   let wide =
     Theme.v
@@ -320,14 +321,15 @@ let test_to_span_cells () =
     (List.map (fun w -> w + 2) (widths (View.to_string steps)))
     (widths (shown wide ~margin:200 (fun ppf -> View.pp ppf span)))
 
-(* A span that takes no cell still prints: here its combining accent joins
-   the letter of the span before it when there is no gap. *)
+(* A span of zero width still prints. Here its combining accent joins the
+   letter of the previous span when there is no gap. *)
 let test_hcat_combining_suffix () =
   Alcotest.(check string)
     "the accent survives composition" "e\u{0301}"
     (side ~gap:0 [ text "e"; text "\u{0301}" ])
 
-(* [pp] at a margin of [margin], in colour iff [styled], its lines. *)
+(* [lines margin pp] is the lines that [pp] prints at [margin], in colour iff
+   [styled]. *)
 let lines ?(styled = false) margin pp =
   String.split_on_char '\n'
     ( View_harness.capture @@ fun ppf ->
@@ -347,15 +349,14 @@ let check_fits name margin pp =
           margin l)
     (lines margin pp)
 
-(* Composed widgets from cases the property tests found: each of their lines
-   fits the margin. *)
+(* Each line of these composed widgets fits the margin. *)
 let test_put_together () =
   let open Console in
   let emoji =
     "1\u{fe0f}\u{20e3}a\u{fe0f} x\u{1f44d}\u{1f3fd}x\u{940}\u{2764}\u{fe0f}"
   in
-  (* A gradient wrapped in a cell, cut where its drawing has the cells its
-     text is counted at. *)
+  (* A gradient wrapped in a cell is cut at the width its text is measured
+     at. *)
   check_fits "a gradient in a cell" 14
     (Fmt.const View.pp
        (Table.view
@@ -367,8 +368,8 @@ let test_put_together () =
        (Panel.view ~border:Border.ascii ~padding:0
           (View.text
              "\u{1f468}\u{200d}\u{1f469}1\u{fe0f}\u{20e3}x 1\u{fe0f}\u{20e3}")));
-  (* A table and a tree side by side, each given half of a room narrower than
-     they need. *)
+  (* A table and a tree side by side. Each gets half of a room that is too
+     narrow for them. *)
   let half m = max 1 ((m - 1) / 2) in
   let side_by_side m =
     Fmt.const View.pp
@@ -386,8 +387,8 @@ let test_put_together () =
   List.iter
     (fun m -> check_fits "a table by a tree" m (side_by_side m))
     [ 3; 5; 9 ];
-  (* In colour, a panel with a gradient title beside a rule with a bar in its
-     label prints its plain text plus escape codes. *)
+  (* A panel with a gradient title, beside a rule with a bar in its label. In
+     colour, it prints its plain text plus escape codes. *)
   let scene m =
     Fmt.const View.pp
       (View.hcat
@@ -412,8 +413,8 @@ let test_put_together () =
     [ 4; 20; 60 ]
 
 (* The ASCII look draws a three-cell ellipsis. Splitting a deferred widget
-   into spans must keep all three dots, even where its UTF-8 layout had a
-   space after a one-cell ellipsis. *)
+   into spans keeps all three dots, even where the UTF-8 layout has a space
+   after a one-cell ellipsis. *)
 let test_nested_wrap_ascii () =
   let open Console in
   let rule =

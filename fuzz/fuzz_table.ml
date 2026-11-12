@@ -24,8 +24,8 @@ let table ?(border = Border.rounded) s =
   in
   (ncol, Table.view ~border columns rows)
 
-(* No line is wider than the margin, every style is turned off, and a framed
-   table that fits has all its lines as wide as one another. *)
+(* No line is wider than the margin, and every style is turned off. When a
+   framed table fits, all its lines have the same width. *)
 let test_fits s n =
   let margin = 4 + abs (n mod 80) in
   let ncol, t = table s in
@@ -38,8 +38,8 @@ let test_fits s n =
         List.iter (fun l -> check_eq ~pp:Fmt.int (cells first) (cells l)) rest
     | [] -> fail "no line"
 
-(* A table in [Border.simple] fits the margin, and once its columns fit,
-   the rule under a header runs across it: no line is wider. *)
+(* A table in [Border.simple] fits the margin. When its columns fit, the
+   rule under the header spans the table: no line is wider than the rule. *)
 let test_simple s n =
   let margin = 4 + abs (n mod 80) in
   let ncol, t = table ~border:Border.simple s in
@@ -61,7 +61,7 @@ let test_simple s n =
             if cells l > cells rule then failf "%S is wider than the rule" l)
           lines
 
-(* A right-aligned column's cells end in the same column. *)
+(* The cells of a right-aligned column all end at the same column. *)
 let test_right_aligned s =
   let cells_of i = View.text (pick s i) in
   let rows = List.init 4 (fun i -> [ cells_of i; View.text "|" ]) in
@@ -85,7 +85,7 @@ let test_right_aligned s =
     firsts
     (String.split_on_char '\n' (View.to_string t))
 
-(* A row with more cells than columns, or none, is refused. *)
+(* A row with no cell, or with more cells than columns, is refused. *)
 let test_shape s n =
   let k = abs (n mod 4) in
   let rows = [ List.init k (fun i -> View.text (pick s i)) ] in
@@ -125,7 +125,7 @@ let themes = List.map snd Theme.all
 
 let check_marker_columns mixed s =
   (* A [|] in the second column marks where the right-aligned first column
-     ends, which must be the same cell on every row. *)
+     ends. It must be at the same cell on every row. *)
   let t =
     Table.view ~border:Border.none
       [
@@ -184,8 +184,9 @@ let test_mixed_script_themes s n =
     themes;
   check_marker_columns mixed s
 
-(* With [~rules:true], a rule follows the header and each row but the last,
-   all in the glyphs of the header's rule: as many rules as rows. *)
+(* With [~rules:true], a rule follows the header and every row except the
+   last. So there are as many rules as rows, all drawn like the header's
+   rule. *)
 let test_rules s n =
   let ncol = columns_of s in
   let nrows = 1 + abs (n mod 6) in
@@ -200,9 +201,9 @@ let test_rules s n =
   check_eq ~pp:Fmt.int nrows (List.length rules);
   List.iter (fun r -> check_eq ~pp:Fmt.Dump.string (List.hd rules) r) rules
 
-(* Each field of a border is drawn on its own: an empty left or right edge
-   still takes the column of its corners and crossings, so every line is as
-   wide. *)
+(* Each field of a border is drawn on its own. An empty left or right edge
+   still takes the column of its corners and crossings, so all lines have
+   the same width. *)
 let test_independent_edges a b empty_right =
   let a = 1 + (a mod 8) and b = 1 + (b mod 8) in
   let border =

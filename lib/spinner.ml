@@ -6,7 +6,6 @@
 let braille = Frames.braille
 let ascii = Frames.ascii
 
-(* A spinner is as wide as its widest frame, and no wider than its room. *)
 let view ?frames () =
   let frames = Option.map (Frames.v "Spinner.view") frames in
   let frames (look : Look.t) =

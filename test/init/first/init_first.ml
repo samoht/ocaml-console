@@ -3,11 +3,11 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A sample is the source file charged and its words. It also keeps every
-   source file on its call stack. *)
+(* A sample is the source file it is charged to and its words. It also keeps
+   every source file on its call stack. *)
 let samples : (string * string list * int) list ref = ref []
 
-(* The source files of [stack], the outermost first. *)
+(* The source files of [stack], outermost first. *)
 let files stack =
   match Printexc.backtrace_slots stack with
   | None -> []

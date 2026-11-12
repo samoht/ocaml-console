@@ -3,15 +3,17 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The game a browser offers when the network is down, with OCaml's camel
-   jumping over lambdas: Space or the up arrow jumps, q quits. The game
-   moves in ticks of 100 ms, and the obstacles come from a seed, the first
-   argument: the same keys at the same ticks give the same game. It draws
-   in a live region on standard error, which keeps the last frame in the
-   scrollback; without a terminal it prints the opening scene and exits.
-   Given ticks after the seed, the game plays itself, pressing Space at
-   each of them, in a display of [Console_eio.run]: under CONSOLE_CAST,
-   that is its recording, on the deterministic clock. *)
+(* The game a browser shows when the network is down, with OCaml's camel
+   jumping over lambdas. Space or the up arrow jumps; q quits. The game
+   moves in ticks of 100 ms. The first argument is a seed for the
+   obstacles, so the same keys at the same ticks give the same game.
+
+   It draws in a live region on standard error, and the last frame stays in
+   the scrollback. Without a terminal it prints the opening scene and exits.
+
+   If ticks follow the seed, the game plays itself: it presses Space at each
+   of those ticks, in a display of [Console_eio.run]. Under CONSOLE_CAST
+   this gives its recording, on the deterministic clock. *)
 
 open Console
 
@@ -23,7 +25,7 @@ let sky = 12
 let ground = sky
 let camel_x = 3
 
-(* Pixels, two to a cell: '#' is drawn, '.' is not. *)
+(* Pixels, two per cell: '#' is drawn, '.' is not. *)
 let body =
   [|
     "..............##..";
@@ -66,20 +68,22 @@ let jump = [| 5; 9; 11; 12; 11; 9; 5 |]
 
 type obstacle = { at : int; wide : int; tall : int }
 
-(* A jump asked between two ticks starts at the second. *)
+(* [Asked] is a jump asked for between two ticks. It starts at the next
+   tick. *)
 type feet = Ground | Asked | Air of int
 
 type run = {
   ticks : int;
   feet : feet;
-  ahead : obstacle list;  (** In the world, nearest first. *)
+  ahead : obstacle list;  (** At world positions, nearest first. *)
   spawned : int;
 }
 
 type phase = Ready | Running of run | Over of run
 type game = { seed : int; best : int; phase : phase }
 
-(* The [n]th draw of a [stream] of the game, in \[0;bound\[. *)
+(* [roll seed stream n bound] is the [n]th draw of [stream], in
+   \[0;bound\[. *)
 let roll seed stream n bound =
   Random.State.int (Random.State.make [| seed; stream; n |]) bound
 
@@ -94,7 +98,7 @@ let obstacle seed n ~after =
   in
   { at = after + 42 + roll seed 1 n 36; wide; tall }
 
-(* Enough obstacles to fill [width] columns past [distance]. *)
+(* Adds obstacles until they fill [width] columns past [distance]. *)
 let rec fill seed run ~distance ~width =
   let last =
     match List.rev run.ahead with o :: _ -> o.at | [] -> distance + (width / 2)
@@ -119,7 +123,8 @@ let pixels sprite f =
     (fun y row -> String.iteri (fun x c -> if c = '#' then f x y) row)
     sprite
 
-(* The camel's pixels are on the sky's grid, two to a row of cells. *)
+(* The camel's pixels use the sky's grid: two pixel rows per row of
+   cells. *)
 let crashed run =
   let top = (2 * sky) - Array.length (sprite run) - lift run
   and d = distance run in
@@ -201,7 +206,7 @@ let centre c ink ~y s =
   let width = Array.length c.(0) in
   write c ink ~x:((width - View.width (View.text s)) / 2) ~y s
 
-(* A sprite at pixel row [py], in half blocks. *)
+(* Draws [sprite] at pixel row [py], with half blocks. *)
 let paint c ink ~x ~py sprite =
   let on y x =
     y >= 0
@@ -273,7 +278,7 @@ let draw_camel c ink run =
   let sprite = sprite run in
   paint c ink ~x:camel_x ~py:((2 * sky) - Array.length sprite - lift run) sprite
 
-(* A line of cells, in runs of one ink. *)
+(* A line of cells, grouped in runs of the same ink. *)
 let line cells =
   Array.fold_left
     (fun runs (glyph, k) ->
@@ -323,8 +328,8 @@ let view game =
 
 type key = Jump | Quit
 
-(* A key, or [None] for one the game ignores. Escape alone, as nothing
-   follows it in the same read, quits. *)
+(* The next key, or [None] if the game ignores it. Escape quits when
+   nothing follows it in the same read. *)
 let key input =
   let open Eio.Buf_read in
   match any_char input with
@@ -339,7 +344,7 @@ let key input =
       | _ -> None)
   | _ -> None
 
-(* The keys typed, then q at the end of the input. *)
+(* Pushes the keys typed, then [Quit] at the end of the input. *)
 let typed input push =
   let rec read () =
     match key input with
@@ -350,8 +355,8 @@ let typed input push =
   in
   read ()
 
-(* Space at each of [ticks], counted from the start, then q five seconds
-   after the last. *)
+(* Pushes Space at each of [ticks], counted from the start, then [Quit]
+   five seconds after the last one. *)
 let replay ~clock ticks push =
   let start = Eio.Time.Mono.now clock in
   List.iter
@@ -363,10 +368,11 @@ let replay ~clock ticks push =
   Eio.Time.Mono.sleep clock 5.;
   push Quit
 
-(* The game drawn by [show], with the keys that [keys push] gives [push].
-   A key restarts the clock of the ticks, the next one half a tick after it.
-   A recorder that presses keys a whole number of ticks apart thus lands each
-   between the same two ticks, however late each key arrives. *)
+(* Plays the game and draws it with [show]. [keys push] gives the keys to
+   [push]. A key restarts the tick clock: the next tick comes half a tick
+   after the key. So if a recorder presses keys a whole number of ticks
+   apart, each key lands between the same two ticks, however late it
+   arrives. *)
 let play ~clock ~show seed keys =
   let pending = Queue.create () and arrived = Eio.Condition.create () in
   let push k =
@@ -380,7 +386,8 @@ let play ~clock ~show seed keys =
     game
   in
   let ticking game t = if moving game then Some t else None in
-  (* [next] is the time of the next tick, while the camel runs. *)
+  (* [next] is the time of the next tick, or [None] when the camel does not
+   run. *)
   let rec loop game next =
     let now = Eio.Time.Mono.now clock in
     match (next, Queue.peek_opt pending) with

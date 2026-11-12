@@ -6,8 +6,8 @@
 open Alcobar
 open Console
 
-(* Text whose clusters, cells and bytes do not line up, over several
-   lines. *)
+(* Pieces of multi-line text. In each piece, the clusters, cells and bytes
+   have different counts. *)
 let alphabet = [| "x"; "\xe7\x95\x8c"; "e\xcc\x81"; " "; "\n"; "ab"; "\n\n" |]
 
 let text s =
@@ -18,10 +18,10 @@ let text s =
 let lines s = String.split_on_char '\n' s
 let width = Console_width.string_width
 
-(* Line [i] of [hcat] runs up to the last span with text on line [i], the
-   spans before it padded to their widths and each followed by the gap. Its
-   width is the widths and gaps before that span plus the width of that
-   span's line, and no line is wider than all the widths and gaps. *)
+(* Line [i] of [hcat] ends with the last span that has text on line [i].
+   The spans before it are padded to their widths, each followed by the gap.
+   So the line's width is the widths and gaps before that span, plus the
+   width of that span's line. No line is wider than all widths and gaps. *)
 let test_hcat texts gap =
   let gap = gap mod 5 in
   (* A span with no text takes no column. *)
@@ -63,8 +63,8 @@ let test_hcat texts gap =
       got
   end
 
-(* Rules side by side, each sized to [width], take on the terminal one row
-   of exactly their widths and gaps, in any theme. *)
+(* Rules side by side, each sized to [width], fill one terminal row. The row
+   is exactly their widths plus the gaps, in any theme. *)
 let test_hcat_margin n k =
   let width = 1 + (n mod 20) in
   let gap = 1 + (k mod 5) in
@@ -82,8 +82,9 @@ let test_hcat_margin n k =
   check (String.is_valid_utf_8 raw);
   check_eq ~pp:Fmt.int margin (View.width (View.text (Console_text.strip raw)))
 
-(* With no gap, combining marks in the span after a letter join that letter
-   on the terminal, as they do in the concatenated text. *)
+(* With no gap, combining marks at the start of a span join the letter that
+   ends the span before. The terminal shows the same as for the concatenated
+   text. *)
 let test_hcat_combining_suffix n =
   let marks = [| 0x0300; 0x0301; 0x0308; 0x0327 |] in
   let buf = Buffer.create 16 in
@@ -105,9 +106,8 @@ let test_hcat_combining_suffix n =
     (Console_vte.to_string actual);
   check_eq ~pp:Fmt.Dump.string want got
 
-(* [vcat] puts the lines of each span with text under those of the span
-   before it: its lines are theirs, in order, and a span with no text adds
-   none. *)
+(* [vcat] stacks the lines of its spans in order. A span with no text adds
+   no line. *)
 let test_vcat texts =
   let spans =
     List.map (fun s -> if s = "" then View.empty else View.text (text s)) texts
@@ -124,13 +124,13 @@ let test_vcat texts =
     (List.fold_left (fun n s -> max n (View.width s)) 0 spans)
     (View.width stacked)
 
-(* The guarantees each widget states alone, checked on widgets nested in
-   one another (a table in a panel in a cell of a table next to a tree),
-   with roles, styles and gradients, in any theme, colour depth, encoding
-   and margin, and in a display's view. *)
+(* The tests below check each widget's guarantees on nested widgets, for
+   example a table in a panel in a cell of a table next to a tree. They use
+   roles, styles and gradients, and any theme, colour depth, encoding,
+   margin, and a display's view. *)
 
-(* Text that is hard to lay out: wide, combining, joined and selected
-   emoji, a spacing mark, controls and escapes, and ASCII. *)
+(* Text that is hard to lay out: wide characters, combining marks, emoji
+   sequences, a spacing mark, controls, escapes and ASCII. *)
 let hostile =
   [|
     "x";
@@ -158,10 +158,9 @@ let hostile_text s =
        (min 24 (String.length s))
        (fun i -> hostile.(Char.code s.[i] mod Array.length hostile)))
 
-(* Random trees of widgets. [Nest] makes a block a span and [Styled] prints
-   a block in a style, so every widget can nest in every other: a table in a
-   panel in a cell of a table, side by side ([Hcat]) or one under the other
-   ([Vcat]). *)
+(* Random trees of widgets. [Nest] turns a block into a span, and [Styled]
+   prints a block in a style. So any widget can nest in any other, side by
+   side ([Hcat]) or stacked ([Vcat]). *)
 type span =
   | Text of int * string
   | Gradient of string
@@ -264,8 +263,8 @@ let rec span = function
   | Nest (k, b) -> nested k b
   | Cat l -> View.concat (List.map span l)
 
-(* [nested k b] is [b] as a span, at its natural width or, when [k] is odd,
-   at a width [k] gives. *)
+(* [nested k b] is [b] as a span. When [k] is even, the span has its natural
+   width; when [k] is odd, [k] gives the width. *)
 and nested k b =
   let width = if k land 1 = 0 then None else Some (1 + (k / 2 mod 60)) in
   match b with
@@ -385,33 +384,35 @@ and texts = function
   | Styled (_, b) -> texts b
   | Hcat (_, l) | Vcat l -> List.concat_map texts l
 
-(* [may_overflow b] holds when [b] may print lines wider than the margin: a
-   view prints its text whole, also side by side or one under the other, and
-   a rule whose label is wider than the margin is two cells wider. *)
+(* [may_overflow b] is [true] when [b] may print lines wider than the
+   margin. A view prints its text whole, also inside [Hcat] or [Vcat]. A
+   rule with a label wider than the margin is two cells wider than it. *)
 let rec may_overflow = function
   | View _ | Rule (Some _) | Hcat _ | Vcat _ -> true
   | Styled (_, b) -> may_overflow b
   | _ -> false
 
-(* The cells a line takes on a terminal wide enough for it. *)
+(* [on_screen line] is the number of cells [line] takes on a terminal wide
+   enough for it. If the emulator counts the cells differently from console,
+   the sample is discarded ({!Console_vte.counts_as_console}). *)
 let on_screen line =
+  guard (Console_vte.counts_as_console (Console_text.strip line));
   let term = Console_vte.v ~rows:1 ~cols:2000 () in
   Console_vte.feed term line;
   snd (Console_vte.cursor_pos term)
 
-(* Any tree of widgets, printed in any look:
-   - no line wider than the margin, unless [may_overflow], and each line as
-     wide on the terminal as console counts it;
+(* Any tree of widgets, printed in any look, gives:
+   - no line wider than the margin, unless [may_overflow];
+   - for each line, the same width on the terminal as console computes;
    - the same bytes on every print;
-   - without colour, the bytes in colour with their escapes stripped;
-   - valid UTF-8 with every escape whole, and no escape without colour;
-   - ASCII alone when the formatter is not UTF-8 and the text is ASCII. *)
+   - without colour, the coloured bytes with their escapes stripped;
+   - valid UTF-8, every escape whole, and no escape without colour;
+   - only ASCII when the formatter is not UTF-8 and the text is ASCII. *)
 let test_printed block k m =
   let look = look k m in
   match print look block with
   | None -> ()
   | Some out ->
-      Matrix_0_1.discard_stray_vs16 out;
       check_eq ~pp:Fmt.(option Dump.string) (Some out) (print look block);
       check (String.is_valid_utf_8 out);
       if not (escapes_whole out) then failf "a cut escape in %S" out;
@@ -436,8 +437,8 @@ let test_printed block k m =
       if (not look.utf_8) && List.for_all Text_harness.is_ascii (texts block)
       then if not (Text_harness.is_ascii out) then failf "not ASCII: %S" out
 
-(* The screen a display draws with [block] as its view, in [theme] at
-   [time]. *)
+(* [view_screen theme ~width ~height ~time block] is the screen a display
+   draws with [block] as its view, in [theme] at [time]. *)
 let view_screen theme ~width ~height ~time block =
   let term = Console_vte.v ~rows:height ~cols:width () in
   let ppf = Display_harness.feeding term in
@@ -456,17 +457,17 @@ let view_screen theme ~width ~height ~time block =
   let rows =
     List.init (height - 1) (fun y ->
         List.init width (fun x ->
-            let i = Grid.idx g ~x ~y in
-            (Grid.is_continuation g i, Grid.get_text g i)))
+            let i = Matrix_grid.idx g ~x ~y in
+            (Matrix_grid.is_continuation g i, Matrix_grid.get_text g i)))
   in
   Display.close d;
   rows
 
 let is_text c = String.length c = 1 && Char.Ascii.is_alphanum c.[0]
 
-(* At any time, a view drawn in a theme with motion has the cells of the
-   same view in the still theme, each as wide and each letter or digit the
-   same: only the frame's lines move. *)
+(* A view in a theme with motion has the same cells as in the still theme,
+   at any time. Each cell has the same width, and each letter or digit is
+   the same. Only the frame's lines move. *)
 let test_view block k w t =
   let theme = Widget_harness.nth_theme k in
   let width = 1 + (w mod 120) and height = 3 + (k / 64 mod 12) in
@@ -492,7 +493,9 @@ let nested_cells raw =
       let g = Console_vte.grid vte in
       List.filter_map
         (fun i ->
-          match Grid.get_text g i with "" | " " -> None | _ -> Some (g, i))
+          match Matrix_grid.get_text g i with
+          | "" | " " -> None
+          | _ -> Some (g, i))
         (List.init cols Fun.id))
     (String.split_on_char '\n' raw)
 
@@ -529,18 +532,19 @@ let outer_widget k inner =
 let render_nested ~theme ~utf_8 span =
   View_harness.printed ~theme ~utf_8 ~depth:`True_color span
 
-(* What a cell of a grid shows. *)
+(* [grid_cell g i] is what cell [i] of [g] shows: text, attributes, colours
+   and link. *)
 let grid_cell g i =
-  ( Grid.get_text g i,
-    Grid.get_attrs g i,
+  ( Matrix_grid.get_text g i,
+    Matrix_grid.get_attrs g i,
     Ansi.Color.to_rgb (Console_vte.fg g i),
     Ansi.Color.to_rgb (Console_vte.bg g i),
-    Grid.hyperlink_url g (Grid.get_link g i) )
+    Matrix_grid.get_link g i )
 
-(* Wrapping changes where a widget's lines break, not the glyphs, colours
-   or attributes of its non-space cells. The cells are compared on the
-   emulated terminal, since a width check alone would pass an output that
-   lost its content. *)
+(* Wrapping changes where a widget's lines break. It does not change the
+   glyphs, colours or attributes of non-space cells. The test compares
+   cells on the emulated terminal: a width check alone would pass an output
+   that lost content. *)
 let test_nested_wrap s k n =
   let content =
     View.styled Style.bold (View.gradient (View.text (nested_input s)))
@@ -560,11 +564,12 @@ let test_nested_wrap s k n =
     (fun (g, i) (h, j) ->
       if grid_cell g i <> grid_cell h j then
         failf "wrapping at %d changed a cell in %s: %S became %S" width
-          (Theme.name theme) (Grid.get_text g i) (Grid.get_text h j))
+          (Theme.name theme) (Matrix_grid.get_text g i)
+          (Matrix_grid.get_text h j))
     expected actual
 
-(* Widgets side by side keep their cells when a widget around them wraps
-   them. A width check alone would miss lost text, styles or links. *)
+(* Widgets side by side keep their cells when an outer widget wraps them. A
+   width check alone would miss lost text, styles or links. *)
 let test_hcat_nested_wrap input k n =
   let content =
     let clusters = [| "a"; " "; "b"; "\n"; "\u{754c}"; "e\u{0301}" |] in

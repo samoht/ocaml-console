@@ -10,8 +10,7 @@ let in_range (r, g, b) =
   let ok v = v >= 0 && v <= 255 in
   ok r && ok g && ok b
 
-(* [rgb] accepts exactly the components in [0;255], and [to_rgb] gives them
-   back. *)
+(* [rgb] accepts only components in [0;255], and [to_rgb] returns them. *)
 let test_rgb r g b =
   let valid = in_range (r, g, b) in
   match Color.rgb r g b with
@@ -20,7 +19,7 @@ let test_rgb r g b =
       check (Color.to_rgb c = (r, g, b))
   | exception Invalid_argument _ -> if valid then fail "in range refused"
 
-(* [palette] accepts exactly [0;255]. *)
+(* [ansi_256] accepts only indices in [0;255]. *)
 let test_palette n =
   match Color.ansi_256 n with
   | c ->
@@ -30,7 +29,8 @@ let test_palette n =
 
 (* A colour printed as hex reads back. *)
 let test_hex s =
-  ignore (Color.of_hex s);
+  (* Any string reads as a colour or as an error, never as an exception. *)
+  (match Color.of_hex s with Ok _ | Error (`Msg _) -> ());
   let r, g, b =
     ( Char.code (String.get (s ^ "abc") 0),
       Char.code (String.get (s ^ "abc") 1),
@@ -41,8 +41,8 @@ let test_hex s =
   | Ok c' -> check (Color.equal c c')
   | Error _ -> fail "printed colour does not read back"
 
-(* [blend] and [scale] stay in range, whatever the factor; [blend c0 c1 0] is
-   [c0] and [blend c0 c1 1] is [c1]. *)
+(* [blend] and [scale] stay in range for any factor. [blend c0 c1 0] is [c0]
+   and [blend c0 c1 1] is [c1]. *)
 let test_blend_scale a b f =
   let c0 = Color.ansi_256 (a land 255) and c1 = Color.ansi_256 (b land 255) in
   check (in_range (Color.to_rgb (Color.blend c0 c1 f)));
@@ -55,8 +55,8 @@ let test_blend_scale a b f =
       (let r, g, b = Color.to_rgb (Color.scale f c0) in
        [ r; g; b ])
 
-(* [downsample] keeps a colour at [`True_color], gives a palette entry at
-   [`Ansi_256] and a named colour at [`Ansi_16], and is idempotent. *)
+(* [downsample] is idempotent. It keeps a colour at [`True_color], returns a
+   palette entry at [`Ansi_256] and a named colour at [`Ansi_16]. *)
 let test_downsample r g b =
   let c = Color.rgb (r land 255) (g land 255) (b land 255) in
   check (Color.equal c (Color.downsample `True_color c));
@@ -77,9 +77,9 @@ let test_downsample r g b =
       | `True_color -> ())
     [ `Ansi_256; `Ansi_16 ]
 
-(* Every colour the API builds, from any argument it accepts, writes an SGR
-   whose parameters are all in [0;255]: [Color.t] is abstract, so these
-   constructors are the only ways to make one. *)
+(* Every colour the constructors build writes an SGR with all parameters in
+   [0;255]. [Color.t] is abstract, so these constructors are the only way to
+   make a colour. *)
 let test_sgr_in_range n r g b f =
   let built =
     List.filter_map
@@ -108,7 +108,7 @@ let test_sgr_in_range n r g b f =
         [ `True_color; `Ansi_256; `Ansi_16 ])
     built
 
-(* A formatter's depth is the one last set on it. *)
+(* A formatter's depth is [`Ansi_16] until set, then the last depth set. *)
 let test_depth n =
   let ppf = Format.formatter_of_buffer (Buffer.create 1) in
   check (Color.depth ppf = `Ansi_16);

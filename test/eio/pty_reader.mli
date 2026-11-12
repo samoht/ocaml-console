@@ -7,7 +7,7 @@
     timeout. *)
 
 val read_all : Eio_unix.Pty.t -> (unit -> unit) -> string
-(** [read_all pty ended] is what is written on [pty] until [ended ()] returns,
-    which it does once the program writing there has exited. A mark is then
+(** [read_all pty ended] is what is written on [pty] until [ended ()] returns.
+    [ended ()] returns once the program writing there has exited. A mark is then
     written on the terminal, after all the program wrote, and the reader stops
-    at it: no read is cut short and no wait depends on time. *)
+    at it. No read is cut short, and no wait depends on time. *)

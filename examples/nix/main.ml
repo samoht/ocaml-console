@@ -3,12 +3,12 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [nix build], imitated: the plan is printed once, then a single status line
-   counts the builds, the copies and the download, and names the latest
-   activity with its phase and the last line of its log. A build or a fetch
-   that succeeds leaves nothing, and the status line goes when the work ends.
-   Piped through [cat], each line of a build's log comes after its name and
-   [>], as with [nix build -L]. *)
+(* An imitation of [nix build]. The plan is printed once. Then a single
+   status line counts the builds, the copies and the download. It also names
+   the latest activity, with its phase and the last line of its log. A build
+   or a fetch that succeeds leaves nothing, and the status line goes when
+   the work ends. Piped through [cat], each line of a build's log comes
+   after the build's name and [>], as with [nix build -L]. *)
 
 open Console
 
@@ -16,7 +16,7 @@ let cache = "https://cache.nixos.org"
 let mib = 1048576.
 let mebibytes n = Int64.to_float n /. mib
 
-(* Store paths, their hashes in Nix's base-32 from a fixed seed. *)
+(* Store paths. Their hashes are in Nix's base-32, from a fixed seed. *)
 let store =
   let rng = Random.State.make [| 0x2c1 |] in
   let base32 = "0123456789abcdfghijklmnpqrsvwxyz" in
@@ -26,7 +26,8 @@ let store =
 
 (* {1 The plan} *)
 
-(* What the binary cache has: the bytes to download, and unpacked. *)
+(* A path in the binary cache, with its download size and its unpacked
+   size. *)
 type substitute = {
   path : string;
   name : string;
@@ -204,7 +205,7 @@ let pp_plan ppf () =
 
 (* {1 The status line} *)
 
-(* A top task per kind, each activity a child. *)
+(* Each kind has one top task, and each activity is a child of it. *)
 type kind = Build | Copy | Download
 
 let kind_label = function
@@ -225,7 +226,7 @@ let running = Style.(bold + fg Color.blue)
 let finished = Style.(bold + fg Color.green)
 let number pp style x = View.styled style (Fmt.kstr View.text "%a" pp x)
 
-(* [running/done/expected], each part shown as Nix shows it. *)
+(* [running/done/expected], with each part shown as Nix shows it. *)
 let numbers pp ~running:r ~done_ expected =
   let slash = View.text "/" and plain = number pp Style.none expected in
   if r > 0. then
@@ -274,8 +275,8 @@ let counters root =
     ++ concat ~sep:(text ", ") ([ built; copied ] @ downloaded)
     ++ text "]")
 
-(* The latest build or fetch that has run for 10 ms: a download shows through
-   the fetch it belongs to. *)
+(* The running build or fetch that started last, among those that have run
+   for at least 10 ms. A download shows as the fetch it belongs to. *)
 let latest root =
   let pick best (kind, t) =
     if Task.state t <> `Running || Task.elapsed t < 0.01 then best
@@ -328,7 +329,7 @@ let status root =
     in
     match Room.width room with Some w -> View.truncate w line | None -> line
 
-(* Off a terminal, a build's log as [nix build -L] prints it. *)
+(* Off a terminal, prints a build's log as [nix build -L] does. *)
 let plain e =
   match (Task.Event.kind e, Task.Event.task e, Task.Event.text e) with
   | `Output, Some (_, [ top; name ]), Some line

@@ -22,7 +22,7 @@ let test_run_returns () =
 
 let seconds s = Mtime.of_uint64_ns (Int64.of_float (s *. 1e9))
 
-(* What a task that waits two seconds on a mock monotonic clock prints. *)
+(* The output of a task that waits two seconds on a mock monotonic clock. *)
 let nap () =
   Eio_main.run @@ fun _ ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -41,8 +41,8 @@ let took s out = contains ("\u{2713} nap  " ^ s) out
 let test_run_on_a_monotonic_clock () =
   Alcotest.(check bool) "the time it took" true (took "2.0s" (nap ()))
 
-(* What a task prints that sleeps 1.5 and 0.5 seconds on [Console_eio.clock]
-   of a mock clock. *)
+(* The output of a task that sleeps 1.5 and then 0.5 seconds on
+   [Console_eio.clock] of a mock clock. *)
 let sleeps () =
   Eio_main.run @@ fun _ ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
@@ -54,8 +54,8 @@ let sleeps () =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* What a task prints whose two fibers sleep 1 and 2 seconds at once on
-   [Console_eio.clock] of a mock clock. *)
+(* The output of a task whose two fibers sleep 1 and 2 seconds at the same time
+   on [Console_eio.clock] of a mock clock. *)
 let overlapping () =
   Eio_main.run @@ fun _ ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
@@ -68,9 +68,9 @@ let overlapping () =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* CONSOLE_DETERMINISTIC_CLOCK, set and not empty, makes the display read
-   the time of the sleeps on a clock of [Console_eio.clock], and zero on
-   another clock. *)
+(* When CONSOLE_DETERMINISTIC_CLOCK is set and not empty, the display reads the
+   time of the sleeps on a clock of [Console_eio.clock]. On any other clock it
+   reads zero. *)
 let test_deterministic_clock () =
   let deterministic f =
     with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] (fun () -> f ())
@@ -90,9 +90,8 @@ let test_deterministic_clock () =
   in
   Alcotest.(check bool) "an empty value" true (took "2.0s" empty)
 
-(* What a task prints that sleeps 1.5 then 0.5 seconds on [Console_eio.clock]
-   of a mock clock that never moves. It fails if a sleep waits on that
-   clock. *)
+(* The output of a task that sleeps 1.5 then 0.5 seconds on [Console_eio.clock]
+   of a mock clock that never moves. It fails if a sleep waits on that clock. *)
 let still_nap () =
   Eio_main.run @@ fun _ ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
@@ -113,15 +112,15 @@ let still_nap () =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* Under CONSOLE_DETERMINISTIC_CLOCK alone, a sleep takes no real time. *)
+(* With CONSOLE_DETERMINISTIC_CLOCK alone, a sleep takes no real time. *)
 let test_sleeps_take_no_time () =
   with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
   Alcotest.(check bool)
     "the time of the sleeps" true
     (contains "\u{2713} nap  2/2  2.0s" (still_nap ()))
 
-(* What a task prints that sleeps 0.5 seconds on [Console_eio.clock], then
-   awaits a promise that another fiber resolves after [n] yields. *)
+(* The output of a task that sleeps 0.5 seconds on [Console_eio.clock], then
+   awaits a promise. Another fiber resolves the promise after [n] yields. *)
 let awaits n =
   Eio_main.run @@ fun _ ->
   let clock = Console_eio.clock (Eio_mock.Clock.Mono.make ()) in
@@ -141,18 +140,17 @@ let awaits n =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-(* The redraws never move the time: a task that waits on another fiber
-   shows the same time however many yields that fiber takes. *)
+(* Redraws never move the time. A task that waits on another fiber shows the
+   same time, however many yields that fiber takes. *)
 let test_redraws_keep_the_time () =
   with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
   let few = awaits 10 in
   Alcotest.(check bool) "the time of the sleep" true (contains "wait  0.5s" few);
   Alcotest.(check string) "the same time" few (awaits 10_000)
 
-(* The two builds of examples/columns, with sleeps on [Console_eio.clock].
-   With a seed other than zero, each build works a random real time before
-   each sleep, and another fiber yields a random number of times in a
-   loop. *)
+(* The two builds of examples/columns, with sleeps on [Console_eio.clock]. With
+   a non-zero seed, each build works a random real time before each sleep, and
+   another fiber yields a random number of times in a loop. *)
 let perturbed ?cast ~progress seed =
   let env = match cast with Some f -> [ ("CONSOLE_CAST", f) ] | None -> [] in
   with_env env @@ fun () ->
@@ -203,8 +201,8 @@ let perturbed ?cast ~progress seed =
   | Some file -> In_channel.with_open_bin file In_channel.input_all
   | None -> Buffer.contents buf
 
-(* Whatever the real schedule, the virtual clock gives the same bytes: the
-   same lines on a pipe, and the same frames on a terminal. *)
+(* Whatever the real schedule, the virtual clock gives the same bytes: the same
+   lines on a pipe, and the same frames on a terminal. *)
 let test_deterministic_schedule () =
   with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
   List.iter
@@ -219,8 +217,8 @@ let test_deterministic_schedule () =
       done)
     [ (`Plain, "macos  2.9s"); (`Tty, "macos" ^ String.make 60 ' ' ^ "2.9s") ]
 
-(* [recording f] is the lines of the recording that [CONSOLE_CAST] makes of
-   [f], on a terminal of 30 columns by 6 rows. *)
+(* [recording f] is the lines of the [CONSOLE_CAST] recording of [f], on a
+   terminal of 30 columns by 6 rows. *)
 let recording f =
   let file = Filename.temp_file "console" ".cast" in
   with_env
@@ -238,8 +236,8 @@ let recording f =
 
 let recorded_nap () = recording @@ fun () -> ignore (still_nap ())
 
-(* asciicast v2: a header, then an event a line, each newline-delimited JSON:
-   the rows drawn, and nothing on the output itself. *)
+(* asciicast v2: a header, then one event per line, each line a JSON value. The
+   events hold the rows drawn, and the output itself gets nothing. *)
 let test_cast_format () =
   match recorded_nap () with
   | [] -> Alcotest.fail "no header"
@@ -259,8 +257,9 @@ let test_cast_format () =
         (fst
            (Console_vte.cursor_history (Cast_harness.event (List.hd lines)).data))
 
-(* Each write is at its time on the virtual clock: the count when the first
-   sleep ends, the last write when the second does. *)
+(* Each write is stamped with its time on the virtual clock. The count is
+   written when the first sleep ends, and the last write when the second sleep
+   ends. *)
 let test_cast_times () =
   let events = Cast_harness.events (recorded_nap ()) in
   let times = List.map (fun (e : Cast_harness.event) -> e.time) events in
@@ -279,8 +278,8 @@ let test_cast_times () =
     "the end" 2.
     (List.nth times (List.length times - 1))
 
-(* [recorded_text text] is the data of the events recorded for a run on
-   [ppf], after which [text] is written on [ppf]. *)
+(* [recorded_text text] is the data of the events recorded for a run on [ppf],
+   followed by [text] written on [ppf] after the run. *)
 let recorded_text text =
   let lines =
     recording @@ fun () ->
@@ -296,8 +295,8 @@ let recorded_text text =
        (fun (e : Cast_harness.event) -> e.data)
        (Cast_harness.events lines))
 
-(* A line feed is recorded after a carriage return, as a terminal's driver
-   writes it, and one that has its carriage return already is left alone. *)
+(* A line feed is recorded after a carriage return, as a terminal driver writes
+   it. A line feed that already follows a carriage return is left alone. *)
 let test_cast_line_feeds () =
   let data = recorded_text "a\nb\r\nc\n" in
   Alcotest.(check bool)
@@ -326,11 +325,10 @@ let test_cast_schedule () =
     Alcotest.(check string) (Fmt.str "schedule %d" seed) calm (recorded seed)
   done
 
-(* A recording of four domains, each a loop over a sleep on
-   [Console_eio.clock] and a tick of work. A domain counts its ticks on a
-   task of its own and on a shared one. With a seed other than zero, each
-   tick works a random real time, and another fiber yields a random number
-   of times in a loop. *)
+(* A recording of four domains. Each domain loops over a sleep on
+   [Console_eio.clock] and a tick of work. It counts its ticks on its own task
+   and on a shared task. With a non-zero seed, each tick works a random real
+   time, and another fiber yields a random number of times in a loop. *)
 let recorded_domains seed =
   let rand = Random.State.make [| seed |] in
   let file = Filename.temp_file "console" ".cast" in
@@ -385,7 +383,7 @@ let recorded_domains seed =
           Console.Task.succeed all));
   In_channel.with_open_bin file In_channel.input_all
 
-(* Whatever the domains' real schedule, a recording is the same bytes. *)
+(* Whatever the real schedule of the domains, a recording is the same bytes. *)
 let test_cast_domains () =
   let calm = recorded_domains 0 in
   Alcotest.(check bool) "every tick counted" true (contains "32/32" calm);
@@ -395,8 +393,8 @@ let test_cast_domains () =
       calm (recorded_domains seed)
   done
 
-(* [Console_eio.domain_mgr] starts a domain, but in deterministic mode its
-   new domain is the caller's. *)
+(* [Console_eio.domain_mgr] starts a domain, but in deterministic mode the new
+   domain is the caller's own domain. *)
 let test_domain_mgr () =
   let elsewhere () =
     Eio_main.run @@ fun env ->
@@ -412,8 +410,8 @@ let test_domain_mgr () =
   Alcotest.(check bool) "another domain" true (mode "");
   Alcotest.(check bool) "the same domain" false (mode "1")
 
-(* In deterministic mode, a clock of [Console_eio.clock] used from another
-   domain raises. *)
+(* In deterministic mode, a clock of [Console_eio.clock] raises when used from
+   another domain. *)
 let test_clock_owner () =
   with_env [ ("CONSOLE_DETERMINISTIC_CLOCK", "1") ] @@ fun () ->
   Eio_main.run @@ fun env ->
@@ -434,7 +432,7 @@ let test_run_raises () =
         "the running task is cancelled" true
         (contains "\xe2\x97\x8b doomed" (Buffer.contents buf)))
 
-(* An output that a cancelled fiber cannot write to, as an Eio flow. *)
+(* An output that acts as an Eio flow: a cancelled fiber cannot write to it. *)
 let flow () =
   let buf = Buffer.create 256 in
   let out s o l =
@@ -443,7 +441,7 @@ let flow () =
   in
   (buf, Format.make_formatter out ignore)
 
-(* A run that is cancelled still gives the terminal back. *)
+(* A cancelled run still gives the terminal back. *)
 let test_cancelled_run_restores () =
   with_clock (fun clock ->
       let buf, ppf = flow () in
@@ -462,8 +460,8 @@ let test_cancelled_run_restores () =
       Alcotest.(check string) "the winner" "cancelled" result;
       check_cursor_restored "cursor" (Buffer.contents buf))
 
-(* A fiber cancelled while a view yields stops there, and its [Cancelled]
-   does not end the run. *)
+(* A fiber cancelled while a view yields stops there. Its [Cancelled] does not
+   end the run. *)
 let test_view_cancelled () =
   with_clock (fun clock ->
       let _, ppf = buffer () in
@@ -515,8 +513,9 @@ let test_with_output_cancelled () =
             "the task is cancelled" true
             (Option.map Console.Task.state !task = Some `Cancelled)))
 
-(* A write that a cancellation cuts half way, on an output that took that half,
-   erases nothing above the region, and what it was to print still goes out. *)
+(* A cancellation cuts a write half way, and the output took that half. The
+   write erases nothing above the region, and the rest of the text still goes
+   out. *)
 let test_write_cut () =
   with_clock (fun clock ->
       let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
@@ -555,8 +554,8 @@ let test_write_cut () =
         (Console_vte.synchronized_open written);
       check_cursor_restored "cursor" written)
 
-(* A task ended by the cancellation of its fiber, on an output that a cancelled
-   fiber cannot write to, leaves one row: the one it ends with. *)
+(* A task ends because its fiber is cancelled, on an output that a cancelled
+   fiber cannot write to. It leaves one row: its final row. *)
 let test_cancelled_task_row () =
   with_clock (fun clock ->
       let buf, ppf = flow () in
@@ -580,8 +579,8 @@ let test_cancelled_task_row () =
         "the lines printed" true
         (List.mem "above" screen && List.mem "below" screen))
 
-(* The redraw on the clock, under way as the run ends, goes out whole: the
-   region the run leaves holds the task once. *)
+(* A timed redraw still under way when the run ends goes out whole. The region
+   that the run leaves shows the task once. *)
 let test_tick_as_the_run_ends () =
   with_clock (fun clock ->
       let buf = Buffer.create 256 and entered, enter = Eio.Promise.create () in
@@ -611,7 +610,7 @@ let test_tick_as_the_run_ends () =
         [ "above"; "\u{2713} WORK" ]
         (List.map (fun l -> String.sub l 0 (min (String.length l) 8)) screen))
 
-(* A reader that pauses as a run ends loses nothing: a pager, say. *)
+(* A reader that pauses as a run ends, such as a pager, loses nothing. *)
 let test_reader_pauses () =
   with_clock (fun clock ->
       let buf = Buffer.create 256 and paused = ref false in
@@ -627,9 +626,9 @@ let test_reader_pauses () =
         "the last line" true
         (contains "the last line" (Buffer.contents buf)))
 
-(* An output that takes nothing once [work root stall] calls [stall] holds up
-   the end of a cancelled run for a second at most, however many writes wait
-   for it, and the next run starts. *)
+(* After [work root stall] calls [stall], the output accepts nothing. This
+   delays the end of a cancelled run by one second at most, however many writes
+   wait, and the next run starts. *)
 let stalls work =
   with_clock (fun clock ->
       let stalled = ref false in
@@ -668,7 +667,7 @@ let test_output_stalls_in_nested_tasks () =
           Console.Task.run a "b" (fun b ->
               Console.Task.run b "c" (fun _ -> stall ()))))
 
-(* A [Cancelled] raised by a view in a fiber that nothing cancelled is the
+(* A view can raise [Cancelled] in a fiber that nothing cancelled. That is the
    view's own exception: the run raises it, and the print goes on. *)
 let test_view_foreign_cancelled () =
   with_clock (fun clock ->
@@ -682,9 +681,9 @@ let test_view_foreign_cancelled () =
               printed := true));
       Alcotest.(check bool) "the print went on" true !printed)
 
-(* A report is not a cancellation point in the sense of [Eio.Cancel]: cleanup
+(* A report is not a cancellation point in the sense of [Eio.Cancel]. Cleanup
    that reports or logs in a cancelled fiber runs to its end, and the fiber is
-   still cancelled after. *)
+   still cancelled afterwards. *)
 let test_report_cancelled () =
   with_clock (fun clock ->
       let _, ppf = flow () in
@@ -706,8 +705,8 @@ let test_report_cancelled () =
           Alcotest.(check string) "the winner" "winner" winner;
           Alcotest.(check bool) "the cleanup ended" true !cleaned))
 
-(* A [commit] that raises as the run ends, an error or an interrupt, makes the
-   run raise it, once the cursor is shown again. *)
+(* If [commit] raises an error or an interrupt as the run ends, the run raises
+   it, after the cursor is shown again. *)
 let test_commit_raises_at_end () =
   List.iter
     (fun e ->
@@ -721,8 +720,8 @@ let test_commit_raises_at_end () =
           check_cursor_restored "cursor" (Buffer.contents buf)))
     [ Failure "hook"; Sys.Break ]
 
-(* An output that breaks, or an interrupt on the way out, does not stop the next
-   run from starting. *)
+(* An output that breaks, or an interrupt during the exit, does not stop the
+   next run from starting. *)
 let test_restore_raises () =
   let check_breaking e =
     with_clock (fun clock ->
@@ -758,8 +757,8 @@ let test_restore_raises () =
        (Eio.Net.Connection_reset (Eio_unix.Unix_error (Unix.EPIPE, "write", ""))));
   check_breaking Sys.Break
 
-(* The run raises the program's exception whatever the last frame raises,
-   unless the frame raises one the program must see, such as
+(* The run raises the program's exception, whatever the last frame raises. The
+   exception is when the frame raises one that the program must see, such as
    [Out_of_memory]. *)
 let test_run_keeps_its_exception () =
   let last e _ =
@@ -777,8 +776,8 @@ let test_run_keeps_its_exception () =
           Console_eio.run ~clock ~ppf ~progress:`Plain ~label:"work"
             ~view:(last Out_of_memory) (fun _ -> failwith "boom")))
 
-(* The run raises the program's exception whatever the output raises on the
-   way out. *)
+(* The run raises the program's exception, whatever the output raises during the
+   exit. *)
 let test_run_keeps_its_exception_on_output () =
   with_clock (fun clock ->
       let failing = ref false in
@@ -789,9 +788,9 @@ let test_run_keeps_its_exception_on_output () =
               failing := true;
               failwith "boom")))
 
-(* A view that raises is dropped for the default one, and the run raises
-   its exception: a view that raises at every frame, and one that raises
-   only in the last, on a pipe and on a terminal. *)
+(* A view that raises is replaced by the default view, and the run raises its
+   exception. The cases are a view that raises at every frame and one that
+   raises only in the last frame, each on a pipe and on a terminal. *)
 let test_run_view_raises () =
   let always _ = Console.View.fit (fun _ -> failwith "view") in
   let last _ =
@@ -813,8 +812,8 @@ let test_run_view_raises () =
             (contains "work" (Buffer.contents buf))))
     [ (`Plain, always); (`Plain, last); (`Tty, always); (`Tty, last) ]
 
-(* [commit] draws what a top task leaves in the scrollback, as with
-   [Progress.show]. *)
+(* [commit] draws in the scrollback what a top task leaves, as [Progress.show]
+   does. *)
 let test_run_commit () =
   with_clock (fun clock ->
       let buf, ppf = buffer () in
@@ -828,9 +827,9 @@ let test_run_commit () =
         "the commit" true
         (contains "left by step" (Buffer.contents buf)))
 
-(* [print] writes a view above the rows, styled, at the terminal's width,
-   on a pipe in turn with the lines, and as events an output event of no
-   task. *)
+(* [print] writes a view above the rows, styled, at the terminal's width. On a
+   pipe it is written in order with the lines. With events, it is an output
+   event of no task. *)
 let test_run_print () =
   let printed progress =
     with_clock (fun clock ->
@@ -855,8 +854,7 @@ let test_run_print () =
     "an event" true
     (contains {|"event":"output","text":"warning: careful"|} (printed `Json))
 
-(* [on_stderr f] is what [f] writes on standard error, read back from a
-   file. *)
+(* [on_stderr f] is what [f] writes on standard error, read back from a file. *)
 let on_stderr f =
   let file = Filename.temp_file "console" ".err" in
   Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
@@ -895,7 +893,8 @@ let test_nested_run_reuses_the_display () =
            ~prefix:"\xe2\x80\xa2 nested work\n\xe2\x9c\x93 nested work"
            (Buffer.contents buf)))
 
-(* A run in another domain joins the one that runs: there is one terminal. *)
+(* A run in another domain joins the run already in progress: there is one
+   terminal. *)
 let test_run_in_another_domain_joins () =
   Eio_main.run @@ fun env ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -967,9 +966,9 @@ let test_workers_report () =
       has "output" d)
     [ 0; 1; 2; 3 ]
 
-(* Logs messages of another domain reach the display wherever they come from,
-   and never wait for the domain that runs it: that one may be waiting for
-   them. *)
+(* Logs messages from another domain reach the display. Logging never waits for
+   the domain that runs the display, because that domain may be waiting for the
+   messages. *)
 let test_logs_from_other_domains () =
   Eio_main.run @@ fun env ->
   let clock = Eio.Stdenv.mono_clock env in
@@ -1006,8 +1005,8 @@ let test_dimensions_read_the_environment () =
 
 let open_pty = Pty_harness.open_pty
 
-(* [session how] is what [teardown.exe how] writes on a terminal, how it
-   exits, and whether the terminal echoes typed input after it exits. *)
+(* [session how] is what [teardown.exe how] writes on a terminal, how it exits,
+   and whether the terminal echoes typed input after it exits. *)
 let session ?(no_color = false) ?(lang = "en_US.UTF-8") how =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1084,11 +1083,10 @@ let final_of out =
   Console_vte.feed vte out;
   Console_vte.screen ~scrollback:true vte
 
-(* The final screen of [teardown.exe how]. *)
 let final how = final_of (snd (teardown how))
 
-(* Ctrl-C cancels the task, which prints its output under its line; a task
-   that succeeds drops it. *)
+(* Ctrl-C cancels the task, which prints its output under its line. A task that
+   succeeds drops its output. *)
 let test_sigint_output () =
   let rows = final "sigint" in
   let rec under = function
@@ -1102,10 +1100,11 @@ let test_sigint_output () =
     "a success drops it" false
     (List.exists (contains "pushed 3 objects") (final "ok"))
 
-(* What a task's function prints on the display's terminal, on either
-   standard output, is its output, as are the Logs messages of the fibers it
-   forks: it goes when the task succeeds and is printed under its line when
-   it fails. A line printed within the root task goes above the rows. *)
+(* What a task's function prints on the display's terminal, on either standard
+   output, is the task's output. So are the Logs messages of the fibers it
+   forks. The output is dropped when the task succeeds, and printed under the
+   task's line when it fails. A line printed within the root task goes above the
+   rows. *)
 let test_task_output () =
   let output =
     [
@@ -1140,8 +1139,8 @@ let test_task_output () =
         (List.exists (contains text) rows))
     [ "an output line"; "a result line"; "a note line"; "a forked note" ]
 
-(* What a thread prints on the display's terminal goes above the rows, as
-   output outside any task. *)
+(* What a thread prints on the display's terminal goes above the rows, as output
+   outside any task. *)
 let test_printed_elsewhere () =
   let status, out = teardown "elsewhere" in
   Alcotest.(check bool)
@@ -1151,8 +1150,8 @@ let test_printed_elsewhere () =
     "the line shows" true
     (List.mem "from a thread" (final_of out))
 
-(* A line written outside a task is not the output of the task in which
-   the next line is written, even when it waited for a flush until then. *)
+(* A line written outside a task does not become the output of the task that
+   writes the next line, even when it waited for a flush until then. *)
 let test_held_line () =
   let rows = final "held" in
   let rec under = function
@@ -1169,9 +1168,9 @@ let test_held_line () =
     "the held line above the rows" true
     (List.exists (String.starts_with ~prefix:"a held line") rows)
 
-(* The first domain the program starts during a run leaves what it prints
-   to the display, and once the run ends standard error writes as Format's
-   functions do once a domain started. *)
+(* The program starts its first domain during a run. What that domain prints
+   goes to the display. After the run, standard error writes as Format's
+   functions do once a domain has started. *)
 let test_spawn () =
   let rows = final "spawn" in
   List.iter
@@ -1206,8 +1205,8 @@ let signaled_by_sigint = function
   | `Signaled s -> Int.equal s Sys.sigint
   | _ -> false
 
-(* SIGINT in the middle of a frame's write ends the program once that
-   frame is written: the screen is the one SIGINT leaves between frames. *)
+(* SIGINT in the middle of a frame's write ends the program once that frame is
+   written. The screen is the same as after a SIGINT between frames. *)
 let test_sigint_mid_write () =
   let status, out = teardown "sigint-mid-write" in
   Alcotest.(check bool)
@@ -1221,7 +1220,7 @@ let test_sigint_mid_write () =
   Alcotest.(check (list string))
     "a clean final frame" (final "sigint") (final_of out)
 
-(* A write that never ends does not hold SIGINT back for ever. *)
+(* A write that never ends does not block SIGINT for ever. *)
 let test_sigint_blocked () =
   let status, _ = teardown "sigint-blocked" in
   Alcotest.(check bool)
@@ -1246,7 +1245,8 @@ let test_usable_after () =
       let plain = Console_vte.v ~rows:1 ~cols:80 () in
       Console_vte.feed plain "AFTER";
       let g = Console_vte.grid vte and reference = Console_vte.grid plain in
-      let i = Grid.idx g ~x:0 ~y and j = Grid.idx reference ~x:0 ~y:0 in
+      let i = Matrix_grid.idx g ~x:0 ~y
+      and j = Matrix_grid.idx reference ~x:0 ~y:0 in
       let colours g i =
         List.concat_map
           (fun c ->
@@ -1261,8 +1261,8 @@ let test_usable_after () =
        (fun how -> [ (how, false); (how, true) ])
        [ "ok"; "raise"; "cancel"; "exit"; "sigint" ])
 
-(* A terminal whose locale is not UTF-8 shows other characters as garbage:
-   every widget and the display are then drawn with ASCII alone. *)
+(* A terminal whose locale is not UTF-8 shows non-ASCII characters as garbage.
+   So every widget and the display use ASCII only. *)
 let test_ascii_locale () =
   let _, out, _ = session ~lang:"C" "widgets" in
   Alcotest.(check bool) "drew a region" true (contains hide out);
@@ -1270,14 +1270,14 @@ let test_ascii_locale () =
     "ASCII only" true
     (String.for_all (fun c -> Char.code c < 0x80) out)
 
-(* A program that chose its colours before [run] keeps them. *)
+(* A program that chooses its colours before [run] keeps them. *)
 let test_choice_kept () =
   let _, out, _ = session "colourless" in
   Alcotest.(check bool) "drew a region" true (contains hide out);
   Alcotest.(check bool) "no colour" false (contains "\027[0m" out)
 
-(* A theme is not a colour choice: a program that only chose a theme still
-   has colour decided for it, and in that theme. *)
+(* A theme is not a colour choice. A program that only sets a theme still gets
+   colour decided for it, and in that theme. *)
 let test_theme_not_a_choice () =
   let _, out, _ = session "themed" in
   let nord =
@@ -1296,14 +1296,14 @@ let test_theme_not_a_choice () =
   in
   Alcotest.(check bool) "colour, in the theme" true (contains nord out)
 
-(* [waitpid flags pid] is the status of [pid], waited for again when a
-   signal interrupts the wait. *)
+(* [waitpid flags pid] is the status of [pid]. The wait is retried when a signal
+   interrupts it. *)
 let rec waitpid flags pid =
   try snd (Unix.waitpid flags pid)
   with Unix.Unix_error (Unix.EINTR, _, _) -> waitpid flags pid
 
-(* [stopped_by_sigtstp pid] is [true] iff [pid] stops on SIGTSTP. A process
-   that never stopped is gone by the time waitpid looks. *)
+(* [stopped_by_sigtstp pid] is [true] iff [pid] stops on SIGTSTP. A process that
+   never stopped has exited by the time waitpid looks. *)
 let stopped_by_sigtstp pid =
   match
     Eio_unix.run_in_systhread ~label:"waitpid" (fun () ->
@@ -1312,12 +1312,12 @@ let stopped_by_sigtstp pid =
   | Unix.WSTOPPED s -> Int.equal s Sys.sigtstp
   | _ | (exception Unix.Unix_error (Unix.ECHILD, _, _)) -> false
 
-(* Ctrl-Z gives the terminal back before the program stops: the region is
-   erased and the cursor shown. SIGTSTP's default action is to stop the
-   process: in a group of its own, under a parent in the same session, the
-   group is not orphaned and the stop takes effect, which waitpid sees before
-   anything continues it. Once continued, the region is drawn again and the
-   work goes on. *)
+(* Ctrl-Z gives the terminal back before the program stops: the region is erased
+   and the cursor shown. The default action of SIGTSTP stops the process. Here
+   the process is in its own group, under a parent in the same session, so the
+   group is not orphaned and the stop takes effect. waitpid sees the stop before
+   anything continues the process. Once continued, the program draws the region
+   again and the work goes on. *)
 let test_suspend () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1364,8 +1364,8 @@ let test_suspend () =
         "exit status" true
         (match !status with Some (`Exited 0) -> true | _ -> false)
 
-(* A stop during a write that does not end within a second gives the
-   terminal up, and the program goes on once continued. *)
+(* A stop arrives during a write that does not end within a second. The program
+   gives the terminal up, and goes on once continued. *)
 let test_suspend_blocked () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1400,11 +1400,11 @@ let test_suspend_blocked () =
     "the cursor is shown" true
     (Console_vte.cursor_visible vte)
 
-(* In a process group that no shell controls, Linux and macOS discard a
-   stop: the terminal is given back and the region drawn again once, and the
-   work goes on. FreeBSD stops the process all the same, so there the test
-   continues it. A display that gave the terminal back again and again would
-   show the cursor without end; the reader stops it then. *)
+(* Linux and macOS discard a stop in a process group that no shell controls. The
+   terminal is given back, the region is drawn again once, and the work goes on.
+   FreeBSD stops the process anyway, so there the test continues it. A display
+   that gave the terminal back again and again would show the cursor for ever;
+   the reader then stops it. *)
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -1453,9 +1453,9 @@ let test_suspend_without_stop () =
     "the work goes on" true
     (match status with `Exited 0 -> true | _ -> false)
 
-(* Output outside a task that the program never flushes is not held
-   without bound: all but the last 64 KiB of it is on the terminal before
-   the program goes on. *)
+(* Output outside a task that the program never flushes is not held without
+   bound. All but its last 64 KiB is on the terminal before the program goes
+   on. *)
 let test_unflushed_output_is_bounded () =
   let _, out, _ = session "unflushed" in
   match Astring.String.find_sub ~sub:"MARK" out with
@@ -1480,10 +1480,10 @@ let test_sigint_secret () =
 
 let exited n = function `Exited m -> Int.equal n m | _ -> false
 
-(* A signal handled in another domain, as when the display's domain sleeps
-   or its thread blocks the signal, still ends the program by that signal;
-   [exit] from another domain or thread while the display redraws ends it
-   with its status. Either way the cursor is shown. *)
+(* A signal handled in another domain still ends the program by that signal.
+   This covers a display's domain that sleeps and a display thread that blocks
+   the signal. [exit] from another domain or thread while the display redraws
+   ends the program with its status. In both cases the cursor is shown. *)
 let test_elsewhere_ends () =
   List.iter
     (fun (how, ends) ->
@@ -1502,16 +1502,16 @@ let test_elsewhere_ends () =
       ("exit-thread-drawing", exited 4);
     ]
 
-(* A restoration that fails still lets the signal end the program. *)
+(* If restoring the terminal fails, the signal still ends the program. *)
 let test_sigint_restore_fails () =
   let status, _ = teardown "secret-lost" in
   Alcotest.(check bool)
     "SIGINT still ends the program" true
     (signaled_by_sigint status)
 
-(* A write that never ends gives way to a sequence written once on the
-   terminal: whatever escape code it cut is ended, and what is written next
-   shows as on a fresh terminal, the cursor shown. *)
+(* A write that never ends gives way to a sequence written once on the terminal.
+   That sequence ends any escape code the write cut, and shows the cursor. What
+   is written next shows as on a fresh terminal. *)
 let test_last_resort () =
   List.iter
     (fun (how, ends) ->
@@ -1583,7 +1583,7 @@ let recorded f =
       Console_eio.run ~clock ~ppf (fun _ -> Console_eio.with_output f));
   In_channel.with_open_bin file In_channel.input_lines
 
-(* asciicast v2, "o": data must be valid UTF-8. *)
+(* asciicast v2: the data of an "o" event must be valid UTF-8. *)
 let test_cast_utf_8 () =
   let lines = recorded (fun ppf -> Fmt.pf ppf "bad \xff byte\n%!") in
   Alcotest.(check bool)
@@ -1592,7 +1592,7 @@ let test_cast_utf_8 () =
        (fun (e : Cast_harness.event) -> contains "bad \u{FFFD} byte" e.data)
        (Cast_harness.events lines))
 
-(* [piped.exe args] under [Unix.waitpid], with its output dropped. *)
+(* [piped.exe args] run under [Unix.waitpid], with its output dropped. *)
 let piped_status args =
   let null = Unix.openfile "/dev/null" [ Unix.O_RDWR ] 0 in
   Fun.protect ~finally:(fun () -> Unix.close null) @@ fun () ->
@@ -1604,8 +1604,8 @@ let piped_status args =
   waitpid [] pid
 
 (* The default action of SIGINT and SIGTERM is abnormal termination (XBD
-   signal.h): the process ends by the signal, not by an exit that a shell would
-   also show as 128 plus its number. *)
+   signal.h). The process ends by the signal, not by an exit with status 128
+   plus the signal number, which a shell shows the same way. *)
 let test_signal_terminates () =
   let check msg signo args =
     Alcotest.(check bool)

@@ -3,11 +3,13 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The cost of one update, from the display's own domain: nanoseconds and
-   words per call, and the frames the calls drew. With [--check], fails if
-   a call allocates more words than its ratchet, in the contexts where no
-   frame is drawn during the calls and the count depends on console's code
-   alone; the times are only printed. Usage: hot.exe [n] [--check] *)
+(* The cost of one update, called from the display's own domain. It prints
+   the nanoseconds and words per call, and the frames the calls drew.
+
+   With [--check], it fails if a call allocates more words than its
+   ratchet. It checks only the contexts where no frame is drawn during the
+   calls and the count depends on console's code alone. Times are only
+   printed. Usage: hot.exe [n] [--check] *)
 
 open Console
 
@@ -46,10 +48,10 @@ let ops =
     };
   ]
 
-(* The words a call may allocate: [ratchet] is what the code allocates now,
-   on flambda or not, whichever is more, so that [--check] catches a
-   regression; [target] is the budget to reach. A context with no ratchet
-   draws frames as the machine's clock says, and is only printed. *)
+(* The words a call may allocate. [ratchet] is what the code allocates now,
+   the larger of the flambda and non-flambda counts, so [--check] catches a
+   regression. [target] is the budget to reach. A context with no ratchet
+   draws frames on the machine's clock; its count is only printed. *)
 let ratchet ctx op =
   match (ctx, op) with
   | "no display", "advance (items)" -> Some 15.
@@ -74,18 +76,18 @@ let ratchet ctx op =
   | "eio `Plain, clock still", "log" -> Some 974.
   | _ -> None
 
-(* Under Console_eio a call reads Eio's clock, and a line printed on
-   [`Plain] goes through Format and Fmt: those counts change with the
-   releases of eio and fmt, so they are printed beside the count recorded
-   but do not fail the check. *)
+(* Under Console_eio a call reads Eio's clock. A line printed on [`Plain]
+   goes through Format and Fmt. These counts change with new releases of eio
+   and fmt, so they are printed next to the recorded count but never fail
+   the check. *)
 let gated ctx op =
   not
     (String.starts_with ~prefix:"eio" ctx
     || (String.equal ctx "show `Plain" && String.equal op "log"))
 
-(* The budget of [op] in [ctx]: an update allocates only the clock's
-   reading, and a line of output only its own record as well. A line printed
-   on [`Plain] has no target. *)
+(* The budget of [op] in [ctx]. An update allocates only the clock reading.
+   A line of output also allocates its own record. A line printed on
+   [`Plain] has no target. *)
 let target ctx op =
   let clock = if String.starts_with ~prefix:"eio" ctx then 4. else 0. in
   let printed =
@@ -125,8 +127,8 @@ let real_clock () =
   let t0 = Unix.gettimeofday () in
   fun () -> Unix.gettimeofday () -. t0
 
-(* A clock that moves by a microsecond at each read: the rate is measured
-   at each update, the same on every machine. *)
+(* A clock that moves by one microsecond at each read. Each update reads it
+   to measure the rate, so the result is the same on every machine. *)
 let ticking () =
   let t = ref 0. in
   fun () ->
@@ -148,7 +150,8 @@ let bare () =
   if not check then show ~ctx:"show `Tty, real clock" ~now:(real_clock ()) `Tty
 
 (* The same calls under [Console_eio.run], on the machine's clock or on the
-   deterministic clock, which stays at zero since no fiber sleeps. *)
+   deterministic clock. The deterministic clock stays at zero because no
+   fiber sleeps. *)
 let eio env =
   let mono = Eio.Stdenv.mono_clock env in
   let run ~ctx ?(still = false) progress =

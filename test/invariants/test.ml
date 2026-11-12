@@ -6,7 +6,7 @@
 let root = Filename.concat Filename.parent_dir_name Filename.parent_dir_name
 let read path = In_channel.with_open_bin path In_channel.input_all
 
-(* The references of a line of INVARIANTS.md: each `file` "name". *)
+(* The references in a line of INVARIANTS.md: each `file` "name". *)
 let references line =
   let n = String.length line in
   let rec go i acc =
@@ -50,8 +50,8 @@ let test_cases source =
   in
   go 0 []
 
-(* A test exists when an OCaml file has a test case of that name, or a cram
-   file holds that phrase. *)
+(* A test exists when an OCaml file has a test case of that name, or when a cram
+   file contains that phrase. *)
 let exists (file, name) =
   let path = Filename.concat root file in
   Sys.file_exists path

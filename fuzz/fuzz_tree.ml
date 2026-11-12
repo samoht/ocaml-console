@@ -7,8 +7,8 @@ open Alcobar
 open Console
 open Widget_harness
 
-(* A tree is no wider than the margin, and shows each node on a line of its
-   own when the margin leaves room for every label. *)
+(* A tree is no wider than the margin. When the margin has room for every
+   label, each node is on its own line. *)
 let test_fits s n =
   let margin = 1 + abs (n mod 80) in
   let leaf i = Tree.v (View.text (pick s i)) [] in

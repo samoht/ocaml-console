@@ -1,5 +1,5 @@
-; The cost of an update and of a frame. Numbers from a dev build are not
-; valid: dune build --profile release @bench/perf/perf
+; The cost of an update and of a frame. Use a release build; numbers from
+; a dev build are not valid: dune build --profile release @bench/perf/perf
 
 (executables
  (names hot render)
@@ -12,7 +12,7 @@
    (run %{exe:hot.exe} 1000000)
    (run %{exe:render.exe}))))
 
-; The words allocated and the frames drawn, which are deterministic.
+; Checks the words allocated and the frames drawn, which are deterministic.
 
 (rule
  (alias perf-check)

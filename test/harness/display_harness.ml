@@ -45,11 +45,17 @@ let clock () =
   let time = ref 0. in
   ((fun () -> !time), fun dt -> time := !time +. dt)
 
-(* [finish root d] ends a run as [Console_eio.run] does once its function
-   returns: [root] succeeds, unless it already ended, and [d] closes. *)
-let finish root d =
+(* [end_run root d] ends a run as [Console_eio.run] does when its function
+   returns. [root] succeeds unless it already ended, and [d] closes. *)
+let end_run root d =
   Task.succeed root;
   Display.close d
+
+let finish task o =
+  match o mod 3 with
+  | 0 -> Task.succeed task
+  | 1 -> Task.fail task
+  | _ -> Task.cancel task
 
 let rooted ?label ?view now =
   let root = Task.root ?label ~now () in
@@ -63,7 +69,7 @@ let plain ?label ?layout ?theme ?(progress = `Plain) ?view ?keep_ended f =
   let root, view = rooted ?label ?view now in
   let d = Progress.show ~progress ?layout ?view ?keep_ended ppf root in
   let v = f root advance in
-  finish root d;
+  end_run root d;
   Format.pp_print_flush ppf ();
   (v, Buffer.contents buffer)
 
@@ -76,7 +82,7 @@ type term = {
   chunks : string list ref;
 }
 
-let close t = finish t.root t.display
+let close t = end_run t.root t.display
 
 let terminal ?(width = 40) ?(height = 8) ?label ?layout ?theme ?(styled = false)
     ?(raw = false) ?(before = "") ?view ?keep_ended ?commit ?plain ?delay () =
@@ -128,6 +134,26 @@ let check_room ~rows ~cols msg row v =
 let check_invalid message f =
   Alcotest.check_raises message (Invalid_argument message) f
 
-let skip_on_matrix_0_1 fix _ _ =
-  Fmt.pr "Skipped on matrix 0.1.0, which lacks %s.@." fix;
-  Alcotest.skip ()
+let check_lines msg expected actual =
+  Alcotest.(check (list string)) msg expected actual
+
+let theme = Theme.dos
+let split s = String.split_on_char '\n' s
+let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
+let above top root = View.vcat [ top; Progress.view root ]
+
+let show ?progress ?size ?label ?layout ?view ?keep_ended ~now ppf =
+  let root, view = rooted ?label ?view now in
+  (root, Progress.show ?progress ?size ?layout ?view ?keep_ended ppf root)
+
+let check_plain msg f expected =
+  let (), out = plain ~theme f in
+  check_lines msg expected (split out)
+
+let fit root f =
+  View.fit (fun room ->
+      let width = Option.value (Room.width room) ~default:80
+      and height = Option.value (Room.height room) ~default:max_int in
+      f root ~width ~height)
+
+let default root ~width ~height = View.sized ~width ~height (Progress.view root)

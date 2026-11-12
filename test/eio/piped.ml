@@ -3,26 +3,36 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** A program under [Console_eio.run] on a pipe: its results on standard output,
-    its display and Logs messages on standard error. Given a count, it does that
-    many steps, enough to write far more than a pipe holds, so that a reader
-    that stops early closes the pipe under it; with [bare], it prints the
-    results alone, without console; with [exit], it calls [exit] inside a task,
-    and an [at_exit] function it registered first logs and prints. With
-    [quiet-long] or [quiet-prompt], quiet, it leaves a line unended on standard
-    error, a line too long to hold or a question, before a task fails. With
-    [json-stdout], as JSON events, a task prints a line on standard output and
-    one on standard error. With [sleeps] and a number of steps, a task's two
-    fibers sleep on {!Console_eio.clock}, one of them working that many steps
-    before each sleep. With [size], it prints the size of the terminal of
-    standard error. With [signal], SIGINT comes after a view raised, and SIGTERM
-    with [sigterm]. With [idle-signal], SIGINT comes while the scheduler waits,
-    with the display on an Eio flow to a file, and SIGTERM with [idle-sigterm].
-    With [exit-cancelled], a cancelled fiber calls [exit], on such a flow. With
-    [exit-view], a view calls [exit] each time it draws, on such a flow. With
-    [print], it prints a rule and a table above the rows, as wide as the display
-    lays them out. With [domain], a task starts the program's first domain, and
-    then prints. *)
+(** A program run by [Console_eio.run] on a pipe. It writes its results on
+    standard output, and its display and Logs messages on standard error. The
+    arguments select the case:
+    - [n]: it does [n] steps. A large [n] writes far more than a pipe holds, so
+      a reader that stops early closes the pipe while the program writes.
+    - [bare n]: it prints the [n] results alone, without console.
+    - [notes n]: as [n], with a Logs warning and a line on standard error after
+      each step.
+    - [exit]: it calls [exit] inside a task. An [at_exit] function, registered
+      before, logs and prints.
+    - [quiet-long] or [quiet-prompt]: in quiet mode, it leaves an unended line
+      on standard error, then a task fails. The line is too long to hold, or is
+      a question.
+    - [json-stdout]: with JSON events, a task prints one line on standard output
+      and one on standard error.
+    - [sleeps n]: a task's two fibers sleep on {!Console_eio.clock}. One of them
+      works [n] steps before each sleep.
+    - [signal] or [sigterm]: SIGINT or SIGTERM arrives after a view raised.
+    - [idle-signal file] or [idle-sigterm file]: SIGINT or SIGTERM arrives while
+      the scheduler waits. The display writes to [file] through an Eio flow.
+    - [exit-cancelled file]: a cancelled fiber calls [exit]. The display writes
+      to [file] through an Eio flow.
+    - [exit-view file]: a view calls [exit] each time it draws. The display
+      writes to [file] through an Eio flow.
+    - [size]: it prints the size of the terminal of standard error.
+    - [width]: it prints the width of standard output, or [whole].
+    - [print]: it prints a rule and a table above the rows, at the width the
+      display uses.
+    - [domain]: a task starts the program's first domain, then the program
+      prints. *)
 
 let step display i =
   Fmt.pr "result %d\n" i;
@@ -32,7 +42,7 @@ let step display i =
 let () =
   Logs.set_level (Some Logs.Info);
   Eio_main.run @@ fun env ->
-  (* A clock that does not move, so that every time printed is 0.0s. *)
+  (* A clock that never moves, so every printed time is 0.0s. *)
   let clock =
     (Eio_mock.Clock.Mono.make () :> Eio.Time.Mono.ty Eio.Resource.t)
   in
@@ -86,7 +96,9 @@ let () =
           let prompt =
             Console_eio.Prompt.v ~interactive:true (Eio.Stdenv.stdin env)
           in
-          ignore (Console_eio.Prompt.line prompt "name? ");
+          (match Console_eio.Prompt.line prompt "name? " with
+          | Ok _ -> ()
+          | Error _ -> failwith "quiet-prompt: no answer");
           Console.Task.run display "work" Console.Task.fail)
   | [| _; "json-stdout" |] ->
       Console_eio.run ~clock ~progress:`Json (fun display ->

@@ -3,9 +3,9 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* A program that calls [Console_tty.ensure] and prints the renderer and depth
-   standard output ends up with. Before that, with [chosen] it sets a colour
-   renderer on standard output, and with [themed] it gives it a theme only. *)
+(* This program calls [Console_tty.ensure], then prints the renderer and the
+   depth of standard output. Before that, [chosen] sets a colour renderer on
+   standard output, and [themed] sets only a theme. *)
 
 let () =
   (match Sys.argv with

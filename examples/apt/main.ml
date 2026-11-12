@@ -3,13 +3,14 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* [apt install curl] on Debian bookworm, with seven libraries it pulls in.
-   What apt and dpkg print stays in the scrollback; the bottom line is the
-   live region: the percentage of each step of reading the package lists, the
-   downloads, then dpkg's [Progress:] bar. apt keeps that bar off the rest of
-   the output with a scroll region; here the region is console's, and dpkg's
-   lines are given to the root, so they go above it. Pipe it through [cat] to
-   see what a log gets: the scrollback alone. *)
+(* [apt install curl] on Debian bookworm, and the seven packages it pulls
+   in. What apt and dpkg print stays in the scrollback. The bottom line is
+   the live region. It shows the percentage of each step that reads the
+   package lists, then the downloads, then dpkg's [Progress:] bar. apt uses
+   a scroll region to keep that bar apart from the rest of the output. Here
+   the region is console's: dpkg's lines are logged on the root, so they go
+   above it. Pipe it through [cat] to see what a log gets: only the
+   scrollback. *)
 
 open Console
 
@@ -42,7 +43,7 @@ let pkgs =
 let qualified p = if p.multi_arch then p.name ^ ":amd64" else p.name
 let sum f = List.fold_left (fun n p -> n + f p) 0 pkgs
 
-(* apt's SizeToStr: four significant digits at most, in powers of 1000. *)
+(* apt's SizeToStr: at most four significant digits, in powers of 1000. *)
 let str_of_size n =
   let digits x =
     let n = Float.to_int (Float.round x) in
@@ -58,10 +59,10 @@ let str_of_size n =
 
 let str_of_time s = Fmt.str "%ds" (Float.to_int s)
 
-(* apt's lines and dpkg's are the root's output, which goes above the region. *)
+(* apt and dpkg log their lines on the root, so they go above the region. *)
 let say root fmt = Fmt.kstr (Task.log root) fmt
 
-(* The bottom line, which each step sets while it runs. *)
+(* The bottom line. Each step sets it while it runs. *)
 let line = ref View.empty
 
 let with_line view f =
@@ -76,7 +77,8 @@ let percent t =
       100. *. Int64.to_float n /. Int64.to_float total
   | _ -> 0.
 
-(* [Reading package lists... 45%], then [... Done] in the scrollback. *)
+(* Shows [Reading package lists... 45%], then logs [... Done] to the
+   scrollback. *)
 let step clock root what =
   Task.run ~transient:true root what (fun t ->
       let view =
@@ -103,8 +105,8 @@ let plan root =
     (str_of_size (sum (fun p -> p.installed)));
   say root "Do you want to continue? [Y/n] y"
 
-(* [45% [6 libcurl4 154 kB/391 kB 39%]], the rate and the time left on the
-   right. *)
+(* [45% [6 libcurl4 154 kB/391 kB 39%]], with the rate and the time left on
+   the right. *)
 let acquire fetch =
   View.fit @@ fun room ->
   let item =
@@ -144,8 +146,9 @@ let acquire fetch =
 
 let rate = 600_000
 
-(* One download, [Get:] as it starts: [fetch] counts the bytes of all of them,
-   [before] of which came before this one. *)
+(* One download. It logs [Get:] when it starts. [fetch] counts the bytes of
+   all the downloads, and [before] is the bytes of the downloads before this
+   one. *)
 let download clock root fetch ~before id p =
   Task.run ~transient:true fetch (Fmt.str "%d %s" id p.name) @@ fun t ->
   let size = Int64.of_int p.size in
@@ -182,8 +185,8 @@ let fetch clock root =
   say root "Fetched %s in %s (%s/s)" (str_of_size total) (str_of_time elapsed)
     (str_of_size (Float.to_int (Int.to_float total /. elapsed)))
 
-(* [Progress: [ 45%]] in black on green, then a bar of [#] on [.] as wide as
-   the row leaves it. *)
+(* [Progress: [ 45%]] in black on green, then a bar of [#] on [.] that fills
+   the rest of the row. *)
 let dpkg_progress t =
   View.fit @@ fun room ->
   let pct = percent t in

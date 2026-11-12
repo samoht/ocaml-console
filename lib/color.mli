@@ -8,8 +8,8 @@
     A colour is one of the 16 named ANSI colours, an entry of the xterm
     256-colour palette, or a 24-bit RGB colour.
 
-    A colour is kept as given and written at the {!val-depth} of the formatter
-    it is printed on ({!downsample}). *)
+    A colour is stored as given. When printed, it is converted to the
+    {!val-depth} of the formatter ({!downsample}). *)
 
 (** {1:colours Colours} *)
 
@@ -33,89 +33,90 @@ val ansi_256 : int -> t
 (** {1:predefined Predefined colours} *)
 
 val black : t
-(** [black] is black. *)
+(** [black] is the terminal's black, ANSI colour 0. *)
 
 val red : t
-(** [red] is red. *)
+(** [red] is the terminal's red, ANSI colour 1. *)
 
 val green : t
-(** [green] is green. *)
+(** [green] is the terminal's green, ANSI colour 2. *)
 
 val yellow : t
-(** [yellow] is yellow. *)
+(** [yellow] is the terminal's yellow, ANSI colour 3. *)
 
 val blue : t
-(** [blue] is blue. *)
+(** [blue] is the terminal's blue, ANSI colour 4. *)
 
 val magenta : t
-(** [magenta] is magenta. *)
+(** [magenta] is the terminal's magenta, ANSI colour 5. *)
 
 val cyan : t
-(** [cyan] is cyan. *)
+(** [cyan] is the terminal's cyan, ANSI colour 6. *)
 
 val white : t
-(** [white] is white. *)
+(** [white] is the terminal's white, ANSI colour 7. *)
 
 val bright_black : t
-(** [bright_black] is bright black. *)
+(** [bright_black] is the terminal's bright black, ANSI colour 8. *)
 
 val bright_red : t
-(** [bright_red] is bright red. *)
+(** [bright_red] is the terminal's bright red, ANSI colour 9. *)
 
 val bright_green : t
-(** [bright_green] is bright green. *)
+(** [bright_green] is the terminal's bright green, ANSI colour 10. *)
 
 val bright_yellow : t
-(** [bright_yellow] is bright yellow. *)
+(** [bright_yellow] is the terminal's bright yellow, ANSI colour 11. *)
 
 val bright_blue : t
-(** [bright_blue] is bright blue. *)
+(** [bright_blue] is the terminal's bright blue, ANSI colour 12. *)
 
 val bright_magenta : t
-(** [bright_magenta] is bright magenta. *)
+(** [bright_magenta] is the terminal's bright magenta, ANSI colour 13. *)
 
 val bright_cyan : t
-(** [bright_cyan] is bright cyan. *)
+(** [bright_cyan] is the terminal's bright cyan, ANSI colour 14. *)
 
 val bright_white : t
-(** [bright_white] is bright white. *)
+(** [bright_white] is the terminal's bright white, ANSI colour 15. *)
 
 (** {1:rgb RGB} *)
 
 val to_rgb : t -> int * int * int
 (** [to_rgb c] is the red, green and blue components of [c]. A named or palette
-    colour is taken at xterm's default value, which a terminal's own scheme may
-    redefine. *)
+    colour gives xterm's default value. A terminal's own colour scheme may use
+    other values. *)
 
 val blend : t -> t -> float -> t
-(** [blend c0 c1 f] is the RGB colour [f] of the way from [c0] to [c1]. [f] is
-    clamped to 0 to 1, and NaN is 0. Each component is
-    [a + round (f * (b - a))]. [blend c0 c1 0.] is [c0] and [blend c0 c1 1.] is
-    [c1], as RGB. The fraction comes last so that [blend c0 c1] is the gradient
-    from [c0] to [c1], whereas {!scale} takes its factor first. *)
+(** [blend c0 c1 f] is the RGB colour a fraction [f] of the way from [c0] to
+    [c1]. [f] is clamped to the range 0 to 1, and NaN counts as 0. Each
+    component is [a + round (f * (b - a))]. So [blend c0 c1 0.] is [c0] and
+    [blend c0 c1 1.] is [c1], as RGB. The fraction comes last, so [blend c0 c1]
+    is the gradient from [c0] to [c1]. {!scale} takes its factor first. *)
 
 val gradient : t list -> float -> t
-(** [gradient stops f] is the colour [f] of the way along [stops], which are
-    spread evenly from [0.] to [1.]. It is the {!blend} of the two stops around
-    [f] or, where [f] falls on a stop, that stop as given, so that a named
-    colour stays named. [f] is clamped to 0 to 1, and NaN is 0. So
-    [gradient [c0; c1]] is [blend c0 c1] except at its ends. {!View.gradient}
-    grades a line with [gradient stops] from its first cluster to its last.
+(** [gradient stops f] is the colour a fraction [f] of the way along [stops].
+    The stops are spread evenly from [0.] to [1.]. The result is the {!blend} of
+    the two stops around [f]. When [f] falls exactly on a stop, the result is
+    that stop as given, so a named colour stays named. [f] is clamped to the
+    range 0 to 1, and NaN counts as 0. So [gradient [c0; c1]] is [blend c0 c1],
+    except at its ends. {!View.gradient} colours a line with [gradient stops],
+    from its first cluster to its last.
 
     @raise Invalid_argument if [stops] is empty. *)
 
 val scale : float -> t -> t
-(** [scale f c] is the RGB colour whose components are those of [c] times [f],
-    rounded and clamped to 0 to 255, a NaN component being 0. The factor comes
-    first so that [scale 0.5] is a function that darkens by half, whereas
+(** [scale f c] is the RGB colour with the components of [c] multiplied by [f].
+    Each component is rounded and clamped to 0 to 255, and NaN gives 0. The
+    factor comes first, so [scale 0.5] is a function that darkens by half.
     {!blend} takes its fraction last. *)
 
 (** {1:preds Predicates and comparisons} *)
 
 val equal : t -> t -> bool
-(** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour as given:
-    {!val-red} and [ansi_256 1] are not equal, although a terminal may draw them
-    alike. *)
+(** [equal c0 c1] is [true] iff [c0] and [c1] are the same colour as given. For
+    example, {!val-red} and [ansi_256 1] are not equal, although a terminal may
+    draw them the same. *)
 
 val compare : t -> t -> int
 (** [compare c0 c1] is a total order on colours, compatible with {!equal}. *)
@@ -123,35 +124,34 @@ val compare : t -> t -> int
 (** {1:depths Colour depth} *)
 
 type depth = [ `Ansi_16 | `Ansi_256 | `True_color ]
-(** The type for colour depths: a terminal shows the 16 named colours, the
-    xterm-256 palette, or any 24-bit colour. *)
+(** The type for colour depths: the 16 named colours, the xterm 256-colour
+    palette, or any 24-bit colour. *)
 
 val depth : Format.formatter -> depth
 (** [depth ppf] is the colour depth of [ppf]. Every printer of this library
-    {!downsample}s the colours it writes on [ppf] to it. If {!set_depth} has
-    never been called on [ppf], this is [`Ansi_16], the colours every terminal
-    shows. [Console_tty.setup] sets it from the environment. *)
+    {!downsample}s the colours it writes on [ppf] to this depth. It is
+    [`Ansi_16], which every terminal shows, until {!set_depth} is called on
+    [ppf]. [Console_tty.setup] sets it from the environment. *)
 
 val set_depth : Format.formatter -> depth -> unit
 (** [set_depth ppf d] sets the colour depth of [ppf] to [d]. *)
 
 val downsample : depth -> t -> t
 (** [downsample d c] is [c] as a terminal of depth [d] shows it:
-    - [c] itself at [`True_color], and for a colour already in the palette of
-      [d];
-    - at [`Ansi_256], the nearest entry of the colour cube or of the grey ramp,
-      whichever is nearer in RGB, as tmux's [colour_find_rgb] chooses;
-    - at [`Ansi_16], the named colour nearest by the CIE 1976 colour difference
-      (the distance in CIE L*a*b*, D65 white), against the xterm defaults of the
-      16 named colours.
+    - at [`True_color], or when [c] is already in the palette of [d], it is [c];
+    - at [`Ansi_256], it is the nearest entry of the colour cube or of the grey
+      ramp, whichever is nearer in RGB, as in tmux's [colour_find_rgb];
+    - at [`Ansi_16], it is the named colour nearest by the CIE 1976 colour
+      difference (the distance in CIE L*a*b*, D65 white), using the xterm
+      defaults of the 16 named colours.
 
     It is idempotent: [downsample d (downsample d c)] is [downsample d c]. *)
 
 (** {1:fmt Formatting} *)
 
 val pp : t Fmt.t
-(** [pp] formats an RGB colour as [#rrggbb], which {!of_hex} reads back, and a
-    named or palette colour by its name or number. *)
+(** [pp] formats an RGB colour as [#rrggbb], which {!of_hex} reads back. It
+    formats a named or palette colour by its name or number. *)
 
 (**/**)
 

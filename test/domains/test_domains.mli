@@ -3,8 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(** Tests for tasks and displays called from domains other than the one that
-    owns them. *)
+(** Tests for tasks and displays used from domains other than the one that owns
+    them. *)
 
 val suite : string * unit Alcotest.test_case list
 (** [suite] is the test suite. *)

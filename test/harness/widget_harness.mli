@@ -8,12 +8,12 @@
 open Console
 
 val pick : string -> int -> string
-(** [pick s i] is a cell text chosen by byte [i] of [s], from texts whose bytes,
-    clusters and cells do not line up. *)
+(** [pick s i] is a cell text chosen by byte [i] of [s]. The candidates are
+    texts whose bytes, clusters and cells do not line up. *)
 
 val nth_theme : int -> Theme.t
-(** [nth_theme k] is theme [k] of {!Console.Theme.all}, wrapping round, for a
-    [k] that is not negative. *)
+(** [nth_theme k] is theme [k] of {!Console.Theme.all}, modulo the number of
+    themes. [k] must not be negative. *)
 
 val render :
   ?theme:Theme.t ->
@@ -21,8 +21,9 @@ val render :
   int ->
   'a ->
   string * string list
-(** [render pp margin v] is what [pp] prints of [v] at [margin], in colour, in
-    [theme] if given: the bytes, and their lines without their escapes. *)
+(** [render pp margin v] is what [pp] prints of [v] at [margin], in colour, and
+    in [theme] if given. It is the bytes, and their lines with the escape codes
+    removed. *)
 
 val cells : string -> int
 (** [cells s] is the width of [s] in terminal cells. *)

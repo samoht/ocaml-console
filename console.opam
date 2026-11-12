@@ -9,8 +9,9 @@ Colours, tables, trees, panels, bars and progress rows for OCaml
    the whole screen. The console.tty library decides colour and UTF-8 for
    the standard outputs from the terminal and the environment, with Unix
    alone. The console.text library makes untrusted text safe to print,
-   console.input is a line editor that does no I/O, and console.driver runs
-   console on a scheduler."""
+   console.input is a line editor that does no I/O, console.driver runs
+   console on a scheduler, and console.cli gives a Cmdliner program --color
+   and --theme options."""
 maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
 license: "ISC"
@@ -26,13 +27,14 @@ depends: [
   "jsont" {>= "0.3.0"}
   "bytesrw" {>= "0.1.0"}
   "logs"
-  "matrix" {with-test & >= "0.1.0" & < "0.2.0"}
+  "cmdliner" {>= "1.1.0"}
+  "matrix" {with-test & >= "0.2.0" & < "0.3.0"}
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}
   "alcobar" {with-test & >= "0.3.2"}
   "re" {with-test}
-  "k7" {with-test}
+  "k7" {with-test & >= "0.10.0"}
   "odoc" {with-doc}
 ]
 build: [
@@ -51,8 +53,3 @@ build: [
 ]
 dev-repo: "git+https://github.com/samoht/ocaml-console.git"
 x-maintenance-intent: ["(latest)"]
-# k7 0.9.0 is not available on Windows. Drop the pin once k7 has a release
-# with samoht/ocaml-k7#4.
-pin-depends: [
-  ["k7.dev" "git+https://github.com/samoht/ocaml-k7.git#e108fe62132255df715b8e3d4bfbf3209dd3a5f6"]
-]

@@ -58,8 +58,8 @@ let test_invalid_constructors () =
     (Invalid_argument "Console.Color.ansi_256: index outside 0..255") (fun () ->
       ignore (Color.ansi_256 256))
 
-(* The parameters of the escape code that selects a colour, as a span in
-   that colour prints it. *)
+(* [code style c] is the parameters of the escape code that a span in colour
+   [c] prints to select it. *)
 let code style c =
   let s = View.to_string ~styled:true (View.styled (style c) (View.text "x")) in
   String.sub s 2 (String.index s 'm' - 2)
@@ -86,8 +86,8 @@ let depth =
         | `True_color -> "true colour"))
     ( = )
 
-(* A formatter keeps its own depth, 16 colours until it is set: the colours
-   every terminal shows. *)
+(* Each formatter keeps its own depth. Until it is set, the depth is 16
+   colours, which every terminal shows. *)
 let test_formatter_depth () =
   let a = Format.formatter_of_buffer (Buffer.create 1) in
   let b = Format.formatter_of_buffer (Buffer.create 1) in
@@ -101,8 +101,8 @@ let test_formatter_depth () =
   Alcotest.check depth "set again" `True_color (Color.depth a);
   Alcotest.check depth "another formatter" `Ansi_16 (Color.depth b)
 
-(* xterm-256 entries whose RGB values are the palette's own: the cube, the grey
-   ramp, and a colour nearer a grey than any cube entry. *)
+(* xterm-256 entries that match the palette's RGB values exactly: the cube,
+   the grey ramp, and a colour closer to a grey than to any cube entry. *)
 let test_downsample_256 () =
   let check label expected c =
     Alcotest.check color label (Color.ansi_256 expected)
@@ -128,9 +128,9 @@ let test_downsample_16 () =
   check "high palette entry" Color.bright_red (Color.ansi_256 196);
   check "named stays" Color.cyan Color.cyan
 
-(* The stops of a gradient are spread evenly: each stop is the colour at its
-   place, and between two stops the colour is their blend, each component
-   rounded from a + f (b - a), as [Color.blend] says. *)
+(* A gradient spreads its stops evenly. Each stop is the exact colour at its
+   position. Between two stops, the colour is their blend: each component is
+   a + f (b - a), rounded, as [Color.blend] says. *)
 let test_gradient () =
   let rgb = Alcotest.(triple int int int) in
   let stops = [ Color.rgb 0 0 0; Color.red; Color.rgb 255 255 255 ] in

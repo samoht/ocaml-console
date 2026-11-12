@@ -13,8 +13,8 @@ let test_unicode () =
   let border = Border.rounded in
   Alcotest.(check string) "rounded top_left" "╭" (Border.chars border).top_left
 
-(* A table's inner lines are the frame's own in every preset but [dos],
-   whose frame is double and whose inner lines are single. *)
+(* A table's inner lines use the frame's glyphs in every preset except
+   [dos]. [dos] has a double frame and single inner lines. *)
 let test_inner_lines () =
   List.iter
     (fun (name, b) ->
@@ -69,8 +69,8 @@ let test_inner_lines () =
       c.right_cross;
     ]
 
-(* [simple] has no frame and no line between the columns: a rule under the
-   header alone, across them. *)
+(* [simple] has no frame and no line between the columns. It draws only a
+   rule under the header, across all columns. *)
 let test_simple () =
   let c = Border.chars Border.simple in
   Alcotest.(check (list string))

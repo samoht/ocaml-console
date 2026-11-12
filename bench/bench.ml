@@ -6,8 +6,8 @@
 open Console
 
 (* [run name ~n f] runs [f] [n] times and prints the processor time and the
-   words allocated per run. Processor time, not wall-clock time, so that a
-   busy machine does not count against the code. *)
+   words allocated per run. It uses processor time, not wall-clock time, so a
+   busy machine does not change the result. *)
 let run name ~n f =
   f ();
   Gc.full_major ();
@@ -29,9 +29,9 @@ let cjk = String.concat "" (List.init 40 (fun _ -> "界"))
 let emoji = String.concat "" (List.init 20 (fun _ -> "👨‍👩‍👧"))
 let prose = String.concat " " (List.init 40 (fun i -> Fmt.str "word%d" i))
 
-(* Text of every kind of cluster: accented Latin, a combining mark, CJK, a
+(* Text with every kind of cluster: accented Latin, a combining mark, CJK, a
    Devanagari consonant with its vowel sign, an emoji, a skin tone, a flag, a
-   heart with VS16 and a ZWJ family; 80 cells. *)
+   heart with VS16 and a ZWJ family. It is 80 cells wide. *)
 let mixed =
   String.concat ""
     (List.init 4 (fun _ ->
@@ -79,14 +79,14 @@ let utf_8 =
   Format.pp_set_margin ppf 120;
   ppf
 
-(* Bars and rules fill their cells with a glyph, cluster by cluster. *)
+(* Bars and rules fill their cells with a glyph, one cluster at a time. *)
 let fills () =
   run "bar 80 cells" ~n:10_000 (fun () ->
       View.pp utf_8 (Bar.horizontal ~width:80 0.5));
   let rule = Rule.view ~glyph:"\u{2550}" ~label:(View.text mixed) () in
   run "rule 120 cells, mixed label" ~n:10_000 (fun () -> View.pp utf_8 rule)
 
-(* The line editor measures the line and steps over its clusters as it
+(* The line editor measures the line and steps over its clusters when it
    echoes. *)
 let line_editor () =
   run "line editor mixed 80" ~n:1_000 (fun () ->
@@ -146,7 +146,7 @@ let display ~live () =
   done;
   Display.close d
 
-(* Ten tasks run while the clock does not move: every redraw is the frame
+(* Ten tasks run and the clock does not move, so each redraw gives the frame
    already on screen. *)
 let idle () =
   let now () = 0. in
@@ -157,8 +157,8 @@ let idle () =
   List.iter Task.succeed tasks;
   Display.close d
 
-(* A live region of 1k running tasks, each with its spinner and its time,
-   drawn frame after frame as the clock moves: the cost of a frame. *)
+(* The cost of one frame: a live region of 1k running tasks, each with a
+   spinner and a time, redrawn as the clock moves. *)
 let live_tasks () =
   let t = ref 0. in
   let root = Task.root ~label:"bench" ~now:(fun () -> !t) () in
@@ -181,8 +181,8 @@ let results n =
     (List.init n (fun i ->
          [ Fmt.kstr View.text "row %d" i; Fmt.kstr View.text "%d" (i * 7) ]))
 
-(* A view of a 200-row table and a spinner beside it, drawn frame after
-   frame: the spinner turns, the table is laid out once. *)
+(* A 200-row table and a spinner, redrawn as the clock moves. The spinner
+   turns; the table is laid out once. *)
 let table_and_spinner () =
   let t = ref 0. in
   let view = View.vcat [ results 200; Spinner.view () ] in
@@ -194,7 +194,7 @@ let table_and_spinner () =
       Display.redraw d);
   Display.close d
 
-(* A view that does not move, redrawn as the clock moves: a tick costs
+(* A view that does not change, redrawn as the clock moves. A tick costs
    nothing. *)
 let idle_view () =
   let t = ref 0. in

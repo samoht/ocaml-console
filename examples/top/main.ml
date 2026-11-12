@@ -4,9 +4,9 @@
   ---------------------------------------------------------------------------*)
 
 (* A top of four cores. Their boxes stand side by side above a gauge of all
-   their jobs. Each core is a domain of its own, which at every tick runs
-   its jobs and counts them on its box and on the gauge. The display does
-   the rest, so the program has no synchronisation of its own. *)
+   their jobs. Each core is its own domain. At every tick, it runs its jobs
+   and counts them on its box and on the gauge. The display does the rest,
+   so the program needs no synchronisation of its own. *)
 
 open Console
 
@@ -14,14 +14,14 @@ let cores = 4
 let ticks = 90
 let tick = 0.1
 
-(* The jobs a core runs at a tick: each core's load changes every second and a
-   half, by a pattern of its own. *)
+(* The jobs a core runs at a tick. Each core's load changes every 1.5
+   seconds, in its own pattern. *)
 let jobs core tick = Hashtbl.hash (core, tick / 15) mod 5
 
-(* The most jobs a core runs in a second, which is a load of 100%. *)
+(* The most jobs a core runs in a second. This is a load of 100%. *)
 let capacity = 4. /. tick
 
-(* Each job is real work for its domain, a chain of digests. *)
+(* Each job is real work for its domain: a chain of digests. *)
 let run_job core tick j =
   let rec chain n d = if n = 0 then d else chain (n - 1) (Digest.string d) in
   let d = chain 5_000 (Fmt.str "%d.%d.%d" core tick j) in
@@ -29,7 +29,7 @@ let run_job core tick j =
 
 let sum f n = List.fold_left ( + ) 0 (List.init n f)
 
-(* A core runs its jobs at each tick, in a domain of its own. *)
+(* A core runs its jobs at each tick, in its own domain. *)
 let core ~clock ~total c task =
   for t = 0 to ticks - 1 do
     Eio.Time.Mono.sleep clock tick;
@@ -69,7 +69,7 @@ let box ~width task =
           ]))
 
 (* The boxes share the width, two cells apart, above the gauge's row. The
-   gauge's task is the first that starts. *)
+   gauge's task is the first one started. *)
 let view root =
   View.fit @@ fun room ->
   match Task.children root with

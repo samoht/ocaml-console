@@ -3,7 +3,7 @@
  (modules display_harness)
  (flags
   (:standard -open Console__))
- (libraries console console_vte matrix.vte alcotest astring fmt))
+ (libraries console console_vte matrix.vte alcotest astring fmt re))
 
 (library
  (name widget_harness)
@@ -30,16 +30,6 @@
  (flags
   (:standard -open Console__))
  (libraries console fmt))
-
-(rule
- (with-stdout-to
-  matrix_version.ml
-  (echo "let v = \"%{version:matrix}\"\n")))
-
-(library
- (name matrix_0_1)
- (modules matrix_0_1 matrix_version)
- (libraries alcobar console_width uucp))
 
 (library
  (name cast_harness)

@@ -5,7 +5,7 @@
 
 open Display_harness
 
-(* Most tests run [Console_eio.run] on a buffer: with no terminal, each task
+(* Most tests run [Console_eio.run] on a buffer. With no terminal, each task
    line, log line and the result is printed as plain text. *)
 
 module D = Console.Task
@@ -48,7 +48,7 @@ let test_run_fail () =
   mem ~msg:"fail marker" "✗" out;
   mem ~msg:"fail message" "link failed" out
 
-(* An exception that the function raises goes on out of [run]. *)
+(* An exception that the function raises goes out of [run]. *)
 let test_run_raises () =
   Alcotest.check_raises "propagates" (Failure "boom") (fun () ->
       ignore
@@ -56,9 +56,10 @@ let test_run_raises () =
              let _ = D.start t "doomed" in
              failwith "boom")))
 
-(* While [run] owns the Logs reporter, messages go to the display: an [App]
-   message as it was written, a message at another level after its mark, and
-   one from a source other than the default after the source's name. *)
+(* While [run] owns the Logs reporter, messages go to the display. An [App]
+   message is printed as written. A message at another level is printed after
+   its level mark. A message from a source other than the default is printed
+   after the source's name. *)
 let named = Logs.Src.create "console.test"
 
 let test_reporter () =
@@ -75,8 +76,8 @@ let test_reporter () =
         D.succeed step)
   in
   mem ~msg:"a named source says its name" "\n[console.test] named-line\n" out;
-  (* As Logs_fmt.reporter prints App: the program's own output, no header. A
-     reporter that labels every level with its source fails here. *)
+  (* As Logs_fmt.reporter prints [App]: the program's own output, with no
+     header. A reporter that labels every level with its source fails here. *)
   mem ~msg:"an application line names no source" "\nnamed-application-line\n"
     out;
   mem ~msg:"application log, no mark" "\napplication-line\n" out;
@@ -84,10 +85,10 @@ let test_reporter () =
   mem ~msg:"multiline log keeps physical rows" "╭───╮\n│ x │\n╰───╯\n" out;
   mem ~msg:"warning log" "\n! warning-line\n" out
 
-(* [redraw] writes the frame of the view as the program's state is when it
-   is called. The mock clock never moves, so no timed redraw draws it: a
-   [redraw] that drew nothing, or waited for the next tick, leaves the
-   buffer without the state set. *)
+(* [redraw] writes the frame of the view for the program's state at the time of
+   the call. The mock clock never moves, so no timed redraw draws it. A [redraw]
+   that drew nothing, or waited for the next tick, leaves the buffer without the
+   state that was set. *)
 let test_redraw () =
   Eio_main.run @@ fun _env ->
   let clock = Eio_mock.Clock.Mono.make () in
@@ -112,8 +113,8 @@ let test_redraw () =
 let absent ~msg needle haystack =
   Alcotest.(check bool) msg false (contains needle haystack)
 
-(* Logs messages inside [Task.run] go under its task, from the fibers its
-   function forks too. *)
+(* Logs messages inside [Task.run] go under its task, including those from the
+   fibers its function forks. *)
 let test_logs_in_task () =
   let out =
     capture (fun d ->
@@ -130,7 +131,8 @@ let test_logs_in_task () =
   mem ~msg:"debug, from a forked fiber" "\n  \u{00b7} build: deep\n" out;
   mem ~msg:"the end line" "\u{2713} build" out
 
-(* Two tasks in two fibers: each Logs message goes to its own fiber's. *)
+(* Two tasks in two fibers: each Logs message goes to the task of its own
+   fiber. *)
 let test_two_fibers () =
   let out =
     capture (fun d ->
@@ -148,7 +150,8 @@ let test_two_fibers () =
     [ "a: a1"; "a: a2"; "b: b1"; "b: b2" ];
   List.iter (fun l -> absent ~msg:l l out) [ "a: b1"; "b: a1" ]
 
-(* A fiber cancelled inside [Task.run] cancels its task: it did not fail. *)
+(* A fiber cancelled inside [Task.run] cancels its task: the task did not
+   fail. *)
 let test_cancelled_fiber () =
   let out =
     capture (fun d ->
@@ -162,9 +165,9 @@ let test_cancelled_fiber () =
   mem ~msg:"cancelled" "\u{25cb} slow" out;
   absent ~msg:"not failed" "\u{2717} slow" out
 
-(* [within] makes a task current from another fiber, and the fibers it forks
-   with it; a fiber cancelled there does not end the task. Within the root,
-   a message goes above the rows, unlabelled. *)
+(* [within] makes a task current from another fiber, and for the fibers it
+   forks. A fiber cancelled there does not end the task. Within the root, a
+   message goes above the rows, without a label. *)
 let test_within_fiber () =
   let out =
     capture (fun d ->
@@ -238,7 +241,8 @@ let test_json_concurrent_writes () =
   Alcotest.(check int)
     "four events per task, and the end of the work" 13 (List.length lines)
 
-(* The events of the lines of [out], each written back as it was. *)
+(* The events of the lines of [out], each checked to encode back to the same
+   line. *)
 let events out =
   String.split_on_char '\n' out
   |> List.filter (( <> ) "")
@@ -263,7 +267,8 @@ let output_events out =
 
 let outputs out = List.map snd (output_events out)
 
-(* A successful task's last line is still its output without a newline. *)
+(* The last line of a successful task is still output, even without a
+   newline. *)
 let test_quiet_unended_success () =
   let out =
     Eio_harness.capture_stdout `Quiet (fun d ->
@@ -289,7 +294,7 @@ let test_json_unended_attribution () =
     [ ("0 ok", "secret"); ("1 fail", "public") ]
     (List.map (fun (task, text) -> (task_name task, text)) (output_events out))
 
-(* A complete long line is one output record, just as with Task.log. *)
+(* A complete long line is one output record, as with [Task.log]. *)
 let test_json_long_line () =
   let text = String.make 65537 'x' in
   let out =
@@ -302,8 +307,8 @@ let test_json_long_line () =
     (List.map String.length output);
   Alcotest.(check bool) "the whole line is preserved" true (output = [ text ])
 
-(* A line longer than 64 KiB is cut between two characters, and outside an
-   escape code, where the formatter's write leaves one under way. *)
+(* A line longer than 64 KiB is cut between two characters and outside an escape
+   code, where the formatter's write leaves one under way. *)
 let test_long_line_cut () =
   let x = String.make 65535 'x' in
   let cut first rest =
@@ -319,8 +324,8 @@ let test_long_line_cut () =
   Alcotest.(check (list string))
     "outside an escape code" [ x; "red" ] (cut "\027[3" "1mred")
 
-(* A write error on the display's output ends that output and nothing
-   else, whatever the formatter's output raises it with: on an Eio flow, as
+(* A write error on the display's output ends that output and nothing else,
+   whatever exception the formatter's output raises. On an Eio flow, that is
    [Eio.Io]. *)
 let test_flow_write_error () =
   Eio_main.run @@ fun _env ->
@@ -415,7 +420,7 @@ module Report_domains = struct
   let send ?(over = fun () -> ()) ?(continued = fun () -> ()) reporter text =
     reporter.Logs.report source Logs.Info ~over continued (fun m -> m "%s" text)
 
-  (* A reporter that keeps the messages it is given, installed while [f]
+  (* A reporter that keeps the messages it receives, installed while [f]
      runs. *)
   let recording f =
     let kept = ref [] and lock = Mutex.create () in
@@ -467,8 +472,8 @@ module Report_domains = struct
       "each continuation acknowledged once" 2 (Atomic.get continued);
     restored previous
 
-  (* A message logged in another domain, within a task, is that task's
-     output, as it would be in the domain that runs the display. *)
+  (* A message logged in another domain, within a task, is that task's output,
+     as it would be in the domain that runs the display. *)
   let worker_task () =
     with_runtime @@ fun env ->
     let sink = sink () in
@@ -483,8 +488,9 @@ module Report_domains = struct
     if not (contains "work: [console.worker] from a worker" out) then
       Alcotest.failf "the message is not the task's:\n%s" out
 
-  (* An output refusal on the domain that runs the display does not fail
-     the worker's log call: the record goes to the prior reporter. *)
+  (* If the output refuses a record on the domain that runs the display, the
+     worker's log call does not fail: the record goes to the previous
+     reporter. *)
   let output_error () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
@@ -507,7 +513,8 @@ module Report_domains = struct
     restored previous
 
   (* A logging failure must not turn successful application work into an
-     exception: an unavailable display hands the record to the prior reporter. *)
+     exception. When the display is unavailable, the record goes to the previous
+     reporter. *)
   let output_refusal_falls_back () =
     with_runtime @@ fun env ->
     recording @@ fun kept ->
