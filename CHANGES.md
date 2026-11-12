@@ -42,11 +42,11 @@
 
 - `console.cli`, whose `Console_cli.setup` gives a Cmdliner program a
   `--theme` and a `--color` option and applies them to both standard outputs
-  (#78, reported by [toastal](https://toast.al/)).
+  (#78, reported by @toastal).
 
 - `Theme.set_program`, to choose the theme of every formatter that has none of
   its own, including the new formatters that `Fmt.str` and
-  `Format.asprintf` create (#78, reported by [toastal](https://toast.al/)).
+  `Format.asprintf` create (#78, reported by @toastal).
 
 - `console-lwt`, to show the progress rows of a program that runs with Lwt.
   It has no deterministic mode: it runs in real time under
@@ -68,10 +68,10 @@
 - `Console_tty.setup ~theme` now sets the program's theme instead of the theme
   of each standard output, so strings built with `Fmt.str` and
   `View.to_string` use it too. A formatter given a theme with `Theme.set`
-  keeps that theme (#78, reported by [toastal](https://toast.al/)).
+  keeps that theme (#78, reported by @toastal).
 
 - `View.to_string` now draws in the program's theme rather than always in
-  `Theme.default` (#78, reported by [toastal](https://toast.al/)).
+  `Theme.default` (#78, reported by @toastal).
 
 - `Theme.default`'s accent is bright blue rather than cyan.
 
