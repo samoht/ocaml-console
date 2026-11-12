@@ -3,7 +3,7 @@
  (modules display_harness)
  (flags
   (:standard -open Console__))
- (libraries console console_vte matrix.vte alcotest astring fmt))
+ (libraries console console_vte matrix.vte alcotest astring fmt re))
 
 (library
  (name widget_harness)

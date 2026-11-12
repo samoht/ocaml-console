@@ -34,6 +34,10 @@ val bar_span : string -> (int * int) option
 val clock : unit -> (unit -> float) * (float -> unit)
 (** [clock ()] is a clock reading zero and a function that advances it. *)
 
+val finish : Task.t -> int -> unit
+(** [finish task o] ends [task]: it succeeds, fails or is cancelled as [o mod 3]
+    is 0, 1 or 2. *)
+
 val rooted :
   ?label:string -> ?view:(Task.t -> 'a) -> (unit -> float) -> Task.t * 'a option
 (** [rooted ?view now] is a {{!Console.Task.root}root} timed by [now], and
@@ -120,3 +124,46 @@ val check_room : rows:int -> cols:int -> string -> int -> View.t -> unit
 
 val check_invalid : string -> (unit -> unit) -> unit
 (** [check_invalid msg f] checks that [f ()] raises [Invalid_argument msg]. *)
+
+val check_lines : string -> string list -> string list -> unit
+(** [check_lines msg expected actual] checks that the lines [actual] are
+    [expected]. *)
+
+val theme : Theme.t
+(** [theme] is {!Console.Theme.dos}, the theme of most display tests. *)
+
+val split : string -> string list
+(** [split s] is the lines of [s], split at each line feed. *)
+
+val untimed : string -> string
+(** [untimed l] is [l] without the timer at its end. *)
+
+val above : View.t -> Task.t -> View.t
+(** [above top root] is [top] above the default view of [root]. When the two do
+    not fit, [top] loses its lines first. *)
+
+val show :
+  ?progress:Progress.t ->
+  ?size:(unit -> int * int) ->
+  ?label:string ->
+  ?layout:Progress.Layout.t ->
+  ?view:(Task.t -> View.t) ->
+  ?keep_ended:bool ->
+  now:(unit -> float) ->
+  Format.formatter ->
+  Task.t * Display.t
+(** [show ~now ppf] is a root timed by [now], and a display of its tasks on
+    [ppf]. *)
+
+val check_plain :
+  string -> (Task.t -> (float -> unit) -> unit) -> string list -> unit
+(** [check_plain msg f expected] checks that [f] prints the lines [expected] on
+    a pipe, in {!theme}. *)
+
+val fit : 'a -> ('a -> width:int -> height:int -> View.t) -> View.t
+(** [fit root f] is the view [f root ~width ~height], with the [width] and
+    [height] of the display's region. *)
+
+val default : Task.t -> width:int -> height:int -> View.t
+(** [default root ~width ~height] is the default view of [root] in a space
+    [width] wide and [height] tall. *)
