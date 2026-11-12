@@ -79,7 +79,7 @@ let test_read_failure () =
     prompt ~interactive:true [ `Return "part"; `Raise Read_failure ]
   in
   Alcotest.check_raises "read exception propagates" Read_failure (fun () ->
-      ignore (P.line t "question: "));
+      match P.line t "question: " with Ok _ | Error _ -> ());
   Alcotest.(check string)
     "flushed before fault" "question: " (Buffer.contents out)
 

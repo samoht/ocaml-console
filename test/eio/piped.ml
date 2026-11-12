@@ -96,7 +96,9 @@ let () =
           let prompt =
             Console_eio.Prompt.v ~interactive:true (Eio.Stdenv.stdin env)
           in
-          ignore (Console_eio.Prompt.line prompt "name? ");
+          (match Console_eio.Prompt.line prompt "name? " with
+          | Ok _ -> ()
+          | Error _ -> failwith "quiet-prompt: no answer");
           Console.Task.run display "work" Console.Task.fail)
   | [| _; "json-stdout" |] ->
       Console_eio.run ~clock ~progress:`Json (fun display ->

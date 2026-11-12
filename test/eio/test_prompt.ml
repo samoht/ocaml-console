@@ -128,7 +128,9 @@ let test_confirm_at_end_of_input_is_refused () =
 let test_question_is_text () =
   run @@ fun () ->
   let t, out = prompt ~interactive:true "y\n" in
-  ignore (Prompt.confirm t "\027[2Jdelete?");
+  Alcotest.(check bool)
+    "answered" true
+    (Prompt.confirm t "\027[2Jdelete?" = Ok true);
   Alcotest.(check bool)
     "no escape" false
     (String.contains (Buffer.contents out) '\027')

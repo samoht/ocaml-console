@@ -29,7 +29,8 @@ let test_palette n =
 
 (* A colour printed as hex reads back. *)
 let test_hex s =
-  ignore (Color.of_hex s);
+  (* Any string reads as a colour or as an error, never as an exception. *)
+  (match Color.of_hex s with Ok _ | Error (`Msg _) -> ());
   let r, g, b =
     ( Char.code (String.get (s ^ "abc") 0),
       Char.code (String.get (s ^ "abc") 1),

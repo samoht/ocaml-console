@@ -44,7 +44,10 @@
 let secret env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
   Eio.Fiber.both
-    (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
+    (fun () ->
+      (* SIGINT ends the program before the answer comes. *)
+      match Console_eio.Prompt.secret prompt "password: " with
+      | Ok _ | Error _ -> ())
     (fun () ->
       while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
         Eio.Fiber.yield ()
@@ -56,7 +59,10 @@ let secret env =
 let secret_lost env =
   let prompt = Console_eio.Prompt.v (Eio.Stdenv.stdin env) in
   Eio.Fiber.both
-    (fun () -> ignore (Console_eio.Prompt.secret prompt "password: "))
+    (fun () ->
+      (* SIGINT ends the program before the answer comes. *)
+      match Console_eio.Prompt.secret prompt "password: " with
+      | Ok _ | Error _ -> ())
     (fun () ->
       while (Unix.tcgetattr Unix.stdin).Unix.c_echo do
         Eio.Fiber.yield ()
