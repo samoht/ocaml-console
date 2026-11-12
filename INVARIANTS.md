@@ -7,7 +7,7 @@ is `file` "test name", then the kind of check:
 - property: a property test (Alcobar), run briefly by `dune test`, explored
   by `dune build @fuzz --profile=afl` and nightly in CI, each input under a
   timeout of 120 s that guards against a hang and decides no normal run
-  (`--timeout 120`), except on Windows, which has no SIGALRM to time it;
+  (`--timeout 120`; Windows has no SIGALRM, so it runs without one);
 - pty: a test on a real pseudo-terminal;
 - cram: a shell session.
 
