@@ -75,6 +75,17 @@ let test_echo_shows_the_line keys =
   let shown = match Console_vte.screen term with [] -> "" | row :: _ -> row in
   check_eq ~pp:Fmt.Dump.string (Console_input.pending editor) shown
 
+(* After any keys, the line holds at most [max_line] bytes. *)
+let test_max_line n keys =
+  let max_line = n mod 24 in
+  let editor = Console_input.v ~max_line () in
+  List.iter
+    (fun k ->
+      ignore (Console_input.feed editor k);
+      let bytes = String.length (Console_input.pending editor) in
+      if bytes > max_line then failf "%d bytes, at most %d" bytes max_line)
+    keys
+
 (* After any keys, the cursor is between two clusters of the line, never
    inside one. This holds even after a character that joins the cluster
    after the cursor. The test types [|] and checks that it splits the line
@@ -230,6 +241,9 @@ let suite =
         test_insert_cluster;
       test_case "chunking and masking" [ bytes ] test_chunks;
       test_case "the echo shows the line" [ list key ] test_echo_shows_the_line;
+      test_case "the line holds at most max_line bytes"
+        [ uint8; list key ]
+        test_max_line;
       test_case "the cursor stands between clusters"
         [ list key ]
         test_cursor_between_clusters;

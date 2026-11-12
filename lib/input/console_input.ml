@@ -13,11 +13,59 @@ type esc = Normal | Esc | Csi | Csi_intermediate | Ss3
    holds the clusters before the cursor, nearest first (reversed). [right]
    holds the clusters after the cursor, in order. Editing a whole cluster at a
    time keeps a character and its marks together, both on the screen and in
-   the line. *)
+   the line. Only [Line] changes the clusters, so [length] always matches
+   them. *)
+module Line : sig
+  type t = private { left : string list; right : string list; length : int }
+
+  val empty : t
+
+  val at_end : string list -> t
+  (** [at_end cs] is the clusters [cs], with the cursor after them. *)
+
+  val move_left : t -> (string * t) option
+  (** [move_left t] is the cluster before the cursor and [t] with the cursor
+      before it, if any. *)
+
+  val move_right : t -> (string * t) option
+  (** [move_right t] is the cluster after the cursor and [t] with the cursor
+      after it, if any. *)
+
+  val replace :
+    t -> before:int -> after:int -> left:string list -> right:string list -> t
+  (** [replace t ~before ~after ~left ~right] removes the [before] clusters just
+      before the cursor and the [after] clusters just after it. It puts [left]
+      (nearest first) and [right] in their place. *)
+end = struct
+  type t = { left : string list; right : string list; length : int }
+
+  let bytes = List.fold_left (fun n c -> n + String.length c) 0
+  let empty = { left = []; right = []; length = 0 }
+  let at_end cs = { left = List.rev cs; right = []; length = bytes cs }
+
+  let move_left t =
+    match t.left with
+    | [] -> None
+    | c :: left -> Some (c, { t with left; right = c :: t.right })
+
+  let move_right t =
+    match t.right with
+    | [] -> None
+    | c :: right -> Some (c, { t with right; left = c :: t.left })
+
+  let replace t ~before ~after ~left ~right =
+    let gone_left = List.take before t.left in
+    let gone_right = List.take after t.right in
+    {
+      left = left @ List.drop before t.left;
+      right = right @ List.drop after t.right;
+      length =
+        t.length - bytes gone_left - bytes gone_right + bytes left + bytes right;
+    }
+end
+
 type t = {
-  mutable left : string list;
-  mutable right : string list;
-  mutable len : int; (* the length in bytes of [left] and [right] *)
+  mutable line : Line.t;
   max_line : int; (* the maximum length of a line, in bytes *)
   history_size : int; (* the maximum number of lines in [hist] *)
   prompt : string;
@@ -46,9 +94,7 @@ let rec take n = function x :: l when n > 0 -> x :: take (n - 1) l | _ -> []
 let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask
     ?(max_line = default_max_line) ?(history_size = default_history_size) () =
   {
-    left = [];
-    right = [];
-    len = 0;
+    line = Line.empty;
     max_line;
     history_size;
     prompt = clean prompt;
@@ -66,7 +112,7 @@ let v ?(prompt = "") ?(history = []) ?(complete = fun _ -> []) ?mask
   }
 
 let crlf s = String.concat "\r\n" (String.split_on_char '\n' s)
-let line t = String.concat "" (List.rev_append t.left t.right)
+let line t = String.concat "" (List.rev_append t.line.left t.line.right)
 let pending t = line t
 let history t = List.rev t.hist
 let add = Buffer.add_string
@@ -80,10 +126,10 @@ let width t s = Console_width.string_width (display t s)
 let display_chars t cs = String.concat "" (List.map (display_char t) cs)
 let cols t cs = Console_width.string_width (display_chars t cs)
 
-(* Move the cursor back over [t.right] after rewriting it, one backspace per
+(* Move the cursor back over [t.line.right] after rewriting it, one backspace per
    cell. *)
 let reposition t echo =
-  let tail = cols t t.right in
+  let tail = cols t t.line.right in
   if tail > 0 then add echo (String.make tail '\b')
 
 (* [cluster_cells t c] is the number of cells of the cluster [c]. It is
@@ -157,7 +203,7 @@ let rec rejoin text taken right =
    bell rings instead. *)
 let edit t echo ~erased s =
   t.pos <- None;
-  let left = if erased = "" then t.left else List.tl t.left in
+  let left = if erased = "" then t.line.left else List.tl t.line.left in
   let s =
     if left <> [] || t.mask <> None then s
     else
@@ -165,20 +211,21 @@ let edit t echo ~erased s =
       | c :: cs when Console_width.string_width c = 0 -> String.concat "" cs
       | _ -> s
   in
-  if s <> "" && t.len - String.length erased + String.length s > t.max_line then
-    add echo "\007"
+  if
+    s <> ""
+    && t.line.length - String.length erased + String.length s > t.max_line
+  then add echo "\007"
   else if s <> "" || erased <> "" then begin
-    t.len <- t.len - String.length erased + String.length s;
-    let prev, before =
-      match left with c :: l -> ([ c ], l) | [] -> ([], [])
-    in
+    let prev = match left with c :: _ -> [ c ] | [] -> [] in
     let prev_text = String.concat "" prev in
-    let changed, old_right, rest = rejoin (prev_text ^ s) [] t.right in
+    let changed, old_right, rest = rejoin (prev_text ^ s) [] t.line.right in
     let now_left, now_right =
       split changed ~at:(String.length prev_text + String.length s)
     in
-    t.left <- now_left @ before;
-    t.right <- now_right @ rest;
+    t.line <-
+      Line.replace t.line
+        ~before:(List.length prev + if erased = "" then 0 else 1)
+        ~after:(List.length old_right) ~left:now_left ~right:now_right;
     let before_cursor = prev @ if erased = "" then [] else [ erased ] in
     let was = before_cursor @ old_right in
     let n = List.length before_cursor in
@@ -199,29 +246,25 @@ let insert t echo s = edit t echo ~erased:"" s
 (* Erase the cluster before the cursor. At the end of the line this is the
    familiar "\b \b". *)
 let backspace t echo =
-  match t.left with [] -> () | c :: _ -> edit t echo ~erased:c ""
+  match t.line.left with [] -> () | c :: _ -> edit t echo ~erased:c ""
 
 let cursor_left t echo =
-  match t.left with
-  | [] -> ()
-  | c :: tl ->
-      t.left <- tl;
-      t.right <- c :: t.right;
+  match Line.move_left t.line with
+  | None -> ()
+  | Some (c, line) ->
+      t.line <- line;
       add echo (String.make (width t c) '\b')
 
 let cursor_right t echo =
-  match t.right with
-  | [] -> ()
-  | c :: tl ->
-      t.right <- tl;
-      t.left <- c :: t.left;
+  match Line.move_right t.line with
+  | None -> ()
+  | Some (c, line) ->
+      t.line <- line;
       add echo (display_char t c)
 
 let submit t echo =
   let line = line t in
-  t.left <- [];
-  t.right <- [];
-  t.len <- 0;
+  t.line <- Line.empty;
   add echo "\r\n";
   (if String.length line > 0 && t.mask = None then
      match t.hist with
@@ -234,13 +277,11 @@ let submit t echo =
 (* Replace the whole line with [s] (history recall): move to the end, erase
    every cell, then write [s] with the cursor left at its end. *)
 let recall t echo s =
-  add echo (display_chars t t.right);
+  add echo (display_chars t t.line.right);
   for _ = 1 to width t (line t) do
     add echo "\b \b"
   done;
-  t.left <- List.rev (clusters s);
-  t.right <- [];
-  t.len <- String.length s;
+  t.line <- Line.at_end (clusters s);
   add echo (display t s)
 
 let hist_prev t echo =
@@ -289,7 +330,7 @@ let last_word s =
 let complete t echo =
   if t.mask <> None then ()
   else
-    let before = String.concat "" (List.rev t.left) in
+    let before = String.concat "" (List.rev t.line.left) in
     let word = last_word before in
     let candidates = List.map clean (t.complete word) in
     match List.filter (String.starts_with ~prefix:word) candidates with
