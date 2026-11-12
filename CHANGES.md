@@ -210,6 +210,11 @@
   documentation says and as `Border.v` does. A line feed in a glyph no longer
   splits the lines of a tree (#82).
 
+- A `View.fit` part is never laid out in a negative room: `View.sized` and
+  `View.place` take a negative width or height as `0`, as `View.truncate` and
+  `View.crop` do, and the label of a tree whose guides are wider than the
+  margin gets a room of no cell (#82).
+
 ## 0.9.0 (29/10/2026)
 
 Initial release of `console` and `console-eio`.

@@ -190,16 +190,17 @@ val fit : ?min_width:int -> ?grow:int -> (Room.t -> t) -> t
 val sized : ?width:int -> ?height:int -> t -> t
 (** [sized ~width ~height v] is [v] laid out in a room at most [width] cells
     wide and [height] lines tall, and no larger than the room it is printed in.
-    A bound that is not given is the bound of that room. A widget fits its room,
-    so for a widget [width (sized ~width:w v) <= w]. *)
+    A bound that is not given is the bound of that room, and a negative one is
+    [0]. A widget fits its room, so for a widget
+    [width (sized ~width:w v) <= max 0 w]. *)
 
 val place : ?align:align -> ?width:int -> ?height:int -> t -> t
 (** [place ~align ~width ~height v] is [v] in a box [width] cells wide and
-    [height] lines tall (each defaults to the size of [v]). Each line is placed
-    at [align] (defaults to [`Left]) and padded with spaces. A line wider than
-    the box is cut as by {!truncate}. Blank lines are added below, or the lines
-    after [height] are dropped. [v] is laid out in that box. For example, a
-    right-aligned column of fixed width is a [place]:
+    [height] lines tall (each defaults to the size of [v], and is [0] if
+    negative). Each line is placed at [align] (defaults to [`Left]) and padded
+    with spaces. A line wider than the box is cut as by {!truncate}. Blank lines
+    are added below, or the lines after [height] are dropped. [v] is laid out in
+    that box. For example, a right-aligned column of fixed width is a [place]:
 
     {[
     let status verb what =

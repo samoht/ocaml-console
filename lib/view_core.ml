@@ -1095,22 +1095,20 @@ let place_line ~ellipsis align w line =
   F.concat [ sp left; line; sp right ]
 
 let place ?(align = `Left) ?width ?height t =
+  let width = Option.map (max 0) width and height = Option.map (max 0) height in
   let placed ellipsis f =
     let lines = F.lines f in
     let lines =
       match height with
       | None -> lines
       | Some h ->
-          let h = max 0 h in
           List.init h (fun i ->
               match List.nth_opt lines i with Some l -> l | None -> F.empty)
     in
-    let w = match width with Some w -> max 0 w | None -> F.width f in
+    let w = match width with Some w -> w | None -> F.width f in
     F.unlines (List.map (place_line ~ellipsis align w) lines)
   in
-  let cuts f =
-    match width with Some w -> F.width f > max 0 w | None -> false
-  in
+  let cuts f = match width with Some w -> F.width f > w | None -> false in
   match t with
   | Flat f when not (cuts f) -> Flat (placed F.ellipsis f)
   | _ ->

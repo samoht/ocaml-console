@@ -25,7 +25,8 @@ val time : t -> float
 
 val v : ?width:int -> ?height:int -> ?time:float -> Look.t -> t
 (** [v ~width ~height ~time look] is the room in [look], bounded by [width] and
-    [height] (defaults to unbounded), at [time] (defaults to [0.]). *)
+    [height] (defaults to unbounded), at [time] (defaults to [0.]). A negative
+    bound is [0], here and in {!with_room} and {!with_width}. *)
 
 val default : t
 (** [default] is [v Look.default], the room that a view is measured in. *)

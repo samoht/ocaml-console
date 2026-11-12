@@ -537,6 +537,43 @@ let test_fit_room () =
     "its theme and character set" "ascii false"
     (at ~theme:Theme.ascii ~utf_8:false ~time:0. theme)
 
+(* A negative bound is a room of no cell, as a negative width is for
+   [truncate], [crop] and [place]. *)
+let test_negative_room () =
+  let room =
+    View.fit (fun r ->
+        let pp = Fmt.(option ~none:(any "none") int) in
+        Fmt.kstr View.text "%a by %a" pp (Room.width r) pp (Room.height r))
+  in
+  Alcotest.(check string)
+    "sized" "0 by 0"
+    (View.to_string (View.sized ~width:(-5) ~height:(-2) room));
+  Alcotest.(check string)
+    "sized within the room" "0 by 0"
+    (pp_at 8 (View.sized ~width:(-5) ~height:(-2) room));
+  Alcotest.(check string)
+    "placed" ""
+    (View.to_string (View.place ~width:(-5) ~height:(-2) room));
+  let seen = ref [] in
+  let probe =
+    View.fit (fun r ->
+        seen := (Room.width r, Room.height r) :: !seen;
+        View.empty)
+  in
+  ignore (View.to_string (View.place ~width:(-5) ~height:(-2) probe));
+  Alcotest.(check (list (pair (option int) (option int))))
+    "the room of a placed view"
+    [ (Some 0, Some 0) ]
+    !seen;
+  seen := [];
+  let deep =
+    Tree.v (View.text "r") [ Tree.v (View.text "a") [ Tree.v probe [] ] ]
+  in
+  ignore (pp_at 2 (Tree.view ~guide:Guide.ascii deep));
+  Alcotest.(check (list (option int)))
+    "the room of a label under guides wider than the margin" [ Some 0 ]
+    (List.map fst !seen)
+
 let test_room_pp () =
   let room = View.fit (fun r -> Fmt.kstr View.text "%a" Room.pp r) in
   Alcotest.(check string)
@@ -730,6 +767,8 @@ let suite =
         test_gradient_theme;
       Alcotest.test_case "a fit part is laid out in its room" `Quick
         test_fit_room;
+      Alcotest.test_case "a negative bound is an empty room" `Quick
+        test_negative_room;
       Alcotest.test_case "a fit part keeps its still size" `Quick
         test_fit_still_size;
       Alcotest.test_case "hcat shares its room" `Quick test_hcat_grow;
