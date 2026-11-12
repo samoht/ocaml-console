@@ -314,6 +314,18 @@ let last height lines =
     in
     List.map snd (past_block (List.drop extra lines))
 
+(* [fit t ~look l] is the line [l] and its width. On a terminal, a line wider
+   than the terminal is cut to its width. Elsewhere the width is not needed,
+   and is [0]. *)
+let fit t ~look l =
+  if is_live t then
+    let w = View_core.width l in
+    if w > t.width then
+      let l = Widget.truncate look t.width l in
+      (l, View_core.width l)
+    else (l, w)
+  else (l, 0)
+
 (* The lines of [view] laid out in [c], each drawn in [look]. With [height],
    only the last [height] lines. With a terminal, each line is cut to the
    width of the terminal. *)
@@ -327,16 +339,7 @@ let lines t ~look ?height c view =
         | Some h -> last h seamed
         | None -> List.map snd seamed)
   in
-  if is_live t then
-    List.map
-      (fun l ->
-        let w = View_core.width l in
-        if w > t.width then
-          let l = Widget.truncate look t.width l in
-          (l, View_core.width l)
-        else (l, w))
-      lines
-  else List.map (fun l -> (l, 0)) lines
+  List.map (fit t ~look) lines
 
 let frame t =
   match capacity t with
@@ -858,11 +861,14 @@ let restart t =
     write ~salvage:hide_cursor t hide_cursor
   end
 
-let print_lines t lines =
-  if ((not t.closed) || t.closing) && lines <> [] then begin
-    t.on_print ();
-    commit t lines
-  end
+let print_lines t views =
+  let look = look t in
+  match List.concat_map View_core.lines views with
+  | [] -> ()
+  | _ when t.closed && not t.closing -> ()
+  | lines ->
+      t.on_print ();
+      commit t (List.map (fun l -> fst (fit t ~look l)) lines)
 
 let told t = t.told <- true
 let closed t = t.closed

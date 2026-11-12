@@ -101,8 +101,9 @@ val is_live : t -> bool
 (** [is_live d] is [true] iff [d] redraws a region on a terminal. *)
 
 val print_lines : t -> View.t list -> unit
-(** [print_lines d lines] prints [lines] as {!print} does. Each element of
-    [lines] must be a single line that fits the terminal. *)
+(** [print_lines d lines] prints the lines of [lines], laid out already, as
+    {!print} does: each line on a line of its own, cut to the terminal's width
+    on a terminal. *)
 
 val closed : t -> bool
 (** [closed d] is [true] iff [d] is closed. *)

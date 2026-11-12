@@ -3462,6 +3462,19 @@ let test_print () =
     "on a pipe, at once" "printed\n" (Buffer.contents buffer);
   Display.close display
 
+(* [print_lines] puts each line of its views on a line of its own and cuts a
+   line wider than the terminal, so the region below stays in place. *)
+let test_print_lines_fit () =
+  let t = terminal ~theme ~width:10 ~height:8 () in
+  ignore (Task.start t.root "job");
+  Display.redraw t.display;
+  Console__.Display_core.print_lines t.display
+    [ View.text "a\nb"; View.text (String.make 30 'x') ];
+  check_lines "each line apart, the long one cut"
+    [ "a"; "b"; "xxxxxxxxx\u{2026}"; " |  job" ]
+    (List.map untimed (screen t));
+  close t
+
 (* With [`Plain], the last frame is as wide as the terminal if there is one,
    and is not cut if there is none. *)
 let test_plain_last_frame_width () =
@@ -3613,6 +3626,8 @@ let suite =
         test_root_line_wraps;
       Alcotest.test_case "commit sees the output" `Quick test_commit_output;
       Alcotest.test_case "print writes at once" `Quick test_print;
+      Alcotest.test_case "printed lines fit the terminal" `Quick
+        test_print_lines_fit;
       Alcotest.test_case "a view exception still allows close" `Quick
         test_view_exception_close;
       Alcotest.test_case "a view that raises later" `Quick
