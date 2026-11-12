@@ -80,6 +80,55 @@ module Make (B : S) = struct
 
   let get k = if at_home () then B.get k else None
   let in_fiber () = at_home () && B.in_fiber ()
+
+  (* [B] with each call that must run on the home thread checked, so that a
+     call from elsewhere raises instead of running on the wrong scheduler.
+     Creating a key or a wake, notifying, and the two exception tests are
+     allowed anywhere. *)
+  module B = struct
+    include B
+
+    let home name =
+      if not (at_home ()) then
+        invalid_arg ("Console_driver: B." ^ name ^ " called off the home thread")
+
+    let clock () =
+      home "clock";
+      B.clock ()
+
+    let tick d =
+      home "tick";
+      B.tick d
+
+    let sleep d =
+      home "sleep";
+      B.sleep d
+
+    let with_binding k v f =
+      home "with_binding";
+      B.with_binding k v f
+
+    let wait w f =
+      home "wait";
+      B.wait w f
+
+    let background fs f =
+      home "background";
+      B.background fs f
+
+    let first a b =
+      home "first";
+      B.first a b
+
+    let protect f =
+      home "protect";
+      B.protect f
+
+    let check () =
+      home "check";
+      B.check ()
+  end
+
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
   let busy = Atomic.make false
