@@ -2,222 +2,111 @@
 
 ### Added
 
-- `Progress.Layout.label ~width`, to fix the label column, so that no row
-  moves sideways whatever the labels; a longer label is cut.
+- New packages and libraries:
+  - `console-lwt` shows progress rows in a program that runs with Lwt. It
+    runs in real time, even under `CONSOLE_CAST` (#67).
+  - `console.driver` runs console on any scheduler. A backend gives it a
+    clock, fiber-local values, wake-ups and cancellation (#61, #67).
+  - `console.cli` gives a Cmdliner program `--theme` and `--color` options
+    (#78, reported by @toastal).
 
-- `View.wrap ~words`, to choose where a line may break (#2).
+- Themes: `Theme.set_program` sets the theme of every formatter that has no
+  theme of its own, including the ones `Fmt.str` creates (#78, reported by
+  @toastal).
 
-- `Console_eio.domain_mgr`, so that a program that runs domains shows the
-  same frames on every run under `CONSOLE_CAST` or
-  `CONSOLE_DETERMINISTIC_CLOCK` (#66).
+- Widgets: `View.wrap ~words` chooses where a line may break (#2).
+  `Color.gradient` gives the colour at any point of a gradient (#9), and
+  `Border.with_gradient` draws frames in one (#12).
 
-- `Console_input.crlf`, so that output sent to a raw-mode terminal starts each
-  line in the first column (#3).
+- Progress rows: `Task.advance` steps a task without keeping the count
+  (#8). `Progress.Layout.label ~width` fixes the label column.
+  `Progress.pp_duration` prints a duration as the rows do (#4), and
+  `Progress.pp` and `Room.pp` print a mode or a room in a log (#34).
 
-- `Progress.pp_duration`, to print a duration as the progress rows do, such as
-  `6.4s` or `1m05s` (#4).
+- Terminal: `Console_tty.width` fits output printed outside a run to the
+  terminal (#13, #61). `Env.setup` and `Env.ensure` apply the colour rules
+  without Unix (#11). `Console_input.crlf` writes lines for a raw-mode
+  terminal (#3).
 
-- `Task.advance`, to step a task's progress without keeping the count yourself
-  (#8).
-
-- `Color.gradient`, to get the colour at any point of a gradient (#9), and
-  `Border.with_gradient`, to draw table and panel frames in one (#12).
-
-- `Console_eio.redraw`, to draw the display now instead of at the next refresh
-  (#10).
-
-- `Console_tty.width`, to fit output printed outside `Console_eio.run` to the
-  terminal, or to `$COLUMNS` on a pipe (#13, #61).
-
-- `Env.setup` and `Env.ensure`, to apply console's colour and UTF-8 rules in a
-  program that can't link Unix (#11).
-
-- `Progress.pp` and `Room.pp`, to print a progress mode or a room in a log
-  (#34).
-
-- `console.driver`, to run console on a scheduler other than Eio. A backend
-  gives it a clock, fiber-local values, a way to wait and wake, daemons and
-  cancellation (`Console_driver.S`); the driver calls them only on the
-  scheduler's thread (#61, #67).
-
-- `console.cli`, whose `Console_cli.setup` gives a Cmdliner program a
-  `--theme` and a `--color` option and applies them to both standard outputs
-  (#78, reported by @toastal).
-
-- `Theme.set_program`, to choose the theme of every formatter that has none of
-  its own, including the new formatters that `Fmt.str` and
-  `Format.asprintf` create (#78, reported by @toastal).
-
-- `console-lwt`, to show the progress rows of a program that runs with Lwt.
-  It has no deterministic mode: it runs in real time under
-  `CONSOLE_DETERMINISTIC_CLOCK` or `CONSOLE_CAST` (#67).
+- Eio: `Console_eio.redraw` draws the display at once (#10), and
+  `Console_eio.domain_mgr` keeps recordings of programs with domains
+  reproducible (#66).
 
 ### Changed
 
-- The tests now need matrix 0.2.0 and k7 0.10.0, which installs on Windows.
-  They read the screen with matrix's Ghostty width method, and the checks
-  skipped on matrix 0.1.0 run again.
+- Themes: `Console_tty.setup ~theme` now sets the program's theme, so
+  `View.to_string` and strings built with `Fmt.str` use it too (#78,
+  reported by @toastal). `Theme.default`'s accent is now bright blue.
 
-- `CONSOLE_DETERMINISTIC_CLOCK` alone no longer makes a sleep on
-  `Console_eio.clock` last its real duration. As under `CONSOLE_CAST`, the
-  time jumps to the next sleep once nothing in the program can run, and
-  stands still while the program waits on anything else, such as a child
-  process. Under either variable, such a clock used from another domain
-  raises `Invalid_argument` (#66).
-
-- `Console_tty.setup ~theme` now sets the program's theme instead of the theme
-  of each standard output, so strings built with `Fmt.str` and
-  `View.to_string` use it too. A formatter given a theme with `Theme.set`
-  keeps that theme (#78, reported by @toastal).
-
-- `View.to_string` now draws in the program's theme rather than always in
-  `Theme.default` (#78, reported by @toastal).
-
-- `Theme.default`'s accent is bright blue rather than cyan.
-
-- The label column never narrows while the display is open.
-
-- The bar of a task that ended is muted if it succeeded, and red or yellow if
-  it failed or was cancelled, so that the running rows stand out.
-
-- A top task that ends stays in the region until something else is printed
-  to the scrollback, the region runs out of room, or the display closes, and
-  then moves with the others that wait, so that steps run one after another
-  line up in the scrollback. A task that fails with output still moves as it
-  ends.
-
-- `Console_eio.size` is now `Console_tty.size`, as reading a terminal's size
+- `Console_eio.size` is now `Console_tty.size`: reading a terminal's size
   needs no scheduler (#61).
 
-- `Console_input` limits a line to 4095 bytes (`?max_line`) and its history to
-  500 lines (`?history_size`). Typing past the limit rings the bell (#1).
+- Progress rows look calmer. The label column never narrows. A finished
+  bar is muted, or red or yellow if the task failed or was cancelled. The
+  lines under a running row are muted (#65). A top task that ends waits in
+  the region with the others, so steps line up in the scrollback.
 
-- Wrapped text no longer breaks after a slash, so paths and URLs stay whole
-  unless they don't fit on a line (#2).
+- Text: wrapped text no longer breaks after a slash, so paths and URLs stay
+  whole (#2). `Logs.app` messages lose their `[source]` prefix (#5).
 
-- `Logs.app` messages no longer show a `[source]` prefix under
-  `Console_eio.run`. Other levels keep it (#5).
+- `Console_input` limits a line to 4095 bytes and its history to 500 lines,
+  and rings the bell past them (#1).
 
-- `$COLUMNS` and `$LINES`, when set to a decimal number, now give the size of
-  the output, on a terminal as on a pipe, as POSIX says. Other values, such as
-  `0x50`, are ignored (#7, #20, #49).
+- `$COLUMNS` and `$LINES` set the output size on a terminal as on a pipe,
+  as POSIX says. Values that are not decimal numbers are ignored (#7, #20,
+  #49).
 
-- Ctrl-Z now stops a program under `Console_eio.run`. It used to give the
-  terminal back and carry on running (#29).
+- `CONSOLE_DETERMINISTIC_CLOCK` now jumps time to the next sleep, as
+  `CONSOLE_CAST` does. Under either variable, using the clock from another
+  domain raises `Invalid_argument` (#66).
 
-- Ctrl-C (`Sys.Break`), `Out_of_memory` and `Stack_overflow` raised while a
-  view draws now reach the program at once, instead of at the next redraw or
-  close (#53).
+- Ctrl-Z now stops a program under `Console_eio.run` (#29). Ctrl-C,
+  `Out_of_memory` and `Stack_overflow` raised in a view reach the program
+  at once (#53).
 
-- Progress updates cost less, and a program that links console allocates less
-  as it starts: no table of widths or durations is built until it is used,
-  also when the program builds a progress layout at load (#30, #40, #64).
+- Progress updates cost less, and linking console no longer builds tables
+  at startup (#30, #40, #64).
 
-- The live lines under a running task's row, printed, logged with `Logs` or
-  given with `Task.log`, are now drawn in the theme's muted colour (faint in
-  the default theme), so they read as a log under the row. A warning or an
-  error is drawn as before, and so is every line printed to the scrollback,
-  such as the output of a failed task (#65).
+- The tests need matrix 0.2.0 and k7 0.10.0.
 
 ### Fixed
 
-- `Console_lwt.run` while a `Console_eio.run` is under way, or the other way
-  round, now raises `Invalid_argument`. It used to open a second display on
-  the same terminal (#82).
+- The terminal is always given back, with its cursor shown: when a view, a
+  hook or the output raises (#26), when a view calls `exit` (#43), when a run
+  is cancelled (#42), when a signal or an `exit` cannot reach the display
+  (#37, #70), and when a signal is handled in another domain (#37).
 
-- `Task` and `Display` now work from any domain, so a worker of an
-  `Eio.Executor_pool` can report progress. `Task.advance` from several domains
-  used to lose steps, and `Task.log` could end the program (#57).
+- Domains and threads: `Task` and `Display` now work from any domain, and a
+  run from another domain joins the run under way (#57). A log from a worker
+  no longer hangs the program (#59). Starting a domain no longer stops the
+  output capture (#39) or the `CONSOLE_CAST` recording (#66). Logging from a
+  systhread, or two domains starting at once, no longer raises (#37).
 
-- `Console_eio.run` from another domain now joins the run under way instead of
-  raising `Invalid_argument` (#57).
+- Windows: a run no longer raises `Invalid_argument` at start, because
+  Windows has no SIGTSTP (#79).
 
-- A `CONSOLE_CAST` recording now keeps what a program writes after it starts
-  its first domain (for example by creating an `Eio.Executor_pool`). It used
-  to go to the terminal instead (#66).
+- Errors and cancellation: an exception from `commit` or `plain` no longer
+  escapes `Task.run` (#26). A cancelled fiber stops in the view instead of
+  at the next redraw (#42). An update cut short no longer erases lines
+  above the display (#27). A task ends once when interrupted as it ends
+  (#41). A closed output pipe no longer raises (#18).
 
-- A `Logs` message from a worker domain no longer waits for the display, so a
-  program that waits for its workers no longer hangs. Past 4 MiB of waiting
-  lines, the oldest are dropped and a line says how many (#59).
+- Running `Console_lwt.run` and `Console_eio.run` at the same time now
+  raises `Invalid_argument` instead of opening a second display (#82).
 
-- `Console_eio.run` now restores the terminal and shows the cursor when a view,
-  a hook or the output raises (#26), when a signal comes after a view raised,
-  and when a view calls `exit` (#43). An output that breaks as a run ends no
-  longer keeps the next run from starting (#26).
+- Finished tasks no longer go missing from the scrollback after a long
+  failure, and tasks started under a finished one stay within the 1 MiB
+  bound (#82).
 
-- A cancelled `Console_eio.run` restores the terminal too. It waits at most a
-  second for an output nobody reads (#42).
+- Layout: progress rows short of room keep their columns (#58). A
+  `Progress.Layout.const` or `custom` piece stays on one line (#82).
+  `Bar.horizontal ~brackets:true` fills a huge width (#60). `View.sized`
+  and `View.place` treat a negative size as `0` (#82).
 
-- A signal or an `exit` that can't reach the display still shows the cursor,
-  and ends an escape code cut in half. This covers another domain or thread,
-  and a write that does not end within a second (#37).
+- Bad input: `Console_width.sub_width` refuses a range outside the string,
+  and `Guide.v` draws a control character as a space (#82).
 
-- On OpenBSD too, a signal or an `exit` that cannot reach the display shows
-  the cursor (#70).
-
-- Progress rows short of room keep their count and time in their columns, and
-  a label a task was renamed from no longer widens its column once the task
-  ends (#58).
-
-- A SIGINT or SIGTERM now ends the program when it is handled in another
-  domain, and when giving the terminal back fails (#37).
-
-- An output whose reader has gone, such as a closed pipe, no longer raises
-  when a display starts or a program prints through `Display.with_output`
-  (#18).
-
-- An exception from a `commit` or `plain` function of `Progress.show` no
-  longer escapes `Task.run`: the next redraw or `Display.close` raises it, as
-  for a view (#26).
-
-- A fiber cancelled in a view or around `Console_eio.with_output` now stops
-  there, instead of raising its `Cancelled` at the next redraw or close. A
-  report or a log from a cancelled fiber no longer raises (#42).
-
-- An update cut short no longer erases lines above the display, and its lines
-  still go out. A task that ends in a cancelled fiber no longer leaves its
-  running row on the screen (#27).
-
-- A task now ends once, with its subtasks, when an interrupt comes as it ends
-  (#41).
-
-- Starting a domain during `Console_eio.run`, as an Eio executor pool does, no
-  longer stops the display from taking the program's output (#39).
-
-- A log or a print from a systhread during `Console_eio.run` no longer raises
-  `Effect.Unhandled` (#37), and two domains starting their first run at once no
-  longer raise `Lazy.Undefined` (#37).
-
-- `CONSOLE_CAST` recordings are now valid asciicast v2: the header is UTF-8
-  whatever `$TERM` holds, and C1 control characters are escaped (#50).
-
-- `Bar.horizontal ~brackets:true` given a width near `max_int` now fills its
-  room, instead of drawing one cell or none (#60).
-
-- A run no longer raises `Invalid_argument` on Windows, which has no SIGTSTP.
-  On Windows, SIGINT and SIGTERM close the display, then exit with code 3, the
-  default for these signals (#79).
-
-- A top task in the scrollback no longer counts among the tasks that wait, so
-  the top tasks that succeed after a failure with a long output all reach the
-  scrollback. The tasks started under a task that ended count against the
-  1 MiB that wait under the running task above it (#82).
-
-- A `Progress.Layout.const` or `custom` piece of several lines now draws on
-  one line, as documented, instead of making its row taller than the region
-  counts (#82).
-
-- `Console_width.sub_width` raises `Invalid_argument` for a part that is not in
-  the string, instead of a negative width or a read past its end (#82).
-
-- `Guide.v` draws a control character in a glyph as a space, as its
-  documentation says and as `Border.v` does. A line feed in a glyph no longer
-  splits the lines of a tree (#82).
-
-- A `View.fit` part is never laid out in a negative room: `View.sized` and
-  `View.place` take a negative width or height as `0`, as `View.truncate` and
-  `View.crop` do, and the label of a tree whose guides are wider than the
-  margin gets a room of no cell (#82).
+- `CONSOLE_CAST` recordings are valid asciicast v2 (#50).
 
 ## 0.9.0 (29/10/2026)
 
