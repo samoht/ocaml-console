@@ -32,7 +32,7 @@ depends: [
   "alcotest" {with-test & >= "1.7.0"}
   "astring" {with-test}
   "mdx" {with-test}
-  "alcobar" {with-test & >= "0.3.2"}
+  "alcobar" {with-test & >= "0.5.0"}
   "re" {with-test}
   "k7" {with-test & >= "0.10.0"}
   "odoc" {with-doc}

@@ -40,7 +40,7 @@
   (alcotest (and :with-test (>= 1.7.0)))
   (astring :with-test)
   (mdx :with-test)
-  (alcobar (and :with-test (>= 0.3.2)))
+  (alcobar (and :with-test (>= 0.5.0)))
   (re :with-test)
   (k7 (and :with-test (>= 0.10.0)))))
 
@@ -70,7 +70,7 @@
   (logs :with-test)
   (matrix (and :with-test (>= 0.2.0) (< 0.3.0)))
   (eio_main :with-test)
-  (alcobar (and :with-test (>= 0.3.2)))
+  (alcobar (and :with-test (>= 0.5.0)))
   (jsont :with-test)
   (bytesrw :with-test)
   (k7 (and :with-test (>= 0.10.0)))))
