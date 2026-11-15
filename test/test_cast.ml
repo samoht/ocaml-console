@@ -78,6 +78,13 @@ let test_header_term () =
        {|{"version":2,"width":80,"height":24,"env":{"TERM":"xterm"}}|})
     (Cast_harness.parse (line (Some "xterm")))
 
+(* asciicast v2 requires C1 controls to be escaped in each JSON event. *)
+let test_c1_controls () =
+  Alcotest.(check string)
+    "C1 controls keep four uppercase hex digits"
+    "[0,\"o\",\"\\u0080\\u009F\"]\n"
+    (Cast.to_line Cast.event { time = 0.; data = "\xc2\x80\xc2\x9f" })
+
 let suite =
   ( "cast",
     [
@@ -87,6 +94,7 @@ let suite =
       Alcotest.test_case "the event of the format's example" `Quick
         test_event_example;
       Alcotest.test_case "what an event refuses" `Quick test_event_refused;
+      Alcotest.test_case "C1 controls" `Quick test_c1_controls;
       Alcotest.test_case "one line" `Quick test_one_line;
       Alcotest.test_case "maximal subparts" `Quick test_maximal_subparts;
       Alcotest.test_case "the TERM of a header" `Quick test_header_term;
