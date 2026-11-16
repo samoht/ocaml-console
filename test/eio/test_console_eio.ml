@@ -1403,13 +1403,13 @@ let test_suspend_blocked () =
 let test_suspend_without_stop () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let pty = open_pty ~sw in
   let freebsd =
     Eio.Process.parse_out
       (Eio.Stdenv.process_mgr env)
       Eio.Buf_read.line [ "uname"; "-s" ]
     = "FreeBSD"
   in
-  let pty = open_pty ~sw in
   let child =
     Eio_unix.Process.spawn_unix ~sw
       (Eio.Stdenv.process_mgr env)
@@ -1585,6 +1585,10 @@ let test_cast_utf_8 () =
        (fun (e : Cast_harness.event) -> contains "bad \u{FFFD} byte" e.data)
        (Cast_harness.events lines))
 
+(* On Windows, [Unix.kill] sends SIGKILL alone, so a test whose program sends
+   itself another signal is skipped there. *)
+let sends_signals () = if Sys.win32 then Alcotest.skip ()
+
 (* [piped.exe args] run under [Unix.waitpid], with its output dropped. *)
 let piped_status args =
   let null = Unix.openfile "/dev/null" [ Unix.O_RDWR ] 0 in
@@ -1600,6 +1604,7 @@ let piped_status args =
    signal.h). The process ends by the signal, not by an exit with status 128
    plus the signal number, which a shell shows the same way. *)
 let test_signal_terminates () =
+  sends_signals ();
   let check msg signo args =
     Alcotest.(check bool)
       msg true
@@ -1619,6 +1624,7 @@ let test_signal_terminates () =
     [ (Sys.sigint, "idle-signal"); (Sys.sigterm, "idle-sigterm") ]
 
 let test_repeated_signal_mid_write () =
+  sends_signals ();
   let input =
     Unix.open_process_args_in "./teardown.exe"
       [| "teardown.exe"; "repeated-signal"; "int"; "int"; "0"; "false" |]

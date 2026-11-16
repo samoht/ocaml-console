@@ -5,22 +5,24 @@
 
 (* A case that hangs ends the run. Each case sets an alarm, whose default action
    kills the process. The alarm is far longer than any case that ends takes, so
-   it never fails such a case. *)
+   it never fails such a case. Windows has no alarm. *)
 let guarded (name, cases) =
-  ( name,
-    List.map
-      (fun (case, speed, f) ->
-        ( case,
-          speed,
-          fun x ->
-            ignore (Unix.alarm 300 : int);
-            Fun.protect
-              ~finally:(fun () -> ignore (Unix.alarm 0 : int))
-              (fun () -> f x) ))
-      cases )
+  if Sys.win32 then (name, cases)
+  else
+    ( name,
+      List.map
+        (fun (case, speed, f) ->
+          ( case,
+            speed,
+            fun x ->
+              ignore (Unix.alarm 300 : int);
+              Fun.protect
+                ~finally:(fun () -> ignore (Unix.alarm 0 : int))
+                (fun () -> f x) ))
+        cases )
 
 let () =
-  Sys.set_signal Sys.sigalrm Sys.Signal_default;
+  if not Sys.win32 then Sys.set_signal Sys.sigalrm Sys.Signal_default;
   Alcotest.run "console_eio"
   @@ List.map guarded
        [

@@ -940,9 +940,6 @@ let suite =
       test_case "prompt answers fit up to 4096 bytes without their terminator"
         [ uint8; bool; bool ] (fun n unicode crlf ->
           test_prompt_line_limit n ~unicode ~crlf);
-      test_case "repeated signals restore the terminal at every write cut"
-        [ uint8; uint8; uint8; bool ]
-        test_repeated_signals;
       test_case "recording alone makes sleeps virtual" [ uint8 ] test_cast_sleep;
       test_case "recording byte chunks preserves Unicode escapes and the screen"
         [ uint8 ] test_cast_chunking;
@@ -975,4 +972,13 @@ let suite =
         [ bytes; uint8 ] test_refused_record;
       test_case "a sibling keeps the display after the first callback ends"
         [ uint8; bool ] test_sibling_lifetime;
-    ] )
+    ]
+    (* On Windows, [Unix.kill] sends SIGKILL alone. *)
+    @
+    if Sys.win32 then []
+    else
+      [
+        test_case "repeated signals restore the terminal at every write cut"
+          [ uint8; uint8; uint8; bool ]
+          test_repeated_signals;
+      ] )
