@@ -310,10 +310,6 @@ val children : t -> t list
 (** [children r] are the tasks under [r] that are not {!field-gone}, in the
     order they started. *)
 
-val running_children : t -> t list
-(** [running_children r] are the running tasks directly under [r], the latest
-    first. *)
-
 val count_text : metric -> string
 (** [count_text m] is what the count of a row shows: the items or bytes done
     over the total, or [""] for {!constructor-Spin}. *)
