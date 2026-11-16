@@ -187,7 +187,7 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
                 (Progress_row.tail look r)
           | Bare | Whole -> []
         in
-        V.concat ~sep:(V.text "\n")
+        V.unlines
           ((Progress_row.live look ~time ?width ~columns layout r :: tail)
           @ List.map (fun f -> cut_under look ~top width (f look)) extra))
   else
@@ -202,7 +202,7 @@ let own ~layout ~form ~cut ~top ~columns ?(extra = []) r =
               r
           else []
         in
-        V.concat ~sep:(V.text "\n") (lines @ output))
+        V.unlines (lines @ output))
 
 (* The lines that open the block of [nodes] under a task, and the nodes left
    to draw. The lines are a count of the dropped tasks, then one line that
@@ -373,9 +373,7 @@ let draw views = V.vcat views
 let first c height v =
   let v = V.resolve c v in
   if V.height v <= height then v
-  else
-    V.concat ~sep:(V.text "\n")
-      (List.filteri (fun i _ -> i < height) (V.lines v))
+  else V.unlines (List.filteri (fun i _ -> i < height) (V.lines v))
 
 (* The latest running tasks that fit, after a line that counts the others.
    The task of the tree itself comes first. *)

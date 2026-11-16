@@ -1152,6 +1152,7 @@ let wrap ?words w t = List.map (fun f -> Flat f) (F.wrap ?words w (keep t))
 let wrap_hanging w t = List.map (fun f -> Flat f) (F.wrap_hanging w (keep t))
 let chop w t = List.map (fun f -> Flat f) (F.chop w (keep t))
 let lines t = List.map (fun f -> Flat f) (F.lines (keep t))
+let unlines ts = concat ~sep:(text "\n") ts
 let seamed t = List.map (fun (j, f) -> (j, Flat f)) (F.seamed (flat t))
 let block ts = Flat (F.block (List.map flat ts))
 let pad_to w t = Flat (F.fit w (flat t))

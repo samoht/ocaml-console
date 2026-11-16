@@ -139,7 +139,7 @@ let draw_vertical ~style ~track ~peak ~width ~height frac =
     if p > 0 && i < height && filled <= i * 8 then Some (i, (p - 1) mod 8 >= 4)
     else None
   in
-  View_core.concat ~sep:(View_core.text "\n")
+  View_core.unlines
     (List.rev
        (List.mapi
           (fun i e ->
@@ -286,7 +286,7 @@ let chart ?height ?scale ?style bars =
             (if spare >= 1 then [ band (fun (_, _, l, _) -> l) ] else []);
           ]
       in
-      let chart = View_core.concat ~sep:(View_core.text "\n") lines in
+      let chart = View_core.unlines lines in
       match Ctx.width c with
       | Some w -> Widget.truncate look (max 0 w) chart
       | None -> chart)

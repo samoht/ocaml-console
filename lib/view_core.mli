@@ -150,6 +150,9 @@ val lines : t -> t list
 (** [lines v] are the lines of [v], without their line feeds. It is never empty.
 *)
 
+val unlines : t list -> t
+(** [unlines vs] is [concat ~sep:(text "\n") vs]. *)
+
 val block : t list -> t
 (** [block lines] is [lines] one under the other, as one block. When the region
     of a display is too short for a whole view, it drops all the lines of a

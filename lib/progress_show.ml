@@ -8,7 +8,6 @@ module V = View_core
 open Task_core
 
 let tasks _ = V.tasks
-let lines vs = V.concat ~sep:(V.text "\n") vs
 
 let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
@@ -27,7 +26,7 @@ let row ?(layout = Layout.default) r =
       in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r
-      else lines (Progress_row.ended look ?width ~columns ~whole:false r))
+      else V.unlines (Progress_row.ended look ?width ~columns ~whole:false r))
 
 let tree ?(layout = Layout.default) r = Progress_tree.view ~layout r
 
@@ -38,7 +37,7 @@ let summary root =
 
 let verdict root =
   V.deferred ~kind:tasks (fun c ->
-      lines
+      V.unlines
         (Progress_row.verdict (Ctx.look c) ?width:(Ctx.width c) (root_of root)))
 
 (* On a wide terminal, a count or a timer at the right edge is far from its
