@@ -6,7 +6,7 @@
 (** The terminal that [CONSOLE_CAST] records ({!Cast}).
 
     Like {!Cast}, this module is internal to the [console] package.
-    [Console_tty.setup] and [Console_eio.run] start a recording. *)
+    [Console_tty.setup] and the [run] of a backend start a recording. *)
 
 val start : time:(unit -> float) -> Format.formatter -> bool
 (** [start ~time ppf] is [true] iff [CONSOLE_CAST] asks for a recording
@@ -17,12 +17,13 @@ val start : time:(unit -> float) -> Format.formatter -> bool
     write to their old outputs again. If the file cannot be opened, [start]
     prints the reason on [stderr] and exits the program with code [1]. *)
 
-val decimal : string -> int option
-(** [decimal s] is the integer that [s] writes with decimal digits only. It is
-    [None] for any other string, including those that [int_of_string_opt] reads:
-    with a sign, an underscore, or a hexadecimal, octal or binary prefix. *)
+val dimension : string -> int option
+(** [dimension name] is the value of the environment variable [name], if it is
+    written with decimal digits only and is in \[[1];[4096]\]. It is [None] for
+    any other value, including those that [int_of_string_opt] reads: with a
+    sign, an underscore, or a hexadecimal, octal or binary prefix. *)
 
 val size : unit -> int * int
-(** [size ()] is the size of the recorded terminal, in columns and lines. The
-    columns are [$COLUMNS] and the lines [$LINES], when each is a {!decimal} in
-    \[[1];[4096]\]. Otherwise they default to 80 and 24. *)
+(** [size ()] is the size of the recorded terminal, in columns and lines:
+    {!dimension}[ "COLUMNS"] and {!dimension}[ "LINES"], which default to 80 and
+    24. *)

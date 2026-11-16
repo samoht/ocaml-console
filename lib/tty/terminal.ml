@@ -5,10 +5,6 @@
 
 let positive n = if n > 0 then Some n else None
 
-(* A display draws at most 4096 columns or rows, so a larger [$COLUMNS] or
-   [$LINES] counts as unset. *)
-let usable n = if n > 0 && n <= 4096 then Some n else None
-
 external window_size : Unix.file_descr -> int = "console_tty_window_size"
 [@@noalloc]
 
@@ -22,10 +18,6 @@ let window_size_of = function None -> None | Some fd -> window_size fd
 let width_of_ioctl fd () =
   Option.bind (window_size_of fd) (fun (w, _) -> positive w)
 
-let dimension_of_env name usable =
-  Option.bind (Sys.getenv_opt name) (fun value ->
-      Option.bind (Recording.decimal value) usable)
-
 let first ~default sources =
   Option.value ~default (List.find_map (fun source -> source ()) sources)
 
@@ -34,17 +26,17 @@ let first ~default sources =
    entry that the shell already read. *)
 let width fd =
   first ~default:80
-    [ (fun () -> dimension_of_env "COLUMNS" usable); width_of_ioctl fd ]
+    [ (fun () -> Recording.dimension "COLUMNS"); width_of_ioctl fd ]
 
 let height_of_ioctl fd () =
   Option.bind (window_size_of fd) (fun (_, h) -> positive h)
 
 let height fd =
   first ~default:24
-    [ (fun () -> dimension_of_env "LINES" usable); height_of_ioctl fd ]
+    [ (fun () -> Recording.dimension "LINES"); height_of_ioctl fd ]
 
 let asked () =
-  Option.map (fun w () -> (w, height None)) (dimension_of_env "COLUMNS" usable)
+  Option.map (fun w () -> (w, height None)) (Recording.dimension "COLUMNS")
 
 let dimensions fd = (width fd, height fd)
 

@@ -26,12 +26,14 @@ let decimal s =
 
 (* A display has at most 4096 columns or rows, so a larger size cannot come
    from a terminal. *)
-let dimension name ~default =
+let dimension name =
   match Option.bind (Sys.getenv_opt name) decimal with
-  | Some n when n > 0 && n <= 4096 -> n
-  | _ -> default
+  | Some n when n > 0 && n <= 4096 -> Some n
+  | _ -> None
 
-let size () = (dimension "COLUMNS" ~default:80, dimension "LINES" ~default:24)
+let size () =
+  ( Option.value (dimension "COLUMNS") ~default:80,
+    Option.value (dimension "LINES") ~default:24 )
 
 (* [shown t data] is [data] as the terminal receives it: the tty driver adds
    a carriage return before each line feed that lacks one. *)
