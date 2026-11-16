@@ -11,10 +11,6 @@ let rec ascii_from s i n =
 
 let is_ascii s = ascii_from s 0 (String.length s)
 
-let is_ascii_sub s ~pos ~len =
-  let rec go i = i >= pos + len || (Char.Ascii.is_print s.[i] && go (i + 1)) in
-  go pos
-
 (* A spacing mark has general category Mc, or is a SpacingMark in UAX #29.
    UAX #29 adds Thai SARA AM U+0E33 and Lao AM U+0EB3. These are letters (Lo)
    that join the cluster of their consonant, and terminals draw them in their
@@ -243,7 +239,7 @@ let clusters s =
 
 (* [width s ~pos ~len] is {!sub_width} on a part that is in [s]. *)
 let width s ~pos ~len =
-  if is_ascii_sub s ~pos ~len then len
+  if ascii_from s pos (pos + len) then len
   else fold_cells (fun n ~offset:_ ~len:_ ~cells -> n + cells) 0 s ~pos ~len
 
 let sub_width s ~pos ~len =
@@ -294,5 +290,4 @@ let joins a b =
         (not (Uchar.utf_decode_is_valid d))
         || Uucp.Break.grapheme_cluster (Uchar.utf_decode_uchar d) = `PP)
 
-let string_width s =
-  if is_ascii s then String.length s else width s ~pos:0 ~len:(String.length s)
+let string_width s = width s ~pos:0 ~len:(String.length s)
