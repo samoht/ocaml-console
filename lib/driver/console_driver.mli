@@ -6,10 +6,10 @@
 (** Running console on a scheduler.
 
     A backend passes to {!Make} what console needs from a scheduler. It gets
-    back {!T.run}, {!T.print}, {!T.with_output} and {!T.redraw}, all in direct
-    style. [run] does the rest: it finds the terminal, shows the work, captures
-    the program's output and its [Logs] messages, redraws, and gives the
-    terminal back.
+    back {!T.run}, {!T.print}, {!T.with_output}, {!T.redraw} and
+    {!T.with_terminal}, all in direct style. [run] does the rest: it finds the
+    terminal, shows the work, captures the program's output and its [Logs]
+    messages, redraws, and gives the terminal back.
 
     This library is [console.driver]. [console-eio] and [console-lwt] build on
     it. *)

@@ -61,12 +61,6 @@ module Make (B : S) = struct
 
   type run = Capture.run = { display : Display.t; root : Task.t; json : bool }
 
-  (* A terminal has one live region at a time. The display that holds it is
-     bound in the fibers of its run ([current]). So a [run] in a fiber under
-     another run finds that display and adds to it. The display is also global
-     ([shared]). So a [run] in another fiber or domain joins it, and an exit in
-     the middle of the work still closes it. *)
-
   (* The driver calls [B.notify] from anywhere, but the rest of [B] only on the
      home thread of a domain. The home thread is the first thread that starts a
      run or makes a task current in that domain. *)
@@ -136,6 +130,11 @@ module Make (B : S) = struct
       B.check ()
   end
 
+  (* A terminal has one live region at a time. The display that holds it is
+     bound in the fibers of its run ([current]). So a [run] in a fiber under
+     another run finds that display and adds to it. The display is also global
+     ([shared]). So a [run] in another fiber or domain joins it, and an exit in
+     the middle of the work still closes it. *)
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
   let ending : (unit -> unit) option Atomic.t = Atomic.make None

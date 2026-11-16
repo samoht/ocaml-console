@@ -22,7 +22,7 @@ val v :
   View.t ->
   t
 (** [v ~size ~once_width ~write_error ~cancelled ~atomic ~delay ~fallback ~now
-     ppf view] is like {!Display.v}, with four more arguments:
+     ppf view] is like {!Display.v}, with five more arguments:
     - [write_error e] is [true] iff [e] is a write error, which ends the output
       (defaults to [false]; a [Sys_error] is always a write error);
     - [cancelled e] is [true] iff [e] cancels the fiber that draws (defaults to

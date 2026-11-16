@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+type align = [ `Left | `Center | `Right ]
+
 (* An atom's [text] is non-empty valid UTF-8, with no control character except
    the line feed. The constructors ensure this, and every operation below
    keeps it. An atom with [draw] is drawn when printed, in [style] and in the
@@ -10,8 +12,6 @@
    takes the same cells in every look, so [text] gives its width. An atom with
    [block] holds a single line feed that joins two lines of one widget, so a
    region too short for both lines drops both. *)
-type align = [ `Left | `Center | `Right ]
-
 type atom = {
   style : Style.t;
   link : string option;

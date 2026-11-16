@@ -40,7 +40,7 @@ val bar : look -> Theme.bar
     [`Ascii] when [look] is not UTF-8. *)
 
 val ellipsis : look -> string
-(** [ellipsis] is {!Look.ellipsis}. *)
+(** [ellipsis look] is {!Look.ellipsis}[ look]. *)
 
 val truncate : look -> int -> View.t -> View.t
 (** [truncate look w s] is {!View.truncate}[ w s] with {!ellipsis}. *)
