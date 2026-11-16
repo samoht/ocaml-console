@@ -771,16 +771,6 @@ module F = struct
     | `Ansi_tty ->
         Format.pp_print_string ppf
           (render ~look:Look.default ~depth:(Color.depth ppf) t)
-
-  let pp_lines ppf lines =
-    List.iteri
-      (fun i line ->
-        if i > 0 then Format.pp_print_char ppf '\n';
-        pp ppf line)
-      lines
-
-  let string_of_lines ?(styled = false) lines =
-    String.concat "\n" (List.map (to_string ~styled) lines)
 end
 
 (* A view is either [Flat], with its atoms known, or [Deferred], laid out when
@@ -1168,7 +1158,6 @@ let chop w t = List.map (fun f -> Flat f) (F.chop w (keep t))
 let lines t = List.map (fun f -> Flat f) (F.lines (keep t))
 let seamed t = List.map (fun (j, f) -> (j, Flat f)) (F.seamed (flat t))
 let block ts = Flat (F.block (List.map flat ts))
-let widest_word t = F.widest_word (flat t)
 let pad_to w t = Flat (F.fit w (flat t))
 let recell f t = Flat (F.recell f (flat t))
 let ellipsis = F.ellipsis
@@ -1179,9 +1168,5 @@ let render ~look ?depth t = F.render ~look ?depth (flat t)
 let pp ppf t =
   F.pp ppf (flat_in (Ctx.v ~width:(Format.pp_get_margin ppf ()) (Look.v ppf)) t)
 
-let flat_in_program t = flat_in (Ctx.v (Look.program ())) t
-let to_string ?styled t = F.to_string ?styled (flat_in_program t)
-let pp_lines ppf ts = F.pp_lines ppf (List.map flat ts)
-
-let string_of_lines ?styled ts =
-  F.string_of_lines ?styled (List.map flat_in_program ts)
+let to_string ?styled t =
+  F.to_string ?styled (flat_in (Ctx.v (Look.program ())) t)

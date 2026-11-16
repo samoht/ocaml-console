@@ -174,9 +174,6 @@ val chop : int -> t -> t list
 (** [chop w v] is like {!wrap}, but breaks each line of [v] every [w] cells,
     even inside a word, as a terminal wraps a line that is too wide. *)
 
-val widest_word : t -> int
-(** [widest_word v] is the width of the widest run of [v] without a space. *)
-
 val drawn : (Look.t -> t) -> t
 (** [drawn draw] is the view [draw look] when it is printed in [look]. It is
     measured as [draw Look.default]. Every [draw look] must take the same cells
@@ -199,11 +196,3 @@ val recell :
 val render : look:Look.t -> ?depth:Color.depth -> t -> string
 (** [render ~look ~depth v] is [v] drawn in [look], with its styles at [depth].
     Without [depth], it is only the text of [v]. *)
-
-val pp_lines : t list Fmt.t
-(** [pp_lines] formats views one per line, with no line end after the last one.
-*)
-
-val string_of_lines : ?styled:bool -> t list -> string
-(** [string_of_lines lines] is [lines] joined by line feeds, each as
-    {!to_string} gives it. *)
