@@ -220,7 +220,7 @@ let test_deterministic_schedule () =
 (* [recording f] is the lines of the [CONSOLE_CAST] recording of [f], on a
    terminal of 30 columns by 6 rows. *)
 let recording f =
-  let file = Filename.temp_file "console" ".cast" in
+  Recording_harness.with_file @@ fun file ->
   with_env
     [
       ("CONSOLE_DETERMINISTIC_CLOCK", "1");
@@ -230,9 +230,7 @@ let recording f =
       ("TERM", "xterm");
     ]
     f;
-  let lines = In_channel.with_open_bin file In_channel.input_lines in
-  Sys.remove file;
-  lines
+  In_channel.with_open_bin file In_channel.input_lines
 
 let recorded_nap () = recording @@ fun () -> ignore (still_nap ())
 
@@ -310,10 +308,8 @@ let test_cast_schedule () =
     [ ("CONSOLE_DETERMINISTIC_CLOCK", "1"); ("COLUMNS", "80"); ("LINES", "24") ]
   @@ fun () ->
   let recorded seed =
-    let file = Filename.temp_file "console" ".cast" in
-    Fun.protect
-      ~finally:(fun () -> Sys.remove file)
-      (fun () -> perturbed ~cast:file ~progress:`Tty seed)
+    Recording_harness.with_file (fun file ->
+        perturbed ~cast:file ~progress:`Tty seed)
   in
   let calm = recorded 0 in
   Alcotest.(check bool)
@@ -331,8 +327,7 @@ let test_cast_schedule () =
    time, and another fiber yields a random number of times in a loop. *)
 let recorded_domains seed =
   let rand = Random.State.make [| seed |] in
-  let file = Filename.temp_file "console" ".cast" in
-  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  Recording_harness.with_file @@ fun file ->
   with_env
     [
       ("CONSOLE_CAST", file);
@@ -1549,8 +1544,7 @@ let test_quiet_terminal_capture () =
     (final_of out)
 
 let test_cast_without_deterministic () =
-  let file = Filename.temp_file "console" ".cast" in
-  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  Recording_harness.with_file @@ fun file ->
   with_env [ ("CONSOLE_CAST", file); ("CONSOLE_DETERMINISTIC_CLOCK", "") ]
   @@ fun () ->
   Eio_main.run @@ fun _ ->
@@ -1573,8 +1567,7 @@ let test_cast_without_deterministic () =
 (* [recorded f] is the lines of the recording of a run that calls [f] under
    [with_output]. *)
 let recorded f =
-  let file = Filename.temp_file "console" ".cast" in
-  Fun.protect ~finally:(fun () -> Sys.remove file) @@ fun () ->
+  Recording_harness.with_file @@ fun file ->
   with_env [ ("CONSOLE_CAST", file); ("CONSOLE_DETERMINISTIC_CLOCK", "1") ]
   @@ fun () ->
   Eio_main.run (fun _ ->

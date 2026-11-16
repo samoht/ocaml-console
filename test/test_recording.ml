@@ -12,14 +12,7 @@ let with_temp f =
   let file = Filename.temp_file "console-test-recording" ".cast" in
   Fun.protect ~finally:(fun () -> Sys.remove file) (fun () -> f file)
 
-(* [end_recording ()] ends the current recording and restores its
-   formatters. *)
-let end_recording () =
-  with_env
-    [ ("CONSOLE_CAST", "") ]
-    (fun () ->
-      let unused = Format.formatter_of_buffer (Buffer.create 0) in
-      ignore (Recording.start ~time:(fun () -> 0.) unused : bool))
+let end_recording = Recording_harness.end_recording
 
 (* [recording f] runs [f file] with a recording requested on a temporary
    [file] and a known terminal. Afterwards it leaves no recording, no file

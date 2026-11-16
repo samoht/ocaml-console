@@ -9,6 +9,7 @@
   cast_harness
   display_harness
   env_harness
+  recording_harness
   fmt
   logs
   lwt

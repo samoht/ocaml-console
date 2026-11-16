@@ -505,23 +505,10 @@ let test_with_output () =
     "the line" true
     (List.exists (contains "above the rows") (lines (shown b ppf)))
 
-(* Ends the current recording, which closes its file. Windows cannot remove an
-   open file. *)
-let end_recording () =
-  with_env
-    [ ("CONSOLE_CAST", "") ]
-    (fun () ->
-      let unused = Format.formatter_of_buffer (Buffer.create 0) in
-      ignore (Console__.Recording.start ~time:(fun () -> 0.) unused : bool))
-
 (* A run recorded with [CONSOLE_CAST]: a header, then events that draw the task
    as its count changes, and that show the cursor again at the end. *)
 let test_recording () =
-  let file = Filename.temp_file "console" ".cast" in
-  Fun.protect ~finally:(fun () ->
-      end_recording ();
-      Sys.remove file)
-  @@ fun () ->
+  Recording_harness.with_file @@ fun file ->
   with_env
     [
       ("CONSOLE_CAST", file);

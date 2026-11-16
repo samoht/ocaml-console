@@ -806,7 +806,7 @@ let test_deterministic_concurrency a b yields =
   check_eq ~pp:Fmt.Dump.string (capture 0) (capture (yields * 16))
 
 let with_recording deterministic f =
-  let file = Filename.temp_file "console-fuzz" ".cast" in
+  Recording_harness.with_file @@ fun file ->
   let bindings =
     [
       ("CONSOLE_CAST", file);
@@ -815,9 +815,7 @@ let with_recording deterministic f =
       ("LINES", "8");
     ]
   in
-  Fun.protect
-    ~finally:(fun () -> Sys.remove file)
-    (fun () -> Env_harness.with_env bindings (fun () -> f file))
+  Env_harness.with_env bindings (fun () -> f file)
 
 (* Under [CONSOLE_CAST], a sleep on [Console_eio.clock] returns even though
    the mock clock below never moves. If the sleep waited on that clock, the

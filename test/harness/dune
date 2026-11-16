@@ -35,3 +35,10 @@
  (name cast_harness)
  (modules cast_harness)
  (libraries alcotest jsont jsont.bytesrw))
+
+(library
+ (name recording_harness)
+ (modules recording_harness)
+ (flags
+  (:standard -open Console__))
+ (libraries console env_harness))
