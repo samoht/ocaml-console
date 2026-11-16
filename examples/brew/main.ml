@@ -125,7 +125,7 @@ let size bytes =
     | _ -> (size, unit)
   in
   let size, unit = pick bytes "B" [ "KB"; "MB"; "GB" ] in
-  Fmt.str "%5.1f%2s" size unit
+  Fmt.str "%5s%2s" (Decimal.string_of_float ~digits:1 size) unit
 
 (* The line of a download in [width] cells, as [message_with_progress]
    draws it: the message, then the bar during the download, then the phase

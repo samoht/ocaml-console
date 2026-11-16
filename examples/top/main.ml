@@ -62,7 +62,8 @@ let box ~width task =
             View.hcat ~gap:1
               [
                 Bar.horizontal ~brackets:true load;
-                Fmt.kstr View.text "%3.0f%%" (100. *. load);
+                Fmt.kstr View.text "%3s%%"
+                  (Decimal.string_of_float ~digits:0 (100. *. load));
               ];
             View.role `Muted (View.text count);
             View.place ~height:3 (View.vcat (List.map View.text last));

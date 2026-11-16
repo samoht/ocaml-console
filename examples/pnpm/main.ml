@@ -21,7 +21,7 @@ let paint style s = View.styled style (View.text s)
 (* A duration as pnpm writes it, with pretty-ms. *)
 let duration s =
   if s < 1. then Fmt.str "%dms" (Float.to_int (s *. 1000.))
-  else Fmt.str "%.1fs" s
+  else Fmt.str "%as" (Decimal.pp ~digits:1) s
 
 type counts = {
   mutable resolved : int;
