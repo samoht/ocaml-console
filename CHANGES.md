@@ -28,6 +28,10 @@
   without Unix (#11). `Console_input.crlf` writes lines for a raw-mode
   terminal (#3).
 
+- Numbers: `Decimal.string_of_float` and `Decimal.pp` print a float with a
+  fixed count of decimals, the same on every platform. `Printf`'s `%.1f`
+  rounds a tie up with MinGW's C library and to even with glibc (#88).
+
 - Eio: `Console_eio.redraw` draws the display at once (#10), and
   `Console_eio.domain_mgr` keeps recordings of programs with domains
   reproducible (#66).
@@ -70,6 +74,10 @@
 - The tests need matrix 0.2.0 and k7 0.10.0.
 
 ### Fixed
+
+- A short byte count in a narrow row, such as `1.3K`, now has the same
+  digits on Windows as elsewhere, and so do the recordings of the examples
+  (#88).
 
 - The terminal is always given back, with its cursor shown: when a view, a
   hook or the output raises (#26), when a view calls `exit` (#43), when a run

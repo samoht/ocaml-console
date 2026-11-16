@@ -36,10 +36,10 @@ let bytes_short n =
     if v >= 999.5 && i < Array.length units - 1 then (v /. 1024., i + 1)
     else (v, i)
   in
-  let unit = units.(i).[0] in
-  if i = 0 then Fmt.str "%d%c" (int_of_float v) unit
-  else if v < 9.95 then Fmt.str "%.1f%c" v unit
-  else Fmt.str "%.0f%c" v unit
+  let unit = String.make 1 units.(i).[0] in
+  if i = 0 then string_of_int (int_of_float v) ^ unit
+  else if v < 9.95 then Decimal.string_of_float ~digits:1 v ^ unit
+  else Decimal.string_of_float ~digits:0 v ^ unit
 
 (* A table of every duration under a minute, since a display shows one per
    task at each frame. Each entry is made when first shown. The table itself

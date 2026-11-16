@@ -20,3 +20,4 @@ module Rule = Rule
 module Task = Task
 module Display = Display
 module Progress = Progress
+module Decimal = Decimal
