@@ -23,12 +23,9 @@ val glyph : look -> string -> ascii:string -> string
 (** [glyph look g ~ascii] is [g], or [ascii] when [look] is not UTF-8 and [g] is
     not ASCII. *)
 
-val ascii_theme : look -> bool
-(** [ascii_theme] is {!Look.ascii_theme}. *)
-
 val line : look -> string -> string
 (** [line look g] is [g], the glyph of a line. It is [-] when [look] is not
-    UTF-8 and [g] is not ASCII, or when [look] is an {!ascii_theme}. *)
+    UTF-8 and [g] is not ASCII, or when [look] is an {!Look.ascii_theme}. *)
 
 val spinner : look -> time:float -> string
 (** [spinner look ~time] is the frame of the spinner of [look], [time] seconds

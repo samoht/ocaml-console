@@ -82,8 +82,7 @@ let guide look guide =
   else Guide.with_style (Guide.style guide) Guide.ascii
 
 let glyph look g ~ascii = if shows look [ g ] then g else ascii
-let ascii_theme = Look.ascii_theme
-let line look g = if ascii_theme look then "-" else glyph look g ~ascii:"-"
+let line look g = if Look.ascii_theme look then "-" else glyph look g ~ascii:"-"
 
 let spinner look ~time =
   glyph look
