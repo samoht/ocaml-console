@@ -387,9 +387,7 @@ let bare ~layout ~cols c ~height r =
         collect acc n.kids)
       acc nodes
   in
-  let running =
-    collect [] (forest shows (if is_root r then children r else [ r ]))
-  in
+  let running = collect [] (tops shows r) in
   let top = if is_root r then 0 else 1 in
   let room = height - top and n = List.length running in
   let shown = Hashtbl.create 16 in

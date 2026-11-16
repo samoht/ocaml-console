@@ -371,10 +371,7 @@ let fixed_label look ?columns ~whole label =
 let laid look ~time ?width ?columns ?(whole = false) ~label layout r =
   let layout = Progress_layout.for_task layout r in
   let has is = List.exists is layout in
-  let named =
-    has (fun (p : Progress_layout.piece) ->
-        match p.kind with Label _ -> true | _ -> false)
-  in
+  let named = Progress_layout.has_label layout in
   let label = if named then fixed_label look ?columns ~whole label else label in
   let label_w = if named then V.width label else 0 in
   let reserve =
