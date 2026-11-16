@@ -32,9 +32,6 @@ type t
 (** The type for layouts. A layout holds at most one {!constructor-Label} and
     one {!constructor-Spacer}. *)
 
-val pieces : t -> piece list
-(** [pieces l] are the pieces of [l], left to right. *)
-
 val for_task : t -> Task_core.t -> piece list
 (** [for_task l r] are the pieces of [l] on the row of [r], each
     {!constructor-Choose} replaced by the pieces it chooses for [r].

@@ -22,8 +22,6 @@ and piece = { kind : kind; stage : int option }
 
 type t = piece list
 
-let pieces t = t
-
 let rec reads_in look k = function
   | [] -> k
   | { kind = Custom _ | Choose _; _ } :: rest ->

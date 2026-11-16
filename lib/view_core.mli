@@ -123,9 +123,6 @@ val width : t -> int
 val height : t -> int
 (** [height v] is {!View.height}. *)
 
-val ellipsis : string
-(** [ellipsis] is U+2026. *)
-
 val truncate : ?ellipsis:string -> int -> t -> t
 (** [truncate ~ellipsis w v] is like {!View.truncate}, but ends a cut line with
     [ellipsis] (defaults to the {!Look.ellipsis} of the look it is printed in).

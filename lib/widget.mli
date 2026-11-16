@@ -48,9 +48,6 @@ val truncate : look -> int -> View.t -> View.t
 val muted : look -> Style.t
 (** [muted look] is the style of the muted colour of the theme of [look]. *)
 
-val accent : look -> Style.t
-(** [accent look] is the style of the main colour of the theme of [look]. *)
-
 val one_line : View.t -> View.t
 (** [one_line s] is [s] with each line feed replaced by a space. *)
 

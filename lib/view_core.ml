@@ -1160,7 +1160,6 @@ let seamed t = List.map (fun (j, f) -> (j, Flat f)) (F.seamed (flat t))
 let block ts = Flat (F.block (List.map flat ts))
 let pad_to w t = Flat (F.fit w (flat t))
 let recell f t = Flat (F.recell f (flat t))
-let ellipsis = F.ellipsis
 let drawn draw = Flat (F.drawn (fun look -> flat (draw look)))
 let paint look t = Flat (F.resolve look (flat t))
 let render ~look ?depth t = F.render ~look ?depth (flat t)

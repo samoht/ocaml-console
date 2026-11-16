@@ -16,8 +16,6 @@ let muted look =
   | Some c -> Style.fg c
   | None -> Style.faint
 
-let accent look = Style.fg (Theme.accent look.Look.theme)
-
 (* A border or a guide with no style of its own is drawn in the muted colour. *)
 let border look border =
   let border = Option.value border ~default:(Theme.border look.Look.theme) in
