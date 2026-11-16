@@ -11,12 +11,12 @@ type t = {
   frac : float;
 }
 
-let v ?style ?track ?(brackets = false) ~width frac =
+let clamp frac =
+  if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
+
+let v ?style ?track ~brackets ~width frac =
   if width < 0 then invalid_arg "Console.Bar.horizontal: negative width";
-  let frac =
-    if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
-  in
-  { style; track; brackets; width; frac }
+  { style; track; brackets; width; frac = clamp frac }
 
 let framed ~glyphs ~track ~brackets body =
   let left, right =
@@ -118,9 +118,6 @@ let vertical_cell ~style ~track ~height ~width i e look =
   else
     let p = (float_of_int i +. (float_of_int e /. 8.)) /. float_of_int height in
     View_core.ink (height_style ~style look p) glyph
-
-let clamp frac =
-  if Float.is_nan frac then 0. else Float.max 0. (Float.min 1. frac)
 
 (* The peak mark: a line at the bottom or the top of its cell. *)
 let cap ~track ~width ~high look =

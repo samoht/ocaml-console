@@ -390,8 +390,7 @@ module F = struct
   (* Each row ends at the last span with text on that row, even text that
      takes no cell, such as a combining mark. The spans before it are padded
      to their widths and followed by [gap]. Nothing is added after it. *)
-  let hcat ?(gap = 2) spans =
-    if gap < 0 then invalid_arg "Console.View.hcat: negative gap";
+  let hcat ~gap spans =
     let blocks =
       List.filter (fun s -> not (is_empty s)) spans
       |> List.map (fun s -> (Array.of_list (seamed s), width s))
@@ -885,15 +884,12 @@ let rec min_width c = function
   | Deferred { min_width = Some w; _ } -> w c
   | Deferred d -> min_width c (d.lay c)
 
-(* [lift ~room ts f] is [f] applied to the atoms of [ts]. When every view of
-   [ts] is flat, [f] is applied at once. Otherwise it is applied when the view
-   is printed, with each view laid out in [room] of the printing context. *)
-let lift ?(room = Fun.id) ts f =
+(* [lift ts f] is [f] applied to the atoms of [ts]. When every view of [ts]
+   is flat, [f] is applied at once. Otherwise it is applied when the view is
+   printed. *)
+let lift ts f =
   if List.for_all is_flat ts then Flat (f (List.map flat ts))
-  else
-    deferred ~kind:(kinds ts) (fun c ->
-        let c = room c in
-        Flat (f (List.map (flat_in c) ts)))
+  else deferred ~kind:(kinds ts) (fun c -> Flat (f (List.map (flat_in c) ts)))
 
 (* [lift2 a b f] is {!lift} on two views. *)
 let lift2 a b f =
@@ -904,7 +900,7 @@ let lift2 a b f =
         ~kind:(kinds [ a; b ])
         (fun c -> Flat (f (flat_in c a) (flat_in c b)))
 
-let map ?(room = Fun.id) f = function
+let map ~room f = function
   | Flat x -> Flat (f x)
   | t -> deferred ~kind:(kind t) (fun c -> Flat (f (flat_in (room c) t)))
 
