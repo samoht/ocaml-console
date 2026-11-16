@@ -174,10 +174,7 @@ let test_urgent_beats_kept () =
 (* If the terminal size raises at the close, the close raises. It first
    shows the cursor again and draws the last frame with the view. *)
 let test_size_raises_at_close () =
-  let buf = Buffer.create 256 in
-  let ppf = Format.formatter_of_buffer buf in
-  let broken = ref false in
-  let size () = if !broken then raise Exit else (40, 10) in
+  let buf, ppf, broken, size = breaking_size () in
   let display = Display.v ~size ~now:(fun () -> 0.) ppf (View.text "x") in
   Display.redraw display;
   broken := true;

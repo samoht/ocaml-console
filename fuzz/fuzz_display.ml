@@ -729,7 +729,7 @@ let test_marker_counts n l h =
     done
   done;
   Display.redraw d;
-  let rows = List.filter (( <> ) "") (screen t.vte) in
+  let rows = nonblank t.vte in
   let shown = List.length rows in
   if shown > h - 1 then failf "%d lines on %d rows" shown h;
   (match List.rev rows with
@@ -1413,7 +1413,7 @@ let test_scrollback_tree steps h =
     Display.redraw d;
     if Console_vte.scrollback_size t.vte <> before then
       fail "a redraw scrolled the terminal";
-    let rows = List.filter (( <> ) "") (screen t.vte) in
+    let rows = nonblank t.vte in
     match List.rev rows with
     | last :: _ when has header last -> ()
     | _ -> failf "the summary is not last:@.%a" Fmt.(list ~sep:cut string) rows
