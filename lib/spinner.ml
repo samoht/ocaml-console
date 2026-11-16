@@ -18,11 +18,7 @@ let view ?frames () =
     ~kind:(fun look -> if moves look then View_core.timed else View_core.static)
     (fun c ->
       let frames = frames (Ctx.look c) in
-      let widest =
-        List.fold_left
-          (fun n f -> max n (Console_width.string_width f))
-          0 frames
-      in
+      let widest = Widget.widest frames in
       let frame = View_core.text (Frames.at frames ~time:(Ctx.time c)) in
       let cells =
         match Ctx.width c with

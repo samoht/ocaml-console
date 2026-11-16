@@ -6,7 +6,6 @@
 module Event = Event
 include Task_core
 
-type level = Task_core.level
 type state = [ `Running | `Succeeded | `Failed | `Cancelled ]
 type progress = [ `Spin | `Items of int * int | `Bytes of int64 * int64 ]
 
