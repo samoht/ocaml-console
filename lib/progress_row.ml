@@ -461,6 +461,14 @@ let tail look r =
     [] (window r)
   |> List.rev
 
+(* [hung lead lines] is [lines] after [lead], each line after the first
+   starting under the start of the first. *)
+let hung lead = function
+  | first :: rest ->
+      let w = V.width lead in
+      V.(lead ++ first) :: List.map (fun l -> V.(pad w ++ l)) rest
+  | [] -> [ lead ]
+
 (* [lead] then [body], broken into lines of [width]. Each line after the first
    starts under the start of [body]. Without a lead, [body] is chopped as the
    terminal wraps it. *)
@@ -468,13 +476,9 @@ let hanging look ~width lead body =
   let w = V.width lead in
   (* Only a room narrower than the lead cuts a line. *)
   List.map (cut look width)
-    (match
-       if w = 0 then V.chop (max 1 width) body
-       else V.wrap (max 1 (width - w)) body
-     with
-    | first :: rest ->
-        V.(lead ++ first) :: List.map (fun l -> V.(pad w ++ l)) rest
-    | [] -> [ lead ])
+    (hung lead
+       (if w = 0 then V.chop (max 1 width) body
+        else V.wrap (max 1 (width - w)) body))
 
 (* The count and the time of a task that ended, after the last line of its
    label, short and outside their columns. At stage 0 both show, at stage 1
@@ -506,10 +510,7 @@ let ended look ?width ?columns ~whole r =
       let label_w = V.width label in
       let lines =
         if width - lead_w >= min narrowest label_w then
-          match V.wrap (max 1 (width - lead_w)) label with
-          | first :: rest ->
-              V.(lead ++ first) :: List.map (fun l -> V.(pad lead_w ++ l)) rest
-          | [] -> [ lead ]
+          hung lead (V.wrap (max 1 (width - lead_w)) label)
         else
           let indent = max 0 (min lead_w (width - narrowest)) in
           lead
@@ -661,10 +662,5 @@ let verdict look ?width root =
       let msg = V.ink Style.bold msg in
       match width with
       | None -> [ V.(lead ++ msg) ]
-      | Some width -> (
-          let w = V.width lead in
-          match V.wrap (max 1 (width - w)) msg with
-          | first :: rest ->
-              V.(lead ++ first) :: List.map (fun l -> V.(pad w ++ l)) rest
-          | [] -> [ lead ]))
+      | Some width -> hung lead (V.wrap (max 1 (width - V.width lead)) msg))
   | _ -> []
