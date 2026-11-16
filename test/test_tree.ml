@@ -51,11 +51,6 @@ let test_render_single () =
 let test_margin_wraps () =
   let n label children = Tree.v (View.text label) children in
   let tree = n "root" [ n "a" [ n "leaf label that is long" [] ]; n "b" [] ] in
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf 20;
-  View.pp ppf (Tree.view tree);
-  Format.pp_print_flush ppf ();
   str "wrapped tree"
     (String.concat "\n"
        [
@@ -66,7 +61,7 @@ let test_margin_wraps () =
          "│            long";
          "└── b";
        ])
-    (Buffer.contents buf);
+    (View_harness.printed ~margin:20 (Tree.view tree));
   str "to_string is natural"
     "root\n├── a\n│   └── leaf label that is long\n└── b"
     (View.to_string (Tree.view tree))
@@ -95,12 +90,7 @@ let test_guide_style () =
      \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80 b"
     (View.to_string (Tree.view ~guide tree))
 
-let at_margin margin t =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Format.pp_set_margin ppf margin;
-  Fmt.pf ppf "%a%!" View.pp (Tree.view t);
-  Buffer.contents buf
+let at_margin margin t = View_harness.printed ~margin (Tree.view t)
 
 (* A label wider than the margin wraps. Each line after the first aligns
    under the text after the first word. An indent of more than half the

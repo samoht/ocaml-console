@@ -18,12 +18,9 @@ let test_with_title () =
   Alcotest.(check bool) "contains body" true (contains "body" output)
 
 let render renderer panel =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
+  View_harness.capture @@ fun ppf ->
   Fmt.set_style_renderer ppf renderer;
-  View.pp ppf panel;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
+  View.pp ppf panel
 
 (* A border's gradient runs once round the frame, clockwise from the top-left
    corner and back to the first colour. It does not move, and the content
@@ -34,15 +31,12 @@ let test_gradient_frame () =
   let border =
     Border.with_gradient [ Color.rgb 255 0 0; Color.rgb 0 0 255 ] Border.ascii
   in
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Fmt.set_style_renderer ppf `Ansi_tty;
-  Color.set_depth ppf `True_color;
-  View.pp ppf (Panel.view ~border ~padding:0 (View.text "ab"));
-  Format.pp_print_flush ppf ();
-  let cells = Console_text.strip ~keep_styles:false (Buffer.contents buf) in
+  let out =
+    View_harness.printed ~depth:`True_color
+      (Panel.view ~border ~padding:0 (View.text "ab"))
+  in
+  let cells = Console_text.strip ~keep_styles:false out in
   Alcotest.(check string) "the glyphs" "+--+\n|ab|\n+--+" cells;
-  let out = Buffer.contents buf in
   let fg (r, g, b) glyph = Fmt.str "\027[38;2;%d;%d;%dm%s\027[0m" r g b glyph in
   let line = List.map (fun (rgb, glyph) -> fg rgb glyph) in
   (* Check cell by cell, so a gradient drawn in the other direction fails. *)
@@ -117,7 +111,6 @@ let test_fixed_width_truncates () =
     "content was clipped" false
     (contains "abcdefgh" (String.concat "\n" rendered))
 
-let lines s = String.split_on_char '\n' s
 let render_at margin panel = View_harness.printed ~margin panel
 
 (* The formatter's margin is the maximum width of the box. A line wider than
@@ -154,7 +147,7 @@ let test_margin_natural () =
   Alcotest.(check int)
     "to_string is natural" 104
     (Console_width.string_width
-       (List.hd (lines (View.to_string (Panel.view (View.text long))))))
+       (List.hd (split (View.to_string (Panel.view (View.text long))))))
 
 (* A styled border uses one escape sequence for each run of border
    glyphs. *)
