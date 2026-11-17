@@ -357,11 +357,17 @@ let test_prompt_leaves_other_fibers_attributed () =
                 Eio.Promise.resolve_ok type_answer "alice\n")))
   in
   Alcotest.check string_answer "the answer" (Got "alice") (seen (fst answer));
-  Alcotest.(check bool)
-    "the line is the task's output" true
-    (Display_harness.contains
-       {|"event":"output","id":0,"task":["work"],"text":"from work"|}
-       (Buffer.contents out))
+  let out = Buffer.contents out in
+  if
+    not
+      (Display_harness.contains
+         {|"event":"output","id":0,"task":["work"],"text":"from work"|} out)
+  then
+    Alcotest.failf
+      "the line is not the task's output.@.The run wrote:@.%s@.The prompt \
+       asked:@.%S"
+      out
+      (Buffer.contents questions)
 
 (* [keys] reads each key as it is typed, without echo, and restores the terminal
    as it was. Without a terminal, it is refused. *)
