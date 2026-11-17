@@ -85,7 +85,7 @@ let device_names ~dev ~pts =
   let macos, others =
     List.partition (String.starts_with ~prefix:"ttys") (List.filter tty dev)
   in
-  let in_dir dir = List.map (Filename.concat dir) in
+  let in_dir dir = List.map (fun name -> dir ^ "/" ^ name) in
   ("/dev/tty" :: in_dir "/dev/pts" pts) @ in_dir "/dev" (macos @ others)
 
 (* [reopened unix] finds the terminal of [unix] by its device and opens it
