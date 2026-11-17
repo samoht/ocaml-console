@@ -3,6 +3,8 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
+type align = [ `Left | `Center | `Right ]
+
 (* An atom's [text] is non-empty valid UTF-8, with no control character except
    the line feed. The constructors ensure this, and every operation below
    keeps it. An atom with [draw] is drawn when printed, in [style] and in the
@@ -10,8 +12,6 @@
    takes the same cells in every look, so [text] gives its width. An atom with
    [block] holds a single line feed that joins two lines of one widget, so a
    region too short for both lines drops both. *)
-type align = [ `Left | `Center | `Right ]
-
 type atom = {
   style : Style.t;
   link : string option;
@@ -390,8 +390,7 @@ module F = struct
   (* Each row ends at the last span with text on that row, even text that
      takes no cell, such as a combining mark. The spans before it are padded
      to their widths and followed by [gap]. Nothing is added after it. *)
-  let hcat ?(gap = 2) spans =
-    if gap < 0 then invalid_arg "Console.View.hcat: negative gap";
+  let hcat ~gap spans =
     let blocks =
       List.filter (fun s -> not (is_empty s)) spans
       |> List.map (fun s -> (Array.of_list (seamed s), width s))
@@ -771,16 +770,6 @@ module F = struct
     | `Ansi_tty ->
         Format.pp_print_string ppf
           (render ~look:Look.default ~depth:(Color.depth ppf) t)
-
-  let pp_lines ppf lines =
-    List.iteri
-      (fun i line ->
-        if i > 0 then Format.pp_print_char ppf '\n';
-        pp ppf line)
-      lines
-
-  let string_of_lines ?(styled = false) lines =
-    String.concat "\n" (List.map (to_string ~styled) lines)
 end
 
 (* A view is either [Flat], with its atoms known, or [Deferred], laid out when
@@ -895,15 +884,12 @@ let rec min_width c = function
   | Deferred { min_width = Some w; _ } -> w c
   | Deferred d -> min_width c (d.lay c)
 
-(* [lift ~room ts f] is [f] applied to the atoms of [ts]. When every view of
-   [ts] is flat, [f] is applied at once. Otherwise it is applied when the view
-   is printed, with each view laid out in [room] of the printing context. *)
-let lift ?(room = Fun.id) ts f =
+(* [lift ts f] is [f] applied to the atoms of [ts]. When every view of [ts]
+   is flat, [f] is applied at once. Otherwise it is applied when the view is
+   printed. *)
+let lift ts f =
   if List.for_all is_flat ts then Flat (f (List.map flat ts))
-  else
-    deferred ~kind:(kinds ts) (fun c ->
-        let c = room c in
-        Flat (f (List.map (flat_in c) ts)))
+  else deferred ~kind:(kinds ts) (fun c -> Flat (f (List.map (flat_in c) ts)))
 
 (* [lift2 a b f] is {!lift} on two views. *)
 let lift2 a b f =
@@ -914,7 +900,7 @@ let lift2 a b f =
         ~kind:(kinds [ a; b ])
         (fun c -> Flat (f (flat_in c a) (flat_in c b)))
 
-let map ?(room = Fun.id) f = function
+let map ~room f = function
   | Flat x -> Flat (f x)
   | t -> deferred ~kind:(kind t) (fun c -> Flat (f (flat_in (room c) t)))
 
@@ -1166,12 +1152,11 @@ let wrap ?words w t = List.map (fun f -> Flat f) (F.wrap ?words w (keep t))
 let wrap_hanging w t = List.map (fun f -> Flat f) (F.wrap_hanging w (keep t))
 let chop w t = List.map (fun f -> Flat f) (F.chop w (keep t))
 let lines t = List.map (fun f -> Flat f) (F.lines (keep t))
+let unlines ts = concat ~sep:(text "\n") ts
 let seamed t = List.map (fun (j, f) -> (j, Flat f)) (F.seamed (flat t))
 let block ts = Flat (F.block (List.map flat ts))
-let widest_word t = F.widest_word (flat t)
 let pad_to w t = Flat (F.fit w (flat t))
 let recell f t = Flat (F.recell f (flat t))
-let ellipsis = F.ellipsis
 let drawn draw = Flat (F.drawn (fun look -> flat (draw look)))
 let paint look t = Flat (F.resolve look (flat t))
 let render ~look ?depth t = F.render ~look ?depth (flat t)
@@ -1179,9 +1164,5 @@ let render ~look ?depth t = F.render ~look ?depth (flat t)
 let pp ppf t =
   F.pp ppf (flat_in (Ctx.v ~width:(Format.pp_get_margin ppf ()) (Look.v ppf)) t)
 
-let flat_in_program t = flat_in (Ctx.v (Look.program ())) t
-let to_string ?styled t = F.to_string ?styled (flat_in_program t)
-let pp_lines ppf ts = F.pp_lines ppf (List.map flat ts)
-
-let string_of_lines ?styled ts =
-  F.string_of_lines ?styled (List.map flat_in_program ts)
+let to_string ?styled t =
+  F.to_string ?styled (flat_in (Ctx.v (Look.program ())) t)

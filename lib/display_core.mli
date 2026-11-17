@@ -22,7 +22,7 @@ val v :
   View.t ->
   t
 (** [v ~size ~once_width ~write_error ~cancelled ~atomic ~delay ~fallback ~now
-     ppf view] is like {!Display.v}, with four more arguments:
+     ppf view] is like {!Display.v}, with five more arguments:
     - [write_error e] is [true] iff [e] is a write error, which ends the output
       (defaults to [false]; a [Sys_error] is always a write error);
     - [cancelled e] is [true] iff [e] cancels the fiber that draws (defaults to
@@ -96,9 +96,6 @@ val restart : t -> unit
 (** [restart d] forgets what [d] drew, so the next frame is drawn on its own row
     with the cursor hidden again. This is for a program that continues after a
     stop that wrote over the screen. It does nothing while {!writing}. *)
-
-val is_live : t -> bool
-(** [is_live d] is [true] iff [d] redraws a region on a terminal. *)
 
 val print_lines : t -> View.t list -> unit
 (** [print_lines d lines] prints the lines of [lines], laid out already, as

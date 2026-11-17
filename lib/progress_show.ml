@@ -8,7 +8,6 @@ module V = View_core
 open Task_core
 
 let tasks _ = V.tasks
-let lines vs = V.concat ~sep:(V.text "\n") vs
 
 let row ?(layout = Layout.default) r =
   V.deferred ~kind:(Layout.reads layout) (fun c ->
@@ -27,7 +26,7 @@ let row ?(layout = Layout.default) r =
       in
       if is_running r then
         Progress_row.live look ~time:(Ctx.time c) ?width ~columns layout r
-      else lines (Progress_row.ended look ?width ~columns ~whole:false r))
+      else V.unlines (Progress_row.ended look ?width ~columns ~whole:false r))
 
 let tree ?(layout = Layout.default) r = Progress_tree.view ~layout r
 
@@ -38,15 +37,17 @@ let summary root =
 
 let verdict root =
   V.deferred ~kind:tasks (fun c ->
-      lines
+      V.unlines
         (Progress_row.verdict (Ctx.look c) ?width:(Ctx.width c) (root_of root)))
 
 (* On a wide terminal, a count or a timer at the right edge is far from its
-   label. So the rows use at most 100 columns. *)
+   label. So the rows use at most [max_width] columns. *)
+let max_width = 100
+
 let view ?(layout = Layout.default) root =
   let root = root_of root in
   V.deferred ~kind:(Layout.reads layout) (fun c ->
-      let width = Option.map (min 100) (Ctx.width c) in
+      let width = Option.map (min max_width) (Ctx.width c) in
       let look = Ctx.look c in
       let below =
         Option.to_list (Progress_row.summary look ?width root)
@@ -115,7 +116,7 @@ let rec has_output r =
    forgotten and nothing is printed. *)
 let moved d w =
   let look = Display_core.look d in
-  let width = min (Display_core.width d) 100 in
+  let width = min (Display_core.width d) max_width in
   let committed =
     protect
       (fun () ->
@@ -185,7 +186,8 @@ let on_live d ~layout ~keep_ended ~commit ~held:h root = function
       let look = Display_core.look d and width = Display_core.width d in
       if is_root r then print d (Progress_row.message look ~width line)
       else if is_running r then Display_core.touch d
-      else print d (Progress_row.labelled look ~width:(min width 100) r line)
+      else
+        print d (Progress_row.labelled look ~width:(min width max_width) r line)
   | Ended (r, _) ->
       if (not (is_root r)) && not keep_ended then hold h d ~layout ~commit r;
       Display_core.touch d;

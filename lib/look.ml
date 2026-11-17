@@ -5,9 +5,7 @@
 
 type t = { theme : Theme.t; utf_8 : bool; live : bool }
 
-let v ?(live = false) ppf =
-  { theme = Theme.get ppf; utf_8 = Fmt.utf_8 ppf; live }
-
+let v ppf = { theme = Theme.get ppf; utf_8 = Fmt.utf_8 ppf; live = false }
 let default = { theme = Theme.default; utf_8 = true; live = false }
 let program () = { default with theme = Theme.program () }
 

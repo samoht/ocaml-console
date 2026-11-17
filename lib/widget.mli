@@ -23,12 +23,9 @@ val glyph : look -> string -> ascii:string -> string
 (** [glyph look g ~ascii] is [g], or [ascii] when [look] is not UTF-8 and [g] is
     not ASCII. *)
 
-val ascii_theme : look -> bool
-(** [ascii_theme] is {!Look.ascii_theme}. *)
-
 val line : look -> string -> string
 (** [line look g] is [g], the glyph of a line. It is [-] when [look] is not
-    UTF-8 and [g] is not ASCII, or when [look] is an {!ascii_theme}. *)
+    UTF-8 and [g] is not ASCII, or when [look] is an {!Look.ascii_theme}. *)
 
 val spinner : look -> time:float -> string
 (** [spinner look ~time] is the frame of the spinner of [look], [time] seconds
@@ -43,16 +40,13 @@ val bar : look -> Theme.bar
     [`Ascii] when [look] is not UTF-8. *)
 
 val ellipsis : look -> string
-(** [ellipsis] is {!Look.ellipsis}. *)
+(** [ellipsis look] is {!Look.ellipsis}[ look]. *)
 
 val truncate : look -> int -> View.t -> View.t
 (** [truncate look w s] is {!View.truncate}[ w s] with {!ellipsis}. *)
 
 val muted : look -> Style.t
 (** [muted look] is the style of the muted colour of the theme of [look]. *)
-
-val accent : look -> Style.t
-(** [accent look] is the style of the main colour of the theme of [look]. *)
 
 val one_line : View.t -> View.t
 (** [one_line s] is [s] with each line feed replaced by a space. *)

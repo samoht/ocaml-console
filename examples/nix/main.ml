@@ -199,8 +199,9 @@ let pp_plan ppf () =
   Fmt.pf ppf "these %d derivations will be built:@." (List.length builds);
   List.iter (fun b -> path b.drv) builds;
   Fmt.pf ppf
-    "these %d paths will be fetched (%.2f MiB download, %.2f MiB unpacked):@."
-    (List.length substitutes) download_total nar_total;
+    "these %d paths will be fetched (%a MiB download, %a MiB unpacked):@."
+    (List.length substitutes) (Decimal.pp ~digits:2) download_total
+    (Decimal.pp ~digits:2) nar_total;
   List.iter (fun s -> path s.path) substitutes
 
 (* {1 The status line} *)
@@ -236,8 +237,8 @@ let numbers pp ~running:r ~done_ expected =
     if done_ > 0. then number pp finished done_ else plain
   else View.concat [ number pp finished done_; slash; plain ]
 
-let pp_count = Fmt.of_to_string (Fmt.str "%.0f")
-let pp_mib = Fmt.of_to_string (Fmt.str "%.1f")
+let pp_count = Decimal.pp ~digits:0
+let pp_mib = Decimal.pp ~digits:1
 
 let counters root =
   let tasks kind state =

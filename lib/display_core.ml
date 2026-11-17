@@ -131,7 +131,36 @@ let synchronized t s = if is_live t then sync_on ^ s ^ sync_off else s
    one, console stops flushing it, and the program's own writes meet the
    error. *)
 let stdout_failed = Atomic.make false
-let write_error t = function Sys_error _ -> true | e -> t.write_error e
+
+(* The runtime drops the bytes of a write that fails for good, but not after
+   every failure: on Windows, a write to a closed pipe fails as an invalid
+   argument. The bytes then stay in the channel and every later flush fails
+   again, the last one in the flush of Format at exit, which raises out of the
+   program. Once the display's writes to [Fmt.stdout] or [Fmt.stderr] fail, the
+   flushes at exit ignore the failure, as [Stdlib.exit] does for the channels
+   it flushes. *)
+let failed_std = Atomic.make []
+
+let rec ignored_at_exit ppf =
+  let failed = Atomic.get failed_std in
+  if (ppf == Fmt.stdout || ppf == Fmt.stderr) && not (List.memq ppf failed) then
+    if Atomic.compare_and_set failed_std failed (ppf :: failed) then
+      at_exit (fun () ->
+          let out = Format.pp_get_formatter_out_functions ppf () in
+          let quietly f = try f () with Sys_error _ -> () in
+          Format.pp_set_formatter_out_functions ppf
+            {
+              out with
+              out_string =
+                (fun s i n -> quietly (fun () -> out.out_string s i n));
+              out_flush = (fun () -> quietly out.out_flush);
+            })
+    else ignored_at_exit ppf
+
+let write_error t e =
+  let failed = match e with Sys_error _ -> true | e -> t.write_error e in
+  if failed then ignored_at_exit t.ppf;
+  failed
 
 let flush_ppf t =
   try Format.pp_print_flush t.ppf () with e when write_error t e -> ()

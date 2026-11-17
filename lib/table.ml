@@ -326,9 +326,7 @@ let lines ?max_width t =
     (* Columns at their narrowest may still not fit beside the border. Then
        each line is cut visibly, and no column is dropped. *)
     match max_width with
-    | Some w when rendered_width t widths > w ->
-        List.map (Widget.truncate t.look w) lines
-    | Some w when not (edged t && c.top <> "") ->
+    | Some w when rendered_width t widths > w || not (edged t && c.top <> "") ->
         List.map (Widget.truncate t.look w) lines
     | None when not (edged t && c.top <> "") -> lines
     | _ ->

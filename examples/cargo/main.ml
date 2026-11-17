@@ -133,8 +133,10 @@ let download clock root =
       say "Downloaded" "%s v%s" c.name c.version)
     registry;
   let kib = List.fold_left (fun n c -> n + c.kib) 0 registry in
-  say "Downloaded" "%d crates (%.1f MiB) in %.2fs" (List.length registry)
+  say "Downloaded" "%d crates (%a MiB) in %as" (List.length registry)
+    (Decimal.pp ~digits:1)
     (float kib /. 1024.)
+    (Decimal.pp ~digits:2)
     (Task.elapsed root -. start)
 
 let generated c =
@@ -213,6 +215,5 @@ let () =
   Console_eio.run ~clock ~delay:0.5 ~view:building (fun root ->
       download clock root;
       compile ~jobs:4 clock root;
-      say "Finished"
-        "`dev` profile [unoptimized + debuginfo] target(s) in %.2fs"
-        (Task.elapsed root))
+      say "Finished" "`dev` profile [unoptimized + debuginfo] target(s) in %as"
+        (Decimal.pp ~digits:2) (Task.elapsed root))

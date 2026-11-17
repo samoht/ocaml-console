@@ -52,7 +52,7 @@ let str_of_size n =
   in
   let rec go x u = function
     | u' :: us when x >= 10000. -> go (x /. 1000.) u' us
-    | _ when x < 100. && u <> "" -> Fmt.str "%.1f %s" x u
+    | _ when x < 100. && u <> "" -> Fmt.str "%a %s" (Decimal.pp ~digits:1) x u
     | _ -> Fmt.str "%s %s" (digits x) u
   in
   go (Int.to_float n) "" [ "k"; "M"; "G" ] ^ "B"
@@ -82,7 +82,9 @@ let percent t =
 let step clock root what =
   Task.run ~transient:true root what (fun t ->
       let view =
-        View.fit (fun _ -> Fmt.kstr View.text "%s... %.0f%%" what (percent t))
+        View.fit (fun _ ->
+            Fmt.kstr View.text "%s... %a%%" what (Decimal.pp ~digits:0)
+              (percent t))
       in
       with_line view (fun () ->
           for i = 0 to 4 do
@@ -116,14 +118,16 @@ let acquire fetch =
     | Some t -> (
         match Task.progress t with
         | `Bytes (n, total) ->
-            Fmt.str " [%s %s/%s %.0f%%]" (Task.label t)
+            Fmt.str " [%s %s/%s %a%%]" (Task.label t)
               (str_of_size (Int64.to_int n))
               (str_of_size (Int64.to_int total))
-              (percent t)
+              (Decimal.pp ~digits:0) (percent t)
         | _ -> " [Working]")
     | None -> " [Working]"
   in
-  let left = Fmt.kstr View.text "%.0f%%%s" (percent fetch) item in
+  let left =
+    Fmt.kstr View.text "%a%%%s" (Decimal.pp ~digits:0) (percent fetch) item
+  in
   let right =
     match (Task.progress fetch, Task.rate fetch) with
     | `Bytes (n, total), Some cps ->
@@ -190,7 +194,9 @@ let fetch clock root =
 let dpkg_progress t =
   View.fit @@ fun room ->
   let pct = percent t in
-  let label = Fmt.str "Progress: [%3.0f%%]" pct in
+  let label =
+    Fmt.str "Progress: [%3s%%]" (Decimal.string_of_float ~digits:0 pct)
+  in
   let label =
     View.styled Style.(fg Color.black + bg Color.green) (View.text label)
   in

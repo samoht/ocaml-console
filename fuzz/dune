@@ -52,6 +52,7 @@
   console.text
   eio_harness
   env_harness
+  recording_harness
   eio
   eio.mock
   mtime

@@ -10,14 +10,8 @@
 open Console
 open Display_harness
 
-let check_lines msg expected actual =
-  Alcotest.(check (list string)) msg expected actual
-
 (* [squeeze l] is [l] with each run of spaces one space. *)
 let squeeze = Re.replace_string (Re.Perl.compile_pat " +") ~by:" "
-
-(* [untimed l] is [l] without the timer at its end. *)
-let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
 
 let last_row t =
   match List.rev (List.filter (( <> ) "") (screen t)) with

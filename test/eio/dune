@@ -79,10 +79,22 @@
   ../../examples/columns/main.exe
   ../../examples/charts/main.exe))
 
+; These run programs on a pseudo-terminal with tty.exe, and exit.t sends
+; signals. Windows has neither.
+
 (cram
  (applies_to cast deterministic exit progress size)
  (enabled_if
-  (= %{profile} dev)))
+  (and
+   (= %{profile} dev)
+   (<> %{os_type} Win32))))
+
+; Windows meets this failure with a closed pipe, in epipe.t.
+
+(cram
+ (applies_to refused)
+ (enabled_if
+  (<> %{os_type} Win32)))
 
 (test
  (name test)
@@ -99,6 +111,7 @@
   display_harness
   eio_harness
   env_harness
+  recording_harness
   console_vte
   cstruct
   eio

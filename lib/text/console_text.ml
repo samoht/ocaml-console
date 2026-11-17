@@ -125,11 +125,7 @@ let rec is_clean ~keep_newlines str i base =
       if c = 0x0a then keep_newlines && is_clean ~keep_newlines str next false
       else if c < 0x20 || (c >= 0x7f && c <= 0x9f) then false
       else if c >= 0x80 && (removed u || (is_selector u && not base)) then false
-      else
-        is_clean ~keep_newlines str next
-          (c > 0x20
-          && (c < 0x80 || not (is_selector u))
-          && c <> 0x200c && c <> 0x200d)
+      else is_clean ~keep_newlines str next (is_base u c)
 
 let rec ascii_from s i =
   i >= String.length s

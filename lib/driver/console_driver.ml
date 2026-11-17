@@ -61,12 +61,6 @@ module Make (B : S) = struct
 
   type run = Capture.run = { display : Display.t; root : Task.t; json : bool }
 
-  (* A terminal has one live region at a time. The display that holds it is
-     bound in the fibers of its run ([current]). So a [run] in a fiber under
-     another run finds that display and adds to it. The display is also global
-     ([shared]). So a [run] in another fiber or domain joins it, and an exit in
-     the middle of the work still closes it. *)
-
   (* The driver calls [B.notify] from anywhere, but the rest of [B] only on the
      home thread of a domain. The home thread is the first thread that starts a
      run or makes a task current in that domain. *)
@@ -136,6 +130,11 @@ module Make (B : S) = struct
       B.check ()
   end
 
+  (* A terminal has one live region at a time. The display that holds it is
+     bound in the fibers of its run ([current]). So a [run] in a fiber under
+     another run finds that display and adds to it. The display is also global
+     ([shared]). So a [run] in another fiber or domain joins it, and an exit in
+     the middle of the work still closes it. *)
   let current : run B.key = B.key ()
   let task : Task.t B.key = B.key ()
   let ending : (unit -> unit) option Atomic.t = Atomic.make None
@@ -555,7 +554,7 @@ module Make (B : S) = struct
          (fun () ->
            if
              Int.equal (Domain.self () :> int) (owner :> int)
-             && Int.equal (Thread.id (Thread.self ())) thread
+             && Int.equal (self ()) thread
              && not (Display_driver.writing run.display)
            then begin
              Capture.safely (fun () -> Display_driver.reveal run.display);
@@ -569,8 +568,7 @@ module Make (B : S) = struct
              Capture.restore ~flush:false ()
            end))
 
-  let start ?(cursor = ignore) ?(flow = false) ?terminal ~sleep
-      ~intercept:formatters run f =
+  let start ~cursor ~flow ?terminal ~sleep ~intercept:formatters run f =
     let display = run.display in
     let repaint = Atomic.make false in
     let previous = Logs.reporter () in
@@ -579,7 +577,7 @@ module Make (B : S) = struct
       Logs.set_reporter previous;
       Atomic.set closed true
     in
-    ends_at_exit run ~thread:(Thread.id (Thread.self ())) ~give_back;
+    ends_at_exit run ~thread:(self ()) ~give_back;
     let s = share run in
     Task_driver.protect ~finally:(fun () ->
         Task_driver.protect
@@ -684,12 +682,13 @@ module Make (B : S) = struct
             ignore )
       | `Plain, _ when recorded ->
           (show ~size:Recording.size `Plain ppf, [], ignore)
-      | `Plain, _ -> (
-          match Terminal.of_ppf ppf with
-          | Some unix ->
-              let size () = Terminal.dimensions (Some unix) in
-              (show ~size `Plain ppf, [], ignore)
-          | None -> (show ?size:(Terminal.asked ()) `Plain ppf, [], ignore))
+      | `Plain, _ ->
+          let size =
+            match Terminal.size ppf with
+            | Some _ as size -> size
+            | None -> Terminal.asked ()
+          in
+          (show ?size `Plain ppf, [], ignore)
       | _ -> (show (form :> Console.Progress.t) ppf, [], ignore)
     in
     let std = Option.is_some (Terminal.descriptor ppf) in
@@ -703,15 +702,10 @@ module Make (B : S) = struct
         match on_terminal () with
         | Some d -> d
         | None ->
-            let cursor =
+            let cursor, intercept =
               match Terminal.descriptor ppf with
-              | Some unix -> Terminal.cursor unix
-              | None -> ignore
-            in
-            let intercept =
-              match Terminal.descriptor ppf with
-              | Some _ -> [ ppf ]
-              | None -> []
+              | Some unix -> (Terminal.cursor unix, [ ppf ])
+              | None -> (ignore, [])
             in
             live ~size:(fun () -> Terminal.dimensions None) ~intercept ~cursor)
     | (`Plain | `Quiet | `Json) as form -> lines form

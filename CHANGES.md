@@ -1,4 +1,4 @@
-## unreleased
+## 0.10.10 (14/11/2026)
 
 ### Added
 
@@ -27,6 +27,10 @@
   terminal (#13, #61). `Env.setup` and `Env.ensure` apply the colour rules
   without Unix (#11). `Console_input.crlf` writes lines for a raw-mode
   terminal (#3).
+
+- Numbers: `Decimal.string_of_float` and `Decimal.pp` print a float with a
+  fixed count of decimals, the same on every platform. `Printf`'s `%.1f`
+  rounds a tie up with MinGW's C library and to even with glibc (#88).
 
 - Eio: `Console_eio.redraw` draws the display at once (#10), and
   `Console_eio.domain_mgr` keeps recordings of programs with domains
@@ -71,6 +75,10 @@
 
 ### Fixed
 
+- A short byte count in a narrow row, such as `1.3K`, now has the same
+  digits on Windows as elsewhere, and so do the recordings of the examples
+  (#88).
+
 - The terminal is always given back, with its cursor shown: when a view, a
   hook or the output raises (#26), when a view calls `exit` (#43), when a run
   is cancelled (#42), when a signal or an `exit` cannot reach the display
@@ -83,7 +91,8 @@
   systhread, or two domains starting at once, no longer raises (#37).
 
 - Windows: a run no longer raises `Invalid_argument` at start, because
-  Windows has no SIGTSTP (#79).
+  Windows has no SIGTSTP (#79). A program whose display writes to a pipe
+  that closes now exits as it returns, not with status 2 (#93).
 
 - Errors and cancellation: an exception from `commit` or `plain` no longer
   escapes `Task.run` (#26). A cancelled fiber stops in the view instead of

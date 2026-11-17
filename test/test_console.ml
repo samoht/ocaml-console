@@ -13,7 +13,8 @@ let test_public_surface () =
   exposed "Guide" (module Console.Guide : Surface);
   exposed "Rule" (module Console.Rule : Surface);
   exposed "Table" (module Console.Table : Surface);
-  exposed "Display" (module Console.Display : Surface)
+  exposed "Display" (module Console.Display : Surface);
+  exposed "Decimal" (module Console.Decimal : Surface)
 
 (* [sanitize] applies the widgets' rule to a plain string: malformed UTF-8
    becomes the replacement glyph, and no control can move the cursor. *)

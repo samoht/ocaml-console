@@ -27,7 +27,9 @@ let metrics =
     ("disk", [ 5.; 5.; 6.; 7.; 7.; 8.; 9.; 9.; 10.; 11.; 12.; 12. ]);
   ]
 
-let current values = Fmt.str "%.0f%%" (List.nth values (List.length values - 1))
+let current values =
+  Fmt.str "%a%%" (Decimal.pp ~digits:0)
+    (List.nth values (List.length values - 1))
 
 (* The readings are percentages, so every sparkline spans 0 to 100. A disk
    that is 12% full is a low bar, in the colour of a low value. *)

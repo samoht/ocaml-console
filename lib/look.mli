@@ -11,9 +11,9 @@ type t = { theme : Theme.t; utf_8 : bool; live : bool }
     only ASCII, and whether a live display draws in colour. The frames of the
     theme move only when [live] is [true]. *)
 
-val v : ?live:bool -> Format.formatter -> t
-(** [v ppf] is the look of [ppf]: its theme ({!Theme.get}), its {!Fmt.utf_8}
-    setting, and [live] (defaults to [false]). *)
+val v : Format.formatter -> t
+(** [v ppf] is the look of [ppf]: its theme ({!Theme.get}) and its {!Fmt.utf_8}
+    setting. Its {!field-live} is [false]. *)
 
 val default : t
 (** [default] is the look of a formatter with no settings: {!Theme.default}, in

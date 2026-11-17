@@ -14,8 +14,8 @@
    - [tty.exe --times file]: the time of each event of the recording, as a
      number.
 
-   Where no pseudo-terminal can be opened, such as in opam's sandbox on macOS,
-   it exits with 77. *)
+   Where no pseudo-terminal can be opened, such as in opam's sandbox on macOS
+   or on Windows, where Eio has none, it exits with 77. *)
 
 let rows = 24
 let cols = 80
@@ -69,12 +69,15 @@ let cast file =
       screen ~rows:height ~cols:width
         (List.map (fun l -> (decode Console__.Cast.event l).data) events)
 
+let no_pty () =
+  prerr_endline "tty.exe: no pseudo-terminal";
+  exit 77
+
 let terminal ~cols argv =
+  if Sys.win32 then no_pty ();
   match run ~cols argv with
   | bytes -> screen ~cols [ bytes ]
-  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->
-      prerr_endline "tty.exe: no pseudo-terminal";
-      exit 77
+  | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) -> no_pty ()
 
 (* Decoded with Cast, the codec under test, as [cast] is. A transcript compares
    the numbers it prints, not how the recording spells them. *)

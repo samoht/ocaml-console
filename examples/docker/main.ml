@@ -44,10 +44,10 @@ let known = ref 1
 (* Sizes as docker prints them, in powers of 1000. *)
 let size n =
   let n = Int64.to_float n in
-  if n < 1e3 then Fmt.str "%.0fB" n
-  else if n < 1e6 then Fmt.str "%.2fkB" (n /. 1e3)
-  else if n < 1e9 then Fmt.str "%.2fMB" (n /. 1e6)
-  else Fmt.str "%.2fGB" (n /. 1e9)
+  if n < 1e3 then Fmt.str "%aB" (Decimal.pp ~digits:0) n
+  else if n < 1e6 then Fmt.str "%akB" (Decimal.pp ~digits:2) (n /. 1e3)
+  else if n < 1e9 then Fmt.str "%aMB" (Decimal.pp ~digits:2) (n /. 1e6)
+  else Fmt.str "%aGB" (Decimal.pp ~digits:2) (n /. 1e9)
 
 let colour task =
   match Task.state task with
@@ -76,7 +76,7 @@ let line width ?(status = "") ?(right = "") style name =
          View.text right;
        ])
 
-let timer task = Fmt.str " %.1fs" (Task.elapsed task)
+let timer task = Fmt.str " %as" (Decimal.pp ~digits:1) (Task.elapsed task)
 
 let header width root =
   let steps = Task.children root in
@@ -85,7 +85,8 @@ let header width root =
   in
   let finished = Task.state root <> `Running in
   let text =
-    Fmt.str "[+] Building %.1fs (%d/%d)%s" (Task.elapsed root) ended
+    Fmt.str "[+] Building %as (%d/%d)%s" (Decimal.pp ~digits:1)
+      (Task.elapsed root) ended
       (max !known (List.length steps))
       (if finished then " FINISHED" else "")
   in
@@ -176,7 +177,7 @@ let plain e =
       | _ -> None)
   | `Output, Some (_, [ step ]) ->
       let v = Hashtbl.find vertices step in
-      say v "%.3f %s"
+      say v "%a %s" (Decimal.pp ~digits:3)
         (E.time e -. v.started)
         (Option.value (E.text e) ~default:"")
   | `End, Some (_, [ step ]) -> (
@@ -184,7 +185,8 @@ let plain e =
       match E.status e with
       | Some `Succeeded when Hashtbl.mem cached step -> say v "CACHED"
       | Some `Succeeded ->
-          say v "DONE %.1fs" (Option.value (E.elapsed e) ~default:0.)
+          say v "DONE %as" (Decimal.pp ~digits:1)
+            (Option.value (E.elapsed e) ~default:0.)
       | Some `Failed ->
           say v "ERROR: %s" (Option.value (E.message e) ~default:step)
       | Some `Cancelled -> say v "CANCELED"
@@ -198,7 +200,7 @@ let plain e =
       in
       let time =
         match E.elapsed e with
-        | Some s when s >= 0.05 -> Fmt.str " %.1fs" s
+        | Some s when s >= 0.05 -> Fmt.str " %as" (Decimal.pp ~digits:1) s
         | _ -> ""
       in
       let status =

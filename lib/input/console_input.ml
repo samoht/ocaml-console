@@ -151,8 +151,6 @@ let cells t cs =
   | None -> List.fold_left (fun n c -> n + cluster_cells t c) 0 cs
   | Some _ -> cols t cs
 
-let rec drop n = function _ :: l when n > 0 -> drop (n - 1) l | l -> l
-
 (* The number of leading clusters that display the same in [a] and [b], at
    most [max]. *)
 let rec same t ~max n a b =
@@ -230,7 +228,7 @@ let edit t echo ~erased s =
     let was = before_cursor @ old_right in
     let n = List.length before_cursor in
     let k = same t ~max:n 0 was changed in
-    let redrawn = drop k changed in
+    let redrawn = List.drop k changed in
     let cursor = cells t before_cursor in
     let kept = if k = n then cursor else cells t (take k was) in
     let blank = max 0 (cursor + cells t old_right - (kept + cells t redrawn)) in

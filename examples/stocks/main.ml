@@ -120,9 +120,9 @@ let arrow x =
       | false, false -> View.text "^")
 
 let figure v =
-  if v >= 1e9 then Fmt.str "%.2fB" (v /. 1e9)
-  else if v >= 1e6 then Fmt.str "%.1fM" (v /. 1e6)
-  else Fmt.str "%.0fk" (v /. 1e3)
+  if v >= 1e9 then Fmt.str "%aB" (Decimal.pp ~digits:2) (v /. 1e9)
+  else if v >= 1e6 then Fmt.str "%aM" (Decimal.pp ~digits:1) (v /. 1e6)
+  else Fmt.str "%ak" (Decimal.pp ~digits:0) (v /. 1e3)
 
 (* The session so far, in the colour of the day's change. *)
 let sparkline s =
@@ -134,7 +134,10 @@ let sparkline s =
       Bar.sparkline ~style:(Style.fg colour) (List.rev s.session))
 
 let row s =
-  let price = View.styled Style.bold (Fmt.kstr View.text "%.2f" s.price) in
+  let price =
+    View.styled Style.bold
+      (Fmt.kstr View.text "%a" (Decimal.pp ~digits:2) s.price)
+  in
   [
     View.styled Style.bold (View.text s.symbol);
     View.text s.name;
@@ -191,7 +194,8 @@ let header () =
       View.hcat ~gap:1
         [
           View.role `Muted (View.text "LBX Composite");
-          View.styled Style.bold (Fmt.kstr View.text "%.2f" index);
+          View.styled Style.bold
+            (Fmt.kstr View.text "%a" (Decimal.pp ~digits:2) index);
           signed move
             (View.hcat ~gap:1
                [

@@ -99,21 +99,6 @@ let styled_rows ~width table =
     String.split_on_char '\n' raw
     |> List.filter (fun row -> String.trim row <> "") )
 
-(* [printed table] is [table] printed on a formatter in [theme], in UTF-8
-   iff [utf_8], and in true colour iff [styled]. *)
-let printed ?(theme = Theme.default) ?(utf_8 = true) ?(styled = false) table =
-  let buf = Buffer.create 128 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf theme;
-  Fmt.set_utf_8 ppf utf_8;
-  if styled then begin
-    Fmt.set_style_renderer ppf `Ansi_tty;
-    Color.set_depth ppf `True_color
-  end;
-  View.pp ppf table;
-  Format.pp_print_flush ppf ();
-  Buffer.contents buf
-
 (* A bar in a cell uses the theme and the UTF-8 setting of the formatter
    that prints the table. A column narrower than the bar makes the bar
    narrower. *)
@@ -129,18 +114,19 @@ let test_bar_cell () =
   let half = table (Bar.horizontal ~width:4 0.5) in
   let row s = List.nth (String.split_on_char '\n' s) 1 in
   let check msg want got = Alcotest.(check string) msg want (row got) in
-  check "default" "copy  \u{2501}\u{2501}\u{2500}\u{2500}" (printed half);
+  check "default" "copy  \u{2501}\u{2501}\u{2500}\u{2500}"
+    (View_harness.printed half);
   check "dos" "copy  \u{2588}\u{2588}\u{2591}\u{2591}"
-    (printed ~theme:Theme.dos half);
-  check "not UTF-8" "copy  ##--" (printed ~utf_8:false half);
-  check "ascii" "copy  ##--" (printed ~theme:Theme.ascii half);
+    (View_harness.printed ~theme:Theme.dos half);
+  check "not UTF-8" "copy  ##--" (View_harness.printed ~utf_8:false half);
+  check "ascii" "copy  ##--" (View_harness.printed ~theme:Theme.ascii half);
   let cut =
     table ~overflow:`Truncate ~max_width:5 (Bar.horizontal ~width:8 0.5)
   in
   check "narrowed, dos" "copy  \u{2588}\u{2588}\u{2588}\u{2591}\u{2591}"
-    (printed ~theme:Theme.dos cut);
+    (View_harness.printed ~theme:Theme.dos cut);
   check "narrowed, not UTF-8" "copy  ###--"
-    (printed ~theme:Theme.dos ~utf_8:false cut);
+    (View_harness.printed ~theme:Theme.dos ~utf_8:false cut);
   let accent t s =
     View.to_string ~styled:true
       (View.styled (Style.fg (Theme.accent t)) (View.text s))
@@ -149,7 +135,7 @@ let test_bar_cell () =
     "in the theme's colours" true
     (contains
        (accent Theme.nord "\u{2501}\u{2501}")
-       (printed ~theme:Theme.nord ~styled:true half))
+       (View_harness.printed ~theme:Theme.nord ~depth:`True_color half))
 
 (* Without a width, a table used as a span is laid out at its natural
    width. In a table without edges, a short row's last cell runs to the end
@@ -175,12 +161,10 @@ let test_span_natural_width () =
 
 (* A bar alone, used as a span, is drawn when printed. *)
 let test_bar_span () =
-  let buf = Buffer.create 16 in
-  let ppf = Format.formatter_of_buffer buf in
-  Theme.set ppf Theme.dos;
-  View.pp ppf View.(text "[" ++ Bar.horizontal ~width:2 0.5 ++ text "]");
-  Format.pp_print_flush ppf ();
-  Alcotest.(check string) "dos" "[\u{2588}\u{2591}]" (Buffer.contents buf);
+  Alcotest.(check string)
+    "dos" "[\u{2588}\u{2591}]"
+    (View_harness.printed ~theme:Theme.dos
+       View.(text "[" ++ Bar.horizontal ~width:2 0.5 ++ text "]"));
   Alcotest.(check string)
     "to_string, the default theme" "\u{2501}\u{2501}"
     (View.to_string (Bar.horizontal ~width:2 1.));
@@ -673,7 +657,7 @@ let test_simple () =
          "README.md  2.4K";
          "src/       4.0K";
        ])
-    (printed ~utf_8:false (table ()));
+    (View_harness.printed ~utf_8:false (table ()));
   let narrow =
     List.map Console_width.string_width
       (String.split_on_char '\n'

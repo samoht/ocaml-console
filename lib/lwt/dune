@@ -4,7 +4,12 @@
  (private_modules backend fiber)
  (libraries console console.driver lwt lwt.unix mtime mtime.clock unix))
 
+; mdx requires lwt.unix again although it is linked in, and on Windows that
+; aborts the file: https://github.com/realworldocaml/mdx/issues/485
+
 (mdx
  (package console-lwt)
+ (enabled_if
+  (<> %{os_type} Win32))
  (files console_lwt.mli)
  (libraries console console-lwt lwt lwt.unix))

@@ -53,7 +53,7 @@ let muted s = View.role `Muted (View.text s)
 let duration s =
   if s >= 60. then
     Fmt.str "%dm %02ds" (int_of_float s / 60) (int_of_float s mod 60)
-  else if s >= 1. then Fmt.str "%.2fs" s
+  else if s >= 1. then Fmt.str "%as" (Decimal.pp ~digits:2) s
   else Fmt.str "%dms" (int_of_float (Float.round (s *. 1000.)))
 
 (* Prints [Resolved 42 packages in 126ms], muted, with the count in bold. *)

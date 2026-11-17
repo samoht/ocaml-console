@@ -181,3 +181,6 @@ module Display = Display
 
 module Progress = Progress
 (** How tasks show: rows, lines, only failures or JSON. *)
+
+module Decimal = Decimal
+(** Numbers with a fixed count of decimals, the same on every platform. *)

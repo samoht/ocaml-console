@@ -6,15 +6,6 @@
 open Console
 open Display_harness
 
-let check_lines msg expected actual =
-  Alcotest.(check (list string)) msg expected actual
-
-let theme = Theme.dos
-let split = String.split_on_char '\n'
-
-(* [untimed l] is [l] without the timer at its end. *)
-let untimed = Re.replace_string (Re.Perl.compile_pat " +[0-9.]+s$") ~by:""
-
 (* A Logs message inside a task is task output, like a line given to [log].
    It shows in the task's window and goes away when the task succeeds, even
    after it leaves the window. When the task fails, it is printed under the

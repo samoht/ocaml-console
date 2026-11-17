@@ -111,14 +111,15 @@ let take_over ({ by = run; _ } as i) =
   let flush () =
     if i.direct () then i.pass.out_flush () else send_held run.display i
   in
+  let blank n = add (String.make (max 0 n) ' ') 0 (max 0 n) in
   Format.pp_set_formatter_out_functions i.ppf
     {
       i.out with
       out_string = add;
       out_flush = flush;
       out_newline = (fun () -> add "\n" 0 1);
-      out_spaces = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
-      out_indent = (fun n -> add (String.make (max 0 n) ' ') 0 (max 0 n));
+      out_spaces = blank;
+      out_indent = blank;
     }
 
 let take ~direct run ppf =

@@ -9,6 +9,7 @@ let required () =
   | Some _ -> true
 
 let open_pty ~sw =
+  if Sys.win32 then Alcotest.skip ();
   match Eio_unix.Pty.open_pty ~sw () with
   | pty -> pty
   | exception Unix.Unix_error (Unix.EPERM, "posix_openpt", _) ->

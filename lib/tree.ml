@@ -79,4 +79,4 @@ let view ?guide ?(indent = 0) t =
   if indent < 0 then invalid_arg "Console.Tree.view: negative indent";
   let parts = labels t in
   View_core.deferred ~kind:(View_core.kinds parts) (fun c ->
-      View_core.concat ~sep:(View_core.text "\n") (lines c ~guide ~indent t))
+      View_core.unlines (lines c ~guide ~indent t))
