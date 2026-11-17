@@ -91,7 +91,8 @@
   systhread, or two domains starting at once, no longer raises (#37).
 
 - Windows: a run no longer raises `Invalid_argument` at start, because
-  Windows has no SIGTSTP (#79).
+  Windows has no SIGTSTP (#79). A program whose display writes to a pipe
+  that closes now exits as it returns, not with status 2 (#93).
 
 - Errors and cancellation: an exception from `commit` or `plain` no longer
   escapes `Task.run` (#26). A cancelled fiber stops in the view instead of
