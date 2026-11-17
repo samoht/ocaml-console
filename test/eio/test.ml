@@ -21,8 +21,14 @@ let guarded (name, cases) =
                 (fun () -> f x) ))
         cases )
 
+(* Domains that Eio.Domain_manager starts on io_uring have no fallback, and in
+   opam's sandboxes they run out of locked memory (ocaml-multicore/eio#958). So
+   the tests run on Eio's posix backend, except on Windows, which has its own. *)
 let () =
-  if not Sys.win32 then Sys.set_signal Sys.sigalrm Sys.Signal_default;
+  if not Sys.win32 then begin
+    Unix.putenv "EIO_BACKEND" "posix";
+    Sys.set_signal Sys.sigalrm Sys.Signal_default
+  end;
   Alcotest.run "console_eio"
   @@ List.map guarded
        [

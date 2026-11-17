@@ -1,3 +1,10 @@
+## unreleased
+
+### Fixed
+
+- Windows: the tests of `console` and `console-eio` pass in opam builds,
+  which ran every Eio program on the posix backend that Windows lacks (#101).
+
 ## 0.10.0 (17/11/2026)
 
 ### Added
