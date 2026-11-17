@@ -96,6 +96,27 @@ jobs:
       # The quotes keep PowerShell from reading a list and two splats.
       - run: opam exec -- dune build -p 'console,console-eio,console-lwt' '@install' '@runtest'
 
+  # OxCaml infers some values as local, a partial application among them, and
+  # refuses them where a global one is expected, so code that OCaml compiles
+  # can fail with OxCaml. console-lwt is left out: OxCaml's opam repository has
+  # no lwt it accepts.
+  oxcaml:
+    name: OxCaml
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: oxcaml-compiler.5.4.0-ox9
+          opam-repositories: |
+            ox: git+https://github.com/oxcaml/opam-repository.git#b66db7ae4ad21debd1b078635cc92e88d73610f8
+            default: https://opam.ocaml.org
+
+      - run: opam install ./console.opam ./console-eio.opam --deps-only
+      - run: opam exec -- dune build -p console,console-eio @install
+
   # odoc cannot resolve references to the modules of other libraries, such as
   # Fmt.stderr, in console's documentation: those warnings are expected. Any
   # other warning is a reference of console's own that is broken.
