@@ -325,12 +325,14 @@ let test_secret_after_a_line () = secret_after ~before:"name" "name\nearly\n"
 
 (* While one fiber waits for an answer, the output of another fiber still
    belongs to its task. Only the prompting fiber writes directly. [run] takes
-   the program's output from [Fmt.stdout], which writes into a buffer here. *)
+   the program's output from [Fmt.stdout], which writes into a buffer here. The
+   answer arrives once the other fiber has printed. *)
 let test_prompt_leaves_other_fibers_attributed () =
   Eio_main.run @@ fun _env ->
-  Eio.Switch.run @@ fun sw ->
   let clock = Eio_mock.Clock.Mono.make () in
-  let source, sink = Eio_unix.pipe sw in
+  let source = Eio_mock.Flow.make "stdin" in
+  let typed, type_answer = Eio.Promise.create () in
+  Eio_mock.Flow.on_read source [ `Await typed ];
   let questions = Buffer.create 64 in
   let t =
     Prompt.v ~interactive:true
@@ -352,7 +354,7 @@ let test_prompt_leaves_other_fibers_attributed () =
               (fun () -> Prompt.line t "name: ")
               (fun () ->
                 Console.Task.run display "work" (fun _ -> Fmt.pr "from work@.");
-                Eio.Flow.copy_string "alice\n" sink)))
+                Eio.Promise.resolve_ok type_answer "alice\n")))
   in
   Alcotest.check string_answer "the answer" (Got "alice") (seen (fst answer));
   Alcotest.(check bool)
