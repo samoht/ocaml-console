@@ -89,6 +89,13 @@
    (= %{profile} dev)
    (<> %{os_type} Win32))))
 
+; Windows meets this failure with a closed pipe, in epipe.t.
+
+(cram
+ (applies_to refused)
+ (enabled_if
+  (<> %{os_type} Win32)))
+
 (test
  (name test)
  (modules :standard \ teardown tty piped events pty_reader terminal)

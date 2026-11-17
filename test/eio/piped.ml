@@ -11,6 +11,8 @@
     - [bare n]: it prints the [n] results alone, without console.
     - [notes n]: as [n], with a Logs warning and a line on standard error after
       each step.
+    - [socket n]: as [n], with standard error on a socket that is not connected.
+      Every write to it fails, and the runtime keeps the bytes in the channel.
     - [exit]: it calls [exit] inside a task. An [at_exit] function, registered
       before, logs and prints.
     - [quiet-long] or [quiet-prompt]: in quiet mode, it leaves an unended line
@@ -57,6 +59,12 @@ let () =
             step display i;
             Logs.warn (fun m -> m "after %d" i);
             Fmt.epr "note %d@." i
+          done)
+  | [| _; "socket"; n |] ->
+      Unix.dup2 (Unix.socket PF_UNIX SOCK_STREAM 0) Unix.stderr;
+      Console_eio.run ~clock (fun display ->
+          for i = 1 to int_of_string n do
+            step display i
           done)
   | [| _; "exit" |] ->
       Logs.set_reporter (Logs_fmt.reporter ());
