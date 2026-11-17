@@ -71,6 +71,31 @@ jobs:
         env:
           CONSOLE_TEST_REQUIRE_PTY: 1
 
+  # opam builds and tests with -p, in the release profile, which ocaml-ci's
+  # Windows job does not use.
+  windows-release:
+    name: Windows release build
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      # opam builds from the release archive, whose lines end in LF.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      # The runner's Strawberry Perl comes first on the path with a pkg-config
+      # script that opam's Cygwin cannot run.
+      - run: Remove-Item C:\Strawberry\perl\bin\pkg-config*
+        shell: pwsh
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '5.4'
+
+      - run: opam install . --deps-only --with-test
+      # The quotes keep PowerShell from reading a list and two splats.
+      - run: opam exec -- dune build -p 'console,console-eio,console-lwt' '@install' '@runtest'
+
   # odoc cannot resolve references to the modules of other libraries, such as
   # Fmt.stderr, in console's documentation: those warnings are expected. Any
   # other warning is a reference of console's own that is broken.
