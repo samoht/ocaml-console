@@ -3,7 +3,8 @@
 ### Fixed
 
 - Windows: in a console window, console draws its live rows and colours,
-  although Windows sets no `TERM` (#108).
+  although Windows sets no `TERM`, and fits them to the window's size
+  (#108, #109).
 
 ## 0.10.1 (18/11/2026)
 
