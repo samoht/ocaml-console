@@ -21,4 +21,4 @@ let setup ?style_renderer ?utf_8 ?theme ~is_tty ppf =
 (* Fmt stores a formatter's style renderer and UTF-8 flag in tag functions,
    which it installs on the first change. If a formatter still has Format's
    own tag functions (apart from its theme slot), nothing was configured. *)
-let ensure ~is_tty ppf = if Slot.unset ppf then setup ~is_tty ppf
+let ensure ?utf_8 ~is_tty ppf = if Slot.unset ppf then setup ?utf_8 ~is_tty ppf

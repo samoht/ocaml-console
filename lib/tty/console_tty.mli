@@ -29,7 +29,10 @@ val setup :
     Each one is a terminal iff [Unix.isatty] says its descriptor is one. It sets
     their style renderer, {!Fmt.utf_8} and {!Console.Color.val-depth} from
     [style_renderer], [utf_8] and the environment, with the rules of
-    {!Console.Env.setup}. If [theme] is given, it becomes the program's theme
+    {!Console.Env.setup}. On Windows, an output that is a console interprets
+    escape sequences, and shows UTF-8 unless [utf_8] is [false]: [setup]
+    switches the console to the UTF-8 code page and gives the old one back at
+    exit. If [theme] is given, it becomes the program's theme
     ({!Console.Theme.set_program}). Both outputs then use it, and so do strings
     built with a new formatter, such as the one that {!Fmt.str} creates.
 

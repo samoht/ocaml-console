@@ -2,9 +2,9 @@
 
 ### Fixed
 
-- Windows: in a console window, console draws its live rows and colours,
-  although Windows sets no `TERM`, and fits them to the window's size
-  (#108, #109).
+- Windows: in a console window, console draws its live rows, colours and
+  UTF-8 glyphs, although Windows sets no `TERM`, and fits them to the
+  window's size (#108, #109, #110).
 
 ## 0.10.1 (18/11/2026)
 
