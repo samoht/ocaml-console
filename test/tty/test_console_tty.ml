@@ -10,7 +10,7 @@ open Env_harness
 let test_colour_rules () =
   let env pairs name = List.assoc_opt name pairs in
   let renderer ~is_tty pairs =
-    match Colour.renderer ~getenv:(env pairs) ~is_tty with
+    match Colour.renderer ~win32:false ~getenv:(env pairs) ~is_tty with
     | `Ansi_tty -> "ansi"
     | `None -> "none"
   in

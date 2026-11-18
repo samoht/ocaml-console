@@ -17,9 +17,7 @@ console never takes over the whole screen. A program that does wants
 
 console supports Linux, macOS, FreeBSD, OpenBSD and Windows. CI builds and
 tests it on each, but Windows has seen less use than the others, so reports
-from Windows users are welcome. Windows does not set `TERM`, and without it
-console prints plain lines with no colour: set `TERM`, for example to
-`xterm-256color`, to get the live progress rows and colours.
+from Windows users are welcome.
 
 ## Contents
 
@@ -152,9 +150,9 @@ Views can also hold links and take their colours from the theme, as the
 A program decides on colour once, with `Console_tty.setup` from the
 `console.tty` library. No output is in colour when
 [`NO_COLOR`](https://no-color.org/) is set and not empty, or when `TERM` is
-unset, empty or `dumb`. Otherwise an output is in colour when it is a
-terminal, with as many colours as `COLORTERM` and `TERM` announce, and it
-shows UTF-8 when the locale does.
+empty or `dumb`, or unset outside Windows, which sets no `TERM`. Otherwise
+an output is in colour when it is a terminal, with as many colours as
+`COLORTERM` and `TERM` announce, and it shows UTF-8 when the locale does.
 
 A `--color=auto|always|never` option from `fmt.cli`, passed to `setup` as
 its `?style_renderer`, overrides that choice:

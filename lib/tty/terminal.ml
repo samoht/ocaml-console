@@ -45,7 +45,8 @@ let descriptor ppf =
   else if ppf == Fmt.stderr then Some Unix.stderr
   else None
 
-let is_terminal fd = Unix.isatty fd && not (Colour.dumb ~getenv:Sys.getenv_opt)
+let is_terminal fd =
+  Unix.isatty fd && not (Colour.dumb ~win32:Sys.win32 ~getenv:Sys.getenv_opt)
 
 let of_ppf ppf =
   match descriptor ppf with

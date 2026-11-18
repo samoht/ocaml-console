@@ -1,3 +1,10 @@
+## unreleased
+
+### Fixed
+
+- Windows: in a console window, console draws its live rows and colours,
+  although Windows sets no `TERM` (#108).
+
 ## 0.10.1 (18/11/2026)
 
 ### Fixed

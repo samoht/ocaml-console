@@ -11,7 +11,7 @@ let setup ?style_renderer ?utf_8 ?theme ~is_tty ppf =
     | Some r -> r
     | None ->
         let is_tty = is_tty || Option.is_some (Cast.file ()) in
-        Colour.renderer ~getenv ~is_tty
+        Colour.renderer ~win32:Sys.win32 ~getenv ~is_tty
   in
   Fmt.set_style_renderer ppf renderer;
   Fmt.set_utf_8 ppf (Option.value utf_8 ~default:(Colour.utf_8 ~getenv));

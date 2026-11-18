@@ -1,0 +1,5 @@
+; Run in a Windows pseudo console by .github/scripts/conpty.py.
+
+(executable
+ (name probe)
+ (libraries console.tty fmt unix))
