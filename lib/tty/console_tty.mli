@@ -51,9 +51,9 @@ val ensure : unit -> unit
     colour, and a program that did keeps its choice. *)
 
 val is_terminal : Unix.file_descr -> bool
-(** [is_terminal fd] is [true] iff [fd] is a terminal and [TERM] is set, not
-    empty and not [dumb]. On such an output a program can move the cursor to
-    redraw what it printed. *)
+(** [is_terminal fd] is [true] iff [fd] is a terminal and [TERM] is neither
+    empty nor [dumb], nor unset outside Windows, which sets no [TERM]. On such
+    an output a program can move the cursor to redraw what it printed. *)
 
 val size : Format.formatter -> (unit -> int * int) option
 (** [size ppf] is [Some size] when [ppf] is {!Fmt.stdout} or {!Fmt.stderr} on a

@@ -24,10 +24,11 @@ val setup :
 
     - The style renderer is [style_renderer] if given, for example as
       [Fmt_cli.style_renderer] reads it from a [--color] option. Otherwise it is
-      [`None] if [NO_COLOR] is set and not empty, or if [TERM] is unset, empty
-      or [dumb]. Otherwise it is [`Ansi_tty] iff [is_tty] holds or
-      [CONSOLE_CAST] records the output. [CLICOLOR_FORCE] and [FORCE_COLOR] are
-      not read; use [--color=always] to force colour.
+      [`None] if [NO_COLOR] is set and not empty, if [TERM] is empty or [dumb],
+      or if [TERM] is unset outside Windows, which sets no [TERM]. Otherwise it
+      is [`Ansi_tty] iff [is_tty] holds or [CONSOLE_CAST] records the output.
+      [CLICOLOR_FORCE] and [FORCE_COLOR] are not read; use [--color=always] to
+      force colour.
     - {!Fmt.utf_8} is [utf_8] if given. Otherwise it is [true] iff the locale's
       character set is UTF-8. The locale is the first of [LC_ALL], [LC_CTYPE]
       and [LANG] that is set and not empty, in POSIX order. An unset locale is

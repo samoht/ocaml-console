@@ -3,14 +3,18 @@
   SPDX-License-Identifier: ISC
   ---------------------------------------------------------------------------*)
 
-(* The same rules as cmdliner and fmt. *)
-let dumb ~getenv =
-  match getenv "TERM" with None | Some ("" | "dumb") -> true | Some _ -> false
+(* The same rules as cmdliner and fmt, except on Windows, which sets no TERM:
+   there, an unset TERM is no dumb terminal. *)
+let dumb ~win32 ~getenv =
+  match getenv "TERM" with
+  | None -> not win32
+  | Some ("" | "dumb") -> true
+  | Some _ -> false
 
-let renderer ~getenv ~is_tty =
+let renderer ~win32 ~getenv ~is_tty =
   match getenv "NO_COLOR" with
   | Some v when v <> "" -> `None
-  | _ -> if dumb ~getenv || not is_tty then `None else `Ansi_tty
+  | _ -> if dumb ~win32 ~getenv || not is_tty then `None else `Ansi_tty
 
 let has ~affix s =
   let n = String.length affix and m = String.length s in

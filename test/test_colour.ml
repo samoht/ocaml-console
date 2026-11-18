@@ -14,7 +14,9 @@ let only names pairs name =
 
 let test_dumb () =
   let check label expected pairs =
-    Alcotest.(check bool) label expected (Colour.dumb ~getenv:(env pairs))
+    Alcotest.(check bool)
+      label expected
+      (Colour.dumb ~win32:false ~getenv:(env pairs))
   in
   check "unset" true [];
   check "empty" true [ ("TERM", "") ];
@@ -24,6 +26,18 @@ let test_dumb () =
   check "a prefix is not dumb" false [ ("TERM", "dumb-emacs") ];
   check "a blank is not empty" false [ ("TERM", " ") ];
   check "other variables are not read" true [ ("COLORTERM", "truecolor") ]
+
+(* Windows sets no TERM: there, only an empty TERM or [dumb] is dumb. *)
+let test_dumb_on_windows () =
+  let check label expected pairs =
+    Alcotest.(check bool)
+      label expected
+      (Colour.dumb ~win32:true ~getenv:(env pairs))
+  in
+  check "unset" false [];
+  check "empty" true [ ("TERM", "") ];
+  check "dumb" true [ ("TERM", "dumb") ];
+  check "xterm" false [ ("TERM", "xterm") ]
 
 let renderer =
   let pp ppf r =
@@ -47,9 +61,11 @@ let test_only_documented () =
   let pairs = [ ("TERM", "xterm") ] in
   Alcotest.(check bool)
     "dumb" false
-    (Colour.dumb ~getenv:(only [ "TERM" ] pairs));
+    (Colour.dumb ~win32:false ~getenv:(only [ "TERM" ] pairs));
   Alcotest.check renderer "renderer" `Ansi_tty
-    (Colour.renderer ~getenv:(only [ "NO_COLOR"; "TERM" ] pairs) ~is_tty:true);
+    (Colour.renderer ~win32:false
+       ~getenv:(only [ "NO_COLOR"; "TERM" ] pairs)
+       ~is_tty:true);
   Alcotest.check depth "depth" `Ansi_16
     (Colour.depth ~getenv:(only [ "COLORTERM"; "TERM" ] pairs));
   Alcotest.(check bool)
@@ -73,10 +89,10 @@ let test_hostile_values () =
   check_depth "-direct after a megabyte" `True_color (long ^ "-direct");
   let hostile_term = [ ("TERM", "\xff\000\027"); ("NO_COLOR", "\xff") ] in
   Alcotest.check renderer "invalid NO_COLOR is set" `None
-    (Colour.renderer ~getenv:(env hostile_term) ~is_tty:true);
+    (Colour.renderer ~win32:false ~getenv:(env hostile_term) ~is_tty:true);
   Alcotest.(check bool)
     "invalid TERM is a TERM" false
-    (Colour.dumb ~getenv:(env hostile_term));
+    (Colour.dumb ~win32:false ~getenv:(env hostile_term));
   let check_utf_8 label expected lang =
     Alcotest.(check bool)
       label expected
@@ -91,6 +107,7 @@ let suite =
   ( "colour",
     [
       Alcotest.test_case "dumb" `Quick test_dumb;
+      Alcotest.test_case "dumb on Windows" `Quick test_dumb_on_windows;
       Alcotest.test_case "reads only the variables it documents" `Quick
         test_only_documented;
       Alcotest.test_case "hostile values" `Quick test_hostile_values;

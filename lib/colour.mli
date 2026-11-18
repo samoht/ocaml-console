@@ -5,14 +5,18 @@
 
 (** Colour and character set from the environment. *)
 
-val dumb : getenv:(string -> string option) -> bool
-(** [dumb ~getenv] is [true] iff [TERM] is unset, empty or [dumb]. A [dumb]
-    terminal has no cursor movement. *)
+val dumb : win32:bool -> getenv:(string -> string option) -> bool
+(** [dumb ~win32 ~getenv] is [true] iff [TERM] is empty or [dumb], or unset and
+    [win32] is [false]. Windows sets no [TERM], so there an unset [TERM] is no
+    dumb terminal. A [dumb] terminal has no cursor movement. *)
 
 val renderer :
-  getenv:(string -> string option) -> is_tty:bool -> Fmt.style_renderer
-(** [renderer ~getenv ~is_tty] is [`None] if [NO_COLOR] is set and not empty, or
-    if {!dumb} holds. Otherwise it is [`Ansi_tty] iff [is_tty]. *)
+  win32:bool ->
+  getenv:(string -> string option) ->
+  is_tty:bool ->
+  Fmt.style_renderer
+(** [renderer ~win32 ~getenv ~is_tty] is [`None] if [NO_COLOR] is set and not
+    empty, or if {!dumb} holds. Otherwise it is [`Ansi_tty] iff [is_tty]. *)
 
 val depth :
   getenv:(string -> string option) -> [ `Ansi_16 | `Ansi_256 | `True_color ]
