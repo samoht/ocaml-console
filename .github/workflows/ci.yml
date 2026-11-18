@@ -149,7 +149,7 @@ jobs:
           python-version: '3.12'
 
       - run: pip install -r .github/scripts/requirements.txt
-      - run: python .github/scripts/conpty.py --line terminal=true --line colour=ansi -- _build/default/test/windows/probe.exe
+      - run: python .github/scripts/conpty.py --line terminal=true --line colour=ansi --line size=100x30 -- _build/default/test/windows/probe.exe
       # Synchronized updates (CSI ? 2026) are what only the live display sends.
       - run: python .github/scripts/conpty.py --raw "`e[?2026h" -- _build/default/examples/quickstart/eio/main.exe
 
