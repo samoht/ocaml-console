@@ -188,25 +188,29 @@ let joined s =
     (List.init (String.length s) (fun i ->
          joiners.(Char.code s.[i] mod Array.length joiners)))
 
-(* [on_screen s] is the column where a terminal's cursor stops after [s]. If
-   the emulator counts the cells differently from console, the sample is
-   discarded ({!Console_vte.counts_as_console}). *)
+(* [on_screen s] is the column where a terminal's cursor stops after [s], or
+   [None] if the emulator counts the cells of [s] differently from console
+   ({!Console_vte.counts_as_console}). *)
 let on_screen s =
-  guard (Console_vte.counts_as_console (Console_text.strip s));
-  let term = Console_vte.v ~rows:1 ~cols:500 () in
-  Console_vte.feed term s;
-  snd (Console_vte.cursor_pos term)
+  if not (Console_vte.counts_as_console (Console_text.strip s)) then None
+  else begin
+    let term = Console_vte.v ~rows:1 ~cols:500 () in
+    Console_vte.feed term s;
+    Some (snd (Console_vte.cursor_pos term))
+  end
 
 (* With VS16, VS15, joiners and marks, a truncated line and every wrapped
-   line fit their width. This holds for console's width and on the
-   terminal. *)
+   line fit their width. This holds for console's width, and on the terminal
+   where the emulator counts as console does. *)
 let test_joiners_fit s n =
   let s = View.text (joined s) and w = 1 + abs (n mod 12) in
   let fits what l =
-    let cells = on_screen (plain l) in
-    if View.width l > w || cells > w then
-      failf "%s to %d is %d cells, %d on the terminal: %S" what w (View.width l)
-        cells (plain l)
+    if View.width l > w then
+      failf "%s to %d is %d cells: %S" what w (View.width l) (plain l);
+    match on_screen (plain l) with
+    | Some cells when cells > w ->
+        failf "%s to %d is %d cells on the terminal: %S" what w cells (plain l)
+    | _ -> ()
   in
   fits "truncated" (View.truncate w s);
   List.iter (fits "wrapped") (View.wrap w s)
@@ -312,10 +316,11 @@ let test_linked_unicode_cuts s n =
   check_eq ~pp:Fmt.int
     (occurrences "\027]8;;https://example.invalid\027\\")
     (occurrences "\027]8;;\027\\");
-  guard (Console_vte.counts_as_console stripped);
-  let vte = Console_vte.v ~rows:1 ~cols:81 () in
-  Console_vte.feed vte raw;
-  check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
+  if Console_vte.counts_as_console stripped then begin
+    let vte = Console_vte.v ~rows:1 ~cols:81 () in
+    Console_vte.feed vte raw;
+    check_eq ~pp:Fmt.int (View.width fitted) (snd (Console_vte.cursor_pos vte))
+  end
 
 (* [check_is_text ~theme t span] checks that [span] is as wide as [t] and
    prints as the text of [t] in [theme]. Without colour the output is that
