@@ -18,6 +18,9 @@ from winpty import PtyProcess
 
 COLS, ROWS = 100, 30
 
+# The runner's console code page cannot encode every glyph the program draws.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--line", action="append", default=[])
 parser.add_argument("--raw", action="append", default=[])

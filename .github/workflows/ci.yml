@@ -149,9 +149,10 @@ jobs:
           python-version: '3.12'
 
       - run: pip install -r .github/scripts/requirements.txt
-      - run: python .github/scripts/conpty.py --line terminal=true --line colour=ansi --line size=100x30 -- _build/default/test/windows/probe.exe
+      - run: python .github/scripts/conpty.py --line terminal=true --line colour=ansi --line size=100x30 --line utf-8=true --line vt=true -- _build/default/test/windows/probe.exe
       # Synchronized updates (CSI ? 2026) are what only the live display sends.
-      - run: python .github/scripts/conpty.py --raw "`e[?2026h" -- _build/default/examples/quickstart/eio/main.exe
+      # The table's frame is drawn with box-drawing glyphs only in UTF-8.
+      - run: python .github/scripts/conpty.py --raw "`e[?2026h" --raw "`u{2500}" -- _build/default/examples/quickstart/eio/main.exe
 
   # odoc cannot resolve references to the modules of other libraries, such as
   # Fmt.stderr, in console's documentation: those warnings are expected. Any

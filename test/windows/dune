@@ -2,4 +2,7 @@
 
 (executable
  (name probe)
+ (foreign_stubs
+  (language c)
+  (names probe_stubs))
  (libraries console.tty fmt unix))

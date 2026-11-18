@@ -6,8 +6,11 @@
 (* What console makes of the terminal on standard output, as one line of
    [key=value] pairs. A test runs it in a Windows pseudo console. *)
 
+external vt : unit -> int = "probe_vt" [@@noalloc]
+
 let () =
   Console_tty.setup ();
+  let vt = match vt () with 1 -> "true" | 0 -> "false" | _ -> "none" in
   let colour =
     match Fmt.style_renderer Fmt.stdout with
     | `Ansi_tty -> "ansi"
@@ -20,6 +23,6 @@ let () =
         Fmt.str "%dx%d" w h
     | None -> "none"
   in
-  Fmt.pr "terminal=%b colour=%s utf-8=%b size=%s@."
+  Fmt.pr "terminal=%b colour=%s utf-8=%b size=%s vt=%s@."
     (Console_tty.is_terminal Unix.stdout)
-    colour (Fmt.utf_8 Fmt.stdout) size
+    colour (Fmt.utf_8 Fmt.stdout) size vt
