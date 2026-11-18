@@ -88,9 +88,12 @@ jobs:
       - run: Remove-Item C:\Strawberry\perl\bin\pkg-config*
         shell: pwsh
 
+      # Before OCaml 5.5, Unix.socketpair on Windows can fail with EADDRINUSE
+      # when several programs start at once, which kills Eio_main.run in a
+      # parallel build (ocaml/ocaml#14461).
       - uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: '5.4'
+          ocaml-compiler: '5.5'
 
       - run: opam install . --deps-only --with-test
       # The quotes keep PowerShell from reading a list and two splats.
