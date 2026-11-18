@@ -38,8 +38,9 @@ val setup :
       contains [256color], and [`Ansi_16] otherwise.
     - The theme is [theme] if given. Otherwise [ppf] keeps its theme. *)
 
-val ensure : is_tty:bool -> Format.formatter -> unit
-(** [ensure ~is_tty ppf] is [setup ~is_tty ppf] ({!setup}) if the program has
-    not configured [ppf], and does nothing otherwise. [ppf] is configured if it
-    has a style renderer or a {!Fmt.utf_8} flag set (with [Fmt], [Fmt_tty] or
-    {!setup}), or a {!Color.val-depth}. Setting a {!Theme} does not count. *)
+val ensure : ?utf_8:bool -> is_tty:bool -> Format.formatter -> unit
+(** [ensure ?utf_8 ~is_tty ppf] is [setup ?utf_8 ~is_tty ppf] ({!setup}) if the
+    program has not configured [ppf], and does nothing otherwise. [ppf] is
+    configured if it has a style renderer or a {!Fmt.utf_8} flag set (with
+    [Fmt], [Fmt_tty] or {!setup}), or a {!Color.val-depth}. Setting a {!Theme}
+    does not count. *)

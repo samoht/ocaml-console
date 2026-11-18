@@ -152,7 +152,8 @@ A program decides on colour once, with `Console_tty.setup` from the
 [`NO_COLOR`](https://no-color.org/) is set and not empty, or when `TERM` is
 empty or `dumb`, or unset outside Windows, which sets no `TERM`. Otherwise
 an output is in colour when it is a terminal, with as many colours as
-`COLORTERM` and `TERM` announce, and it shows UTF-8 when the locale does.
+`COLORTERM` and `TERM` announce, and it shows UTF-8 when the locale does or,
+on Windows, when the output is a console.
 
 A `--color=auto|always|never` option from `fmt.cli`, passed to `setup` as
 its `?style_renderer`, overrides that choice:
