@@ -66,7 +66,10 @@ let escape_c1 s =
     if i < n then
       match s.[i] with
       | '\xc2' when i + 1 < n && Char.code s.[i + 1] land 0xe0 = 0x80 ->
-          Fmt.kstr (Buffer.add_string b) "\\u%04X" (Char.code s.[i + 1]);
+          Fmt.kstr
+            (fun u -> Buffer.add_string b u)
+            "\\u%04X"
+            (Char.code s.[i + 1]);
           go (i + 2)
       | c ->
           Buffer.add_char b c;

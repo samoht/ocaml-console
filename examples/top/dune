@@ -2,8 +2,33 @@
  (name main)
  (libraries console console-eio eio eio_main fmt))
 
+; The program starts domains with Eio.Domain_manager, which on io_uring run
+; out of locked memory in opam's sandboxes (ocaml-multicore/eio#958). It runs
+; on Eio's posix backend, except on Windows, which has its own.
+
 (rule
- (enabled_if %{lib-available:console-eio})
+ (enabled_if
+  (and
+   %{lib-available:console-eio}
+   (<> %{os_type} Win32)))
+ (target top.cast)
+ (action
+  (setenv
+   EIO_BACKEND
+   posix
+   (setenv
+    CONSOLE_CAST
+    %{target}
+    (setenv
+     LINES
+     12
+     (run ./main.exe))))))
+
+(rule
+ (enabled_if
+  (and
+   %{lib-available:console-eio}
+   (= %{os_type} Win32)))
  (target top.cast)
  (action
   (setenv

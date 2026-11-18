@@ -71,6 +71,52 @@ jobs:
         env:
           CONSOLE_TEST_REQUIRE_PTY: 1
 
+  # opam builds and tests with -p, in the release profile, which ocaml-ci's
+  # Windows job does not use.
+  windows-release:
+    name: Windows release build
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      # opam builds from the release archive, whose lines end in LF.
+      - run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      # The runner's Strawberry Perl comes first on the path with a pkg-config
+      # script that opam's Cygwin cannot run.
+      - run: Remove-Item C:\Strawberry\perl\bin\pkg-config*
+        shell: pwsh
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '5.4'
+
+      - run: opam install . --deps-only --with-test
+      # The quotes keep PowerShell from reading a list and two splats.
+      - run: opam exec -- dune build -p 'console,console-eio,console-lwt' '@install' '@runtest'
+
+  # OxCaml infers some values as local, a partial application among them, and
+  # refuses them where a global one is expected, so code that OCaml compiles
+  # can fail with OxCaml. console-lwt is left out: OxCaml's opam repository has
+  # no lwt it accepts.
+  oxcaml:
+    name: OxCaml
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: oxcaml-compiler.5.4.0-ox9
+          opam-repositories: |
+            ox: git+https://github.com/oxcaml/opam-repository.git#b66db7ae4ad21debd1b078635cc92e88d73610f8
+            default: https://opam.ocaml.org
+
+      - run: opam install ./console.opam ./console-eio.opam --deps-only
+      - run: opam exec -- dune build -p console,console-eio @install
+
   # odoc cannot resolve references to the modules of other libraries, such as
   # Fmt.stderr, in console's documentation: those warnings are expected. Any
   # other warning is a reference of console's own that is broken.
