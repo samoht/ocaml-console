@@ -14,7 +14,12 @@ printed therefore stays in the scrollback after it ends.
 console never takes over the whole screen. A program that does wants
 [notty](https://github.com/pqwy/notty) or
 [lambda-term](https://github.com/ocaml-community/lambda-term) instead.
-Windows consoles are not supported.
+
+console supports Linux, macOS, FreeBSD, OpenBSD and Windows. CI builds and
+tests it on each, but Windows has seen less use than the others, so reports
+from Windows users are welcome. Windows does not set `TERM`, and without it
+console prints plain lines with no colour: set `TERM`, for example to
+`xterm-256color`, to get the live progress rows and colours.
 
 ## Contents
 
